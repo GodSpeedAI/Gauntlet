@@ -1,0 +1,19 @@
+# Rust build artifacts
+/target/
+**/target/
+Cargo.lock.bak
+
+# Local environment overrides (spec §8.1: secrets by indirection only, never committed)
+.env
+.env.local
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*~
+
+# Runtime state, evidence, and workspace roots are configuration-defined
+# (GAUNTLET_STATE_DIR / GAUNTLET_ARTIFACT_DIR / GAUNTLET_TMP_DIR / workspace.root,
+# spec §8.3/§8.6). Their default paths are fixed in Task 5's defaults table; entries
+# below are added there rather than guessed here so this file never lags the actual
+# defaults.

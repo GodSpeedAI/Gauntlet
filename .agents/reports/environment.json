@@ -1,0 +1,62 @@
+{
+  "fingerprint_taken_at": "2026-08-15T02:54:47Z",
+  "host": {
+    "os": "Linux",
+    "kernel": "6.18.35.2-microsoft-standard-WSL2",
+    "distro_class": "WSL2 (Windows Subsystem for Linux 2), glibc/Ubuntu userland",
+    "arch": "x86_64",
+    "cpus": 6,
+    "mem_total_gib": 7.8,
+    "mem_available_gib_at_fingerprint": 1.6,
+    "disk_free_gib_project_volume": 761,
+    "shell": "bash 5.3.9",
+    "locale": "C.UTF-8"
+  },
+  "tools": {
+    "rustc": {"present": true, "version": "1.92.0"},
+    "cargo": {"present": true, "version": "1.92.0"},
+    "rustup": {"present": true, "version": "1.29.0", "active_toolchain": "1.92.0-x86_64-unknown-linux-gnu (stable)"},
+    "rust-analyzer": {"present": true, "version": "1.92.0"},
+    "just": {"present": true, "version": "1.58.0"},
+    "cargo-nextest": {"present": false, "status": "installing", "install_method": "cargo install cargo-nextest --locked", "needed_for": "just test, all task gates", "fallback": "cargo test (workspace-wide, slower, less isolation between test binaries)", "weakens_invariant": false, "note": "installation in progress at fingerprint time; report will be corrected once resolved"},
+    "cargo-deny": {"present": false, "status": "installing", "install_method": "cargo install cargo-deny --locked", "needed_for": "just deny, dependency policy (AGENTS.md Dependencies section)", "fallback": "manual Cargo.lock/advisory review", "weakens_invariant": false, "note": "installation in progress at fingerprint time"},
+    "cargo-mutants": {"present": false, "status": "installing", "install_method": "cargo install cargo-mutants --locked", "needed_for": "Task 24 mutation testing, AK-070", "fallback": "none acceptable long-term; AK-070 cannot be settled without it", "weakens_invariant": false, "note": "installation in progress at fingerprint time"},
+    "git": {"present": true, "version": "2.53.0"},
+    "sqlite3_cli": {"present": true, "version": "3.46.1", "needed_for": "manual inspection of the default StateStore backend (rusqlite is a library dependency, not this CLI)"},
+    "python3": {"present": true, "version": "3.14.4", "needed_for": "gate scripts (e.g. answer-key unit count checks, JSON assertions in task gates)"},
+    "node": {"present": true, "version": "v24.19.0"},
+    "bun": {"present": true, "version": "1.3.14"},
+    "uv": {"present": true, "version": "0.12.1"},
+    "gh": {"present": true, "version": "2.46.0"},
+    "docker": {"present": false, "needed_for": "container-tier Sandbox backend for cross_cutting", "fallback": "bubblewrap as the strongest available real backend for all tiers up to and including cross_cutting", "weakens_invariant": "yes — cross_cutting containment is user-namespace-grade, not container/VM-grade; recorded in docs/CONFORMANCE.md per spec Annex F and the Task 14 redesign trigger"},
+    "podman": {"present": false, "needed_for": "same as docker", "fallback": "same as docker"},
+    "qemu_or_firecracker": {"present": false, "needed_for": "hardware-isolated microVM Sandbox backend, spec Annex F 'typical for cross_cutting'", "fallback": "bubblewrap; no VM-grade backend available on this host", "weakens_invariant": "yes — same note as docker"},
+    "firejail": {"present": false, "needed_for": "alternative sandbox backend", "fallback": "bubblewrap covers this role"},
+    "bwrap": {"present": true, "version": "0.11.1", "smoke_test": "bwrap --ro-bind / / --dev /dev --proc /proc --unshare-net --die-with-parent -- echo bwrap-ok  =>  bwrap-ok", "role": "real Sandbox backend for contained and local tiers (spec §17.3); also the strongest available backend for cross_cutting given no container/VM backend exists on this host"}
+  },
+  "sandbox": {
+    "backends": {
+      "none": {"available": true, "note": "trivial adapter, tier contained only per spec §6.3"},
+      "bwrap": {"available": true, "verified": true, "tiers_supported": ["contained", "local", "cross_cutting (degraded — no container/VM alternative present)"]},
+      "container": {"available": false, "reason": "no docker/podman installed"},
+      "microvm": {"available": false, "reason": "no qemu/firecracker installed"}
+    },
+    "irreversible_tier_policy_file_must_be_absent": true,
+    "apparmor_profile_registration": "not detected at /sys/kernel/security/apparmor (WSL2 kernel); does not block bwrap's own user-namespace isolation, which was smoke-tested successfully"
+  },
+  "fallbacks": {
+    "cross_cutting_sandbox": "bubblewrap only; no container or microVM backend available — recorded as a real, not simulated, containment weakness in docs/CONFORMANCE.md once written (Task 27)",
+    "test_runner": "cargo-nextest install in progress; if it fails, contract/proof/antigaming suites still define correctly under plain `cargo test`, but just.test target assumes nextest per the plan and AGENTS.md — a fallback to cargo test would be recorded as a deviation, not silently substituted"
+  },
+  "reference_profile": {
+    "chosen": "Rust workspace per spec §24.2 (default, non-normative reference profile)",
+    "confirmed_by": "unattended run — operator is not interactively available (explicit instruction: do not wait for approval); Rust toolchain is present and fully functional, so the spec's default profile applies with no redesign trigger required",
+    "redesign_trigger_evaluated": "spec §24.2 Task 0 redesign trigger ('no Rust toolchain and no way to install one') does not apply — toolchain present"
+  },
+  "gauntlet_env_vars_preset": 0,
+  "delegation_mechanism": {
+    "verified_empirically": true,
+    "report": ".agents/reports/delegation-spike.md",
+    "finding": "admission-based, matching spec D1/Annex C; no AgentRunner port adaptation required"
+  }
+}
