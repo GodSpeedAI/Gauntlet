@@ -1,0 +1,184 @@
+# Reference manifest (spec Core-spec.md §5.3.1, §9). This is the manifest layer; the
+# checkable-Unit projection lives separately in .wayfinder/answer-key.md (Annex A,
+# frozen verbatim) so the two never become competing copies of the same 70 claims —
+# `units` below is intentionally empty; see the note on that key.
+reference:
+  id: gauntlet-core-bootstrap
+  version: 1
+  # Digest over this file's own normalized bytes is deliberately NOT embedded here —
+  # a self-referential hash field cannot be consistent with its own content without a
+  # fixed point. The manifest digest (and the answer-key digest) are computed by
+  # scripts/reference-digest.sh and recorded externally in .gauntlet/reference.lock,
+  # which is the actual freeze record this run is graded against (spec §9.4).
+  digest: null
+
+  source_refs:
+    - .agents/specs/Core-spec.md
+
+  purpose: >
+    Build a reference-anchored Gauntlet runtime — the governed
+    Reference -> Transform -> Observe -> Compare -> Verify -> Select -> Correct ->
+    Settle -> Remember control loop defined in Core-spec.md v2 — to Core conformance
+    (spec §24.1), so that from Task 20 onward the runtime can execute its own
+    remaining build tasks as a Gauntlet run against this same frozen answer key
+    (dogfooding, spec §19.5), and so that reaching that point is itself demonstrated
+    with preserved evidence rather than claimed.
+
+  desired_state: >
+    An operator can enter this repository, run `gauntlet doctor` and `gauntlet run
+    "<desired transformation>"` through the CLI, and receive a result whose
+    completion claim is backed by durable, pinned evidence for every blocking Unit —
+    with the builder never able to modify what its work is graded against, the
+    critic never able to close a Unit by itself, missing evidence never counted as
+    passing, and the whole loop resumable from a crash without reconstructing state
+    from conversation. Core profile is REQUIRED; Extended and Self-improving are not
+    started before Core's proofs pass (spec §24.1).
+
+  invariants:
+    - id: I1
+      statement: The builder never modifies the standard its work is evaluated against.
+    - id: I2
+      statement: Observation is not the builder's completion claim.
+    - id: I3
+      statement: Critic is not verifier.
+    - id: I4
+      statement: The builder cannot review itself (structural context blindness).
+    - id: I5
+      statement: Similarity never authorizes.
+    - id: I6
+      statement: No false capability credit.
+    - id: I7
+      statement: Self-improvement is governed structural revision.
+    - id: I8
+      statement: Missing evidence is not passing evidence.
+    - id: I9
+      statement: Authority gates whether it runs; sandbox gates how contained it is.
+    - id: I10
+      statement: The runtime is bounded even when configuration is incomplete.
+    - id: I11
+      statement: Critical state is never reconstructed from conversational memory.
+    - id: I12
+      statement: Core control logic depends on semantic ports, never on products.
+
+  constraints:
+    - Rust workspace; ports-and-adapters layering per spec §4.1, compile-enforced (§24.3).
+    - Nothing hardcoded outside one declared defaults module (spec §8.1, §8.6).
+    - Domain and application layers carry zero compile-time dependency on any
+      provider, harness, MCP client, database, browser, or sandbox implementation
+      (spec I12).
+    - Every port ships a shared contract test suite; adapters pass it, never a
+      bespoke suite (AGENTS.md, spec §7.3).
+    - AgentRunner is admission-based (invoke -> handle; poll/collect against a
+      declared result-contract path); nothing awaits a delegation result (spec D1,
+      §6.1, §10.3) — empirically confirmed for this session's own harness too, see
+      .agents/reports/delegation-spike.md.
+    - Answer key, frozen reference, evidence store, and event log stay outside every
+      builder-writable path at all times (spec §16.4, §17.5).
+    - cross_cutting containment on this host runs under bubblewrap only — no
+      container or microVM backend is available (.agents/reports/environment.md).
+      irreversible units get no sandbox policy file, by design (spec §17.3).
+
+  anti_goals:
+    - The builder settling its own work, or a critic verdict alone closing a Unit.
+    - Unsandboxed execution above tier `contained` under any fallback condition.
+    - Fabricating a reference silently when none is sufficient (spec §4.2 Formation).
+    - One successful run being reported or treated as a promoted capability.
+    - A faster loop that got faster by skipping or weakening verification (spec §19.2).
+    - Editing `.wayfinder/answer-key.md` after this freeze for any reason, including
+      a gate that will not otherwise pass (spec §0.1, plan Task 1 guardrail).
+
+  # Units are NOT duplicated here. The checkable projection of this manifest is
+  # `.wayfinder/answer-key.md` (AK-001..AK-070, copied verbatim from Core-spec.md
+  # Annex A and frozen — see .gauntlet/reference.lock). Keeping them out of this file
+  # is deliberate: two copies of the same 70 claims is exactly the kind of competing
+  # source of truth spec §25 forbids.
+  units: []
+
+  quality_dimensions:
+    - id: QD-architecture
+      description: Ports-and-adapters layering holds; no adapter identifier leaks inward.
+      desired_condition: crates/gauntlet-arch-tests denylist and dependency-direction checks pass.
+      evidence_required: [tests/contract/architecture_boundaries]
+      comparison_method: deterministic-diff (static_check)
+      threshold: zero violations
+      weight: null
+      blocking: true
+    - id: QD-evidence-completeness
+      description: Every settled Unit carries resolvable, non-stale, correctly-produced evidence.
+      desired_condition: no Unit reaches `settled` without a PASS VerificationRecord and pinned EvidenceRef.
+      evidence_required: [tests/proofs/p12_missing_is_not_passing]
+      comparison_method: deterministic-diff (static_check + test)
+      threshold: zero exceptions
+      weight: null
+      blocking: true
+    - id: QD-recoverability
+      description: The loop survives interruption without reconstructing state from conversation.
+      desired_condition: kill-and-resume tests settle exactly once with no lost evidence.
+      evidence_required: [tests/proofs/p7_recovery]
+      comparison_method: deterministic-diff (test)
+      threshold: zero double-commits, zero lost events
+      weight: null
+      blocking: true
+    - id: QD-anti-gaming
+      description: All sixteen gaming strategies (spec §23.2, G1-G16) are rejected, not merely undetected.
+      desired_condition: each strategy's test fails when its defense is deliberately removed (teeth).
+      evidence_required: [tests/antigaming]
+      comparison_method: deterministic-diff (test) + cargo-mutants on defended paths
+      threshold: 16/16 covered, zero surviving mutants in defended paths
+      weight: null
+      blocking: true
+
+  settlement:
+    success_criteria:
+      - Every blocking Unit in .wayfinder/answer-key.md is `settled` with PASS
+        verification and pinned evidence.
+      - just check / just test / just lint / just deny / just boundaries / just ruler
+        all exit 0.
+      - docs/CONFORMANCE.md states no status ahead of a passing test.
+    required_evidence:
+      - tests/proofs/p1_reference_integrity through p12_missing_is_not_passing
+      - tests/antigaming (G1-G16)
+      - .agents/reports/conformance.json with no `PASS` Unit lacking a resolvable
+        evidence_ref
+    minimum_reliability: >
+      spec §19.2 default: >= 3 settlements under recorded variation plus >= 1
+      handled recovery event before any capability is promoted (I6); a single clean
+      run never promotes.
+    terminal_conditions: [settled, blocked, budget_exhausted, escalated, aborted, inconclusive]
+
+  unknowns:
+    - id: UNK-001
+      question: >
+        Which containment backend will `cross_cutting` actually run under in
+        production use of this runtime, beyond this build host's bwrap-only
+        environment?
+      status: open
+      recorded_at: 2026-08-14
+      note: >
+        This build host (.agents/reports/environment.md) has bubblewrap but no
+        container or microVM backend. Task 14 wraps cross_cutting with bwrap as the
+        strongest available real backend and records the limitation in
+        docs/CONFORMANCE.md rather than assuming a stronger backend exists elsewhere.
+    - id: UNK-002
+      question: Should this repository carry a LICENSE, and if so which one?
+      status: open
+      recorded_at: 2026-08-14
+      note: >
+        Not evidenced anywhere in the operator's instructions or existing repo
+        content; not invented. No LICENSE file added pending an explicit decision.
+    - id: UNK-003
+      question: >
+        Beyond prime-agent and a generic cli-agent (Tasks 15-16), which concrete
+        AgentRunner should GAUNTLET.md's default `runners.default` name for this
+        repository's day-to-day use?
+      status: open
+      recorded_at: 2026-08-14
+      note: Deferred to Task 5 (config/doctor) and Task 15/16 (adapters exist first).
+
+  assumptions:
+    - This repository is intended to remain private/internal for now (see UNK-002).
+    - Rust is the desired and acceptable implementation language on this host
+      (toolchain present and working; spec §24.2 default profile applies).
+    - This WSL2 build host is representative enough of the eventual run environment
+      that its sandbox/tool inventory is a reasonable basis for Task 14's containment
+      decisions, pending revision if that assumption proves wrong (see UNK-001).

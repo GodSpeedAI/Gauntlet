@@ -1,0 +1,13 @@
+{
+  "answer_key_path": ".wayfinder/answer-key.md",
+  "answer_key_digest": "sha256:ccc7c99be3d3b60488930eed9975dc6d67378a84bf3b13910b48511e9c228859",
+  "manifest_path": ".wayfinder/reference.yaml",
+  "manifest_digest": "sha256:95331d3e345fa799e9840dbdb02b60b7c41c73be84c96fb7ecc1068775ba5e94",
+  "algo": "sha256",
+  "frozen_at": "2026-08-15T03:04:35Z",
+  "spec_source": ".agents/specs/Core-spec.md",
+  "spec_annex": "Annex A — Bootstrap answer key (the ruler)",
+  "unit_count": 70,
+  "digest_tool": "scripts/reference-digest.sh",
+  "note": "Frozen per Core-spec.md §0.1/§9.4 and plan Task 1. From this record's frozen_at instant, .wayfinder/answer-key.md is never edited for any reason, including a gate that will not otherwise pass. A Unit that seems wrong becomes a dated entry in .agents/reports/reference-candidates.md with evidence; this lock file is the ground truth digest is checked against, not memory or a rerun of judgement."
+}
