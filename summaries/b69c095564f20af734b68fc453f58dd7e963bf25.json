@@ -1,0 +1,79 @@
+{
+	"version": 5,
+	"commitHash": "b69c095564f20af734b68fc453f58dd7e963bf25",
+	"commitMessage": "task 2: workspace skeleton, command surface, boundary enforcement",
+	"commitAuthor": "Sam Prime",
+	"commitDate": "2026-08-15T18:34:14.000Z",
+	"branch": "main",
+	"generatedAt": "2026-08-15T18:34:37.994Z",
+	"commitType": "commit",
+	"commitSource": "cli",
+	"transcriptEntries": 16,
+	"conversationTurns": 8,
+	"conversationTokens": 840560,
+	"conversationTokenBreakdown": {
+		"input": 204,
+		"output": 145781,
+		"cached": 694575
+	},
+	"conversationModels": [
+		{
+			"model": "claude-sonnet-5",
+			"provider": "anthropic",
+			"input": 112,
+			"output": 76462,
+			"cached": 231136
+		},
+		{
+			"model": "claude-opus-5",
+			"provider": "anthropic",
+			"input": 92,
+			"output": 69319,
+			"cached": 463439
+		}
+	],
+	"estimatedCostUsd": 6.643954750000001,
+	"pricesAsOf": "2026-07-30",
+	"llm": {
+		"model": "unknown",
+		"inputTokens": 0,
+		"outputTokens": 0,
+		"apiLatencyMs": 0,
+		"stopReason": "error"
+	},
+	"stats": {
+		"filesChanged": 54,
+		"insertions": 6571,
+		"deletions": 33
+	},
+	"topics": [],
+	"diffStats": {
+		"filesChanged": 54,
+		"insertions": 6571,
+		"deletions": 33
+	},
+	"summaryError": "llm-failed",
+	"plans": [
+		{
+			"slug": "delegation-spike-b69c0955",
+			"title": "Delegation spike — admission vs. completion (Task 0, step 2)",
+			"addedAt": "2026-08-15T03:09:17.212Z",
+			"updatedAt": "2026-08-15T18:34:36.796Z"
+		},
+		{
+			"slug": "environment-b69c0955",
+			"title": "Environment fingerprint — Task 0",
+			"addedAt": "2026-08-15T03:09:17.212Z",
+			"updatedAt": "2026-08-15T18:34:36.913Z"
+		},
+		{
+			"slug": "CURRENT_STATUS-b69c0955",
+			"title": "Current status — HANDOFF DOCUMENT",
+			"addedAt": "2026-08-15T03:09:17.212Z",
+			"updatedAt": "2026-08-15T18:34:36.918Z"
+		}
+	],
+	"transcripts": [
+		"3bd6d254-c0ea-408b-9c04-3baeed16a96b"
+	]
+}
