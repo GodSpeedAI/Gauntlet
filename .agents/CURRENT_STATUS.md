@@ -8,15 +8,14 @@ of `.agents/plans/gauntlet-impl.md`, stopping at Task 20 or first all-blocked st
 
 | Task | State |
 |---|---|
-| 0 — Recon, toolchain, delegation spike | **in progress**: environment fingerprint written, delegation spike confirmed admission-based delegation, directory skeleton created; `cargo-nextest`/`cargo-deny`/`cargo-mutants` installs running in background |
-| 1 — Freeze the ruler | not started |
-| 2–20 | not started |
+| 0 — Recon, toolchain, delegation spike | **done**, committed (`76e491a`). All three missing tools (`cargo-nextest` 0.9.143, `cargo-deny` 0.20.2, `cargo-mutants` 27.1.0) finished installing and are confirmed present. |
+| 1 — Freeze the ruler | **done**, committed (`bf09a30`). `.wayfinder/answer-key.md` frozen (70 units, byte-identical to spec Annex A), digest locked in `.gauntlet/reference.lock`, `just ruler` gate + teeth check both demonstrated on the real file and reverted cleanly. |
+| 2 — Workspace skeleton + justfile + gates + boundary test | **not started** — next up. Plan: builder + blind-critic workflow via the `Workflow` tool, per AGENTS.md delegation rules (orchestrator does not implement while delegation is available). |
+| 3–20 | not started |
 
 ## Open background work
 
-- Installing `cargo-nextest`, `cargo-deny`, `cargo-mutants` via `cargo install --locked`
-  (host has no prebuilt binaries available offline; building from source, ~6-core/8GB
-  WSL2 host, memory is tight — see `.agents/reports/environment.md`).
+None currently running.
 
 ## Key decisions recorded so far
 
