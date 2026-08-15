@@ -1,0 +1,33 @@
+{
+	"version": 5,
+	"commitHash": "bf09a309d1be9e68de29cf89cb8b752fbc2fa75d",
+	"commitMessage": "freeze: bootstrap ruler",
+	"commitAuthor": "Sam Prime",
+	"commitDate": "2026-08-15T03:06:03.000Z",
+	"branch": "main",
+	"generatedAt": "2026-08-15T03:06:30.411Z",
+	"commitType": "commit",
+	"commitSource": "cli",
+	"transcriptEntries": 0,
+	"conversationTurns": 0,
+	"llm": {
+		"model": "unknown",
+		"inputTokens": 0,
+		"outputTokens": 0,
+		"apiLatencyMs": 0,
+		"stopReason": "error"
+	},
+	"stats": {
+		"filesChanged": 6,
+		"insertions": 854,
+		"deletions": 0
+	},
+	"topics": [],
+	"diffStats": {
+		"filesChanged": 6,
+		"insertions": 854,
+		"deletions": 0
+	},
+	"summaryError": "llm-failed",
+	"transcripts": []
+}
