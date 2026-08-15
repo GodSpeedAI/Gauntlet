@@ -1,0 +1,412 @@
+//! Repo-tree walking and scope decisions (plan Task 2, recritique class A).
+//!
+//! The governing rule of this module is **what gets scanned must equal what
+//! compiles**. Every earlier hole in it was a place where the walk trusted a
+//! declaration instead of the filesystem:
+//!
+//! - a symlink is neither `is_dir()` nor `is_file()`, so it vanished from the
+//!   walk while `rustc` followed it (R3/R17/R25) — it is now a violation;
+//! - a file that could not be read, was not UTF-8, or was over the size
+//!   ceiling was silently skipped (R5/R26) — it is now a violation, because
+//!   missing evidence is not passing evidence (I8);
+//! - the scope was four hardcoded prefixes, so `#[path]`/`include!` targets
+//!   escaped it (R4/R25) — see `crate::escapes`.
+
+use std::path::{Path, PathBuf};
+
+/// The four core crates whose sources are policed (spec §24.3): everything
+/// provider-, harness-, database-, browser-, or sandbox-specific belongs
+/// under `crates/adapters/**` or in configuration — never here.
+pub const CORE_CRATES: &[&str] = &[
+    "crates/gauntlet-domain",
+    "crates/gauntlet-ports",
+    "crates/gauntlet-app",
+    "crates/gauntlet-cli",
+];
+
+/// The inner layers — domain, ports, application. Spec §24.3's second bullet
+/// and AK-002/AK-014 scope the *adapter identifier* ban to "domain or
+/// application source", so this, not [`CORE_CRATES`], is the scope of the
+/// derived adapter-name denylist. See [`COMPOSITION_ROOT`].
+pub const INNER_CRATES: &[&str] = &[
+    "crates/gauntlet-domain",
+    "crates/gauntlet-ports",
+    "crates/gauntlet-app",
+];
+
+/// The composition root (spec §4.1: "cli wires everything"). It is a core
+/// crate for the vendor denylist and for the hardcoded-literal scan, but it
+/// is deliberately OUTSIDE the adapter-identifier scope: naming and declaring
+/// adapter crates is precisely its job. Getting this wrong in either
+/// direction is a real failure mode — too strict and Task 20 cannot land
+/// without weakening the gate; too loose and the composition root becomes an
+/// unpoliced region.
+pub const COMPOSITION_ROOT: &str = "crates/gauntlet-cli";
+
+/// The declared defaults module (plan Task 5, spec §8.6): the ONE file where
+/// environment literals are permitted to live. The literal-scan whitelist is
+/// exactly this path — not the whole `config/` directory — so any sibling
+/// module (`config/parser.rs`, …) is policed like every other core source.
+/// The exemption is never vacuous: `crate::check_defaults_exemption` requires
+/// this file either to exist AND be the §8.6 defaults table, or not to exist
+/// at all (recritique R31). The vendor denylist applies to it either way.
+pub const DEFAULTS_MODULE: &str = "crates/gauntlet-app/src/config/defaults.rs";
+
+/// Settings the §8.6 defaults table must name for the literal-scan exemption
+/// on [`DEFAULTS_MODULE`] to be warranted.
+pub const DEFAULTS_TABLE_SETTINGS: &[&str] = &[
+    "max_rounds",
+    "max_parallel",
+    "max_depth",
+    "max_wall_seconds",
+    "recovery_reserve_pct",
+    "diagnostic_budget",
+];
+
+/// Upper bound for a scannable file. Beyond this the file is not skipped —
+/// it is a violation (I8): a scanner that reports "clean" for bytes it never
+/// read is reporting nothing.
+pub const MAX_SCAN_BYTES: u64 = 1024 * 1024;
+
+/// Resolve the repository root from this crate's manifest directory:
+/// `<repo>/crates/gauntlet-arch-tests` two levels up.
+pub fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("repo root resolves")
+}
+
+/// The result of walking the core crates: the regular files found, and the
+/// violations the walk itself discovered (symlinks, unreadable directories).
+#[derive(Default)]
+pub struct CoreTree {
+    /// Repo-relative POSIX paths of regular files, sorted.
+    pub files: Vec<String>,
+    /// Scope-integrity violations found while walking.
+    pub violations: Vec<String>,
+}
+
+/// Walk the four core crates. Symlinks are NOT followed and NOT ignored:
+/// each one is reported, because `rustc` follows them and the scanners
+/// cannot (following them would also let a link escape the repo entirely).
+pub fn core_tree(root: &Path) -> CoreTree {
+    let mut tree = CoreTree::default();
+    for dir in CORE_CRATES {
+        collect_files(root, &root.join(dir), &mut tree);
+    }
+    tree.files.sort();
+    tree.violations.sort();
+    tree
+}
+
+fn collect_files(root: &Path, dir: &Path, tree: &mut CoreTree) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) => {
+            if dir.exists() {
+                tree.violations.push(format!(
+                    "scope-integrity: {}: directory is not readable ({err}) — the scanners cannot \
+                     see what the compiler compiles",
+                    rel_of(root, dir)
+                ));
+            }
+            return;
+        }
+    };
+    let mut sorted: Vec<_> = entries.flatten().collect();
+    sorted.sort_by_key(|entry| entry.file_name());
+    for entry in sorted {
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            tree.violations.push(format!(
+                "scope-integrity: {}: file type is not readable — a file the scanners cannot \
+                 classify is missing evidence, not a pass",
+                rel_of(root, &path)
+            ));
+            continue;
+        };
+        if file_type.is_symlink() {
+            let target = std::fs::read_link(&path)
+                .map(|t| t.to_string_lossy().replace('\\', "/"))
+                .unwrap_or_else(|_| "<unreadable>".to_string());
+            tree.violations.push(format!(
+                "scope-integrity: {}: symlink to '{target}' inside a core crate — rustc follows \
+                 symlinks and the boundary scanners do not, so the target would compile into the \
+                 crate unscanned (spec §24.3)",
+                rel_of(root, &path)
+            ));
+            continue;
+        }
+        if file_type.is_dir() {
+            collect_files(root, &path, tree);
+        } else if file_type.is_file() {
+            tree.files.push(rel_of(root, &path));
+        } else {
+            tree.violations.push(format!(
+                "scope-integrity: {}: not a regular file, a directory, or a symlink — the \
+                 scanners cannot read it",
+                rel_of(root, &path)
+            ));
+        }
+    }
+}
+
+fn rel_of(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+/// Read one in-scope file as scannable text. `Err` is a VIOLATION message,
+/// never a skip: unreadable, non-UTF-8, and oversized files all mean the
+/// scanners did not see bytes the compiler will (recritique R5/R26, I8).
+pub fn read_scannable(root: &Path, rel: &str) -> Result<String, String> {
+    let path = root.join(rel);
+    match std::fs::metadata(&path) {
+        Ok(meta) if meta.len() > MAX_SCAN_BYTES => {
+            return Err(format!(
+                "scope-integrity: {rel}: {} bytes exceeds the {MAX_SCAN_BYTES}-byte scan ceiling \
+                 — split it or move it out of a core crate; an unscanned file is missing \
+                 evidence, not a pass",
+                meta.len()
+            ));
+        }
+        Ok(_) => {}
+        Err(err) => {
+            return Err(format!(
+                "scope-integrity: {rel}: metadata is not readable ({err}) — missing evidence is \
+                 not passing evidence"
+            ));
+        }
+    }
+    let bytes = std::fs::read(&path)
+        .map_err(|err| format!("scope-integrity: {rel}: not readable ({err})"))?;
+    String::from_utf8(bytes).map_err(|_| {
+        format!(
+            "scope-integrity: {rel}: not valid UTF-8 — a binary blob inside a core crate cannot \
+             be scanned; move it out of the core tree"
+        )
+    })
+}
+
+/// Denylist scope (mechanism b): every regular file under the core crates —
+/// `.rs`, `Cargo.toml`, and any other text file — excluding nothing. The
+/// defaults module is not exempt from the denylist, only from the literal
+/// scan.
+///
+/// This predicate must stay exactly [`is_core_path`]. `crate::check_denylist`
+/// asserts that equality over the whole walked tree, so an added exclusion
+/// (`&& !rel.contains("/generated/")`) fails the gate instead of silently
+/// shrinking it (recritique R30).
+pub fn in_denylist_scope(rel: &str) -> bool {
+    is_core_path(rel)
+}
+
+/// Hardcoded-literal scope (mechanism c): the denylist scope minus the
+/// declared defaults module. `crates/gauntlet-arch-tests` is not a core
+/// crate, so this crate's own pattern strings are outside the scope by
+/// construction, not by special case.
+pub fn in_literal_scope(rel: &str) -> bool {
+    in_denylist_scope(rel) && rel != DEFAULTS_MODULE
+}
+
+/// Adapter-identifier scope (AK-002, AK-014, spec §24.3 second bullet):
+/// domain, ports, and application only. See [`COMPOSITION_ROOT`] for why the
+/// cli is excluded — and note it stays in [`in_denylist_scope`] and
+/// [`in_literal_scope`], so it is not an unpoliced region.
+pub fn in_adapter_identifier_scope(rel: &str) -> bool {
+    INNER_CRATES
+        .iter()
+        .any(|c| rel == *c || rel.starts_with(&format!("{c}/")))
+}
+
+pub fn is_core_path(rel: &str) -> bool {
+    CORE_CRATES
+        .iter()
+        .any(|c| rel == *c || rel.starts_with(&format!("{c}/")))
+}
+
+/// The core crate directory a repo-relative path belongs to, if any.
+pub fn core_crate_dir_of(rel: &str) -> Option<&'static str> {
+    CORE_CRATES
+        .iter()
+        .find(|c| rel.starts_with(&format!("{c}/")))
+        .copied()
+}
+
+#[cfg(test)]
+mod scope_tests {
+    use super::*;
+
+    #[test]
+    fn scope_decisions_match_the_declared_exclusions() {
+        // Core sources are policed.
+        assert!(in_denylist_scope("crates/gauntlet-domain/src/lib.rs"));
+        assert!(in_denylist_scope("crates/gauntlet-domain/src/deep/leaf.rs"));
+        assert!(in_denylist_scope("crates/gauntlet-cli/Cargo.toml"));
+
+        // Adapters and this test crate are never in scope: identifiers and
+        // literals are legal there and in configuration.
+        assert!(!in_denylist_scope(
+            "crates/adapters/gauntlet-adapter-state-sqlite/src/lib.rs"
+        ));
+        assert!(!in_denylist_scope(
+            "crates/adapters/gauntlet-adapter-compare-diff/Cargo.toml"
+        ));
+        assert!(!in_denylist_scope(
+            "crates/gauntlet-arch-tests/src/denylist.rs"
+        ));
+
+        // Every regular file in a core crate is in both scopes, whatever its
+        // extension — a vendor name or environment literal does not stop
+        // being a leak by moving into a `.txt` or a `.json`.
+        assert!(in_denylist_scope("crates/gauntlet-app/README.md"));
+        assert!(in_denylist_scope("crates/gauntlet-app/fixtures/notes.txt"));
+        assert!(in_literal_scope("crates/gauntlet-app/fixtures/notes.txt"));
+        assert!(in_literal_scope("crates/gauntlet-cli/data/wiring.json"));
+
+        // Recritique R30: no subtree may be carved out of the scan. A
+        // `/generated/` (or any other) exclusion has to fail here.
+        assert!(in_denylist_scope(
+            "crates/gauntlet-app/src/generated/wiring.rs"
+        ));
+        assert!(in_literal_scope(
+            "crates/gauntlet-app/src/generated/wiring.rs"
+        ));
+        assert!(in_denylist_scope("crates/gauntlet-app/target/build.rs"));
+        assert!(in_denylist_scope("crates/gauntlet-app/vendor/store.rs"));
+
+        // The defaults module is exempt from the literal scan only — and the
+        // exemption is exactly that one file, not the config directory.
+        assert!(in_denylist_scope(
+            "crates/gauntlet-app/src/config/defaults.rs"
+        ));
+        assert!(!in_literal_scope(
+            "crates/gauntlet-app/src/config/defaults.rs"
+        ));
+        assert!(in_denylist_scope(
+            "crates/gauntlet-app/src/config/parser.rs"
+        ));
+        assert!(in_literal_scope("crates/gauntlet-app/src/config/parser.rs"));
+        assert!(in_literal_scope("crates/gauntlet-app/src/anything_else.rs"));
+        assert!(!in_literal_scope(
+            "crates/gauntlet-arch-tests/src/literals.rs"
+        ));
+    }
+
+    #[test]
+    fn adapter_identifier_scope_is_the_inner_layers_only() {
+        // AK-002/§24.3: domain and application source may not name adapters.
+        for inner in [
+            "crates/gauntlet-domain/src/lib.rs",
+            "crates/gauntlet-ports/src/lib.rs",
+            "crates/gauntlet-app/src/lib.rs",
+            "crates/gauntlet-app/Cargo.toml",
+        ] {
+            assert!(in_adapter_identifier_scope(inner), "{inner}");
+        }
+        // The composition root may name and declare adapters (spec §4.1) —
+        // but it stays inside both other scopes.
+        for root_file in [
+            "crates/gauntlet-cli/Cargo.toml",
+            "crates/gauntlet-cli/src/main.rs",
+        ] {
+            assert!(!in_adapter_identifier_scope(root_file), "{root_file}");
+            assert!(in_denylist_scope(root_file), "{root_file}");
+            assert!(in_literal_scope(root_file), "{root_file}");
+        }
+    }
+
+    #[test]
+    fn repo_root_reaches_the_workspace_manifest() {
+        let root = repo_root();
+        assert!(
+            root.join("Cargo.toml").is_file(),
+            "repo root {} does not contain the workspace manifest",
+            root.display()
+        );
+        assert!(
+            root.join(".wayfinder/answer-key.md").is_file(),
+            "repo root {} does not contain the frozen ruler",
+            root.display()
+        );
+    }
+
+    #[test]
+    fn unscannable_files_are_violations_not_skips() {
+        // Recritique R5/R26: the 1.1 MiB module and the binary blob used to
+        // vanish silently. Both are now reported.
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-arch-tests-scan-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir is creatable");
+        std::fs::write(dir.join("text.txt"), b"plain text").expect("text fixture is written");
+        std::fs::write(dir.join("blob.bin"), [0xff_u8, 0xfe, 0x00, 0x80])
+            .expect("binary fixture is written");
+        std::fs::write(dir.join("big.rs"), vec![b'.'; MAX_SCAN_BYTES as usize + 1])
+            .expect("oversize fixture is written");
+
+        assert_eq!(
+            read_scannable(&dir, "text.txt").as_deref(),
+            Ok("plain text")
+        );
+
+        let blob = read_scannable(&dir, "blob.bin").expect_err("non-UTF8 is a violation");
+        assert!(blob.starts_with("scope-integrity: blob.bin:"), "{blob}");
+        assert!(blob.contains("UTF-8"), "{blob}");
+
+        let big = read_scannable(&dir, "big.rs").expect_err("oversize is a violation");
+        assert!(big.starts_with("scope-integrity: big.rs:"), "{big}");
+        assert!(big.contains("scan ceiling"), "{big}");
+
+        let missing = read_scannable(&dir, "absent.rs").expect_err("missing is a violation");
+        assert!(missing.contains("not readable"), "{missing}");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn symlinks_inside_a_core_crate_are_violations() {
+        // Recritique R3/R17/R25: `ln -s ../../../vendor/store.rs
+        // crates/gauntlet-app/src/store.rs` used to remove the file from the
+        // walk entirely.
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-arch-tests-link-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let crate_dir = dir.join("crates/gauntlet-app/src");
+        std::fs::create_dir_all(&crate_dir).expect("temp tree is creatable");
+        std::fs::write(crate_dir.join("lib.rs"), b"// clean\n").expect("lib fixture is written");
+        std::fs::write(dir.join("outside.rs"), b"const DB: &str = \"sqlite\";\n")
+            .expect("outside fixture is written");
+
+        #[cfg(unix)]
+        let linked =
+            std::os::unix::fs::symlink("../../../outside.rs", crate_dir.join("store.rs")).is_ok();
+        #[cfg(not(unix))]
+        let linked = false;
+
+        if linked {
+            let tree = core_tree(&dir);
+            assert!(
+                tree.violations.iter().any(
+                    |v| v.contains("crates/gauntlet-app/src/store.rs") && v.contains("symlink")
+                ),
+                "symlink was not reported: {:?}",
+                tree.violations
+            );
+            assert!(
+                !tree
+                    .files
+                    .contains(&"crates/gauntlet-app/src/store.rs".to_string()),
+                "a symlink must not be scanned as a regular file"
+            );
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+}

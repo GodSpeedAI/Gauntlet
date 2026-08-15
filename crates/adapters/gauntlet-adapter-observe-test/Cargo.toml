@@ -1,0 +1,19 @@
+[package]
+name = "gauntlet-adapter-observe-test"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+
+# Spec §4.1/§24.3: adapters depend on domain and ports only — never on
+# gauntlet-app or gauntlet-cli. Provider-specific code belongs here and only
+# here; the port traits this adapter implements land in plan Task 4.
+
+# Declared direction (plan Task 2 step 2, spec §4.1): an adapter implements
+# port traits over domain types. Declaring these makes the direction a fact in
+# the manifest, not only an upper bound the boundary tests decline to exceed.
+[dependencies]
+gauntlet-domain.workspace = true
+gauntlet-ports.workspace = true

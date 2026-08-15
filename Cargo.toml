@@ -1,0 +1,65 @@
+# Gauntlet runtime workspace (spec §4.1 layering, plan Task 2).
+#
+# Dependency direction is architectural, not conventional (spec §24.3): it is
+# enforced mechanically by crates/gauntlet-arch-tests, run as `just boundaries`.
+#   gauntlet-domain     -> no internal deps
+#   gauntlet-ports      -> domain
+#   gauntlet-app        -> domain, ports
+#   gauntlet-cli        -> domain, ports, app (the composition root)
+#   crates/adapters/*   -> domain, ports (never app or cli)
+#   gauntlet-arch-tests -> no internal deps; test-only, never a dependency
+
+[workspace]
+resolver = "3"
+members = [
+    "crates/gauntlet-domain",
+    "crates/gauntlet-ports",
+    "crates/gauntlet-app",
+    "crates/gauntlet-cli",
+    "crates/adapters/gauntlet-adapter-agent-mock",
+    "crates/adapters/gauntlet-adapter-agent-prime",
+    "crates/adapters/gauntlet-adapter-agent-cli",
+    "crates/adapters/gauntlet-adapter-state-sqlite",
+    "crates/adapters/gauntlet-adapter-evidence-fs",
+    "crates/adapters/gauntlet-adapter-observe-filesystem",
+    "crates/adapters/gauntlet-adapter-observe-git",
+    "crates/adapters/gauntlet-adapter-observe-build",
+    "crates/adapters/gauntlet-adapter-observe-test",
+    "crates/adapters/gauntlet-adapter-observe-command",
+    "crates/adapters/gauntlet-adapter-compare-diff",
+    "crates/gauntlet-arch-tests",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+publish = false
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.dependencies]
+gauntlet-domain = { path = "crates/gauntlet-domain" }
+gauntlet-ports = { path = "crates/gauntlet-ports" }
+gauntlet-app = { path = "crates/gauntlet-app" }
+gauntlet-adapter-agent-mock = { path = "crates/adapters/gauntlet-adapter-agent-mock" }
+gauntlet-adapter-agent-prime = { path = "crates/adapters/gauntlet-adapter-agent-prime" }
+gauntlet-adapter-agent-cli = { path = "crates/adapters/gauntlet-adapter-agent-cli" }
+gauntlet-adapter-state-sqlite = { path = "crates/adapters/gauntlet-adapter-state-sqlite" }
+gauntlet-adapter-evidence-fs = { path = "crates/adapters/gauntlet-adapter-evidence-fs" }
+gauntlet-adapter-observe-filesystem = { path = "crates/adapters/gauntlet-adapter-observe-filesystem" }
+gauntlet-adapter-observe-git = { path = "crates/adapters/gauntlet-adapter-observe-git" }
+gauntlet-adapter-observe-build = { path = "crates/adapters/gauntlet-adapter-observe-build" }
+gauntlet-adapter-observe-test = { path = "crates/adapters/gauntlet-adapter-observe-test" }
+gauntlet-adapter-observe-command = { path = "crates/adapters/gauntlet-adapter-observe-command" }
+gauntlet-adapter-compare-diff = { path = "crates/adapters/gauntlet-adapter-compare-diff" }
+# The one external dependency permitted by plan Task 2: manifest parsing for
+# the architecture boundary tests. gauntlet-arch-tests is NOT listed above as
+# anything's dependency — it is test-only.
+toml = "0.9"
+
+# Memory economy on constrained hosts (plan Task 0 environment report):
+# line tables keep backtraces useful without full debug info.
+[profile.dev]
+debug = "line-tables-only"

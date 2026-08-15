@@ -1,0 +1,44 @@
+# cargo-deny policy — the repository dependency policy gate, run as
+# `just deny` (AGENTS.md "Dependencies", spec §24.2).
+#
+# Posture: conservative. What is not explicitly allowed is denied — unknown
+# registries and git sources are refused, yanked crates are refused, and the
+# licence allowlist is closed. Duplicate crate versions warn (not deny) while
+# the tree is small; that is deliberate looseness, revisited when the adapter
+# set lands and the graph is under deliberate control.
+#
+# The allow list below governs DEPENDENCIES only. Whether this repository
+# itself carries a licence is a recorded open unknown (UNK-002 in
+# .wayfinder/reference.yaml) — no decision is made here.
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+# The allow list is the dependency policy (AGENTS.md), sized for the adapter
+# set the plan will land (sqlite, sandbox, browser backends), not just today's
+# tree — so licenses not yet encountered warn rather than fail.
+unused-allowed-license = "warn"
+# Workspace crates are private (publish = false) and carry no license field:
+# the repository's own licence choice is the open unknown UNK-002, and this
+# gate governs dependencies, not that decision.
+private = { ignore = true }
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Unicode-3.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+]
+
+# In cargo-deny 0.20.x the v2 config format is implied for bans/sources
+# (their `version` key is gone); advisories and licenses still carry it.
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

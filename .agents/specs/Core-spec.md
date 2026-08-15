@@ -442,7 +442,7 @@ Rules:
 | Port | Core methods | Notes |
 |---|---|---|
 | `ReferenceProvider` | `resolve(intent) -> ReferenceDraft` · `normalize` · `digest` · `freeze(run_id) -> ReferenceVersion` · `verify_unchanged(version)` | `verify_unchanged` is the I1 tripwire; called before settlement and at every iteration boundary. |
-| `Observer` | `observe(request: ObservationRequest) -> ObservationFacet` · `facet_kind()` | One adapter per instrument class (git, fs, build, test, bench, browser, http, scanner). Facets merge into a bundle. |
+| `Observer` | `observe(request: ObservationRequest) -> ObservationFacet` · `facet_kind()` | One adapter per instrument class (versioning, fs, build, test, bench, browser, http, scanner). Facets merge into a bundle. |
 | `Comparator` | `compare(envelope: ComparisonEnvelope) -> ComparisonRecord` | Envelope is built by the runtime (I4). Comparator implementations MAY be model-backed or deterministic. |
 | `Verifier` | `verify(claim: VerificationRequest) -> VerificationRecord` · `is_deterministic()` | Deterministic verifiers are tried first (§14.2). |
 | `StateStore` | `append_event` · `load_run` · `checkpoint` · `resume(run_id)` · `export_jsonl` | Default adapter: embedded SQL (SQLite). Export is deterministic. |
@@ -463,7 +463,7 @@ Rules:
 | Port | Adapters REQUIRED at conformance | Adapters RECOMMENDED |
 |---|---|---|
 | `AgentRunner` | `mock` (scripted, deterministic) **and** ≥1 real (`prime-agent` or `cli-agent`) | both real ones |
-| `Observer` | `filesystem`, `git`, `process/command` (build+test) | `browser`, `http`, `metrics`, `scanner` |
+| `Observer` | `filesystem`, `versioning`, `process/command` (build+test) | `browser`, `http`, `metrics`, `scanner` |
 | `Comparator` | `model-backed` + `deterministic-diff` | multi-dimension fanout |
 | `Verifier` | `command-exit-code`, `test-report`, `file-exists/digest` | `benchmark`, `schema`, `security`, `visual-diff` |
 | `StateStore` | embedded SQL | remote |
@@ -531,7 +531,7 @@ runners:
     critic:   { runner: prime-agent, model: $GAUNTLET_CRITIC_MODEL }
     verifier: { runner: none }        # deterministic verifiers need no model
 observation:
-  facets: [git, filesystem, build, test]
+  facets: [versioning, filesystem, build, test]
 review:
   mode: adaptive                      # ReviewMode
   max_critics: 4
@@ -573,7 +573,7 @@ Groups: workspace paths (`GAUNTLET_PROJECT_ROOT`, `_CONFIG_DIR`, `_STATE_DIR`, `
 Tools bind by **semantic capability**, never by product:
 
 ```text
-code_nav · filesystem · git · test · build · browser · visual · web · research
+code_nav · filesystem · versioning · test · build · browser · visual · web · research
 security · sandbox · memory · evidence · domain · policy · benchmark · schema
 ```
 
@@ -883,7 +883,7 @@ Comparison operates on evidence collected from resulting reality — never on th
 An `ObservationRequest` names the facets to collect. Each `Observer` adapter produces one facet with provenance:
 
 ```text
-git · filesystem · build · test · lint/static · benchmark · runtime_probe
+versioning · filesystem · build · test · lint/static · benchmark · runtime_probe
 browser/visual · http/api · logs · metrics · security_scan · external
 ```
 
@@ -2088,9 +2088,9 @@ All optional; all defaulted; none required for a safe bounded run.
 | Paths | `GAUNTLET_PROJECT_ROOT` `GAUNTLET_CONFIG_DIR` `GAUNTLET_STATE_DIR` `GAUNTLET_ARTIFACT_DIR` `GAUNTLET_PLAN_DIR` `GAUNTLET_REPORT_DIR` `GAUNTLET_TMP_DIR` |
 | Reference | `GAUNTLET_REFERENCE_PATH` `GAUNTLET_REFERENCE_MANIFEST` `GAUNTLET_REFERENCE_DIGEST` `GAUNTLET_ANSWER_KEY_PATH` `GAUNTLET_MAP_PATH` `GAUNTLET_COMPARISON_CONTRACT` `GAUNTLET_ACCEPTANCE_PATH` `GAUNTLET_CONTEXT_PATHS` `GAUNTLET_CANON_PATHS` `GAUNTLET_HELD_OUT_PATH` `GAUNTLET_REGRESSION_PATH` `GAUNTLET_DIGEST_ALGO` |
 | Runners | `GAUNTLET_AGENT_RUNNER` `GAUNTLET_ORCHESTRATOR_RUNNER` `GAUNTLET_ORCHESTRATOR_MODEL` `GAUNTLET_BUILDER_RUNNER` `GAUNTLET_BUILDER_MODEL` `GAUNTLET_CRITIC_RUNNER` `GAUNTLET_CRITIC_MODEL` `GAUNTLET_VERIFIER_RUNNER` `GAUNTLET_VERIFIER_MODEL` `GAUNTLET_OBSERVER_RUNNER` `GAUNTLET_OPTIMIZER_RUNNER` `GAUNTLET_OPTIMIZER_MODEL` `GAUNTLET_CLI_AGENT_CMD` `GAUNTLET_ROLES_DIR` |
-| Tools | `GAUNTLET_MCP_CONFIG` `GAUNTLET_TOOL_REGISTRY` `GAUNTLET_MCP_ALLOWLIST` `GAUNTLET_MCP_REQUIRED` `GAUNTLET_TOOL_CODE_NAV` `GAUNTLET_TOOL_FILESYSTEM` `GAUNTLET_TOOL_GIT` `GAUNTLET_TOOL_TEST` `GAUNTLET_TOOL_BUILD` `GAUNTLET_TOOL_BROWSER` `GAUNTLET_TOOL_VISUAL` `GAUNTLET_TOOL_WEB` `GAUNTLET_TOOL_RESEARCH` `GAUNTLET_TOOL_SECURITY` `GAUNTLET_TOOL_SANDBOX` `GAUNTLET_TOOL_MEMORY` `GAUNTLET_TOOL_EVIDENCE` `GAUNTLET_TOOL_DOMAIN` `GAUNTLET_TOOL_POLICY` `GAUNTLET_TOOL_BENCHMARK` `GAUNTLET_TOOL_SCHEMA` |
+| Tools | `GAUNTLET_MCP_CONFIG` `GAUNTLET_TOOL_REGISTRY` `GAUNTLET_MCP_ALLOWLIST` `GAUNTLET_MCP_REQUIRED` `GAUNTLET_TOOL_CODE_NAV` `GAUNTLET_TOOL_FILESYSTEM` `GAUNTLET_TOOL_VERSIONING` `GAUNTLET_TOOL_TEST` `GAUNTLET_TOOL_BUILD` `GAUNTLET_TOOL_BROWSER` `GAUNTLET_TOOL_VISUAL` `GAUNTLET_TOOL_WEB` `GAUNTLET_TOOL_RESEARCH` `GAUNTLET_TOOL_SECURITY` `GAUNTLET_TOOL_SANDBOX` `GAUNTLET_TOOL_MEMORY` `GAUNTLET_TOOL_EVIDENCE` `GAUNTLET_TOOL_DOMAIN` `GAUNTLET_TOOL_POLICY` `GAUNTLET_TOOL_BENCHMARK` `GAUNTLET_TOOL_SCHEMA` |
 | Limits | `GAUNTLET_INTERACTIVE` `GAUNTLET_MAX_ROUNDS` `GAUNTLET_MAX_PARALLEL` `GAUNTLET_MAX_DEPTH` `GAUNTLET_MAX_WALL_SECONDS` `GAUNTLET_MAX_TOKENS` `GAUNTLET_MAX_COST_USD` `GAUNTLET_RECOVERY_RESERVE_PCT` `GAUNTLET_DIAGNOSTIC_BUDGET` `GAUNTLET_REVIEW_MODE` `GAUNTLET_MAX_CRITICS` `GAUNTLET_MAX_ATTEMPTS_PER_UNIT` `GAUNTLET_NONCONVERGENCE_N` `GAUNTLET_POLL_INTERVAL_MS` `GAUNTLET_STALL_TIMEOUT_MS` `GAUNTLET_RETRY_BASE_MS` `GAUNTLET_RETRY_MAX_MS` |
-| Permissions | `GAUNTLET_ALLOW_INSTALL` `GAUNTLET_ALLOW_NETWORK` `GAUNTLET_ALLOW_DESTRUCTIVE` `GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION` `GAUNTLET_GIT_STRATEGY` |
+| Permissions | `GAUNTLET_ALLOW_INSTALL` `GAUNTLET_ALLOW_NETWORK` `GAUNTLET_ALLOW_DESTRUCTIVE` `GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION` `GAUNTLET_VERSIONING_STRATEGY` |
 | Containment | `GAUNTLET_SANDBOX_BACKEND` `GAUNTLET_SANDBOX_POLICY_DIR` `GAUNTLET_SANDBOX_BINARY` `GAUNTLET_SANDBOX_EXPERIMENTAL` |
 | Persistence | `GAUNTLET_STATE_BACKEND` `GAUNTLET_EVIDENCE_BACKEND` `GAUNTLET_EXPORT_DIR` |
 | Surfaces | `GAUNTLET_OPERATOR_SURFACES` `GAUNTLET_API_BIND` `GAUNTLET_LOG_FORMAT` `GAUNTLET_LOG_SINK` `GAUNTLET_OTEL_ENDPOINT` |

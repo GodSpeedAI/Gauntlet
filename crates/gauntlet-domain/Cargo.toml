@@ -1,0 +1,12 @@
+[package]
+name = "gauntlet-domain"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+
+# Spec §4.1/§24.3: the domain depends on nothing internal — no ports, no
+# application, no infrastructure. Adding any dependency here fails
+# `just boundaries`.

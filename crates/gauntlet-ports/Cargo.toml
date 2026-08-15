@@ -1,0 +1,15 @@
+[package]
+name = "gauntlet-ports"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+
+[dependencies]
+gauntlet-domain.workspace = true
+
+# Spec §4.1/§24.3: ports depend on the domain only. Traits here name semantic
+# capabilities, never products — vendor names belong in adapters and
+# configuration.
