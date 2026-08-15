@@ -1,0 +1,32 @@
+[2026-08-14T22:42:56.300Z] INFO  [StorageFactory] [trace=e3ea12c1c3b1c8d5f9678f132156b517] StorageFactory.create: route=uncutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-14T22:43:06.483Z] INFO  [Installer] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Installing Jolli Memory hooks
+[2026-08-14T22:43:06.498Z] INFO  [DispatchScripts] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Wrote resolve-dist-path, run-hook, and run-cli scripts to /home/sprime01/.jolli/jollimemory
+[2026-08-14T22:43:06.506Z] INFO  [DistPathWriter] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Wrote dist-paths/cli (version=0.99.11, distDir=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist)
+[2026-08-14T22:43:06.536Z] INFO  [SkillInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Wrote SKILL.md (revision 2) to /home/sprime01/projects/gauntlet/.agents/skills/jolli-recall/SKILL.md
+[2026-08-14T22:43:06.539Z] INFO  [SkillInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Wrote SKILL.md (revision 2) to /home/sprime01/projects/gauntlet/.agents/skills/jolli-search/SKILL.md
+[2026-08-14T22:43:06.541Z] INFO  [SkillInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Wrote SKILL.md (revision 5) to /home/sprime01/projects/gauntlet/.agents/skills/jolli-local-run/SKILL.md
+[2026-08-14T22:43:06.542Z] INFO  [SkillInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Wrote SKILL.md (revision 4) to /home/sprime01/projects/gauntlet/.agents/skills/jolli-remote-run/SKILL.md
+[2026-08-14T22:43:06.544Z] INFO  [SkillInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Wrote SKILL.md (revision 6) to /home/sprime01/projects/gauntlet/.agents/skills/jolli/SKILL.md
+[2026-08-14T22:43:06.551Z] INFO  [GitExclude] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Updated /home/sprime01/projects/gauntlet/.git/info/exclude with 7 Jolli skill exclude paths
+[2026-08-14T22:43:06.553Z] INFO  [McpRegistration] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Registered MCP server in /home/sprime01/projects/gauntlet/.mcp.json
+[2026-08-14T22:43:06.558Z] INFO  [JsonMcpWriter] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Registered MCP server in /home/sprime01/.gemini/settings.json
+[2026-08-14T22:43:06.564Z] INFO  [CodexTomlWriter] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Registered Codex MCP server in /home/sprime01/.codex/config.toml
+[2026-08-14T22:43:06.567Z] INFO  [JsonMcpWriter] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Registered MCP server in /home/sprime01/.config/opencode/opencode.json
+[2026-08-14T22:43:06.571Z] INFO  [JsonMcpWriter] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Registered MCP server in /home/sprime01/.config/devin/config.json
+[2026-08-14T22:43:06.576Z] INFO  [JsonMcpWriter] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Registered MCP server in /home/sprime01/.gemini/config/mcp_config.json
+[2026-08-14T22:43:06.578Z] INFO  [JsonMcpWriter] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Registered MCP server in /home/sprime01/.kimi-code/mcp.json
+[2026-08-14T22:43:06.580Z] INFO  [GitHookInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Git post-commit hook installed
+[2026-08-14T22:43:06.581Z] INFO  [GitHookInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Git post-rewrite hook installed
+[2026-08-14T22:43:06.583Z] INFO  [GitHookInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Git prepare-commit-msg hook installed
+[2026-08-14T22:43:06.585Z] INFO  [GitHookInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Git post-merge hook installed
+[2026-08-14T22:43:06.586Z] INFO  [GitHookInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Git pre-push hook installed
+[2026-08-14T22:43:06.589Z] INFO  [GeminiHookInstaller] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Gemini AfterAgent hook installed
+[2026-08-14T22:43:06.596Z] INFO  [StorageFactory] [trace=e3ea12c1c3b1c8d5f9678f132156b517] StorageFactory.create: route=uncutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-14T22:43:06.619Z] INFO  [SchemaV5Migration] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Storage backend not initialized yet — skipping schema v5 migration (no data to migrate)
+[2026-08-14T22:43:06.619Z] INFO  [Installer] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Schema v5 migration: alreadyDone=false fresh=true migrated=0 skipped=0
+[2026-08-14T22:43:06.625Z] INFO  [Installer] [trace=e3ea12c1c3b1c8d5f9678f132156b517] Installation complete
+[2026-08-15T02:33:32.389Z] INFO  [SessionStartHook] SessionStartHook invoked (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-15T02:33:32.576Z] INFO  [SessionStartHook] No briefing or reminder generated (skipped or timed out)
+[2026-08-15T02:33:36.039Z] INFO  [SkillAutoRefresh] [trace=50b8ad5e774cf28911282a212a603631] Refreshed Jolli skills at /home/sprime01/projects/gauntlet for version 0.99.11
+[2026-08-15T02:33:36.461Z] INFO  [StorageFactory] [trace=50b8ad5e774cf28911282a212a603631] StorageFactory.create: route=uncutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-15T02:33:36.598Z] INFO  [McpServer] [trace=50b8ad5e774cf28911282a212a603631] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
