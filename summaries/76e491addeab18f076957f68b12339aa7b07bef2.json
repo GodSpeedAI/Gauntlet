@@ -1,0 +1,59 @@
+{
+	"version": 5,
+	"commitHash": "76e491addeab18f076957f68b12339aa7b07bef2",
+	"commitMessage": "task 0: recon, toolchain baseline, delegation spike",
+	"commitAuthor": "Sam Prime",
+	"commitDate": "2026-08-15T02:59:30.000Z",
+	"branch": "main",
+	"generatedAt": "2026-08-15T03:00:00.638Z",
+	"commitType": "commit",
+	"commitSource": "cli",
+	"transcriptEntries": 10,
+	"conversationTurns": 5,
+	"conversationTokens": 73566,
+	"conversationTokenBreakdown": {
+		"input": 24,
+		"output": 7476,
+		"cached": 66066
+	},
+	"conversationModels": [
+		{
+			"model": "claude-opus-5",
+			"provider": "anthropic",
+			"input": 8,
+			"output": 2282,
+			"cached": 21181
+		},
+		{
+			"model": "claude-sonnet-5",
+			"provider": "anthropic",
+			"input": 16,
+			"output": 5194,
+			"cached": 44885
+		}
+	],
+	"estimatedCostUsd": 0.435748,
+	"pricesAsOf": "2026-07-30",
+	"llm": {
+		"model": "unknown",
+		"inputTokens": 0,
+		"outputTokens": 0,
+		"apiLatencyMs": 0,
+		"stopReason": "error"
+	},
+	"stats": {
+		"filesChanged": 14,
+		"insertions": 291,
+		"deletions": 0
+	},
+	"topics": [],
+	"diffStats": {
+		"filesChanged": 14,
+		"insertions": 291,
+		"deletions": 0
+	},
+	"summaryError": "llm-failed",
+	"transcripts": [
+		"830b64dd-a6d7-49ac-ac98-04f7f29c19ef"
+	]
+}
