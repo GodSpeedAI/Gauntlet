@@ -218,3 +218,5 @@ Non-negotiable structural rules:
 - Self-improvement follows candidate revision: `current → candidate → isolated evaluation → held-out/regression comparison → promote or rollback`.
 
 The active system never moves its own ruler and then claims improvement.
+
+Commit often and meaningful milestones amd keep .agents/CURRENT_STATUS.md current.

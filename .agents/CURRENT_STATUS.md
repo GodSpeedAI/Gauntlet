@@ -41,8 +41,9 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 0 — Recon, toolchain baseline, delegation spike | **done** | `76e491a` |
 | 1 — Freeze the ruler | **done** | `bf09a30` |
 | — toolchain install bookkeeping | done | `ac0f033`, `66eebc0` |
-| 2 — Workspace skeleton + justfile + gates + boundary test | **gates green, correction round 2 in flight, UNCOMMITTED** | — |
-| 3–27 | not started | — |
+| 2 — Workspace skeleton + justfile + gates + boundary test | **done** (81 tests; 7 teeth cases) | `b69c095` |
+| 3 — Domain types | **blocked** — see ESC-001 | — |
+| 4–27 | not started | — |
 
 ### Task 2 — where it actually stands
 
@@ -253,8 +254,12 @@ has an artifact with no mechanism; the rest have neither.
 
 ## Escalations
 
-**None open.** `.agents/reports/escalations.md` does not exist yet — create it when the
-first escalation occurs.
+**ESC-001 open** — delegation capacity exhausted; reported as
+`blocked{no_delegation_mechanism}`. Task 3 was deliberately NOT implemented inline: the
+plan's guardrail forbids the orchestrator implementing when delegation is unavailable, and
+doing so would also destroy the independent-blind-critic property. Clears when the
+operator's session limit resets. Full context, including the two consequences that must not
+be lost, in `.agents/reports/escalations.md`.
 
 ---
 
