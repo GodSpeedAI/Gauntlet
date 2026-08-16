@@ -326,9 +326,12 @@ pub fn scan_source(path: &str, text: &str, deny: &Denylist, role: Role) -> Vec<S
             }
         }
         // AK-014: adapter selection by the shortest distinguishing segment,
-        // as a whole string literal (round-3 V7).
+        // as a whole string literal (round-3 V7). The extraction is the ONE
+        // lexing pass (`crate::text::string_literals`) since round 6, so a
+        // `'"'` char literal earlier on the line no longer deletes the
+        // literals after it from this rule (critic-6 C1).
         if role == Role::Inner {
-            for literal in crate::literals::string_literals(&unit.text) {
+            for literal in crate::text::string_literals(&unit.text) {
                 if let Some(segment) = deny.segment_literal(&literal) {
                     let message = format!(
                         "denied-identifier: {path}:{}: '{segment}' — the string literal \
@@ -1027,6 +1030,33 @@ storage = { package = \"sqlite-tools\", version = \"1\" }
             violations
                 .iter()
                 .any(|v| v.contains("f/Cargo.toml:5") && v.contains("'sqlite'")),
+            "{violations:?}"
+        );
+    }
+
+    /// Critic-6 C1, denylist side: the `'"'` char literal in
+    /// `trim_matches('"')` used to shift the quote pairing of the whole unit,
+    /// so the AK-014 whole-literal segment rule — the ONLY thing that catches
+    /// bare `"mock"`/`"prime"` — saw garbage instead of the literals. The
+    /// extraction is the one lexing pass now.
+    #[test]
+    fn adapter_segments_survive_a_char_literal_quote() {
+        let deny = deny();
+        let fixture = "/// Resolve the agent runner. `spec` may arrive quoted from the CLI.\n\
+                       pub fn agent_for(spec: &str) -> &'static str {\n    match \
+                       spec.trim_matches('\"') { \"fast\" => \"mock\", _ => \"prime\" }\n}\n";
+        let violations = scan_source(
+            "crates/gauntlet-app/src/lib.rs",
+            fixture,
+            &deny,
+            Role::Inner,
+        );
+        assert!(
+            violations.iter().any(|v| v.contains("'mock'")),
+            "{violations:?}"
+        );
+        assert!(
+            violations.iter().any(|v| v.contains("'prime'")),
             "{violations:?}"
         );
     }

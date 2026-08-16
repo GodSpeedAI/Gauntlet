@@ -44,12 +44,21 @@ pub const INNER_CRATES: &[&str] = &[
 pub const COMPOSITION_ROOT: &str = "crates/gauntlet-cli";
 
 /// The declared defaults module (plan Task 5, spec §8.6): the ONE file where
-/// environment literals are permitted to live. The literal-scan whitelist is
-/// exactly this path — not the whole `config/` directory — so any sibling
-/// module (`config/parser.rs`, …) is policed like every other core source.
-/// The exemption is never vacuous: `crate::check_defaults_exemption` requires
-/// this file either to exist AND be the §8.6 defaults table, or not to exist
-/// at all (recritique R31). The vendor denylist applies to it either way.
+/// conservative default VALUES are permitted to be literals — and since round
+/// 6 (critic-7 C1) the exemption is not file-scoped: the file
+/// is inside the literal scan like every other core source, and only the
+/// declarations of [`DEFAULTS_TABLE_SETTINGS`] are exempt. Since round 6.1
+/// (critic-9 F2 / critic-8 E7) the exemption is DECLARATION-granular: each
+/// setting's own declaration — head to its terminating `;`, computed from
+/// the one lexing pass — is blanked out before matching, because a scan unit
+/// can hold more than one declaration and a second one packed onto the
+/// setting's line used to escape every class (see
+/// `literals::mask_setting_declarations`). A whole file outside
+/// the literal scan made eight of the nine §8.1 classes hardcodable by
+/// anything that landed at this path; a declaration-granular exemption cannot
+/// outgrow its warrant. The vendor denylist applies to the whole file either
+/// way, and `crate::check_defaults_exemption` still requires the file, if it
+/// exists, to DECLARE each §8.6 setting.
 pub const DEFAULTS_MODULE: &str = "crates/gauntlet-app/src/config/defaults.rs";
 
 /// Every file any repo-level scan may be told to exempt, with the reason.
@@ -60,16 +69,23 @@ pub const DEFAULTS_MODULE: &str = "crates/gauntlet-app/src/config/defaults.rs";
 /// a file from a check. `crate::scan_core_tree` now refuses any exemption that
 /// is not on this list, so widening the exemptions means editing this
 /// inventory, in the open, with a reason.
-pub const DECLARED_SCAN_EXEMPTIONS: &[(&str, &str)] = &[(
-    DEFAULTS_MODULE,
-    "spec §8.6: the ONE declared defaults table, the single place conservative default VALUES are \
-     permitted to be literals; the exemption covers the literal scan only, never the vendor \
-     denylist, and `crate::check_defaults_exemption` requires the file to actually declare the \
-     §8.6 settings before the exemption counts",
-)];
+///
+/// EMPTY since round 6: the one entry this list carried (the §8.6 defaults
+/// module) became setting-scoped inside the literal scan (critic-7 C1), so no
+/// whole file is exempt from any scan any more. The inventory and the guard
+/// stay: a future file-level exemption must be declared here, with a reason,
+/// before any call site may pass it — and today every path is refused.
+pub const DECLARED_SCAN_EXEMPTIONS: &[(&str, &str)] = &[];
 
-/// Settings the §8.6 defaults table must name for the literal-scan exemption
-/// on [`DEFAULTS_MODULE`] to be warranted.
+/// The settings of the spec §8.6 defaults table — all ten rows, the dotted
+/// names as snake_case identifiers. Two jobs, deliberately the same list:
+/// the setting-scoped literal exemption (above) skips exactly the
+/// declarations of these settings, and `crate::check_defaults_exemption`
+/// requires the defaults module, if it exists, to declare each of them.
+/// Until round 6 only the six numeric rows were listed (critic-7 m4), which
+/// mattered the moment the exemption became setting-scoped: `review_mode`'s
+/// default `adaptive` is tier vocabulary and would have failed its own
+/// defaults table.
 pub const DEFAULTS_TABLE_SETTINGS: &[&str] = &[
     "max_rounds",
     "max_parallel",
@@ -77,6 +93,10 @@ pub const DEFAULTS_TABLE_SETTINGS: &[&str] = &[
     "max_wall_seconds",
     "recovery_reserve_pct",
     "diagnostic_budget",
+    "review_mode",
+    "sandbox_backend",
+    "interactive",
+    "git_strategy",
 ];
 
 /// Upper bound for a scannable file. Beyond this the file is not skipped —
@@ -262,12 +282,17 @@ pub fn in_denylist_scope(rel: &str) -> bool {
     is_core_path(rel)
 }
 
-/// Hardcoded-literal scope (mechanism c): the denylist scope minus the
-/// declared defaults module. `crates/gauntlet-arch-tests` is not a core
-/// crate, so this crate's own pattern strings are outside the scope by
-/// construction, not by special case.
+/// Hardcoded-literal scope (mechanism c): identical to the denylist scope
+/// since round 6. The §8.6 defaults exemption used to remove the whole
+/// declared defaults module from this scan; it is SETTING-scoped now —
+/// applied inside `literals::scan_literals`, to the declared default-setting
+/// declarations only (critic-7 C1) — so no file is outside the literal scan
+/// and the two scopes must agree on every path. `crate::check_denylist`
+/// asserts that equality over the walked tree. `crates/gauntlet-arch-tests`
+/// is not a core crate, so this crate's own pattern strings are outside the
+/// scope by construction, not by special case.
 pub fn in_literal_scope(rel: &str) -> bool {
-    in_denylist_scope(rel) && rel != DEFAULTS_MODULE
+    in_denylist_scope(rel)
 }
 
 /// Adapter-identifier scope (AK-002, AK-014, spec §24.3 second bullet):
@@ -336,12 +361,15 @@ mod scope_tests {
         assert!(in_denylist_scope("crates/gauntlet-app/target/build.rs"));
         assert!(in_denylist_scope("crates/gauntlet-app/vendor/store.rs"));
 
-        // The defaults module is exempt from the literal scan only — and the
-        // exemption is exactly that one file, not the config directory.
+        // The defaults module is INSIDE the literal scan since round 6: the
+        // §8.6 exemption is setting-scoped (applied inside the scanner, to
+        // the declared default-setting declarations only), not file-scoped —
+        // a file-level exemption made eight of the nine §8.1 literal classes
+        // hardcodable by anything that landed at that path (critic-7 C1).
         assert!(in_denylist_scope(
             "crates/gauntlet-app/src/config/defaults.rs"
         ));
-        assert!(!in_literal_scope(
+        assert!(in_literal_scope(
             "crates/gauntlet-app/src/config/defaults.rs"
         ));
         assert!(in_denylist_scope(
@@ -352,6 +380,33 @@ mod scope_tests {
         assert!(!in_literal_scope(
             "crates/gauntlet-arch-tests/src/literals.rs"
         ));
+
+        // The file-level exemption inventory is EMPTY (critic-7 m3 pinned the
+        // count): the defaults entry became setting-scoped, and any future
+        // file-level exemption is a deliberate edit here, in the open.
+        assert!(
+            DECLARED_SCAN_EXEMPTIONS.is_empty(),
+            "no whole file may be exempt from a repo-level scan; the §8.6 exemption is \
+             setting-scoped (critic-7 C1). Growth is a recorded decision: {:?}",
+            DECLARED_SCAN_EXEMPTIONS
+        );
+        // And the §8.6 warrant vocabulary covers all ten rows of spec §8.6
+        // (critic-7 m4): the four policy-carrying rows are settings too.
+        assert_eq!(
+            DEFAULTS_TABLE_SETTINGS,
+            &[
+                "max_rounds",
+                "max_parallel",
+                "max_depth",
+                "max_wall_seconds",
+                "recovery_reserve_pct",
+                "diagnostic_budget",
+                "review_mode",
+                "sandbox_backend",
+                "interactive",
+                "git_strategy",
+            ]
+        );
     }
 
     #[test]

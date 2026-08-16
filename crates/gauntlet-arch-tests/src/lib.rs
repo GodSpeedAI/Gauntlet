@@ -52,21 +52,36 @@
 //! `[patch]` and `[replace]` tables included), every in-repo cargo
 //! configuration (`.cargo/config.toml` and the legacy `.cargo/config`,
 //! ANYWHERE in the tree — cargo reads them from the invocation directory
-//! upward, so a config inside a crate directory is a build input too), the
+//! upward, so a config inside a crate directory is a build input too — and
+//! the compiler-affecting keys and `[env]` entries in them are denied
+//! wherever they appear), the
 //! `rust-toolchain.toml` pin, and every in-tree file under the four core
 //! crates. Within that surface the aim is
-//! evasion-resistance rather than tidiness: matching runs over normalized scan
-//! units so a literal split by a line continuation, by `concat!`, by an escape,
-//! or by a statement break is still found; membership comes from the
+//! evasion-resistance rather than tidiness: every source consumer reads ONE
+//! Rust-aware lexing pass (`text::regions`), which delimits string, char, raw
+//! and byte strings, line and nested block comments, and decodes
+//! `\x`/`\u` escapes — so a quote that is data (a `'"'` char literal, a quote
+//! in a comment or raw string) cannot shift what the scanners see, no
+//! class carries its own quote counting, and a block comment between a
+//! directive keyword and its `=`/`(` is skipped exactly as rustc's lexer
+//! skips it; matching runs over normalized scan
+//! units so a literal split by a line continuation, by `concat!`, by an
+//! escape, by a statement break, or by a break between a directive head and
+//! its argument (`include!`⏎`("…")`) is still found; the §8.6 defaults
+//! exemption is DECLARATION-granular — only a setting's own declaration
+//! (head to its terminating `;`) of the declared defaults module is exempt,
+//! and every other literal class applies to the rest of that file;
+//! membership comes from the
 //! filesystem rather than from `[workspace].members`; external dependencies are
 //! admitted by a (crate, source) pair against a per-layer allowlist that is
 //! empty by default; and the walk's own carve-outs are measured against an
 //! independent listing so a narrowed scope fails the gate instead of shrinking
 //! it. Input the suite cannot read — an unreadable, over-sized, non-UTF-8, or
 //! symlinked file, an `include!` whose argument is computed, a declaration too
-//! long to join, a file that ends inside a string literal — is reported as a
-//! violation, never skipped (invariant I8: missing evidence is not passing
-//! evidence).
+//! long to join, a file that ends inside a string literal, a cargo
+//! configuration or toolchain pin that cannot be read or parsed — is reported
+//! as a violation, never skipped (invariant I8: missing evidence is not
+//! passing evidence).
 //!
 //! ## What it does not and cannot enforce
 //!
@@ -95,7 +110,10 @@
 //!
 //! ## Residuals known and accepted
 //!
-//! Whitespace-split directive spellings beyond those normalized here; spelling
+//! Whitespace-split directive spellings beyond those normalized here —
+//! including a block comment at the END of a directive head split across
+//! lines (`include! /*c*/`⏎`("…")`), which defeats the head-join because the
+//! join keys on the head's last word; spelling
 //! variants of a listed tool identity laundered through a const; UNC paths
 //! (`\\\\server\\share`), which the absolute-path class does not recognize;
 //! well-known ports outside the curated list; an un-prefixed secret token
@@ -221,9 +239,18 @@ pub fn check_dependency_direction(root: &Path) -> Vec<String> {
 /// Scope integrity: symlinks, unreadable files, `#[path]`/`include!` targets
 /// that escape their crate, Cargo targets whose source root is relocated out
 /// of the crate, and build scripts (classes A2/A3/A4, round-3 V1/V2/V3).
+///
+/// Since round 6 (critic-7 MJ3) the check measures its own scan like every
+/// other repo-level check: it runs through the shared anti-vacuity guard, so
+/// a narrowed walker or predicate fails this check itself instead of going
+/// quiet with the other three still measuring.
 pub fn check_scope_integrity(root: &Path) -> Vec<String> {
     let tree = walk::core_tree(root);
-    let mut violations = tree.violations;
+    let mut report = ScanReport {
+        scanned: Vec::new(),
+        skipped: 0,
+        violations: tree.violations,
+    };
     for file in &tree.files {
         if !walk::in_denylist_scope(file) {
             continue;
@@ -231,20 +258,36 @@ pub fn check_scope_integrity(root: &Path) -> Vec<String> {
         let text = match walk::read_scannable(root, file) {
             Ok(text) => text,
             Err(violation) => {
-                violations.push(violation);
+                report.skipped += 1;
+                report.violations.push(violation);
                 continue;
             }
         };
+        report.scanned.push(file.clone());
         let Some(crate_dir) = walk::core_crate_dir_of(file) else {
             continue;
         };
-        violations.extend(escapes::scan_escapes(file, crate_dir, &text));
-        violations.extend(escapes::build_script_violation(file, crate_dir));
+        report
+            .violations
+            .extend(escapes::scan_escapes(file, crate_dir, &text));
+        report
+            .violations
+            .extend(escapes::build_script_violation(file, crate_dir));
         if file.ends_with("/Cargo.toml") {
-            violations.extend(escapes::scan_cargo_target_paths(file, crate_dir, &text));
+            report
+                .violations
+                .extend(escapes::scan_cargo_target_paths(file, crate_dir, &text));
         }
     }
-    violations
+    report.violations.extend(assert_scan_is_not_vacuous(
+        root,
+        "scope-integrity",
+        &report,
+        walk::in_denylist_scope,
+        walk::CORE_CRATES,
+        &[],
+    ));
+    report.violations
 }
 
 /// Read every in-scope core file once, applying `scan` to each — and guard
@@ -557,70 +600,96 @@ pub fn check_adapter_selection(root: &Path) -> Vec<String> {
 }
 
 /// (c) AK-016 — the hardcoded-literal scan over the core crates.
+///
+/// No file-level exemption any more (critic-7 C1): the §8.6 defaults
+/// exemption is setting-scoped, applied inside [`literals::scan_literals`]
+/// to the declared default-setting declarations only.
 pub fn check_no_hardcoded_literals(root: &Path) -> Vec<String> {
     scan_core_tree(
         root,
         "hardcoded-literal",
         walk::in_literal_scope,
         walk::CORE_CRATES,
-        &[walk::DEFAULTS_MODULE],
+        &[],
         |file, text, _| literals::scan_literals(file, text),
     )
     .violations
 }
 
 /// No exemption may be silently vacuous (class C2, recritique R31, critic-4
-/// vacuity M2): the declared defaults module must either exist AND be the
-/// spec §8.6 defaults table, or not exist — in which case the exemption is
-/// inactive and nothing in the tree is exempt. The vendor denylist applies to
-/// it either way.
+/// vacuity M2, critic-7 C1): since round 6 the §8.6 defaults exemption is
+/// SETTING-scoped — the defaults module is inside the literal scan like every
+/// other core source, and only its declared default-setting declarations are
+/// exempt (see [`literals::scan_literals`]). What this check pins:
 ///
-/// The literal-scan carve-out is pinned UNCONDITIONALLY now: every walked file
-/// the two scopes treat differently must be exactly [`walk::DEFAULTS_MODULE`],
-/// whether or not that file exists. The old cross-check ran only while the
-/// module was absent, so the moment it appeared, a sibling (`config/
-/// tables.rs`) could be exempted from the literal scan with no warrant check
-/// at all (critic-4 vacuity M2b).
-///
-/// The warrant itself is declaration-shaped, not mention-shaped: the file
-/// must carry `const <SETTING>` (case-insensitive) for each §8.6 setting. A
-/// doc comment that names the six settings and then hardcodes literals is not
-/// a defaults table, and no longer passes (critic-4 vacuity M2a).
+/// - the defaults module stays inside the vendor denylist (the §8.6 table
+///   holds values, never vendor identifiers);
+/// - the literal scope and the denylist scope agree on EVERY walked file — no
+///   file-level literal exemption exists any more, so a reintroduced one
+///   fails here rather than shrinking the scan silently;
+/// - if the defaults module exists, it DECLARES each §8.6 setting
+///   (`const <SETTING>`, case-insensitive, parsed by the same
+///   declaration-shape test the exemption itself uses — a doc comment that
+///   names the settings is not a defaults table, critic-4 vacuity M2a);
+/// - an defaults module this check cannot READ is a violation, not a pass
+///   (I8) — the old `unwrap_or_default` treated an unreadable warrant file as
+///   an empty one.
 pub fn check_defaults_exemption(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     if !walk::in_denylist_scope(walk::DEFAULTS_MODULE) {
         violations.push(format!(
-            "vacuous-exemption: {} is exempt from the denylist as well as the literal scan — the \
-             §8.6 defaults table holds values, never vendor identifiers",
+            "vacuous-exemption: {} is outside the denylist — the §8.6 defaults table holds \
+             values, never vendor identifiers, and the denylist applies to it like every core \
+             source",
             walk::DEFAULTS_MODULE
         ));
     }
-    // The literal-scan exemption is exactly the declared defaults module,
-    // existent or not. Any other file the two scopes treat differently is an
-    // unwarranted exemption.
+    // The literal scope must be the denylist scope, file for file: the §8.6
+    // exemption is setting-scoped (inside the scanner), so NO file is outside
+    // the literal scan (critic-7 C1).
     for file in walk::core_tree(root).files {
-        if walk::in_denylist_scope(&file) && !walk::in_literal_scope(&file) {
-            if file != walk::DEFAULTS_MODULE {
-                violations.push(format!(
-                    "vacuous-exemption: '{file}' is exempt from the literal scan but is not the \
-                     declared defaults module {} — an exemption needs a warrant, and the only one \
-                     on file is the §8.6 defaults table",
-                    walk::DEFAULTS_MODULE
-                ));
-            }
-        } else if walk::in_literal_scope(&file) && !walk::in_denylist_scope(&file) {
+        if walk::in_denylist_scope(&file) != walk::in_literal_scope(&file) {
             violations.push(format!(
-                "vacuous-exemption: '{file}' is inside the literal scope but outside the \
-                 denylist scope — the denylist must never be narrower than the literal scan"
+                "vacuous-exemption: '{file}' is treated differently by the denylist and literal \
+                 scopes — the §8.6 defaults exemption is setting-scoped, not file-scoped, so the \
+                 two scopes must agree on every file (critic-7 C1)"
             ));
         }
     }
     let path = root.join(walk::DEFAULTS_MODULE);
     if path.is_file() {
-        let text = std::fs::read_to_string(&path).unwrap_or_default();
-        let lowered = text.to_lowercase();
+        let text = match walk::read_scannable(root, walk::DEFAULTS_MODULE) {
+            Ok(text) => text,
+            Err(violation) => return vec![violation],
+        };
+        // The declared settings, by the same declaration-shape test the
+        // exemption itself uses — warrant and exemption cannot drift apart.
+        let declared: Vec<String> = text
+            .lines()
+            .filter(|line| literals::is_defaults_setting_declaration(line))
+            .map(|line| {
+                let tokens: Vec<&str> = line.split_whitespace().collect();
+                let keyword = tokens
+                    .iter()
+                    .position(|token| {
+                        token.eq_ignore_ascii_case("const") || token.eq_ignore_ascii_case("static")
+                    })
+                    .unwrap_or_default();
+                tokens
+                    .get(keyword + 1)
+                    .map(|ident| {
+                        ident
+                            .trim_matches(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                            .to_ascii_lowercase()
+                    })
+                    .unwrap_or_default()
+            })
+            .collect();
         for setting in walk::DEFAULTS_TABLE_SETTINGS {
-            if !lowered.contains(&format!("const {setting}")) {
+            if !declared
+                .iter()
+                .any(|declared_setting| declared_setting == setting)
+            {
                 violations.push(format!(
                     "vacuous-exemption: {} claims the spec §8.6 defaults-table exemption but \
                      does not DECLARE '{setting}' (`const {setting}`) — mentioning the table in \
@@ -1286,14 +1355,18 @@ mod evasion_tests {
             summarize("vacuous-exemption", &violations)
         );
 
-        // A genuine §8.6-shaped table warrants the exemption, and a sibling
-        // module is still policed by the literal scan.
+        // A genuine §8.6-shaped table — all TEN rows (critic-7 m4: the six
+        // numeric settings alone left the policy-carrying rows un-warranted)
+        // — carries the setting-scoped exemption, and a sibling module is
+        // still policed by the literal scan.
         let repo = Repo::clean("v2b");
         repo.write(
             "crates/gauntlet-app/src/config/defaults.rs",
             "pub const MAX_ROUNDS: usize = 12;\npub const MAX_PARALLEL: usize = 4;\npub const \
              MAX_DEPTH: usize = 3;\npub const MAX_WALL_SECONDS: u64 = 3600;\npub const \
-             RECOVERY_RESERVE_PCT: u8 = 20;\npub const DIAGNOSTIC_BUDGET: u64 = 1000;\n",
+             RECOVERY_RESERVE_PCT: u8 = 20;\npub const DIAGNOSTIC_BUDGET: u64 = 1000;\npub const \
+             REVIEW_MODE: &str = \"adaptive\";\npub const SANDBOX_BACKEND: &str = \"none\";\npub \
+             const INTERACTIVE: bool = false;\npub const GIT_STRATEGY: &str = \"worktree\";\n",
         );
         assert!(
             check_defaults_exemption(repo.root()).is_empty(),
@@ -1302,7 +1375,7 @@ mod evasion_tests {
         );
         assert!(
             check_no_hardcoded_literals(repo.root()).is_empty(),
-            "the warranted defaults module is the one exempt file: {}",
+            "the §8.6 settings are the one exempt content: {}",
             summarize(
                 "hardcoded-literal",
                 &check_no_hardcoded_literals(repo.root())
@@ -1319,6 +1392,161 @@ mod evasion_tests {
                     && v.contains("config/tables.rs")),
             "a sibling of the defaults module must stay policed: {:?}",
             check_no_hardcoded_literals(repo.root())
+        );
+    }
+
+    /// Critic-7 C1, the one that goes live at Task 5: the §8.6 exemption is
+    /// SETTING-scoped. A defaults module that declares all ten settings AND
+    /// hardcodes eight other literal classes in the same file must fail the
+    /// literal scan on every one of them — the old file-scoped exemption let
+    /// all eight through with the warrant satisfied.
+    #[test]
+    fn c7c1_the_defaults_exemption_is_setting_scoped_not_file_scoped() {
+        let repo = Repo::clean("c7c1");
+        let settings = "pub const MAX_ROUNDS: usize = 8;\npub const MAX_PARALLEL: usize = 2;\n\
+                        pub const MAX_DEPTH: usize = 1;\npub const MAX_WALL_SECONDS: u64 = 3600;\n\
+                        pub const RECOVERY_RESERVE_PCT: u8 = 15;\npub const DIAGNOSTIC_BUDGET: \
+                        u64 = 2;\npub const REVIEW_MODE: &str = \"adaptive\";\npub const \
+                        SANDBOX_BACKEND: &str = \"none\";\npub const INTERACTIVE: bool = \
+                        false;\npub const GIT_STRATEGY: &str = \"worktree\";\n";
+        repo.write("crates/gauntlet-app/src/config/defaults.rs", settings);
+
+        // The settings alone are clean — the warrant holds and the exemption
+        // covers exactly the ten declarations.
+        assert!(
+            check_defaults_exemption(repo.root()).is_empty(),
+            "{}",
+            summarize("vacuous-exemption", &check_defaults_exemption(repo.root()))
+        );
+        assert!(
+            check_no_hardcoded_literals(repo.root()).is_empty(),
+            "the §8.6 declarations must be the exemption's whole extent: {}",
+            summarize(
+                "hardcoded-literal",
+                &check_no_hardcoded_literals(repo.root())
+            )
+        );
+
+        // The critic's exact edit: the same warranted file, plus one literal
+        // per class. Every one must fail.
+        let hardcoded = "pub const MODEL: &str = \"gpt-5-codex\";\npub const AGENT_CMD: &str = \
+                         \"just verify --workspace\";\npub const STATE_ROOT: &str = \
+                         \"/var/lib/gauntlet/state\";\npub const API_BIND: &str = \
+                         \"localhost:8080\";\npub const STALL_TIMEOUT_MS: u64 = 900_000;\npub \
+                         const TOOL: &str = \"kubectl\";\n";
+        repo.append("crates/gauntlet-app/src/config/defaults.rs", hardcoded);
+        let violations = check_no_hardcoded_literals(repo.root());
+        for (needle, label) in [
+            ("hardcoded-model-id", "model id"),
+            ("hardcoded-command", "command"),
+            ("hardcoded-absolute-path", "absolute path"),
+            ("hardcoded-network-endpoint", "network endpoint"),
+            ("hardcoded-timeout", "timeout"),
+            ("hardcoded-tool-identity", "tool identity"),
+        ] {
+            assert!(
+                violations.iter().any(|v| v.starts_with(needle)),
+                "{label} hidden by the defaults exemption: {}",
+                summarize("hardcoded-literal", &violations)
+            );
+        }
+        // The warrant itself still holds — the failure is the literals, not a
+        // broken defaults table.
+        assert!(
+            check_defaults_exemption(repo.root()).is_empty(),
+            "{}",
+            summarize("vacuous-exemption", &check_defaults_exemption(repo.root()))
+        );
+    }
+
+    /// Critic-7 C2 through the real locator entry point: the directive head
+    /// on its own line must be joined to its argument and the escape seen.
+    #[test]
+    fn c7c2_a_directive_head_split_before_its_argument_fails_the_gate() {
+        let repo = Repo::clean("c7c2a");
+        repo.write(
+            "crates/gauntlet-app/src/lib.rs",
+            "include!\n    (\"../../shared/wiring.rs\");\n",
+        );
+        let violations = check_scope_integrity(repo.root());
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("shared/wiring.rs") && v.starts_with("scope-escape")),
+            "{}",
+            summarize("scope-integrity", &violations)
+        );
+
+        let repo = Repo::clean("c7c2b");
+        repo.write(
+            "crates/gauntlet-app/src/lib.rs",
+            "#[path\n    = \"../../shared/wiring.rs\"]\nmod wiring;\n",
+        );
+        let violations = check_scope_integrity(repo.root());
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("shared/wiring.rs") && v.starts_with("scope-escape")),
+            "{}",
+            summarize("scope-integrity", &violations)
+        );
+    }
+
+    /// Critic-6 C1 through the real entry point: a quote that is data — in a
+    /// block comment — used to delete every following literal from the
+    /// extraction, hiding a relative path the class would otherwise flag.
+    #[test]
+    fn c6c1_a_quote_that_is_data_does_not_hide_following_literals() {
+        let repo = Repo::clean("c6c1");
+        repo.write(
+            "crates/gauntlet-app/src/lib.rs",
+            "pub fn db() -> &'static str { /* \" */ \"state/gauntlet.db\" }\n",
+        );
+        let violations = check_no_hardcoded_literals(repo.root());
+        assert!(
+            violations.iter().any(
+                |v| v.starts_with("hardcoded-relative-path") && v.contains("state/gauntlet.db")
+            ),
+            "{}",
+            summarize("hardcoded-literal", &violations)
+        );
+    }
+
+    /// Critic-7 MJ3: `check_scope_integrity` measures its own scan like every
+    /// other repo-level check. A core crate with no Rust source at all, and a
+    /// core file the check cannot read, both fail through THIS check now
+    /// instead of being caught only by the other three.
+    #[test]
+    fn scope_integrity_measures_its_own_scan() {
+        // A missing crate: the walk finds nothing under gauntlet-ports, and
+        // the floor — derived from the walked tree and the independent
+        // listing, not a constant — reports it.
+        let repo = Repo::clean("mjs3a");
+        std::fs::remove_file(repo.root().join("crates/gauntlet-ports/src/lib.rs"))
+            .expect("fixture lib.rs is removable");
+        let violations = check_scope_integrity(repo.root());
+        assert!(
+            violations.iter().any(|v| v.contains("scope-integrity")
+                && v.contains("crates/gauntlet-ports")
+                && v.contains("no Rust source")),
+            "{}",
+            summarize("scope-integrity", &violations)
+        );
+
+        // An unreadable core file: missing evidence through this check (I8).
+        let repo = Repo::clean("mjs3b");
+        std::fs::write(
+            repo.root().join("crates/gauntlet-app/src/blob.bin"),
+            [0xff_u8, 0xfe, 0x00, 0x80],
+        )
+        .expect("fixture blob is written");
+        let violations = check_scope_integrity(repo.root());
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("scope-integrity") && v.contains("blob.bin")),
+            "{}",
+            summarize("scope-integrity", &violations)
         );
     }
 
@@ -1497,8 +1725,10 @@ mod evasion_tests {
     }
 
     /// Critic-5 vacuity M-1: the exemption list a check hands to the shared
-    /// scan is an argument, and an argument nothing checked. Only declared
-    /// exemptions, with recorded reasons, are honoured now.
+    /// scan is an argument, and an argument nothing checked. Since round 6
+    /// (critic-7 C1) the declared inventory is EMPTY — the defaults-module
+    /// entry became setting-scoped — so EVERY call-site exemption is
+    /// refused, including the path that used to be the sanctioned one.
     #[test]
     fn an_undeclared_call_site_exemption_fails_the_gate() {
         let repo = Repo::clean("exempt");
@@ -1510,15 +1740,15 @@ mod evasion_tests {
         // Ground truth: the file is policed by the real check.
         assert!(!check_no_hardcoded_literals(repo.root()).is_empty());
 
-        // The critic's edit: exempt it at the call site. The scan itself now
-        // says nothing about the file — and the guard must report the
-        // undeclared exemption.
+        // The critic's edit: exempt it at the call site. The scan itself says
+        // nothing about the file — the guard must report the undeclared
+        // exemption.
         let report = scan_core_tree(
             repo.root(),
             "hardcoded-literal",
             walk::in_literal_scope,
             walk::CORE_CRATES,
-            &[walk::DEFAULTS_MODULE, "crates/gauntlet-app/src/wiring.rs"],
+            &["crates/gauntlet-app/src/wiring.rs"],
             |_, _, _| Vec::new(),
         );
         assert!(
@@ -1531,15 +1761,38 @@ mod evasion_tests {
             summarize("hardcoded-literal", &report.violations)
         );
 
-        // Negative: the one declared exemption is still honoured, so the guard
-        // is a warrant check and not a ban.
-        let clean = Repo::clean("exemptok");
+        // And the shape that used to be sanctioned: even the declared
+        // defaults module is refused as a FILE-level exemption now. The §8.6
+        // exemption is setting-scoped, inside the scanner; there is no
+        // file-level exemption left to declare.
+        let clean = Repo::clean("exemptdefaults");
         let report = scan_core_tree(
             clean.root(),
             "hardcoded-literal",
             walk::in_literal_scope,
             walk::CORE_CRATES,
             &[walk::DEFAULTS_MODULE],
+            |_, _, _| Vec::new(),
+        );
+        assert!(
+            report
+                .violations
+                .iter()
+                .any(|v| v.contains(walk::DEFAULTS_MODULE)
+                    && v.contains("not one of the declared exemptions")),
+            "{}",
+            summarize("hardcoded-literal", &report.violations)
+        );
+
+        // Negative: no exemptions passed, no exemption violation — the guard
+        // is a warrant check, not a ban on scanning.
+        let clean = Repo::clean("exemptok");
+        let report = scan_core_tree(
+            clean.root(),
+            "hardcoded-literal",
+            walk::in_literal_scope,
+            walk::CORE_CRATES,
+            &[],
             |_, _, _| Vec::new(),
         );
         assert!(
@@ -1668,6 +1921,164 @@ mod evasion_tests {
                 .any(|v| v.starts_with("hardcoded-relative-path")),
             "{:?}",
             check_no_hardcoded_literals(repo.root())
+        );
+    }
+
+    /// Critic-8 E1, through the real entry point: rustc's lexer treats a
+    /// block comment as token trivia, so `#[path/*c*/= "…"]` and
+    /// `include!/*c*/(…)` compile exactly like their compact spellings — the
+    /// matchers used to skip only spaces between the keyword, the `=`, and
+    /// the `(`, so the directive was invisible. The space-bearing escape
+    /// path was simultaneously not "path-shaped" for the literal class, so
+    /// the backstop missed it too.
+    #[test]
+    fn e1_comment_tokens_between_directive_and_argument_fail_the_gate() {
+        // The critic's exact payload, comment-in-all-gaps attribute form: the
+        // space-bearing path resolves outside the crate directory.
+        let repo = Repo::clean("e1a");
+        repo.write(
+            "crates/gauntlet-domain/src/lib.rs",
+            "#[path/* wiring */= \"my dir/../../../vendor/store.rs\"]\nmod store;\n",
+        );
+        let violations = check_scope_integrity(repo.root());
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("scope-escape") && v.contains("vendor/store.rs")),
+            "{}",
+            summarize("scope-integrity", &violations)
+        );
+
+        // The critic's include! form.
+        let repo = Repo::clean("e1b");
+        repo.write(
+            "crates/gauntlet-app/src/lib.rs",
+            "include!/* wiring */(\"my dir/../../../shared/wiring.rs\");\n",
+        );
+        let violations = check_scope_integrity(repo.root());
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("scope-escape") && v.contains("shared/wiring.rs")),
+            "{}",
+            summarize("scope-integrity", &violations)
+        );
+
+        // The backstop: even where no directive matcher fires, the
+        // `..`-bearing literal is a relative-path literal regardless of the
+        // spaces inside it.
+        let repo = Repo::clean("e1c");
+        repo.write(
+            "crates/gauntlet-app/src/lib.rs",
+            "pub const P: &str = \"my dir/../../../vendor/store.rs\";\n",
+        );
+        let violations = check_no_hardcoded_literals(repo.root());
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-relative-path")),
+            "{}",
+            summarize("hardcoded-literal", &violations)
+        );
+
+        // The in-crate spelling of the same comment forms stays clean: an
+        // in-crate `#[path/*c*/= …]` resolves inside the crate directory and
+        // is not a violation.
+        let repo = Repo::clean("e1d");
+        repo.write(
+            "crates/gauntlet-app/src/lib.rs",
+            "#[path/* wiring */= \"engine/mod.rs\"]\nmod engine;\ninclude!/* wiring \
+             */(\"fixture.txt\");\n",
+        );
+        assert!(
+            check_scope_integrity(repo.root()).is_empty(),
+            "{}",
+            summarize("scope-integrity", &check_scope_integrity(repo.root()))
+        );
+    }
+
+    /// Critic-8 E2, through the real entry point: an in-repo
+    /// `.cargo/config.toml` whose `[env]` table carries `RUSTFLAGS` — the
+    /// exact payload the `rustflags` key ban exists to stop, delivered under
+    /// a child key the case-sensitive key walk never matched. Cargo's
+    /// documentation: the `[env]` section sets additional environment
+    /// variables "for build scripts, rustc invocations, cargo run and cargo
+    /// build".
+    #[test]
+    fn e2_a_compiler_affecting_env_entry_fails_the_gate() {
+        // The critic's exact payload.
+        let repo = Repo::clean("e2");
+        repo.write(
+            ".cargo/config.toml",
+            "[env]\nRUSTFLAGS = { value = \"--extern shadow=/home/u/vendor/libshadow.rlib \
+             --cfg injected\", force = true }\n",
+        );
+        let violations = check_dependency_direction(repo.root());
+        assert!(
+            violations.iter().any(|v| v.contains("[env] RUSTFLAGS")),
+            "{}",
+            summarize("dependency-direction", &violations)
+        );
+
+        // Benign `[env]` entries stay clean — the channel to the compiler is
+        // denied, not the whole table.
+        let repo = Repo::clean("e2benign");
+        repo.write(
+            ".cargo/config.toml",
+            "[env]\nGAUNTLET_LOG = { value = \"debug\", force = true }\n",
+        );
+        assert!(
+            check_dependency_direction(repo.root()).is_empty(),
+            "{}",
+            summarize(
+                "dependency-direction",
+                &check_dependency_direction(repo.root())
+            )
+        );
+    }
+
+    /// Critic-9 F2 (critic-8 E7 is the same defect), through the real entry
+    /// point: the §8.6 exemption is DECLARATION-granular. The critic's exact
+    /// payload — nine clean settings plus `pub const MAX_ROUNDS: usize = 12;
+    /// pub const BIND: &str = "localhost:8080";` on one line — must flag
+    /// BIND while the setting's own declaration stays exempt and the warrant
+    /// still holds.
+    #[test]
+    fn f2_the_defaults_exemption_covers_only_the_setting_declaration() {
+        let repo = Repo::clean("f2");
+        let nine = "pub const MAX_PARALLEL: usize = 4;\npub const MAX_DEPTH: usize = 3;\npub const \
+                    MAX_WALL_SECONDS: u64 = 3600;\npub const RECOVERY_RESERVE_PCT: u8 = 20;\npub \
+                    const DIAGNOSTIC_BUDGET: u64 = 1000;\npub const REVIEW_MODE: &str = \
+                    \"adaptive\";\npub const SANDBOX_BACKEND: &str = \"none\";\npub const \
+                    INTERACTIVE: bool = false;\npub const GIT_STRATEGY: &str = \"worktree\";\n";
+        let packed =
+            "pub const MAX_ROUNDS: usize = 12; pub const BIND: &str = \"localhost:8080\";\n";
+        repo.write(
+            "crates/gauntlet-app/src/config/defaults.rs",
+            &format!("{nine}{packed}"),
+        );
+
+        // The warrant holds: the packed line still DECLARES max_rounds, which
+        // is exactly why the old unit-scoped skip was a smuggle.
+        assert!(
+            check_defaults_exemption(repo.root()).is_empty(),
+            "{}",
+            summarize("vacuous-exemption", &check_defaults_exemption(repo.root()))
+        );
+
+        // BIND is flagged; MAX_ROUNDS's own declaration is not.
+        let violations = check_no_hardcoded_literals(repo.root());
+        assert!(
+            violations.iter().any(
+                |v| v.starts_with("hardcoded-network-endpoint") && v.contains("localhost:8080")
+            ),
+            "{}",
+            summarize("hardcoded-literal", &violations)
+        );
+        assert!(
+            violations.iter().all(|v| !v.contains("MAX_ROUNDS")),
+            "the setting's own declaration is the exemption's whole extent: {}",
+            summarize("hardcoded-literal", &violations)
         );
     }
 }

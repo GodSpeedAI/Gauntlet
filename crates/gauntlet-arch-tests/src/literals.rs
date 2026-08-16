@@ -8,7 +8,7 @@
 //! | class | rule | false-positive posture |
 //! |---|---|---|
 //! | `hardcoded-absolute-path` | ANY string literal whose first byte is `/` and which is longer than one byte (complete, no list); plus a `/`-rooted segment from [`ABSOLUTE_PATH_ROOTS`] at a non-path boundary anywhere on the line, case-insensitive; plus any drive-letter root `[A-Za-z]:[\\/]` | flags absolute paths in comments too — naming a machine's layout in core prose is the same coupling. A lone `"/"` separator is not flagged |
-//! | `hardcoded-relative-path` | a string literal that is path-shaped by STRUCTURE: rooted at `./`, `../`, `~/`, or multi-segment with every segment filename-shaped — extension or not (critic-5 M2) | wide on purpose: `"config/defaults"` resolves against the working directory exactly as `"config/defaults.toml"` does. Slash vocabulary and media types are exempted BY NAME in [`RELATIVE_PATH_EXEMPTIONS`], each with its reason, so the exceptions are argued rather than inferred |
+//! | `hardcoded-relative-path` | a string literal that is path-shaped by STRUCTURE: rooted at `./`, `../`, `~/`, multi-segment with every segment filename-shaped — extension or not (critic-5 M2) — or carrying any explicit `..` parent-directory segment, whatever the other segments look like (critic-8 E1: `my dir/../../../vendor/store.rs` navigates the filesystem exactly like `../vendor/store.rs`) | wide on purpose: `"config/defaults"` resolves against the working directory exactly as `"config/defaults.toml"` does. Slash vocabulary and media types are exempted BY NAME in [`RELATIVE_PATH_EXEMPTIONS`], each with its reason, so the exceptions are argued rather than inferred |
 //! | `hardcoded-provider-endpoint` | a string literal containing a dotted host whose final label is a registered TLD ([`ENDPOINT_TLDS`]), e.g. `api.some-vendor.com` with no scheme and no port | string literals only; `config.toml`/`state.db` end in no TLD, and the RFC 2606 documentation names are exempt with reasons ([`ENDPOINT_EXEMPTIONS`]). An endpoint under an unlisted TLD is the residual |
 //! | `unscannable-declaration` | a `const`/`static`/`let` declaration that does not reach its `;` within [`crate::text::MAX_DECLARATION_LINES`] | not a literal class but a completeness report (I8): the timeout and tier classes need identifier and value in one unit, so a declaration the scanner cannot join is a hole it must name (critic-5 M1) |
 //! | `hardcoded-url` | any `scheme://` (`wss`, `file`, `ftp`, `grpc`, …), not just http(s) | a `://` inside a non-URL string is vanishingly rare; accepted |
@@ -18,8 +18,8 @@
 //! | `hardcoded-port` | a numeric literal whose value is a well-known port, in any Rust spelling: `8080`, `8_080`, `0x1f90`, `0o17620`, `8080u16` | a well-known port value used as a plain number flags; deliberate — outside the defaults table it is a configuration leak either way |
 //! | `hardcoded-command` | a multi-token string literal whose first token is an executable from [`COMMAND_HEADS`] and which contains no English stopword; plus any `Command::new("…")` | scoped to STRING LITERALS only, so prose and identifiers never flag; a sentence beginning with a tool name is excluded by the stopword guard. Shell metacharacters (`>`, `\|`, `&`, quotes, globs) are EVIDENCE, never an exemption — round-3 V16 |
 //! | `hardcoded-tool-identity` | a string literal that is exactly a product from [`TOOL_IDENTITIES`] **or an executable head from [`COMMAND_HEADS`]** — the union is computed, so the two lists cannot drift apart again (critic-4 M2) | string literals only; the risk is a config PARSER matching on `"git"` — see "residual" |
-//! | `hardcoded-timeout` | a numeric literal ≥ 2 introduced by `=`, `(` or `,` on a line carrying a duration-shaped identifier ([`TIMEOUT_HINTS`]) | the `=`/`(`/`,` requirement is what keeps `(spec §11.5)` and markdown tables from flagging |
-//! | `hardcoded-tier-policy` | a string literal from [`TIER_TERMS`], or matching `tier[-_ ]<digit>`, on a `const`/`static`/`default` line that is not an attribute | narrow ON PURPOSE — see "residual" |
+//! | `hardcoded-timeout` | a numeric literal ≥ 2 in a value position — introduced by `=`, `(`, `,`, `:` (struct-field initialisers), `>` (match arms) or `[` — on a line carrying a duration-shaped identifier ([`TIMEOUT_HINTS`]) | the hint requirement is what keeps `(spec §11.5)` and markdown tables from flagging; until critic-6 C2 the class was also narrow by punctuation, blind to `Timeouts { stall_ms: 900_000 }` |
+//! | `hardcoded-tier-policy` | a string literal from [`TIER_TERMS`], or matching `tier[-_ ]<digit>`, on a `const`/`static`/`default` line, unless the literal sits INSIDE an attribute body (delimited by the lexing pass, so a `#[` in a comment no longer disables the class — critic-6 C3) | narrow ON PURPOSE — see "residual" |
 //!
 //! # Residual, recorded rather than hidden
 //!
@@ -90,13 +90,20 @@
 //!   `concat!`, escapes, statement breaks); it cannot close deliberate
 //!   runtime assembly. Recorded, not hidden.
 //!
-//! Scope: the denylist scope (every regular text file under the four core
-//! crates, including `gauntlet-cli`) minus
-//! `crates/gauntlet-app/src/config/defaults.rs`, the declared §8.6 defaults
-//! table. That exemption is itself checked (`crate::check_defaults_exemption`)
-//! so it can never be vacuous. Matching runs over `crate::text::scan_units`, so
-//! a literal split by a line-continuation, by `concat!`, by a `\x`/`\u{}`
-//! escape, or by a rustfmt statement break is still found.
+//! Scope: the denylist scope, file for file — every regular text file under
+//! the four core crates, including `gauntlet-cli` AND including the declared
+//! §8.6 defaults module. The defaults exemption is DECLARATION-granular
+//! (critic-7 C1, then critic-9 F2 / critic-8 E7): in that one file, each
+//! setting's own declaration — head to terminating `;` — is blanked out
+//! before matching, nothing else is, and the warrant
+//! (`crate::check_defaults_exemption`) requires the file, if it exists, to
+//! declare every §8.6 setting. Matching runs over `crate::text::scan_units`,
+//! so a literal split by a line-continuation, by `concat!`, by a `\x`/`\u{}`
+//! escape, by a rustfmt statement break, or by a break between a directive
+//! head and its argument is still found. String, char, and comment
+//! delimiting comes from the ONE lexing pass (`crate::text::regions`) — a
+//! quote that is data can no longer delete the literals after it
+//! (critic-6 C1).
 
 /// Model family prefixes for the hyphenated form.
 pub const MODEL_FAMILIES: &[&str] = &[
@@ -473,6 +480,20 @@ fn contains_hint(lowered: &str, hint: &str) -> bool {
 /// first hit per class per scan unit — enough to fail loudly and to point at
 /// the exact line. Duplicate messages (the same finding seen in both the
 /// physical and the normalized form of a line) are collapsed.
+///
+/// The ONE exemption is DECLARATION-granular (critic-7 C1, then critic-9 F2 /
+/// critic-8 E7): in the declared §8.6 defaults module
+/// ([`crate::walk::DEFAULTS_MODULE`]), each declaration of one of
+/// [`crate::walk::DEFAULTS_TABLE_SETTINGS`] — from its head to the code `;`
+/// that terminates it — is blanked out before matching; the default's VALUE
+/// is the exemption's whole warrant, so the warrant's extent is the
+/// declaration itself, not the scan unit that happens to carry it. Everything
+/// else in that file, and every unit of every other file, is policed by all
+/// classes. Round 6 skipped the whole unit when it declared a setting, and a
+/// unit can hold more than one declaration: a second one packed onto the
+/// setting's line escaped every class. Until round 6 the whole FILE was
+/// outside the literal scan, which made eight of the nine §8.1 classes
+/// hardcodable by anything that landed at that path.
 pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let push = |message: String, out: &mut Vec<String>| {
@@ -480,6 +501,7 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
             out.push(message);
         }
     };
+    let defaults_scope = path == crate::walk::DEFAULTS_MODULE;
 
     // Critic-5 M1, invariant I8: the timeout and tier-policy classes need the
     // identifier and its value in ONE scan unit. A declaration this scanner
@@ -499,8 +521,19 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
     }
 
     for unit in crate::text::scan_units(text) {
+        let masked;
+        let raw: &str = if defaults_scope {
+            // Critic-9 F2 / critic-8 E7: the exemption's unit of skipping is
+            // now its unit of warrant. Only the setting's own declaration —
+            // head to terminating `;` — is blanked out; the rest of the unit,
+            // including a second declaration packed onto the same physical
+            // line, is policed by every class below.
+            masked = mask_setting_declarations(&unit.text);
+            masked.as_str()
+        } else {
+            unit.text.as_str()
+        };
         let line_no = unit.line;
-        let raw = unit.text.as_str();
         let lowered = raw.to_lowercase();
 
         if let Some(found) = find_absolute_path(&lowered) {
@@ -512,7 +545,7 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
                 &mut out,
             );
         }
-        if let Some(found) = find_absolute_path_literal(&string_literals(raw)) {
+        if let Some(found) = find_absolute_path_literal(&crate::text::string_literals(raw)) {
             push(
                 format!(
                     "hardcoded-absolute-path: {path}:{line_no}: '{found}' — a string literal \
@@ -531,7 +564,7 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
                 &mut out,
             );
         }
-        if let Some(found) = find_relative_path(&string_literals(raw)) {
+        if let Some(found) = find_relative_path(&crate::text::string_literals(raw)) {
             push(
                 format!(
                     "hardcoded-relative-path: {path}:{line_no}: '{found}' — a path literal is \
@@ -591,7 +624,7 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
             );
         }
 
-        let literals = string_literals(raw);
+        let literals = crate::text::string_literals(raw);
         if let Some(command) = find_command(&lowered, &literals) {
             push(
                 format!(
@@ -629,7 +662,7 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
                 &mut out,
             );
         }
-        if let Some(tier) = find_tier_policy(&lowered, &literals) {
+        if let Some(tier) = find_tier_policy(&lowered, raw) {
             push(
                 format!(
                     "hardcoded-tier-policy: {path}:{line_no}: '{tier}' — tier and review policy \
@@ -640,6 +673,119 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// Whether a scan unit DECLARES one of the §8.6 default settings: after any
+/// qualifiers, `const`/`static` and then an identifier that IS a §8.6 setting
+/// (case-insensitive). This is the head shape whose declaration the
+/// exemption masks — and nothing else. Prose and doc comments never qualify
+/// (their first token is not a qualifier or a keyword), an identifier that
+/// merely CONTAINS a setting name (`MAX_ROUNDS_LOG`) does not either, and
+/// `crate::check_defaults_exemption` uses the same test as its
+/// declaration-shaped warrant, so the exemption and the warrant cannot drift
+/// apart.
+pub(crate) fn is_defaults_setting_declaration(unit_text: &str) -> bool {
+    let mut tokens = unit_text.split_whitespace();
+    loop {
+        match tokens.next() {
+            Some(token)
+                if token == "pub"
+                    || token == "async"
+                    || token == "unsafe"
+                    || token == "extern"
+                    || token.starts_with("pub(") =>
+            {
+                continue;
+            }
+            Some(token)
+                if token.eq_ignore_ascii_case("const") || token.eq_ignore_ascii_case("static") =>
+            {
+                let Some(ident) = tokens.next() else {
+                    return false;
+                };
+                let ident = ident
+                    .trim_matches(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .to_ascii_lowercase();
+                return crate::walk::DEFAULTS_TABLE_SETTINGS
+                    .iter()
+                    .any(|setting| *setting == ident);
+            }
+            _ => return false,
+        }
+    }
+}
+
+/// Blank out the §8.6 setting declarations of one scan unit (critic-9 F2 /
+/// critic-8 E7), replacing each declaration's bytes with spaces so the unit's
+/// length — and therefore the line every class reports at — is unchanged. A
+/// unit that declares no setting is returned unchanged.
+///
+/// Round 6 skipped the whole UNIT when it declared a setting, and a unit can
+/// hold more than one declaration: `pub const MAX_ROUNDS: usize = 12; pub
+/// const BIND: &str = "localhost:8080";` smuggled the second declaration past
+/// every class. The exemption's unit of skipping is now its unit of warrant:
+/// the setting's own declaration, nothing else on the line.
+fn mask_setting_declarations(unit_text: &str) -> String {
+    let spans = setting_declaration_spans(unit_text);
+    if spans.is_empty() {
+        return unit_text.to_string();
+    }
+    let mut out = String::with_capacity(unit_text.len());
+    let mut at = 0usize;
+    for span in &spans {
+        out.push_str(&unit_text[at..span.start]);
+        for _ in 0..span.len() {
+            out.push(' ');
+        }
+        at = span.end;
+    }
+    out.push_str(&unit_text[at..]);
+    out
+}
+
+/// The byte spans of the §8.6 setting declarations inside one scan unit: each
+/// runs from the declaration's first byte to the CODE `;` that terminates it,
+/// or to the end of the unit when the declaration does not terminate inside
+/// it (its value then sits in another unit, which is policed). The unit is
+/// split at code semicolons — a `;` inside a string, char, or comment region
+/// of the ONE lexing pass is data and never ends a declaration — and each
+/// chunk is tested with the same declaration-shape predicate the warrant
+/// uses, so what the exemption masks is exactly what
+/// `crate::check_defaults_exemption` accepts as a declaration.
+fn setting_declaration_spans(unit_text: &str) -> Vec<std::ops::Range<usize>> {
+    let bytes = unit_text.as_bytes();
+    let regions = crate::text::regions(unit_text);
+    let mut spans = Vec::new();
+    let mut chunk_start = 0usize;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if let Some(span) = regions
+            .iter()
+            .find(|region| region.span().contains(&i))
+            .map(|region| region.span())
+        {
+            i = span.end;
+            continue;
+        }
+        if bytes[i] == b';' {
+            push_if_setting_declaration(unit_text, chunk_start, i + 1, &mut spans);
+            chunk_start = i + 1;
+        }
+        i += 1;
+    }
+    push_if_setting_declaration(unit_text, chunk_start, bytes.len(), &mut spans);
+    spans
+}
+
+fn push_if_setting_declaration(
+    text: &str,
+    from: usize,
+    to: usize,
+    spans: &mut Vec<std::ops::Range<usize>>,
+) {
+    if is_defaults_setting_declaration(&text[from..to]) {
+        spans.push(from..to);
+    }
 }
 
 /// Match an absolute path root on a lowercased line. The root need not be
@@ -757,6 +903,16 @@ fn looks_like_relative_path(literal: &str) -> bool {
     // list above, which is argued entry by entry rather than inferred.
     let normalized = literal.replace('\\', "/");
     let segments: Vec<&str> = normalized.split('/').collect();
+    // Critic-8 E1, the backstop half: a literal carrying an explicit
+    // parent-directory segment is a path by construction, whatever the other
+    // segments look like. `my dir/../../../vendor/store.rs` is the critic's
+    // escape payload — one space-bearing segment made the whole literal read
+    // as prose to the every-segment rule, while it resolves against the
+    // filesystem exactly like `../vendor/store.rs`. The `..` segment IS the
+    // navigation; the spaces around it change nothing.
+    if segments.contains(&"..") {
+        return true;
+    }
     segments.len() >= 2 && segments.iter().all(|segment| is_path_segment(segment))
 }
 
@@ -1115,42 +1271,6 @@ fn match_ipv4_at(bytes: &[u8], start: usize) -> Option<usize> {
     Some(pos)
 }
 
-/// Every double-quoted string literal on a line, escapes resolved enough for
-/// matching. Raw strings (`r"…"`) are read as ordinary ones, which is
-/// sufficient: their content still ends up in the extracted text.
-///
-/// `crate::denylist` uses this too, for the whole-literal adapter-segment
-/// rule (round-3 V7).
-pub(crate) fn string_literals(raw: &str) -> Vec<String> {
-    let bytes = raw.as_bytes();
-    let mut out = Vec::new();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        if bytes[i] != b'"' {
-            i += 1;
-            continue;
-        }
-        i += 1;
-        let mut current = String::new();
-        while i < bytes.len() {
-            match bytes[i] {
-                b'"' => break,
-                b'\\' if i + 1 < bytes.len() => {
-                    current.push(bytes[i + 1] as char);
-                    i += 2;
-                }
-                other => {
-                    current.push(other as char);
-                    i += 1;
-                }
-            }
-        }
-        i += 1;
-        out.push(current);
-    }
-    out
-}
-
 /// A hardcoded command: `Command::new("…")`, or a command-shaped string
 /// literal headed by a known executable.
 ///
@@ -1224,8 +1344,16 @@ fn find_provider_identity(literals: &[String]) -> Option<String> {
         .cloned()
 }
 
-/// A duration/schedule policy number: a literal ≥ 2 introduced by `=`, `(`,
-/// or `,` on a line carrying a duration-shaped identifier.
+/// A duration/schedule policy number: a literal ≥ 2 introduced by a value
+/// position — `=`, `(`, `,`, `:`, `>` (match arms), or `[` — on a line
+/// carrying a duration-shaped identifier.
+///
+/// Critic-6 C2: the class used to accept only `=`, `(` and `,`, which made it
+/// narrow by PUNCTUATION rather than by value: a struct-field initialiser
+/// (`Timeouts { stall_ms: 900_000 }`), a match arm (`=> 900_000`), and an
+/// array value (`= [900_000]`) all fell outside it. The hint requirement is
+/// what actually narrows the class (spec cross-references and markdown tables
+/// carry no duration-shaped identifier next to the number).
 fn find_timeout(lowered: &str, numbers: &[NumericLiteral]) -> Option<(String, String)> {
     let hint = TIMEOUT_HINTS
         .iter()
@@ -1233,30 +1361,42 @@ fn find_timeout(lowered: &str, numbers: &[NumericLiteral]) -> Option<(String, St
         .to_string();
     let number = numbers.iter().find(|n| {
         n.value.is_some_and(|v| v >= 2)
-            && matches!(n.introducer, Some(b'=') | Some(b'(') | Some(b','))
+            && matches!(
+                n.introducer,
+                Some(b'=') | Some(b'(') | Some(b',') | Some(b':') | Some(b'>') | Some(b'[')
+            )
     })?;
     Some((number.text.clone(), hint))
 }
 
 /// A tier/authority/review policy literal on a declaration line.
-fn find_tier_policy(lowered: &str, literals: &[String]) -> Option<String> {
-    if lowered.contains("#[") {
-        return None;
-    }
+///
+/// Critic-6 C3: the attribute carve-out used to be `lowered.contains("#[")` —
+/// a blanket disable for the whole unit, including a `#[` inside a comment,
+/// which is how `// matches the #[review] attribute` turned the class off.
+/// The carve-out is now structural, from the lexing pass: a literal is exempt
+/// only when it sits INSIDE an attribute body (`#[serde(rename =
+/// "cross_cutting")]` is typed vocabulary, not policy). An attribute earlier
+/// on the line, or a `#[` in a comment, no longer disables the class.
+fn find_tier_policy(lowered: &str, raw: &str) -> Option<String> {
     if !(lowered.contains("const ") || lowered.contains("static ") || lowered.contains("default")) {
         return None;
     }
-    for literal in literals {
+    let attributes = crate::text::attribute_spans(raw);
+    for (at, literal) in crate::text::string_literal_spans(raw) {
+        if attributes.iter().any(|span| span.contains(&at)) {
+            continue;
+        }
         let value = literal.trim().to_lowercase();
         if TIER_TERMS.contains(&value.as_str()) {
-            return Some(literal.clone());
+            return Some(literal);
         }
         if let Some(rest) = value.strip_prefix("tier")
             && rest
                 .strip_prefix(['-', '_', ' '])
                 .is_some_and(|d| d.bytes().next().is_some_and(|b| b.is_ascii_digit()))
         {
-            return Some(literal.clone());
+            return Some(literal);
         }
     }
     None
@@ -2293,5 +2433,375 @@ pub fn resolve(defaults: &Defaults, env: &Env) -> Effective {
                 "may", "can", "cannot", "has", "have", "no", "at", "by", "from", "into",
             ]
         );
+    }
+
+    /// Critic-7 MJ2: the exemption inventories were the only ones a single
+    /// added row could widen silently — the "state a reason" tests iterate the
+    /// list, so they grow in lockstep with it, and one added row un-polices
+    /// exactly one literal forever. Both are pinned to their exact contents
+    /// now, exactly like `DENIED_TERMS`.
+    #[test]
+    fn exemption_inventories_are_pinned() {
+        assert_eq!(
+            RELATIVE_PATH_EXEMPTIONS,
+            &[
+                (
+                    "and/or",
+                    "an English conjunction: it names no file and resolves against no directory",
+                ),
+                (
+                    "input/output",
+                    "English vocabulary for the two directions of a stream, not a directory pair",
+                ),
+                (
+                    "read/write",
+                    "English vocabulary for an access mode, as in an open flag description",
+                ),
+                (
+                    "n/a",
+                    "the conventional written form of 'not applicable' in a report field",
+                ),
+                (
+                    "24/7",
+                    "a schedule idiom; the slash is notation, not a separator",
+                ),
+                (
+                    "application/json",
+                    "an IANA media type: a wire content type carried in a header, which names no \
+                     location on any filesystem",
+                ),
+                (
+                    "application/octet-stream",
+                    "an IANA media type, exactly like application/json",
+                ),
+                (
+                    "text/plain",
+                    "an IANA media type, exactly like application/json",
+                ),
+                (
+                    "text/markdown",
+                    "an IANA media type, exactly like application/json",
+                ),
+                (
+                    "image/png",
+                    "an IANA media type, exactly like application/json",
+                ),
+            ]
+        );
+        assert_eq!(
+            ENDPOINT_EXEMPTIONS,
+            &[
+                (
+                    "example.com",
+                    "RFC 2606 reserves example.com for documentation; it resolves to nothing \
+                     operational, so it is prose rather than configuration",
+                ),
+                (
+                    "example.org",
+                    "RFC 2606 reserves example.org for documentation, exactly like example.com",
+                ),
+                (
+                    "example.net",
+                    "RFC 2606 reserves example.net for documentation, exactly like example.com",
+                ),
+            ]
+        );
+    }
+
+    /// Critic-6 C1's exact evasion: the `'"'` char literal in
+    /// `trim_matches('"')` contributed a delimiter quote to the old naive
+    /// extractor, deleting every following literal from eight classes. The
+    /// one lexing pass reads it as data.
+    #[test]
+    fn a_quote_that_is_data_no_longer_deletes_following_literals() {
+        let fixture = "pub fn agent_for(spec: &str) -> &'static str {\n    match \
+                       spec.trim_matches('\"') { \"fast\" => \"mock\", _ => \"prime\" }\n}\npub \
+                       const ROOT: &str = \"/var/lib/gauntlet/state\";\n";
+        let violations = scan_literals("f.rs", fixture);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-absolute-path") && v.contains("/var/lib")),
+            "{violations:?}"
+        );
+
+        // The critic's second fixture: a quote inside a block comment.
+        let commented = "pub fn db() -> &'static str { /* \" */ \"state/gauntlet.db\" }\n";
+        let violations = scan_literals("f.rs", commented);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-relative-path") && v.contains("gauntlet.db")),
+            "{violations:?}"
+        );
+
+        // Same line, following the char literal: the discriminating form. A
+        // scanner that treats the `'"'` byte as a delimiter loses THIS
+        // literal, because the shift starts on this very line.
+        let same_line = "let key = spec.trim_matches('\"'); let db = \"state/gauntlet.db\";\n";
+        let violations = scan_literals("f.rs", same_line);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-relative-path") && v.contains("gauntlet.db")),
+            "{same_line} -> {violations:?}"
+        );
+
+        // A raw string carrying a quote, ahead of a model id.
+        let raw = "pub const NOTE: &str = r#\"a \" quote\"#;\npub const MODEL: &str = \
+                   \"claude-3-5-sonnet\";\n";
+        let violations = scan_literals("f.rs", raw);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-model-id")),
+            "{violations:?}"
+        );
+    }
+
+    /// Critic-6 C2's exact evasion: the timeout class only saw values
+    /// introduced by `=`, `(` or `,`. A struct-field initialiser, a match
+    /// arm, and an array value all hid their durations.
+    #[test]
+    fn struct_field_and_match_arm_values_introduce_a_timeout() {
+        for fixture in [
+            "pub struct Timeouts { pub stall_ms: u64 }\npub const POLICY: Timeouts = Timeouts { \
+             stall_ms: 900_000 };\n",
+            "fn pick(mode: u8) -> u64 { let stall_timeout_ms = match mode { 0 => 900_000, _ => 1 \
+             }; stall_timeout_ms }\n",
+            "pub const STALL_LIMITS: [u64; 1] = [900_000];\n",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-timeout") && v.contains("900_000")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // The prose guards still hold: a spec cross-reference and a markdown
+        // table carry no duration-shaped identifier next to the number.
+        for fixture in [
+            "//! Retry and stall policy (spec §11.5).",
+            "//! | max_wall_seconds | 3600 | bounded |",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .all(|v| !v.starts_with("hardcoded-timeout")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+    }
+
+    /// Critic-6 C3's exact evasion: `#[` anywhere in the unit — including in a
+    /// comment — used to disable the tier class for the whole unit. The
+    /// carve-out is structural now: only a literal INSIDE an attribute body
+    /// is exempt.
+    #[test]
+    fn a_hash_in_a_comment_does_not_disable_the_tier_class() {
+        let fixture = "pub const REVIEW_MODE: &str = \"adversarial\"; // matches the #[review] \
+                       attribute\n";
+        let violations = scan_literals("f.rs", fixture);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tier-policy")),
+            "{violations:?}"
+        );
+
+        // A REAL attribute earlier on the same line no longer disables the
+        // class either — the literal sits outside the attribute body.
+        let attributed = "#[allow(dead_code)] pub const REVIEW_MODE: &str = \"adversarial\";\n";
+        assert!(
+            scan_literals("f.rs", attributed)
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tier-policy")),
+            "the literal is outside the attribute body: {:?}",
+            scan_literals("f.rs", attributed)
+        );
+
+        // The documented narrowing survives: a literal that IS an attribute's
+        // value is typed vocabulary, not policy.
+        assert!(
+            scan_literals(
+                "f.rs",
+                "#[serde(rename = \"cross_cutting\")]\npub enum R {}\n"
+            )
+            .is_empty()
+        );
+    }
+
+    /// The §8.6 exemption is setting-scoped (critic-7 C1): in the declared
+    /// defaults module, exactly the declarations of the ten settings are
+    /// skipped — nothing else in that file, and nothing in any other file,
+    /// even when the identifier matches a setting name.
+    #[test]
+    fn defaults_settings_exempt_only_their_own_declarations() {
+        let defaults_path = "crates/gauntlet-app/src/config/defaults.rs";
+        let settings = "pub const MAX_WALL_SECONDS: u64 = 3600;\npub const REVIEW_MODE: &str = \
+                        \"adaptive\";\npub static SANDBOX_BACKEND: &str = \"none\";\n";
+        assert!(
+            scan_literals(defaults_path, settings)
+                .iter()
+                .all(|v| !v.starts_with("hardcoded-timeout")
+                    && !v.starts_with("hardcoded-tier-policy")),
+            "the setting declarations are the exemption: {:?}",
+            scan_literals(defaults_path, settings)
+        );
+
+        // The same declarations in ANY other file are not exempt.
+        let violations = scan_literals("crates/gauntlet-app/src/lib.rs", settings);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-timeout"))
+                && violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-tier-policy")),
+            "{violations:?}"
+        );
+
+        // Inside the defaults module, an identifier that merely CONTAINS a
+        // setting name is not a setting.
+        let sneaky = "pub const MAX_ROUNDS_LOG: &str = \"claude-3-5-sonnet\";\n";
+        assert!(
+            scan_literals(defaults_path, sneaky)
+                .iter()
+                .any(|v| v.starts_with("hardcoded-model-id")),
+            "{:?}",
+            scan_literals(defaults_path, sneaky)
+        );
+        // And unrelated literals in the same file are policed normally.
+        let hardcoded = "pub const MODEL: &str = \"gpt-5-codex\";\nfn f() -> &'static str { \
+                         \"adversarial\" }\n";
+        let violations = scan_literals(defaults_path, hardcoded);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-model-id")),
+            "{violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tier-policy")),
+            "a tier literal outside a setting declaration, in the defaults module: {violations:?}"
+        );
+    }
+
+    /// Critic-9 F2 (critic-8 E7): the §8.6 exemption is DECLARATION-granular.
+    /// Round 6 skipped a scan UNIT that declared a setting, and one unit can
+    /// hold several declarations — the second one packed onto the setting's
+    /// line escaped every class. Only the setting's own declaration, head to
+    /// its terminating `;`, is exempt now.
+    #[test]
+    fn the_defaults_exemption_covers_only_the_setting_declaration() {
+        let defaults_path = "crates/gauntlet-app/src/config/defaults.rs";
+        // The critic's exact payload: one line, two declarations.
+        let packed =
+            "pub const MAX_ROUNDS: usize = 12; pub const BIND: &str = \"localhost:8080\";\n";
+        let violations = scan_literals(defaults_path, packed);
+        assert!(
+            violations.iter().any(
+                |v| v.starts_with("hardcoded-network-endpoint") && v.contains("localhost:8080")
+            ),
+            "the packed BIND declaration is inside the exempt unit but outside the exempt \
+             declaration: {violations:?}"
+        );
+        // The setting's own declaration is exempt: the same line alone flags
+        // nothing.
+        assert!(
+            scan_literals(defaults_path, "pub const MAX_ROUNDS: usize = 12;\n").is_empty(),
+            "{:?}",
+            scan_literals(defaults_path, "pub const MAX_ROUNDS: usize = 12;\n")
+        );
+
+        // Order does not matter: the mask is positional, not line-wide. The
+        // smuggled declaration may lead and the setting trail.
+        let reversed =
+            "pub const BIND: &str = \"localhost:8080\"; pub const MAX_ROUNDS: usize = 12;\n";
+        assert!(
+            scan_literals(defaults_path, reversed)
+                .iter()
+                .any(|v| v.starts_with("hardcoded-network-endpoint")),
+            "{:?}",
+            scan_literals(defaults_path, reversed)
+        );
+
+        // Three declarations, one setting: the other two are policed, each by
+        // its own class.
+        let crowded = "pub const MAX_ROUNDS: usize = 12; pub const MODEL: &str = \"gpt-5-codex\"; \
+                       pub const ROOT: &str = \"/tmp/gauntlet/state\";\n";
+        let violations = scan_literals(defaults_path, crowded);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-model-id")),
+            "{violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-absolute-path")),
+            "{violations:?}"
+        );
+
+        // A `;` that is DATA — inside the setting's own value string — does
+        // not end the exempt declaration early, so the setting's value stays
+        // exempt and the following declaration is still policed.
+        let data_semi = "pub const GIT_STRATEGY: &str = \"keep;semi\"; pub const BIND: &str = \
+                         \"localhost:8080\";\n";
+        let violations = scan_literals(defaults_path, data_semi);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-network-endpoint")),
+            "{violations:?}"
+        );
+        assert!(
+            violations.iter().all(|v| !v.contains("keep;semi")),
+            "the setting's own declaration, including its data semicolon, stays exempt: \
+             {violations:?}"
+        );
+    }
+
+    /// Critic-8 E1's backstop half: a `../`-bearing string argument of an
+    /// include-family directive is an escape regardless of spaces inside it.
+    /// The old every-segment-filename-shaped rule let `my
+    /// dir/../../../vendor/store.rs` read as prose, so when a directive
+    /// matcher missed, no literal class fired either.
+    #[test]
+    fn parent_directory_navigation_is_path_shaped_regardless_of_other_segments() {
+        for fixture in [
+            "pub const P: &str = \"my dir/../../../vendor/store.rs\";",
+            "pub const P: &str = \"my dir/../../shared/wiring.rs\";",
+            "pub const P: &str = \"cfg dir/../escape.rs\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-relative-path")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // The prose negatives keep their shape: no `..` segment, nothing new
+        // flags — a segment carrying a space or a `:` is still not a path
+        // unless the literal navigates with `..`.
+        for fixture in [
+            "let p = \"either this / or that\";",
+            "let p = \"key: value/other\";",
+            "let p = \"and/or\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .all(|v| !v.starts_with("hardcoded-relative-path")),
+                "{fixture} -> {violations:?}"
+            );
+        }
     }
 }

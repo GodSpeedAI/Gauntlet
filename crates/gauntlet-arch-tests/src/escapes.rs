@@ -47,13 +47,28 @@
 //! `include_str!("fixture.txt")` resolves inside the crate directory and is
 //! not reported — those files are already walked and scanned. Only escapes,
 //! absolute targets, and unresolvable targets are violations.
+//!
+//! Literal and comment delimiting comes from the ONE lexing pass
+//! (`crate::text::regions`): this module carries no private quote counting.
+//! Since round 6 a directive head split from its argument —
+//! `include!`⏎`("…")`, `#[path`⏎`= "…"]` — is joined into one scan unit
+//! before matching (critic-7 C2), and a `]` inside a comment no longer closes
+//! an attribute body early. Since round 6.1 the matchers also skip `/* … */`
+//! block comments between the keyword, the `=`, the `(`, and the string
+//! argument exactly as they skip whitespace (critic-8 E1): comments are token
+//! trivia to rustc's lexer, so `#[path/*c*/= "…"]` and `include!/*c*/(…)` are
+//! the same directives as their compact spellings. Residual, recorded: a
+//! comment at the END of a directive head that is split across lines —
+//! `include! /*c*/`⏎`("…")` — still defeats the head-join, which keys on the
+//! line's last word; a trailing comment replaces that word.
 
 use toml::Table;
 
 /// `include`-family directives whose string argument names a file the
 /// compiler will read. Carried WITHOUT the `!`: rustc tokenizes `include !`
 /// as the same call (critic-4 m3), so the matcher tolerates whitespace
-/// between the word, the `!`, and the `(`.
+/// between the word, the `!`, and the `(` — and, since critic-8 E1, block
+/// comments, which are token trivia to rustc exactly as whitespace is.
 const INCLUDE_DIRECTIVES: &[&str] = &["include", "include_str", "include_bytes"];
 
 /// Cargo manifest sections whose `path` key relocates a compilation target's
@@ -164,12 +179,18 @@ fn report(
 ///
 /// Both matchers tolerate whitespace where rustc does (critic-4 m3):
 /// `include ! ("…")` and `# [path = "…"]` are the same call and attribute to
-/// rustc, and used to match nothing here.
+/// rustc, and used to match nothing here. Since critic-8 E1 they also skip
+/// `/* … */` block comments in the same gaps, because rustc's lexer treats a
+/// comment as token trivia — `#[path/*c*/= "…"]` used to hide the `=` from
+/// the matcher while compiling exactly like `#[path = "…"]`. The attribute
+/// body is delimited by the shared lexing pass ([`crate::text::bracket_end`]),
+/// so a `]` that is data — inside a string, a char literal, or a comment —
+/// cannot close it.
 fn directive_arguments(raw: &str) -> Vec<(String, Argument)> {
     let mut out = Vec::new();
     let bytes = raw.as_bytes();
     // The include family: `include`, `include_str`, `include_bytes`, followed
-    // (after any whitespace) by `!`, then `(`.
+    // (after any whitespace or block comment) by `!`, then `(`.
     let mut from = 0usize;
     while let Some(at) = find_ascii_ci(raw, "include", from) {
         let word_end = at + "include".len() + include_word_tail(bytes, at + "include".len());
@@ -183,25 +204,29 @@ fn directive_arguments(raw: &str) -> Vec<(String, Argument)> {
         if !INCLUDE_DIRECTIVES.contains(&word.as_str()) {
             continue;
         }
-        let mut j = skip_space(bytes, word_end);
+        let mut j = skip_trivia(raw, word_end);
         if bytes.get(j) != Some(&b'!') {
             continue;
         }
-        j = skip_space(bytes, j + 1);
+        j = skip_trivia(raw, j + 1);
         if let Some(argument) = include_argument(raw, j) {
             out.push((word, argument));
         }
     }
-    // Attributes: `#` (after any whitespace) `[`, body closed structurally.
+    // Attributes: `#` (after any whitespace or block comment) `[`, body closed
+    // structurally. `#![` inner attributes open the same way after the `!`.
     let mut from = 0usize;
     while let Some(at) = raw[from..].find('#').map(|found| from + found) {
         from = at + 1;
-        let open = skip_space(bytes, at + 1);
+        let mut open = skip_trivia(raw, at + 1);
+        if bytes.get(open) == Some(&b'!') {
+            open = skip_trivia(raw, open + 1);
+        }
         if bytes.get(open) != Some(&b'[') {
             continue;
         }
         from = open + 1;
-        let end = attribute_body_end(bytes, open);
+        let end = crate::text::bracket_end(raw, open);
         for argument in attribute_path_arguments(&raw[at..end]) {
             out.push(("[path]".to_string(), argument));
         }
@@ -228,87 +253,54 @@ fn include_word_tail(bytes: &[u8], from: usize) -> usize {
 /// treating the whole remaining text as the attribute body (so a `path` key in
 /// the tail is still read). What cannot be an artifact is a file that ends
 /// inside a string literal or with an unclosed `[`: valid Rust never does
-/// that, so either the file is not the Rust the compiler sees, or this
-/// scanner's own literal state machine lost synchronization. Both mean the
-/// evidence is missing rather than negative.
+/// that, so either the file is not the Rust the compiler sees, or the lexing
+/// pass lost synchronization. Both mean the evidence is missing rather than
+/// negative.
 ///
 /// Restricted to `.rs` files: `[` in a Markdown or TOML file is prose or a
-/// table header, not structure this scanner claims to understand.
+/// table header, not structure this scanner claims to understand. Delimiting
+/// comes from the ONE lexing pass ([`crate::text::regions`]); this scanner no
+/// longer carries its own literal state machine.
 fn scan_unterminated(path: &str, text: &str) -> Vec<String> {
     if !path.ends_with(".rs") {
         return Vec::new();
     }
     let bytes = text.as_bytes();
+    let regions = crate::text::regions(text);
     let mut out = Vec::new();
     let mut brackets: Vec<usize> = Vec::new();
     let mut i = 0usize;
     while i < bytes.len() {
-        match bytes[i] {
-            b'/' if bytes.get(i + 1) == Some(&b'/') => {
-                while i < bytes.len() && bytes[i] != b'\n' {
-                    i += 1;
-                }
-            }
-            b'/' if bytes.get(i + 1) == Some(&b'*') => {
-                let mut depth = 1usize;
-                i += 2;
-                while i < bytes.len() && depth > 0 {
-                    if bytes[i] == b'/' && bytes.get(i + 1) == Some(&b'*') {
-                        depth += 1;
-                        i += 2;
-                    } else if bytes[i] == b'*' && bytes.get(i + 1) == Some(&b'/') {
-                        depth -= 1;
-                        i += 2;
-                    } else {
-                        i += 1;
-                    }
-                }
-                if depth > 0 {
-                    out.push(format!(
+        if let Some(region) = regions.iter().find(|region| region.span().contains(&i)) {
+            if region.is_unterminated() {
+                match region {
+                    crate::text::Region::Comment { .. } => out.push(format!(
                         "scope-escape: {path}: the file ends inside a `/* … */` comment — the \
                          scanners cannot delimit what follows it, and unscannable input is a \
                          violation, not a pass (I8, spec §24.3)"
-                    ));
+                    )),
+                    _ => out.push(unterminated_string(path, line_of(text, i))),
                 }
             }
-            b'"' => {
-                let end = plain_string_end(bytes, i + 1);
-                if end >= bytes.len() && !ends_with_quote(bytes) {
-                    out.push(unterminated_string(path, line_of(text, i)));
-                    return out;
-                }
-                i = end;
-            }
-            b'r' | b'b' => match prefixed_string_end(bytes, i) {
-                Some(end) if end >= bytes.len() && !ends_with_quote(bytes) => {
-                    out.push(unterminated_string(path, line_of(text, i)));
-                    return out;
-                }
-                Some(end) => i = end,
-                None => i += 1,
-            },
-            b'\'' => match char_literal_end(bytes, i) {
-                Some(end) => i = end,
-                None => i += 1,
-            },
-            b'[' => {
-                brackets.push(i);
-                i += 1;
-            }
+            i = region.span().end;
+            continue;
+        }
+        match bytes[i] {
+            b'[' => brackets.push(i),
             b']' => {
                 if brackets.pop().is_none() {
                     out.push(format!(
                         "scope-escape: {path}:{}: a `]` closes a bracket that was never opened — \
-                         the file is not the Rust the compiler reads, or this scanner's literal \
-                         state lost synchronization; either way the evidence is missing, not \
-                         negative (I8, spec §24.3)",
+                         the file is not the Rust the compiler reads, or the lexing pass lost \
+                         synchronization; either way the evidence is missing, not negative (I8, \
+                         spec §24.3)",
                         line_of(text, i)
                     ));
                 }
-                i += 1;
             }
-            _ => i += 1,
+            _ => {}
         }
+        i += 1;
     }
     for open in brackets {
         out.push(format!(
@@ -329,12 +321,6 @@ fn unterminated_string(path: &str, line: usize) -> String {
     )
 }
 
-/// Whether the text's last byte closes the literal that reached the end, so a
-/// string ending exactly at EOF is not misread as unterminated.
-fn ends_with_quote(bytes: &[u8]) -> bool {
-    matches!(bytes.last(), Some(b'"' | b'#'))
-}
-
 fn line_of(text: &str, at: usize) -> usize {
     text[..at.min(text.len())]
         .bytes()
@@ -343,123 +329,12 @@ fn line_of(text: &str, at: usize) -> usize {
         + 1
 }
 
-/// The index just past the `]` that closes the attribute opened at `open`
-/// (the `[`), or the end of the text if it is unbalanced.
-///
-/// Brackets inside string and char literals are DATA, not structure (critic-5
-/// C3): `#[cfg_attr(not(doc = "]"), path = "../../../vendor/evil.rs")]` is a
-/// spelling rustc happily compiles (verified: the `cfg` is false, so `not(…)`
-/// applies the `path` key), and the plain depth counter used to return just
-/// past the `]` inside the predicate string — the `path = …` tail was never
-/// scanned and the escape was invisible. The scanner therefore enters
-/// string-literal state for `"…"` (with `\` escapes), raw strings (`r#"…"#`,
-/// `br##"…"##`), byte strings (`b"…"`), and char literals (`']'`, `'\\''`),
-/// none of which can change bracket depth. A `'` that does not close a char
-/// literal (a lifetime, an apostrophe in prose) is treated as an ordinary
-/// byte, so lifetimes never desynchronize the scan.
-fn attribute_body_end(bytes: &[u8], open: usize) -> usize {
-    let mut depth = 0usize;
-    let mut i = open;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'"' => {
-                i = plain_string_end(bytes, i + 1);
-                continue;
-            }
-            b'\'' => {
-                if let Some(end) = char_literal_end(bytes, i) {
-                    i = end;
-                    continue;
-                }
-            }
-            b'r' | b'b' => {
-                if let Some(end) = prefixed_string_end(bytes, i) {
-                    i = end;
-                    continue;
-                }
-            }
-            b'[' => depth += 1,
-            b']' => {
-                depth -= 1;
-                if depth == 0 {
-                    return i + 1;
-                }
-            }
-            _ => {}
-        }
-        i += 1;
-    }
-    bytes.len()
-}
-
-/// The index just past the closing quote of a plain (or byte) string whose
-/// body starts at `at` (just past the opening `"`). `\` escapes the next
-/// byte, `\"` included. An unterminated string consumes the rest of the text.
-fn plain_string_end(bytes: &[u8], at: usize) -> usize {
-    let mut i = at;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' => i += 2,
-            b'"' => return i + 1,
-            _ => i += 1,
-        }
-    }
-    bytes.len()
-}
-
-/// The index just past a char literal starting at `at` (the `'`), if one does.
-/// `']'`, `'"'`, `'\\''`, and multi-byte escape bodies are skipped whole; a
-/// `'` followed by something that is not a char-literal shape (a lifetime
-/// `'a`, an apostrophe in prose) is not a literal and yields `None`.
-fn char_literal_end(bytes: &[u8], at: usize) -> Option<usize> {
-    match bytes.get(at + 1) {
-        Some(b'\\') => (at + 2..bytes.len())
-            .find(|&i| bytes[i] == b'\'')
-            .map(|i| i + 1),
-        Some(second) if bytes.get(at + 2) == Some(&b'\'') && *second != b'\'' => Some(at + 3),
-        _ => None,
-    }
-}
-
-/// The index just past a raw (`r#"…"#`) or byte-raw (`br#"…"#`) string
-/// starting at `at`, if one does. The `r`/`b` must start a word of its own —
-/// an `r` at the tail of an identifier (`for_r`) is not a string opener.
-fn prefixed_string_end(bytes: &[u8], at: usize) -> Option<usize> {
-    if at > 0 && (bytes[at - 1].is_ascii_alphanumeric() || bytes[at - 1] == b'_') {
-        return None;
-    }
-    let mut j = at;
-    if bytes[j] == b'b' {
-        j += 1;
-    }
-    if bytes.get(j) != Some(&b'r') {
-        // `b"…"` is a plain byte string; the caller's `"` handling does not
-        // see it because it starts at `b`, so consume it here.
-        return (bytes.get(j) == Some(&b'"')).then(|| plain_string_end(bytes, j + 1));
-    }
-    j += 1;
-    let mut hashes = 0usize;
-    while bytes.get(j) == Some(&b'#') {
-        hashes += 1;
-        j += 1;
-    }
-    if bytes.get(j) != Some(&b'"') {
-        return None;
-    }
-    let mut i = j + 1;
-    while i < bytes.len() {
-        if bytes[i] == b'"' && (0..hashes).all(|h| bytes.get(i + 1 + h) == Some(&b'#')) {
-            return Some(i + 1 + hashes);
-        }
-        i += 1;
-    }
-    Some(bytes.len())
-}
-
 /// Every `path = <argument>` key inside an attribute body. This is the
 /// structural form of the old `"#[path"` substring match: `#[path = "…"]`,
 /// `#[ path = "…"]`, and `#[cfg_attr(all(), path = "…")]` all reach it
-/// (round-3 V2).
+/// (round-3 V2) — and, since critic-8 E1, so do the comment-separated
+/// spellings `#[path/*c*/= "…"]`, because a block comment between the key and
+/// the `=` is trivia to rustc and used to hide the key from this matcher.
 fn attribute_path_arguments(body: &str) -> Vec<Argument> {
     let bytes = body.as_bytes();
     let mut out = Vec::new();
@@ -474,11 +349,11 @@ fn attribute_path_arguments(body: &str) -> Vec<Argument> {
         if before_is_word || after_is_word {
             continue;
         }
-        let mut j = skip_space(bytes, at + 4);
+        let mut j = skip_trivia(body, at + 4);
         if bytes.get(j) != Some(&b'=') {
             continue;
         }
-        j = skip_space(bytes, j + 1);
+        j = skip_trivia(body, j + 1);
         out.push(argument_at(body, j));
     }
     out
@@ -489,66 +364,28 @@ fn attribute_path_arguments(body: &str) -> Vec<Argument> {
 /// without a target), so prose stays clean.
 fn include_argument(raw: &str, from: usize) -> Option<Argument> {
     let bytes = raw.as_bytes();
-    let open = skip_space(bytes, from);
+    let open = skip_trivia(raw, from);
     if bytes.get(open) != Some(&b'(') {
         return None;
     }
-    Some(argument_at(raw, skip_space(bytes, open + 1)))
+    Some(argument_at(raw, skip_trivia(raw, open + 1)))
 }
 
 /// Classify whatever starts at `at` as a plain string literal or as
 /// unresolvable. Round-3 V3: `concat!`, `env!`, an identifier, or a `format!`
 /// are all "the compiler decides", and that is a violation rather than a pass.
+/// The literal itself is read by the ONE lexing pass ([`crate::text::regions`])
+/// — and its decoder resolves `\xNN`/`\u{NN}`, so an escaped path no longer
+/// reads as a harmless in-crate segment here either (critic-6 m1).
 fn argument_at(raw: &str, at: usize) -> Argument {
-    let bytes = raw.as_bytes();
-    if let Some((open, hashes)) = string_literal_open(bytes, at) {
-        return match read_string_literal(raw, open, hashes) {
-            Some(value) => Argument::Literal(value),
-            None => Argument::Unresolvable(snippet(raw, at)),
-        };
+    for region in crate::text::regions(raw) {
+        if let crate::text::Region::Str { span, value, .. } = &region
+            && span.start == at
+        {
+            return Argument::Literal(value.clone());
+        }
     }
     Argument::Unresolvable(snippet(raw, at))
-}
-
-/// The opening of a string literal at `at`: `"`, `r"`, `r#"`, `r##"`, … as
-/// `(index just past the quote, number of hashes)`.
-fn string_literal_open(bytes: &[u8], at: usize) -> Option<(usize, usize)> {
-    if bytes.get(at) == Some(&b'"') {
-        return Some((at + 1, 0));
-    }
-    if bytes.get(at) != Some(&b'r') {
-        return None;
-    }
-    let mut k = at + 1;
-    while bytes.get(k) == Some(&b'#') {
-        k += 1;
-    }
-    (bytes.get(k) == Some(&b'"')).then_some((k + 1, k - at - 1))
-}
-
-/// Read a string literal body starting just past its opening quote. `\\` and
-/// `\"` are unescaped (enough for a path); a raw literal is read verbatim up
-/// to its closing quote plus `hashes` hashes.
-fn read_string_literal(raw: &str, open: usize, hashes: usize) -> Option<String> {
-    let bytes = raw.as_bytes();
-    let mut i = open;
-    let mut out = String::new();
-    while i < bytes.len() {
-        if bytes[i] == b'"' {
-            let closed = (0..hashes).all(|h| bytes.get(i + 1 + h) == Some(&b'#'));
-            if closed {
-                return Some(out);
-            }
-        }
-        if hashes == 0 && bytes[i] == b'\\' && i + 1 < bytes.len() {
-            out.push(bytes[i + 1] as char);
-            i += 2;
-            continue;
-        }
-        out.push(bytes[i] as char);
-        i += 1;
-    }
-    None
 }
 
 fn snippet(raw: &str, at: usize) -> String {
@@ -562,11 +399,38 @@ fn snippet(raw: &str, at: usize) -> String {
     tail[..end].trim_end().to_string()
 }
 
-fn skip_space(bytes: &[u8], mut at: usize) -> usize {
-    while matches!(bytes.get(at), Some(b' ' | b'\t' | b'\r' | b'\n')) {
-        at += 1;
+/// The index of the next CODE byte at or after `at`: whitespace and `/* … */`
+/// block comments are both token trivia to rustc's lexer, and the directive
+/// matchers must skip exactly what the compiler skips (critic-8 E1: these
+/// gaps used to skip only spaces, so `#[path/*c*/= "…"]` and
+/// `include!/*c*/(…)` — valid rustc, compiling out-of-crate files — matched
+/// nothing). Block comments come from the ONE lexing pass
+/// ([`crate::text::regions`]), so nesting is handled and a comment inside a
+/// string or char literal is data, not trivia.
+///
+/// Line comments are deliberately NOT skipped: a scan unit never contains the
+/// newline that ends one, so "skip a line comment" would mean "skip to the
+/// end of the unit", which can only lose evidence. An argument hidden behind
+/// a line comment in a joined unit still lands the directive in
+/// [`Argument::Unresolvable`] — the fail-closed direction.
+fn skip_trivia(text: &str, at: usize) -> usize {
+    let bytes = text.as_bytes();
+    let regions = crate::text::regions(text);
+    let mut at = at;
+    loop {
+        while matches!(bytes.get(at), Some(b' ' | b'\t' | b'\r' | b'\n')) {
+            at += 1;
+        }
+        match regions.iter().find(|region| region.span().start == at) {
+            Some(crate::text::Region::Comment { span, .. })
+                if bytes.get(span.start) == Some(&b'/')
+                    && bytes.get(span.start + 1) == Some(&b'*') =>
+            {
+                at = span.end;
+            }
+            _ => return at,
+        }
     }
-    at
 }
 
 /// ASCII-case-insensitive substring search. Used instead of lowercasing the
@@ -1058,6 +922,103 @@ mod tests {
         }
         assert!(!target_path_rule_applies("crates/gauntlet-arch-tests"));
         assert_eq!(TARGET_PATH_EXEMPT_CRATES, &["crates/gauntlet-arch-tests"]);
+    }
+
+    /// Critic-7 C2's exact evasion: a directive head placed on its own line —
+    /// before the `(` or the `=` — used to fall into two scan units, neither
+    /// of which carried the (directive, argument) pair. The statement join
+    /// treats `ident!`/`ident` include heads and `#[`-attribute heads as
+    /// awaiting their delimiter, so the escape is seen.
+    #[test]
+    fn a_directive_head_split_before_its_delimiter_is_still_seen() {
+        for fixture in [
+            "include!\n    (\"../../../shared/wiring.rs\");\n",
+            "include\n!(\"../../../shared/wiring.rs\");\n",
+            "std::include\n!(\"../../../shared/wiring.rs\");\n",
+            "include_str!\n    (\"../../../shared/leak.txt\");\n",
+            "#[path\n    = \"../../../vendor/store.rs\"]\nmod store;\n",
+            "#[cfg_attr(all(), path\n    = \"../../../vendor/store.rs\")]\nmod store;\n",
+            "#![path\n    = \"../../../vendor/store.rs\"]\n",
+        ] {
+            let violations = scan_escapes(APP_LIB, APP, fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.contains("vendor/") || v.contains("shared/")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+
+        // The in-crate spelling of the same split stays clean.
+        for fixture in [
+            "include!\n    (\"fixture.txt\");\n",
+            "#[path\n    = \"engine/mod.rs\"]\nmod engine;\n",
+        ] {
+            let violations = scan_escapes(APP_LIB, APP, fixture);
+            assert!(violations.is_empty(), "{fixture} -> {violations:?}");
+        }
+    }
+
+    /// A `]` that is comment data cannot close an attribute body early —
+    /// same family as critic-6 C3 (`#[` in a comment), closed by the shared
+    /// lexing pass.
+    #[test]
+    fn a_bracket_inside_a_comment_does_not_close_the_attribute_body() {
+        for fixture in [
+            "#[cfg_attr(/* ] */ all(), path = \"../../../vendor/evil.rs\")] mod evil;\n",
+            "#[cfg_attr(all() /* , ] */, path = \"../../../vendor/evil.rs\")] mod evil;\n",
+        ] {
+            let violations = scan_escapes(APP_LIB, APP, fixture);
+            assert!(
+                violations.iter().any(|v| v.contains("vendor/evil.rs")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // Note: an attribute-with-path spelled inside a `//` comment still
+        // flags — the directive matchers are deliberately not comment-aware,
+        // because flagging a commented escape is the fail-safe direction.
+    }
+
+    /// Critic-8 E1: a block comment between a directive keyword and its `=`
+    /// or `(` is token trivia to rustc — `#[path/*c*/= "…"]` and
+    /// `include!/*c*/(…)` compile exactly like their compact spellings, and
+    /// the matchers used to skip only spaces, so the directive was invisible.
+    #[test]
+    fn comment_tokens_between_a_directive_and_its_argument_are_skipped() {
+        for fixture in [
+            // The critic's exact payloads: the comment-in-all-gaps attribute
+            // form with a space-bearing escape path, and the include! form.
+            "#[path/* wiring */= \"my dir/../../../vendor/store.rs\"]\nmod store;\n",
+            "include!/* wiring */(\"my dir/../../../shared/wiring.rs\");\n",
+            // Comments in every other gap the matchers step over: the `#`…`[`
+            // open (outer and inner attribute), the word…`!`, the `!`…`(`,
+            // the `path`…`=`, and before the argument itself.
+            "#/*c*/[path/*c*/=/*c*/ \"../../../vendor/store.rs\"]\nmod store;\n",
+            "#!/*c*/[path = \"../../../vendor/evil.rs\"]\n",
+            "include/*c*/!(\"../../../vendor/leak.rs\");\n",
+            "include!/*c*/(/*c*/ \"../../../vendor/wiring.rs\");\n",
+            "#[cfg_attr(/*c*/ all(), path/*c*/=/*c*/ \"../../../vendor/evil.rs\")]\nmod evil;\n",
+            // The whitespace form with a trailing comment, and a comment
+            // between `path` and `=` in the cfg_attr spelling.
+            "#[ path /*c*/ = \"../../../vendor/store.rs\"] mod store;\n",
+        ] {
+            let violations = scan_escapes(APP_LIB, APP, fixture);
+            assert!(
+                violations.iter().any(|v| v.starts_with("scope-escape")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+
+        // The in-crate spelling of the same comment forms stays clean: the
+        // target resolves inside the crate directory, exactly as before.
+        for fixture in [
+            "#[path/*c*/= \"engine/mod.rs\"]\nmod engine;\n",
+            "include!/*c*/(/*c*/ \"fixture.txt\");\n",
+            "#/*c*/[path = \"sub/mod.rs\"]\nmod sub;\n",
+        ] {
+            let violations = scan_escapes(APP_LIB, APP, fixture);
+            assert!(violations.is_empty(), "{fixture} -> {violations:?}");
+        }
     }
 
     #[test]

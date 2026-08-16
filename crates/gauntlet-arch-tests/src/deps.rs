@@ -60,9 +60,12 @@
 //! - in-repo cargo configuration is DISCOVERED (every `.cargo/config*` in the
 //!   tree, not only the root one — cargo reads them from the invocation
 //!   directory upward) and walked generically ([`check_cargo_config`]):
-//!   `[source.*]` replacement, `[registries.*]`, and every key in
+//!   `[source.*]` replacement, `[registries.*]`, every key in
 //!   [`FORBIDDEN_CARGO_CONFIG_KEYS`] (`rustflags`, `linker`, `runner`,
-//!   wrappers, `paths`) are violations WHEREVER they appear — under `[build]`,
+//!   wrappers, `paths`), and every compiler-affecting entry of the `[env]`
+//!   table ([`FORBIDDEN_ENV_KEYS`], critic-8 E2 — cargo applies `[env]`
+//!   values to build scripts, rustc invocations, and cargo build/run) are
+//!   violations WHEREVER they appear — under `[build]`,
 //!   under `[target.'cfg(all())']`, or under any other table. All of them
 //!   redirect what compiles without touching a manifest this suite reads. The
 //!   toolchain pin is the same channel in another file ([`check_toolchain_file`]).
@@ -956,13 +959,156 @@ pub const FORBIDDEN_CARGO_CONFIG_KEYS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Environment-variable names denied inside a cargo configuration `[env]`
+/// table (critic-8 E2). Cargo's own documentation: "The `[env]` section
+/// allows you to set additional environment variables for build scripts,
+/// rustc invocations, cargo run and cargo build" (The Cargo Book,
+/// reference/config.html) — so an `[env]` entry is a direct line to the
+/// processes that compile and run this repository's code, and every name
+/// below is one of the channels [`FORBIDDEN_CARGO_CONFIG_KEYS`] closes,
+/// spelled as an environment variable instead of a config key: cargo's
+/// environment-variables page documents each as "flags to pass to all
+/// compiler invocations" or as the wrapper/compiler substitution itself.
+/// `[env] RUSTFLAGS = { value = "--extern shadow=…", force = true }` is the
+/// exact payload the `rustflags` key ban exists to stop, delivered under a
+/// child key the case-sensitive key walk never matched.
+///
+/// Matched ASCII-case-INSENSITIVELY, unlike the generic key walk:
+/// environment variable names are looked up case-insensitively on Windows
+/// (a host this suite acknowledges elsewhere, in its drive-letter path
+/// rules) and case-sensitively nowhere that would make `RustFlags` a
+/// DIFFERENT benign variable — the channel is denied, not one spelling of
+/// it. Cargo's config KEYS, by contrast, are exact-match TOML lookups,
+/// which is why [`walk_cargo_config`] stays case-sensitive.
+///
+/// The `[env]` table itself is NOT denied: benign entries (a `GAUNTLET_*`
+/// variable, an `OPENSSL_DIR` for a vendored build) are ordinary
+/// configuration. Only the names that reach the compiler are.
+pub const FORBIDDEN_ENV_KEYS: &[(&str, &str)] = &[
+    (
+        "rustflags",
+        "a space-separated list of flags passed to all compiler invocations cargo performs — \
+         the [env] spelling of the rustflags key this check already denies",
+    ),
+    (
+        "cargo_encoded_rustflags",
+        "the 0x1f-separated encoding of the same all-compiler-invocations flag list, so the \
+         payload survives any space in it",
+    ),
+    (
+        "cargo_build_rustflags",
+        "the environment spelling of build.rustflags, the key this check already denies at \
+         any table depth",
+    ),
+    (
+        "rustdocflags",
+        "the same flag channel for rustdoc invocations, which compile these sources just as \
+         rustc does",
+    ),
+    (
+        "cargo_encoded_rustdocflags",
+        "the 0x1f-separated encoding of the rustdoc flag channel, exactly like its rustc \
+         counterpart",
+    ),
+    (
+        "cargo_build_rustdocflags",
+        "the environment spelling of build.rustdocflags, the key this check already denies",
+    ),
+    (
+        "rustc",
+        "cargo executes this binary instead of rustc, so nothing about what compiles is \
+         knowable from this repository",
+    ),
+    (
+        "cargo_build_rustc",
+        "the environment spelling of build.rustc, the compiler-substitution key",
+    ),
+    (
+        "rustc_wrapper",
+        "cargo executes this wrapper around every rustc invocation, and a wrapper may add \
+         flags or substitute inputs before rustc sees them",
+    ),
+    (
+        "cargo_build_rustc_wrapper",
+        "the environment spelling of build.rustc-wrapper, the wrapper key this check already \
+         denies",
+    ),
+    (
+        "rustc_workspace_wrapper",
+        "the same wrapper channel applied to workspace members specifically, naming these \
+         crates rather than the toolchain",
+    ),
+    (
+        "cargo_build_rustc_workspace_wrapper",
+        "the environment spelling of build.rustc-workspace-wrapper, the workspace-wrapper key",
+    ),
+    (
+        "ld_preload",
+        "the dynamic loader injects this library into every process cargo spawns — rustc, the \
+         linker, and the test binaries this gate reports on alike — the channel the runner \
+         ban exists to close",
+    ),
+    (
+        "dyld_insert_libraries",
+        "the macOS spelling of the dynamic-loader injection channel, with the same reach \
+         into every spawned compiler process",
+    ),
+];
+
+/// Whether an `[env]` entry name reaches the compiler (critic-8 E2), and the
+/// recorded reason when it does: an exact [`FORBIDDEN_ENV_KEYS`] hit, or the
+/// per-target flag family `CARGO_TARGET_<triple>_RUSTFLAGS`, whose name
+/// embeds the target triple and so cannot be listed exactly (The Cargo Book,
+/// environment-variables.html: "extra rustc flags for a target"). Matching is
+/// ASCII-case-insensitive; see [`FORBIDDEN_ENV_KEYS`] for why.
+fn forbidden_env_reason(name: &str) -> Option<&'static str> {
+    if let Some((_, reason)) = FORBIDDEN_ENV_KEYS
+        .iter()
+        .find(|(forbidden, _)| forbidden.eq_ignore_ascii_case(name))
+    {
+        return Some(reason);
+    }
+    let lowered = name.to_ascii_lowercase();
+    (lowered.starts_with("cargo_target_") && lowered.ends_with("_rustflags")).then_some(
+        "cargo's per-target spelling of the rustflags channel: CARGO_TARGET_<triple>_RUSTFLAGS \
+         passes these flags to every rustc invocation building that target, so it is the \
+         rustflags key under a name that embeds the triple",
+    )
+}
+
+/// The `[env]`-table half of the cargo-configuration check (critic-8 E2),
+/// separate from [`walk_cargo_config`] because its matching rule differs: the
+/// `[env]` table's CHILD keys are environment-variable names, so a
+/// compiler-affecting name is denied wherever its case is spelled, while the
+/// generic walk matches cargo's exact-match config keys. Cargo reads `[env]`
+/// at the configuration root only — a nested `env` table under some other
+/// section is not cargo's environment table and is not consulted here.
+fn env_table_violations(table: &Table, rel: &str) -> Vec<String> {
+    let Some(env) = table.get("env").and_then(|value| value.as_table()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for name in env.keys() {
+        if let Some(reason) = forbidden_env_reason(name) {
+            out.push(format!(
+                "dependency-direction: {rel}: [env] {name} — {reason} (AK-001, spec §24.3)"
+            ));
+        }
+    }
+    out
+}
+
 /// `.cargo/config.toml` (and the legacy `.cargo/config`) can redirect what
 /// compiles without touching any manifest this suite reads (critic-4 M5,
 /// critic-5 C1/C2): `[source]` replacement sends every registry dependency to
 /// a local tree outside every walk root; `[registries.*]` defines the index an
-/// alternate-registry dependency resolves against; and every key in
+/// alternate-registry dependency resolves against; every key in
 /// [`FORBIDDEN_CARGO_CONFIG_KEYS`] hands the compiler something this repository
-/// does not describe. All are violations; a legitimate future need is a
+/// does not describe; and since critic-8 E2 the `[env]` table's
+/// compiler-affecting entries ([`FORBIDDEN_ENV_KEYS`]) are denied too — cargo
+/// applies them to build scripts, rustc invocations, and cargo build/run, so
+/// `[env] RUSTFLAGS = …` is the `rustflags` channel under another spelling.
+/// All are violations; a legitimate future need is a
 /// recorded decision that widens this function, not a silent config file.
 ///
 /// Scope note (threat model, see the crate docs): this reads the IN-REPO cargo
@@ -975,8 +1121,20 @@ pub fn check_cargo_config(root: &Path) -> Vec<String> {
     for rel in discovered.files {
         let rel = rel.as_str();
         let path = root.join(rel);
-        let Ok(text) = std::fs::read_to_string(&path) else {
-            continue;
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(err) => {
+                // Critic-6 M1 / critic-7 MJ1: this used to be `continue`, the
+                // one silent skip in a function whose whole thesis is I8. An
+                // in-repo cargo config this suite cannot read is missing
+                // evidence, not "no forbidden keys".
+                out.push(format!(
+                    "dependency-direction: {rel}: not readable ({err}) — cargo reads this file \
+                     to decide what compiles, and a config the suite cannot read is missing \
+                     evidence, not a pass (I8, spec §24.3)"
+                ));
+                continue;
+            }
         };
         let table = match parse_table(&text) {
             Ok(table) => table,
@@ -1007,6 +1165,12 @@ pub fn check_cargo_config(root: &Path) -> Vec<String> {
                 ));
             }
         }
+        // Critic-8 E2: the `[env]` table's values reach build scripts, rustc
+        // invocations, and the programs cargo build/run execute, so a
+        // compiler-affecting NAME there is the same channel as the forbidden
+        // keys — `[env] RUSTFLAGS = …` was the exact payload of the
+        // `rustflags` ban, delivered under a child key the walk never matched.
+        out.extend(env_table_violations(&table, rel));
         walk_cargo_config(&table, "", rel, &mut out);
     }
     out.extend(check_toolchain_file(root));
@@ -1088,16 +1252,46 @@ fn collect_cargo_configs(root: &Path, dir: &Path, out: &mut CargoConfigDiscovery
 /// A named `channel` is not flagged: pinning a released toolchain is ordinary,
 /// reproducible practice, and the channel name resolves through rustup's own
 /// distribution rather than through a path this repository chose.
+///
+/// Unreadable or unparseable input is a VIOLATION, never a skip (critic-6 M1
+/// / critic-7 MJ1): a file that exists, that cargo reads to choose the
+/// compiler, and that this suite cannot interpret is missing evidence. The
+/// one documented non-TOML form is the legacy extensionless `rust-toolchain`
+/// carrying a bare channel name (`stable`, `1.92.0`, `nightly-2026-01-01`),
+/// which carries no `path` key by construction; anything else that does not
+/// parse is reported.
 pub fn check_toolchain_file(root: &Path) -> Vec<String> {
     let mut out = Vec::new();
     for rel in ["rust-toolchain.toml", "rust-toolchain"] {
-        let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+        let path = root.join(rel);
+        if !path.is_file() {
             continue;
+        }
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(err) => {
+                out.push(format!(
+                    "dependency-direction: {rel}: not readable ({err}) — rustup reads this file \
+                     to choose the compiler, and a pin the suite cannot read is missing \
+                     evidence, not a pass (I8, spec §24.3)"
+                ));
+                continue;
+            }
         };
-        // The legacy `rust-toolchain` file may be a bare channel name rather
-        // than TOML; that form carries no `path` key at all.
-        let Ok(table) = parse_table(&text) else {
-            continue;
+        let table = match parse_table(&text) {
+            Ok(table) => table,
+            Err(err) => {
+                if rel == "rust-toolchain.toml" || !is_bare_channel_name(&text) {
+                    out.push(format!(
+                        "dependency-direction: {rel}: unparseable ({err}) and not the one \
+                         documented non-TOML form (a bare channel name in the legacy \
+                         extensionless file) — cargo still reads it to choose the compiler, so \
+                         input this suite cannot interpret is missing evidence, not a pass (I8, \
+                         spec §24.3)"
+                    ));
+                }
+                continue;
+            }
         };
         if let Some(toolchain) = table.get("toolchain").and_then(|value| value.as_table())
             && let Some(path) = toolchain.get("path").and_then(|value| value.as_str())
@@ -1111,6 +1305,21 @@ pub fn check_toolchain_file(root: &Path) -> Vec<String> {
         }
     }
     out
+}
+
+/// Whether the legacy extensionless `rust-toolchain` content is a bare
+/// channel name: one line, non-empty, only the bytes a channel name uses.
+fn is_bare_channel_name(text: &str) -> bool {
+    let trimmed = text.trim();
+    let mut lines = trimmed.lines();
+    let Some(only) = lines.next() else {
+        return false;
+    };
+    lines.next().is_none()
+        && !only.is_empty()
+        && only
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
 }
 
 /// Every table of a parsed cargo config, reporting a forbidden key wherever it
@@ -1612,6 +1821,123 @@ toml = "0.9"
         }
     }
 
+    /// The same bar for the `[env]` inventory (critic-8 E2): a name may not
+    /// join without its channel written down, and the spellings that reach
+    /// rustc may not quietly shrink.
+    #[test]
+    fn forbidden_env_keys_state_a_reason() {
+        for (key, reason) in FORBIDDEN_ENV_KEYS {
+            assert!(
+                reason.split_whitespace().count() >= 6,
+                "the forbidden [env] key '{key}' carries the reason {reason:?} — say which \
+                 channel it opens"
+            );
+        }
+        for required in [
+            "rustflags",
+            "cargo_encoded_rustflags",
+            "rustc",
+            "rustc_wrapper",
+            "rustc_workspace_wrapper",
+        ] {
+            assert!(
+                FORBIDDEN_ENV_KEYS.iter().any(|(key, _)| *key == required),
+                "'{required}' reaches the build scripts, rustc invocations, and cargo \
+                 build/run processes the [env] table applies to; removing it from the \
+                 inventory reopens critic-8 E2"
+            );
+        }
+    }
+
+    /// Critic-8 E2: the `[env]` table delivers compiler flags under a CHILD
+    /// key the generic walk never matched — the child key is the environment
+    /// variable name, uppercase, and the case-sensitive key walk compared it
+    /// against lowercase config keys. Matching is case-insensitive here, and
+    /// benign entries stay clean: the channel to the compiler is denied, not
+    /// the whole table.
+    #[test]
+    fn compiler_affecting_env_entries_are_flagged_and_benign_ones_are_not() {
+        for (label, env_section) in [
+            // The critic's exact payload.
+            (
+                "the critic's payload",
+                "[env]\nRUSTFLAGS = { value = \"--extern \
+                 shadow=/home/u/vendor/libshadow.rlib --cfg injected\", force = true }\n",
+            ),
+            // Case smuggling: the channel, not the spelling, is denied.
+            (
+                "lowercase smuggling",
+                "[env]\nrustflags = \"--cfg injected\"\n",
+            ),
+            ("mixed case", "[env]\nRustFlags = \"--cfg injected\"\n"),
+            (
+                "encoded flags",
+                "[env]\nCARGO_ENCODED_RUSTFLAGS = \"--extern\\u001Fshadow=/home/u/s.rlib\"\n",
+            ),
+            (
+                "build-section env spelling",
+                "[env]\nCARGO_BUILD_RUSTFLAGS = \"--cfg injected\"\n",
+            ),
+            (
+                "compiler substitution",
+                "[env]\nRUSTC = \"/opt/shadow-rustc/bin/rustc\"\n",
+            ),
+            (
+                "wrapper",
+                "[env]\nRUSTC_WRAPPER = \"/opt/evil/sccache-wrapper\"\n",
+            ),
+            (
+                "workspace wrapper",
+                "[env]\nRUSTC_WORKSPACE_WRAPPER = \"/opt/evil/workspace-wrapper\"\n",
+            ),
+            (
+                "rustdoc flags",
+                "[env]\nRustDocFlags = \"--persist-doctests /opt/evil\"\n",
+            ),
+            // The per-target family, whose name embeds the triple.
+            (
+                "per-target rustflags",
+                "[env]\nCARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS = \"--cfg injected\"\n",
+            ),
+            // The dynamic-loader channels the critic named beside `runner`.
+            (
+                "dynamic loader",
+                "[env]\nLD_PRELOAD = \"/opt/evil/hook.so\"\n",
+            ),
+            (
+                "macOS dynamic loader",
+                "[env]\nDYLD_INSERT_LIBRARIES = \"/opt/evil/hook.dylib\"\n",
+            ),
+        ] {
+            let table = parse_table(env_section).expect("fixture parses");
+            let violations = env_table_violations(&table, ".cargo/config.toml");
+            assert!(
+                !violations.is_empty(),
+                "{label}: the [env] channel to the compiler must be denied: {violations:?}"
+            );
+            assert!(
+                violations.iter().all(|v| v.contains("[env]")),
+                "{label}: {violations:?}"
+            );
+        }
+
+        // Benign entries stay clean — the Cargo Book's own [env] examples are
+        // configuration, not compiler inputs.
+        let benign = "[env]\nGAUNTLET_LOG = { value = \"debug\", force = true }\nOPENSSL_DIR = \
+                      \"/opt/openssl\"\nSOME_TOOL_HOME = { value = \"tools\", relative = true }\n";
+        let table = parse_table(benign).expect("fixture parses");
+        assert!(
+            env_table_violations(&table, ".cargo/config.toml").is_empty(),
+            "benign [env] entries must stay clean: {:?}",
+            env_table_violations(&table, ".cargo/config.toml")
+        );
+
+        // And a config with no [env] table at all reports nothing here.
+        let plain = "[build]\njobs = 4\n";
+        let table = parse_table(plain).expect("fixture parses");
+        assert!(env_table_violations(&table, ".cargo/config.toml").is_empty());
+    }
+
     #[test]
     fn a_registry_dependency_compiling_into_the_domain_is_flagged() {
         // Critic-4 C1 evasion (a): `shadow-net = "0.8"` used to be invisible —
@@ -2069,5 +2395,84 @@ infra = { git = "git@github.com:attacker/gauntlet-infra" }
             "{}",
             violations[0]
         );
+    }
+
+    /// Critic-6 M1 / critic-7 MJ1: an unreadable `.cargo/config*` and an
+    /// unparseable `rust-toolchain*` used to be silent skips — the one
+    /// fail-open branch in a channel whose whole posture is I8. Both are
+    /// violations now, and the one documented non-TOML form (a bare channel
+    /// name in the legacy extensionless file) stays clean.
+    #[test]
+    fn an_unreadable_or_unparseable_declared_build_input_is_a_violation() {
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-arch-tests-buildinput-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::remove_dir_all(&dir).ok();
+
+        // A non-UTF-8 cargo config: is_file() accepts it, read rejects it.
+        std::fs::create_dir_all(dir.join(".cargo")).expect("fixture .cargo is creatable");
+        std::fs::write(dir.join(".cargo/config.toml"), [0xff_u8, 0xfe, 0x28, 0x5b])
+            .expect("non-UTF-8 config is written");
+        let violations = check_cargo_config(&dir);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains(".cargo/config.toml") && v.contains("not readable")),
+            "{violations:?}"
+        );
+
+        // A malformed rust-toolchain.toml.
+        std::fs::write(dir.join("rust-toolchain.toml"), "[toolchain\nbroken")
+            .expect("fixture is written");
+        let violations = check_cargo_config(&dir);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("rust-toolchain.toml") && v.contains("unparseable")),
+            "{violations:?}"
+        );
+
+        // A non-UTF-8 legacy rust-toolchain.
+        std::fs::remove_file(dir.join("rust-toolchain.toml")).expect("fixture is removable");
+        std::fs::write(dir.join("rust-toolchain"), [0xff_u8, 0xfe, 0x01]).expect("written");
+        let violations = check_cargo_config(&dir);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("rust-toolchain") && v.contains("not readable")),
+            "{violations:?}"
+        );
+
+        // The legacy file carrying something that is neither TOML nor a
+        // channel name.
+        std::fs::write(dir.join("rust-toolchain"), "??? [[[\n").expect("written");
+        let violations = check_cargo_config(&dir);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("rust-toolchain") && v.contains("unparseable")),
+            "{violations:?}"
+        );
+
+        // Negative: the documented non-TOML form — a bare channel name — and
+        // a pinned channel in the TOML form stay clean.
+        std::fs::write(dir.join("rust-toolchain"), "stable\n").expect("written");
+        let toolchain_only = check_toolchain_file(&dir);
+        assert!(toolchain_only.is_empty(), "{toolchain_only:?}");
+        std::fs::write(
+            dir.join("rust-toolchain.toml"),
+            "[toolchain]\nchannel = \"1.92\"\n",
+        )
+        .expect("written");
+        std::fs::remove_file(dir.join("rust-toolchain")).expect("fixture is removable");
+        assert!(
+            check_toolchain_file(&dir).is_empty(),
+            "{:?}",
+            check_toolchain_file(&dir)
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
