@@ -1,0 +1,39 @@
+{
+	"version": 1,
+	"plans": {
+		"delegation-spike": {
+			"slug": "delegation-spike",
+			"title": "Delegation spike — admission vs. completion (Task 0, step 2)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/delegation-spike.md",
+			"addedAt": "2026-08-15T03:09:17.212Z",
+			"updatedAt": "2026-08-15T18:34:36.796Z",
+			"commitHash": "b69c095564f20af734b68fc453f58dd7e963bf25",
+			"contentHashAtCommit": "c51fe05e0aa8ebed1790497f0cd75b2adbe409d9eff888e31a4be0c53eaf5c28"
+		},
+		"environment": {
+			"slug": "environment",
+			"title": "Environment fingerprint — Task 0",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/environment.md",
+			"addedAt": "2026-08-15T03:09:17.212Z",
+			"updatedAt": "2026-08-15T18:34:36.913Z",
+			"commitHash": "b69c095564f20af734b68fc453f58dd7e963bf25",
+			"contentHashAtCommit": "e98a8c4b24104f673bf7ae7520e7b930fd15f4783cc3598328111d62978c7206"
+		},
+		"CURRENT_STATUS": {
+			"slug": "CURRENT_STATUS",
+			"title": "Current status — HANDOFF DOCUMENT",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/CURRENT_STATUS.md",
+			"addedAt": "2026-08-16T13:18:32.485Z",
+			"updatedAt": "2026-08-16T13:18:32.485Z",
+			"commitHash": null
+		},
+		"escalations": {
+			"slug": "escalations",
+			"title": "Escalations",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/escalations.md",
+			"addedAt": "2026-08-15T18:36:04.932Z",
+			"updatedAt": "2026-08-16T13:18:32.485Z",
+			"commitHash": null
+		}
+	}
+}

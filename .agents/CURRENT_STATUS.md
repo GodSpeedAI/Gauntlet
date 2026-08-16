@@ -1,6 +1,6 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-15 — Task 2 in its second correction round (uncommitted).
+**Last updated:** 2026-08-16 — Task 2 in its **fifth** round (round-5 correction in flight).
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
 
@@ -11,18 +11,118 @@
 Tasks **0 and 1 are complete, gate-passed, teeth-checked, and committed.** The ruler is
 frozen and must never be edited.
 
-**Task 2 is complete, gate-passed, teeth-checked, and committed.** **Start at Task 3.**
+**Task 2 is committed (`b69c095`) but REOPENED. Task 3 has not started and must not start
+until Task 2 verifies clean of criticals.**
 
-Three independent blind critics found **34 residuals (4 critical, 19 major, 11 minor)** in the
-first cut of the boundary gate — concrete, reproducible ways to violate the layering with
-`just boundaries` still green. Full findings: `.agents/reports/task2/recritique-round2.md`.
-A correction round closed them; the suite went from 31 to 81 tests.
+The history matters, because it is the argument for the whole method:
 
-**One thing the next agent must finish:** the correction round's own blind re-critique never
-ran — both critics died on the session limit (workflow `wf_8d6d78e3-347`, all three agents
-errored). So the corrected artifact has a demonstrated teeth check but **no independent
-review**. Run a blind critic over `crates/gauntlet-arch-tests/` before relying on it, and
-treat any surviving critical finding as a Task 2 reopen rather than a Task 3 problem.
+| Round | What happened |
+|---|---|
+| 1 | First cut. All five gates green. |
+| 2 | Three blind critics → **34 residuals, 4 critical.** `.agents/reports/task2/recritique-round2.md` |
+| — | Correction round. Suite 31 → 81 tests. Gates green. Seven teeth cases demonstrated. Committed as `b69c095`, explicitly labelled *provisional, not independently reviewed*. |
+| 3 | Two blind critics → **19 residuals, 4 critical.** `.agents/reports/task2/verification-round3.md` |
+| — | Correction round. Suite 81 → 113 tests. Gates green. |
+| 4 | Four blind critics (`critic4/critic5`, × evasion + vacuity lenses) → **4 critical, 18 major, 13 minor.** Raw reports in `.agents/reports/task2/critic{4,5}-{evasion,vacuity}.md` |
+
+**A green gate has now been wrong three times.** Each time the gate passed, the teeth bit, and a
+blind critic still found concrete ways to compile infrastructure into the domain layer. That
+is the entire reason the blind-critic step is non-negotiable and why `INCONCLUSIVE` is never
+`PASS`.
+
+### Round-4 criticals and how round 5 triages them
+
+| # | Finding | Trigger class | Disposition |
+|---|---|---|---|
+| C-A | External-dependency channel entirely unpoliced. `declared_deps` classifies a dep only if it resolves to a workspace member; a plain registry dep (`serde = "1"`) matches no branch and is invisible. | **accidental** — an ordinary mistake, not an evasion | **fix**: per-layer external-dep policy, deny-by-default |
+| C-B | `check_cargo_config` probes only `[source.*]` and `[build].rustflags`; cargo also honours `[target.*] rustflags`, so `--extern` puts an arbitrary rlib in the extern prelude. | adversarial | **fix** — cheap |
+| C-C | External allowlist admits by *name*, never source kind; the suite's own `toml` parser can be swapped for a git fork. | adversarial | **fix** — cheap |
+| C-D | `attribute_body_end` counts brackets with no string-literal state, so a `]` inside a predicate string truncates the body and hides a `#[cfg_attr(…, path = …)]`. | adversarial | **fix** — genuine parser bug |
+
+C-A is the one that matters and the reason round 5 exists: it is reachable by an ordinary
+mistake, and AK-001 says the domain layer has *zero* compile-time dependencies on
+infrastructure. A registry crate is infrastructure.
+
+### Round 5 — RESULT (2026-08-16). Work is ON DISK and UNCOMMITTED.
+
+Builder closed all seven briefed items (C-A…C-D, M-1…M-3) plus the threat model. Suite is
+**113 → 159 tests, 159 passed, 0 skipped**; `check`/`lint`/`deny`/`boundaries`/`ruler` all
+exit 0; `target/` 360M. Teeth verified by mutation (four mechanisms broken, 2–5 failures each,
+all reverted). Report: `.agents/reports/task2/builder-round5.md`.
+
+Three things the builder found that no critic did, all now closed: cargo reads `.cargo/config.toml`
+from the invocation directory **upward**, so a root-only probe missed
+`crates/gauntlet-domain/.cargo/config.toml`; `rust-toolchain.toml`'s `[toolchain] path` replaces
+the compiler through the same channel; and `dep = { workspace = true, registry = "mirror" }`
+narrows an inherited entry to another index. It also reported honestly that C-A was **already
+closed on arrival** (round 4 had done it — my brief was stale) rather than claiming it as new,
+and that C-D was half-done with **no test anywhere**.
+
+Two blind critics (`critic6-evasion`, `critic7-vacuity`) → **5 critical, 6 major, 9 minor.**
+
+**The convergence signal.** critic6 states it worked every manifest and source-inclusion
+channel — `[patch]`/`[replace]`, target-scoped tables, workspace inheritance with renames,
+alternate registries, git sources, path escapes, undeclared packages, in-repo `.cargo/config*`
+at every depth, `rust-toolchain.toml`, all five target-path overrides, `build.rs`, `#[path]`,
+`cfg_attr`, every `include!` spelling, escaped and continuation-split arguments, symlinks —
+and that **they all held**. The C-A…C-D class is closed.
+
+**All five round-5 criticals are downstream of one subsystem: the lexer in `text.rs`.**
+
+| # | Finding | Inside stated boundary? |
+|---|---|---|
+| c7-C1 | Declared-defaults exemption is **file**-scoped, not **setting**-scoped. `check_defaults_exemption` only asserts six `const <setting>` substrings are *present*; nothing bounds what else the file declares, and all 13 literal classes are off for it. 8 of §8.1's 9 classes become hardcodable in `gauntlet-app`. | yes — **and it goes live at Task 5**, which creates exactly that file |
+| c7-C2 | A directive head split before its `=`/`(` is never joined, so `include!`⏎`("../../shared/wiring.rs")` matches nothing. Backstopped only by the relative-path class — which c7-C1 or MJ2 switches off. | yes |
+| c6-C1 | `string_literals` mis-pairs quotes: a `'"'` char literal earlier on the line deletes every following literal from eight classes **and** from AK-014's adapter-segment rule. Builder left this deliberately ("not in the same round as four criticals"). | yes |
+| c6-C2 | Timeout class only sees values introduced by `=`, `(` or `,`; a struct-field initialiser hides every duration. | yes |
+| c6-C3 | `find_tier_policy` disables itself for any unit containing `#[` — including in a comment. | yes |
+
+All five are inside the enforced surface, so by the rule below **all five reopen Task 2.**
+None is an environment or third-party-contents escape.
+
+**Round 6's brief writes itself, and it is not "patch five classes."** Every one of these is a
+consequence of `text.rs` doing ad-hoc line-based joining and quote-counting instead of lexing
+Rust. Round 6 should build **one** string/char/raw-string/comment-aware lexer pass that every
+class consumes, and delete the per-class ad-hoc scanning — plus make the defaults exemption
+setting-scoped rather than file-scoped (c7-C1 is independent of the lexer and is the one that
+blocks Task 5). Majors to fold in: I8 violations where an unreadable `.cargo/config*` or
+unparseable `rust-toolchain*` is silently skipped (c6-M1/c7-MJ1 — this contradicts the crate's
+own freshly written threat model); `RELATIVE_PATH_EXEMPTIONS`/`ENDPOINT_EXEMPTIONS` are the only
+inventories with no content pin, so one added row un-polices a literal forever (c7-MJ2);
+`check_scope_integrity` is the only repo-level check with no coverage floor (c7-MJ3).
+
+### Terminating this loop honestly
+
+Four rounds have each produced four criticals, and the triggers are drifting steadily from
+"ordinary mistake" toward "attacker who already controls the developer's environment." That
+drift is the signal that the missing artifact is not another fix — it is a **stated threat
+model**. Round 5 therefore requires, as a deliverable, a module-level threat-model section in
+`crates/gauntlet-arch-tests/src/lib.rs` naming what the suite enforces (the repository's own
+declared build inputs, evasion-resistant within that surface, I8-honest about unscannable
+input) and what it does **not and cannot** enforce, each with a reason: the developer's
+environment outside the repo (`$CARGO_HOME`, `RUSTFLAGS`, a modified toolchain), the
+*contents* of an admitted third-party crate, proc-macro/build-script codegen beyond the
+path-resolution checks, and runtime string assembly.
+
+This is what lets a reviewer tell *"we did not think of it"* from *"we drew the line here,
+deliberately, and here is where it is."* After round 5, a surviving critical whose trigger
+lies **outside** that stated boundary is a recorded deferral, not a reopen. One whose trigger
+lies **inside** it still reopens the task. Without that rule this loop does not terminate,
+and an unterminated loop is how Tasks 3–20 never get built.
+
+All four round-3 criticals are one class — **what gets scanned ≠ what gets compiled**:
+`[lib]`/`[[bin]]`/`[[test]] path` overrides pointing outside the crate; `#[cfg_attr(…, path =
+…)]` evading a literal `"#[path"` matcher; `include!(concat!(env!("OUT_DIR"), …))` resolving
+to a harmless in-crate path while `build.rs` codegen compiles unscanned; and workspace-
+inherited renames (`store = { package = "rusqlite" }` + `store.workspace = true`) invisible
+because the root `Cargo.toml` is in no scan scope at all.
+
+Sharpest of them: the suite's **own** `Cargo.toml` uses `[[test]] path = "../../tests/…"`, so
+it demonstrably knows that channel exists and leaves it unpoliced.
+
+**Rule this establishes for every later task:** a task is not done when its gate is green. It
+is done when its gate is green *and* a blind critic that never saw the builder's reasoning
+fails to break it.
 
 **Before you touch anything:** run `just ruler`. It must print PASS. If it does not,
 that is a higher-priority problem than any task — stop, diagnose, and report it in
@@ -41,8 +141,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 0 — Recon, toolchain baseline, delegation spike | **done** | `76e491a` |
 | 1 — Freeze the ruler | **done** | `bf09a30` |
 | — toolchain install bookkeeping | done | `ac0f033`, `66eebc0` |
-| 2 — Workspace skeleton + justfile + gates + boundary test | **done** (81 tests; 7 teeth cases) | `b69c095` |
-| 3 — Domain types | **blocked** — see ESC-001 | — |
+| 2 — Workspace skeleton + justfile + gates + boundary test | **REOPENED** — committed but 4 critical findings open | `b69c095` |
+| 3 — Domain types | not started — gated on Task 2 verifying clean | — |
 | 4–27 | not started | — |
 
 ### Task 2 — where it actually stands
@@ -254,16 +354,47 @@ has an artifact with no mechanism; the rest have neither.
 
 ## Escalations
 
-**ESC-001 open** — delegation capacity exhausted; reported as
-`blocked{no_delegation_mechanism}`. Task 3 was deliberately NOT implemented inline: the
-plan's guardrail forbids the orchestrator implementing when delegation is unavailable, and
-doing so would also destroy the independent-blind-critic property. Clears when the
-operator's session limit resets. Full context, including the two consequences that must not
-be lost, in `.agents/reports/escalations.md`.
+**ESC-001 CLOSED** (2026-08-15) — delegation capacity was exhausted mid-round and reported as
+`blocked{no_delegation_mechanism}`; Task 3 was deliberately NOT implemented inline, because the
+plan's guardrail forbids the orchestrator implementing when delegation is unavailable and doing
+so would also have destroyed the independent-blind-critic property. The limit reset, delegation
+resumed, and the deferred blind verification ran — **and found four criticals.** The escalation's
+stated risk ("do not upgrade AK-001/002/016 beyond *implemented but provisional*") was correct,
+and holding that line is what caught them. Full context in `.agents/reports/escalations.md`.
+
+No escalations are currently open.
 
 ---
 
-## Next action, concretely
+## Next action, concretely — READ THIS FIRST (supersedes the older list below)
+
+Round-5 work is **on disk and uncommitted** (`crates/gauntlet-arch-tests/src/*.rs`, +6290/−336).
+Gates were green in the builder's own run; the orchestrator has **not** independently re-run
+them, so that is INCONCLUSIVE, not verified.
+
+1. Run the gate yourself: `just check && just lint && just deny && just boundaries && just ruler`.
+   Then run the independent teeth script at
+   `…/scratchpad/teeth3.sh` (staged, executable; covers the four round-4 criticals plus two
+   regressions). A non-zero exit that comes from *cargo* rather than from our own violation
+   message is INCONCLUSIVE and must be recorded as such — that trap already caught us once.
+2. Commit round 5 (one task, one commit; gate + teeth in the message). Stage explicitly;
+   **never** stage `.jolli/`. Label it in the message as *round 5, five criticals still open*.
+3. Round 6, per the brief above: one real Rust lexer in `text.rs`, plus the setting-scoped
+   defaults exemption. One builder holding the build lock, then two blind critics.
+4. Then **Task 3**. Its workflow script is already written and staged at
+   `…/scratchpad/task3-wf.js` — fire it with
+   `Workflow({scriptPath: …})`. It carries the full spec pointers (Core-spec.md lines 185–404),
+   the zero-dependency constraint, AK-003…AK-007, and two blind critic lenses
+   (constructibility of invalid states; spec fidelity + test vacuity).
+
+**Do not let Task 2 consume the remaining budget.** If round 6's criticals are again confined to
+one identified subsystem and are again all *adversarial* rather than *accidental* triggers, the
+correct move is to record them as accepted residuals under the stated threat model, commit, and
+move to Task 3 — Tasks 3–20 do not exist yet, and a perfect boundary suite guarding an empty
+repository proves nothing. The accidental-trigger class (c7-C1, which Task 5 walks straight
+into) is the one that must be closed before moving on.
+
+## Older next-action list (Task 2 rounds 1–4 era; kept for context)
 
 **Finish Task 2, then commit it.** It is built and green but carries 34 recorded residuals;
 a correction round is in flight. To close it out:

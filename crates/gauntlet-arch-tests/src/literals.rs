@@ -7,19 +7,27 @@
 //!
 //! | class | rule | false-positive posture |
 //! |---|---|---|
-//! | `hardcoded-absolute-path` | a `/`-rooted segment from [`ABSOLUTE_PATH_ROOTS`] at a non-path boundary, case-insensitive, trailing slash NOT required; plus any drive-letter root `[A-Za-z]:[\\/]` | flags absolute paths in comments too — naming a machine's layout in core prose is the same coupling |
+//! | `hardcoded-absolute-path` | ANY string literal whose first byte is `/` and which is longer than one byte (complete, no list); plus a `/`-rooted segment from [`ABSOLUTE_PATH_ROOTS`] at a non-path boundary anywhere on the line, case-insensitive; plus any drive-letter root `[A-Za-z]:[\\/]` | flags absolute paths in comments too — naming a machine's layout in core prose is the same coupling. A lone `"/"` separator is not flagged |
+//! | `hardcoded-relative-path` | a string literal that is path-shaped by STRUCTURE: rooted at `./`, `../`, `~/`, or multi-segment with every segment filename-shaped — extension or not (critic-5 M2) | wide on purpose: `"config/defaults"` resolves against the working directory exactly as `"config/defaults.toml"` does. Slash vocabulary and media types are exempted BY NAME in [`RELATIVE_PATH_EXEMPTIONS`], each with its reason, so the exceptions are argued rather than inferred |
+//! | `hardcoded-provider-endpoint` | a string literal containing a dotted host whose final label is a registered TLD ([`ENDPOINT_TLDS`]), e.g. `api.some-vendor.com` with no scheme and no port | string literals only; `config.toml`/`state.db` end in no TLD, and the RFC 2606 documentation names are exempt with reasons ([`ENDPOINT_EXEMPTIONS`]). An endpoint under an unlisted TLD is the residual |
+//! | `unscannable-declaration` | a `const`/`static`/`let` declaration that does not reach its `;` within [`crate::text::MAX_DECLARATION_LINES`] | not a literal class but a completeness report (I8): the timeout and tier classes need identifier and value in one unit, so a declaration the scanner cannot join is a hole it must name (critic-5 M1) |
 //! | `hardcoded-url` | any `scheme://` (`wss`, `file`, `ftp`, `grpc`, …), not just http(s) | a `://` inside a non-URL string is vanishingly rare; accepted |
 //! | `hardcoded-model-id` | a family from [`MODEL_FAMILIES`] at a word boundary followed by `-<alnum>`, or from [`CONCATENATED_FAMILIES`] followed by a digit | enumerated, so a family nobody listed is missed — see "residual" below |
+//! | `hardcoded-provider` | a string literal that is exactly a provider from [`PROVIDER_IDENTITIES`] | whole literals only, so `azure`/`google` as prose never flag; enumerated, so an unlisted provider is missed — see "residual" (critic-4 M3) |
 //! | `hardcoded-network-endpoint` | IPv4, `[v6]:port`, and `host:port` for ARBITRARY hosts (any dotted name, or `localhost`) | a dotted token followed by `:digits` in prose flags; rare enough to accept |
 //! | `hardcoded-port` | a numeric literal whose value is a well-known port, in any Rust spelling: `8080`, `8_080`, `0x1f90`, `0o17620`, `8080u16` | a well-known port value used as a plain number flags; deliberate — outside the defaults table it is a configuration leak either way |
-//! | `hardcoded-command` | a multi-token string literal whose first token is an executable from [`COMMAND_HEADS`], with no English stopword and only command-shaped tokens; plus any `Command::new("…")` | scoped to STRING LITERALS only, so prose and identifiers never flag; a sentence beginning with a tool name is excluded by the stopword guard |
-//! | `hardcoded-tool-identity` | a string literal that is exactly a product from [`TOOL_IDENTITIES`] | string literals only; the risk is a config PARSER matching on `"git"` — see "residual" |
+//! | `hardcoded-command` | a multi-token string literal whose first token is an executable from [`COMMAND_HEADS`] and which contains no English stopword; plus any `Command::new("…")` | scoped to STRING LITERALS only, so prose and identifiers never flag; a sentence beginning with a tool name is excluded by the stopword guard. Shell metacharacters (`>`, `\|`, `&`, quotes, globs) are EVIDENCE, never an exemption — round-3 V16 |
+//! | `hardcoded-tool-identity` | a string literal that is exactly a product from [`TOOL_IDENTITIES`] **or an executable head from [`COMMAND_HEADS`]** — the union is computed, so the two lists cannot drift apart again (critic-4 M2) | string literals only; the risk is a config PARSER matching on `"git"` — see "residual" |
 //! | `hardcoded-timeout` | a numeric literal ≥ 2 introduced by `=`, `(` or `,` on a line carrying a duration-shaped identifier ([`TIMEOUT_HINTS`]) | the `=`/`(`/`,` requirement is what keeps `(spec §11.5)` and markdown tables from flagging |
 //! | `hardcoded-tier-policy` | a string literal from [`TIER_TERMS`], or matching `tier[-_ ]<digit>`, on a `const`/`static`/`default` line that is not an attribute | narrow ON PURPOSE — see "residual" |
 //!
 //! # Residual, recorded rather than hidden
 //!
-//! Three of these classes cannot be made both complete and mechanical today:
+//! Three of these classes cannot be made both complete and mechanical today.
+//! (The absolute-path class no longer belongs to this list: round-3 V8/V19
+//! replaced its enumerated-only posture with a complete boundary rule over
+//! string literals, keeping [`ABSOLUTE_PATH_ROOTS`] only as the line-level
+//! reach into comments and identifiers.)
 //!
 //! - **model id** is an enumerated-family match. A brand-new family name
 //!   (`"acme-1"`) is not detectable without a rule like "any hyphenated
@@ -35,13 +43,60 @@
 //! - **tool identity** has the same shape of risk in a configuration parser.
 //!   The narrow remedy, if it ever fires falsely, is to exclude `match`
 //!   patterns — not to delete the class.
+//! - **provider** (critic-4 M3) is an enumerated whole-literal match over
+//!   [`PROVIDER_IDENTITIES`]. A provider nobody listed (`"acme-cloud"`)
+//!   passes, exactly like an unlisted model family; the list is widened when
+//!   a provider is met. As substrings these names collide with ordinary
+//!   vocabulary (`gemini` is also a constellation), which is why the class is
+//!   whole-literal only.
+//! - **relative path** (critic-4 M4, widened by critic-5 M2) is a structural
+//!   match over string literals: `./`-, `../`-, `~`-rooted literals, and any
+//!   multi-segment literal whose segments are all filename-shaped —
+//!   `"run/state"` and `"a/tmpfile"` now flag, because §8.1 says "no path",
+//!   not "no path with an extension". Slash-separated vocabulary and media
+//!   types (`"and/or"`, `"image/png"`) are exempted by NAME, each with a
+//!   recorded reason, in [`RELATIVE_PATH_EXEMPTIONS`]; the residual is a
+//!   slash-separated phrase nobody exempted, which fails the gate until it is
+//!   argued in that list. That is the intended direction of error.
+//! - **provider endpoint** (critic-5 M2) is a TLD-anchored match over string
+//!   literals. `api.acme.internal` (no registered TLD) and a hostname written
+//!   only in a comment are the residuals; both cost a name in prose rather
+//!   than a coupling in compiled code.
+//!
+//! Four narrower residuals, recorded here for the same reason (round 3 +
+//! critic 4):
+//!
+//! - **timeout** matches an enumerated [`TIMEOUT_HINTS`] fragment at an
+//!   alphanumeric word boundary, so `BUILDER_TIMEOUT` is found and the
+//!   unnaturally spelled `BUILDERTIMEOUT` is not, and a duration-shaped name
+//!   nobody listed (`BUILDER_LIMIT`) is not either. The boundary is what keeps
+//!   `install` from matching `stall`; dropping it would trade this residual for
+//!   a false-positive factory.
+//! - **command** now has exactly one prose guard, the [`STOPWORDS`] list: a
+//!   multi-token string literal headed by a known executable and containing no
+//!   English function word is a command. The character-class filter that used
+//!   to sit after it was a bypass, not a guard (V16), and is gone. An English
+//!   sentence with no stopword that begins with a tool name would flag; that is
+//!   the direction the class is meant to err in.
+//! - **absolute path** is complete inside string literals and enumerated
+//!   outside them: an absolute path written only in a comment, rooted at a
+//!   directory not in [`ABSOLUTE_PATH_ROOTS`], is not reported. Comments carry
+//!   no compiled value, so this residual costs a name in prose, not a coupling
+//!   in code.
+//! - **runtime-assembled strings** (critic-4 m2) defeat every class here and
+//!   every term in `crate::denylist`: `["mo", "ck"].join("")` contains no
+//!   whole literal, and only a parser with dataflow could see the assembled
+//!   value. Normalization closes the *splitting* family (continuations,
+//!   `concat!`, escapes, statement breaks); it cannot close deliberate
+//!   runtime assembly. Recorded, not hidden.
 //!
 //! Scope: the denylist scope (every regular text file under the four core
 //! crates, including `gauntlet-cli`) minus
 //! `crates/gauntlet-app/src/config/defaults.rs`, the declared §8.6 defaults
 //! table. That exemption is itself checked (`crate::check_defaults_exemption`)
-//! so it can never be vacuous. Matching runs over `crate::text::scan_units`,
-//! so a literal split by a line-continuation or `concat!` is still found.
+//! so it can never be vacuous. Matching runs over `crate::text::scan_units`, so
+//! a literal split by a line-continuation, by `concat!`, by a `\x`/`\u{}`
+//! escape, or by a rustfmt statement break is still found.
 
 /// Model family prefixes for the hyphenated form.
 pub const MODEL_FAMILIES: &[&str] = &[
@@ -56,6 +111,132 @@ pub const MODEL_FAMILIES: &[&str] = &[
 pub const CONCATENATED_FAMILIES: &[&str] = &[
     "gpt", "claude", "sonnet", "haiku", "glm", "gemini", "gemma", "grok", "qwen", "llama",
     "mistral", "mixtral", "deepseek", "kimi",
+];
+
+/// Model-provider identities (spec §8.1/§8.4: the runtime names capabilities,
+/// `GAUNTLET_PROVIDER_*`, never products). AK-016 and §8.1 name "provider" as
+/// a class of its own; until critic-4 M3 it was the one class in that
+/// sentence with no matcher and no disclosed residual. Matched as a WHOLE
+/// string literal only — as substrings, `gemini` and `azure` collide with
+/// ordinary vocabulary. The list is widened whenever a provider is met.
+pub const PROVIDER_IDENTITIES: &[&str] = &[
+    "anthropic",
+    "azure",
+    "bedrock",
+    "cerebras",
+    "chatgpt",
+    "claude",
+    "cohere",
+    "copilot",
+    "deepinfra",
+    "deepseek",
+    "fireworks",
+    "gemini",
+    "google",
+    "grok",
+    "groq",
+    "huggingface",
+    "mistral",
+    "moonshot",
+    "nvidia",
+    "ollama",
+    "openai",
+    "openrouter",
+    "perplexity",
+    "phind",
+    "qwen",
+    "replicate",
+    "together",
+    "vertex",
+    "vertex-ai",
+    "vertex_ai",
+    "watsonx",
+    "xai",
+    "zhipu",
+];
+
+/// Final labels that make a dotted token a NETWORK NAME rather than a file
+/// name (critic-5 M2). `api.deepinfra.com/v1` passed every class before this
+/// one existed: no `://` for the URL class, no `:port` for the endpoint class,
+/// and not a whole-literal provider identity.
+///
+/// The list is what keeps the class precise: `config.toml`, `state.db` and
+/// `gauntlet.rs` are dotted tokens too, and none of them ends in a registered
+/// top-level domain. An endpoint under a TLD nobody listed is the recorded
+/// residual, in the same shape as the model-family and provider lists.
+pub const ENDPOINT_TLDS: &[&str] = &[
+    "com", "net", "org", "io", "ai", "dev", "app", "cloud", "co", "sh", "xyz", "me", "us", "eu",
+    "uk", "de", "gov", "edu", "info", "tech", "live", "cn", "jp", "inc", "llc", "systems",
+];
+
+/// Literals that look like a network name but are not one, each with the
+/// reason it is exempt. `endpoint_exemptions_state_a_reason` fails the gate if
+/// an entry is added without a reason, so the list cannot be used to quietly
+/// widen a hole.
+pub const ENDPOINT_EXEMPTIONS: &[(&str, &str)] = &[
+    (
+        "example.com",
+        "RFC 2606 reserves example.com for documentation; it resolves to nothing operational, so \
+         it is prose rather than configuration",
+    ),
+    (
+        "example.org",
+        "RFC 2606 reserves example.org for documentation, exactly like example.com",
+    ),
+    (
+        "example.net",
+        "RFC 2606 reserves example.net for documentation, exactly like example.com",
+    ),
+];
+
+/// Slash-separated literals that are vocabulary, media types, or notation
+/// rather than filesystem paths, each with the reason it is exempt (critic-5
+/// M2 / spec §8.1 "no path … is a literal"). The path class is structural and
+/// deliberately wide, so this list is where the exceptions are argued in the
+/// open; `relative_path_exemptions_state_a_reason` fails the gate if an entry
+/// is added without a reason.
+pub const RELATIVE_PATH_EXEMPTIONS: &[(&str, &str)] = &[
+    (
+        "and/or",
+        "an English conjunction: it names no file and resolves against no directory",
+    ),
+    (
+        "input/output",
+        "English vocabulary for the two directions of a stream, not a directory pair",
+    ),
+    (
+        "read/write",
+        "English vocabulary for an access mode, as in an open flag description",
+    ),
+    (
+        "n/a",
+        "the conventional written form of 'not applicable' in a report field",
+    ),
+    (
+        "24/7",
+        "a schedule idiom; the slash is notation, not a separator",
+    ),
+    (
+        "application/json",
+        "an IANA media type: a wire content type carried in a header, which names no location on \
+         any filesystem",
+    ),
+    (
+        "application/octet-stream",
+        "an IANA media type, exactly like application/json",
+    ),
+    (
+        "text/plain",
+        "an IANA media type, exactly like application/json",
+    ),
+    (
+        "text/markdown",
+        "an IANA media type, exactly like application/json",
+    ),
+    (
+        "image/png",
+        "an IANA media type, exactly like application/json",
+    ),
 ];
 
 /// Well-known service ports. Curated, and deliberately erring toward
@@ -246,8 +427,10 @@ pub const TIER_TERMS: &[&str] = &[
 ];
 
 /// Short English words that mark a string literal as prose rather than a
-/// command line.
-const STOPWORDS: &[&str] = &[
+/// command line. Since round-3 V16 removed the character-class filter, this is
+/// the command class's ONLY narrowing, which is why it is public and named in
+/// the module's residual section.
+pub const STOPWORDS: &[&str] = &[
     "a", "an", "the", "is", "was", "are", "were", "be", "been", "not", "and", "or", "to", "of",
     "in", "on", "for", "with", "this", "that", "it", "must", "should", "may", "can", "cannot",
     "has", "have", "no", "at", "by", "from", "into",
@@ -298,6 +481,23 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
         }
     };
 
+    // Critic-5 M1, invariant I8: the timeout and tier-policy classes need the
+    // identifier and its value in ONE scan unit. A declaration this scanner
+    // cannot join to its `;` within the budget is therefore a hole in those
+    // two classes, and a hole is reported, not skipped.
+    for line in crate::text::unjoinable_declarations(text) {
+        push(
+            format!(
+                "unscannable-declaration: {path}:{line}: a const/static/let declaration does not \
+                 reach its terminating ';' within {} lines, so the scanner cannot put its \
+                 identifier and its value in one unit — the timeout and tier-policy classes are \
+                 blind to it, and missing evidence is not passing evidence (I8, AK-016)",
+                crate::text::MAX_DECLARATION_LINES
+            ),
+            &mut out,
+        );
+    }
+
     for unit in crate::text::scan_units(text) {
         let line_no = unit.line;
         let raw = unit.text.as_str();
@@ -312,11 +512,31 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
                 &mut out,
             );
         }
+        if let Some(found) = find_absolute_path_literal(&string_literals(raw)) {
+            push(
+                format!(
+                    "hardcoded-absolute-path: {path}:{line_no}: '{found}' — a string literal \
+                     rooted at '/' is an absolute path, and absolute paths are configuration \
+                     (spec §8.1), not code"
+                ),
+                &mut out,
+            );
+        }
         if let Some(drive) = find_drive_root(raw) {
             push(
                 format!(
                     "hardcoded-absolute-path: {path}:{line_no}: '{drive}' — drive-letter paths \
                      are configuration (spec §8.1), not code"
+                ),
+                &mut out,
+            );
+        }
+        if let Some(found) = find_relative_path(&string_literals(raw)) {
+            push(
+                format!(
+                    "hardcoded-relative-path: {path}:{line_no}: '{found}' — a path literal is \
+                     environment coupling wherever it is rooted (spec §8.1, AK-016); resolve \
+                     paths from configuration"
                 ),
                 &mut out,
             );
@@ -390,6 +610,25 @@ pub fn scan_literals(path: &str, text: &str) -> Vec<String> {
                 &mut out,
             );
         }
+        if let Some(provider) = find_provider_identity(&literals) {
+            push(
+                format!(
+                    "hardcoded-provider: {path}:{line_no}: '{provider}' — provider identities are \
+                     configuration (spec §8.1, AK-016), never code"
+                ),
+                &mut out,
+            );
+        }
+        if let Some(endpoint) = find_provider_endpoint(&literals) {
+            push(
+                format!(
+                    "hardcoded-provider-endpoint: {path}:{line_no}: '{endpoint}' — a provider \
+                     endpoint is configuration (spec §8.1, AK-016) whether or not it carries a \
+                     scheme or a port"
+                ),
+                &mut out,
+            );
+        }
         if let Some(tier) = find_tier_policy(&lowered, &literals) {
             push(
                 format!(
@@ -432,6 +671,27 @@ fn find_absolute_path(lowered: &str) -> Option<String> {
     None
 }
 
+/// A string literal that is itself rooted at `/`.
+///
+/// [`find_absolute_path`] is an ENUMERATED match over [`ABSOLUTE_PATH_ROOTS`],
+/// which round 3 showed to be incomplete in two directions: `/app/config.toml`
+/// and `/scratch/state` are absolute paths rooted at no listed name (V19), and
+/// `"/./home/agent/state"` resolves to a LISTED root on every POSIX host while
+/// defeating the matcher's boundary guard (V8). Inside a string literal the
+/// complete rule is mechanical and needs no list: a literal whose first byte
+/// is `/` and which is longer than that single byte is an absolute path.
+///
+/// A lone `"/"` — the path separator itself, as in `parts.join("/")` — is
+/// deliberately not a violation. The enumerated line-level class stays, because
+/// it also reaches absolute paths written in comments and identifiers, where
+/// there is no literal to anchor on.
+fn find_absolute_path_literal(literals: &[String]) -> Option<String> {
+    literals
+        .iter()
+        .find(|literal| literal.len() > 1 && literal.starts_with('/'))
+        .cloned()
+}
+
 /// Match a Windows drive-letter root `[A-Za-z]:[\\/]` at an ASCII word
 /// boundary, so `https://` and `serde::fmt` never match.
 fn find_drive_root(line: &str) -> Option<String> {
@@ -452,6 +712,120 @@ fn find_drive_root(line: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// A string literal that is path-shaped by structure (critic-4 M4): AK-016
+/// says "no PATH is a hardcoded literal", and until this class the rule was
+/// enforced as "no ABSOLUTE path" — `"src/state/db.sqlite"` and
+/// `"./data"` compiled into core code with every locator green.
+///
+/// The boundary is structural, not enumerated: a literal rooted at `./`,
+/// `../`, or `~/`, or a multi-segment literal whose final segment is
+/// extension-shaped (`name.ext`, extension of 1–6 ASCII alphanumerics).
+/// `"a/tmpfile"` and `"and/or"` carry no such markers and stay clean — the
+/// recorded residual in the module table.
+fn find_relative_path(literals: &[String]) -> Option<String> {
+    literals
+        .iter()
+        .find(|literal| looks_like_relative_path(literal))
+        .cloned()
+}
+
+fn looks_like_relative_path(literal: &str) -> bool {
+    if RELATIVE_PATH_EXEMPTIONS
+        .iter()
+        .any(|(exempt, _)| exempt.eq_ignore_ascii_case(literal.trim()))
+    {
+        return false;
+    }
+    if literal.starts_with("./")
+        || literal.starts_with("../")
+        || literal.starts_with("~/")
+        || literal.starts_with(".\\")
+        || literal.starts_with("..\\")
+        || literal.starts_with("~\\")
+    {
+        return true;
+    }
+    // Critic-5 M2 / spec §8.1: "no PATH is a literal" — not "no absolute path",
+    // and not "no path with a file extension" either. A multi-segment literal
+    // whose segments are all path-segment shaped IS a relative path;
+    // `config/defaults` and `state/db` resolve against the process working
+    // directory exactly as `state/db.sqlite` does. What keeps this from
+    // flagging arbitrary prose is the segment shape (no spaces, no `:`, no
+    // punctuation beyond the characters a filename uses) plus the exemption
+    // list above, which is argued entry by entry rather than inferred.
+    let normalized = literal.replace('\\', "/");
+    let segments: Vec<&str> = normalized.split('/').collect();
+    segments.len() >= 2 && segments.iter().all(|segment| is_path_segment(segment))
+}
+
+/// Whether a `/`-separated fragment has the shape of a filesystem path
+/// segment: non-empty, made only of the bytes a filename uses, and not a bare
+/// separator artefact.
+fn is_path_segment(segment: &str) -> bool {
+    if segment == "." || segment == ".." {
+        return true;
+    }
+    !segment.is_empty()
+        && segment.bytes().all(|b| {
+            b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.' | b'+' | b'~' | b'@' | b'%')
+        })
+        && segment.bytes().any(|b| b.is_ascii_alphanumeric())
+        && !segment.starts_with('%')
+}
+
+/// A scheme-less network name in a string literal: `api.some-vendor.com`,
+/// `api.deepinfra.com/v1`, `collector.internal.example.io` (critic-5 M2).
+///
+/// The URL class needs `://` and the endpoint class needs `:port`; a bare
+/// hostname carries neither, which is exactly the spelling that passed. The
+/// rule is: a dotted token, every label filename-safe, whose FINAL label is a
+/// registered top-level domain ([`ENDPOINT_TLDS`]) — so `config.toml` and
+/// `state.db` do not match — and which is not on [`ENDPOINT_EXEMPTIONS`].
+///
+/// Scoped to string literals on purpose: a hostname named in prose is a
+/// residual (like an absolute path in a comment), because a comment compiles
+/// to nothing, and matching prose would make the class a false-positive
+/// factory in exactly the documents that discuss providers.
+fn find_provider_endpoint(literals: &[String]) -> Option<String> {
+    for literal in literals {
+        for token in literal.split(|b: char| !(b.is_ascii_alphanumeric() || b == '.' || b == '-')) {
+            let lowered = token.to_ascii_lowercase();
+            if ENDPOINT_EXEMPTIONS
+                .iter()
+                .any(|(exempt, _)| *exempt == lowered)
+            {
+                continue;
+            }
+            let labels: Vec<&str> = lowered.split('.').collect();
+            if labels.len() < 2 || labels.iter().any(|label| !is_host_label(label)) {
+                continue;
+            }
+            let tld = labels.last().expect("len >= 2");
+            if ENDPOINT_TLDS.contains(tld) {
+                return Some(lowered);
+            }
+        }
+    }
+    None
+}
+
+/// A DNS label: ASCII alphanumerics and hyphens, starting and ending
+/// alphanumeric.
+fn is_host_label(label: &str) -> bool {
+    !label.is_empty()
+        && label
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        && label
+            .bytes()
+            .next()
+            .is_some_and(|b| b.is_ascii_alphanumeric())
+        && label
+            .bytes()
+            .next_back()
+            .is_some_and(|b| b.is_ascii_alphanumeric())
 }
 
 /// Match any `scheme://` on a lowercased line (recritique R32): `wss://`,
@@ -744,7 +1118,10 @@ fn match_ipv4_at(bytes: &[u8], start: usize) -> Option<usize> {
 /// Every double-quoted string literal on a line, escapes resolved enough for
 /// matching. Raw strings (`r"…"`) are read as ordinary ones, which is
 /// sufficient: their content still ends up in the extracted text.
-fn string_literals(raw: &str) -> Vec<String> {
+///
+/// `crate::denylist` uses this too, for the whole-literal adapter-segment
+/// rule (round-3 V7).
+pub(crate) fn string_literals(raw: &str) -> Vec<String> {
     let bytes = raw.as_bytes();
     let mut out = Vec::new();
     let mut i = 0usize;
@@ -776,6 +1153,19 @@ fn string_literals(raw: &str) -> Vec<String> {
 
 /// A hardcoded command: `Command::new("…")`, or a command-shaped string
 /// literal headed by a known executable.
+///
+/// Round-3 V16: this used to end with a character-class filter that dropped
+/// any literal containing a byte outside `[A-Za-z0-9_.:/=+@%-]`, so
+/// `"cargo build --workspace 2>&1"`, `"git log --pretty=%H | head"` and
+/// `"sh -c 'cargo nextest run'"` all passed clean — a redirect, a pipe, a
+/// quote or a glob made the class disable itself. Shell metacharacters make a
+/// literal MORE command-shaped, not less, so the filter is gone. The token
+/// cap (`> 12`) went with it: a thirteen-token command line is still a
+/// command line.
+///
+/// What remains as the prose guard is the stopword list, which is the
+/// documented narrowing: the class is scoped to string literals, headed by a
+/// known executable, and containing no ordinary English function word.
 fn find_command(lowered: &str, literals: &[String]) -> Option<String> {
     if lowered.contains("command::new(")
         && let Some(first) = literals.first()
@@ -785,7 +1175,7 @@ fn find_command(lowered: &str, literals: &[String]) -> Option<String> {
     }
     for literal in literals {
         let tokens: Vec<&str> = literal.split_whitespace().collect();
-        if tokens.len() < 2 || tokens.len() > 12 {
+        if tokens.len() < 2 {
             continue;
         }
         let head = tokens[0]
@@ -802,22 +1192,35 @@ fn find_command(lowered: &str, literals: &[String]) -> Option<String> {
         {
             continue;
         }
-        if !tokens.iter().all(|t| {
-            t.bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b"_.:/=+@%-".contains(&b))
-        }) {
-            continue;
-        }
         return Some(literal.clone());
     }
     None
 }
 
-/// A string literal that is exactly a tool product name.
+/// A string literal that is exactly a tool product name — either a
+/// [`TOOL_IDENTITIES`] entry or any [`COMMAND_HEADS`] head. Critic-4 M2: the
+/// two lists used to differ, so a single-token command head (`"bash"`,
+/// `"just"`, `"sh"`) compiled into core code as a whole literal matched
+/// nothing — including when it was laundered through a `const` before
+/// `Command::new(…)`. Every executable head IS a tool product, and the union
+/// is computed rather than maintained, so the lists cannot drift apart again.
 fn find_tool_identity(literals: &[String]) -> Option<String> {
     literals
         .iter()
-        .find(|literal| TOOL_IDENTITIES.contains(&literal.trim().to_lowercase().as_str()))
+        .find(|literal| {
+            let value = literal.trim().to_lowercase();
+            TOOL_IDENTITIES.contains(&value.as_str()) || COMMAND_HEADS.contains(&value.as_str())
+        })
+        .cloned()
+}
+
+/// A string literal that is exactly a model-provider identity (critic-4 M3:
+/// the "provider" clause of §8.1/AK-016 had no matcher and no disclosed
+/// residual — `"deepinfra"` stopped one byte short of the `deepseek` term).
+fn find_provider_identity(literals: &[String]) -> Option<String> {
+    literals
+        .iter()
+        .find(|literal| PROVIDER_IDENTITIES.contains(&literal.trim().to_lowercase().as_str()))
         .cloned()
 }
 
@@ -901,11 +1304,12 @@ mod scanner_tests {
             "let p = \"D:/x\";",
         ] {
             let violations = scan_literals("f.rs", fixture);
-            assert_eq!(violations.len(), 1, "{fixture} -> {violations:?}");
+            assert!(!violations.is_empty(), "{fixture} -> {violations:?}");
             assert!(
-                violations[0].starts_with("hardcoded-absolute-path: f.rs:1:"),
-                "{}",
-                violations[0]
+                violations
+                    .iter()
+                    .all(|v| v.starts_with("hardcoded-absolute-path: f.rs:1:")),
+                "{fixture} -> {violations:?}"
             );
         }
     }
@@ -933,11 +1337,226 @@ mod scanner_tests {
     }
 
     #[test]
-    fn relative_unix_paths_are_not_flagged() {
-        assert!(scan_literals("f.rs", "let p = \"config/defaults.toml\";").is_empty());
-        assert!(scan_literals("f.rs", "let p = \"notes/gauntlet.md\";").is_empty());
-        assert!(scan_literals("f.rs", "let p = \"docs/dev/setup.md\";").is_empty());
-        assert!(scan_literals("f.rs", "let p = \"a/tmpfile\";").is_empty());
+    fn absolute_path_literals_outside_the_root_list_are_flagged() {
+        // Round-3 V19: the class was an enumeration, so an absolute path
+        // rooted at an unlisted directory passed clean. /app in particular is
+        // the standard container working directory.
+        for fixture in [
+            "pub const CONFIG: &str = \"/app/config.toml\";",
+            "pub const STATE: &str = \"/scratch/gauntlet\";",
+            "pub const OUT: &str = \"/workdir/state\";",
+            "pub const CODE: &str = \"/code/repo\";",
+            // Round-3 V8: forms that resolve to a LISTED root but defeated
+            // the boundary guard of the enumerated matcher.
+            "pub const STATE_ROOT: &str = \"/./home/agent/gauntlet/state\";",
+            "pub const STATE_ROOT: &str = \"//home/agent/state\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-absolute-path: f.rs:1:")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // The path separator itself is not an absolute path.
+        assert!(scan_literals("f.rs", "let joined = parts.join(\"/\");").is_empty());
+    }
+
+    #[test]
+    fn path_shaped_relative_literals_are_flagged_and_vocabulary_is_not() {
+        // Critic-4 M4: the class used to be "no ABSOLUTE path", so these
+        // compiled into core code with every locator green. The old unit test
+        // pinned that narrowing (`relative_unix_paths_are_not_flagged`); it
+        // was an undisclosed narrowing of a named AK-016 clause, and the
+        // correction contract replaces it with the structural boundary form.
+        for fixture in [
+            "pub const STATE_DB: &str = \"state/gauntlet.db\";",
+            "pub const DB: &str = \"src/state/db.sqlite\";",
+            "let d = \"./data\";",
+            "let d = \"../shared/data\";",
+            "let home = \"~/.gauntlet/state\";",
+            "let db = \"run/state.db\";",
+            "let cfg = \"config/defaults.toml\";",
+            "let notes = \"docs/dev/setup.md\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-relative-path: f.rs:1:")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // Critic-5 M2: the class no longer stops at an extension. §8.1 says
+        // "no path", and `"run/state"` resolves against the working directory
+        // exactly as `"run/state.db"` does. The old negative fixtures that
+        // WERE paths are now positives; the ones that are vocabulary or media
+        // types are exempt BY NAME, with the reason recorded beside them.
+        for fixture in [
+            "let p = \"a/tmpfile\";",
+            "let p = \"run/state\";",
+            "let p = \"config/defaults\";",
+            "let p = \"crates/gauntlet-domain\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-relative-path")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        for fixture in [
+            "let p = \"and/or\";",
+            "let p = \"input/output\";",
+            "let p = \"read/write\";",
+            "let p = \"image/png\";",
+            "let p = \"application/json\";",
+            "let p = \"n/a\";",
+            "let p = \"0.9.12+spec\";",
+            // Not path-shaped: a segment carrying a space or a `:` is prose.
+            "let p = \"either this / or that\";",
+            "let p = \"key: value/other\";",
+            "let joined = parts.join(\"/\");",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .all(|v| !v.starts_with("hardcoded-relative-path")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+    }
+
+    /// The exemption list is the one place the widened path class can be
+    /// quietly narrowed, so every entry must carry a stated reason — an entry
+    /// added without one fails this test rather than the reviewer's attention.
+    #[test]
+    fn relative_path_exemptions_state_a_reason() {
+        for (literal, reason) in RELATIVE_PATH_EXEMPTIONS {
+            assert!(
+                reason.split_whitespace().count() >= 6,
+                "the path-class exemption {literal:?} carries the reason {reason:?} — say why it \
+                 is not configuration, or let the class flag it"
+            );
+            assert!(
+                !looks_like_relative_path(literal),
+                "{literal:?} is on the exemption list but still flagged — the list would be \
+                 decoration"
+            );
+        }
+        // The exemptions are exact, not prefixes: a real path that merely
+        // starts with an exempt word is still a path.
+        assert!(looks_like_relative_path("image/png/../../etc/passwd"));
+        assert!(looks_like_relative_path("and/or/config.toml"));
+    }
+
+    /// Critic-5 M2: the scheme-less, port-less provider endpoint that passed
+    /// every other class.
+    #[test]
+    fn scheme_less_provider_endpoints_are_flagged() {
+        for fixture in [
+            "pub const PROVIDER_BASE: &str = \"api.deepinfra.com/v1\";",
+            "pub const BASE: &str = \"api.some-vendor.com\";",
+            "pub const COLLECTOR: &str = \"otel.acme.io\";",
+            "let host = \"models.vendor.ai\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-provider-endpoint: f.rs:1:")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // Precision: dotted names that are file names, versions, or crate
+        // paths are not hosts, and prose in a comment is not a literal.
+        for fixture in [
+            "let f = \"config.toml\";",
+            "let f = \"gauntlet.db\";",
+            "let v = \"0.9.12\";",
+            "// see api.deepinfra.com for the endpoint shape",
+            "//! The runtime resolves the provider base URL from configuration.",
+            "let m = \"application/json\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .all(|v| !v.starts_with("hardcoded-provider-endpoint")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn endpoint_exemptions_state_a_reason() {
+        for (literal, reason) in ENDPOINT_EXEMPTIONS {
+            assert!(
+                reason.split_whitespace().count() >= 6,
+                "the endpoint exemption {literal:?} carries the reason {reason:?}"
+            );
+            assert!(
+                find_provider_endpoint(&[(*literal).to_string()]).is_none(),
+                "{literal:?} is exempt but still flagged"
+            );
+        }
+        // And the exemption does not cover a real host that merely contains an
+        // exempt name as a suffix label pair.
+        assert!(find_provider_endpoint(&["api.example.com".to_string()]).is_some());
+    }
+
+    /// Critic-5 M1: a declaration split beyond any fixed join window. The
+    /// classes that need identifier and value together must either see them
+    /// (bounded join) or say they could not (I8) — never go quietly silent.
+    #[test]
+    fn a_declaration_split_past_the_old_window_is_still_seen() {
+        let filler = "    //\n".repeat(40);
+        let timeout =
+            format!("pub const STALL_TIMEOUT_MS: u64 =\n{filler}    900_000;\npub fn f() {{}}\n");
+        let violations = scan_literals("f.rs", &timeout);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-timeout")),
+            "{violations:?}"
+        );
+
+        let tier = format!(
+            "pub static REVIEW_MODE: &str =\n{filler}    \"adversarial\";\npub fn f() {{}}\n"
+        );
+        let violations = scan_literals("f.rs", &tier);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tier-policy")),
+            "{violations:?}"
+        );
+
+        // Past the budget the scanner reports that it could not join, rather
+        // than reporting nothing.
+        let unjoinable = format!(
+            "pub const STALL_TIMEOUT_MS: u64 =\n{}    900_000;\n",
+            "    //\n".repeat(crate::text::MAX_DECLARATION_LINES + 2)
+        );
+        assert!(
+            scan_literals("f.rs", &unjoinable)
+                .iter()
+                .any(|v| v.starts_with("unscannable-declaration: f.rs:1:")),
+            "a declaration the scanner cannot join must be a violation, not silence"
+        );
+
+        // Negative: ordinary declarations produce no completeness report.
+        assert!(
+            scan_literals(
+                "f.rs",
+                "pub const A: usize = 1;\npub static B: &str = \"x\";\nlet c = compute();\n"
+            )
+            .iter()
+            .all(|v| !v.starts_with("unscannable-declaration")),
+        );
     }
 
     #[test]
@@ -1122,6 +1741,92 @@ mod scanner_tests {
     }
 
     #[test]
+    fn commands_carrying_shell_metacharacters_are_flagged() {
+        // Round-3 V16's exact evasions: a redirect, a pipe, a quote or a glob
+        // used to make the class disable itself for the whole literal.
+        for fixture in [
+            "pub const BUILD_CMD: &str = \"cargo build --workspace 2>&1\";",
+            "pub const LOG_CMD: &str = \"git log --pretty=%H | head\";",
+            "pub const SHELL_CMD: &str = \"sh -c 'cargo nextest run'\";",
+            "pub const GLOB_CMD: &str = \"rg --files crates/**/*.rs\";",
+            "pub const REDIRECT: &str = \"cargo check > out.txt\";",
+            // A thirteen-token command line, past the old `> 12` cap.
+            "pub const LONG: &str = \"cargo nextest run -p one -p two -p three -p four -p five\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-command: f.rs:1:")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn timeouts_and_tier_policy_survive_a_rustfmt_line_break() {
+        // Round-3 V17's exact evasions: the shape rustfmt produces once the
+        // declaration exceeds the line width put the identifier and its value
+        // in two different scan units.
+        let timeout = "pub const GAUNTLET_BUILDER_INVOCATION_STALL_TIMEOUT_MILLISECONDS: u64 =\n    900_000;\n";
+        let violations = scan_literals("f.rs", timeout);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-timeout: f.rs:1:")),
+            "{violations:?}"
+        );
+
+        let tier = "pub static REVIEW_MODE: &str =\n    \"adversarial\";\n";
+        let violations = scan_literals("f.rs", tier);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tier-policy: f.rs:1:")),
+            "{violations:?}"
+        );
+
+        let model = "pub const BUILDER_MODEL: &str =\n    \"claude-3-5-sonnet\";\n";
+        let violations = scan_literals("f.rs", model);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-model-id: f.rs:1:")),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn escaped_and_concatenated_literals_are_flagged() {
+        // Round-3 V6/V11: a single escaped character, a raw-string fragment,
+        // or an interleaved comment used to hide the compiled value.
+        for (fixture, prefix) in [
+            (
+                "pub const ROOT: &str = \"/\\x74mp/gauntlet/state\";",
+                "hardcoded-absolute-path",
+            ),
+            (
+                "pub const ROOT: &str = \"\\u{2f}tmp/gauntlet\";",
+                "hardcoded-absolute-path",
+            ),
+            (
+                "pub const MODEL: &str = concat!(\"claude\", /* id */ \"-3-5-sonnet\");",
+                "hardcoded-model-id",
+            ),
+            (
+                "pub const MODEL: &str = concat!(\"clau\", r\"de-3-5-sonnet\");",
+                "hardcoded-model-id",
+            ),
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations.iter().any(|v| v.starts_with(prefix)),
+                "{fixture} -> {violations:?}"
+            );
+        }
+    }
+
+    #[test]
     fn prose_and_identifiers_are_not_commands() {
         // The class is scoped to string literals, and the stopword guard
         // keeps ordinary sentences out.
@@ -1250,5 +1955,343 @@ pub fn resolve(defaults: &Defaults, env: &Env) -> Effective {
 }
 ";
         assert!(scan_literals("clean.rs", fixture).is_empty());
+    }
+
+    #[test]
+    fn timeout_and_tier_survive_a_split_before_the_equals() {
+        // Critic-4 M1's exact evasions: the identifier line carries the hint,
+        // the value line the number, and neither unit held both.
+        let timeout = "pub const STALL_TIMEOUT_MS: u64\n    = 900_000;\n";
+        let violations = scan_literals("f.rs", timeout);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-timeout: f.rs:1:")),
+            "{violations:?}"
+        );
+
+        let tier = "pub static REVIEW_MODE: &str\n    = \"adversarial\";\n";
+        let violations = scan_literals("f.rs", tier);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tier-policy: f.rs:1:")),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn single_token_command_heads_and_define_then_use_laundering_are_flagged() {
+        // Critic-4 M2's exact evasion: `"bash"` is one token, the command
+        // class needs two, and `bash` was in no identity list.
+        let violations = scan_literals("f.rs", "pub const SHELL: &str = \"bash\";\n");
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tool-identity: f.rs:1:")),
+            "{violations:?}"
+        );
+
+        // The laundering half: the literal lives on a const, `Command::new`
+        // takes the identifier — the compiled behavior is still a hardcoded
+        // bash invocation, and the tool-identity half now catches it.
+        let laundering = "pub const SHELL: &str = \"bash\";\npub fn shell() -> Command { \
+                          std::process::Command::new(SHELL) }\n";
+        let violations = scan_literals("f.rs", laundering);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.starts_with("hardcoded-tool-identity") && v.contains("'bash'")),
+            "{violations:?}"
+        );
+
+        for head in ["just", "sh", "zsh", "python3", "make"] {
+            let violations = scan_literals("f.rs", &format!("pub const H: &str = \"{head}\";\n"));
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-tool-identity")),
+                "{head} -> {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn provider_identities_are_flagged() {
+        // Critic-4 M3's exact evasion: `deepinfra` contains no denied term,
+        // no model family, no endpoint.
+        let violations = scan_literals("f.rs", "pub const PROVIDER: &str = \"deepinfra\";\n");
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].starts_with("hardcoded-provider: f.rs:1:"),
+            "{}",
+            violations[0]
+        );
+
+        for provider in ["anthropic", "ollama", "openrouter", "vertex-ai"] {
+            let violations =
+                scan_literals("f.rs", &format!("pub const P: &str = \"{provider}\";\n"));
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-provider")),
+                "{provider} -> {violations:?}"
+            );
+        }
+        // Whole literals only: prose naming a provider in a sentence is not a
+        // selection.
+        assert!(scan_literals("f.rs", "//! we migrated off openrouter last quarter\n").is_empty());
+    }
+
+    /// The curated inventories are pinned to their exact contents (critic-4
+    /// vacuity M3): the iterating tests shrink in lockstep with a deleted
+    /// term, and the module's "do not delete the term" instruction was prose,
+    /// not a gate. Deleting or silently editing any term now fails this test,
+    /// and widening one is a deliberate edit that updates the pin.
+    #[test]
+    fn term_inventories_are_pinned() {
+        assert_eq!(
+            MODEL_FAMILIES,
+            &[
+                "gpt", "claude", "sonnet", "haiku", "opus", "glm", "gemini", "gemma", "grok",
+                "qwen", "llama", "mistral", "mixtral", "deepseek", "kimi", "minimax", "moonshot",
+                "nova", "phi", "o1", "o3", "o4",
+            ]
+        );
+        assert_eq!(
+            CONCATENATED_FAMILIES,
+            &[
+                "gpt", "claude", "sonnet", "haiku", "glm", "gemini", "gemma", "grok", "qwen",
+                "llama", "mistral", "mixtral", "deepseek", "kimi",
+            ]
+        );
+        assert_eq!(
+            PROVIDER_IDENTITIES,
+            &[
+                "anthropic",
+                "azure",
+                "bedrock",
+                "cerebras",
+                "chatgpt",
+                "claude",
+                "cohere",
+                "copilot",
+                "deepinfra",
+                "deepseek",
+                "fireworks",
+                "gemini",
+                "google",
+                "grok",
+                "groq",
+                "huggingface",
+                "mistral",
+                "moonshot",
+                "nvidia",
+                "ollama",
+                "openai",
+                "openrouter",
+                "perplexity",
+                "phind",
+                "qwen",
+                "replicate",
+                "together",
+                "vertex",
+                "vertex-ai",
+                "vertex_ai",
+                "watsonx",
+                "xai",
+                "zhipu",
+            ]
+        );
+        assert_eq!(
+            WELL_KNOWN_PORTS,
+            &[
+                80, 443, 1080, 3000, 3306, 4317, 4318, 5000, 5173, 5432, 6379, 8000, 8080, 8443,
+                8888, 9000, 9090, 9222, 27017,
+            ]
+        );
+        assert_eq!(
+            ABSOLUTE_PATH_ROOTS,
+            &[
+                "applications",
+                "workspaces",
+                "workspace",
+                "cygdrive",
+                "library",
+                "private",
+                "volumes",
+                "system",
+                "media",
+                "users",
+                "lib64",
+                "sbin",
+                "snap",
+                "boot",
+                "data",
+                "home",
+                "root",
+                "proc",
+                "srv",
+                "mnt",
+                "opt",
+                "tmp",
+                "usr",
+                "var",
+                "etc",
+                "dev",
+                "sys",
+                "run",
+                "nix",
+                "bin",
+                "lib",
+            ]
+        );
+        assert_eq!(
+            COMMAND_HEADS,
+            &[
+                "git",
+                "cargo",
+                "rustc",
+                "rustup",
+                "clippy",
+                "nextest",
+                "npm",
+                "npx",
+                "pnpm",
+                "yarn",
+                "node",
+                "deno",
+                "bun",
+                "python",
+                "python3",
+                "pip",
+                "pipx",
+                "poetry",
+                "ruff",
+                "pytest",
+                "mvn",
+                "gradle",
+                "cmake",
+                "make",
+                "just",
+                "bash",
+                "sh",
+                "zsh",
+                "pwsh",
+                "powershell",
+                "docker",
+                "podman",
+                "kubectl",
+                "helm",
+                "terraform",
+                "ssh",
+                "scp",
+                "rsync",
+                "curl",
+                "wget",
+                "jq",
+                "yq",
+                "rg",
+                "ripgrep",
+                "grep",
+                "sed",
+                "awk",
+                "tar",
+                "gh",
+                "glab",
+                "gcloud",
+                "psql",
+                "sqlite3",
+                "aider",
+                "codex",
+                "go",
+                "java",
+            ]
+        );
+        assert_eq!(
+            TOOL_IDENTITIES,
+            &[
+                "git",
+                "cargo",
+                "nextest",
+                "clippy",
+                "rustup",
+                "npm",
+                "npx",
+                "pnpm",
+                "yarn",
+                "poetry",
+                "pytest",
+                "ripgrep",
+                "rg",
+                "jq",
+                "yq",
+                "kubectl",
+                "helm",
+                "terraform",
+                "docker",
+                "podman",
+                "curl",
+                "wget",
+                "ssh",
+                "rsync",
+                "gh",
+                "glab",
+                "gcloud",
+                "psql",
+                "sqlite3",
+                "aider",
+                "codex",
+                "gradle",
+            ]
+        );
+        assert_eq!(
+            TIMEOUT_HINTS,
+            &[
+                "timeout",
+                "deadline",
+                "interval",
+                "duration",
+                "wall_seconds",
+                "wall-seconds",
+                "_secs",
+                "_seconds",
+                "_ms",
+                "_millis",
+                "stall",
+                "backoff",
+                "retry_base",
+                "retry_max",
+                "poll",
+                "ttl",
+                "delay",
+                "sleep",
+                "expiry",
+                "expires",
+                "heartbeat",
+                "grace_period",
+            ]
+        );
+        assert_eq!(
+            TIER_TERMS,
+            &[
+                "contained",
+                "cross_cutting",
+                "cross-cutting",
+                "irreversible",
+                "adaptive",
+                "adversarial",
+                "blast_radius",
+                "blast-radius",
+            ]
+        );
+        assert_eq!(
+            STOPWORDS,
+            &[
+                "a", "an", "the", "is", "was", "are", "were", "be", "been", "not", "and", "or",
+                "to", "of", "in", "on", "for", "with", "this", "that", "it", "must", "should",
+                "may", "can", "cannot", "has", "have", "no", "at", "by", "from", "into",
+            ]
+        );
     }
 }

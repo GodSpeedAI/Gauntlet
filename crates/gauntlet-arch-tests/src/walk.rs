@@ -52,6 +52,22 @@ pub const COMPOSITION_ROOT: &str = "crates/gauntlet-cli";
 /// at all (recritique R31). The vendor denylist applies to it either way.
 pub const DEFAULTS_MODULE: &str = "crates/gauntlet-app/src/config/defaults.rs";
 
+/// Every file any repo-level scan may be told to exempt, with the reason.
+///
+/// The scope predicates were pinned and the walker was pinned, but the third
+/// input to a scan — the exemption list its CALLER passes — was trusted. An
+/// added entry looked exactly like the sanctioned pattern and silently removed
+/// a file from a check. `crate::scan_core_tree` now refuses any exemption that
+/// is not on this list, so widening the exemptions means editing this
+/// inventory, in the open, with a reason.
+pub const DECLARED_SCAN_EXEMPTIONS: &[(&str, &str)] = &[(
+    DEFAULTS_MODULE,
+    "spec §8.6: the ONE declared defaults table, the single place conservative default VALUES are \
+     permitted to be literals; the exemption covers the literal scan only, never the vendor \
+     denylist, and `crate::check_defaults_exemption` requires the file to actually declare the \
+     §8.6 settings before the exemption counts",
+)];
+
 /// Settings the §8.6 defaults table must name for the literal-scan exemption
 /// on [`DEFAULTS_MODULE`] to be warranted.
 pub const DEFAULTS_TABLE_SETTINGS: &[&str] = &[
@@ -148,6 +164,48 @@ fn collect_files(root: &Path, dir: &Path, tree: &mut CoreTree) {
                  scanners cannot read it",
                 rel_of(root, &path)
             ));
+        }
+    }
+}
+
+/// Every non-directory entry under `dirs`, listed by a recursion that shares
+/// NO code with [`core_tree`] (critic-4 vacuity M1): the anti-vacuity guard
+/// used to measure the walker with the walker's own output, so a carve-out
+/// added to `collect_files` shrank both sides in lockstep and nothing failed.
+/// This listing has no exclusion logic to shrink. Symlinks (to files or
+/// directories) are recorded as entries and never followed — the walker
+/// separately reports each one as a violation, so the guard can excuse
+/// exactly those and still catch a silent carve-out.
+///
+/// A directory that does not exist yields no entries (the guard's per-crate
+/// floors are what report a missing crate); a directory that exists but
+/// cannot be read PANICS — the guard cannot verify coverage of a tree it
+/// cannot enumerate, and failing hard is the fail-closed direction.
+pub fn unfiltered_listing(root: &Path, dirs: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    for dir in dirs {
+        list_unfiltered(root, &root.join(dir), &mut out);
+    }
+    out.sort();
+    out
+}
+
+fn list_unfiltered(root: &Path, dir: &Path, out: &mut Vec<String>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) if !dir.exists() => return,
+        Err(err) => panic!("{} is readable: {err}", rel_of(root, dir)),
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_dir = match entry.file_type() {
+            Ok(file_type) => file_type.is_dir(),
+            Err(err) => panic!("{} has a readable type: {err}", rel_of(root, &path)),
+        };
+        if is_dir {
+            list_unfiltered(root, &path, out);
+        } else {
+            out.push(rel_of(root, &path));
         }
     }
 }
@@ -332,6 +390,44 @@ mod scope_tests {
             "repo root {} does not contain the frozen ruler",
             root.display()
         );
+    }
+
+    #[test]
+    fn the_independent_listing_agrees_with_the_walker_on_the_real_repo() {
+        // Critic-4 vacuity M1: the guard's universe must be able to disagree
+        // with the walker, or guarding the walker is impossible. On a clean
+        // repo the two agree on every file.
+        let root = repo_root();
+        let listed = unfiltered_listing(&root, CORE_CRATES);
+        let tree = core_tree(&root);
+        assert!(
+            !listed.is_empty(),
+            "the listing found nothing under the core crates"
+        );
+        for file in &listed {
+            assert!(
+                tree.files.contains(file)
+                    || tree.violations.iter().any(|v| v.contains(file.as_str())),
+                "'{file}' is on disk under a core crate but the walker neither listed nor \
+                 reported it — a walker-level carve-out"
+            );
+        }
+        // A carved subtree is exactly what the independent listing still sees.
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-arch-tests-listing-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let crate_dir = dir.join("crates/gauntlet-app/src/generated");
+        std::fs::create_dir_all(&crate_dir).expect("temp tree is creatable");
+        std::fs::write(crate_dir.join("wiring.rs"), b"pub const X: u8 = 1;\n")
+            .expect("fixture is written");
+        let listed = unfiltered_listing(&dir, CORE_CRATES);
+        assert!(
+            listed.contains(&"crates/gauntlet-app/src/generated/wiring.rs".to_string()),
+            "the independent listing must not grow an exclusion: {listed:?}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

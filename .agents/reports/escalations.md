@@ -10,7 +10,12 @@ around by downgrading a tier or an authority.
 ## ESC-001 — Delegation capacity exhausted; Task 3 not started
 
 - **Opened:** 2026-08-15
-- **Status:** open — clears on its own when the operator's session limit resets
+- **Status:** **CLOSED** 2026-08-15 — the session limit reset, delegation resumed, and the
+  deferred blind verification ran. It found 4 critical findings and Task 2 was reopened
+  (`.agents/reports/task2/verification-round3.md`). Recording that outcome is the point: the
+  escalation's stated risk — *"Task 2's corrected artifact has never been independently
+  reviewed… do not upgrade AK-001/002/016 beyond `implemented but provisional`"* — was
+  correct, and holding the line on it is what caught the four holes.
 - **Blocks:** Task 3 (domain types) and every task after it
 - **Does not block:** nothing else; Tasks 0–2 are complete and committed
 

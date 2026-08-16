@@ -24,6 +24,49 @@
 //! list is an orchestrator decision, so a new crate must be classified here
 //! deliberately rather than slip in unclassified.
 //!
+//! # External dependencies fail closed (critic-4 C1, M5, M8)
+//!
+//! The layer rules above bound *internal* dependencies only. Until critic 4,
+//! every other source channel was invisible: a registry version requirement
+//! (`shadow-net = "0.8"`), a git source (any URL spelling), a
+//! workspace-inherited external crate, a `[patch]` entry with a git source,
+//! and `.cargo/config.toml` source replacement could each compile
+//! attacker-chosen code into `gauntlet-domain` with every locator green. The
+//! channel is closed at the source, not by enumerating vendor names:
+//!
+//! - a member's dependency sections (normal, dev, build, target-scoped —
+//!   [`dependency_sections`]) admit only (i) workspace members and (ii)
+//!   crates on that layer's allowlist ([`DOMAIN_EXTERNAL_ALLOWLIST`],
+//!   [`APPLICATION_EXTERNAL_ALLOWLIST`], …). Every allowlist is EMPTY today
+//!   except the boundary suite's own `toml`. The allowlist is the reviewable
+//!   decision point: adding `serde = "1"` to `gauntlet-domain` fails
+//!   `just boundaries` until a maintainer lists it here with a recorded
+//!   justification beside the entry;
+//! - an allowlist entry admits a (crate, SOURCE) pair, never a bare name
+//!   (critic-5 C2). Only the default registry makes a name evidence of the
+//!   code behind it, so `toml = { git = "https://…/toml-fork" }` and
+//!   `toml = { version = "0.9", registry = "mirror" }` are violations even
+//!   though `toml` is allowlisted — either would hand this instrument's own
+//!   manifest parser to whoever controls that source;
+//! - a root `[workspace.dependencies]` entry must resolve to a member by
+//!   `path` or sit on the union of the layer allowlists
+//!   ([`external_allowlist_union`]) — the table is inheritable by every
+//!   member, `gauntlet-domain` included. A git source there is a violation
+//!   outright;
+//! - a `[patch]`/`[replace]` entry must resolve to a member by `path`. Any
+//!   other source (git, registry) substitutes a crate across the whole
+//!   workspace — including for this instrument's own `toml` dependency, the
+//!   parser behind every manifest check here;
+//! - in-repo cargo configuration is DISCOVERED (every `.cargo/config*` in the
+//!   tree, not only the root one — cargo reads them from the invocation
+//!   directory upward) and walked generically ([`check_cargo_config`]):
+//!   `[source.*]` replacement, `[registries.*]`, and every key in
+//!   [`FORBIDDEN_CARGO_CONFIG_KEYS`] (`rustflags`, `linker`, `runner`,
+//!   wrappers, `paths`) are violations WHEREVER they appear — under `[build]`,
+//!   under `[target.'cfg(all())']`, or under any other table. All of them
+//!   redirect what compiles without touching a manifest this suite reads. The
+//!   toolchain pin is the same channel in another file ([`check_toolchain_file`]).
+//!
 //! # Membership is discovered, not declared (recritique R1/R14, class A1)
 //!
 //! Cargo auto-includes any path dependency residing in the workspace
@@ -43,6 +86,87 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use toml::Table;
+
+// ---------------------------------------------------------------------------
+// External-dependency allowlists (critic-4 C1) — fail CLOSED.
+//
+// Spec §24.3's first bullet and AK-001 say the domain "declares zero
+// dependencies on port, adapter, or infrastructure crates", and the
+// dependency-direction rules above bound only workspace members. These lists
+// are the other half: a dependency that is not a member is legal in a layer
+// only if it is named here. Every list is EMPTY today except the boundary
+// suite's own `toml`. THE EMPTY LIST IS THE DESIGN: the allowlist is the
+// reviewable decision point, so adding an entry must be a recorded, justified
+// act — a comment naming the spec section or plan task that permits it,
+// beside the entry — not a diff buried in a refactor. `just boundaries` fails
+// until the entry exists.
+// ---------------------------------------------------------------------------
+
+/// One permitted external crate: its package name and the recorded reason it
+/// is permitted. The reason is not decoration — `allowlist_entries_state_a_reason`
+/// fails the gate if an entry is added without one, so the allowlist cannot
+/// grow silently (critic-5 anti-vacuity).
+pub type ExternalAllowance = (&'static str, &'static str);
+
+/// External crates `gauntlet-domain` may depend on. EMPTY (spec §24.3,
+/// AK-001: zero dependencies on port, adapter, or infrastructure crates).
+pub const DOMAIN_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+
+/// External crates `gauntlet-ports` may depend on. EMPTY (spec §4.1: ports
+/// depend on the domain only).
+pub const PORTS_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+
+/// External crates `gauntlet-app` may depend on. EMPTY (AK-002: the
+/// application layer depends on port abstractions only).
+pub const APPLICATION_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+
+/// External crates `gauntlet-cli` may depend on. EMPTY today; the composition
+/// root inherits its permissions from the layers it wires, and anything it
+/// needs beyond them is a recorded decision made here.
+pub const CLI_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+
+/// External crates an adapter under `crates/adapters/**` may depend on. EMPTY
+/// today; adapter tasks that adopt real vendors (state, sandbox, browser)
+/// list them here with the plan task that justifies the adoption.
+pub const ADAPTER_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+
+/// External crates `gauntlet-arch-tests` may depend on.
+pub const BOUNDARY_TESTS_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[(
+    "toml",
+    "manifest parsing — the one external dependency plan Task 2 permits, declared once in the \
+     root [workspace.dependencies] as toml = \"0.9\"; this crate is test-only and is never a \
+     dependency of another member",
+)];
+
+/// Every allowlist, in layer order, for the pins and the union.
+pub const ALL_EXTERNAL_ALLOWLISTS: &[(&str, &[ExternalAllowance])] = &[
+    ("domain", DOMAIN_EXTERNAL_ALLOWLIST),
+    ("ports", PORTS_EXTERNAL_ALLOWLIST),
+    ("application", APPLICATION_EXTERNAL_ALLOWLIST),
+    ("cli", CLI_EXTERNAL_ALLOWLIST),
+    ("adapter", ADAPTER_EXTERNAL_ALLOWLIST),
+    ("boundary-tests", BOUNDARY_TESTS_EXTERNAL_ALLOWLIST),
+];
+
+/// The names on one allowlist, for membership tests and violation text.
+pub fn allowlist_names(list: &[ExternalAllowance]) -> Vec<&'static str> {
+    list.iter().map(|(name, _)| *name).collect()
+}
+
+/// Every crate any layer permits externally. The root
+/// `[workspace.dependencies]` table is inheritable by all of them, so an
+/// entry there must sit on this union to be legal.
+pub fn external_allowlist_union() -> Vec<&'static str> {
+    let mut out = Vec::new();
+    for (_, list) in ALL_EXTERNAL_ALLOWLISTS {
+        for (name, _) in *list {
+            if !out.contains(name) {
+                out.push(name);
+            }
+        }
+    }
+    out
+}
 
 /// A workspace member: its package directory (repo-relative, POSIX
 /// separators) and its `[package].name`.
@@ -95,6 +219,20 @@ impl Layer {
             );
         }
         allowed
+    }
+
+    /// The layer's external (non-member) dependency allowlist. EMPTY for every
+    /// layer except the boundary suite (critic-4 C1): the empty lists are what
+    /// make the external channel fail closed instead of failing open.
+    fn allowed_external(self) -> &'static [ExternalAllowance] {
+        match self {
+            Layer::Domain => DOMAIN_EXTERNAL_ALLOWLIST,
+            Layer::Ports => PORTS_EXTERNAL_ALLOWLIST,
+            Layer::App => APPLICATION_EXTERNAL_ALLOWLIST,
+            Layer::Cli => CLI_EXTERNAL_ALLOWLIST,
+            Layer::Adapter => ADAPTER_EXTERNAL_ALLOWLIST,
+            Layer::BoundaryTests => BOUNDARY_TESTS_EXTERNAL_ALLOWLIST,
+        }
     }
 }
 
@@ -160,10 +298,86 @@ pub fn workspace_dep_names(root_manifest: &Table) -> BTreeMap<String, String> {
     out
 }
 
-/// Every `path = "…"` entry in the root `[workspace.dependencies]` table must
-/// resolve to a declared member (class A1): the root table is the one place a
-/// single line can point the whole workspace at an out-of-tree crate.
-pub fn check_workspace_dependency_paths(root_manifest: &Table, members: &[Member]) -> Vec<String> {
+/// How a root `[workspace.dependencies]` entry gets its code.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RootDepSource {
+    /// `path = "…"` resolving to this member directory.
+    Member,
+    /// `path = "…"`, resolved repo-relative, pointing outside the member set.
+    Path,
+    /// Any `git = "…"` source, any URL spelling (https, scp-like, …).
+    Git,
+    /// A version requirement served by the DEFAULT registry (crates.io).
+    Registry,
+    /// `registry = "…"` / `registry-index = "…"`: a named registry whose index
+    /// is chosen elsewhere (`.cargo/config.toml` `[registries.*]`, or the
+    /// developer's `$CARGO_HOME`). The name says nothing about the code
+    /// (critic-5 C2).
+    AlternateRegistry,
+}
+
+/// One root `[workspace.dependencies]` entry, resolved far enough to decide
+/// whether any member may inherit it (critic-4 C1: the root table is the one
+/// place a single line can point every member, `gauntlet-domain` included, at
+/// out-of-tree code).
+#[derive(Clone, Debug)]
+pub struct RootDep {
+    /// The crate name an inheriting member actually compiles (`package = "…"`
+    /// rename included).
+    pub package: String,
+    /// The entry's declared source.
+    pub source: RootDepSource,
+}
+
+/// The root `[workspace.dependencies]` table with each entry's source
+/// resolved. Member classification needs the member set, so it is passed in.
+pub fn workspace_dep_records(
+    root_manifest: &Table,
+    members: &[Member],
+) -> BTreeMap<String, RootDep> {
+    let mut out = BTreeMap::new();
+    let Some(deps) = root_manifest
+        .get("workspace")
+        .and_then(|w| w.get("dependencies"))
+        .and_then(|d| d.as_table())
+    else {
+        return out;
+    };
+    for (alias, spec) in deps {
+        let fields = spec.as_table();
+        let package = fields
+            .and_then(|f| f.get("package"))
+            .and_then(|value| value.as_str())
+            .unwrap_or(alias)
+            .to_string();
+        let source = if let Some(rel) = fields
+            .and_then(|f| f.get("path"))
+            .and_then(|value| value.as_str())
+        {
+            let target = join_posix("", rel);
+            if members.iter().any(|m| m.dir == target) {
+                RootDepSource::Member
+            } else {
+                RootDepSource::Path
+            }
+        } else if fields.is_some_and(|f| f.contains_key("git")) {
+            RootDepSource::Git
+        } else if fields.is_some_and(has_alternate_registry) {
+            RootDepSource::AlternateRegistry
+        } else {
+            RootDepSource::Registry
+        };
+        out.insert(alias.clone(), RootDep { package, source });
+    }
+    out
+}
+
+/// Every entry in the root `[workspace.dependencies]` table (class A1 +
+/// critic-4 C1): a `path` must resolve to a declared member; a git source is
+/// a violation outright; anything else (a registry entry) must sit on the
+/// union of the layer external allowlists, because the table is one
+/// `alias.workspace = true` away from compiling into `gauntlet-domain`.
+pub fn check_workspace_dependency_table(root_manifest: &Table, members: &[Member]) -> Vec<String> {
     let Some(deps) = root_manifest
         .get("workspace")
         .and_then(|w| w.get("dependencies"))
@@ -171,88 +385,245 @@ pub fn check_workspace_dependency_paths(root_manifest: &Table, members: &[Member
     else {
         return Vec::new();
     };
+    let allowed = external_allowlist_union();
     let mut out = Vec::new();
     for (alias, spec) in deps {
-        let Some(rel) = spec
-            .as_table()
-            .and_then(|fields| fields.get("path"))
+        let fields = spec.as_table();
+        if let Some(rel) = fields
+            .and_then(|f| f.get("path"))
             .and_then(|value| value.as_str())
-        else {
+        {
+            let target = join_posix("", rel);
+            if !members.iter().any(|m| m.dir == target) {
+                out.push(format!(
+                    "dependency-direction: Cargo.toml: [workspace.dependencies] '{alias}' has \
+                     path = '{rel}' (resolved: '{target}'), which is not a declared workspace member \
+                     — an out-of-tree crate reachable from every member is exactly the \
+                     infrastructure edge AK-001 forbids"
+                ));
+            }
             continue;
-        };
-        let target = join_posix("", rel);
-        if !members.iter().any(|m| m.dir == target) {
+        }
+        if fields.is_some_and(|f| f.contains_key("git")) {
             out.push(format!(
-                "dependency-direction: Cargo.toml: [workspace.dependencies] '{alias}' has \
-                 path = '{rel}' (resolved: '{target}'), which is not a declared workspace member \
-                 — an out-of-tree crate reachable from every member is exactly the \
-                 infrastructure edge AK-001 forbids"
+                "dependency-direction: Cargo.toml: [workspace.dependencies] '{alias}' has a git \
+                 source — the entry is inheritable by every member, gauntlet-domain included, so \
+                 it compiles code from outside the workspace into the domain with no scanner \
+                 reading a byte (AK-001, spec §24.3)"
+            ));
+            continue;
+        }
+        if fields.is_some_and(has_alternate_registry) {
+            out.push(format!(
+                "dependency-direction: Cargo.toml: [workspace.dependencies] '{alias}' names an \
+                 alternate registry — the index it resolves against is chosen in cargo \
+                 configuration or in the developer's environment, so the NAME is no evidence of \
+                 the code; only the default registry is admissible here (AK-001, spec §24.3, \
+                 critic-5 C2)"
+            ));
+            continue;
+        }
+        let package = fields
+            .and_then(|f| f.get("package"))
+            .and_then(|value| value.as_str())
+            .unwrap_or(alias);
+        if !allowed.contains(&package) {
+            out.push(format!(
+                "dependency-direction: Cargo.toml: [workspace.dependencies] '{alias}' (resolved: \
+                 '{package}') is a registry entry no layer's external allowlist permits {allowed:?} \
+                 — the root table is one '{alias}.workspace = true' away from compiling it into \
+                 gauntlet-domain. If a layer needs it, add it to that layer's allowlist with a \
+                 recorded justification (AK-001, spec §24.3)"
             ));
         }
     }
     out
 }
 
-/// Internal (workspace-member) dependencies declared in `text`, plus the
-/// `path` dependencies that resolve to nothing known.
+/// How an external dependency's source was declared, when it is neither a
+/// workspace member nor a `path` that failed to resolve. The description goes
+/// into the violation so the maintainer sees the channel, not just the name.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum ExternalSource {
+    /// A bare or table version requirement served by the DEFAULT registry
+    /// (`shadow-net = "0.8"`).
+    Registry,
+    /// `registry = "…"` / `registry-index = "…"` — a named registry (critic-5
+    /// C2).
+    AlternateRegistry,
+    /// Any `git = "…"` source, any URL spelling.
+    Git,
+    /// `workspace = true` inheriting a root-table entry of that kind.
+    InheritedGit,
+    InheritedRegistry,
+    InheritedAlternateRegistry,
+    InheritedPath,
+    /// `workspace = true` for an alias the root table does not carry, or a
+    /// spec this classifier cannot read as a source.
+    Unspecified,
+}
+
+impl ExternalSource {
+    fn describe(self) -> &'static str {
+        match self {
+            ExternalSource::Registry => "a default-registry version requirement",
+            ExternalSource::AlternateRegistry => "an alternate-registry source",
+            ExternalSource::Git => "a git source",
+            ExternalSource::InheritedGit => "workspace inheritance of a root-table git entry",
+            ExternalSource::InheritedRegistry => {
+                "workspace inheritance of a root-table default-registry entry"
+            }
+            ExternalSource::InheritedAlternateRegistry => {
+                "workspace inheritance of a root-table alternate-registry entry"
+            }
+            ExternalSource::InheritedPath => {
+                "workspace inheritance of a root-table path outside the member set"
+            }
+            ExternalSource::Unspecified => "an unspecified external source",
+        }
+    }
+
+    /// Whether an allowlist entry may admit a dependency from this source
+    /// (critic-5 C2). The allowlist names a CRATE; only the default registry
+    /// makes a name evidence of the code behind it. A git URL, an alternate
+    /// registry index, or a source this classifier could not read is chosen by
+    /// whoever wrote the URL — allowlisting `toml` must not admit
+    /// `toml = { git = "https://…/toml-fork" }`, which would hand this
+    /// instrument's own manifest parser to the author of that fork.
+    fn admissible_by_allowlist(self) -> bool {
+        matches!(
+            self,
+            ExternalSource::Registry | ExternalSource::InheritedRegistry
+        )
+    }
+}
+
+/// Whether a dependency spec table names a registry other than the default
+/// one. `registry = "…"` resolves its index through cargo configuration, and
+/// `registry-index = "…"` states the index outright; neither is the default
+/// registry, so neither may be admitted by name.
+fn has_alternate_registry(fields: &Table) -> bool {
+    fields.contains_key("registry") || fields.contains_key("registry-index")
+}
+
+/// One dependency that is neither a workspace member nor an unresolved `path`:
+/// the external channel, kept so `check_member` can enforce the layer
+/// allowlist against it (critic-4 C1).
+struct ExternalDep {
+    section: String,
+    key: String,
+    name: String,
+    source: ExternalSource,
+}
+
+/// Internal (workspace-member) dependencies declared in `text`, the `path`
+/// dependencies that resolve to nothing known, and every external dependency
+/// whatever its source kind.
 struct DeclaredDeps {
     internal: Vec<(String, String)>,
     unresolved_paths: Vec<(String, String, String, String)>,
+    external: Vec<ExternalDep>,
 }
 
 fn declared_deps(
     member_dir: &str,
     text: &str,
     members: &[Member],
-    workspace_deps: &BTreeMap<String, String>,
+    root_deps: &BTreeMap<String, RootDep>,
 ) -> Result<DeclaredDeps, String> {
     let manifest = parse_table(text).map_err(|e| format!("invalid TOML: {e}"))?;
     let mut internal = Vec::new();
     let mut unresolved_paths = Vec::new();
+    let mut external = Vec::new();
     for (section, table) in &dependency_sections(&manifest) {
         for (key, spec) in *table {
+            let fields = spec.as_table();
             let mut dep = key.clone();
-            if let Some(fields) = spec.as_table() {
+            let mut source = ExternalSource::Unspecified;
+            let mut unresolved = false;
+            if let Some(fields) = fields {
                 if let Some(renamed) = fields.get("package").and_then(|v| v.as_str()) {
                     dep = renamed.to_string();
+                }
+                if fields.contains_key("git") {
+                    source = ExternalSource::Git;
+                } else if has_alternate_registry(fields) {
+                    source = ExternalSource::AlternateRegistry;
+                } else if fields.contains_key("version") {
+                    source = ExternalSource::Registry;
                 }
                 if let Some(rel) = fields.get("path").and_then(|v| v.as_str()) {
                     let target = join_posix(member_dir, rel);
                     match members.iter().find(|m| m.dir == target) {
-                        Some(hit) => dep = hit.name.clone(),
-                        None => unresolved_paths.push((
-                            section.clone(),
-                            key.clone(),
-                            rel.to_string(),
-                            target,
-                        )),
+                        // A `path` that resolves to a member is internal,
+                        // whatever else the spec table said.
+                        Some(hit) => {
+                            dep = hit.name.clone();
+                            source = ExternalSource::Unspecified;
+                        }
+                        None => {
+                            unresolved_paths.push((
+                                section.clone(),
+                                key.clone(),
+                                rel.to_string(),
+                                target,
+                            ));
+                            unresolved = true;
+                        }
                     }
                 }
                 // Workspace inheritance wins last: with `workspace = true`
                 // the root table is authoritative for what the crate is.
                 if fields.get("workspace").and_then(|v| v.as_bool()) == Some(true)
-                    && let Some(resolved) = workspace_deps.get(key)
+                    && let Some(root) = root_deps.get(key)
                 {
-                    dep = resolved.clone();
+                    dep = root.package.clone();
+                    source = match root.source {
+                        RootDepSource::Member => ExternalSource::Unspecified,
+                        RootDepSource::Path => ExternalSource::InheritedPath,
+                        RootDepSource::Git => ExternalSource::InheritedGit,
+                        RootDepSource::Registry => ExternalSource::InheritedRegistry,
+                        RootDepSource::AlternateRegistry => {
+                            ExternalSource::InheritedAlternateRegistry
+                        }
+                    };
+                    // A member may narrow an inherited entry to a named
+                    // registry of its own; the narrowing decides the source.
+                    if has_alternate_registry(fields) {
+                        source = ExternalSource::AlternateRegistry;
+                    }
                 }
+            } else {
+                // A bare string spec (`shadow-net = "0.8"`) is a registry
+                // requirement and used to be invisible to every check.
+                source = ExternalSource::Registry;
             }
             if members.iter().any(|m| m.name == dep) {
                 internal.push((section.clone(), dep));
+            } else if !unresolved {
+                external.push(ExternalDep {
+                    section: section.clone(),
+                    key: key.clone(),
+                    name: dep,
+                    source,
+                });
             }
         }
     }
     Ok(DeclaredDeps {
         internal,
         unresolved_paths,
+        external,
     })
 }
 
-/// Check one member manifest against its layer rule.
+/// Check one member manifest against its layer rule — the internal upper
+/// bound AND the external allowlist.
 pub fn check_member(
     member: &Member,
     text: &str,
     members: &[Member],
-    workspace_deps: &BTreeMap<String, String>,
+    root_deps: &BTreeMap<String, RootDep>,
 ) -> Vec<String> {
     let manifest = format!("{}/Cargo.toml", member.dir);
     let layer = match classify(member) {
@@ -266,7 +637,7 @@ pub fn check_member(
         }
     };
     let mut violations = Vec::new();
-    match declared_deps(&member.dir, text, members, workspace_deps) {
+    match declared_deps(&member.dir, text, members, root_deps) {
         Err(err) => violations.push(format!("dependency-direction: {manifest}: {err}")),
         Ok(declared) => {
             for (section, key, rel, target) in declared.unresolved_paths {
@@ -300,6 +671,61 @@ pub fn check_member(
                         allowed
                     ));
                 }
+            }
+            // Critic-4 C1/M8: anything that is not a member and not a failed
+            // `path` is the external channel. It is legal only by name, on
+            // this layer's allowlist; the empty allowlists are what make the
+            // channel fail closed rather than fail open.
+            let allow = layer.allowed_external();
+            let allow_names = allowlist_names(allow);
+            for dep in declared.external {
+                let listed = allow_names.contains(&dep.name.as_str());
+                if listed && dep.source.admissible_by_allowlist() {
+                    continue;
+                }
+                let citation = match layer {
+                    Layer::Domain => "AK-001",
+                    Layer::App => "AK-002",
+                    _ => "spec §4.1, §24.3",
+                };
+                // Critic-5 C2: an allowlisted NAME is not an allowlisted
+                // CRATE. The allowlist admits a (name, source) pair, and only
+                // the default registry makes the name evidence of the code.
+                if listed {
+                    violations.push(format!(
+                        "dependency-direction: {manifest}: crate '{}' ({}) declares {} on '{}' \
+                         (resolved: '{}') through {} — '{}' is on this layer's external allowlist \
+                         {:?}, but an allowlist admits a (crate, source) PAIR: only the default \
+                         registry makes the name evidence of the code behind it. A git URL or a \
+                         named registry index is chosen by whoever wrote it, so it can substitute \
+                         arbitrary code — including for this suite's own manifest parser \
+                         ({citation}, spec §24.3)",
+                        member.name,
+                        layer.name(),
+                        dep.section,
+                        dep.key,
+                        dep.name,
+                        dep.source.describe(),
+                        dep.name,
+                        allow_names
+                    ));
+                    continue;
+                }
+                violations.push(format!(
+                    "dependency-direction: {manifest}: crate '{}' ({}) declares {} on '{}' \
+                     (resolved: '{}', {}), which is neither a workspace member nor on the layer's \
+                     external allowlist {:?} — {} forbids the channel, not just the enumerated \
+                     vendor names; permit it deliberately by listing it with a justification, or \
+                     not at all",
+                    member.name,
+                    layer.name(),
+                    dep.section,
+                    dep.key,
+                    dep.name,
+                    dep.source.describe(),
+                    allow_names,
+                    citation
+                ));
             }
         }
     }
@@ -339,36 +765,380 @@ pub fn read_members(root: &Path, root_manifest: &str) -> Result<Vec<Member>, Str
     Ok(out)
 }
 
+/// What the filesystem says about packages under `crates/**`: the directories
+/// holding a `Cargo.toml`, and the places the walk could not look.
+#[derive(Default)]
+pub struct PackageDiscovery {
+    /// Repo-relative package directories, sorted.
+    pub dirs: Vec<String>,
+    /// Discovery failures. Round-3 V18: these used to be swallowed, so an
+    /// unreadable subtree under `crates/` read as "no undeclared packages".
+    /// Missing evidence is not passing evidence (I8).
+    pub violations: Vec<String>,
+}
+
 /// Every directory under `crates/**` that holds a `Cargo.toml`, repo-relative
 /// and sorted. This is the filesystem's answer to "what packages exist",
 /// against which `[workspace].members` is checked.
-pub fn discover_package_dirs(root: &Path) -> Vec<String> {
-    let mut out = Vec::new();
+///
+/// No directory name is excluded. The previous version skipped anything named
+/// `target` unconditionally, so a package at `crates/target/Cargo.toml` was
+/// invisible to the discovery check (round-3 V18); the workspace's build
+/// directory is at the repo root, not under `crates/`, so nothing is gained by
+/// the exclusion.
+pub fn discover_package_dirs(root: &Path) -> PackageDiscovery {
+    let mut out = PackageDiscovery::default();
     collect_packages(root, &root.join("crates"), &mut out);
-    out.sort();
+    out.dirs.sort();
+    out.violations.sort();
     out
 }
 
-fn collect_packages(root: &Path, dir: &Path, out: &mut Vec<String>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
+fn rel_of(root: &Path, dir: &Path) -> String {
+    dir.strip_prefix(root)
+        .unwrap_or(dir)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn collect_packages(root: &Path, dir: &Path, out: &mut PackageDiscovery) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) => {
+            if dir.exists() {
+                out.violations.push(format!(
+                    "dependency-direction: {}: directory is not readable ({err}) — a package \
+                     hiding under an unreadable subtree of crates/ would be auto-included by \
+                     Cargo and reported by nothing (I8, AK-001)",
+                    rel_of(root, dir)
+                ));
+            }
+            return;
+        }
     };
     if dir.join("Cargo.toml").is_file() {
-        out.push(
-            dir.strip_prefix(root)
-                .unwrap_or(dir)
-                .to_string_lossy()
-                .replace('\\', "/"),
-        );
+        out.dirs.push(rel_of(root, dir));
     }
+    for entry in entries.flatten() {
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(err) => {
+                out.violations.push(format!(
+                    "dependency-direction: {}: file type is not readable ({err}) — an entry the \
+                     discovery walk cannot classify is missing evidence, not a pass (I8)",
+                    rel_of(root, &entry.path())
+                ));
+                continue;
+            }
+        };
+        // `is_dir()` on the entry's own type: a symlinked directory is not
+        // descended into here either — `crate::walk` reports those.
+        if file_type.is_dir() {
+            collect_packages(root, &entry.path(), out);
+        }
+    }
+}
+
+/// `[patch.*]` and `[replace]` entries in the root manifest (round-3 V9,
+/// critic-4 M5).
+///
+/// Both tables silently substitute an out-of-tree crate for a declared
+/// dependency across the WHOLE workspace, including `gauntlet-domain`. Neither
+/// appears in any dependency section, so `dependency_sections` never saw them
+/// and `discover_package_dirs` never walks outside `crates/`.
+///
+/// Every entry must resolve to a workspace member by `path`. A git or
+/// registry patch is a violation on its own (M5): `[patch.crates-io] toml =
+/// { git = "…" }` swaps the parser behind every manifest check this suite
+/// performs, and there is no allowlist for that channel — a patch that is not
+/// a member is not a patch, it is an injection.
+pub fn check_patch_and_replace(root_manifest: &Table, members: &[Member]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut check = |label: String, spec: &toml::Value| {
+        let fields = spec.as_table();
+        let Some(rel) = fields
+            .and_then(|f| f.get("path"))
+            .and_then(|value| value.as_str())
+        else {
+            let kind = if fields.is_some_and(|f| f.contains_key("git")) {
+                "a git source"
+            } else if fields.is_some_and(has_alternate_registry) {
+                "an alternate-registry source"
+            } else {
+                "a non-path source"
+            };
+            out.push(format!(
+                "dependency-direction: Cargo.toml: {label} uses {kind} — a patch or replace \
+                 entry substitutes that crate for every member that depends on it, including \
+                 gauntlet-domain and this suite's own toml dependency, and it is invisible to \
+                 every source scanner (AK-001, spec §24.3)"
+            ));
+            return;
+        };
+        let target = join_posix("", rel);
+        if !members.iter().any(|m| m.dir == target) {
+            out.push(format!(
+                "dependency-direction: Cargo.toml: {label} has path = '{rel}' (resolved: \
+                 '{target}'), which is not a declared workspace member — a patch or replace entry \
+                 substitutes that crate for every member that depends on it, including \
+                 gauntlet-domain, and it is invisible to every source scanner (AK-001)"
+            ));
+        }
+    };
+    if let Some(patch) = root_manifest.get("patch").and_then(|v| v.as_table()) {
+        for (registry, entries) in patch {
+            let Some(entries) = entries.as_table() else {
+                continue;
+            };
+            for (name, spec) in entries {
+                check(format!("[patch.{registry}] '{name}'"), spec);
+            }
+        }
+    }
+    if let Some(replace) = root_manifest.get("replace").and_then(|v| v.as_table()) {
+        for (name, spec) in replace {
+            check(format!("[replace] '{name}'"), spec);
+        }
+    }
+    out
+}
+
+/// Cargo-configuration keys that decide what the compiler is handed, wherever
+/// they appear. Each carries the reason it is forbidden; the pin
+/// `forbidden_cargo_config_keys_state_a_reason` fails if an entry loses one.
+///
+/// Critic-5 C1: the previous version probed exactly two hard-coded locations
+/// (`[source.*]` and `[build].rustflags`), and cargo honours rustflags under
+/// target-scoped tables too — `[target.'cfg(all())']` matches EVERY compile.
+/// `rustflags = ["--extern", "shadow=vendor/libshadow.rlib"]` there puts an
+/// arbitrary rlib in the extern prelude of every crate in the workspace, so
+/// `pub use shadow::backdoor;` compiles in `gauntlet-domain` with its manifest
+/// still declaring nothing. The walk below is therefore generic: the key name
+/// is what is forbidden, at any depth, under any table.
+pub const FORBIDDEN_CARGO_CONFIG_KEYS: &[(&str, &str)] = &[
+    (
+        "rustflags",
+        "flags are merged into every matching rustc invocation, and `--extern` puts an arbitrary \
+         rlib in the extern prelude of every core crate while `--cfg` switches unscanned code in \
+         — cargo honours this key under [build] AND under any [target.<cfg-or-triple>] table",
+    ),
+    (
+        "rustdocflags",
+        "the same channel for rustdoc invocations, which compile the same sources",
+    ),
+    (
+        "rustc",
+        "replaces the compiler binary itself, so nothing about what compiles is knowable from \
+         this repository",
+    ),
+    (
+        "rustc-wrapper",
+        "wraps every rustc invocation and may add flags or substitute inputs before rustc sees \
+         them",
+    ),
+    (
+        "rustc-workspace-wrapper",
+        "the same wrapper channel, applied to workspace members specifically",
+    ),
+    (
+        "linker",
+        "controls the final link step, where an arbitrary object file can join the binary",
+    ),
+    (
+        "runner",
+        "replaces the program that actually executes the test targets this gate reports on, so a \
+         green gate would prove nothing",
+    ),
+    (
+        "paths",
+        "path overrides substitute local directories for declared dependencies workspace-wide, \
+         outside every manifest this suite reads",
+    ),
+];
+
+/// `.cargo/config.toml` (and the legacy `.cargo/config`) can redirect what
+/// compiles without touching any manifest this suite reads (critic-4 M5,
+/// critic-5 C1/C2): `[source]` replacement sends every registry dependency to
+/// a local tree outside every walk root; `[registries.*]` defines the index an
+/// alternate-registry dependency resolves against; and every key in
+/// [`FORBIDDEN_CARGO_CONFIG_KEYS`] hands the compiler something this repository
+/// does not describe. All are violations; a legitimate future need is a
+/// recorded decision that widens this function, not a silent config file.
+///
+/// Scope note (threat model, see the crate docs): this reads the IN-REPO cargo
+/// configuration only. `$CARGO_HOME/config.toml` and the `RUSTFLAGS` /
+/// `CARGO_*` environment variables are the same channel outside the
+/// repository, and no file-based instrument can see them.
+pub fn check_cargo_config(root: &Path) -> Vec<String> {
+    let discovered = discover_cargo_configs(root);
+    let mut out = discovered.violations;
+    for rel in discovered.files {
+        let rel = rel.as_str();
+        let path = root.join(rel);
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let table = match parse_table(&text) {
+            Ok(table) => table,
+            Err(err) => {
+                out.push(format!(
+                    "dependency-direction: {rel}: malformed TOML ({err}) — cargo reads it and \
+                     this suite cannot, so the file is missing evidence, not a pass (I8)"
+                ));
+                continue;
+            }
+        };
+        if let Some(source) = table.get("source").and_then(|value| value.as_table()) {
+            for name in source.keys() {
+                out.push(format!(
+                    "dependency-direction: {rel}: [source.{name}] — source replacement redirects \
+                     what compiles without touching any manifest the boundary suite reads; the \
+                     replaced code compiles into core crates unscanned (AK-001, spec §24.3)"
+                ));
+            }
+        }
+        if let Some(registries) = table.get("registries").and_then(|value| value.as_table()) {
+            for name in registries.keys() {
+                out.push(format!(
+                    "dependency-direction: {rel}: [registries.{name}] — a named registry index is \
+                     what turns `registry = \"{name}\"` in a manifest into actual code, and the \
+                     name is no evidence of that code; the boundary suite admits the default \
+                     registry only (AK-001, spec §24.3, critic-5 C2)"
+                ));
+            }
+        }
+        walk_cargo_config(&table, "", rel, &mut out);
+    }
+    out.extend(check_toolchain_file(root));
+    out
+}
+
+/// Directories the configuration walk never descends into: build output and
+/// version-control internals hold no cargo configuration cargo would read for
+/// a build of this workspace, and both are large enough to make the walk
+/// expensive.
+const CONFIG_WALK_SKIPPED_DIRS: &[&str] = &["target", ".git"];
+
+/// Every in-repo cargo configuration file, and the places the walk could not
+/// look.
+struct CargoConfigDiscovery {
+    files: Vec<String>,
+    violations: Vec<String>,
+}
+
+/// Cargo reads `.cargo/config.toml` from the invocation directory UPWARD, not
+/// only from the workspace root. A config committed at
+/// `crates/gauntlet-domain/.cargo/config.toml` therefore applies to every
+/// `cargo build` run from inside that crate — an ordinary thing to do — while
+/// a root-only probe reports nothing.
+///
+/// This was not on any critic's list; it is the same channel as critic-5 C1 in
+/// a different location, and a check that closed the channel only at the root
+/// would be claiming more than it enforces.
+fn discover_cargo_configs(root: &Path) -> CargoConfigDiscovery {
+    let mut discovery = CargoConfigDiscovery {
+        files: Vec::new(),
+        violations: Vec::new(),
+    };
+    collect_cargo_configs(root, root, &mut discovery);
+    discovery.files.sort();
+    discovery.violations.sort();
+    discovery
+}
+
+fn collect_cargo_configs(root: &Path, dir: &Path, out: &mut CargoConfigDiscovery) {
+    for name in ["config.toml", "config"] {
+        let candidate = dir.join(".cargo").join(name);
+        if candidate.is_file() {
+            out.files.push(rel_of(root, &candidate));
+        }
+    }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) => {
+            out.violations.push(format!(
+                "dependency-direction: {}: directory is not readable ({err}) — a cargo config \
+                 hiding under an unreadable subtree still applies to every build started there, \
+                 and missing evidence is not passing evidence (I8)",
+                rel_of(root, dir)
+            ));
+            return;
+        }
+    };
     for entry in entries.flatten() {
         let Ok(file_type) = entry.file_type() else {
             continue;
         };
-        // `is_dir()` on the entry's own type: a symlinked directory is not
-        // descended into here either — `crate::walk` reports those.
-        if file_type.is_dir() && entry.file_name() != "target" {
-            collect_packages(root, &entry.path(), out);
+        if !file_type.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name == ".cargo" || CONFIG_WALK_SKIPPED_DIRS.contains(&name.as_str()) {
+            continue;
+        }
+        collect_cargo_configs(root, &entry.path(), out);
+    }
+}
+
+/// `rust-toolchain.toml` / `rust-toolchain` is a declared build input of this
+/// repository, and `[toolchain] path = "…"` points rustup at an arbitrary
+/// toolchain directory — the `rustc` substitution channel of
+/// [`FORBIDDEN_CARGO_CONFIG_KEYS`], spelled in a different file.
+///
+/// A named `channel` is not flagged: pinning a released toolchain is ordinary,
+/// reproducible practice, and the channel name resolves through rustup's own
+/// distribution rather than through a path this repository chose.
+pub fn check_toolchain_file(root: &Path) -> Vec<String> {
+    let mut out = Vec::new();
+    for rel in ["rust-toolchain.toml", "rust-toolchain"] {
+        let Ok(text) = std::fs::read_to_string(root.join(rel)) else {
+            continue;
+        };
+        // The legacy `rust-toolchain` file may be a bare channel name rather
+        // than TOML; that form carries no `path` key at all.
+        let Ok(table) = parse_table(&text) else {
+            continue;
+        };
+        if let Some(toolchain) = table.get("toolchain").and_then(|value| value.as_table())
+            && let Some(path) = toolchain.get("path").and_then(|value| value.as_str())
+        {
+            out.push(format!(
+                "dependency-direction: {rel}: [toolchain] path = '{path}' — this replaces the \
+                 compiler for every build of this workspace, so nothing about what actually \
+                 compiles is knowable from the manifests and sources this suite reads (AK-001, \
+                 spec §24.3)"
+            ));
+        }
+    }
+    out
+}
+
+/// Every table of a parsed cargo config, reporting a forbidden key wherever it
+/// occurs. Walking generically is the point (critic-5 C1): probing two known
+/// spellings leaves every other spelling of the same channel open.
+fn walk_cargo_config(table: &Table, prefix: &str, rel: &str, out: &mut Vec<String>) {
+    for (key, value) in table {
+        if let Some((_, reason)) = FORBIDDEN_CARGO_CONFIG_KEYS
+            .iter()
+            .find(|(forbidden, _)| *forbidden == key.as_str())
+        {
+            let table_label = if prefix.is_empty() {
+                "<root>".to_string()
+            } else {
+                prefix.to_string()
+            };
+            out.push(format!(
+                "dependency-direction: {rel}: [{table_label}] {key} — {reason} (AK-001, spec \
+                 §24.3)"
+            ));
+        }
+        if let Some(child) = value.as_table() {
+            let nested = if prefix.is_empty() {
+                key.clone()
+            } else {
+                format!("{prefix}.{key}")
+            };
+            walk_cargo_config(child, &nested, rel, out);
         }
     }
 }
@@ -456,13 +1226,13 @@ mod scanner_tests {
         ]
     }
 
-    fn empty_workspace_deps() -> BTreeMap<String, String> {
+    fn no_root_deps() -> BTreeMap<String, RootDep> {
         BTreeMap::new()
     }
 
-    fn workspace_deps_from(text: &str) -> BTreeMap<String, String> {
+    fn root_deps_from(text: &str) -> BTreeMap<String, RootDep> {
         let table = parse_table(text).expect("fixture root manifest parses");
-        workspace_dep_names(&table)
+        workspace_dep_records(&table, &fixture_members())
     }
 
     #[test]
@@ -478,7 +1248,7 @@ gauntlet-ports.workspace = true
             &member("crates/gauntlet-domain", "gauntlet-domain"),
             text,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("gauntlet-domain"));
@@ -506,7 +1276,7 @@ gauntlet-domain.workspace = true
                 &member("crates/gauntlet-ports", "gauntlet-ports"),
                 ports,
                 &members,
-                &empty_workspace_deps()
+                &no_root_deps()
             )
             .is_empty()
         );
@@ -515,7 +1285,7 @@ gauntlet-domain.workspace = true
                 &member("crates/gauntlet-app", "gauntlet-app"),
                 app,
                 &members,
-                &empty_workspace_deps()
+                &no_root_deps()
             )
             .is_empty()
         );
@@ -534,7 +1304,7 @@ gauntlet-app.workspace = true
             ),
             text,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("gauntlet-adapter-agent-mock"));
@@ -556,7 +1326,7 @@ gauntlet-ports.workspace = true
             ),
             text,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert!(violations.is_empty(), "{violations:?}");
     }
@@ -573,7 +1343,7 @@ gauntlet-adapter-agent-mock.workspace = true
                 &member("crates/gauntlet-cli", "gauntlet-cli"),
                 cli,
                 &members,
-                &empty_workspace_deps()
+                &no_root_deps()
             )
             .is_empty()
         );
@@ -589,7 +1359,7 @@ gauntlet-cli.workspace = true
             ),
             adapter,
             &members,
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("gauntlet-cli"));
@@ -606,7 +1376,7 @@ gauntlet-domain.workspace = true
             &member("crates/gauntlet-arch-tests", "gauntlet-arch-tests"),
             text,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("gauntlet-arch-tests"));
@@ -622,7 +1392,7 @@ core = { package = "gauntlet-app", version = "0.1" }
             &member("crates/gauntlet-ports", "gauntlet-ports"),
             renamed,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("gauntlet-app"));
@@ -635,7 +1405,7 @@ sneaky = { path = "../gauntlet-app" }
             &member("crates/gauntlet-ports", "gauntlet-ports"),
             by_path,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("gauntlet-app"));
@@ -656,7 +1426,7 @@ ren.workspace = true
             &member("crates/gauntlet-ports", "gauntlet-ports"),
             text,
             &fixture_members(),
-            &workspace_deps_from(root_manifest),
+            &root_deps_from(root_manifest),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(
@@ -677,7 +1447,7 @@ ren.workspace = true
             &member("crates/mystery", "gauntlet-mystery"),
             "[package]\nname = \"gauntlet-mystery\"\n",
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(unknown.len(), 1, "{unknown:?}");
         assert!(unknown[0].contains("gauntlet-mystery"));
@@ -686,7 +1456,7 @@ ren.workspace = true
             &member("crates/gauntlet-domain", "gauntlet-domain"),
             "[dependencies\nbroken",
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(malformed.len(), 1, "{malformed:?}");
         assert!(malformed[0].contains("invalid TOML"));
@@ -704,7 +1474,7 @@ infra = { path = "../gauntlet-infra" }
             &member("crates/gauntlet-domain", "gauntlet-domain"),
             text,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(
@@ -726,7 +1496,7 @@ store = { path = "../../vendor/rusqlite-store" }
             &member("crates/gauntlet-app", "gauntlet-app"),
             vendored,
             &fixture_members(),
-            &empty_workspace_deps(),
+            &no_root_deps(),
         );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(
@@ -764,8 +1534,540 @@ infra = { path = "vendor/infra" }
 toml = "0.9"
 "#;
         let table = parse_table(root_manifest).expect("fixture parses");
-        let violations = check_workspace_dependency_paths(&table, &fixture_members());
+        let violations = check_workspace_dependency_table(&table, &fixture_members());
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(violations[0].contains("vendor/infra"), "{violations:?}");
+    }
+
+    // ------------------------------------------------------------------
+    // Critic-4 C1: the external-dependency channel fails closed.
+
+    #[test]
+    fn the_external_allowlists_are_pinned() {
+        // The empty lists ARE the mechanism (C1): pre-populating one silently
+        // would reopen the channel the whole design closes. Growth is a
+        // deliberate edit that must also update this pin.
+        assert!(
+            DOMAIN_EXTERNAL_ALLOWLIST.is_empty(),
+            "the domain allowlist is empty (AK-001)"
+        );
+        assert!(PORTS_EXTERNAL_ALLOWLIST.is_empty());
+        assert!(
+            APPLICATION_EXTERNAL_ALLOWLIST.is_empty(),
+            "AK-002: application depends on ports only"
+        );
+        assert!(CLI_EXTERNAL_ALLOWLIST.is_empty());
+        assert!(ADAPTER_EXTERNAL_ALLOWLIST.is_empty());
+        assert_eq!(
+            allowlist_names(BOUNDARY_TESTS_EXTERNAL_ALLOWLIST),
+            vec!["toml"],
+            "the boundary suite's one permitted dependency is the manifest parser"
+        );
+        assert_eq!(external_allowlist_union(), vec!["toml"]);
+        assert_eq!(
+            ALL_EXTERNAL_ALLOWLISTS.len(),
+            6,
+            "every layer classified by `classify` needs an allowlist in the inventory, or a layer \
+             is policed by nothing"
+        );
+    }
+
+    /// Anti-vacuity for the allowlist itself: an entry may only be added
+    /// together with the reason it was added. A one-word placeholder is not a
+    /// reason, so the bar is a sentence naming the purpose.
+    #[test]
+    fn allowlist_entries_state_a_reason() {
+        for (layer, list) in ALL_EXTERNAL_ALLOWLISTS {
+            for (crate_name, reason) in *list {
+                assert!(
+                    reason.split_whitespace().count() >= 6,
+                    "the {layer} allowlist admits '{crate_name}' with the reason {reason:?} — an \
+                     allowlist entry is a recorded decision; state what the crate is for and what \
+                     permits it (spec §24.3), or do not list it"
+                );
+            }
+        }
+    }
+
+    /// The same bar for the cargo-configuration key inventory: a key may not
+    /// join the forbidden list without the channel it closes being written down,
+    /// and the list may not shrink below the spellings critic-5 C1 demonstrated.
+    #[test]
+    fn forbidden_cargo_config_keys_state_a_reason() {
+        for (key, reason) in FORBIDDEN_CARGO_CONFIG_KEYS {
+            assert!(
+                reason.split_whitespace().count() >= 6,
+                "the forbidden cargo-config key '{key}' carries the reason {reason:?} — say which \
+                 channel it opens"
+            );
+        }
+        for required in ["rustflags", "linker", "rustc-wrapper", "runner"] {
+            assert!(
+                FORBIDDEN_CARGO_CONFIG_KEYS
+                    .iter()
+                    .any(|(key, _)| *key == required),
+                "'{required}' hands the compiler something no manifest in this repository \
+                 describes; removing it from the inventory reopens critic-5 C1"
+            );
+        }
+    }
+
+    #[test]
+    fn a_registry_dependency_compiling_into_the_domain_is_flagged() {
+        // Critic-4 C1 evasion (a): `shadow-net = "0.8"` used to be invisible —
+        // no `path`, no member match, no denied term.
+        let text = "[dependencies]\nshadow-net = \"0.8\"\n";
+        let violations = check_member(
+            &member("crates/gauntlet-domain", "gauntlet-domain"),
+            text,
+            &fixture_members(),
+            &no_root_deps(),
+        );
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("crates/gauntlet-domain/Cargo.toml"),
+            "{}",
+            violations[0]
+        );
+        assert!(violations[0].contains("'shadow-net'"), "{violations:?}");
+        assert!(
+            violations[0].contains("registry version requirement"),
+            "{}",
+            violations[0]
+        );
+        assert!(violations[0].contains("AK-001"), "{}", violations[0]);
+    }
+
+    #[test]
+    fn a_git_dependency_is_flagged_in_any_url_spelling() {
+        // Critic-4 C1 evasion (b): the scp-like form has no `://`, so not even
+        // the incidental URL catch fired.
+        for git_spec in [
+            "git@github.com:attacker/gauntlet-infra",
+            "https://example.com/x/y",
+        ] {
+            let text = format!("[dependencies]\ninfra = {{ git = \"{git_spec}\" }}\n");
+            let violations = check_member(
+                &member("crates/gauntlet-domain", "gauntlet-domain"),
+                &text,
+                &fixture_members(),
+                &no_root_deps(),
+            );
+            assert_eq!(violations.len(), 1, "{text} -> {violations:?}");
+            assert!(violations[0].contains("'infra'"), "{violations:?}");
+            assert!(violations[0].contains("git source"), "{violations:?}");
+        }
+    }
+
+    #[test]
+    fn an_external_dependency_is_flagged_in_every_section_kind() {
+        // dev-, build-, and target-scoped tables carry the same channel.
+        let text = "[dev-dependencies]\nserde = \"1\"\n";
+        let violations = check_member(
+            &member("crates/gauntlet-app", "gauntlet-app"),
+            text,
+            &fixture_members(),
+            &no_root_deps(),
+        );
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("dev-dependencies"),
+            "{}",
+            violations[0]
+        );
+        assert!(violations[0].contains("AK-002"), "{}", violations[0]);
+    }
+
+    #[test]
+    fn a_workspace_inherited_external_dependency_is_flagged() {
+        // Critic-4 C1 evasion (c): the member manifest carries only an alias.
+        let root_manifest = "[workspace.dependencies]\nserde = \"1\"\n";
+        let text = "[dependencies]\nserde.workspace = true\n";
+        let violations = check_member(
+            &member("crates/gauntlet-domain", "gauntlet-domain"),
+            text,
+            &fixture_members(),
+            &root_deps_from(root_manifest),
+        );
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("workspace inheritance of a root-table default-registry entry"),
+            "{}",
+            violations[0]
+        );
+    }
+
+    #[test]
+    fn an_allowlisted_external_dependency_is_accepted_only_in_its_layer() {
+        let root_manifest = "[workspace.dependencies]\ntoml = \"0.9\"\n";
+        let root_deps = root_deps_from(root_manifest);
+        let text = "[dependencies]\ntoml.workspace = true\n";
+        assert!(
+            check_member(
+                &member("crates/gauntlet-arch-tests", "gauntlet-arch-tests"),
+                text,
+                &fixture_members(),
+                &root_deps,
+            )
+            .is_empty(),
+            "the boundary suite may keep its manifest parser"
+        );
+        let violations = check_member(
+            &member("crates/gauntlet-domain", "gauntlet-domain"),
+            text,
+            &fixture_members(),
+            &root_deps,
+        );
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(violations[0].contains("AK-001"), "{}", violations[0]);
+    }
+
+    #[test]
+    fn root_workspace_git_and_unallowlisted_registry_entries_are_flagged() {
+        let root_manifest = r#"
+[workspace.dependencies]
+gauntlet-domain = { path = "crates/gauntlet-domain" }
+toml = "0.9"
+serde = "1"
+infra = { git = "git@github.com:attacker/gauntlet-infra" }
+"#;
+        let table = parse_table(root_manifest).expect("fixture parses");
+        let violations = check_workspace_dependency_table(&table, &fixture_members());
+        assert_eq!(violations.len(), 2, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("'infra'") && v.contains("git source")),
+            "{violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("'serde'") && v.contains("registry entry")),
+            "{violations:?}"
+        );
+        // The member path and the allowlisted `toml` stay legal.
+        assert!(
+            !violations.iter().any(|v| v.contains("'gauntlet-domain'")),
+            "{violations:?}"
+        );
+        assert!(
+            !violations.iter().any(|v| v.contains("'toml'")),
+            "{violations:?}"
+        );
+    }
+
+    #[test]
+    fn patch_entries_with_git_or_missing_sources_are_flagged() {
+        // Critic-4 M5: the substituted crate can be this suite's own toml.
+        let root_manifest =
+            "[patch.crates-io]\ntoml = { git = \"https://github.com/attacker/toml-fork\" }\n";
+        let table = parse_table(root_manifest).expect("fixture parses");
+        let violations = check_patch_and_replace(&table, &fixture_members());
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("[patch.crates-io] 'toml'") && violations[0].contains("git"),
+            "{}",
+            violations[0]
+        );
+    }
+
+    #[test]
+    fn cargo_config_source_replacement_and_rustflags_are_flagged() {
+        // Critic-4 M5: source replacement redirects every registry dependency
+        // to a tree no walk covers; rustflags inject into every compile.
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-arch-tests-cargoconfig-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(dir.join(".cargo")).expect("fixture .cargo is creatable");
+        std::fs::write(
+            dir.join(".cargo/config.toml"),
+            "[source.crates-io]\nreplace-with = \"vendored-sources\"\n\n[source.vendored-sources]\ndirectory = \"vendor\"\n\n[build]\nrustflags = [\"--cfg\", \"injected\"]\n",
+        )
+        .expect("fixture config is written");
+
+        let violations = check_cargo_config(&dir);
+        assert_eq!(violations.len(), 3, "{violations:?}");
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("[source.crates-io]") && v.contains("source replacement")),
+            "{violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("[source.vendored-sources]")),
+            "{violations:?}"
+        );
+        assert!(
+            violations.iter().any(|v| v.contains("rustflags")),
+            "{violations:?}"
+        );
+
+        // Absent config is clean; malformed config is a violation, never a skip.
+        let empty = std::env::temp_dir().join(format!(
+            "gauntlet-arch-tests-emptycfg-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::remove_dir_all(&empty).ok();
+        std::fs::create_dir_all(&empty).expect("fixture dir is creatable");
+        assert!(check_cargo_config(&empty).is_empty());
+        std::fs::create_dir_all(empty.join(".cargo")).expect("fixture .cargo is creatable");
+        std::fs::write(empty.join(".cargo/config"), "[source\nbroken").expect("written");
+        assert_eq!(check_cargo_config(&empty).len(), 1);
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&empty).ok();
+    }
+
+    /// Critic-5 C1: the same channel in the spellings the old two-key probe
+    /// never looked at. `[target.'cfg(all())']` matches every compile, so
+    /// `--extern` there puts an arbitrary rlib in every crate's extern prelude.
+    #[test]
+    fn target_scoped_rustflags_and_other_compiler_channels_are_flagged() {
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-arch-tests-cargocfg-target-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        for (label, config, needle) in [
+            (
+                "cfg-all",
+                "[target.'cfg(all())']\nrustflags = [\"--extern\", \
+                 \"shadow=vendor/libshadow.rlib\"]\n",
+                "rustflags",
+            ),
+            (
+                "triple",
+                "[target.x86_64-unknown-linux-gnu]\nrustflags = [\"--cfg\", \"injected\"]\n",
+                "rustflags",
+            ),
+            (
+                "linker",
+                "[target.'cfg(all())']\nlinker = \"/opt/evil/ld\"\n",
+                "linker",
+            ),
+            (
+                "wrapper",
+                "[build]\nrustc-wrapper = \"sccache\"\n",
+                "rustc-wrapper",
+            ),
+            (
+                "runner",
+                "[target.'cfg(all())']\nrunner = \"./harness\"\n",
+                "runner",
+            ),
+            ("paths", "paths = [\"vendor/toml\"]\n", "paths"),
+            (
+                "registries",
+                "[registries.mirror]\nindex = \"sparse+https://attacker.example/x\"\n",
+                "[registries.mirror]",
+            ),
+        ] {
+            std::fs::remove_dir_all(&dir).ok();
+            std::fs::create_dir_all(dir.join(".cargo")).expect("fixture .cargo is creatable");
+            std::fs::write(dir.join(".cargo/config.toml"), config).expect("fixture is written");
+            let violations = check_cargo_config(&dir);
+            assert!(
+                violations.iter().any(|v| v.contains(needle)),
+                "{label}: {config} -> {violations:?}"
+            );
+        }
+
+        // A cargo config in a CRATE directory applies to every build started
+        // there. Found by this builder, not by a critic: cargo reads
+        // `.cargo/config.toml` from the invocation directory upward, so a
+        // root-only probe closes the channel only for builds started at the
+        // root.
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(dir.join("crates/gauntlet-domain/.cargo"))
+            .expect("fixture crate .cargo is creatable");
+        std::fs::write(
+            dir.join("crates/gauntlet-domain/.cargo/config.toml"),
+            "[build]\nrustflags = [\"--extern\", \"shadow=vendor/libshadow.rlib\"]\n",
+        )
+        .expect("fixture is written");
+        let violations = check_cargo_config(&dir);
+        assert!(
+            violations.iter().any(|v| v.contains("rustflags")
+                && v.contains("crates/gauntlet-domain/.cargo/config.toml")),
+            "a cargo config inside a crate directory is unread: {violations:?}"
+        );
+
+        // The toolchain file is the same channel in another declared build
+        // input: a path toolchain replaces the compiler outright.
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("fixture dir is creatable");
+        std::fs::write(
+            dir.join("rust-toolchain.toml"),
+            "[toolchain]\npath = \"/opt/evil/toolchain\"\n",
+        )
+        .expect("fixture is written");
+        assert!(
+            check_cargo_config(&dir)
+                .iter()
+                .any(|v| v.contains("[toolchain] path")),
+            "{:?}",
+            check_cargo_config(&dir)
+        );
+        // A pinned channel is ordinary practice and stays clean.
+        std::fs::write(
+            dir.join("rust-toolchain.toml"),
+            "[toolchain]\nchannel = \"1.92\"\ncomponents = [\"clippy\"]\n",
+        )
+        .expect("fixture is written");
+        assert!(
+            check_cargo_config(&dir).is_empty(),
+            "{:?}",
+            check_cargo_config(&dir)
+        );
+
+        // Negative: an in-repo cargo config that touches none of these keys is
+        // not flagged, so the check is a channel rule and not a file ban.
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(dir.join(".cargo")).expect("fixture .cargo is creatable");
+        std::fs::write(
+            dir.join(".cargo/config.toml"),
+            "[net]\nretry = 3\n\n[term]\nverbose = false\n",
+        )
+        .expect("fixture is written");
+        assert!(
+            check_cargo_config(&dir).is_empty(),
+            "{:?}",
+            check_cargo_config(&dir)
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The external policy covers every section cargo compiles from, not just
+    /// `[dependencies]`: a build script's dependency and a target-scoped one
+    /// are compiled code in the same crate (critic-4 C1 completeness).
+    #[test]
+    fn the_external_policy_covers_build_and_target_scoped_sections() {
+        for (section, label) in [
+            ("[build-dependencies]", "build-dependencies"),
+            (
+                "[target.'cfg(unix)'.dev-dependencies]",
+                "target.cfg(unix).dev-dependencies",
+            ),
+            (
+                "[target.x86_64-unknown-linux-gnu.dependencies]",
+                "target.x86_64-unknown-linux-gnu.dependencies",
+            ),
+        ] {
+            let text = format!("{section}\nshadow-net = \"0.8\"\n");
+            let violations = check_member(
+                &member("crates/gauntlet-domain", "gauntlet-domain"),
+                &text,
+                &fixture_members(),
+                &no_root_deps(),
+            );
+            assert_eq!(violations.len(), 1, "{section} -> {violations:?}");
+            assert!(
+                violations[0].contains(label) && violations[0].contains("'shadow-net'"),
+                "{}",
+                violations[0]
+            );
+        }
+    }
+
+    /// Critic-5 C2: the allowlist admits a (crate, source) pair. The one
+    /// non-empty allowlist entry is the instrument's own parser, so admitting
+    /// it by name alone hands the parser to whoever controls the source.
+    #[test]
+    fn an_allowlisted_name_from_a_non_default_source_is_flagged() {
+        let boundary = member("crates/gauntlet-arch-tests", "gauntlet-arch-tests");
+        for (label, spec) in [
+            (
+                "git",
+                "toml = { git = \"https://github.com/attacker/toml-fork\", branch = \"main\" }",
+            ),
+            (
+                "alternate registry",
+                "toml = { version = \"0.9\", registry = \"mirror\" }",
+            ),
+            (
+                "alternate registry index",
+                "toml = { version = \"0.9\", registry-index = \"sparse+https://attacker/x\" }",
+            ),
+        ] {
+            let text = format!("[dependencies]\n{spec}\n");
+            let violations = check_member(&boundary, &text, &fixture_members(), &no_root_deps());
+            assert_eq!(violations.len(), 1, "{label}: {violations:?}");
+            assert!(
+                violations[0].contains("'toml'") && violations[0].contains("(crate, source) PAIR"),
+                "{label}: {}",
+                violations[0]
+            );
+        }
+
+        // Negative: the real spelling — the default registry, inherited from
+        // the root table — stays admissible, or the suite could not build.
+        let mut root = BTreeMap::new();
+        root.insert(
+            "toml".to_string(),
+            RootDep {
+                package: "toml".to_string(),
+                source: RootDepSource::Registry,
+            },
+        );
+        assert!(
+            check_member(
+                &boundary,
+                "[dependencies]\ntoml.workspace = true\n",
+                &fixture_members(),
+                &root,
+            )
+            .is_empty()
+        );
+        assert!(
+            check_member(
+                &boundary,
+                "[dependencies]\ntoml = \"0.9\"\n",
+                &fixture_members(),
+                &no_root_deps(),
+            )
+            .is_empty()
+        );
+        // And the allowlist is a per-layer permission: the domain never gets it.
+        assert!(
+            !check_member(
+                &member("crates/gauntlet-domain", "gauntlet-domain"),
+                "[dependencies]\ntoml = \"0.9\"\n",
+                &fixture_members(),
+                &no_root_deps(),
+            )
+            .is_empty()
+        );
+    }
+
+    /// The root table and the substitution tables carry the same source rule.
+    #[test]
+    fn root_table_and_patch_entries_reject_alternate_registry_sources() {
+        let root_manifest = "[workspace]\nmembers = []\n\n[workspace.dependencies]\ntoml = { \
+                             version = \"0.9\", registry = \"mirror\" }\n";
+        let table = parse_table(root_manifest).expect("fixture parses");
+        let violations = check_workspace_dependency_table(&table, &fixture_members());
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("alternate registry"),
+            "{}",
+            violations[0]
+        );
+
+        let patched = "[patch.crates-io]\ntoml = { version = \"0.9\", registry = \"mirror\" }\n";
+        let table = parse_table(patched).expect("fixture parses");
+        let violations = check_patch_and_replace(&table, &fixture_members());
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("alternate-registry source"),
+            "{}",
+            violations[0]
+        );
     }
 }

@@ -1,4 +1,12 @@
 {
 	"userDisabled": false,
-	"manuallyDisabled": false
+	"manuallyDisabled": true,
+	"cutoverAttemptedAtMs": 1786818880264,
+	"cutoverFence": {
+		"reason": "cutover to sqlite",
+		"at": "2026-08-15T18:34:40.357Z",
+		"tips": {
+			"/home/sprime01/projects/gauntlet": "5f538f5a0f2ea3e9d304019255b45a3600379b8e"
+		}
+	}
 }
