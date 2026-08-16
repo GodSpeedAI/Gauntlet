@@ -1,6 +1,7 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-16 — **Task 2 CLOSED at round 6.1. Task 3 delegated and in flight.**
+**Last updated:** 2026-08-16 — **Task 2 CLOSED (round 6.1). Task 3 CLOSED (round 2 +
+confirmation). Next: Task 4 (ports + contract suites).**
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
 
@@ -8,11 +9,12 @@
 
 ## TL;DR for the next agent
 
-Tasks **0, 1 complete** (ruler frozen — never edit `.wayfinder/`). **Task 2 is CLOSED**:
-seven critique rounds, final state 183/183 arch tests green, all five global gates exit 0,
-teeth demonstrated independently by the orchestrator on every critical class. Surviving
-residuals are **recorded deferrals** (ledger below), none critical, none accidental-trigger
-critical. **Task 3 (domain types) was delegated this session** — see "Next action".
+Tasks **0, 1 complete** (ruler frozen — never edit `.wayfinder/`). **Task 2 CLOSED**
+(`1578dde`): 183/183 arch tests, gates exit 0, residuals are recorded deferrals. **Task 3
+CLOSED** (`cb2f4ac`): the full §5.2/§5.3 domain model, zero dependencies, 76/76 tests,
+invalid states unrepresentable or typed-error-rejected; confirmation blind critic found
+**0 criticals**. Both closures followed the full loop: builder → orchestrator gate+teeth →
+blind critics → correction round → confirmation.
 
 The history is the argument for the whole method — a green gate was wrong three times
 before the blind-critic loop caught it. Keep the loop: **a task is done when its gate is
@@ -28,6 +30,32 @@ the round-5 threat-model rule deciding what reopens vs. defers.
 | 5 | Correction closed C-A…C-D + threat-model deliverable; 159 tests. Two blind critics → 5 critical (all in the `text.rs` lexer). Work landed as commit `f85c925` — see deviation note below. |
 | 6 | One real lexing pass (`text::regions`), setting-scoped defaults exemption, I8-honest declared inputs, pinned inventories. Two blind critics (critic8-evasion, critic9-vacuity) → **2 critical (E1, E2), 9 major, 13 minor**. |
 | 6.1 | Closed E1 (comment tokens inside directives), E2 (`[env] RUSTFLAGS` cargo-config channel), F2/E7 (declaration-granular defaults exemption). **183 tests. 0 critical open.** CLOSED. |
+
+### Task 3 closure record (this session, commit `cb2f4ac`)
+
+Two-phase build (first builder hit a usage limit mid-task with unwired modules —
+"compiles clean" was hollow until lib.rs declared the modules; the finisher caught that,
+wired everything, fixed 7 latent defects, added run/iteration/capability). Round 2 closed
+both criticals — `RoleId::Custom` grammar bypass and the foreign-run settlement hole
+(§5.3.2 "in this run"), found independently by both critics — plus four majors
+(§13.5 blocking-forces-fail, AK-055 duplicate-RunId dedup, widened no-bool guard,
+irreversible sandbox probe). A micro-fix added three missing public re-exports found by
+the orchestrator's outside-the-crate probe, plus a permanent public-API settle test.
+Confirmation critic (criticC): **CONFIRM, 0 critical / 2 major / 7 minor.**
+
+**Orchestrator verification:** gates green (`gauntlet-domain` 76/76; check/lint/deny/
+boundaries 183/183/ruler all 0); inverted outside-the-crate probe asserting the forbidden
+`Unit{irreversible, critic}` constructs FAILED with `Err(IrreversibleRequiresHuman{..})`.
+
+**Task-3 deferral ledger:** evidence locators for AK-003…007 resolve at Task 7 (parser
+task) — same provisional-status class as AK-001/002/016/019; `SettlementRecord`
+store-binding at Task 13 (SettlementService enforces §16.1; the domain type cannot see
+the store); 7 minors in `.agents/reports/task3/criticC-confirmation.md` (settle
+from-status table, `DraftUnit` evidence drop, duplicate variation axes counting toward
+promotion, `attach_iteration` ordering, source-scan guard evasion routes — `into_bool`/
+`fn ok` needles, `pub struct …(pub String)` opacity escape, `*self = Self{…}` run-pin
+escape — and settle doc under-listing §16.1 deferrals). Close the guard-evasion minors
+opportunistically at the next domain-crate touch.
 
 ### Round-6/6.1 closure record
 
@@ -84,6 +112,10 @@ is now closed). Re-litigate E4/F1/F3 first time the arch suite is touched for an
    Left uncommitted and unverified; confirm or drop it before Task 18.
 3. The previous harness's staged scratchpad scripts (`teeth3.sh`, `task3-wf.js`) no longer
    exist in this environment; their intent was reconstructed from this file and the plan.
+4. **A sub-agent usage limit killed the first Task-3 builder mid-task** (reset 02:39 next
+   day). Delegation itself remained available to fresh agents. Recovery was a finisher
+   brief; no orchestrator implementation was needed, so no ESC entry. If it recurs, follow
+   the "Next action" note on finisher dispatch.
 
 **Before you touch anything:** run `just ruler`. It must print PASS. If it does not,
 that is a higher-priority problem than any task — stop, diagnose, and report it in
@@ -103,7 +135,7 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 1 — Freeze the ruler | **done** | `bf09a30` |
 | — toolchain install bookkeeping | done | `ac0f033`, `66eebc0` |
 | 2 — Workspace skeleton + justfile + gates + boundary test | **done** — closed at round 6.1, residuals recorded above | `b69c095`, `f85c925`, round-6 commit (this session) |
-| 3 — Domain types | **in flight** — delegated this session | — |
+| 3 — Domain types | **done** — closed at round 2 + confirmation, residuals recorded above | `cb2f4ac` |
 | 4–27 | not started | — |
 
 ### Task 2 — final shape
@@ -245,27 +277,31 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Task 3 — Domain types** (spec §5.2–§5.3, plan Task 3; gate
-`cargo nextest run -p gauntlet-domain && just boundaries`; teeth: constructing
-`Unit{blast_radius: irreversible, authority: critic}` fails to compile or returns a typed
-error).
+**Task 4 — Ports and shared contract suites** (spec §6, plan Task 4; gate
+`cargo nextest run -p gauntlet-ports && just boundaries`).
 
-- If the delegated builder from this session finished and the work is on disk uncommitted:
-  independently re-run the gate + teeth, dispatch the two blind critics (constructibility
-  of invalid states; spec fidelity + test vacuity), triage per rule 10, commit.
-- If starting fresh: delegate to one builder holding the build lock, then the two critics
-  in parallel (read-only, non-compiling), then verify + commit.
-- Brief essentials: every §5.2 value object and enum as distinct types; `Outcome`
-  three-state with **no** `From<Outcome> for bool` and no `is_ok()`; aggregates
-  `Reference`, `Unit`, `Run`, `Iteration`, `RoleInvocation`, `Budget` + the record types;
-  constructor invariants returning typed errors (`irreversible ⟹ human`;
-  `cross_cutting|irreversible ⟹ authority ≠ critic`; `settled` requires evidence +
-  verification refs); unknown enum values are parse errors; round-trip and exhaustive
-  tier/authority coupling tests. **Zero new dependencies** (AK-001: the domain layer's
-  external allowlist is empty — hand-roll ULID validation as a newtype over a validated
-  string; `Digest` carries algo+hex, it does not compute digests; exhaustive enumeration
-  over small enum sets instead of property-test crates). Evidence locators named by
-  AK-004/006/007 (`tests/contract/answer_key_parse::*`) are Task 7's parser's concern —
-  build the domain types so that parser can exist, don't build the parser.
-- After Task 3: Task 4 (ports + contract suites), admission-based `AgentRunner`, `Versioning`
-  facet kind.
+- Delegate to one builder holding the build lock; then blind critics in parallel
+  (read-only, non-compiling); orchestrator verifies gate + teeth; commit per rule 8.
+- Brief essentials: all seventeen ports from spec §6 as traits in
+  `crates/gauntlet-ports/src/` (one file per port, each with its own typed error enum):
+  AgentRunner, Observer, Comparator, Verifier, ReferenceProvider, PolicyProvider,
+  StateStore, EvidenceStore, EventLog, ToolProvider, Sandbox, WorkspaceProvider,
+  BudgetMeter, Clock, IdGenerator, HumanEscalation, OperatorSurface.
+- **`AgentRunner` exactly as §6.1**: `invoke → InvocationHandle`, `poll`, `collect`,
+  `cancel`, `capabilities` — admission-based (Task 0's spike settled this; do not re-spike).
+  No method returns a role result directly from `invoke`. The contract suite must cover:
+  admission-returns-before-completion; terminal state reported exactly once; missing
+  result document ⇒ `TimedOut`; malformed result ⇒ `Failed{malformed_result}`; mismatched
+  `invocation_id`/envelope digest ⇒ `Failed{contract_mismatch}`; idempotent cancel.
+- Contract suites in `crates/gauntlet-ports/src/contract/`, generic over an adapter
+  factory — shared, not per-adapter. `role_result@v1` envelope + payload schemas (Annex B)
+  as typed structs with strict deserialization (unknown fields rejected for
+  settlement-bearing payloads). `RunnerCapabilities` + the `isolation` ladder.
+- Use the domain types from Task 3 (`RunId`, `InvocationState`, `RoleId`, `Outcome`…);
+  **facet kind is `Versioning`, never `Git`** (operator rename; see design-decisions).
+- Watch the layering: ports depends on domain only; the arch-suite scans it. The
+  adapter-identifier denylist applies to `gauntlet-ports` (composition-root carve-out is
+  `gauntlet-cli` only).
+- Note for budgeting: sub-agent usage limits can kill a builder mid-task (happened on
+  Task 3). On failure: verify the partial state compiles, probe delegation with a trivial
+  agent, then dispatch a finisher with a precise what-exists/what's-missing brief.
