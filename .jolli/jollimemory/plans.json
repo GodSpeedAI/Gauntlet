@@ -24,16 +24,18 @@
 			"title": "Current status — HANDOFF DOCUMENT",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/CURRENT_STATUS.md",
 			"addedAt": "2026-08-16T13:18:32.485Z",
-			"updatedAt": "2026-08-16T13:18:32.485Z",
-			"commitHash": null
+			"updatedAt": "2026-08-16T20:09:10.394Z",
+			"commitHash": "9e3482739103ba1cc14967d51772fdd736329a7e",
+			"contentHashAtCommit": "919f7435fe0d34396212c47ead05f0076432bea0ba1c4dbee3d92ea549eb8420"
 		},
 		"escalations": {
 			"slug": "escalations",
 			"title": "Escalations",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/escalations.md",
 			"addedAt": "2026-08-15T18:36:04.932Z",
-			"updatedAt": "2026-08-16T13:18:32.485Z",
-			"commitHash": null
+			"updatedAt": "2026-08-16T13:40:04.775Z",
+			"commitHash": "f85c925fc867d7e9b116b2533d778b653d87b3c0",
+			"contentHashAtCommit": "0cea4aae7157188fddf9983f06b2c1e86a1d41fcfc64255eb52e32bd22e68949"
 		}
 	}
 }

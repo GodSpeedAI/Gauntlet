@@ -575,7 +575,7 @@ cargo nextest run -p gauntlet-app roles::
 
 ### Steps
 
-1. Clone upstream into a temporary directory **outside the project tree**; read the wayfinder skill and its local-markdown fallback convention; record commit SHA, licence, retrieval date.
+1. Clone upstream (find it here: https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder) into a temporary directory **outside the project tree , in the ../projects/ folder**; read the wayfinder skill and its local-markdown fallback convention; record commit SHA, licence, retrieval date.
 2. Transform per spec §9.2 and Annex D.3 into `.agents/skills/wayfinder-gauntlet/SKILL.md`. Preserve destination-first, fog-of-war (precise-question test), out-of-scope-never-graduates, HITL-never-self-answered, one-decision-per-session. Replace tracker wiring with the two-file output and typed Units.
 3. Write `.agents/skills/wayfinder-gauntlet/PROVENANCE.md`; delete the temporary clone.
 4. Add an answer-key validator invoked by the skill (reuses the Task 7 parser) so a non-conforming key is rejected at formation time, not at run time.
