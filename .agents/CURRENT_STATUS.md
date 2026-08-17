@@ -1,7 +1,9 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-16 — **Task 2 CLOSED (round 6.1). Task 3 CLOSED (round 2 +
-confirmation). Task 4 CLOSED (`b27b152`). Next: Task 5 (config + doctor).**
+**Last updated:** 2026-08-17 — **Tasks 2, 3, 4 CLOSED (records below). Task 5 CLOSED
+(config + doctor; three blind critics + correction round: 1 critical, 3 major, 9 minor
+found — all closed or adjudicated). Next: Task 6 (state/evidence/event-log), brief staged
+at `.agents/reports/task6/builder-brief-round1.md`.**
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
 
@@ -17,7 +19,15 @@ invalid states unrepresentable or typed-error-rejected; confirmation blind criti
 enums, `role_result@v1` envelope + Annex-B payloads with strict-only decoding, 17 shared
 contract suites with proven teeth, gates 322/322 workspace; three blind critics, 0
 criticals, correction round closed 5 residuals; adversarial critic found **no AK-014
-evasion route** through the Annex-B wire-key exemption.
+evasion route** through the Annex-B wire-key exemption. **Task 5 CLOSED** (this session):
+config resolution (defaults < GAUNTLET.md < env < flags, `.env` under process env),
+§8.6 defaults module, canonical serialization + `config_fingerprint`, all eight §8.5
+doctor checks, repo `GAUNTLET.md`, `gauntlet doctor` CLI. Critic loop found the round's
+critical — **a UTF-8 BOM silently discarded the entire config layer while doctor claimed
+"contract found and parsed"** — plus AK-049 spelling/location evasions, io-error
+conflation, flow-mapping duplicate-key fingerprint collision, and an explicit-`--config`
+NotFound fallback; all closed with teeth, confirmation critic verified 10/11 then the
+remainder. Workspace 385/385.
 
 The history is the argument for the whole method — a green gate was wrong three times
 before the blind-critic loop caught it. Keep the loop: **a task is done when its gate is
@@ -72,6 +82,41 @@ derives slices) · no vacuous getter cases added for last_offset/hooks/backend_i
 adapters pass caller-supplied patience). **Deferred to later tasks:** EventLog
 fsync/durability + crash-injection (Task 6, per plan); runner capability-vs-tier
 dispatch check (Task 14, the `Isolation` ladder is in place).
+
+### Task 5 closure record (this session)
+
+- Builder round 1 + K-correction + M1/M2 micro-correction. Reports:
+  `.agents/reports/task5/{builder-round1.md, builder-checkpoints.md, critic-a-result.md,
+  critic-b-result.md, critic-c-result.md}` (critic1-spec.md is a partial pre-interruption
+  evidence file, superseded).
+- **Interruption recovery:** the round-1 builder completed; the session was interrupted
+  before critics ran; the M1/M2 agent was cancelled mid-work (code landed, proof missing)
+  — recovered by a finisher that only added tests/teeth/report. Both recoveries followed
+  the documented pattern: reconstruct state from files, never from conversational memory.
+- **Critic yield:** A (spec): 1 major (AK-049 single-spelling probe), 2 minor. B
+  (adversarial): 1 critical (BOM → silent empty config layer), 2 major (io-kind
+  conflation; flow-mapping duplicate keys → fingerprint collision), 5 minor. C
+  (confirmation, post-correction): 10/11 CLOSED, no regressions; the B-R2 remainder
+  (explicit `--config` NotFound → silent defaults) closed by M1; unreadable policy dir
+  never-clean closed by M2 (both with live CLI teeth and bite-proven tests).
+- **Adjudicated, not defects:** skipped-sub-under-check-pass documented in `report.rs`
+  (a check's pass relies only on its pass sub-clauses); policy-stem contract matches
+  exactly `irreversible` (case-insensitive, any extension, both effective and default
+  dirs, `symlink_metadata`) — `irreversible.json.bak`/`.irreversible` are out of contract
+  by decision; `max_cost_usd` Money kind (Int|Str) accepts the spec §8.2 example.
+- **Recorded-act edits:** `sha2` added to `APPLICATION_EXTERNAL_ALLOWLIST` (config
+  fingerprint; reused by Task 7's reference digest) with the pin test updated to the new
+  pinned state. AK-049's answer-key evidence locator (`tests/e2e/doctor::…`) cannot exist
+  under the escapes rule → first entry in `.agents/reports/reference-candidates.md`
+  (dated, cites the real in-crate tests). **The ruler was not touched** — `just ruler`
+  PASS verified after every round.
+- **Honest unavailables (in doctor.json with reasons):** check 2 deep unit-schema +
+  digest-vs-lock (Task 7 parser/`verify_unchanged`); check 3 runner resolution (Tasks
+  15–16); check 4 capability-vs-tier (Task 14); check 6 tool binding (Tasks 15–16).
+- **Orchestrator verification (independent):** full gate exit 0; focused 62/62;
+  workspace 385/385; `just doctor` exit 0 on the repo; BOM tooth, `irreversible.yaml`
+  tooth, explicit-missing-`--config` tooth, chmod-000 policy-dir tooth all re-observed
+  from the transcripts and spot-probed live.
 
 ### Task 3 closure record (this session, commit `cb2f4ac`)
 
@@ -169,6 +214,14 @@ is now closed). Re-litigate E4/F1/F3 first time the arch suite is touched for an
    agents for read-only work when `general` keeps losing its tail. The correction builder
    still lost its progress notes; verification had to be re-done from the tree. See
    `.agents/lessons/subagent-message-loss.md`.
+7. **(2026-08-17) The session itself was interrupted twice** (harness suspension between
+   tool calls). Recovery both times: reconstruct from `git log`/`git status`/report files,
+   re-verify the gate personally, then resume the loop at the missing step (critics →
+   correction → confirmation). No work was redone that files had already recorded.
+8. **(2026-08-17) A cancelled M1/M2 agent left implemented-but-unproven code** (fresh
+   mtimes, no report entries). The finisher-brief pattern (prove only, change no
+   behavior) closed it in one bounded slice. Checkpoint/report files are the contract;
+   the agent's return message is not.
 
 **Before you touch anything:** run `just ruler`. It must print PASS. If it does not,
 that is a higher-priority problem than any task — stop, diagnose, and report it in
@@ -190,7 +243,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 2 — Workspace skeleton + justfile + gates + boundary test | **done** — closed at round 6.1, residuals recorded above | `b69c095`, `f85c925`, round-6 commit (this session) |
 | 3 — Domain types | **done** — closed at round 2 + confirmation, residuals recorded above | `cb2f4ac` |
 | 4 — Ports + shared contract suites | **done** — closed at `b27b152`, closure record above | `b27b152` |
-| 5–27 | not started | — |
+| 5 — Configuration, defaults, doctor | **done** — closed after 3-critic loop, closure record above | this session |
+| 6–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -302,13 +356,19 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (4):** **AK-001**, **AK-002**, **AK-016** — mechanisms
+- **implemented but provisional (8):** **AK-001**, **AK-002**, **AK-016** — mechanisms
   enforced by `just boundaries`, teeth demonstrated, blind-critic-hardened through seven
   rounds; provisional because no `VerificationRecord` exists yet and deferred majors
   remain on record. **AK-019** — `env_example_complete` instrument landed and green;
   same provisional status. (Task 4 did not move these — the new wire-key exemption and
-  E4/F1/F3 closures are boundary-suite changes, not Unit settlements.)
-- **proposed (66):** every other Unit, including AK-014 (vacuously true; no adapter
+  E4/F1/F3 closures are boundary-suite changes, not Unit settlements.) **Task 5 added
+  AK-015** (config precedence, all four layers test-proven), **AK-017** (unknown
+  keys/vars collected and reported), **AK-018** (secrets present-but-never-printed,
+  canary-proven on every surface), **AK-049** (no irreversible policy, any spelling,
+  both dirs, broken symlinks, unreadable dirs) — same provisional class: teeth-proven
+  at the instrument level, no VerificationRecord yet; critic A's "partial-here"
+  reflects Task-7/14/15-16 dependencies, not open defects.
+- **proposed (62):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
 - **blocked: none. · unknown: none.**
 
@@ -332,27 +392,17 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Task 5 — Configuration, defaults, and `gauntlet doctor`** (spec §8.5–§8.6, plan Task 5;
-gate `cargo nextest run -p gauntlet-app config:: doctor:: && just doctor`).
+**Task 6 — State store, evidence store, event log** (plan Task 6; spec §16.3, §18.1-18.4;
+gate `cargo nextest run -p gauntlet-adapter-state-sqlite && cargo nextest run -p
+gauntlet-app state::export::deterministic`). The builder brief is staged at
+`.agents/reports/task6/builder-brief-round1.md` — read it, then the contract suites it
+points at. Key shape: rusqlite (bundled) EventLog+StateStore with fsync-per-append and
+in-repo migrations; content-addressed write-once EvidenceStore (`sha2`, no overwrite API);
+app-layer `state::export` determinism tests; a REAL process-abort crash-injection helper;
+contract-suite registration per Task 4's existing mechanism; recorded-act allowlist edits
+(`rusqlite`, `sha2`) + deny.toml licence additions. Teeth: export determinism, overwrite
+refusal, §16.3-order crash exactly-once, boundaries bite on rusqlite outside adapters.
 
-- Delegate to one builder (build lock); then blind critics in parallel (read-only,
-  non-compiling); orchestrator verifies gate + teeth; commit per rule 8. Check `git status`
-  first — Task 4's partial-state surprise is now a documented pattern (deviation 5).
-- Brief essentials: `defaults` module in `gauntlet-app` carrying the spec §8.6 settings
-  table — **the only place literals are permitted**; the arch suite's declaration-granular
-  setting-scoped exemption (`DEFAULTS_TABLE_SETTINGS` in `walk.rs`) must target exactly
-  this module; failing that alignment is an arch-suite change, not a defaults hack.
-  `GAUNTLET.md` front-matter parser; `$VAR` indirection with presence-validated, never-
-  printed secrets; unknown keys collected and reported, never silent. `EffectiveConfig`
-  with stable canonical serialization and `config_fingerprint`. `doctor`: all eight §8.5
-  checks — including the two easy to skip: the answer key must NOT be inside any
-  builder-writable workspace, and **no** sandbox policy may exist for `irreversible`
-  (AK-049). Emit `.agents/reports/doctor.json` + human summary; non-zero on required
-  failure. Teeth: placing `.gauntlet/policies/irreversible.json` fails `just doctor`;
-  a secret never appears in `doctor.json` or logs.
-- Watch: `gauntlet-app`'s external-dependency allowlist is currently EMPTY by design
-  (deps.rs) — any new crate (toml/serde/…) is a deliberate, reviewed allowlist edit;
-  prefer std/domain/ports-only parsing if it stays boring. `gauntlet-cli` gains
-  `doctor` as its first real command (composition root = only place adapters are built).
-- Budget note (recurs): checkpoint files for sub-agents; final messages get lost
-  (deviations 4 + 6).
+After Task 6: Task 7 (ReferenceProvider — must reproduce `scripts/reference-digest.sh`'s
+normalization byte-for-byte; rules recorded under Task 1 outcomes above) or Task 8 (mock
+runner) per the dependency graph.
