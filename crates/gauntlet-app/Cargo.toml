@@ -10,6 +10,10 @@ workspace = true
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
+# Plan Task 5, spec §8.1: the config_fingerprint digest. The one external
+# dependency on the application allowlist (crates/gauntlet-arch-tests/src/
+# deps.rs), reused by plan Task 7's reference digest.
+sha2.workspace = true
 
 # Spec §4.1/§24.3: the application layer depends on domain and ports only —
 # never on adapters. Replacing a provider must not require editing this crate;

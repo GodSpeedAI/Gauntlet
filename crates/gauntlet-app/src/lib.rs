@@ -7,3 +7,20 @@
 //! replacing a provider required editing this layer, the boundary would be
 //! wrong (spec §24.3), and `just boundaries` would fail before any reviewer
 //! could miss it.
+//!
+//! Plan Task 5 lands the first services here: configuration resolution
+//! ([`config`], spec §8) and the preflight checks ([`doctor`], spec §8.5).
+
+pub mod config;
+pub mod doctor;
+
+pub use config::defaults::{
+    DIAGNOSTIC_BUDGET, DIGEST_ALGO, GIT_STRATEGY, INTERACTIVE, InteractiveDefault, MAX_COST_USD,
+    MAX_CRITICS, MAX_DEPTH, MAX_PARALLEL, MAX_ROUNDS, MAX_TOKENS, MAX_WALL_SECONDS,
+    PREFER_DETERMINISTIC, RECOVERY_RESERVE_PCT, REVIEW_MODE, SANDBOX_BACKEND,
+};
+pub use config::{
+    CanonValue, ConfigError, ConfigKey, EffectiveConfig, EnvLayer, FlagOverrides, ResolvedConfig,
+    config_fingerprint, resolve,
+};
+pub use doctor::{CheckOutcome, CheckStatus, DoctorInput, DoctorReport, SubResult, run_doctor};

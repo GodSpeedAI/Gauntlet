@@ -119,9 +119,15 @@ pub const DOMAIN_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
 /// depend on the domain only).
 pub const PORTS_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
 
-/// External crates `gauntlet-app` may depend on. EMPTY (AK-002: the
-/// application layer depends on port abstractions only).
-pub const APPLICATION_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+/// External crates `gauntlet-app` may depend on. Plan Task 5 adds the one
+/// entry, following the recorded-act procedure above: the §8.1
+/// `config_fingerprint` digest needs SHA-256 and std has none; the same
+/// crate serves plan Task 7's reference digest.
+pub const APPLICATION_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[(
+    "sha2",
+    "config_fingerprint digest (plan Task 5); reused by reference digest (Task 7) — std has no \
+     SHA-256",
+)];
 
 /// External crates `gauntlet-cli` may depend on. EMPTY today; the composition
 /// root inherits its permissions from the layers it wires, and anything it
@@ -1761,9 +1767,13 @@ toml = "0.9"
             "the domain allowlist is empty (AK-001)"
         );
         assert!(PORTS_EXTERNAL_ALLOWLIST.is_empty());
-        assert!(
-            APPLICATION_EXTERNAL_ALLOWLIST.is_empty(),
-            "AK-002: application depends on ports only"
+        // Plan Task 5 (spec §8.1 config_fingerprint) added the application
+        // layer's one recorded dependency; AK-002's "ports only" default
+        // fails closed around exactly this entry.
+        assert_eq!(
+            allowlist_names(APPLICATION_EXTERNAL_ALLOWLIST),
+            vec!["sha2"],
+            "the application allowlist carries only the Task 5 digest crate"
         );
         assert!(CLI_EXTERNAL_ALLOWLIST.is_empty());
         assert!(ADAPTER_EXTERNAL_ALLOWLIST.is_empty());
@@ -1772,7 +1782,7 @@ toml = "0.9"
             vec!["toml"],
             "the boundary suite's one permitted dependency is the manifest parser"
         );
-        assert_eq!(external_allowlist_union(), vec!["toml"]);
+        assert_eq!(external_allowlist_union(), vec!["sha2", "toml"]);
         assert_eq!(
             ALL_EXTERNAL_ALLOWLISTS.len(),
             6,

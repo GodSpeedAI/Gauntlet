@@ -42,10 +42,11 @@ boundaries:
 ci: check test lint deny boundaries ruler
     @echo "ci: all gates green"
 
-# doctor — the spec §8.5 preflight checks. Lands in plan Task 5; until then it
-# must fail loudly rather than pretend the host is healthy.
+# doctor — the spec §8.5 preflight checks (plan Task 5). Machine report at
+# $GAUNTLET_REPORT_DIR/doctor.json plus a human summary; non-zero exit on any
+# required failure, so a gate can depend on it.
 doctor:
-    @echo "doctor: not implemented — lands in plan Task 5 (spec §8.5 preflight checks)" >&2; exit 2
+    cargo run -q -p gauntlet-cli -- doctor
 
 # schemas — regenerate docs/schemas/*.json from the typed Annex B definitions.
 # Lands with the schema task; must fail loudly until then.
