@@ -134,10 +134,25 @@ pub const APPLICATION_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[(
 /// needs beyond them is a recorded decision made here.
 pub const CLI_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
 
-/// External crates an adapter under `crates/adapters/**` may depend on. EMPTY
-/// today; adapter tasks that adopt real vendors (state, sandbox, browser)
-/// list them here with the plan task that justifies the adoption.
-pub const ADAPTER_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+/// External crates an adapter under `crates/adapters/**` may depend on.
+/// Plan Task 6 adds the first two, following the recorded-act procedure
+/// above: the embedded-SQL state store needs the database engine, and the
+/// filesystem evidence store needs SHA-256 for content addressing.
+pub const ADAPTER_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[
+    (
+        "rusqlite",
+        "the embedded SQL engine behind the state-sqlite adapter's StateStore and EventLog (plan \
+         Task 6; spec 18.1: a single-file embedded database is a StateStore adapter choice); \
+         declared with the bundled feature in that adapter's own manifest, never in the root \
+         table the denylist keeps vendor-free",
+    ),
+    (
+        "sha2",
+        "content addressing for the evidence-fs adapter's put(bytes, kind) (plan Task 6, spec \
+         6.2 EvidenceStore) — std has no SHA-256; the same crate the application layer already \
+         carries for the §8.1 config fingerprint, inherited from the root table",
+    ),
+];
 
 /// External crates `gauntlet-arch-tests` may depend on.
 pub const BOUNDARY_TESTS_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[(
@@ -1776,13 +1791,21 @@ toml = "0.9"
             "the application allowlist carries only the Task 5 digest crate"
         );
         assert!(CLI_EXTERNAL_ALLOWLIST.is_empty());
-        assert!(ADAPTER_EXTERNAL_ALLOWLIST.is_empty());
+        // Plan Task 6 (spec §18.1 embedded SQL, §6.2 content-addressed
+        // evidence) added the adapter layer's two recorded dependencies; the
+        // empty list was the design until the first adapter needed a vendor,
+        // and growth stays a deliberate edit that updates this pin.
+        assert_eq!(
+            allowlist_names(ADAPTER_EXTERNAL_ALLOWLIST),
+            vec!["rusqlite", "sha2"],
+            "the adapter allowlist carries only the Task 6 engine and digest crates"
+        );
         assert_eq!(
             allowlist_names(BOUNDARY_TESTS_EXTERNAL_ALLOWLIST),
             vec!["toml"],
             "the boundary suite's one permitted dependency is the manifest parser"
         );
-        assert_eq!(external_allowlist_union(), vec!["sha2", "toml"]);
+        assert_eq!(external_allowlist_union(), vec!["sha2", "rusqlite", "toml"]);
         assert_eq!(
             ALL_EXTERNAL_ALLOWLISTS.len(),
             6,

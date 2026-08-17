@@ -13,6 +13,7 @@
 
 pub mod config;
 pub mod doctor;
+pub mod state;
 
 pub use config::defaults::{
     DIAGNOSTIC_BUDGET, DIGEST_ALGO, GIT_STRATEGY, INTERACTIVE, InteractiveDefault, MAX_COST_USD,
@@ -24,3 +25,4 @@ pub use config::{
     config_fingerprint, resolve,
 };
 pub use doctor::{CheckOutcome, CheckStatus, DoctorInput, DoctorReport, SubResult, run_doctor};
+pub use state::{ExportError, export_run};

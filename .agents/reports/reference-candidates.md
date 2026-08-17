@@ -37,3 +37,28 @@ through the normal spec process, never a builder's direct edit.
 - **Not changed by this entry:** the answer key, the spec, and the frozen
   lock (digests still match; `just ruler` green). Settlement of this
   candidate belongs to the ruler's owner, not the builder.
+
+## 2026-08-17 — AK-054 evidence locator names an unmaterializable test target (Task 6, critic-A MINOR-7)
+
+- **Unit:** AK-054 (`.wayfinder/answer-key.md` lines 376–381).
+- **Claim under review (unchanged, satisfied at the instrument level):** "Run
+  records export deterministically to JSONL; exporting the same run twice
+  produces byte-identical output."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/contract/state::deterministic_export`; no such file or target exists,
+  and the architecture boundary suite's Cargo-target-path rule (same class as
+  the AK-049 entry above) forbids a core crate from declaring a repo-level test
+  target, so the locator cannot be materialized as spelled.
+- **Proposed correction:** re-declare the locator to the tests that prove the
+  claim today:
+  - `gauntlet-app state::export::deterministic::export_is_byte_identical_and_canonical_under_reordered_input`
+    (the plan's own Task 6 gate filter; byte-identical double export under a
+    store that reorders lines between exports);
+  - `gauntlet-adapter-state-sqlite state_store::tests::export_is_the_pinned_golden_and_byte_identical`
+    (pinned golden bytes, out-of-order checkpoint writes);
+  - `gauntlet-cli tests/export_stack.rs the_real_sqlite_export_stack_is_deterministic_and_canonical`
+    (the composed stack: real adapter bytes through the canonical re-export,
+    twice, byte-identical).
+- **Not changed by this entry:** the answer key, the spec, and the frozen lock
+  (digests still match; `just ruler` green after every round). Settlement of
+  this candidate belongs to the ruler's owner, not the builder.

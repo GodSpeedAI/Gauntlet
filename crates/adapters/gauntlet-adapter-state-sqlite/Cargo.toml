@@ -17,3 +17,22 @@ workspace = true
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
+# Plan Task 6: the embedded SQL substrate behind `StateStore`/`EventLog`
+# (spec §18.1: "A single-file embedded database (SQLite) is a reasonable
+# default ... it is a StateStore adapter choice"). Declared HERE, in the
+# adapter's own manifest, with the `bundled` feature so the build depends on
+# no system library: on the adapter external allowlist
+# (crates/gauntlet-arch-tests/src/deps.rs) with that recorded justification.
+# It is deliberately NOT a root [workspace.dependencies] entry: the denylist
+# scans this table and an adapter's vendor dependency belongs in the
+# adapter's manifest, not in a table every member inherits.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Task 6 correction round: the out-of-band damage-injection tests
+# (tests/tamper_evidence.rs) open a second RAW connection to the database
+# file — the only instrument allowed to issue SQL the adapter itself never
+# issues (tamper rows, a gap DELETE, a failure-injection trigger). Same
+# crate, same version, same recorded justification as above; a test
+# instrument does not widen the layer any further.
+[dev-dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }

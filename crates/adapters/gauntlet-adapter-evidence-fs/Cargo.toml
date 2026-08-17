@@ -17,3 +17,11 @@ workspace = true
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
+# Plan Task 6: content addressing for evidence — `put(bytes, kind)` derives
+# the ref from the bytes' SHA-256, and std has no SHA-256. On the adapter
+# external allowlist (crates/gauntlet-arch-tests/src/deps.rs) with that
+# recorded justification. Inherited from the root table, where the
+# application layer already carries the same crate for the §8.1 config
+# fingerprint; a new vendor entry in the root table is what the denylist
+# forbids, and sha2 is already there.
+sha2.workspace = true

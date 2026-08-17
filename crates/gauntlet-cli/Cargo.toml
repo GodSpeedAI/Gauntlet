@@ -16,3 +16,14 @@ gauntlet-app.workspace = true
 # that may construct adapters and wire them into the application layer.
 # Adapter dependencies land with their tasks; declaring them early would let
 # this stub grow wiring before there is anything to wire.
+#
+# Task 6 correction round: the export-stack composition test
+# (tests/export_stack.rs) wires the REAL embedded-SQL state adapter under
+# the application layer's export — the composition root is the one crate
+# allowed to name adapters (spec §4.1; the boundary suite accepts cli
+# wiring and flags the reverse), and a dev-dependency is the narrowest form
+# of that freedom: no production wiring exists yet. The test uses the
+# adapter's capability-named export; a vendor-flavored type name cannot be
+# spelled in this crate (the denylist masks the crate name only).
+[dev-dependencies]
+gauntlet-adapter-state-sqlite.workspace = true
