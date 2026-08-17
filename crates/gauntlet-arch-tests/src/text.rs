@@ -664,14 +664,15 @@ pub fn string_literals(raw: &str) -> Vec<String> {
         .collect()
 }
 
-/// Every string literal as `(opening byte offset, decoded value)` — for the
-/// classes that need to know WHERE a literal sits (the tier-policy class asks
-/// whether it sits inside an attribute body).
-pub fn string_literal_spans(raw: &str) -> Vec<(usize, String)> {
+/// Every string literal as `(opening byte offset, closing byte offset,
+/// decoded value)` — for the classes that need to know WHERE a literal sits
+/// (the tier-policy class asks whether it sits inside an attribute body; the
+/// denylist's Annex-B.2 mask asks what surrounds it).
+pub fn string_literal_spans(raw: &str) -> Vec<(usize, usize, String)> {
     regions(raw)
         .into_iter()
         .filter_map(|region| match region {
-            Region::Str { span, value, .. } => Some((span.start, value)),
+            Region::Str { span, value, .. } => Some((span.start, span.end, value)),
             _ => None,
         })
         .collect()

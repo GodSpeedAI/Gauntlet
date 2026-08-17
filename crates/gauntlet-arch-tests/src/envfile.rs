@@ -258,6 +258,35 @@ pub fn parse_env_example(text: &str) -> Vec<EnvEntry> {
         .collect()
 }
 
+/// A non-comment, non-blank `.env.example` line carrying no `=` (critic-9
+/// F3): `parse_env_example` sees no entry there, so the unknown-key, the
+/// duplicate, and the value checks would never touch it — and a line the
+/// checks cannot see is missing evidence, not a pass. The suite's posture
+/// elsewhere is that malformed input is a violation, never a skip
+/// (`scan_manifest` reports malformed TOML the same way), so this is the
+/// fail-closed half of the suite's one fail-open parse. If a future runtime
+/// env loader accepted a bare `KEY` (no `=`) as an empty-value declaration,
+/// `.env.example` could legitimately spell an empty value that way and this
+/// check would false-fire; today the suite's own parser requires `=`, so the
+/// fail-closed posture is internally consistent.
+fn malformed_entry_lines(env: &str) -> Vec<String> {
+    env.lines()
+        .enumerate()
+        .filter_map(|(index, raw)| {
+            let line = raw.trim();
+            if line.is_empty() || line.starts_with('#') || line.contains('=') {
+                return None;
+            }
+            Some(format!(
+                "env-example: .env.example:{}: the line carries no '=' — the parser cannot see \
+                 an entry here, and a line the checks cannot see is missing evidence, not a \
+                 pass (I8, AK-019)",
+                index + 1
+            ))
+        })
+        .collect()
+}
+
 /// Diff Annex E against `.env.example` (AK-019). `spec` and `env` are the two
 /// files' full texts.
 pub fn check_env_example(spec: &str, env: &str) -> Vec<String> {
@@ -268,9 +297,11 @@ pub fn check_env_example(spec: &str, env: &str) -> Vec<String> {
     // Credential shapes are checked over the RAW file, comments included, and
     // before anything else: a key committed in a comment is committed
     // (round-3 V10). Commented entries carrying values are the un-prefixed
-    // half of the same channel (critic-4 m1).
+    // half of the same channel (critic-4 m1), and an entry-shaped line
+    // without '=' is the fail-open half (critic-9 F3).
     out.extend(raw_credentials(env));
     out.extend(commented_entry_values(env));
+    out.extend(malformed_entry_lines(env));
 
     // Non-vacuity first, against a DERIVED floor: the number of distinct
     // `GAUNTLET_` variables the spec names anywhere, minus the ones this
@@ -497,6 +528,32 @@ mod scanner_tests {
                 "{value} -> {violations:?}"
             );
         }
+    }
+
+    #[test]
+    fn a_line_without_equals_is_a_violation_not_a_skip() {
+        // Critic-9 F3's exact mutations: `GAUNTLET_LEGACY_TOKEN` with no `=`,
+        // and a bare hex line — neither used to exist to ANY check, so a
+        // credential-shape scan and every entry check stayed green.
+        for extra in [
+            "GAUNTLET_LEGACY_TOKEN\n",
+            "8f14e45fceea167a5a36dedd4bea2543\n",
+        ] {
+            let env = env_fixture() + extra;
+            let violations = check_env_example(&spec_fixture(), &env);
+            assert!(
+                violations.iter().any(|v| v.contains("carries no '='")),
+                "{extra:?} -> {violations:?}"
+            );
+        }
+        // Comments and blank lines are still not entries.
+        let env = env_fixture() + "# annotated prose\n\n";
+        assert!(
+            check_env_example(&spec_fixture(), &env)
+                .iter()
+                .all(|v| !v.contains("carries no '='")),
+            "comments and blank lines stay exempt"
+        );
     }
 
     #[test]

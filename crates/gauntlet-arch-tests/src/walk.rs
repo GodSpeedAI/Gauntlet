@@ -99,6 +99,94 @@ pub const DEFAULTS_TABLE_SETTINGS: &[&str] = &[
     "git_strategy",
 ];
 
+/// The ONE file where Annex-B wire vocabulary is parsed: the contract
+/// envelope/payload decoder in `gauntlet-ports`. Its `from_json` paths MUST
+/// match the exact JSON keys of the annex — that is schema conformance, not
+/// adapter selection — so the segment-whole-literal rule (AK-014) masks the
+/// declared wire keys there, in key-ACCESS position only. Everything else
+/// this module contains is policed exactly as before.
+pub const ANNEX_B_CONTRACT_PARSER: &str = "crates/gauntlet-ports/src/role_result.rs";
+
+/// The declared field-key vocabulary of **Annex B.2** (`builder_result@v1`),
+/// each key paired with its spec field reference:
+///
+/// ```json
+/// { "attempted": ["AK-014"], "changed_paths": [], "commands_run": [],
+///   "artifacts": [{"path": "", "evidence_ref": ""}],
+///   "claims": ["free text — stored for forensics, excluded from verification"],
+///   "self_checks": [{"command": "", "exit_code": 0}],
+///   "blocked_on": [] }
+/// ```
+///
+/// A string literal equal to one of these keys, inside
+/// [`ANNEX_B_CONTRACT_PARSER`], at a key-access position (a `.get("k")`
+/// argument or an `&[…"k"…]` allowlist array), is the parser MATCHING the
+/// wire schema — never an adapter selection, and therefore not an AK-014
+/// violation. The mask has three independent gates (module, declared key,
+/// position), which is the shape the adversarial corner forces:
+///
+/// - **module**: the mask applies to this one parser module only — the same
+///   literal in any other core file still reports;
+/// - **declared key**: a literal equal to an adapter segment that is NOT an
+///   Annex-B.2 key (`"prime"`, `"mock"`, `"git"`) reports even at a key-access
+///   position in this module, so a predicate call
+///   (`object.get("prime")`-shaped) cannot launder a selection literal here;
+/// - **position**: the key must sit in a key-access spelling — a
+///   selection-shaped `"command"` (`match role { "command" => … }`, a `let`,
+///   a const) in this module reports exactly as before, so an attacker cannot
+///   name an adapter segment equal to a wire key to hide selection literals
+///   inside the parser.
+///
+/// Residual, recorded rather than hidden: the position gate is a byte-level
+/// shape, not a parse tree. An array-element spelling is masked whatever the
+/// array is actually for — the module's only `&["command", …]`-shaped use is
+/// the unknown-field allowlist, and a second, unrelated array of the same
+/// shape would be masked too; likewise a `.get` receiver that is not the JSON
+/// object (`commands.get("command")`) is masked, because the shape cannot see
+/// the receiver — the same receiver invisibility masks a module-path callee
+/// form (`helpers::get("command")`, `json::get("command")`): the shape only
+/// checks the final callee identifier ended by `(`. An escaped or padded
+/// spelling that decodes to a declared key (`"com\u{6d}and"`, `"command "`,
+/// `" command"`) is masked at a key-access position — the parser sees the same
+/// decoded key value (segment literals are trimmed at both ends). What still
+/// reports in this module:
+/// `get ("command")` (a space before the parens), `budget("command")` /
+/// `getter("command")` (a `get` embedded in a longer identifier), and every
+/// non-key-access position — match arms, `let`, const, non-call arguments.
+/// The set is pinned by test in [`scope_tests`], so growth is a deliberate
+/// edit that updates the pin — exactly like [`DEFAULTS_TABLE_SETTINGS`].
+pub const ANNEX_B_WIRE_KEYS: &[(&str, &str)] = &[
+    (
+        "attempted",
+        "Annex B.2 `builder_result@v1` top-level `attempted`",
+    ),
+    (
+        "changed_paths",
+        "Annex B.2 `builder_result@v1` top-level `changed_paths`",
+    ),
+    (
+        "commands_run",
+        "Annex B.2 `builder_result@v1` top-level `commands_run`",
+    ),
+    (
+        "artifacts",
+        "Annex B.2 `builder_result@v1` top-level `artifacts`",
+    ),
+    ("path", "Annex B.2 `artifacts[].path`"),
+    ("evidence_ref", "Annex B.2 `artifacts[].evidence_ref`"),
+    ("claims", "Annex B.2 `builder_result@v1` top-level `claims`"),
+    (
+        "self_checks",
+        "Annex B.2 `builder_result@v1` top-level `self_checks`",
+    ),
+    ("command", "Annex B.2 `self_checks[].command`"),
+    ("exit_code", "Annex B.2 `self_checks[].exit_code`"),
+    (
+        "blocked_on",
+        "Annex B.2 `builder_result@v1` top-level `blocked_on`",
+    ),
+];
+
 /// Upper bound for a scannable file. Beyond this the file is not skipped —
 /// it is a violation (I8): a scanner that reports "clean" for bytes it never
 /// read is reporting nothing.
@@ -405,6 +493,48 @@ mod scope_tests {
                 "sandbox_backend",
                 "interactive",
                 "git_strategy",
+            ]
+        );
+    }
+
+    #[test]
+    fn annex_b_wire_keys_are_pinned_to_their_spec_references() {
+        // The mask consumes exactly the declared Annex-B.2 vocabulary (see
+        // the const's doc): widening, deleting, or reordering a key is a
+        // deliberate edit that updates this pin — exactly like
+        // DEFAULTS_TABLE_SETTINGS above.
+        assert_eq!(
+            ANNEX_B_WIRE_KEYS,
+            &[
+                (
+                    "attempted",
+                    "Annex B.2 `builder_result@v1` top-level `attempted`"
+                ),
+                (
+                    "changed_paths",
+                    "Annex B.2 `builder_result@v1` top-level `changed_paths`"
+                ),
+                (
+                    "commands_run",
+                    "Annex B.2 `builder_result@v1` top-level `commands_run`"
+                ),
+                (
+                    "artifacts",
+                    "Annex B.2 `builder_result@v1` top-level `artifacts`"
+                ),
+                ("path", "Annex B.2 `artifacts[].path`"),
+                ("evidence_ref", "Annex B.2 `artifacts[].evidence_ref`"),
+                ("claims", "Annex B.2 `builder_result@v1` top-level `claims`"),
+                (
+                    "self_checks",
+                    "Annex B.2 `builder_result@v1` top-level `self_checks`"
+                ),
+                ("command", "Annex B.2 `self_checks[].command`"),
+                ("exit_code", "Annex B.2 `self_checks[].exit_code`"),
+                (
+                    "blocked_on",
+                    "Annex B.2 `builder_result@v1` top-level `blocked_on`"
+                ),
             ]
         );
     }

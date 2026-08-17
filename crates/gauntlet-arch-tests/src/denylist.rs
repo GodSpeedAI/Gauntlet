@@ -327,12 +327,15 @@ pub fn scan_source(path: &str, text: &str, deny: &Denylist, role: Role) -> Vec<S
         }
         // AK-014: adapter selection by the shortest distinguishing segment,
         // as a whole string literal (round-3 V7). The extraction is the ONE
-        // lexing pass (`crate::text::string_literals`) since round 6, so a
-        // `'"'` char literal earlier on the line no longer deletes the
+        // lexing pass (`crate::text::string_literal_spans`) since round 6, so
+        // a `'"'` char literal earlier on the line no longer deletes the
         // literals after it from this rule (critic-6 C1).
         if role == Role::Inner {
-            for literal in crate::text::string_literals(&unit.text) {
+            for (start, end, literal) in crate::text::string_literal_spans(&unit.text) {
                 if let Some(segment) = deny.segment_literal(&literal) {
+                    if annex_b_wire_key_access(path, &unit.text, start, end, segment) {
+                        continue;
+                    }
                     let message = format!(
                         "denied-identifier: {path}:{}: '{segment}' — the string literal \
                          '{literal}' is an adapter's distinguishing segment; adapter selection \
@@ -347,6 +350,48 @@ pub fn scan_source(path: &str, text: &str, deny: &Denylist, role: Role) -> Vec<S
         }
     }
     out
+}
+
+/// The Annex-B wire-vocabulary mask: a whole-literal adapter-segment hit is
+/// consumed ONLY inside [`crate::walk::ANNEX_B_CONTRACT_PARSER`], only when
+/// the literal is a declared [`crate::walk::ANNEX_B_WIRE_KEYS`] key, and only
+/// in a key-ACCESS position — because matching the wire schema is not adapter
+/// selection (AK-014). Position is a byte-level shape, not a parse tree: a
+/// `.get("k")` argument (`get` as a whole identifier ended by `(`) or an
+/// `&[…"k"…]` array element (bracketed by `[`/`,` before and `,`/`]` after).
+/// Every other use of the same literal in the module reports exactly as
+/// before; see the [`crate::walk::ANNEX_B_WIRE_KEYS`] doc for the recorded
+/// residual of the shape.
+fn annex_b_wire_key_access(
+    path: &str,
+    unit: &str,
+    start: usize,
+    end: usize,
+    segment: &str,
+) -> bool {
+    if path != crate::walk::ANNEX_B_CONTRACT_PARSER
+        || !crate::walk::ANNEX_B_WIRE_KEYS
+            .iter()
+            .any(|(key, _)| *key == segment)
+    {
+        return false;
+    }
+    let before = unit[..start].trim_end();
+    let after = unit[end..].trim_start();
+    let get_call = before
+        .strip_suffix('(')
+        .and_then(|rest| rest.strip_suffix("get"))
+        .is_some_and(|rest| {
+            rest.chars()
+                .next_back()
+                .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
+        });
+    let array_element = before
+        .chars()
+        .next_back()
+        .is_some_and(|c| c == '[' || c == ',')
+        && after.chars().next().is_some_and(|c| c == ',' || c == ']');
+    get_call || array_element
 }
 
 /// Scan one `Cargo.toml`'s dependency keys, `package = "..."` rename values,
@@ -1122,5 +1167,129 @@ serde_json = { workspace = true }
             violations.iter().any(|v| v.contains("'sqlite'")),
             "{violations:?}"
         );
+    }
+
+    /// The shared `adapters()` fixture predates
+    /// `gauntlet-adapter-observe-command`, so the Annex-B.2 wire key
+    /// `command` is not a derived segment there — and a mask test needs the
+    /// masked literal to be a segment. This is the fixture the Annex-B.2
+    /// tests scan with.
+    fn annex_deny() -> Denylist {
+        let mut members = adapters();
+        members.push(Member {
+            dir: "crates/adapters/gauntlet-adapter-observe-command".to_string(),
+            name: "gauntlet-adapter-observe-command".to_string(),
+        });
+        Denylist::derive(&members)
+    }
+
+    #[test]
+    fn annex_b_wire_keys_are_masked_only_in_the_parser_in_key_access() {
+        let deny = annex_deny();
+        let fixture = "\
+reject_unknown_fields(BUILDER_RESULT_SCHEMA, object, &[\"command\", \"exit_code\"])?;
+let command = match object.get(\"command\") {
+    Some(JsonValue::Str(s)) => s.clone(),
+    None => return Err(payload_missing(\"self_checks.command\")),
+};
+let prime = match object.get(\"prime\") {
+    None => return Err(payload_missing(\"self_checks.prime\")),
+};
+";
+        let parser = scan_source(
+            crate::walk::ANNEX_B_CONTRACT_PARSER,
+            fixture,
+            &deny,
+            Role::Inner,
+        );
+        assert!(
+            !parser.iter().any(|v| v.contains("'command'")),
+            "a declared wire key in key-access position must be masked in the parser: \
+             {parser:?}"
+        );
+        assert!(
+            parser.iter().any(|v| v.contains("'prime'")),
+            "a non-wire segment must still report at the same position in the parser: \
+             {parser:?}"
+        );
+
+        let elsewhere = scan_source(
+            "crates/gauntlet-ports/src/unrelated.rs",
+            fixture,
+            &deny,
+            Role::Inner,
+        );
+        let command_hits: Vec<_> = elsewhere
+            .iter()
+            .filter(|v| v.contains("'command'"))
+            .collect();
+        assert_eq!(
+            command_hits.len(),
+            2,
+            "outside the parser module every key-access use must report: {elsewhere:?}"
+        );
+    }
+
+    #[test]
+    fn annex_b_wire_key_outside_key_access_still_reports_in_the_parser() {
+        let deny = annex_deny();
+        for fixture in [
+            "let role = \"command\";\n",
+            "match role { \"command\" => run(), _ => skip() }\n",
+            "const DEFAULT_ROLE: &str = \"command\";\n",
+            "budget(\"command\");\n",
+            "get (\"command\");\n",
+            "getter(\"command\");\n",
+        ] {
+            let violations = scan_source(
+                crate::walk::ANNEX_B_CONTRACT_PARSER,
+                fixture,
+                &deny,
+                Role::Inner,
+            );
+            assert!(
+                violations.iter().any(|v| v.contains("'command'")),
+                "non-key-access 'command' must report inside the parser: {fixture:?} -> \
+                 {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn annex_b_mask_corners_are_pinned_to_the_documented_residual() {
+        let deny = annex_deny();
+        // Escaped and padded spellings decode to the same key value the
+        // parser sees (segment literals are trimmed at both ends, so a
+        // leading space pads too), so a key-access position masks them all.
+        for fixture in [
+            "object.get(\"com\\u{6d}and\");\n",
+            "object.get(\"command \");\n",
+            "object.get(\" command\");\n",
+        ] {
+            let violations = scan_source(
+                crate::walk::ANNEX_B_CONTRACT_PARSER,
+                fixture,
+                &deny,
+                Role::Inner,
+            );
+            assert!(
+                !violations.iter().any(|v| v.contains("'command'")),
+                "{fixture:?} -> {violations:?}"
+            );
+        }
+        // The byte-level shapes cannot see the array's purpose or the `.get`
+        // receiver — recorded residuals, not a silent widening.
+        for fixture in ["other(&[\"command\"]);\n", "commands.get(\"command\");\n"] {
+            let violations = scan_source(
+                crate::walk::ANNEX_B_CONTRACT_PARSER,
+                fixture,
+                &deny,
+                Role::Inner,
+            );
+            assert!(
+                !violations.iter().any(|v| v.contains("'command'")),
+                "{fixture:?} -> {violations:?}"
+            );
+        }
     }
 }

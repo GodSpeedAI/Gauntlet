@@ -16,7 +16,7 @@
 //! | `hardcoded-provider` | a string literal that is exactly a provider from [`PROVIDER_IDENTITIES`] | whole literals only, so `azure`/`google` as prose never flag; enumerated, so an unlisted provider is missed — see "residual" (critic-4 M3) |
 //! | `hardcoded-network-endpoint` | IPv4, `[v6]:port`, and `host:port` for ARBITRARY hosts (any dotted name, or `localhost`) | a dotted token followed by `:digits` in prose flags; rare enough to accept |
 //! | `hardcoded-port` | a numeric literal whose value is a well-known port, in any Rust spelling: `8080`, `8_080`, `0x1f90`, `0o17620`, `8080u16` | a well-known port value used as a plain number flags; deliberate — outside the defaults table it is a configuration leak either way |
-//! | `hardcoded-command` | a multi-token string literal whose first token is an executable from [`COMMAND_HEADS`] and which contains no English stopword; plus any `Command::new("…")` | scoped to STRING LITERALS only, so prose and identifiers never flag; a sentence beginning with a tool name is excluded by the stopword guard. Shell metacharacters (`>`, `\|`, `&`, quotes, globs) are EVIDENCE, never an exemption — round-3 V16 |
+//! | `hardcoded-command` | a multi-token string literal whose first token is an executable from [`COMMAND_HEADS`], unless it carries an English stopword AND no token is command-shaped; plus any `Command::new("…")` | scoped to STRING LITERALS only, so prose and identifiers never flag; since critic-9 F1 the stopword exemption yields to command SHAPE — a flag token (`--workspace`, `-c`) or a shell metacharacter — so a prose sentence that CITES a flag (`"git push --force is dangerous"`) flags too. Shell metacharacters are EVIDENCE, never an exemption (round-3 V16); the class errs toward flagging |
 //! | `hardcoded-tool-identity` | a string literal that is exactly a product from [`TOOL_IDENTITIES`] **or an executable head from [`COMMAND_HEADS`]** — the union is computed, so the two lists cannot drift apart again (critic-4 M2) | string literals only; the risk is a config PARSER matching on `"git"` — see "residual" |
 //! | `hardcoded-timeout` | a numeric literal ≥ 2 in a value position — introduced by `=`, `(`, `,`, `:` (struct-field initialisers), `>` (match arms) or `[` — on a line carrying a duration-shaped identifier ([`TIMEOUT_HINTS`]) | the hint requirement is what keeps `(spec §11.5)` and markdown tables from flagging; until critic-6 C2 the class was also narrow by punctuation, blind to `Timeouts { stall_ms: 900_000 }` |
 //! | `hardcoded-tier-policy` | a string literal from [`TIER_TERMS`], or matching `tier[-_ ]<digit>`, on a `const`/`static`/`default` line, unless the literal sits INSIDE an attribute body (delimited by the lexing pass, so a `#[` in a comment no longer disables the class — critic-6 C3) | narrow ON PURPOSE — see "residual" |
@@ -72,12 +72,14 @@
 //!   nobody listed (`BUILDER_LIMIT`) is not either. The boundary is what keeps
 //!   `install` from matching `stall`; dropping it would trade this residual for
 //!   a false-positive factory.
-//! - **command** now has exactly one prose guard, the [`STOPWORDS`] list: a
-//!   multi-token string literal headed by a known executable and containing no
-//!   English function word is a command. The character-class filter that used
-//!   to sit after it was a bypass, not a guard (V16), and is gone. An English
-//!   sentence with no stopword that begins with a tool name would flag; that is
-//!   the direction the class is meant to err in.
+//! - **command** has exactly one prose guard, the [`STOPWORDS`] list — since
+//!   critic-9 F1 the exemption yields to command SHAPE: a stopword exempts a
+//!   literal only when no token is a flag (`--workspace`, `-c`) and no token
+//!   carries a shell metacharacter. The character-class filter that used to sit
+//!   after it was a bypass, not a guard (V16), and is gone. Prose that cites a
+//!   flag is now a known false-positive: `"git push --force is dangerous"` is
+//!   command-shaped, so it flags where pre-F1 the stopword exempted it. The
+//!   class errs toward flagging — that is the direction it is meant to err in.
 //! - **absolute path** is complete inside string literals and enumerated
 //!   outside them: an absolute path written only in a comment, rooted at a
 //!   directory not in [`ABSOLUTE_PATH_ROOTS`], is not reported. Comments carry
@@ -1283,9 +1285,18 @@ fn match_ipv4_at(bytes: &[u8], start: usize) -> Option<usize> {
 /// cap (`> 12`) went with it: a thirteen-token command line is still a
 /// command line.
 ///
-/// What remains as the prose guard is the stopword list, which is the
-/// documented narrowing: the class is scoped to string literals, headed by a
-/// known executable, and containing no ordinary English function word.
+/// The prose guard is the stopword list — and since critic-9 F1 it applies
+/// only to prose-shaped literals: a stopword exempts a literal ONLY when the
+/// literal carries no command evidence (a flag token such as `--workspace`
+/// or `-c`, or a shell metacharacter). Before F1 every token of the literal
+/// was stopword-checked, so `"cargo build --workspace 2>&1 of"`,
+/// `"git commit -m \"fix of parser\""` and `"sh -c 'rm -rf /tmp and
+/// /scratch'"` — real commands with one ordinary function word as an
+/// argument — were exempt in their entirety. Recorded residual, accidental
+/// direction: a stopword-carrying literal that is NOT command-shaped stays
+/// exempt (a sentence like `"just run the tests"`), so a genuine command
+/// with no flag and no metacharacter in it (`"cargo run the tests"`) still
+/// passes — the prose discriminator cannot see one.
 fn find_command(lowered: &str, literals: &[String]) -> Option<String> {
     if lowered.contains("command::new(")
         && let Some(first) = literals.first()
@@ -1309,12 +1320,32 @@ fn find_command(lowered: &str, literals: &[String]) -> Option<String> {
         if tokens
             .iter()
             .any(|t| STOPWORDS.contains(&t.to_lowercase().as_str()))
+            && !command_shaped(&tokens)
         {
             continue;
         }
         return Some(literal.clone());
     }
     None
+}
+
+/// Whether a multi-token literal is command-SHAPED rather than prose: it
+/// carries a flag token (`--workspace`, `-c`; a bare `-` is not one) or a
+/// shell metacharacter (`>`, `<`, `|`, `&`, `;`, `$`, quotes, a backtick, or
+/// parens). Round-3 V16's doctrine — shell metacharacters are EVIDENCE, never
+/// an exemption — extended to flags by critic-9 F1, so the stopword prose
+/// guard yields to either.
+fn command_shaped(tokens: &[&str]) -> bool {
+    tokens.iter().any(|t| {
+        let bytes = t.as_bytes();
+        (bytes.len() > 1 && (t.starts_with("--") || (bytes[0] == b'-' && bytes[1] != b'-')))
+            || t.bytes().any(|b| {
+                matches!(
+                    b,
+                    b'>' | b'<' | b'|' | b'&' | b';' | b'$' | b'\'' | b'"' | b'`' | b'(' | b')'
+                )
+            })
+    })
 }
 
 /// A string literal that is exactly a tool product name — either a
@@ -1344,9 +1375,10 @@ fn find_provider_identity(literals: &[String]) -> Option<String> {
         .cloned()
 }
 
-/// A duration/schedule policy number: a literal ≥ 2 introduced by a value
-/// position — `=`, `(`, `,`, `:`, `>` (match arms), or `[` — on a line
-/// carrying a duration-shaped identifier.
+/// A duration/schedule policy number: a literal ≥ 2 in a value position —
+/// `=`, `(`, `,`, `:`, `>` (match arms), `[` (array values), `{` (block
+/// values, function bodies), or a `return` prefix (critic-6 C2, critic-8 E4)
+/// — on a line carrying a duration-shaped identifier.
 ///
 /// Critic-6 C2: the class used to accept only `=`, `(` and `,`, which made it
 /// narrow by PUNCTUATION rather than by value: a struct-field initialiser
@@ -1354,6 +1386,21 @@ fn find_provider_identity(literals: &[String]) -> Option<String> {
 /// array value (`= [900_000]`) all fell outside it. The hint requirement is
 /// what actually narrows the class (spec cross-references and markdown tables
 /// carry no duration-shaped identifier next to the number).
+///
+/// Critic-8 E4: the same blind spot was `{` and `return` — ordinary code
+/// shapes a developer actually writes (`fn stall_timeout_ms() -> u64 {
+/// 900_000 }`, `fn retry_delay_ms() -> u64 { return 900_000; }`). Both are
+/// value positions now; the `return` prefix is the whole word (see
+/// [`is_return_prefixed`]), so `xreturn 900_000` is not one.
+///
+/// The E4 widening's recorded false-positive shape: the hint requirement
+/// looks at the whole lowered unit, so a function whose OWN name carries a
+/// duration hint satisfies it even when the value is a plain count —
+/// `fn timeout_retry_limit() -> u64 { return 5; }` (or `{ 5 }`) flags as
+/// `hardcoded-timeout` although 5 is a retry count, not a duration. The
+/// class errs toward flagging; recorded, not silently widened, because the
+/// hint requirement is what keeps spec cross-references and markdown tables
+/// clean.
 fn find_timeout(lowered: &str, numbers: &[NumericLiteral]) -> Option<(String, String)> {
     let hint = TIMEOUT_HINTS
         .iter()
@@ -1361,12 +1408,30 @@ fn find_timeout(lowered: &str, numbers: &[NumericLiteral]) -> Option<(String, St
         .to_string();
     let number = numbers.iter().find(|n| {
         n.value.is_some_and(|v| v >= 2)
-            && matches!(
+            && (matches!(
                 n.introducer,
-                Some(b'=') | Some(b'(') | Some(b',') | Some(b':') | Some(b'>') | Some(b'[')
-            )
+                Some(b'=')
+                    | Some(b'(')
+                    | Some(b',')
+                    | Some(b':')
+                    | Some(b'>')
+                    | Some(b'[')
+                    | Some(b'{')
+            ) || is_return_prefixed(lowered, n.start))
     })?;
     Some((number.text.clone(), hint))
+}
+
+/// Whether the number at byte `start` is preceded by the whole word `return`
+/// (critic-8 E4): a `return 900_000;` value position. The introducer byte
+/// there is `n` — the trailing letter of `return` — so no punctuation
+/// introducer sees it. The prefix must be the whole word: `xreturn`,
+/// `returnable` and `returned` are identifiers, not value positions.
+fn is_return_prefixed(lowered: &str, start: usize) -> bool {
+    let before = lowered[..start].trim_end();
+    before
+        .strip_suffix("return")
+        .is_some_and(|rest| rest.bytes().next_back().is_none_or(|b| !is_word_byte(b)))
 }
 
 /// A tier/authority/review policy literal on a declaration line.
@@ -1383,7 +1448,7 @@ fn find_tier_policy(lowered: &str, raw: &str) -> Option<String> {
         return None;
     }
     let attributes = crate::text::attribute_spans(raw);
-    for (at, literal) in crate::text::string_literal_spans(raw) {
+    for (at, _end, literal) in crate::text::string_literal_spans(raw) {
         if attributes.iter().any(|span| span.contains(&at)) {
             continue;
         }
@@ -1878,6 +1943,37 @@ mod scanner_tests {
                 "{fixture} -> {violations:?}"
             );
         }
+    }
+
+    #[test]
+    fn commands_carrying_stopwords_are_still_flagged() {
+        // Critic-9 F1's exact mutations: a REAL command with one ordinary
+        // function word as an argument used to be exempt in its entirety —
+        // the stopword guard is a prose detector, and it yields to command
+        // evidence (a flag token or a shell metacharacter).
+        for fixture in [
+            "pub const BUILD_CMD: &str = \"cargo build --workspace 2>&1 of\";",
+            "pub const COMMIT_CMD: &str = \"git commit -m \\\"fix of parser\\\"\";",
+            "pub const SCRUB_CMD: &str = \"sh -c 'rm -rf /tmp and /scratch'\";",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-command")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // The prose exemption survives: a sentence beginning with a tool
+        // name that carries NO command evidence stays exempt.
+        let prose = "pub const NOTE: &str = \"just run the tests before shipping\";\n";
+        assert!(
+            scan_literals("f.rs", prose)
+                .iter()
+                .all(|v| !v.starts_with("hardcoded-command")),
+            "prose must stay exempt: {:?}",
+            scan_literals("f.rs", prose)
+        );
     }
 
     #[test]
@@ -2593,6 +2689,36 @@ pub fn resolve(defaults: &Defaults, env: &Env) -> Effective {
                 "{fixture} -> {violations:?}"
             );
         }
+    }
+
+    /// Critic-8 E4's exact payloads: a block value and a `return` are
+    /// ordinary code shapes, and both used to hide their duration from the
+    /// timeout class (the introducer was `{` or the trailing `n` of
+    /// `return`, neither of which the value-position set accepted).
+    #[test]
+    fn block_values_and_returns_introduce_a_timeout() {
+        for fixture in [
+            "pub const STALL_TIMEOUT_MS: u64 = { 900_000 };\n",
+            "fn stall_timeout_ms() -> u64 { 900_000 }\n",
+            "fn retry_delay_ms() -> u64 { return 900_000; }\n",
+        ] {
+            let violations = scan_literals("f.rs", fixture);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.starts_with("hardcoded-timeout") && v.contains("900_000")),
+                "{fixture} -> {violations:?}"
+            );
+        }
+        // The `return` prefix must be the whole word: `xreturn 900_000` is
+        // not a value position (and flags nothing else either).
+        let fixture = "fn stall_timeout_ms() -> u64 { xreturn 900_000 }\n";
+        assert!(
+            scan_literals("f.rs", fixture)
+                .iter()
+                .all(|v| !v.starts_with("hardcoded-timeout")),
+            "{fixture:?}"
+        );
     }
 
     /// Critic-6 C3's exact evasion: `#[` anywhere in the unit — including in a
