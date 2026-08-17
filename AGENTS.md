@@ -32,6 +32,13 @@ Do not add speculative rules for failures that have never occurred.
   writes a checkpoint/report file as it goes; critics write reports to files first;
   prefer `explore`-type agents for read-only work. Full guidance:
   `.agents/lessons/subagent-message-loss.md`.
+- Tasks 4–6 (2026-08-16/17): the orchestrating session itself was interrupted five
+  times across three sessions, leaving orphaned builder state (code landed, proof loop
+  not run). Rule: reconcile `git status` and the task's report files against
+  CURRENT_STATUS.md before treating any task as unstarted; on mismatch, run the
+  documented recovery procedure instead of re-dispatching; write an IN-FLIGHT line at
+  dispatch time. Full guidance:
+  `.agents/lessons/session-interruption-recovery.md`.
 
 ## Delegation and role boundaries
 

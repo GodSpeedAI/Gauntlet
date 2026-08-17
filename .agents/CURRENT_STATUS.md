@@ -1,9 +1,12 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-17 — **Tasks 2, 3, 4 CLOSED (records below). Task 5 CLOSED
-(config + doctor; three blind critics + correction round: 1 critical, 3 major, 9 minor
-found — all closed or adjudicated). Next: Task 6 (state/evidence/event-log), brief staged
-at `.agents/reports/task6/builder-brief-round1.md`.**
+**Last updated:** 2026-08-17 — **Tasks 2–5 CLOSED (records below). Task 6 CLOSED
+(this session, recovered from an interruption orphan): state/evidence/event-log
+adapters, canonical export, crash injection; two blind critics + correction
+round (the convergent major: `commit_settlement` had zero callers) +
+confirmation critic CONFIRM 13/13. Next: Task 7 (ReferenceProvider — digest
+must reproduce `scripts/reference-digest.sh` byte-for-byte) or Task 8 (mock
+runner) per the dependency graph.**
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
 
@@ -83,7 +86,57 @@ adapters pass caller-supplied patience). **Deferred to later tasks:** EventLog
 fsync/durability + crash-injection (Task 6, per plan); runner capability-vs-tier
 dispatch check (Task 14, the `Isolation` ladder is in place).
 
-### Task 5 closure record (this session)
+### Task 6 closure record (this session)
+
+- **Interruption recovery (fifth instance of the class):** the round-1 builder
+  completed code + checkpoints; the session died before its final report, the
+  teeth runs, and the critic loop. Recovered per the documented procedure:
+  reconstruct from files (never memory), verify gates personally (413/413),
+  run the missing loop steps. The pattern is now lessoned:
+  `.agents/lessons/session-interruption-recovery.md` (+ AGENTS.md failure-log
+  rule: reconcile `git status` vs this file before treating any task as
+  unstarted; IN-FLIGHT line at dispatch time — first use was this session).
+- **Artifact:** rusqlite(bundled) EventLog+StateStore (INSERT/SELECT only,
+  `synchronous=FULL`, in-repo append-only migrations, typed `Damaged`),
+  content-addressed write-once FsEvidenceStore (fsync+rename, pins, no
+  overwrite/delete API), app-layer canonical `state::export` service, real
+  process-abort crash helper. Recorded acts: `ADAPTER_EXTERNAL_ALLOWLIST`
+  += rusqlite+sha2 with pin-test update; **deviation:** rusqlite lives in the
+  adapter manifest only (the root-table form is denylist-denied); deny.toml
+  needed no edit.
+- **Teeth (orchestrator-run, all reverted):** export ORDER BY removal →
+  golden byte-diff; §16.3 reorder in the crash script → half-settle
+  assertion; rusqlite in gauntlet-app → boundaries fails twice (allowlist +
+  vendor-identifier). Honest limit: `synchronous=OFF` is not demonstrable via
+  process abort (page cache survives process death) — pragma configuration is
+  the mechanism, recorded, echoing critic-A's fsync-proof observation.
+- **Critic yield:** A (spec): 2 major (commit_settlement zero callers;
+  non-zero-spend resume impossible), 14 minor. B (adversarial): 18 BITE /
+  1 EVADE-major (same zero-caller finding, convergent) / 11 EVADE-minor.
+  Correction round (13 items, fail-first ledger in
+  `builder-checkpoints.md`): commit_settlement direct coverage + packaged-
+  primitive crash script; negative timestamps → typed damage (4 sites);
+  settlement-row offsets cross-validated against the log (this also makes a
+  naive §16.3 swap inside commit_settlement structurally refused — the row
+  would cite an offset with no event); half-settled error names the durable
+  offset; Damaged→Corrupt through the store surface; offset-gap detection;
+  record_run full-identity compare; get() re-hashes against the address;
+  symlinked object paths refused; kind-sidecar conflict refusal + unique
+  temps; `at` fields type-checked; **the composed export stack test** (real
+  adapter bytes through canonical re-export, at the CLI composition root —
+  capability-named re-exports `EmbeddedStateStore`/`EmbeddedEventLog` per the
+  denylist's own prescription); trivia. Confirmation critic C: **CONFIRM**,
+  13/13 CLOSED, 0 new critical/major, 2 new minors recorded.
+- **Final gates (orchestrator-run):** state-sqlite 31/31, evidence-fs 8/8,
+  gauntlet-app state:: 8/8, gauntlet-cli 2/2, check/lint/deny 0, boundaries
+  190/190, ruler PASS, workspace **433/433**.
+- **Reference candidate (recorded-act):** AK-054's locator
+  `tests/contract/state::deterministic_export` cannot be materialized under
+  the escapes rule → second entry in
+  `.agents/reports/reference-candidates.md`, citing the three real tests
+  (app filter test, adapter golden, CLI stack test).
+
+### Task 5 closure record (previous session)
 
 - Builder round 1 + K-correction + M1/M2 micro-correction. Reports:
   `.agents/reports/task5/{builder-round1.md, builder-checkpoints.md, critic-a-result.md,
@@ -164,6 +217,47 @@ opportunistically at the next domain-crate touch.
 
 ### Deferral ledger (recorded, never silent — from critics 8/9, post-6.1)
 
+**Task-6 deferrals (added this session; same upgrade rule — a deferred finding
+blocks the moment a task walks into its trigger):**
+
+- **Non-zero `budget_spent` cannot resume** (critic-A MAJOR-2): domain `Spent`
+  has no value-carrying constructor, so once `Budget::charge` runs and a
+  checkpoint is written, `resume` refuses `Corrupt` (loudly, data preserved
+  and exported). Trigger: **Task 12** (first production `charge` caller) —
+  needs a domain reconstruction slice (constructor + tests), not an adapter
+  patch.
+- **Intra-call §16.3 swap discrimination** (residual of the round's reopening
+  major): a naive statement swap inside `commit_settlement` is now
+  structurally refused (the row would cite an offset with no event — the A3.4
+  cross-validation bites), but a rewrite that also defeats the cross-check
+  needs mid-function abort injection. Trigger: **Task 13** P7
+  (`p7_recovery::commit_order`, AK-041's declared locator).
+- **Adapter allowlist granularity** (B-A5.2): entries pin names, not
+  version/features — any adapter may declare `rusqlite` with any features
+  (e.g. `load_extension`). Trigger: **next arch-suite touch** (re-litigate
+  alongside E4/F1/F3 per the standing rule).
+- **Checkpoint-only run projection indistinguishable** (A MINOR-3): callers
+  can only string-match `PROJECTION_INTENT`; frozen suite forces the
+  projection to exist. Trigger: **ports revision** (enum/type surface is
+  frozen this task).
+- **Replay reads the whole log from offset 0** (A MINOR-4): §18.3 names the
+  checkpoint offset as the start; the superset replay is idempotent so the
+  outcome is safe. Trigger: **Task 13** resume composition.
+- **Evidence-fs crash injection absent** (A MINOR-8): temp+fsync+rename
+  durability is mechanism-only, no kill test. Trigger: **Task 25** recovery
+  E2E (or next evidence-fs touch).
+- **Settled_at is caller-attested** (confirm-critic R1) and **non-timestamp
+  integer coercions survive as `unwrap_or(0)`** (R3, notably a tampered
+  `settlements.event_log_offset` reads 0, not Corrupt) — minors, close
+  opportunistically at the next state-sqlite touch.
+- **Fanout-directory symlink containment** (B-A1.4 remainder, accepted):
+  defense-in-depth only; §17.5 placement (evidence root outside every
+  builder-writable path) is the primary guard. **Deadlines noted, not
+  consulted** (A MINOR-5): documented port-wide convention. **OR IGNORE
+  widening hazard** (B-A3.3 note): any future constraint added to
+  `settlements` widens what OR IGNORE swallows — pinned nowhere; revisit if
+  the schema ever grows a constraint.
+
 **Majors (7):** E3 layer classification trusts `[package].name` while scanners trust
 directories (adversarial) · E5 UNC/verbatim Windows paths mis-resolve to "inside"
 (adversarial; escape-resolver half undeclared) · E6 `rust-toolchain*` checked only at repo
@@ -222,6 +316,11 @@ is now closed). Re-litigate E4/F1/F3 first time the arch suite is touched for an
    mtimes, no report entries). The finisher-brief pattern (prove only, change no
    behavior) closed it in one bounded slice. Checkpoint/report files are the contract;
    the agent's return message is not.
+9. **(2026-08-17) The Task-6 round-1 builder's session was interrupted after the work
+   but before report/teeth/critics** — the fifth instance of the class. Recovered by
+   the documented procedure; the recurring pattern is now lessoned
+   (`.agents/lessons/session-interruption-recovery.md`) with an AGENTS.md failure-log
+   rule and the IN-FLIGHT-line practice. Task 6 closed in the same session.
 
 **Before you touch anything:** run `just ruler`. It must print PASS. If it does not,
 that is a higher-priority problem than any task — stop, diagnose, and report it in
@@ -244,7 +343,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 3 — Domain types | **done** — closed at round 2 + confirmation, residuals recorded above | `cb2f4ac` |
 | 4 — Ports + shared contract suites | **done** — closed at `b27b152`, closure record above | `b27b152` |
 | 5 — Configuration, defaults, doctor | **done** — closed after 3-critic loop, closure record above | this session |
-| 6–27 | not started | — |
+| 6 — State store, evidence store, event log | **done** — closed after interruption recovery + 2 critics + correction + confirmation, closure record above | this session |
+| 7–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -356,7 +456,7 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (8):** **AK-001**, **AK-002**, **AK-016** — mechanisms
+- **implemented but provisional (9):** **AK-001**, **AK-002**, **AK-016** — mechanisms
   enforced by `just boundaries`, teeth demonstrated, blind-critic-hardened through seven
   rounds; provisional because no `VerificationRecord` exists yet and deferred majors
   remain on record. **AK-019** — `env_example_complete` instrument landed and green;
@@ -367,7 +467,13 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   canary-proven on every surface), **AK-049** (no irreversible policy, any spelling,
   both dirs, broken symlinks, unreadable dirs) — same provisional class: teeth-proven
   at the instrument level, no VerificationRecord yet; critic A's "partial-here"
-  reflects Task-7/14/15-16 dependencies, not open defects.
+  reflects Task-7/14/15-16 dependencies, not open defects. **Task 6 added AK-054**
+  (deterministic export, byte-identical at all three layers: adapter golden, app
+  canonical re-export under reordered input, composed stack at the CLI root) — same
+  provisional class; its declared locator has a recorded reference candidate. AK-041/
+  AK-042/AK-053 gained substrate-level support (commit-order primitive + exactly-once
+  keyed replay + full §18.2 checkpoint durability, real process-kill proven) but their
+  declared locators are Task-13 proofs — not claimed.
 - **proposed (62):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
 - **blocked: none. · unknown: none.**
@@ -392,17 +498,20 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Task 6 — State store, evidence store, event log** (plan Task 6; spec §16.3, §18.1-18.4;
-gate `cargo nextest run -p gauntlet-adapter-state-sqlite && cargo nextest run -p
-gauntlet-app state::export::deterministic`). The builder brief is staged at
-`.agents/reports/task6/builder-brief-round1.md` — read it, then the contract suites it
-points at. Key shape: rusqlite (bundled) EventLog+StateStore with fsync-per-append and
-in-repo migrations; content-addressed write-once EvidenceStore (`sha2`, no overwrite API);
-app-layer `state::export` determinism tests; a REAL process-abort crash-injection helper;
-contract-suite registration per Task 4's existing mechanism; recorded-act allowlist edits
-(`rusqlite`, `sha2`) + deny.toml licence additions. Teeth: export determinism, overwrite
-refusal, §16.3-order crash exactly-once, boundaries bite on rusqlite outside adapters.
-
-After Task 6: Task 7 (ReferenceProvider — must reproduce `scripts/reference-digest.sh`'s
-normalization byte-for-byte; rules recorded under Task 1 outcomes above) or Task 8 (mock
-runner) per the dependency graph.
+**Task 7 — ReferenceProvider: normalize, digest, freeze, verify** (plan Task 7;
+spec §5.3.1, §7; gate `cargo nextest run -p gauntlet-app reference:: && cargo
+nextest run --test p1_reference_integrity && diff <(scripts/reference-digest.sh
+.wayfinder/answer-key.md) <(cargo run -q -p gauntlet-cli -- reference digest
+--path .wayfinder/answer-key.md)`). The critical constraint (Task 1 outcome,
+do not re-derive): the Rust `normalize` must reproduce
+`scripts/reference-digest.sh`'s rules byte-for-byte — CRLF→LF and end-of-file
+newline collapse ONLY (per-line trailing whitespace NOT stripped; ruler
+sensitivity beats the plan's looser wording). The two implementations agreeing
+is the task gate. Freeze writes normalized bytes through the Task-6
+EvidenceStore (`EmbeddedStateStore`/evidence-fs are now available); answer-key
+parser with strict enum validation and per-block error isolation. Teeth:
+remove the `verify_unchanged` call at an iteration boundary → P1 fails;
+disagree the two digests → diff gate fails. Alternative per the dependency
+graph: Task 8 (mock AgentRunner + fixtures) unblocks the 9→12 chain and is
+parallel-safe with 7 in separate worktrees — but on this memory-tight host,
+run them serially.
