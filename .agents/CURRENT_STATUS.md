@@ -1,7 +1,7 @@
 # Current status — HANDOFF DOCUMENT
 
 **Last updated:** 2026-08-16 — **Task 2 CLOSED (round 6.1). Task 3 CLOSED (round 2 +
-confirmation). Next: Task 4 (ports + contract suites).**
+confirmation). Task 4 CLOSED (`b27b152`). Next: Task 5 (config + doctor).**
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
 
@@ -13,8 +13,11 @@ Tasks **0, 1 complete** (ruler frozen — never edit `.wayfinder/`). **Task 2 CL
 (`1578dde`): 183/183 arch tests, gates exit 0, residuals are recorded deferrals. **Task 3
 CLOSED** (`cb2f4ac`): the full §5.2/§5.3 domain model, zero dependencies, 76/76 tests,
 invalid states unrepresentable or typed-error-rejected; confirmation blind critic found
-**0 criticals**. Both closures followed the full loop: builder → orchestrator gate+teeth →
-blind critics → correction round → confirmation.
+**0 criticals**. **Task 4 CLOSED** (`b27b152`): all 17 ports as traits with typed error
+enums, `role_result@v1` envelope + Annex-B payloads with strict-only decoding, 17 shared
+contract suites with proven teeth, gates 322/322 workspace; three blind critics, 0
+criticals, correction round closed 5 residuals; adversarial critic found **no AK-014
+evasion route** through the Annex-B wire-key exemption.
 
 The history is the argument for the whole method — a green gate was wrong three times
 before the blind-critic loop caught it. Keep the loop: **a task is done when its gate is
@@ -30,6 +33,45 @@ the round-5 threat-model rule deciding what reopens vs. defers.
 | 5 | Correction closed C-A…C-D + threat-model deliverable; 159 tests. Two blind critics → 5 critical (all in the `text.rs` lexer). Work landed as commit `f85c925` — see deviation note below. |
 | 6 | One real lexing pass (`text::regions`), setting-scoped defaults exemption, I8-honest declared inputs, pinned inventories. Two blind critics (critic8-evasion, critic9-vacuity) → **2 critical (E1, E2), 9 major, 13 minor**. |
 | 6.1 | Closed E1 (comment tokens inside directives), E2 (`[env] RUSTFLAGS` cargo-config channel), F2/E7 (declaration-granular defaults exemption). **183 tests. 0 critical open.** CLOSED. |
+
+### Task 4 closure record (this session, commit `b27b152`)
+
+Recovery + layered closure: a previous session's builder left ~4.4k lines of Task-4 work
+uncommitted and uncompiling (3 breaks: `evidence_store.rs:178` delimiter, missing
+`contract/stubs.rs` + `suite_runs.rs`, `json.rs` keys signature, `role_result.rs` u64→u32).
+Procedure per deviation 4: verify partial state compiles → recon gap reports (two explore
+agents) → finisher brief → blind critics → correction round → final doc slice. Workspace
+322/322 tests, arch 190/190, ports 56/56; lint/check/deny/ruler all 0/PASS.
+
+**Adjudication worth preserving:** the arch suite's whole-literal adapter-segment rule
+(= AK-014's "adapter selection by literal" tripwire) false-fired on the Annex-B.2 wire key
+`"command"` in `role_result.rs` (spec-mandated JSON vocabulary, not adapter selection).
+Resolution: module+key+position-gated exemption (`ANNEX_B_CONTRACT_PARSER` +
+`ANNEX_B_WIRE_KEYS`, key-access positions only), fail-closed across escaped/byte/raw/
+padded spellings, corners pinned; **adversarial blind critic verified no evasion route** —
+the exemption is "the tightest defensible slice". Its recorded residuals: receiver
+invisibility incl. module-path callees (`helpers::get("k")`), array-purpose masking inside
+the one module, leading-space spellings all masked. Any future widening is a deliberate
+edit to walk.rs's audited inventory.
+
+**E4/F1/F3 re-litigation (ledger-mandated on arch-suite touch): ALL CLOSED**, each with
+failing-before evidence (see commit message): E4 timeout class accepts
+`return`/block-value positions; F1 stopword exemption yields to command SHAPE (flag token
+or shell metachar); F3 `=`-less `.env.example` lines are findings, not skips (the last
+fail-open parse). Recorded false-positive shapes: F1 — a prose string citing a flag
+(`"git push --force is dangerous"`) flags; E4 — a count returned from a
+duration-hint-named fn (`fn timeout_retry_limit() -> u64 { return 5; }`) flags. Both err
+toward flagging, by design, documented in literals.rs docs.
+
+**Accepted-with-doc (critic adjudications, 0 criticals):** `IdGenerator` has no error
+enum (infallible per §6.2; entropy failure is an adapter concern) · `invoke` has no
+deadline parameter (admission is non-blocking by contract; `collect`/`cancel` carry
+deadlines) · `RoleInvocationSpec.budget_slice: Budget` (whole budget carried; meter
+derives slices) · no vacuous getter cases added for last_offset/hooks/backend_identity ·
+8-draw id-collision sampling · probe budget default instant for in-repo teeth runs (real
+adapters pass caller-supplied patience). **Deferred to later tasks:** EventLog
+fsync/durability + crash-injection (Task 6, per plan); runner capability-vs-tier
+dispatch check (Task 14, the `Isolation` ladder is in place).
 
 ### Task 3 closure record (this session, commit `cb2f4ac`)
 
@@ -78,14 +120,15 @@ opportunistically at the next domain-crate touch.
 ### Deferral ledger (recorded, never silent — from critics 8/9, post-6.1)
 
 **Majors (7):** E3 layer classification trusts `[package].name` while scanners trust
-directories (adversarial) · E4 timeout class misses `return`/block value positions
-(**accidental** — close opportunistically at the next arch-suite touch) · E5 UNC/verbatim
-Windows paths mis-resolve to "inside" (adversarial; escape-resolver half undeclared) ·
-E6 `rust-toolchain*` checked only at repo root (adversarial) · F1 command class passes any
-literal containing one of 37 stopwords (**accidental**+adversarial) · F3 `.env.example`
-lines without `=` silently dropped by `parse_env_example` — the only fail-open parse
-(**accidental**+adversarial, violates the suite-wide I8 posture) · F4 evidence-locator pin
-checks substrings, not which `check_*` a locator calls (accidental+adversarial).
+directories (adversarial) · E5 UNC/verbatim Windows paths mis-resolve to "inside"
+(adversarial; escape-resolver half undeclared) · E6 `rust-toolchain*` checked only at repo
+root (adversarial) · F4 evidence-locator pin checks substrings, not which `check_*` a
+locator calls (accidental+adversarial).
+**Closed since round 6.1:** E4 (timeout class), F1 (command class), F3 (env
+fail-open parse) — all closed during Task 4's arch-suite touch (see Task-4 closure).
+**New record (Task 4):** F1/E4 false-positive shapes (prose string citing a flag;
+count from a duration-hint-named function) documented in `literals.rs` docs — known,
+erring toward flagging.
 
 **Minors (13):** E8–E12 (cargo-config discovery skips `target`/`.git` dirs and symlinked
 dirs; `terminates_statement` has no char-literal case; dotted `[workspace.dependencies.x]`
@@ -116,6 +159,16 @@ is now closed). Re-litigate E4/F1/F3 first time the arch suite is touched for an
    day). Delegation itself remained available to fresh agents. Recovery was a finisher
    brief; no orchestrator implementation was needed, so no ESC entry. If it recurs, follow
    the "Next action" note on finisher dispatch.
+5. **Task 4 started as an orphaned partial state** — a previous session's builder left
+   ~4.4k lines of uncompiling ports work uncommitted (3 breaks + 11 missing suites).
+   Recovered by the documented procedure (verify partial state → recon gap reports →
+   finisher). Lesson learned: check `git status` before assuming a task is unstarted.
+6. **Sub-agent final messages were lost FOUR times this session** (3 empty, 1 truncated —
+   two `general` builders and two `general` critics). Recovery pattern that worked:
+   checkpoint instructions ("append progress to a file after each item") + `explore`-type
+   agents for read-only work when `general` keeps losing its tail. The correction builder
+   still lost its progress notes; verification had to be re-done from the tree. See
+   `.agents/lessons/subagent-message-loss.md`.
 
 **Before you touch anything:** run `just ruler`. It must print PASS. If it does not,
 that is a higher-priority problem than any task — stop, diagnose, and report it in
@@ -136,7 +189,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | — toolchain install bookkeeping | done | `ac0f033`, `66eebc0` |
 | 2 — Workspace skeleton + justfile + gates + boundary test | **done** — closed at round 6.1, residuals recorded above | `b69c095`, `f85c925`, round-6 commit (this session) |
 | 3 — Domain types | **done** — closed at round 2 + confirmation, residuals recorded above | `cb2f4ac` |
-| 4–27 | not started | — |
+| 4 — Ports + shared contract suites | **done** — closed at `b27b152`, closure record above | `b27b152` |
+| 5–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -252,7 +306,8 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   enforced by `just boundaries`, teeth demonstrated, blind-critic-hardened through seven
   rounds; provisional because no `VerificationRecord` exists yet and deferred majors
   remain on record. **AK-019** — `env_example_complete` instrument landed and green;
-  same provisional status.
+  same provisional status. (Task 4 did not move these — the new wire-key exemption and
+  E4/F1/F3 closures are boundary-suite changes, not Unit settlements.)
 - **proposed (66):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
 - **blocked: none. · unknown: none.**
@@ -277,31 +332,27 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Task 4 — Ports and shared contract suites** (spec §6, plan Task 4; gate
-`cargo nextest run -p gauntlet-ports && just boundaries`).
+**Task 5 — Configuration, defaults, and `gauntlet doctor`** (spec §8.5–§8.6, plan Task 5;
+gate `cargo nextest run -p gauntlet-app config:: doctor:: && just doctor`).
 
-- Delegate to one builder holding the build lock; then blind critics in parallel
-  (read-only, non-compiling); orchestrator verifies gate + teeth; commit per rule 8.
-- Brief essentials: all seventeen ports from spec §6 as traits in
-  `crates/gauntlet-ports/src/` (one file per port, each with its own typed error enum):
-  AgentRunner, Observer, Comparator, Verifier, ReferenceProvider, PolicyProvider,
-  StateStore, EvidenceStore, EventLog, ToolProvider, Sandbox, WorkspaceProvider,
-  BudgetMeter, Clock, IdGenerator, HumanEscalation, OperatorSurface.
-- **`AgentRunner` exactly as §6.1**: `invoke → InvocationHandle`, `poll`, `collect`,
-  `cancel`, `capabilities` — admission-based (Task 0's spike settled this; do not re-spike).
-  No method returns a role result directly from `invoke`. The contract suite must cover:
-  admission-returns-before-completion; terminal state reported exactly once; missing
-  result document ⇒ `TimedOut`; malformed result ⇒ `Failed{malformed_result}`; mismatched
-  `invocation_id`/envelope digest ⇒ `Failed{contract_mismatch}`; idempotent cancel.
-- Contract suites in `crates/gauntlet-ports/src/contract/`, generic over an adapter
-  factory — shared, not per-adapter. `role_result@v1` envelope + payload schemas (Annex B)
-  as typed structs with strict deserialization (unknown fields rejected for
-  settlement-bearing payloads). `RunnerCapabilities` + the `isolation` ladder.
-- Use the domain types from Task 3 (`RunId`, `InvocationState`, `RoleId`, `Outcome`…);
-  **facet kind is `Versioning`, never `Git`** (operator rename; see design-decisions).
-- Watch the layering: ports depends on domain only; the arch-suite scans it. The
-  adapter-identifier denylist applies to `gauntlet-ports` (composition-root carve-out is
-  `gauntlet-cli` only).
-- Note for budgeting: sub-agent usage limits can kill a builder mid-task (happened on
-  Task 3). On failure: verify the partial state compiles, probe delegation with a trivial
-  agent, then dispatch a finisher with a precise what-exists/what's-missing brief.
+- Delegate to one builder (build lock); then blind critics in parallel (read-only,
+  non-compiling); orchestrator verifies gate + teeth; commit per rule 8. Check `git status`
+  first — Task 4's partial-state surprise is now a documented pattern (deviation 5).
+- Brief essentials: `defaults` module in `gauntlet-app` carrying the spec §8.6 settings
+  table — **the only place literals are permitted**; the arch suite's declaration-granular
+  setting-scoped exemption (`DEFAULTS_TABLE_SETTINGS` in `walk.rs`) must target exactly
+  this module; failing that alignment is an arch-suite change, not a defaults hack.
+  `GAUNTLET.md` front-matter parser; `$VAR` indirection with presence-validated, never-
+  printed secrets; unknown keys collected and reported, never silent. `EffectiveConfig`
+  with stable canonical serialization and `config_fingerprint`. `doctor`: all eight §8.5
+  checks — including the two easy to skip: the answer key must NOT be inside any
+  builder-writable workspace, and **no** sandbox policy may exist for `irreversible`
+  (AK-049). Emit `.agents/reports/doctor.json` + human summary; non-zero on required
+  failure. Teeth: placing `.gauntlet/policies/irreversible.json` fails `just doctor`;
+  a secret never appears in `doctor.json` or logs.
+- Watch: `gauntlet-app`'s external-dependency allowlist is currently EMPTY by design
+  (deps.rs) — any new crate (toml/serde/…) is a deliberate, reviewed allowlist edit;
+  prefer std/domain/ports-only parsing if it stays boring. `gauntlet-cli` gains
+  `doctor` as its first real command (composition root = only place adapters are built).
+- Budget note (recurs): checkpoint files for sub-agents; final messages get lost
+  (deviations 4 + 6).

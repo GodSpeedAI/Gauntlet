@@ -27,7 +27,11 @@ Do not add speculative rules for failures that have never occurred.
 
 ### Failure log
 
-- Empty until an observed repository-specific failure earns an entry.
+- Task 4 (2026-08-16): sub-agent final messages lost/truncated four times (two builders,
+  two critics); one builder session died without writing. Rule: every delegated slice
+  writes a checkpoint/report file as it goes; critics write reports to files first;
+  prefer `explore`-type agents for read-only work. Full guidance:
+  `.agents/lessons/subagent-message-loss.md`.
 
 ## Delegation and role boundaries
 
