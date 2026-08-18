@@ -142,5 +142,17 @@
 		"routeCalls": 0,
 		"reconcileCalls": 0,
 		"topicFailures": []
+	},
+	{
+		"startedAt": "2026-08-18T22:26:02.966Z",
+		"durationMs": 0,
+		"triggeredBy": "post-commit",
+		"outcome": "CREDENTIAL_MISSING",
+		"batches": 0,
+		"ingested": 0,
+		"touchedSlugs": 0,
+		"routeCalls": 0,
+		"reconcileCalls": 0,
+		"topicFailures": []
 	}
 ]
