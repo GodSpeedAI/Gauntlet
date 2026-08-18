@@ -1,0 +1,7 @@
+[build]
+jobs = 1
+incremental = false
+
+[profile.dev]
+debug = false
+codegen-units = 1

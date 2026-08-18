@@ -24,18 +24,18 @@
 			"title": "Current status — HANDOFF DOCUMENT",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/CURRENT_STATUS.md",
 			"addedAt": "2026-08-16T13:18:32.485Z",
-			"updatedAt": "2026-08-16T20:09:10.394Z",
-			"commitHash": "9e3482739103ba1cc14967d51772fdd736329a7e",
-			"contentHashAtCommit": "919f7435fe0d34396212c47ead05f0076432bea0ba1c4dbee3d92ea549eb8420"
+			"updatedAt": "2026-08-18T21:38:19.463Z",
+			"commitHash": "ff1ad0603581928ee8f5c0bb76432ad1bd8edf73",
+			"contentHashAtCommit": "e33eb3ab6c7483c19abde7c29ef06279528f2c205cd6244b49d3007cf123931a"
 		},
 		"escalations": {
 			"slug": "escalations",
 			"title": "Escalations",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/escalations.md",
 			"addedAt": "2026-08-15T18:36:04.932Z",
-			"updatedAt": "2026-08-16T13:40:04.775Z",
-			"commitHash": "f85c925fc867d7e9b116b2533d778b653d87b3c0",
-			"contentHashAtCommit": "0cea4aae7157188fddf9983f06b2c1e86a1d41fcfc64255eb52e32bd22e68949"
+			"updatedAt": "2026-08-18T21:38:19.466Z",
+			"commitHash": "ff1ad0603581928ee8f5c0bb76432ad1bd8edf73",
+			"contentHashAtCommit": "bd15efe254b5cb26fde24c7e10ad3e4c34fc818d41f01550a080d4795cbaa118"
 		}
 	}
 }

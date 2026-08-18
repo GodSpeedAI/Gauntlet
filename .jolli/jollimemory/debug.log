@@ -627,3 +627,535 @@
 [2026-08-16T20:09:10.473Z] INFO  [GitOps] [trace=572addd0a8112f0bb368189f1af366f4] Commit 9e348273: docs: task 3 closed, task 4 briefed; status current
 [2026-08-16T20:09:10.505Z] INFO  [StorageFactory] [trace=572addd0a8112f0bb368189f1af366f4] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
 [2026-08-16T20:09:10.547Z] INFO  [QueueWorker] [trace=572addd0a8112f0bb368189f1af366f4] === Queue worker finished ===
+[2026-08-16T21:21:52.799Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-16T21:21:52.834Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-16T21:21:53.153Z] INFO  [PostCommitHook] [trace=0f12ab58339b5abf79e8da580681fccd] Detected operation: commit
+[2026-08-16T21:21:53.161Z] INFO  [PostCommitHook] [trace=0f12ab58339b5abf79e8da580681fccd] Enqueued: type=commit hash=f1fcae72
+[2026-08-16T21:21:53.161Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Launching background worker
+[2026-08-16T21:21:53.163Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Background worker spawned (PID: 1139999)
+[2026-08-16T21:21:53.417Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-16T21:21:53.429Z] INFO  [StorageFactory] [trace=0f12ab58339b5abf79e8da580681fccd] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-16T21:21:53.493Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Processing queue entry: type=commit hash=f1fcae72
+[2026-08-16T21:21:53.502Z] INFO  [GitOps] [trace=0f12ab58339b5abf79e8da580681fccd] Commit f1fcae72: Update ingest cooldown timestamp and add new ingest runs wit
+[2026-08-16T21:21:53.502Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Commit: f1fcae72 - Update ingest cooldown timestamp and add new ingest runs with CREDENTIAL_MISSING outcome (4ms)
+[2026-08-16T21:21:53.648Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Git diff: 10 files changed, +301 -23 (26ms)
+[2026-08-16T21:21:53.668Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-16T21:21:53.669Z] INFO  [Summarizer] [trace=0f12ab58339b5abf79e8da580681fccd] Generating summary for commit f1fcae72
+[2026-08-16T21:21:53.669Z] INFO  [Summarizer] [trace=0f12ab58339b5abf79e8da580681fccd] Context: transcript=0, files=10, lines=301+23
+[2026-08-16T21:21:53.669Z] WARN  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-16T21:21:55.672Z] INFO  [Summarizer] [trace=0f12ab58339b5abf79e8da580681fccd] Generating summary for commit f1fcae72
+[2026-08-16T21:21:55.672Z] INFO  [Summarizer] [trace=0f12ab58339b5abf79e8da580681fccd] Context: transcript=0, files=10, lines=301+23
+[2026-08-16T21:21:55.673Z] ERROR [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-16T21:21:55.673Z] WARN  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Saving summary with empty topics + llm-failed marker for commit f1fcae72
+[2026-08-16T21:21:55.673Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] API summary generated (2.0s)
+[2026-08-16T21:21:55.675Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-16T21:21:55.676Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-16T21:21:55.676Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-16T21:21:55.676Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Note association: detected 0 note(s): []
+[2026-08-16T21:21:55.677Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Reference association: detected 0 ref(s) for branch main
+[2026-08-16T21:21:55.679Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Summary built for f1fcae72: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-16T21:21:55.789Z] INFO  [MetadataManager] [trace=0f12ab58339b5abf79e8da580681fccd] Manifest updated: main/update-ingest-cooldown-timestamp-and-add-new-inges-f1fcae72.md (commit)
+[2026-08-16T21:21:55.789Z] INFO  [FolderStorage] [trace=0f12ab58339b5abf79e8da580681fccd] Markdown generated: main/update-ingest-cooldown-timestamp-and-add-new-inges-f1fcae72.md
+[2026-08-16T21:21:55.790Z] INFO  [FolderStorage] [trace=0f12ab58339b5abf79e8da580681fccd] Wrote 3 files, deleted 0 (Add summary for f1fcae72: Update ingest cooldown timestamp and add new inges)
+[2026-08-16T21:21:55.790Z] INFO  [SummaryStore] [trace=0f12ab58339b5abf79e8da580681fccd] Summary stored successfully for commit f1fcae72
+[2026-08-16T21:21:55.799Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Summary stored successfully for commit f1fcae72 (120ms, 0 plans, 0 notes, 0 references)
+[2026-08-16T21:21:55.799Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] === Pipeline completed in 2.3s ===
+[2026-08-16T21:21:55.799Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] === Summary content (0 topics) ===
+[2026-08-16T21:21:55.804Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Processed 1 queue entries
+[2026-08-16T21:21:55.807Z] INFO  [SessionTracker] [trace=0f12ab58339b5abf79e8da580681fccd] Enqueued queue operation: type=ingest tag=ingest file=1786915315805-00000001-bf527d64-ingest.json
+[2026-08-16T21:21:55.810Z] INFO  [PushExecutor] [trace=0f12ab58339b5abf79e8da580681fccd] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-16T21:21:55.835Z] INFO  [GitOps] [trace=0f12ab58339b5abf79e8da580681fccd] Commit f1fcae72: Update ingest cooldown timestamp and add new ingest runs wit
+[2026-08-16T21:21:55.875Z] INFO  [StorageFactory] [trace=0f12ab58339b5abf79e8da580681fccd] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-16T21:21:55.913Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] === Queue worker finished ===
+[2026-08-16T21:21:55.915Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-16T21:21:55.920Z] INFO  [QueueWorker] [trace=0f12ab58339b5abf79e8da580681fccd] No API key configured — skipping ingest (post-commit)
+[2026-08-16T22:50:27.648Z] INFO  [UpdateCheck] [trace=f4813c7398dc7cbde5ef0b36071b2ded] Spawned detached update-check refresh (PID: 1147986)
+[2026-08-16T22:50:27.750Z] INFO  [StorageFactory] [trace=f4813c7398dc7cbde5ef0b36071b2ded] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-16T22:50:27.842Z] INFO  [McpServer] [trace=f4813c7398dc7cbde5ef0b36071b2ded] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-17T01:51:02.134Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-17T01:51:02.267Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-17T01:51:03.572Z] INFO  [PostCommitHook] [trace=5b14989b06b47670d17ab729747cab2a] Detected operation: commit
+[2026-08-17T01:51:03.589Z] INFO  [PostCommitHook] [trace=5b14989b06b47670d17ab729747cab2a] Enqueued: type=commit hash=b27b152d
+[2026-08-17T01:51:03.589Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Launching background worker
+[2026-08-17T01:51:03.593Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Background worker spawned (PID: 1300929)
+[2026-08-17T01:51:04.091Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-17T01:51:04.112Z] INFO  [StorageFactory] [trace=5b14989b06b47670d17ab729747cab2a] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T01:51:04.224Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Processing queue entry: type=commit hash=b27b152d
+[2026-08-17T01:51:04.245Z] INFO  [GitOps] [trace=5b14989b06b47670d17ab729747cab2a] Commit b27b152d: task 4: ports and shared contract suites — 17 ports, 17 suit
+[2026-08-17T01:51:04.245Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Commit: b27b152d - task 4: ports and shared contract suites — 17 ports, 17 suites, teeth proven (8ms)
+[2026-08-17T01:51:04.702Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Discovered 14 OpenCode session(s)
+[2026-08-17T01:51:04.928Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff33: 22 new messages, 2 entries extracted (index 0→22)
+[2026-08-17T01:51:04.929Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff33802fdffeWTxYCmw59fNmZO, lines=0→22, entries=2
+[2026-08-17T01:51:05.016Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff33: 43 new messages, 2 entries extracted (index 0→43)
+[2026-08-17T01:51:05.017Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff336e6c5ffeMX2NpXOpMV2q4w, lines=0→43, entries=2
+[2026-08-17T01:51:05.038Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff33: 13 new messages, 2 entries extracted (index 0→13)
+[2026-08-17T01:51:05.040Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff336d256ffeXQ5BduFGJBV9X1, lines=0→13, entries=2
+[2026-08-17T01:51:05.535Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff32: 287 new messages, 10 entries extracted (index 0→287)
+[2026-08-17T01:51:05.535Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff32ff40affeeEthksQC23t9Er, lines=0→287, entries=10
+[2026-08-17T01:51:05.700Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff30: 90 new messages, 4 entries extracted (index 0→90)
+[2026-08-17T01:51:05.700Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff3023e3affeG0X2Ge1VmL9k7u, lines=0→90, entries=4
+[2026-08-17T01:51:05.801Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2e: 49 new messages, 4 entries extracted (index 0→49)
+[2026-08-17T01:51:05.802Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2e8782fffeH4nP336xR9IJlr, lines=0→49, entries=4
+[2026-08-17T01:51:05.917Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2e: 34 new messages, 4 entries extracted (index 0→34)
+[2026-08-17T01:51:05.917Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2e83bfdffeWPSM3WZYz1Vm4n, lines=0→34, entries=4
+[2026-08-17T01:51:06.064Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2e: 39 new messages, 4 entries extracted (index 0→39)
+[2026-08-17T01:51:06.064Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2e80430ffeBI6m58g4Nt1spb, lines=0→39, entries=4
+[2026-08-17T01:51:06.233Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2d: 14 new messages, 2 entries extracted (index 0→14)
+[2026-08-17T01:51:06.233Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2d42fffffe6bAa78ecMNPZ3c, lines=0→14, entries=2
+[2026-08-17T01:51:06.270Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2d: 7 new messages, 2 entries extracted (index 0→7)
+[2026-08-17T01:51:06.270Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2d3c909ffek9wvMn9kvcPLTD, lines=0→7, entries=2
+[2026-08-17T01:51:06.449Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2c: 85 new messages, 4 entries extracted (index 0→85)
+[2026-08-17T01:51:06.449Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2cb1b86ffe2u1w7PqWoHEdtT, lines=0→85, entries=4
+[2026-08-17T01:51:06.485Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2c: 8 new messages, 2 entries extracted (index 0→8)
+[2026-08-17T01:51:06.485Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2cae597ffe30gSzaJdnWhSbi, lines=0→8, entries=2
+[2026-08-17T01:51:06.610Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff2b: 31 new messages, 4 entries extracted (index 0→31)
+[2026-08-17T01:51:06.610Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff2b2df7effeCdLQX2gRn6z44m, lines=0→31, entries=4
+[2026-08-17T01:51:06.675Z] INFO  [OpenCodeTranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Read OpenCode session ses_ff29: 33 new messages, 2 entries extracted (index 0→33)
+[2026-08-17T01:51:06.675Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Transcript source: session=ses_ff29cdc5fffeCMNz7Qpyrloxle, lines=0→33, entries=2
+[2026-08-17T01:51:06.764Z] WARN  [GitOps] [trace=5b14989b06b47670d17ab729747cab2a] Diff exceeds 150000-char budget (459558 chars) — prepending --stat file list and truncating body
+[2026-08-17T01:51:06.783Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Git diff: 48 files changed, +12028 -27 (105ms)
+[2026-08-17T01:51:06.866Z] INFO  [TranscriptReader] [trace=5b14989b06b47670d17ab729747cab2a] Conversation budget reached: kept 36/48 transcript entries (~149094/150000 chars); older turns dropped
+[2026-08-17T01:51:06.970Z] WARN  [GitOps] [trace=5b14989b06b47670d17ab729747cab2a] Diff exceeds 60000-char budget (459558 chars) — prepending --stat file list and truncating body
+[2026-08-17T01:51:06.980Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-17T01:51:06.981Z] INFO  [Summarizer] [trace=5b14989b06b47670d17ab729747cab2a] Generating summary for commit b27b152d
+[2026-08-17T01:51:06.981Z] INFO  [Summarizer] [trace=5b14989b06b47670d17ab729747cab2a] Context: transcript=48, files=48, lines=12028+27
+[2026-08-17T01:51:06.981Z] WARN  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-17T01:51:08.982Z] INFO  [Summarizer] [trace=5b14989b06b47670d17ab729747cab2a] Generating summary for commit b27b152d
+[2026-08-17T01:51:08.983Z] INFO  [Summarizer] [trace=5b14989b06b47670d17ab729747cab2a] Context: transcript=48, files=48, lines=12028+27
+[2026-08-17T01:51:08.983Z] ERROR [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T01:51:08.983Z] WARN  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Saving summary with empty topics + llm-failed marker for commit b27b152d
+[2026-08-17T01:51:08.983Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] API summary generated (2.0s)
+[2026-08-17T01:51:08.991Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-17T01:51:08.991Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-17T01:51:08.994Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-17T01:51:08.994Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Note association: detected 0 note(s): []
+[2026-08-17T01:51:08.995Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Reference association: detected 0 ref(s) for branch main
+[2026-08-17T01:51:09.003Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Summary built for b27b152d: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-17T01:51:09.171Z] INFO  [MetadataManager] [trace=5b14989b06b47670d17ab729747cab2a] Manifest updated: main/task-4-ports-and-shared-contract-suites-17-ports-1-b27b152d.md (commit)
+[2026-08-17T01:51:09.171Z] INFO  [FolderStorage] [trace=5b14989b06b47670d17ab729747cab2a] Markdown generated: main/task-4-ports-and-shared-contract-suites-17-ports-1-b27b152d.md
+[2026-08-17T01:51:09.174Z] INFO  [FolderStorage] [trace=5b14989b06b47670d17ab729747cab2a] Wrote 4 files, deleted 0 (Add summary for b27b152d: task 4: ports and shared contract suites — 17 port)
+[2026-08-17T01:51:09.175Z] INFO  [SummaryStore] [trace=5b14989b06b47670d17ab729747cab2a] Summary stored successfully for commit b27b152d
+[2026-08-17T01:51:09.243Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Summary stored successfully for commit b27b152d (240ms, 0 plans, 0 notes, 0 references)
+[2026-08-17T01:51:09.244Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] === Pipeline completed in 5.0s ===
+[2026-08-17T01:51:09.244Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] === Summary content (0 topics) ===
+[2026-08-17T01:51:09.249Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Processed 1 queue entries
+[2026-08-17T01:51:09.253Z] INFO  [SessionTracker] [trace=5b14989b06b47670d17ab729747cab2a] Enqueued queue operation: type=ingest tag=ingest file=1786931469251-00000001-0105369d-ingest.json
+[2026-08-17T01:51:09.254Z] INFO  [PushExecutor] [trace=5b14989b06b47670d17ab729747cab2a] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-17T01:51:09.293Z] INFO  [GitOps] [trace=5b14989b06b47670d17ab729747cab2a] Commit b27b152d: task 4: ports and shared contract suites — 17 ports, 17 suit
+[2026-08-17T01:51:09.364Z] INFO  [StorageFactory] [trace=5b14989b06b47670d17ab729747cab2a] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T01:51:09.466Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] === Queue worker finished ===
+[2026-08-17T01:51:09.481Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-17T01:51:09.500Z] INFO  [QueueWorker] [trace=5b14989b06b47670d17ab729747cab2a] No API key configured — skipping ingest (post-commit)
+[2026-08-17T01:54:16.953Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-17T01:54:16.983Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-17T01:54:17.299Z] INFO  [PostCommitHook] [trace=aecab1d70cdeebc986413eb341b4c468] Detected operation: commit
+[2026-08-17T01:54:17.307Z] INFO  [PostCommitHook] [trace=aecab1d70cdeebc986413eb341b4c468] Enqueued: type=commit hash=53173471
+[2026-08-17T01:54:17.307Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Launching background worker
+[2026-08-17T01:54:17.309Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Background worker spawned (PID: 1303422)
+[2026-08-17T01:54:17.511Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-17T01:54:17.520Z] INFO  [StorageFactory] [trace=aecab1d70cdeebc986413eb341b4c468] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T01:54:17.576Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Processing queue entry: type=commit hash=53173471
+[2026-08-17T01:54:17.586Z] INFO  [GitOps] [trace=aecab1d70cdeebc986413eb341b4c468] Commit 53173471: docs: task 4 closed at b27b152; status current; subagent-mes
+[2026-08-17T01:54:17.586Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Commit: 53173471 - docs: task 4 closed at b27b152; status current; subagent-message-loss lesson (4ms)
+[2026-08-17T01:54:17.607Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Discovered 14 OpenCode session(s)
+[2026-08-17T01:54:17.690Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff33: 16 new messages, 1 entries extracted (index 22→38)
+[2026-08-17T01:54:17.690Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Transcript source: session=ses_ff33802fdffeWTxYCmw59fNmZO, lines=22→38, entries=1
+[2026-08-17T01:54:17.705Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 43→43)
+[2026-08-17T01:54:17.709Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 13→13)
+[2026-08-17T01:54:17.805Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff32: 0 new messages, 0 entries extracted (index 287→287)
+[2026-08-17T01:54:17.853Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff30: 0 new messages, 0 entries extracted (index 90→90)
+[2026-08-17T01:54:17.873Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 49→49)
+[2026-08-17T01:54:17.906Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 34→34)
+[2026-08-17T01:54:17.930Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 39→39)
+[2026-08-17T01:54:17.971Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 14→14)
+[2026-08-17T01:54:17.979Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 7→7)
+[2026-08-17T01:54:18.027Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-17T01:54:18.047Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 8→8)
+[2026-08-17T01:54:18.111Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff2b: 0 new messages, 0 entries extracted (index 31→31)
+[2026-08-17T01:54:18.126Z] INFO  [OpenCodeTranscriptReader] [trace=aecab1d70cdeebc986413eb341b4c468] Read OpenCode session ses_ff29: 0 new messages, 0 entries extracted (index 33→33)
+[2026-08-17T01:54:18.141Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Git diff: 3 files changed, +121 -42 (14ms)
+[2026-08-17T01:54:18.160Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-17T01:54:18.161Z] INFO  [Summarizer] [trace=aecab1d70cdeebc986413eb341b4c468] Generating summary for commit 53173471
+[2026-08-17T01:54:18.161Z] INFO  [Summarizer] [trace=aecab1d70cdeebc986413eb341b4c468] Context: transcript=1, files=3, lines=121+42
+[2026-08-17T01:54:18.161Z] WARN  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-17T01:54:20.162Z] INFO  [Summarizer] [trace=aecab1d70cdeebc986413eb341b4c468] Generating summary for commit 53173471
+[2026-08-17T01:54:20.162Z] INFO  [Summarizer] [trace=aecab1d70cdeebc986413eb341b4c468] Context: transcript=1, files=3, lines=121+42
+[2026-08-17T01:54:20.163Z] ERROR [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T01:54:20.163Z] WARN  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Saving summary with empty topics + llm-failed marker for commit 53173471
+[2026-08-17T01:54:20.163Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] API summary generated (2.0s)
+[2026-08-17T01:54:20.164Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Plan registry scan: found 1 uncommitted slug(s) on main: [CURRENT_STATUS]
+[2026-08-17T01:54:20.164Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Plan association: detected 1 slug(s) from transcripts: [CURRENT_STATUS]
+[2026-08-17T01:54:20.165Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Plan association: registry has 4 entries: [delegation-spike(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), environment(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), CURRENT_STATUS(commitHash=9e3482739103ba1cc14967d51772fdd736329a7e), escalations(commitHash=f85c925fc867d7e9b116b2533d778b653d87b3c0)]
+[2026-08-17T01:54:20.169Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Plan archived: CURRENT_STATUS → CURRENT_STATUS-53173471 (hash=3d15bc534984)
+[2026-08-17T01:54:20.196Z] INFO  [MetadataManager] [trace=aecab1d70cdeebc986413eb341b4c468] Manifest updated: main/plan--CURRENT_STATUS-53173471.md (plan)
+[2026-08-17T01:54:20.196Z] INFO  [FolderStorage] [trace=aecab1d70cdeebc986413eb341b4c468] Plan markdown generated: main/plan--CURRENT_STATUS-53173471.md
+[2026-08-17T01:54:20.196Z] INFO  [FolderStorage] [trace=aecab1d70cdeebc986413eb341b4c468] Wrote 1 files, deleted 0 (Archive 1 plan(s) for commit 53173471)
+[2026-08-17T01:54:20.196Z] INFO  [SummaryStore] [trace=aecab1d70cdeebc986413eb341b4c468] Stored 1 plan file(s)
+[2026-08-17T01:54:20.197Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Associated 1 plan(s) with commit 53173471
+[2026-08-17T01:54:20.198Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-17T01:54:20.198Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Note association: detected 0 note(s): []
+[2026-08-17T01:54:20.199Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Reference association: detected 0 ref(s) for branch main
+[2026-08-17T01:54:20.204Z] WARN  [PlanProgressEvaluator] [trace=aecab1d70cdeebc986413eb341b4c468] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T01:54:20.204Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Plan progress: evaluated 0/1 plan(s)
+[2026-08-17T01:54:20.204Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Summary built for 53173471: recap=no, topics=0, plans=1 ref(s): [CURRENT_STATUS-53173471], notes=absent, references=absent
+[2026-08-17T01:54:20.276Z] INFO  [MetadataManager] [trace=aecab1d70cdeebc986413eb341b4c468] Manifest updated: main/docs-task-4-closed-at-b27b152-status-current-subag-53173471.md (commit)
+[2026-08-17T01:54:20.276Z] INFO  [FolderStorage] [trace=aecab1d70cdeebc986413eb341b4c468] Markdown generated: main/docs-task-4-closed-at-b27b152-status-current-subag-53173471.md
+[2026-08-17T01:54:20.278Z] INFO  [FolderStorage] [trace=aecab1d70cdeebc986413eb341b4c468] Wrote 4 files, deleted 0 (Add summary for 53173471: docs: task 4 closed at b27b152; status current; su)
+[2026-08-17T01:54:20.278Z] INFO  [SummaryStore] [trace=aecab1d70cdeebc986413eb341b4c468] Summary stored successfully for commit 53173471
+[2026-08-17T01:54:20.337Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Summary stored successfully for commit 53173471 (133ms, 1 plans, 0 notes, 0 references)
+[2026-08-17T01:54:20.337Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] === Pipeline completed in 2.8s ===
+[2026-08-17T01:54:20.337Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] === Summary content (0 topics) ===
+[2026-08-17T01:54:20.341Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] Processed 1 queue entries
+[2026-08-17T01:54:20.343Z] INFO  [PushExecutor] [trace=aecab1d70cdeebc986413eb341b4c468] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-17T01:54:20.366Z] INFO  [GitOps] [trace=aecab1d70cdeebc986413eb341b4c468] Commit 53173471: docs: task 4 closed at b27b152; status current; subagent-mes
+[2026-08-17T01:54:20.428Z] INFO  [StorageFactory] [trace=aecab1d70cdeebc986413eb341b4c468] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T01:54:20.480Z] INFO  [QueueWorker] [trace=aecab1d70cdeebc986413eb341b4c468] === Queue worker finished ===
+[2026-08-17T12:29:18.957Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-17T12:29:18.977Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-17T12:29:19.218Z] INFO  [PostCommitHook] [trace=6323f437473b575250604058f7f5d10c] Detected operation: commit
+[2026-08-17T12:29:19.224Z] INFO  [PostCommitHook] [trace=6323f437473b575250604058f7f5d10c] Enqueued: type=commit hash=610a615e
+[2026-08-17T12:29:19.224Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Launching background worker
+[2026-08-17T12:29:19.226Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Background worker spawned (PID: 33072)
+[2026-08-17T12:29:19.389Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-17T12:29:19.395Z] INFO  [StorageFactory] [trace=6323f437473b575250604058f7f5d10c] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T12:29:19.443Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Processing queue entry: type=commit hash=610a615e
+[2026-08-17T12:29:19.450Z] INFO  [GitOps] [trace=6323f437473b575250604058f7f5d10c] Commit 610a615e: task 5: configuration, defaults, and gauntlet doctor
+[2026-08-17T12:29:19.450Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Commit: 610a615e - task 5: configuration, defaults, and gauntlet doctor (4ms)
+[2026-08-17T12:29:19.452Z] INFO  [SessionTracker] [trace=6323f437473b575250604058f7f5d10c] Pruning stale session 9f0456d9-1239-42f8-bd4c-8c0718ed7e36 (age: 58h)
+[2026-08-17T12:29:19.610Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Discovered 14 OpenCode session(s)
+[2026-08-17T12:29:19.686Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff33: 2 new messages, 1 entries extracted (index 38→40)
+[2026-08-17T12:29:19.686Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Transcript source: session=ses_ff33802fdffeWTxYCmw59fNmZO, lines=38→40, entries=1
+[2026-08-17T12:29:19.693Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 43→43)
+[2026-08-17T12:29:19.697Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 13→13)
+[2026-08-17T12:29:19.784Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff32: 0 new messages, 0 entries extracted (index 287→287)
+[2026-08-17T12:29:19.814Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff30: 0 new messages, 0 entries extracted (index 90→90)
+[2026-08-17T12:29:19.830Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 49→49)
+[2026-08-17T12:29:19.837Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 34→34)
+[2026-08-17T12:29:19.845Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 39→39)
+[2026-08-17T12:29:19.852Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 14→14)
+[2026-08-17T12:29:19.863Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 7→7)
+[2026-08-17T12:29:19.873Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-17T12:29:19.877Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 8→8)
+[2026-08-17T12:29:19.897Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff2b: 0 new messages, 0 entries extracted (index 31→31)
+[2026-08-17T12:29:19.906Z] INFO  [OpenCodeTranscriptReader] [trace=6323f437473b575250604058f7f5d10c] Read OpenCode session ses_ff29: 0 new messages, 0 entries extracted (index 33→33)
+[2026-08-17T12:29:19.926Z] WARN  [GitOps] [trace=6323f437473b575250604058f7f5d10c] Diff exceeds 150000-char budget (423929 chars) — prepending --stat file list and truncating body
+[2026-08-17T12:29:19.936Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Git diff: 32 files changed, +9283 -16 (29ms)
+[2026-08-17T12:29:19.956Z] WARN  [GitOps] [trace=6323f437473b575250604058f7f5d10c] Diff exceeds 60000-char budget (423929 chars) — prepending --stat file list and truncating body
+[2026-08-17T12:29:19.962Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-17T12:29:19.962Z] INFO  [Summarizer] [trace=6323f437473b575250604058f7f5d10c] Generating summary for commit 610a615e
+[2026-08-17T12:29:19.962Z] INFO  [Summarizer] [trace=6323f437473b575250604058f7f5d10c] Context: transcript=1, files=32, lines=9283+16
+[2026-08-17T12:29:19.963Z] WARN  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-17T12:29:21.964Z] INFO  [Summarizer] [trace=6323f437473b575250604058f7f5d10c] Generating summary for commit 610a615e
+[2026-08-17T12:29:21.964Z] INFO  [Summarizer] [trace=6323f437473b575250604058f7f5d10c] Context: transcript=1, files=32, lines=9283+16
+[2026-08-17T12:29:21.965Z] ERROR [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T12:29:21.965Z] WARN  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Saving summary with empty topics + llm-failed marker for commit 610a615e
+[2026-08-17T12:29:21.965Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] API summary generated (2.0s)
+[2026-08-17T12:29:21.969Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Plan registry scan: found 1 uncommitted slug(s) on main: [CURRENT_STATUS]
+[2026-08-17T12:29:21.969Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Plan association: detected 1 slug(s) from transcripts: [CURRENT_STATUS]
+[2026-08-17T12:29:21.970Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Plan association: registry has 4 entries: [delegation-spike(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), environment(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), CURRENT_STATUS(commitHash=53173471dfae548a5a33000e02d18fa5f82b1cb8), escalations(commitHash=f85c925fc867d7e9b116b2533d778b653d87b3c0)]
+[2026-08-17T12:29:21.973Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Plan archived: CURRENT_STATUS → CURRENT_STATUS-610a615e (hash=5a39840b768b)
+[2026-08-17T12:29:21.991Z] INFO  [MetadataManager] [trace=6323f437473b575250604058f7f5d10c] Manifest updated: main/plan--CURRENT_STATUS-610a615e.md (plan)
+[2026-08-17T12:29:21.991Z] INFO  [FolderStorage] [trace=6323f437473b575250604058f7f5d10c] Plan markdown generated: main/plan--CURRENT_STATUS-610a615e.md
+[2026-08-17T12:29:21.991Z] INFO  [FolderStorage] [trace=6323f437473b575250604058f7f5d10c] Wrote 1 files, deleted 0 (Archive 1 plan(s) for commit 610a615e)
+[2026-08-17T12:29:21.991Z] INFO  [SummaryStore] [trace=6323f437473b575250604058f7f5d10c] Stored 1 plan file(s)
+[2026-08-17T12:29:21.992Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Associated 1 plan(s) with commit 610a615e
+[2026-08-17T12:29:21.992Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-17T12:29:21.992Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Note association: detected 0 note(s): []
+[2026-08-17T12:29:21.993Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Reference association: detected 0 ref(s) for branch main
+[2026-08-17T12:29:21.995Z] WARN  [PlanProgressEvaluator] [trace=6323f437473b575250604058f7f5d10c] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T12:29:21.995Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Plan progress: evaluated 0/1 plan(s)
+[2026-08-17T12:29:21.995Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Summary built for 610a615e: recap=no, topics=0, plans=1 ref(s): [CURRENT_STATUS-610a615e], notes=absent, references=absent
+[2026-08-17T12:29:22.097Z] INFO  [MetadataManager] [trace=6323f437473b575250604058f7f5d10c] Manifest updated: main/task-5-configuration-defaults-and-gauntlet-doctor-610a615e.md (commit)
+[2026-08-17T12:29:22.098Z] INFO  [FolderStorage] [trace=6323f437473b575250604058f7f5d10c] Markdown generated: main/task-5-configuration-defaults-and-gauntlet-doctor-610a615e.md
+[2026-08-17T12:29:22.098Z] INFO  [FolderStorage] [trace=6323f437473b575250604058f7f5d10c] Wrote 4 files, deleted 0 (Add summary for 610a615e: task 5: configuration, defaults, and gauntlet doct)
+[2026-08-17T12:29:22.098Z] INFO  [SummaryStore] [trace=6323f437473b575250604058f7f5d10c] Summary stored successfully for commit 610a615e
+[2026-08-17T12:29:22.143Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Summary stored successfully for commit 610a615e (148ms, 1 plans, 0 notes, 0 references)
+[2026-08-17T12:29:22.143Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] === Pipeline completed in 2.7s ===
+[2026-08-17T12:29:22.143Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] === Summary content (0 topics) ===
+[2026-08-17T12:29:22.146Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Processed 1 queue entries
+[2026-08-17T12:29:22.148Z] INFO  [SessionTracker] [trace=6323f437473b575250604058f7f5d10c] Enqueued queue operation: type=ingest tag=ingest file=1786969762147-00000001-a4365ec3-ingest.json
+[2026-08-17T12:29:22.149Z] INFO  [PushExecutor] [trace=6323f437473b575250604058f7f5d10c] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-17T12:29:22.172Z] INFO  [GitOps] [trace=6323f437473b575250604058f7f5d10c] Commit 610a615e: task 5: configuration, defaults, and gauntlet doctor
+[2026-08-17T12:29:22.210Z] INFO  [StorageFactory] [trace=6323f437473b575250604058f7f5d10c] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T12:29:22.246Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] === Queue worker finished ===
+[2026-08-17T12:29:22.249Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-17T12:29:22.254Z] INFO  [QueueWorker] [trace=6323f437473b575250604058f7f5d10c] No API key configured — skipping ingest (post-commit)
+[2026-08-17T12:29:27.954Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-17T12:29:27.964Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-17T12:29:28.106Z] INFO  [PostCommitHook] [trace=1e377206cd2120ed0fbf58ef977e80f3] Detected operation: commit
+[2026-08-17T12:29:28.110Z] INFO  [PostCommitHook] [trace=1e377206cd2120ed0fbf58ef977e80f3] Enqueued: type=commit hash=941a618a
+[2026-08-17T12:29:28.111Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Launching background worker
+[2026-08-17T12:29:28.112Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Background worker spawned (PID: 33219)
+[2026-08-17T12:29:28.255Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-17T12:29:28.261Z] INFO  [StorageFactory] [trace=1e377206cd2120ed0fbf58ef977e80f3] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T12:29:28.309Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Processing queue entry: type=commit hash=941a618a
+[2026-08-17T12:29:28.314Z] INFO  [GitOps] [trace=1e377206cd2120ed0fbf58ef977e80f3] Commit 941a618a: docs: task 5 closed at 610a615; status current; task 6 brief
+[2026-08-17T12:29:28.314Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Commit: 941a618a - docs: task 5 closed at 610a615; status current; task 6 brief staged (3ms)
+[2026-08-17T12:29:28.316Z] INFO  [SessionTracker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Pruning stale session 9f0456d9-1239-42f8-bd4c-8c0718ed7e36 (age: 58h)
+[2026-08-17T12:29:28.320Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Discovered 14 OpenCode session(s)
+[2026-08-17T12:29:28.365Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 40→40)
+[2026-08-17T12:29:28.369Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 43→43)
+[2026-08-17T12:29:28.372Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 13→13)
+[2026-08-17T12:29:28.394Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff32: 0 new messages, 0 entries extracted (index 287→287)
+[2026-08-17T12:29:28.407Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff30: 0 new messages, 0 entries extracted (index 90→90)
+[2026-08-17T12:29:28.412Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 49→49)
+[2026-08-17T12:29:28.416Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 34→34)
+[2026-08-17T12:29:28.422Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 39→39)
+[2026-08-17T12:29:28.427Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 14→14)
+[2026-08-17T12:29:28.431Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 7→7)
+[2026-08-17T12:29:28.439Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-17T12:29:28.444Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 8→8)
+[2026-08-17T12:29:28.450Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff2b: 0 new messages, 0 entries extracted (index 31→31)
+[2026-08-17T12:29:28.454Z] INFO  [OpenCodeTranscriptReader] [trace=1e377206cd2120ed0fbf58ef977e80f3] Read OpenCode session ses_ff29: 0 new messages, 0 entries extracted (index 33→33)
+[2026-08-17T12:29:28.462Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Git diff: 2 files changed, +206 -31 (7ms)
+[2026-08-17T12:29:28.478Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-17T12:29:28.479Z] INFO  [Summarizer] [trace=1e377206cd2120ed0fbf58ef977e80f3] Generating summary for commit 941a618a
+[2026-08-17T12:29:28.479Z] INFO  [Summarizer] [trace=1e377206cd2120ed0fbf58ef977e80f3] Context: transcript=0, files=2, lines=206+31
+[2026-08-17T12:29:28.479Z] WARN  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-17T12:29:30.482Z] INFO  [Summarizer] [trace=1e377206cd2120ed0fbf58ef977e80f3] Generating summary for commit 941a618a
+[2026-08-17T12:29:30.482Z] INFO  [Summarizer] [trace=1e377206cd2120ed0fbf58ef977e80f3] Context: transcript=0, files=2, lines=206+31
+[2026-08-17T12:29:30.482Z] ERROR [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T12:29:30.482Z] WARN  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Saving summary with empty topics + llm-failed marker for commit 941a618a
+[2026-08-17T12:29:30.483Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] API summary generated (2.0s)
+[2026-08-17T12:29:30.484Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-17T12:29:30.484Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-17T12:29:30.485Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-17T12:29:30.485Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Note association: detected 0 note(s): []
+[2026-08-17T12:29:30.486Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Reference association: detected 0 ref(s) for branch main
+[2026-08-17T12:29:30.488Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Summary built for 941a618a: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-17T12:29:30.516Z] INFO  [MetadataManager] [trace=1e377206cd2120ed0fbf58ef977e80f3] Manifest updated: main/docs-task-5-closed-at-610a615-status-current-task-941a618a.md (commit)
+[2026-08-17T12:29:30.516Z] INFO  [FolderStorage] [trace=1e377206cd2120ed0fbf58ef977e80f3] Markdown generated: main/docs-task-5-closed-at-610a615-status-current-task-941a618a.md
+[2026-08-17T12:29:30.516Z] INFO  [FolderStorage] [trace=1e377206cd2120ed0fbf58ef977e80f3] Wrote 3 files, deleted 0 (Add summary for 941a618a: docs: task 5 closed at 610a615; status current; ta)
+[2026-08-17T12:29:30.516Z] INFO  [SummaryStore] [trace=1e377206cd2120ed0fbf58ef977e80f3] Summary stored successfully for commit 941a618a
+[2026-08-17T12:29:30.554Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Summary stored successfully for commit 941a618a (66ms, 0 plans, 0 notes, 0 references)
+[2026-08-17T12:29:30.554Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] === Pipeline completed in 2.2s ===
+[2026-08-17T12:29:30.554Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] === Summary content (0 topics) ===
+[2026-08-17T12:29:30.557Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] Processed 1 queue entries
+[2026-08-17T12:29:30.558Z] INFO  [PushExecutor] [trace=1e377206cd2120ed0fbf58ef977e80f3] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-17T12:29:30.571Z] INFO  [GitOps] [trace=1e377206cd2120ed0fbf58ef977e80f3] Commit 941a618a: docs: task 5 closed at 610a615; status current; task 6 brief
+[2026-08-17T12:29:30.595Z] INFO  [StorageFactory] [trace=1e377206cd2120ed0fbf58ef977e80f3] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T12:29:30.622Z] INFO  [QueueWorker] [trace=1e377206cd2120ed0fbf58ef977e80f3] === Queue worker finished ===
+[2026-08-17T17:39:01.541Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-17T17:39:01.573Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-17T17:39:01.876Z] INFO  [PostCommitHook] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Detected operation: commit
+[2026-08-17T17:39:01.880Z] INFO  [PostCommitHook] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Enqueued: type=commit hash=86d5be0d
+[2026-08-17T17:39:01.880Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Launching background worker
+[2026-08-17T17:39:01.882Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Background worker spawned (PID: 121344)
+[2026-08-17T17:39:02.060Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-17T17:39:02.070Z] INFO  [StorageFactory] [trace=c73ef6571531b0fa15d3095bd33fd8d7] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T17:39:02.119Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Processing queue entry: type=commit hash=86d5be0d
+[2026-08-17T17:39:02.128Z] INFO  [GitOps] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Commit 86d5be0d: task 6: state store, evidence store, event log
+[2026-08-17T17:39:02.128Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Commit: 86d5be0d - task 6: state store, evidence store, event log (5ms)
+[2026-08-17T17:39:02.131Z] INFO  [SessionTracker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Pruning stale session 9f0456d9-1239-42f8-bd4c-8c0718ed7e36 (age: 63h)
+[2026-08-17T17:39:02.339Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Discovered 14 OpenCode session(s)
+[2026-08-17T17:39:02.425Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 40→40)
+[2026-08-17T17:39:02.433Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 43→43)
+[2026-08-17T17:39:02.436Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 13→13)
+[2026-08-17T17:39:02.488Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff32: 0 new messages, 0 entries extracted (index 287→287)
+[2026-08-17T17:39:02.517Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff30: 0 new messages, 0 entries extracted (index 90→90)
+[2026-08-17T17:39:02.533Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 49→49)
+[2026-08-17T17:39:02.540Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 34→34)
+[2026-08-17T17:39:02.549Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 39→39)
+[2026-08-17T17:39:02.556Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 14→14)
+[2026-08-17T17:39:02.571Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 7→7)
+[2026-08-17T17:39:02.582Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-17T17:39:02.586Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 8→8)
+[2026-08-17T17:39:02.607Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff2b: 0 new messages, 0 entries extracted (index 31→31)
+[2026-08-17T17:39:02.620Z] INFO  [OpenCodeTranscriptReader] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Read OpenCode session ses_ff29: 0 new messages, 0 entries extracted (index 33→33)
+[2026-08-17T17:39:02.644Z] WARN  [GitOps] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Diff exceeds 150000-char budget (365704 chars) — prepending --stat file list and truncating body
+[2026-08-17T17:39:02.651Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Git diff: 31 files changed, +7173 -12 (31ms)
+[2026-08-17T17:39:02.669Z] WARN  [GitOps] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Diff exceeds 60000-char budget (365704 chars) — prepending --stat file list and truncating body
+[2026-08-17T17:39:02.674Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-17T17:39:02.674Z] INFO  [Summarizer] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Generating summary for commit 86d5be0d
+[2026-08-17T17:39:02.674Z] INFO  [Summarizer] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Context: transcript=0, files=31, lines=7173+12
+[2026-08-17T17:39:02.674Z] WARN  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-17T17:39:04.677Z] INFO  [Summarizer] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Generating summary for commit 86d5be0d
+[2026-08-17T17:39:04.677Z] INFO  [Summarizer] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Context: transcript=0, files=31, lines=7173+12
+[2026-08-17T17:39:04.678Z] ERROR [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T17:39:04.678Z] WARN  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Saving summary with empty topics + llm-failed marker for commit 86d5be0d
+[2026-08-17T17:39:04.678Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] API summary generated (2.0s)
+[2026-08-17T17:39:04.682Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Plan registry scan: found 1 uncommitted slug(s) on main: [CURRENT_STATUS]
+[2026-08-17T17:39:04.683Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Plan association: detected 1 slug(s) from transcripts: [CURRENT_STATUS]
+[2026-08-17T17:39:04.683Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Plan association: registry has 4 entries: [delegation-spike(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), environment(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), CURRENT_STATUS(commitHash=610a615e76e51a27ff2299a84bbe632b76cb9d2f), escalations(commitHash=f85c925fc867d7e9b116b2533d778b653d87b3c0)]
+[2026-08-17T17:39:04.686Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Plan archived: CURRENT_STATUS → CURRENT_STATUS-86d5be0d (hash=a827a0a14c5b)
+[2026-08-17T17:39:04.708Z] INFO  [MetadataManager] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Manifest updated: main/plan--CURRENT_STATUS-86d5be0d.md (plan)
+[2026-08-17T17:39:04.708Z] INFO  [FolderStorage] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Plan markdown generated: main/plan--CURRENT_STATUS-86d5be0d.md
+[2026-08-17T17:39:04.708Z] INFO  [FolderStorage] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Wrote 1 files, deleted 0 (Archive 1 plan(s) for commit 86d5be0d)
+[2026-08-17T17:39:04.708Z] INFO  [SummaryStore] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Stored 1 plan file(s)
+[2026-08-17T17:39:04.709Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Associated 1 plan(s) with commit 86d5be0d
+[2026-08-17T17:39:04.709Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-17T17:39:04.709Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Note association: detected 0 note(s): []
+[2026-08-17T17:39:04.710Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Reference association: detected 0 ref(s) for branch main
+[2026-08-17T17:39:04.711Z] WARN  [PlanProgressEvaluator] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T17:39:04.711Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Plan progress: evaluated 0/1 plan(s)
+[2026-08-17T17:39:04.712Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Summary built for 86d5be0d: recap=no, topics=0, plans=1 ref(s): [CURRENT_STATUS-86d5be0d], notes=absent, references=absent
+[2026-08-17T17:39:04.771Z] INFO  [MetadataManager] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Manifest updated: main/task-6-state-store-evidence-store-event-log-86d5be0d.md (commit)
+[2026-08-17T17:39:04.771Z] INFO  [FolderStorage] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Markdown generated: main/task-6-state-store-evidence-store-event-log-86d5be0d.md
+[2026-08-17T17:39:04.772Z] INFO  [FolderStorage] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Wrote 3 files, deleted 0 (Add summary for 86d5be0d: task 6: state store, evidence store, event log)
+[2026-08-17T17:39:04.772Z] INFO  [SummaryStore] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Summary stored successfully for commit 86d5be0d
+[2026-08-17T17:39:04.798Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Summary stored successfully for commit 86d5be0d (87ms, 1 plans, 0 notes, 0 references)
+[2026-08-17T17:39:04.798Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] === Pipeline completed in 2.7s ===
+[2026-08-17T17:39:04.798Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] === Summary content (0 topics) ===
+[2026-08-17T17:39:04.801Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Processed 1 queue entries
+[2026-08-17T17:39:04.804Z] INFO  [SessionTracker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Enqueued queue operation: type=ingest tag=ingest file=1786988344803-00000001-04cecedd-ingest.json
+[2026-08-17T17:39:04.805Z] INFO  [PushExecutor] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-17T17:39:04.821Z] INFO  [GitOps] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Commit 86d5be0d: task 6: state store, evidence store, event log
+[2026-08-17T17:39:04.856Z] INFO  [StorageFactory] [trace=c73ef6571531b0fa15d3095bd33fd8d7] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T17:39:04.898Z] INFO  [Backup] [trace=c73ef6571531b0fa15d3095bd33fd8d7] snapshot created: /home/sprime01/jolli_back/memory-20260817T173904Z-f742889f.db
+[2026-08-17T17:39:04.906Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] === Queue worker finished ===
+[2026-08-17T17:39:04.909Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-17T17:39:04.913Z] INFO  [QueueWorker] [trace=c73ef6571531b0fa15d3095bd33fd8d7] No API key configured — skipping ingest (post-commit)
+[2026-08-17T17:39:09.292Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-17T17:39:09.300Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-17T17:39:09.452Z] INFO  [PostCommitHook] [trace=34616c756b1cc02c47e9afb9507e7d72] Detected operation: commit
+[2026-08-17T17:39:09.458Z] INFO  [PostCommitHook] [trace=34616c756b1cc02c47e9afb9507e7d72] Enqueued: type=commit hash=a573bf49
+[2026-08-17T17:39:09.458Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Launching background worker
+[2026-08-17T17:39:09.459Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Background worker spawned (PID: 121490)
+[2026-08-17T17:39:09.590Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-17T17:39:09.596Z] INFO  [StorageFactory] [trace=34616c756b1cc02c47e9afb9507e7d72] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T17:39:09.639Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Processing queue entry: type=commit hash=a573bf49
+[2026-08-17T17:39:09.643Z] INFO  [GitOps] [trace=34616c756b1cc02c47e9afb9507e7d72] Commit a573bf49: docs: task 6 closed at 86d5be0; interruption pattern lessone
+[2026-08-17T17:39:09.643Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Commit: a573bf49 - docs: task 6 closed at 86d5be0; interruption pattern lessoned (3ms)
+[2026-08-17T17:39:09.646Z] INFO  [SessionTracker] [trace=34616c756b1cc02c47e9afb9507e7d72] Pruning stale session 9f0456d9-1239-42f8-bd4c-8c0718ed7e36 (age: 63h)
+[2026-08-17T17:39:09.650Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Discovered 14 OpenCode session(s)
+[2026-08-17T17:39:09.688Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 40→40)
+[2026-08-17T17:39:09.691Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 43→43)
+[2026-08-17T17:39:09.694Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 13→13)
+[2026-08-17T17:39:09.710Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff32: 0 new messages, 0 entries extracted (index 287→287)
+[2026-08-17T17:39:09.717Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff30: 0 new messages, 0 entries extracted (index 90→90)
+[2026-08-17T17:39:09.721Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 49→49)
+[2026-08-17T17:39:09.728Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 34→34)
+[2026-08-17T17:39:09.732Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 39→39)
+[2026-08-17T17:39:09.738Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 14→14)
+[2026-08-17T17:39:09.741Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 7→7)
+[2026-08-17T17:39:09.751Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-17T17:39:09.755Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 8→8)
+[2026-08-17T17:39:09.761Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff2b: 0 new messages, 0 entries extracted (index 31→31)
+[2026-08-17T17:39:09.767Z] INFO  [OpenCodeTranscriptReader] [trace=34616c756b1cc02c47e9afb9507e7d72] Read OpenCode session ses_ff29: 0 new messages, 0 entries extracted (index 33→33)
+[2026-08-17T17:39:09.777Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Git diff: 3 files changed, +191 -22 (9ms)
+[2026-08-17T17:39:09.788Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-17T17:39:09.789Z] INFO  [Summarizer] [trace=34616c756b1cc02c47e9afb9507e7d72] Generating summary for commit a573bf49
+[2026-08-17T17:39:09.789Z] INFO  [Summarizer] [trace=34616c756b1cc02c47e9afb9507e7d72] Context: transcript=0, files=3, lines=191+22
+[2026-08-17T17:39:09.789Z] WARN  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-17T17:39:11.792Z] INFO  [Summarizer] [trace=34616c756b1cc02c47e9afb9507e7d72] Generating summary for commit a573bf49
+[2026-08-17T17:39:11.792Z] INFO  [Summarizer] [trace=34616c756b1cc02c47e9afb9507e7d72] Context: transcript=0, files=3, lines=191+22
+[2026-08-17T17:39:11.792Z] ERROR [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-17T17:39:11.792Z] WARN  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Saving summary with empty topics + llm-failed marker for commit a573bf49
+[2026-08-17T17:39:11.792Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] API summary generated (2.0s)
+[2026-08-17T17:39:11.794Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-17T17:39:11.794Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-17T17:39:11.794Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-17T17:39:11.795Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Note association: detected 0 note(s): []
+[2026-08-17T17:39:11.795Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Reference association: detected 0 ref(s) for branch main
+[2026-08-17T17:39:11.797Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Summary built for a573bf49: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-17T17:39:11.834Z] INFO  [MetadataManager] [trace=34616c756b1cc02c47e9afb9507e7d72] Manifest updated: main/docs-task-6-closed-at-86d5be0-interruption-pattern-a573bf49.md (commit)
+[2026-08-17T17:39:11.834Z] INFO  [FolderStorage] [trace=34616c756b1cc02c47e9afb9507e7d72] Markdown generated: main/docs-task-6-closed-at-86d5be0-interruption-pattern-a573bf49.md
+[2026-08-17T17:39:11.834Z] INFO  [FolderStorage] [trace=34616c756b1cc02c47e9afb9507e7d72] Wrote 3 files, deleted 0 (Add summary for a573bf49: docs: task 6 closed at 86d5be0; interruption patte)
+[2026-08-17T17:39:11.834Z] INFO  [SummaryStore] [trace=34616c756b1cc02c47e9afb9507e7d72] Summary stored successfully for commit a573bf49
+[2026-08-17T17:39:11.866Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Summary stored successfully for commit a573bf49 (69ms, 0 plans, 0 notes, 0 references)
+[2026-08-17T17:39:11.866Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] === Pipeline completed in 2.2s ===
+[2026-08-17T17:39:11.866Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] === Summary content (0 topics) ===
+[2026-08-17T17:39:11.870Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] Processed 1 queue entries
+[2026-08-17T17:39:11.871Z] INFO  [PushExecutor] [trace=34616c756b1cc02c47e9afb9507e7d72] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-17T17:39:11.890Z] INFO  [GitOps] [trace=34616c756b1cc02c47e9afb9507e7d72] Commit a573bf49: docs: task 6 closed at 86d5be0; interruption pattern lessone
+[2026-08-17T17:39:11.921Z] INFO  [StorageFactory] [trace=34616c756b1cc02c47e9afb9507e7d72] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T17:39:11.958Z] INFO  [QueueWorker] [trace=34616c756b1cc02c47e9afb9507e7d72] === Queue worker finished ===
+[2026-08-17T19:22:03.957Z] INFO  [StorageFactory] [trace=e127c541d58e0516eae6169ca5bf1dfc] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T19:22:04.075Z] INFO  [McpServer] [trace=e127c541d58e0516eae6169ca5bf1dfc] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-17T19:46:35.707Z] INFO  [StorageFactory] [trace=b059f24e83ace95c00c763bba2950b25] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T19:46:35.762Z] INFO  [McpServer] [trace=b059f24e83ace95c00c763bba2950b25] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-17T19:53:57.097Z] INFO  [StorageFactory] [trace=896cfb8157f9900f9eea65840d4bf9da] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T19:53:57.160Z] INFO  [McpServer] [trace=896cfb8157f9900f9eea65840d4bf9da] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-17T20:36:56.801Z] INFO  [StorageFactory] [trace=103fa5e504f93d845eee50b41d1d3f36] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T20:36:56.859Z] INFO  [McpServer] [trace=103fa5e504f93d845eee50b41d1d3f36] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-17T21:50:46.391Z] INFO  [StorageFactory] [trace=842bbd91558e34dc8e497d3d669044da] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T21:50:46.432Z] INFO  [McpServer] [trace=842bbd91558e34dc8e497d3d669044da] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-17T22:12:59.184Z] INFO  [StorageFactory] [trace=a4569a4eb2aee88c7ac52cfe8f3fd4b7] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T22:12:59.217Z] INFO  [McpServer] [trace=a4569a4eb2aee88c7ac52cfe8f3fd4b7] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-17T22:16:37.441Z] INFO  [StorageFactory] [trace=f7822f6431f73f6ea342585c8f8032e9] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-17T22:16:37.513Z] INFO  [McpServer] [trace=f7822f6431f73f6ea342585c8f8032e9] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-18T21:38:16.219Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-18T21:38:16.238Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-18T21:38:16.507Z] INFO  [PostCommitHook] [trace=8b111e7ce1139760f6379e65b814cba9] Detected operation: commit
+[2026-08-18T21:38:16.511Z] INFO  [PostCommitHook] [trace=8b111e7ce1139760f6379e65b814cba9] Enqueued: type=commit hash=ff1ad060
+[2026-08-18T21:38:16.512Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Launching background worker
+[2026-08-18T21:38:16.513Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Background worker spawned (PID: 42995)
+[2026-08-18T21:38:16.797Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-18T21:38:16.805Z] INFO  [StorageFactory] [trace=8b111e7ce1139760f6379e65b814cba9] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-18T21:38:16.856Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Processing queue entry: type=commit hash=ff1ad060
+[2026-08-18T21:38:16.862Z] INFO  [GitOps] [trace=8b111e7ce1139760f6379e65b814cba9] Commit ff1ad060: task 7: ReferenceProvider — normalize, digest, freeze, verif
+[2026-08-18T21:38:16.863Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Commit: ff1ad060 - task 7: ReferenceProvider — normalize, digest, freeze, verify (P1) (3ms)
+[2026-08-18T21:38:16.865Z] INFO  [SessionTracker] [trace=8b111e7ce1139760f6379e65b814cba9] Pruning stale session 9f0456d9-1239-42f8-bd4c-8c0718ed7e36 (age: 91h)
+[2026-08-18T21:38:16.865Z] INFO  [SessionTracker] [trace=8b111e7ce1139760f6379e65b814cba9] Pruning stale session 2b6d5176-72ff-4bf0-8898-2d61c5d2e17f (age: 56h)
+[2026-08-18T21:38:17.044Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Discovered 19 OpenCode session(s)
+[2026-08-18T21:38:17.104Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 40→40)
+[2026-08-18T21:38:17.113Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 43→43)
+[2026-08-18T21:38:17.118Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff33: 0 new messages, 0 entries extracted (index 13→13)
+[2026-08-18T21:38:17.178Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff32: 0 new messages, 0 entries extracted (index 287→287)
+[2026-08-18T21:38:17.207Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff30: 0 new messages, 0 entries extracted (index 90→90)
+[2026-08-18T21:38:17.224Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 49→49)
+[2026-08-18T21:38:17.233Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 34→34)
+[2026-08-18T21:38:17.240Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2e: 0 new messages, 0 entries extracted (index 39→39)
+[2026-08-18T21:38:17.246Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 14→14)
+[2026-08-18T21:38:17.256Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2d: 0 new messages, 0 entries extracted (index 7→7)
+[2026-08-18T21:38:17.263Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-18T21:38:17.267Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2c: 0 new messages, 0 entries extracted (index 8→8)
+[2026-08-18T21:38:17.283Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff2b: 0 new messages, 0 entries extracted (index 31→31)
+[2026-08-18T21:38:17.294Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_ff29: 0 new messages, 0 entries extracted (index 33→33)
+[2026-08-18T21:38:17.333Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_feed: 93 new messages, 14 entries extracted (index 0→93)
+[2026-08-18T21:38:17.333Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Transcript source: session=ses_feed1e323ffe6GBFy916ynrlFF, lines=0→93, entries=14
+[2026-08-18T21:38:17.353Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_fee8: 43 new messages, 2 entries extracted (index 0→43)
+[2026-08-18T21:38:17.353Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Transcript source: session=ses_fee8bdc22ffecogD9q8zPdXr4T, lines=0→43, entries=2
+[2026-08-18T21:38:17.368Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_fee8: 28 new messages, 3 entries extracted (index 0→28)
+[2026-08-18T21:38:17.368Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Transcript source: session=ses_fee85a1aaffexZY0kyPsakXocl, lines=0→28, entries=3
+[2026-08-18T21:38:17.376Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_fee4: 16 new messages, 2 entries extracted (index 0→16)
+[2026-08-18T21:38:17.376Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Transcript source: session=ses_fee493fb6ffetUydIO3AHshMQj, lines=0→16, entries=2
+[2026-08-18T21:38:17.389Z] INFO  [OpenCodeTranscriptReader] [trace=8b111e7ce1139760f6379e65b814cba9] Read OpenCode session ses_fee4: 24 new messages, 3 entries extracted (index 0→24)
+[2026-08-18T21:38:17.389Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Transcript source: session=ses_fee41c7e2ffekYElr64X0h5i3Y, lines=0→24, entries=3
+[2026-08-18T21:38:17.408Z] WARN  [GitOps] [trace=8b111e7ce1139760f6379e65b814cba9] Diff exceeds 150000-char budget (351214 chars) — prepending --stat file list and truncating body
+[2026-08-18T21:38:17.416Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Git diff: 27 files changed, +6269 -148 (27ms)
+[2026-08-18T21:38:17.451Z] WARN  [GitOps] [trace=8b111e7ce1139760f6379e65b814cba9] Diff exceeds 60000-char budget (351214 chars) — prepending --stat file list and truncating body
+[2026-08-18T21:38:17.456Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-18T21:38:17.457Z] INFO  [Summarizer] [trace=8b111e7ce1139760f6379e65b814cba9] Generating summary for commit ff1ad060
+[2026-08-18T21:38:17.457Z] INFO  [Summarizer] [trace=8b111e7ce1139760f6379e65b814cba9] Context: transcript=24, files=27, lines=6269+148
+[2026-08-18T21:38:17.457Z] WARN  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-18T21:38:19.459Z] INFO  [Summarizer] [trace=8b111e7ce1139760f6379e65b814cba9] Generating summary for commit ff1ad060
+[2026-08-18T21:38:19.459Z] INFO  [Summarizer] [trace=8b111e7ce1139760f6379e65b814cba9] Context: transcript=24, files=27, lines=6269+148
+[2026-08-18T21:38:19.460Z] ERROR [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-18T21:38:19.460Z] WARN  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Saving summary with empty topics + llm-failed marker for commit ff1ad060
+[2026-08-18T21:38:19.460Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] API summary generated (2.0s)
+[2026-08-18T21:38:19.462Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Plan registry scan: found 2 uncommitted slug(s) on main: [CURRENT_STATUS, escalations]
+[2026-08-18T21:38:19.462Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Plan association: detected 2 slug(s) from transcripts: [CURRENT_STATUS, escalations]
+[2026-08-18T21:38:19.463Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Plan association: registry has 4 entries: [delegation-spike(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), environment(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), CURRENT_STATUS(commitHash=86d5be0d143316b6b1acb7f9c6d8d5a022d4734b), escalations(commitHash=f85c925fc867d7e9b116b2533d778b653d87b3c0)]
+[2026-08-18T21:38:19.466Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Plan archived: CURRENT_STATUS → CURRENT_STATUS-ff1ad060 (hash=e33eb3ab6c74)
+[2026-08-18T21:38:19.468Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Plan archived: escalations → escalations-ff1ad060 (hash=bd15efe254b5)
+[2026-08-18T21:38:19.486Z] INFO  [MetadataManager] [trace=8b111e7ce1139760f6379e65b814cba9] Manifest updated: main/plan--CURRENT_STATUS-ff1ad060.md (plan)
+[2026-08-18T21:38:19.486Z] INFO  [FolderStorage] [trace=8b111e7ce1139760f6379e65b814cba9] Plan markdown generated: main/plan--CURRENT_STATUS-ff1ad060.md
+[2026-08-18T21:38:19.486Z] INFO  [MetadataManager] [trace=8b111e7ce1139760f6379e65b814cba9] Manifest updated: main/plan--escalations-ff1ad060.md (plan)
+[2026-08-18T21:38:19.486Z] INFO  [FolderStorage] [trace=8b111e7ce1139760f6379e65b814cba9] Plan markdown generated: main/plan--escalations-ff1ad060.md
+[2026-08-18T21:38:19.486Z] INFO  [FolderStorage] [trace=8b111e7ce1139760f6379e65b814cba9] Wrote 2 files, deleted 0 (Archive 2 plan(s) for commit ff1ad060)
+[2026-08-18T21:38:19.486Z] INFO  [SummaryStore] [trace=8b111e7ce1139760f6379e65b814cba9] Stored 2 plan file(s)
+[2026-08-18T21:38:19.487Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Associated 2 plan(s) with commit ff1ad060
+[2026-08-18T21:38:19.488Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-18T21:38:19.488Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Note association: detected 0 note(s): []
+[2026-08-18T21:38:19.488Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Reference association: detected 0 ref(s) for branch main
+[2026-08-18T21:38:19.490Z] WARN  [PlanProgressEvaluator] [trace=8b111e7ce1139760f6379e65b814cba9] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-18T21:38:19.491Z] WARN  [PlanProgressEvaluator] [trace=8b111e7ce1139760f6379e65b814cba9] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-18T21:38:19.491Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Plan progress: evaluated 0/2 plan(s)
+[2026-08-18T21:38:19.491Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Summary built for ff1ad060: recap=no, topics=0, plans=2 ref(s): [CURRENT_STATUS-ff1ad060, escalations-ff1ad060], notes=absent, references=absent
+[2026-08-18T21:38:19.528Z] INFO  [MetadataManager] [trace=8b111e7ce1139760f6379e65b814cba9] Manifest updated: main/task-7-referenceprovider-normalize-digest-freeze-v-ff1ad060.md (commit)
+[2026-08-18T21:38:19.528Z] INFO  [FolderStorage] [trace=8b111e7ce1139760f6379e65b814cba9] Markdown generated: main/task-7-referenceprovider-normalize-digest-freeze-v-ff1ad060.md
+[2026-08-18T21:38:19.529Z] INFO  [FolderStorage] [trace=8b111e7ce1139760f6379e65b814cba9] Wrote 4 files, deleted 0 (Add summary for ff1ad060: task 7: ReferenceProvider — normalize, digest, fre)
+[2026-08-18T21:38:19.529Z] INFO  [SummaryStore] [trace=8b111e7ce1139760f6379e65b814cba9] Summary stored successfully for commit ff1ad060
+[2026-08-18T21:38:19.568Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Summary stored successfully for commit ff1ad060 (77ms, 2 plans, 0 notes, 0 references)
+[2026-08-18T21:38:19.568Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] === Pipeline completed in 2.7s ===
+[2026-08-18T21:38:19.568Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] === Summary content (0 topics) ===
+[2026-08-18T21:38:19.571Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Processed 1 queue entries
+[2026-08-18T21:38:19.572Z] INFO  [SessionTracker] [trace=8b111e7ce1139760f6379e65b814cba9] Enqueued queue operation: type=ingest tag=ingest file=1787089099572-00000001-a5e7f471-ingest.json
+[2026-08-18T21:38:19.573Z] INFO  [PushExecutor] [trace=8b111e7ce1139760f6379e65b814cba9] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-18T21:38:19.595Z] INFO  [GitOps] [trace=8b111e7ce1139760f6379e65b814cba9] Commit ff1ad060: task 7: ReferenceProvider — normalize, digest, freeze, verif
+[2026-08-18T21:38:19.629Z] INFO  [StorageFactory] [trace=8b111e7ce1139760f6379e65b814cba9] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-18T21:38:19.681Z] INFO  [Backup] [trace=8b111e7ce1139760f6379e65b814cba9] snapshot created: /home/sprime01/jolli_back/memory-20260818T213819Z-f742889f.db
+[2026-08-18T21:38:19.688Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] === Queue worker finished ===
+[2026-08-18T21:38:19.691Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-18T21:38:19.695Z] INFO  [QueueWorker] [trace=8b111e7ce1139760f6379e65b814cba9] No API key configured — skipping ingest (post-commit)

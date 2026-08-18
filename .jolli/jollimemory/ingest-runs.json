@@ -82,5 +82,65 @@
 		"routeCalls": 0,
 		"reconcileCalls": 0,
 		"topicFailures": []
+	},
+	{
+		"startedAt": "2026-08-16T21:21:55.920Z",
+		"durationMs": 0,
+		"triggeredBy": "post-commit",
+		"outcome": "CREDENTIAL_MISSING",
+		"batches": 0,
+		"ingested": 0,
+		"touchedSlugs": 0,
+		"routeCalls": 0,
+		"reconcileCalls": 0,
+		"topicFailures": []
+	},
+	{
+		"startedAt": "2026-08-17T01:51:09.500Z",
+		"durationMs": 0,
+		"triggeredBy": "post-commit",
+		"outcome": "CREDENTIAL_MISSING",
+		"batches": 0,
+		"ingested": 0,
+		"touchedSlugs": 0,
+		"routeCalls": 0,
+		"reconcileCalls": 0,
+		"topicFailures": []
+	},
+	{
+		"startedAt": "2026-08-17T12:29:22.254Z",
+		"durationMs": 0,
+		"triggeredBy": "post-commit",
+		"outcome": "CREDENTIAL_MISSING",
+		"batches": 0,
+		"ingested": 0,
+		"touchedSlugs": 0,
+		"routeCalls": 0,
+		"reconcileCalls": 0,
+		"topicFailures": []
+	},
+	{
+		"startedAt": "2026-08-17T17:39:04.913Z",
+		"durationMs": 0,
+		"triggeredBy": "post-commit",
+		"outcome": "CREDENTIAL_MISSING",
+		"batches": 0,
+		"ingested": 0,
+		"touchedSlugs": 0,
+		"routeCalls": 0,
+		"reconcileCalls": 0,
+		"topicFailures": []
+	},
+	{
+		"startedAt": "2026-08-18T21:38:19.695Z",
+		"durationMs": 0,
+		"triggeredBy": "post-commit",
+		"outcome": "CREDENTIAL_MISSING",
+		"batches": 0,
+		"ingested": 0,
+		"touchedSlugs": 0,
+		"routeCalls": 0,
+		"reconcileCalls": 0,
+		"topicFailures": []
 	}
 ]
