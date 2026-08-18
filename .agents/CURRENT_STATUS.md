@@ -1,12 +1,11 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-17 — **Tasks 2–5 CLOSED (records below). Task 6 CLOSED
-(this session, recovered from an interruption orphan): state/evidence/event-log
-adapters, canonical export, crash injection; two blind critics + correction
-round (the convergent major: `commit_settlement` had zero callers) +
-confirmation critic CONFIRM 13/13. Next: Task 7 (ReferenceProvider — digest
-must reproduce `scripts/reference-digest.sh` byte-for-byte) or Task 8 (mock
-runner) per the dependency graph.**
+**Last updated:** 2026-08-18 — **Tasks 2–6 CLOSED (records below). Task 7 CLOSED
+(this session, after two more interruption-orphans, an operator-diagnosed
+runaway-memory defect in the never-executed manifest parser, root-caused and
+fixed in-round, a 4+1-teeth round, two blind critics + a 7-item correction
+round + confirmation critic CONFIRM). Next: Task 8 (mock AgentRunner +
+fixtures) per the dependency graph — unblocks the 9→12 chain.**
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
 
@@ -136,6 +135,71 @@ dispatch check (Task 14, the `Isolation` ladder is in place).
   `.agents/reports/reference-candidates.md`, citing the three real tests
   (app filter test, adapter golden, CLI stack test).
 
+### Task 7 closure record (this session)
+
+- **The journey matters:** round-1 + finisher sessions died repeatedly to the
+  ESC-002 host-OOM spawn deaths (write-only finisher-2 landed D4R–D8 + report,
+  zero execution). Orchestrator gates then exposed a **runaway-memory defect**
+  the never-run test suites had been holding: `parse_manifest`'s tree
+  traversal was written against two conflicting position conventions
+  (`parse_tree` passed `pos` AT the key line, `mapping` AFTER it); the
+  nested-mapping arm returned an empty map consuming zero lines, so
+  `parse_tree`'s `while pos < lines.len()` pushed `(key.to_owned(), node)`
+  forever — the operator's instrumented diagnosis (1.7→4.9 GiB RSS, worker
+  thread committing pages) matched exactly. **Root cause + fix + full report:
+  `.agents/reports/task7/runaway-memory-defect.md`.** D3's manifest tests and
+  D4's provider tests had never executed even once — "landed+compiling" was
+  never "passing". Post-fix: the contract-suite test runs in 0.02 s at ~30 MiB
+  peak RSS.
+- **Artifact:** `gauntlet-app reference::{normalize,parse,manifest,provider}`
+  (script-exact normalization with pinned-output tests; strict AK-block
+  parser with per-block isolation; manifest dialect parser — traversal
+  rebuilt on one position contract; production `FileReferenceProvider` over
+  the frozen `.wayfinder/` pair with the freeze tripwire, Unavailable ≠
+  ReferenceMutated, and the F4 mid-flight guard); `gauntlet reference digest`
+  CLI; doctor check 2 fully closed (strict lock read, 70/70 unit schema,
+  digest-vs-lock on **both** ruler halves — key AND manifest); composed P1
+  proof at the composition root (real FsEvidenceStore + EmbeddedStateStore);
+  reference-candidates entries for AK-021, AK-022/023/024, AK-025.
+- **Teeth (all bite, all reverted, full re-verify green):** boundary-call
+  removal → `digest_rechecked` fails; per-line trim → both pinned normalize
+  tests fail AND the script-vs-CLI diff gate **disagrees** on a synthetic
+  trailing-space fixture (`5518ad7a…` vs `e49c81e2…`) — the composed gate is
+  now extended beyond the frozen key (which carries no trailing-whitespace
+  lines) by diffing a `printf 'alpha \nbeta\n'` fixture too; F4 freeze-guard
+  removal → freeze tripwire test fails; doctor digest-clause neutering →
+  moved-key test fails; manifest-half compare neutering → moved-manifest test
+  fails.
+- **Critic yield:** A (spec): 4 major (AK-025 unrecorded; doctor manifest
+  clause shallow; manifest_digest unverified; teeth harness-only), 5 minor.
+  B (adversarial): **1 critical** (reachable `unreachable!` panic via
+  `">= 0 settlements"`), 2 major (manifest_digest — convergent; dead lex tab
+  guard), 14 minor/bounded. B could NOT break normalize byte-parity against
+  the script (bounded battery: BOM, lone CR, whitespace tails, NUL, U+2028)
+  nor construct a non-terminating traversal post-fix.
+- **Correction round (C1–C7, each with a discriminating test):**
+  reliability `< 1` refused at parse (`ReliabilityBelowOne`) — the panic path
+  is structurally closed; `manifest_digest` required + verified in check 2
+  (both halves fail `REFERENCE MOVED`); the tab guard made live (tab anywhere
+  in the space/tab run; NBSP not admitted as indentation — pinned); AK-025
+  candidates entry; empty flow entries refused; P1 confinement assertion tied
+  to the evidence-store root; provider header made accurate. One never-run
+  test pin corrected with evidence (`UnknownKey` flavour `line: 2`→`3`;
+  sibling test pins the same physical line at 3). Confirmation critic:
+  **CONFIRM**, 0 open critical/major, 3 minors (all closed: NBSP fix + pin,
+  doc comment, this ledger).
+- **Final gates (orchestrator-run):** gauntlet-app 112/112 (manifest 12,
+  doctor 25, reference:: 38), p1 4/4, workspace **479/479**, check/lint/deny
+  0, boundaries **190/190**, ruler PASS, `just doctor` exit 0, both digest
+  gates AGREE (frozen key == lock `sha256:ccc7c99b…`).
+- **Deviation recorded:** orchestrator-implementer for the defect fix and the
+  correction round per ESC-002's standing operator authorization (delegation
+  spawn-deaths continued; critics still ran blind via explore agents). The
+  operator's untracked `.cargo/config.toml` was reduced to the
+  suite-sanctioned `[build] jobs=1` + `[profile.dev]` form by operator choice
+  after `just boundaries` correctly flagged its `[target]` linker/rustflags
+  section (AK-001 compile-channel rule).
+
 ### Task 5 closure record (previous session)
 
 - Builder round 1 + K-correction + M1/M2 micro-correction. Reports:
@@ -216,6 +280,50 @@ opportunistically at the next domain-crate touch.
   `LD_LIBRARY_PATH`) not denied — recorded policy call, not taken.
 
 ### Deferral ledger (recorded, never silent — from critics 8/9, post-6.1)
+
+**Task-7 deferrals (added this session; same upgrade rule — a deferred finding
+blocks the moment a task walks into its trigger):**
+
+- **Doctor check 2's manifest clause stays shape-only** (critic-A M2 / B-F11):
+  the strict `parse_manifest` exists and runs on the provider path, but check
+  2's manifest clause does not deep-validate (and its `top_level_mapping_keys`
+  passes an all-indented file as "0 keys"). The doctor Scratch fixture's
+  manifest would fail deep parse. Trigger: **next doctor touch or Task 12**
+  (config/reference surface work) — deepen the clause and promote the fixture
+  to a full manifest.
+- **Iteration-boundary / settlement teeth are harness-only** (critic-A M4; the
+  plan's own done-when is not dischargeable as written until then): no
+  production `verify_unchanged` caller exists; both digests live in the typed
+  error but are not persisted as evidence. Trigger: **Tasks 12–13** (existing
+  substrate-level ledger entries for AK-023/AK-024 carry this).
+- **`ReferenceVersion` lacks the spec's `evidence_ref` field** (critic-A m1):
+  linkage is by the `sha256:<hex>` convention. Trigger: **Task 13** settlement
+  persistence or the ports revision.
+- **`Unavailable` vs `ReferenceMutated` boundary behavior for broken artifacts
+  is undefined at the controller** (critic-A m3): the classification is
+  deliberate and pinned; what the controller DOES with `Unavailable` is not.
+  Trigger: **Task 12** controller error policy.
+- **Manifest dialect leniencies (B-F4/F5/F7/F8/F9/F19):** `key:` values keep
+  extra leading whitespace; `digest:` bare-null spelling refused while the
+  header allows it; `depends_on` existence/acyclicity unchecked (F7 belongs
+  to the **Task 12** scheduler); `#`-leading folded-body lines dropped;
+  bare-dash error locus misleading; `version: +1` accepted and duplicate-root
+  message mislabels. Trigger: **next manifest/parse touch** — batch-close.
+- **Doctor/lock message nits (B-F10/F12/F13):** "carries no unit_count" for
+  malformed (not absent) counts; lock path fields whitelisted but
+  unverified; CLI `--path --path` takes the second flag as a value. Trigger:
+  **next doctor/CLI touch.**
+- **Provider-level empty-ruler legality (B-F18):** `parse_answer_key("")` →
+  zero units, freeze pins sha256(empty). Compensating control is real (doctor
+  count clause + zero-blocks schema clause). Trigger: **Task 12** if the
+  controller ever trusts `verify_unchanged` solo.
+- **Boundary-scanner residuals demonstrated by this round's shape fixes
+  (B-F16, recorded for the next arch-suite re-litigation):** tier vocabulary
+  in fn-expression position passes the declaration-only tier class
+  (`field_keys()`); `format!("{}/{}", a, b)` construction passes the
+  relative-path literal class (production doctor code already used the
+  shape). Not widened by this task; the class docs' recorded residual
+  stands.
 
 **Task-6 deferrals (added this session; same upgrade rule — a deferred finding
 blocks the moment a task walks into its trigger):**
@@ -344,7 +452,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 4 — Ports + shared contract suites | **done** — closed at `b27b152`, closure record above | `b27b152` |
 | 5 — Configuration, defaults, doctor | **done** — closed after 3-critic loop, closure record above | this session |
 | 6 — State store, evidence store, event log | **done** — closed after interruption recovery + 2 critics + correction + confirmation, closure record above | this session |
-| 7–27 | not started | — |
+| 7 — ReferenceProvider: normalize, digest, freeze, verify | **done** — closed after runaway-memory defect fix + 4+1 teeth + 2 blind critics + C1–C7 correction + confirmation CONFIRM, closure record above | this session |
+| 8–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -456,7 +565,7 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (9):** **AK-001**, **AK-002**, **AK-016** — mechanisms
+- **implemented but provisional (15):** **AK-001**, **AK-002**, **AK-016** — mechanisms
   enforced by `just boundaries`, teeth demonstrated, blind-critic-hardened through seven
   rounds; provisional because no `VerificationRecord` exists yet and deferred majors
   remain on record. **AK-019** — `env_example_complete` instrument landed and green;
@@ -473,7 +582,17 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   provisional class; its declared locator has a recorded reference candidate. AK-041/
   AK-042/AK-053 gained substrate-level support (commit-order primitive + exactly-once
   keyed replay + full §18.2 checkpoint durability, real process-kill proven) but their
-  declared locators are Task-13 proofs — not claimed.
+  declared locators are Task-13 proofs — not claimed. **Task 7 added AK-021**
+  (script-exact typed normalization, pinned-output determinism + sensitivity tests,
+  both digest implementations agreeing on the frozen key AND a trailing-space
+  fixture), **AK-022** (frozen copy outside workspaces at the content address,
+  SUT-rooted confinement asserts, composed with real stores), **AK-025's
+  anti-adoption half** (any mid-run ruler move aborts with both digests; candidate
+  recording is Task 22/24) — same provisional class; **AK-023/AK-024 remain
+  substrate-level** (tripwire primitive proven at the composition root; the
+  production boundary/settlement callsites are Tasks 12–13). All five Units'
+  declared locators have dated reference-candidates entries (materialization
+  class).
 - **proposed (62):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
 - **blocked: none. · unknown: none.**
@@ -498,20 +617,21 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Task 7 — ReferenceProvider: normalize, digest, freeze, verify** (plan Task 7;
-spec §5.3.1, §7; gate `cargo nextest run -p gauntlet-app reference:: && cargo
-nextest run --test p1_reference_integrity && diff <(scripts/reference-digest.sh
-.wayfinder/answer-key.md) <(cargo run -q -p gauntlet-cli -- reference digest
---path .wayfinder/answer-key.md)`). The critical constraint (Task 1 outcome,
-do not re-derive): the Rust `normalize` must reproduce
-`scripts/reference-digest.sh`'s rules byte-for-byte — CRLF→LF and end-of-file
-newline collapse ONLY (per-line trailing whitespace NOT stripped; ruler
-sensitivity beats the plan's looser wording). The two implementations agreeing
-is the task gate. Freeze writes normalized bytes through the Task-6
-EvidenceStore (`EmbeddedStateStore`/evidence-fs are now available); answer-key
-parser with strict enum validation and per-block error isolation. Teeth:
-remove the `verify_unchanged` call at an iteration boundary → P1 fails;
-disagree the two digests → diff gate fails. Alternative per the dependency
-graph: Task 8 (mock AgentRunner + fixtures) unblocks the 9→12 chain and is
-parallel-safe with 7 in separate worktrees — but on this memory-tight host,
-run them serially.
+**Task 7 is CLOSED (this session). ESC-002 remains OPEN as recorded —
+delegation spawn-health was not re-probed post-fix; the blind-critic loop ran
+through explore agents reliably all session. The next builder round should
+probe one cheap general-agent dispatch first and fall back to explore-type
+critics + ESC-002's authority if it dies.**
+
+**Task 8 — Mock AgentRunner and fixtures** (plan Task 8; gate
+`cargo nextest run -p gauntlet-adapter-agent-mock && cargo nextest run
+-p gauntlet-ports contract::agent_runner`). Eight REQUIRED scenarios under
+`tests/fixtures/scenarios/*.yaml` (happy; malformed result; no result written
+= timeout; wrong `invocation_id`; stale `context_envelope_digest`; lying
+builder; answer-key write attempt; critic-pass-without-evidence), plus
+deterministic clock and seeded id-generator adapters selected by
+`GAUNTLET_CLOCK` / `GAUNTLET_ID_SEED`. The mock must pass the UNMODIFIED
+Task-4 `AgentRunner` contract suite (AK-059). Read the runaway-memory defect
+report first: the lesson generalizes — **"compiles" was never "passing";
+never-run test suites are unproven code, and the first gate run of any
+recovered slice must budget for finding exactly this class of defect.**

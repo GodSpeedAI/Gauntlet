@@ -231,3 +231,16 @@ Non-negotiable structural rules:
 The active system never moves its own ruler and then claims improvement.
 
 Commit often and meaningful milestones amd keep .agents/CURRENT_STATUS.md current.
+
+Do not upgrade bounded search into a universal claim. “No issue found” means none was found within the declared scope, threat model, search procedure, and budget; claim absence or minimality only when the relevant space is explicitly bounded and exhausted.
+
+Existence is not composition. When a task claims an integrated capability, prove the mechanism is reachable through the intended production/composition path; isolated mechanism existence or component tests do not establish composed capability.
+
+### Resource-constrained verification
+
+This workspace runs under a memory-constrained WSL environment.
+
+- Respect the repository's Cargo and nextest configuration; do not override configured build or test parallelism unless explicitly required.
+- Prefer targeted package/test execution before workspace-wide verification.
+- Do not increase Cargo build jobs or nextest test concurrency to speed up verification.
+- If a test/build is OOM-killed, diagnose the failing process rather than retrying with greater parallelism.

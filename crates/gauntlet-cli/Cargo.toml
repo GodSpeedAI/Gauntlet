@@ -25,5 +25,11 @@ gauntlet-app.workspace = true
 # of that freedom: no production wiring exists yet. The test uses the
 # adapter's capability-named export; a vendor-flavored type name cannot be
 # spelled in this crate (the denylist masks the crate name only).
+#
+# Task 7 adds the fs evidence adapter the same way: the P1 proof
+# (tests/p1_reference_integrity.rs) freezes the reference through the REAL
+# content-addressed store. Still dev-only — the production wiring lands with
+# the plan-task composition that needs it.
 [dev-dependencies]
 gauntlet-adapter-state-sqlite.workspace = true
+gauntlet-adapter-evidence-fs.workspace = true

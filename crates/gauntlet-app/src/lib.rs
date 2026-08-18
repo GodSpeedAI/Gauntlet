@@ -13,6 +13,7 @@
 
 pub mod config;
 pub mod doctor;
+pub mod reference;
 pub mod state;
 
 pub use config::defaults::{

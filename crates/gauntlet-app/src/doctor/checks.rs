@@ -14,6 +14,7 @@
 
 use std::path::Path;
 
+use gauntlet_domain::Digest;
 use gauntlet_ports::json::{self, JsonValue};
 
 use crate::config::defaults;
@@ -21,6 +22,8 @@ use crate::config::env_layer::UnknownEnv;
 use crate::config::error::ConfigError;
 use crate::config::resolve::{ResolvedConfig, UnknownKey};
 use crate::doctor::report::{CheckOutcome, CheckStatus, SubResult};
+use crate::reference::normalize::digest_of;
+use crate::reference::parse::parse_answer_key;
 
 /// Shared inputs for the checks that need more than the resolved products.
 #[derive(Debug, Clone)]
@@ -201,10 +204,13 @@ pub fn check_config(input: &ConfigCheckInput) -> CheckOutcome {
 // ---------------------------------------------------------------------------
 
 pub fn check_reference(resolved: &ResolvedConfig) -> CheckOutcome {
-    // Manifest: exists, and its top level is a mapping.
+    // Manifest: exists, and its top level is a mapping. The raw bytes are
+    // read ONCE here and shared with the digest clause, which recomputes the
+    // manifest's normalized digest against the freeze record's other half.
+    let manifest_bytes = std::fs::read(&resolved.reference.manifest);
     let manifest_status;
     let mut manifest_evidence = Vec::new();
-    match std::fs::read_to_string(&resolved.reference.manifest) {
+    match &manifest_bytes {
         Err(err) => {
             manifest_status = CheckStatus::Fail;
             manifest_evidence.push(format!(
@@ -213,63 +219,42 @@ pub fn check_reference(resolved: &ResolvedConfig) -> CheckOutcome {
                 err.kind()
             ));
         }
-        Ok(text) => match top_level_mapping_keys(&text) {
-            Err(line) => {
+        Ok(bytes) => match std::str::from_utf8(bytes) {
+            Err(err) => {
                 manifest_status = CheckStatus::Fail;
                 manifest_evidence.push(format!(
-                    "manifest top level is not a mapping (line {line} is not a `key:` entry)"
+                    "reference manifest is not valid UTF-8 (first invalid byte at {})",
+                    err.valid_up_to()
                 ));
             }
-            Ok(keys) => {
-                manifest_status = CheckStatus::Pass;
-                manifest_evidence.push(format!(
-                    "manifest exists; top level is a mapping ({keys} keys)"
-                ));
-            }
+            Ok(text) => match top_level_mapping_keys(text) {
+                Err(line) => {
+                    manifest_status = CheckStatus::Fail;
+                    manifest_evidence.push(format!(
+                        "manifest top level is not a mapping (line {line} is not a `key:` entry)"
+                    ));
+                }
+                Ok(keys) => {
+                    manifest_status = CheckStatus::Pass;
+                    manifest_evidence.push(format!(
+                        "manifest exists; top level is a mapping ({keys} keys)"
+                    ));
+                }
+            },
         },
     }
-    // Answer key: exists, non-empty, block count equals the frozen count.
+    // The frozen reference record (§9.4), read STRICTLY (plan Task 7): an
+    // unknown field in the lock is a finding, never silently ignored — the
+    // freeze record is as frozen as the key.
     let lock_path = defaults::reference_lock_at(&resolved.project_root);
-    let expected_count = match read_lock_unit_count(&lock_path) {
-        Ok(count) => count,
-        Err(detail) => {
-            return CheckOutcome::combine(
-                2,
-                "reference",
-                CheckStatus::Fail,
-                vec![
-                    SubResult {
-                        name: "manifest".to_owned(),
-                        status: manifest_status,
-                        evidence: manifest_evidence,
-                    },
-                    SubResult {
-                        name: "answer key".to_owned(),
-                        status: CheckStatus::Fail,
-                        evidence: vec![detail],
-                    },
-                    SubResult {
-                        name: "unit schema".to_owned(),
-                        status: CheckStatus::Unavailable {
-                            reason: UNIT_SCHEMA_LATER.to_owned(),
-                        },
-                        evidence: vec![UNIT_SCHEMA_LATER.to_owned()],
-                    },
-                    SubResult {
-                        name: "digest".to_owned(),
-                        status: CheckStatus::Unavailable {
-                            reason: DIGEST_LATER.to_owned(),
-                        },
-                        evidence: vec![DIGEST_LATER.to_owned()],
-                    },
-                ],
-                Vec::new(),
-            );
-        }
-    };
+    let lock = read_reference_lock(&lock_path);
+    // The answer key's raw bytes, read once: the count clause, the schema
+    // clause, and the digest clause all consume the same read.
+    let key_bytes = std::fs::read(&resolved.reference.answer_key);
+    // Answer key: exists, non-empty, block count equals the frozen count.
     let mut answer_evidence = Vec::new();
-    let answer_status = match std::fs::read_to_string(&resolved.reference.answer_key) {
-        Err(err) => {
+    let answer_status = match (&key_bytes, &lock) {
+        (Err(err), _) => {
             answer_evidence.push(format!(
                 "answer key not readable at {} ({})",
                 leaf_of(&resolved.reference.answer_key),
@@ -277,27 +262,164 @@ pub fn check_reference(resolved: &ResolvedConfig) -> CheckOutcome {
             ));
             CheckStatus::Fail
         }
-        Ok(text) if text.trim().is_empty() => {
+        (Ok(bytes), _) if bytes.iter().all(|byte| byte.is_ascii_whitespace()) => {
             answer_evidence.push("answer key is empty".to_owned());
             CheckStatus::Fail
         }
-        Ok(text) => {
-            let count = text
-                .lines()
-                .filter(|line| line.starts_with("## AK-"))
+        (Ok(_), Err(finding)) => {
+            answer_evidence.push(finding.clone());
+            CheckStatus::Fail
+        }
+        (Ok(bytes), Ok(lock)) => {
+            let count = bytes
+                .split(|byte| *byte == b'\n')
+                .filter(|line| line.starts_with(b"## AK-"))
                 .count();
-            if count == expected_count {
+            if count == lock.unit_count {
                 answer_evidence.push(format!(
-                    "answer key exists, non-empty, {count} units (frozen count {expected_count})"
+                    "answer key exists, non-empty, {count} units (frozen count {})",
+                    lock.unit_count
                 ));
                 CheckStatus::Pass
             } else {
                 answer_evidence.push(format!(
-                    "answer key holds {count} unit blocks; the frozen record declares \
-                     {expected_count}"
+                    "answer key holds {count} unit blocks; the frozen record declares {}",
+                    lock.unit_count
                 ));
                 CheckStatus::Fail
             }
+        }
+    };
+    // Unit schema (plan Task 7): the configured answer key parsed by the
+    // strict per-block parser — every Unit well-formed under the §5.3.2
+    // schema (tier/authority coupling included), or the per-block failures
+    // with their loci as evidence. This is the compensating control for the
+    // provider's documented admission decision (`reference/provider.rs`'s
+    // header): structural strictness lives at admission, and this is the
+    // admission callsite that reports block-level defects loudly.
+    let (schema_status, schema_evidence) = match &key_bytes {
+        Err(err) => (
+            CheckStatus::Fail,
+            vec![format!(
+                "cannot validate the unit schema: the answer key is not readable ({})",
+                err.kind()
+            )],
+        ),
+        Ok(bytes) => match std::str::from_utf8(bytes) {
+            Err(err) => (
+                CheckStatus::Fail,
+                vec![format!(
+                    "the answer key is not valid UTF-8 (first invalid byte at {}) — the \
+                     unit schema cannot be validated",
+                    err.valid_up_to()
+                )],
+            ),
+            Ok(text) => {
+                let parsed = parse_answer_key(text);
+                let total = parsed.units.len() + parsed.failures.len();
+                if total == 0 {
+                    (
+                        CheckStatus::Fail,
+                        vec![
+                            "the answer key holds no AK-NNN blocks at all; there is no unit \
+                             schema to validate"
+                                .to_owned(),
+                        ],
+                    )
+                } else if parsed.failures.is_empty() {
+                    (
+                        CheckStatus::Pass,
+                        vec![format!(
+                            "{total}/{total} units well-formed under the 5.3.2 schema \
+                             (tier/authority coupling included)"
+                        )],
+                    )
+                } else {
+                    let mut evidence = vec![format!(
+                        "{}/{} units well-formed; per-block failures:",
+                        parsed.units.len(),
+                        total
+                    )];
+                    evidence.extend(parsed.failures.iter().map(|failure| failure.to_string()));
+                    (CheckStatus::Fail, evidence)
+                }
+            }
+        },
+    };
+    // Digest-vs-lock (plan Task 7): recompute the normalized digests of BOTH
+    // ruler halves — the answer key and the manifest — and compare each with
+    // the frozen record. Either mismatch means the ruler moved (I1) — a
+    // reference-class failure, loud on both surfaces. The manifest half
+    // closes critic-A M3 / critic-B F2: the record's manifest_digest was
+    // previously declared, whitelisted, and never verified, leaving the
+    // narrative half of the ruler with no integrity check anywhere.
+    let (digest_status, digest_evidence) = match (&lock, &key_bytes, &manifest_bytes) {
+        (Err(finding), _, _) => (
+            CheckStatus::Fail,
+            vec![format!("digest-vs-lock verification cannot run: {finding}")],
+        ),
+        (Ok(_), Err(err), _) => (
+            CheckStatus::Fail,
+            vec![format!(
+                "cannot recompute the answer-key digest: the key is not readable ({})",
+                err.kind()
+            )],
+        ),
+        (Ok(_), Ok(_), Err(err)) => (
+            CheckStatus::Fail,
+            vec![format!(
+                "cannot recompute the manifest digest: the manifest is not readable ({})",
+                err.kind()
+            )],
+        ),
+        (Ok(lock), Ok(key_bytes), Ok(manifest_bytes)) => {
+            let mut status = CheckStatus::Pass;
+            let mut evidence = Vec::new();
+            match digest_of(key_bytes) {
+                Err(err) => {
+                    status = CheckStatus::Fail;
+                    evidence.push(format!(
+                        "the answer key does not normalize and digest: {err}"
+                    ));
+                }
+                Ok(actual) if actual == lock.answer_key_digest => {
+                    evidence.push(format!(
+                        "recomputed normalized digest {actual} matches the frozen record \
+                         (answer-key half, digest-vs-lock)"
+                    ));
+                }
+                Ok(actual) => {
+                    status = CheckStatus::Fail;
+                    evidence.push(format!(
+                        "REFERENCE MOVED: the answer key's normalized digest is {actual} but the \
+                         frozen record declares {} — reference-class failure (I1): the ruler does \
+                         not match its freeze record",
+                        lock.answer_key_digest
+                    ));
+                }
+            }
+            match digest_of(manifest_bytes) {
+                Err(err) => {
+                    status = CheckStatus::Fail;
+                    evidence.push(format!("the manifest does not normalize and digest: {err}"));
+                }
+                Ok(actual) if actual == lock.manifest_digest => {
+                    evidence.push(format!(
+                        "recomputed normalized digest {actual} matches the frozen record \
+                         (manifest half, digest-vs-lock)"
+                    ));
+                }
+                Ok(actual) => {
+                    status = CheckStatus::Fail;
+                    evidence.push(format!(
+                        "REFERENCE MOVED: the manifest's normalized digest is {actual} but the \
+                         frozen record declares {} — reference-class failure (I1): the ruler's \
+                         narrative half does not match its freeze record",
+                        lock.manifest_digest
+                    ));
+                }
+            }
+            (status, evidence)
         }
     };
     CheckOutcome::combine(
@@ -317,31 +439,18 @@ pub fn check_reference(resolved: &ResolvedConfig) -> CheckOutcome {
             },
             SubResult {
                 name: "unit schema".to_owned(),
-                status: CheckStatus::Unavailable {
-                    reason: UNIT_SCHEMA_LATER.to_owned(),
-                },
-                evidence: vec![format!(
-                    "per-Unit validation against 5.3.2 (including the tier/authority coupling) \
-                     is unavailable: {UNIT_SCHEMA_LATER}"
-                )],
+                status: schema_status,
+                evidence: schema_evidence,
             },
             SubResult {
                 name: "digest".to_owned(),
-                status: CheckStatus::Unavailable {
-                    reason: DIGEST_LATER.to_owned(),
-                },
-                evidence: vec![format!(
-                    "digest-vs-lock verification is unavailable: {DIGEST_LATER}"
-                )],
+                status: digest_status,
+                evidence: digest_evidence,
             },
         ],
         Vec::new(),
     )
 }
-
-const UNIT_SCHEMA_LATER: &str = "unit-schema validation lands with the ReferenceProvider parser \
-     (plan Task 7)";
-const DIGEST_LATER: &str = "verify_unchanged lands with plan Task 7";
 
 /// The file leaf of a path, for evidence that must not carry resolved
 /// directories.
@@ -381,26 +490,109 @@ fn top_level_mapping_keys(text: &str) -> Result<usize, usize> {
     Ok(keys)
 }
 
-/// Reads `unit_count` from the frozen reference record (§9.4). The lock is
-/// the freeze record; digest verification against it is Task 7's.
-fn read_lock_unit_count(lock_path: &Path) -> Result<usize, String> {
+/// The frozen lock's known field names (§9.4 freeze record, as frozen by
+/// plan Task 1). The lock is as frozen as the key: a field outside this set
+/// is drift, and drift is a finding — never silently ignored.
+const LOCK_FIELDS: &[&str] = &[
+    "answer_key_path",
+    "answer_key_digest",
+    "manifest_path",
+    "manifest_digest",
+    "algo",
+    "frozen_at",
+    "spec_source",
+    "spec_annex",
+    "unit_count",
+    "digest_tool",
+    "note",
+];
+
+/// What check 2 consumes from the frozen reference record: the digests the
+/// answer key AND the manifest must still hash to, and the unit count the
+/// key declares.
+struct FrozenLock {
+    answer_key_digest: Digest,
+    manifest_digest: Digest,
+    unit_count: usize,
+}
+
+/// Strict read of `.gauntlet/reference.lock` (plan Task 7): hand-rolled over
+/// the ports JSON parser. Unknown fields are findings; `answer_key_digest`
+/// must be present and parse as a domain `Digest`; `unit_count` must be a
+/// non-negative integer; a present `algo` must name the defaults-table
+/// digest algorithm. Every failure names its locus.
+fn read_reference_lock(lock_path: &Path) -> Result<FrozenLock, String> {
     let text = std::fs::read_to_string(lock_path).map_err(|err| {
         format!(
-            "reference record not readable at {} ({}) — the frozen count criterion needs it",
+            "reference record not readable at {} ({})",
             leaf_of(lock_path),
             err.kind()
         )
     })?;
     let value =
         json::parse(&text).map_err(|err| format!("reference record is not valid JSON: {err}"))?;
+    let unknown: Vec<String> = value
+        .keys()
+        .into_iter()
+        .filter(|key| !LOCK_FIELDS.contains(&key.as_str()))
+        .collect();
+    if !unknown.is_empty() {
+        return Err(format!(
+            "reference record carries unknown field(s) {} — the freeze record is frozen; \
+             drift is a finding",
+            unknown.join(", ")
+        ));
+    }
+    let digest_text = match value.get("answer_key_digest") {
+        Some(JsonValue::Str(text)) => text.clone(),
+        Some(other) => {
+            return Err(format!(
+                "reference record answer_key_digest is not a string: {other:?}"
+            ));
+        }
+        None => return Err("reference record carries no answer_key_digest".to_owned()),
+    };
+    let answer_key_digest = Digest::parse(&digest_text)
+        .map_err(|err| format!("reference record answer_key_digest is not a digest: {err}"))?;
+    // The manifest half of the freeze record is as required as the key half
+    // (critic-A M3 / critic-B F2): a lock that drops it is drift, and a
+    // declared-but-unverified digest is decorative.
+    let manifest_text = match value.get("manifest_digest") {
+        Some(JsonValue::Str(text)) => text.clone(),
+        Some(other) => {
+            return Err(format!(
+                "reference record manifest_digest is not a string: {other:?}"
+            ));
+        }
+        None => return Err("reference record carries no manifest_digest".to_owned()),
+    };
+    let manifest_digest = Digest::parse(&manifest_text)
+        .map_err(|err| format!("reference record manifest_digest is not a digest: {err}"))?;
     let count = value
         .get("unit_count")
         .and_then(|field| match field {
-            JsonValue::Number(json::JsonNumber::Uint(n)) => Some(*n),
+            JsonValue::Number(json::JsonNumber::Uint(count)) => Some(*count),
             _ => None,
         })
         .ok_or_else(|| "reference record carries no unit_count".to_owned())?;
-    usize::try_from(count).map_err(|_| "reference record unit_count is negative".to_owned())
+    let unit_count =
+        usize::try_from(count).map_err(|_| "reference record unit_count is negative".to_owned())?;
+    if let Some(algo) = value.get("algo") {
+        match algo {
+            JsonValue::Str(token) if token == defaults::DIGEST_ALGO => {}
+            other => {
+                return Err(format!(
+                    "reference record algo must be '{}': {other:?}",
+                    defaults::DIGEST_ALGO
+                ));
+            }
+        }
+    }
+    Ok(FrozenLock {
+        answer_key_digest,
+        manifest_digest,
+        unit_count,
+    })
 }
 
 // ---------------------------------------------------------------------------

@@ -48,8 +48,7 @@
       "evidence": [],
       "id": 2,
       "name": "reference",
-      "reason": "a sub-check's machinery lands with a later plan task",
-      "status": "unavailable",
+      "status": "pass",
       "sub": [
         {
           "evidence": [
@@ -67,19 +66,18 @@
         },
         {
           "evidence": [
-            "per-Unit validation against 5.3.2 (including the tier/authority coupling) is unavailable: unit-schema validation lands with the ReferenceProvider parser (plan Task 7)"
+            "70/70 units well-formed under the 5.3.2 schema (tier/authority coupling included)"
           ],
           "name": "unit schema",
-          "reason": "unit-schema validation lands with the ReferenceProvider parser (plan Task 7)",
-          "status": "unavailable"
+          "status": "pass"
         },
         {
           "evidence": [
-            "digest-vs-lock verification is unavailable: verify_unchanged lands with plan Task 7"
+            "recomputed normalized digest sha256:ccc7c99be3d3b60488930eed9975dc6d67378a84bf3b13910b48511e9c228859 matches the frozen record (answer-key half, digest-vs-lock)",
+            "recomputed normalized digest sha256:95331d3e345fa799e9840dbdb02b60b7c41c73be84c96fb7ecc1068775ba5e94 matches the frozen record (manifest half, digest-vs-lock)"
           ],
           "name": "digest",
-          "reason": "verify_unchanged lands with plan Task 7",
-          "status": "unavailable"
+          "status": "pass"
         }
       ]
     },
@@ -220,5 +218,5 @@
   "config_fingerprint": "sha256:775113a5c86be4062513d549a4a57226e5bc4b2c9f0ef7ad858e71eb1149ce6d",
   "config_origin": "/home/sprime01/projects/gauntlet/GAUNTLET.md",
   "exit_code": 0,
-  "generated_at": 1786969593
+  "generated_at": 1787088972
 }

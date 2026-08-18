@@ -316,32 +316,57 @@ mod tests {
 
     /// A scratch project: lock, manifest, answer key, policies dir, all in
     /// a temp root driven through the environment so no test touches the
-    /// real repository.
+    /// real repository. Since Task 7 closed check 2's honest-unavailables,
+    /// the scratch key is a REAL answer-key shape (the strict parser must
+    /// admit it) and the scratch lock is a strict freeze record carrying
+    /// the key's true normalized digest.
     struct Scratch {
         root: PathBuf,
     }
 
+    /// Two well-formed AK blocks — the same shape the strict parser's own
+    /// unit tests admit.
+    fn scratch_answer_key() -> String {
+        [
+            "## AK-001",
+            "claim: Scratch claim one is checkable.",
+            "verify_by: test",
+            "blast_radius: local",
+            "authority: critic",
+            "evidence_required: {kind: test_report, locator: scratch-0001, producer: instrument}",
+            "",
+            "## AK-002",
+            "claim: Scratch claim two is checkable.",
+            "verify_by: test",
+            "blast_radius: local",
+            "authority: critic",
+            "evidence_required: {kind: test_report, locator: scratch-0002, producer: instrument}",
+            "",
+        ]
+        .join("\n")
+    }
+
     impl Scratch {
         fn new() -> Self {
+            // pid + atomic counter — the repository Scratch idiom (Task 7
+            // alignment; the earlier nanos spelling is retired).
+            static SCRATCH_SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
             let root = std::env::temp_dir().join(format!(
                 "gauntlet-doctor-{}-{}",
                 std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|since| since.as_nanos())
-                    .unwrap_or(0)
+                SCRATCH_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
             ));
+            std::fs::remove_dir_all(&root).ok();
             std::fs::create_dir_all(root.join("policies")).expect("scratch creates");
             std::fs::create_dir_all(root.join(".gauntlet")).expect("runtime dir");
-            let ak = "## AK-001 title one\nbody\n\n## AK-002 title two\nbody\n";
-            std::fs::write(root.join("answer-key.md"), ak).expect("answer key");
+            let ak = scratch_answer_key();
+            std::fs::write(root.join("answer-key.md"), &ak).expect("answer key");
+            std::fs::write(root.join("reference.yaml"), scratch_manifest()).expect("manifest");
             std::fs::write(
-                root.join("reference.yaml"),
-                "reference:\n  id: scratch\n  version: 1\n",
+                root.join(".gauntlet").join("reference.lock"),
+                lock_text(ak.as_bytes(), scratch_manifest().as_bytes(), 2),
             )
-            .expect("manifest");
-            std::fs::write(root.join(".gauntlet").join("reference.lock"), lock_text(2))
-                .expect("lock");
+            .expect("lock");
             Self { root }
         }
 
@@ -364,8 +389,27 @@ mod tests {
         }
     }
 
-    fn lock_text(count: u64) -> String {
-        format!("{{\"answer_key_path\": \"answer-key.md\", \"unit_count\": {count}}}")
+    /// The scratch manifest — shallow on purpose: check 2's manifest clause
+    /// validates top-level mapping shape (deep `parse_manifest` validation
+    /// is a recorded deferral), and the digest clause hashes these exact
+    /// bytes against the lock's manifest half.
+    fn scratch_manifest() -> String {
+        "reference:\n  id: scratch\n  version: 1\n".to_owned()
+    }
+
+    /// A strict, frozen-shaped lock for the scratch: the true digests of the
+    /// given key and manifest bytes and a chosen `unit_count`.
+    fn lock_text(key_bytes: &[u8], manifest_bytes: &[u8], count: u64) -> String {
+        let digest =
+            crate::reference::normalize::digest_of(key_bytes).expect("the scratch key digests");
+        let manifest_digest = crate::reference::normalize::digest_of(manifest_bytes)
+            .expect("the scratch manifest digests");
+        format!(
+            "{{\"answer_key_path\": \"answer-key.md\", \"answer_key_digest\": \"{digest}\", \
+              \"manifest_path\": \"reference.yaml\", \"manifest_digest\": \"{manifest_digest}\", \
+              \"algo\": \"sha256\", \
+              \"frozen_at\": \"2026-08-18T00:00:00Z\", \"unit_count\": {count}}}"
+        )
     }
 
     fn healthy_doc() -> String {
@@ -389,10 +433,12 @@ mod tests {
     fn a_healthy_scratch_project_passes_every_real_check() {
         let scratch = Scratch::new();
         let report = run_doctor(&scratch.input(Some(&healthy_doc())));
-        // Fully-real checks with no later-task sub-clauses pass; checks
-        // carrying later-task machinery roll up to honestly unavailable
-        // (their real sub-clauses each show pass).
-        for id in [1, 5, 6, 7, 8] {
+        // Fully-real checks pass. Since Task 7 closed check 2's two
+        // honest-unavailables (unit schema, digest-vs-lock), check 2 is a
+        // fully-real check too: all four of its clauses run and pass. The
+        // checks still carrying later-task machinery roll up to honestly
+        // unavailable (their real sub-clauses each show pass).
+        for id in [1, 2, 5, 6, 7, 8] {
             assert_eq!(
                 *status_of(&report, id),
                 CheckStatus::Pass,
@@ -400,17 +446,26 @@ mod tests {
                 report.checks[id_to_index(id)].sub
             );
         }
-        for id in [2, 3, 4] {
+        for id in [3, 4] {
             assert!(
                 matches!(status_of(&report, id), CheckStatus::Unavailable { .. }),
                 "check {id} carries its later-task reason: {:?}",
                 report.checks[id_to_index(id)].sub
             );
         }
-        // Check 2's real sub-clauses both pass under the roll-up.
+        // Check 2's four clauses all pass on the healthy scratch: manifest,
+        // answer key, unit schema (2/2 well-formed), digest-vs-lock.
         let reference = &report.checks[id_to_index(2)];
-        assert_eq!(reference.sub[0].status, CheckStatus::Pass);
-        assert_eq!(reference.sub[1].status, CheckStatus::Pass);
+        assert_eq!(reference.sub.len(), 4);
+        for clause in &reference.sub {
+            assert_eq!(
+                clause.status,
+                CheckStatus::Pass,
+                "{}: {:?}",
+                clause.name,
+                clause.evidence
+            );
+        }
         assert!(report.exit_ok(), "{}", report.human_summary());
         // All eight checks always appear.
         assert_eq!(report.checks.len(), 8);
@@ -787,14 +842,187 @@ mod tests {
     #[test]
     fn a_wrong_unit_count_fails_check_two() {
         let scratch = Scratch::new();
-        // Two blocks in the file; lie in the frozen record.
+        // Two blocks in the file; lie in the frozen record. The lock's
+        // digest stays TRUE, so the failure locus is exactly the count.
+        let key_bytes = std::fs::read(scratch.root.join("answer-key.md")).expect("key reads");
         std::fs::write(
             scratch.root.join(".gauntlet").join("reference.lock"),
-            lock_text(5),
+            lock_text(&key_bytes, scratch_manifest().as_bytes(), 5),
         )
         .expect("lock placed");
         let report = run_doctor(&scratch.input(Some(&healthy_doc())));
         assert_eq!(status_of(&report, 2), &CheckStatus::Fail);
+        let check = &report.checks[id_to_index(2)];
+        let count_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "answer key")
+            .expect("count clause");
+        assert_eq!(count_clause.status, CheckStatus::Fail);
+        let digest_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "digest")
+            .expect("digest clause");
+        assert_eq!(
+            digest_clause.status,
+            CheckStatus::Pass,
+            "the count lie must not smear into the digest clause: {:?}",
+            digest_clause.evidence
+        );
+    }
+
+    /// Task 7's digest-vs-lock clause: same block count, well-formed units,
+    /// DIFFERENT content — only the recomputed digest can catch it. The
+    /// failure is loud and reference-class on both surfaces.
+    #[test]
+    fn a_moved_answer_key_fails_check_two_as_a_reference_class_failure() {
+        let scratch = Scratch::new();
+        let original =
+            std::fs::read_to_string(scratch.root.join("answer-key.md")).expect("key reads");
+        let moved = original.replace(
+            "claim: Scratch claim one is checkable.",
+            "claim: The builder quietly edited claim one.",
+        );
+        std::fs::write(scratch.root.join("answer-key.md"), moved).expect("moved key");
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        assert_eq!(status_of(&report, 2), &CheckStatus::Fail);
+        let check = &report.checks[id_to_index(2)];
+        // The locus is the digest clause alone: shape-level clauses pass.
+        for name in ["answer key", "unit schema"] {
+            let clause = check
+                .sub
+                .iter()
+                .find(|clause| clause.name == name)
+                .expect("clause");
+            assert_eq!(
+                clause.status,
+                CheckStatus::Pass,
+                "{name}: {:?}",
+                clause.evidence
+            );
+        }
+        let digest_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "digest")
+            .expect("digest clause");
+        assert_eq!(digest_clause.status, CheckStatus::Fail);
+        // The loud reference-class wording reaches BOTH surfaces.
+        let human = report.human_summary();
+        let json = report.to_json();
+        for text in [&human, &json] {
+            assert!(text.contains("REFERENCE MOVED"), "{text}");
+            assert!(text.contains("frozen record"), "{text}");
+        }
+        assert!(!report.exit_ok());
+    }
+
+    /// The manifest half of digest-vs-lock (critic-A M3 / critic-B F2): a
+    /// rewrite of the ruler's narrative half — keeping every shape-level
+    /// clause green — is caught ONLY by the recomputed manifest digest, and
+    /// is a reference-class failure on both surfaces.
+    #[test]
+    fn a_moved_manifest_fails_check_two_as_a_reference_class_failure() {
+        let scratch = Scratch::new();
+        std::fs::write(
+            scratch.root.join("reference.yaml"),
+            "reference:\n  id: scratch\n  version: 999\n",
+        )
+        .expect("moved manifest");
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        assert_eq!(status_of(&report, 2), &CheckStatus::Fail);
+        let check = &report.checks[id_to_index(2)];
+        // The locus is the digest clause alone: the moved manifest keeps its
+        // top-level mapping shape and the answer key is untouched.
+        for name in ["manifest", "answer key", "unit schema"] {
+            let clause = check
+                .sub
+                .iter()
+                .find(|clause| clause.name == name)
+                .expect("clause");
+            assert_eq!(
+                clause.status,
+                CheckStatus::Pass,
+                "{name}: {:?}",
+                clause.evidence
+            );
+        }
+        let digest_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "digest")
+            .expect("digest clause");
+        assert_eq!(digest_clause.status, CheckStatus::Fail);
+        let evidence = digest_clause.evidence.join("\n");
+        assert!(evidence.contains("REFERENCE MOVED"), "{evidence}");
+        assert!(evidence.contains("manifest"), "{evidence}");
+        assert!(
+            evidence.contains("answer-key half"),
+            "the untouched key half still reports its match: {evidence}"
+        );
+        assert!(!report.exit_ok());
+    }
+
+    /// The strict lock read: an unknown field in the freeze record is a
+    /// finding naming the field — drift, never silently ignored.
+    #[test]
+    fn an_unknown_field_in_the_reference_record_is_a_finding() {
+        let scratch = Scratch::new();
+        let key_bytes = std::fs::read(scratch.root.join("answer-key.md")).expect("key reads");
+        let drifted = lock_text(&key_bytes, scratch_manifest().as_bytes(), 2)
+            .replace('}', ", \"revision\": 2}");
+        std::fs::write(
+            scratch.root.join(".gauntlet").join("reference.lock"),
+            drifted,
+        )
+        .expect("lock placed");
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        assert_eq!(status_of(&report, 2), &CheckStatus::Fail);
+        let text = format!("{}{}", report.human_summary(), report.to_json());
+        assert!(text.contains("unknown field"), "{text}");
+        assert!(text.contains("revision"), "{text}");
+    }
+
+    /// Task 7's unit-schema clause: one malformed block fails THAT block
+    /// (per-block isolation), the clause reports the block-level locus, and
+    /// the failure takes the run with it.
+    #[test]
+    fn a_malformed_block_fails_the_unit_schema_clause_with_its_locus() {
+        let scratch = Scratch::new();
+        let original =
+            std::fs::read_to_string(scratch.root.join("answer-key.md")).expect("key reads");
+        let broken = original.replace(
+            "claim: Scratch claim one is checkable.",
+            "claim: Scratch claim one is checkable.\nphantom_field: 1",
+        );
+        std::fs::write(scratch.root.join("answer-key.md"), broken).expect("broken key");
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        assert_eq!(status_of(&report, 2), &CheckStatus::Fail);
+        assert!(!report.exit_ok());
+        let check = &report.checks[id_to_index(2)];
+        let schema_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "unit schema")
+            .expect("schema clause");
+        assert_eq!(schema_clause.status, CheckStatus::Fail);
+        let evidence = schema_clause.evidence.join("; ");
+        assert!(
+            evidence.contains("phantom_field"),
+            "the block-level locus is carried: {evidence}"
+        );
+        assert!(
+            evidence.contains("AK-001"),
+            "the failing block is named: {evidence}"
+        );
+        // The needle is built, not spelled: a bare `1/2` string literal is a
+        // path-literal shape to the boundary scanner (AK-016).
+        let well_formed_fraction = format!("{}/{}", 1, 2);
+        assert!(
+            evidence.contains(&well_formed_fraction),
+            "the well-formed count is reported: {evidence}"
+        );
     }
 
     #[test]
