@@ -319,7 +319,7 @@ diff <(scripts/reference-digest.sh .wayfinder/answer-key.md) \
 
 ### Steps
 
-1. Implement `crates/adapters/agent-mock` driven by fixture files under `tests/fixtures/scenarios/*.yaml`.
+1. Implement `crates/adapters/agent-mock` driven by fixture files under `tests/fixtures/mock_runner_scenarios/*.yaml` — the path AK-059's frozen `evidence_required.locator` spells; an earlier draft of this plan said `tests/fixtures/scenarios`, corrected to the ruler's spelling (the ruler outranks the plan).
 2. Scenarios REQUIRED: happy path; malformed result; no result written (timeout); result with wrong `invocation_id`; result with stale `context_envelope_digest`; builder that claims success while producing a failing artifact; builder that attempts to write the answer key; critic that returns `pass` with no evidence.
 3. Deterministic clock and seeded id generator adapters, selected by `GAUNTLET_CLOCK` / `GAUNTLET_ID_SEED`.
 4. Run the mock through the full `AgentRunner` contract suite — it must pass all of it.
@@ -328,8 +328,13 @@ diff <(scripts/reference-digest.sh .wayfinder/answer-key.md) \
 
 ```bash
 cargo nextest run -p gauntlet-adapter-agent-mock && \
-cargo nextest run -p gauntlet-ports contract::agent_runner
+cargo nextest run -p gauntlet-ports agent_runner
 ```
+
+(The Task-4 suite landed as `contract::suite_runs::agent_runner_{green,broken,caps}_is_caught`;
+the filter is the substring `agent_runner`. An earlier draft of this line
+spelled `contract::agent_runner`, which matches zero tests — corrected to
+match the real suite during Task 8's gate run.)
 
 **Done when:** all eight scenarios drive distinct, asserted runtime states, and the contract suite passes (AK-059).
 

@@ -1,11 +1,13 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-18 — **Tasks 2–6 CLOSED (records below). Task 7 CLOSED
-(this session, after two more interruption-orphans, an operator-diagnosed
-runaway-memory defect in the never-executed manifest parser, root-caused and
-fixed in-round, a 4+1-teeth round, two blind critics + a 7-item correction
-round + confirmation critic CONFIRM). Next: Task 8 (mock AgentRunner +
-fixtures) per the dependency graph — unblocks the 9→12 chain.**
+**Last updated:** 2026-08-19 — **Tasks 2–7 CLOSED (records below). Task 8
+CLOSED (this session, after an interruption-recovery start: the round-1
+builder's code was already in the tree; recovered per the lesson — gates
+run personally, missing report slice written, lint closure delegated, 3
+teeth, two blind critics (0 critical, 3 major) + C1–C6 correction +
+confirmation CONFIRM + N1 micro-fix). Next: Task 9 (observers +
+observation bundle, P3) — unblocked by 8; 10/11/12 also unblocked.**
+
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
 
@@ -134,6 +136,53 @@ dispatch check (Task 14, the `Isolation` ladder is in place).
   the escapes rule → second entry in
   `.agents/reports/reference-candidates.md`, citing the three real tests
   (app filter test, adapter golden, CLI stack test).
+
+### Task 8 closure record (this session)
+
+- **Interruption recovery (sixth instance of the class):** the round-1
+  builder completed all four code slices with checkpoints (61/61 per its
+  last checkpoint) but died before D6 gates, its final report, teeth, and
+  the critic loop. Recovered per the documented procedure: ruler PASS →
+  gates run personally (61/61 + 3/3 + check/deny/boundaries green, **lint
+  RED** — 2 clippy errors + fmt drift the never-run D6 would have caught)
+  → missing report slice written from the checkpoint contract → loop
+  resumed at lint closure, not re-dispatched.
+- **Artifact:** `gauntlet-adapter-agent-mock` — `DeterministicClock`
+  (virtual monotonic-max time), `SeededIdGenerator` (FNV-1a → splitmix64 →
+  Crockford windows, derivation documented), Annex-E hook selection
+  (fail-closed `UnknownClockToken`; pure selectors, no env mutation —
+  edition-2024 `unsafe` avoided by design), strict YAML-subset scenario
+  parser (position contract on one convention; leftover lines typed;
+  **`MAX_SCENARIO_DEPTH = 64`** after the critic round — the fail-first
+  run reproduced a live stack overflow, the recorded Task-7 defect class),
+  Annex-B document renderer with five derailments, `MockAgentRunner`
+  (completion only through `read_result_contract`; honest capabilities:
+  `isolation: None`, `max_depth: 0`, File-delivery emulation with
+  `written_document` forensics; duplicate admission typed-refused),
+  `MockRunnerFactory` (total `RunnerScript` mapping), the eight REQUIRED
+  fixtures at AK-059's exact locator spelling (child behavior only), the
+  AK-059 suite pin, nine playback tests each asserting a distinct state.
+- **Teeth (orchestrator-run, all reverted, `task8/teeth.md`):** T1
+  failure-class neutering → suite pin + playback fail (plus a documented
+  nextest per-binary-cancellation observation); T2 REQUIRED fixture
+  removed → inventory pin fails typed; T3 isolation inflated → honesty
+  test fails. **Honest observation recorded:** the shared suite does NOT
+  pin adapter capability honesty — Task-14 deferral class.
+- **Critic yield:** A (spec): 1 major (stall+effects dialect/runner
+  divergence), 7 minor. B (adversarial): 2 major (duplicate-invoke
+  terminal resurrection; parser depth/memory bound), 6 minor; could NOT
+  break classification, determinism, or termination (bounded static
+  battery). Correction round C1–C6 (fail-first per item) + confirmation
+  critic: **CONFIRM** — all CLOSED but C5-with-residual N1 (write-knob
+  off-by-one at cap), N1 then closed by micro-fix
+  (`WRITE_PROBE_CEILING = PROBE_CEILING - 1`).
+- **Final gates (orchestrator-run):** mock **68/68** (~35 MiB peak RSS),
+  ports agent_runner 3/3, workspace **547/547**, check/lint/deny 0,
+  boundaries **190/190**, ruler PASS.
+- **Plan corrected (recorded):** Task-8 gate filter
+  `contract::agent_runner` matched zero tests — the Task-4 suite lives at
+  `contract::suite_runs::agent_runner_*`; plan now spells the working
+  substring filter.
 
 ### Task 7 closure record (this session)
 
@@ -280,6 +329,30 @@ opportunistically at the next domain-crate touch.
   `LD_LIBRARY_PATH`) not denied — recorded policy call, not taken.
 
 ### Deferral ledger (recorded, never silent — from critics 8/9, post-6.1)
+
+**Task-8 deferrals (added this session; same upgrade rule — a deferred finding
+blocks the moment a task walks into its trigger):**
+
+- **Shared suite does not pin adapter capability honesty** (T3 teeth
+  observation): `the_mock_runner_passes_the_unmodified_shared_contract_suite`
+  PASSED with `isolation` inflated to `Process`; only the adapter's own
+  in-crate honesty test caught the lie. Trigger: **Task 14** (the
+  capability-vs-tier dispatch check is already a Task-14 ledger item —
+  compose them).
+- **Symlink pre-placement under a test-provided workspace root** (B-m3):
+  both effect guards are lexical; a hostile filesystem under the root
+  defeats them. Outside the adapter's documented threat model; §17.5
+  placement is the primary guard (same accepted class as Task-6's fanout
+  symlink residual). Trigger: mock effects ever resolving against a
+  non-test-provided root.
+- **`documents` map keyed by contract path** (B-m6): two invocations
+  sharing one result-contract path clobber each other's raw text
+  (forensics only; classification holds per-entry). Trigger: a second
+  consumer of `written_document` or Task-9+ forensic needs.
+- **Runner deadlines modeled, not enforced** (A-m2): probe counts stand in
+  for §10.3 rule 5 deadlines — documented time-free design, consistent
+  with the port-wide "deadlines noted, not consulted" convention. Trigger:
+  any task composing real deadline behavior (Task 12 controller).
 
 **Task-7 deferrals (added this session; same upgrade rule — a deferred finding
 blocks the moment a task walks into its trigger):**
@@ -453,7 +526,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 5 — Configuration, defaults, doctor | **done** — closed after 3-critic loop, closure record above | this session |
 | 6 — State store, evidence store, event log | **done** — closed after interruption recovery + 2 critics + correction + confirmation, closure record above | this session |
 | 7 — ReferenceProvider: normalize, digest, freeze, verify | **done** — closed after runaway-memory defect fix + 4+1 teeth + 2 blind critics + C1–C7 correction + confirmation CONFIRM, closure record above | this session |
-| 8–27 | not started | — |
+| 8 — Mock AgentRunner + fixtures | **done** — closed after interruption recovery + lint closure + 3 teeth + 2 blind critics + C1–C6 correction + confirmation CONFIRM + N1 micro-fix, closure record above | this session |
+| 9–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -565,7 +639,7 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (15):** **AK-001**, **AK-002**, **AK-016** — mechanisms
+- **implemented but provisional (16):** **AK-001**, **AK-002**, **AK-016** — mechanisms
   enforced by `just boundaries`, teeth demonstrated, blind-critic-hardened through seven
   rounds; provisional because no `VerificationRecord` exists yet and deferred majors
   remain on record. **AK-019** — `env_example_complete` instrument landed and green;
@@ -592,8 +666,14 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   substrate-level** (tripwire primitive proven at the composition root; the
   production boundary/settlement callsites are Tasks 12–13). All five Units'
   declared locators have dated reference-candidates entries (materialization
-  class).
-- **proposed (62):** every other Unit, including AK-014 (vacuously true; no adapter
+  class). **Task 8 added AK-059** (the mock replays all eight scripted
+  shapes — malformed, timeout, reference-mutation attempt among them — with
+  each driving a distinct asserted runtime state, and the mock passes the
+  UNMODIFIED Task-4 shared contract suite through `MockRunnerFactory`;
+  teeth on classification, inventory, and capability honesty) — same
+  provisional class: instrument-level proof with teeth, no
+  `VerificationRecord` yet.
+- **proposed (61):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
 - **blocked: none. · unknown: none.**
 
@@ -617,21 +697,24 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Task 7 is CLOSED (this session). ESC-002 remains OPEN as recorded —
-delegation spawn-health was not re-probed post-fix; the blind-critic loop ran
-through explore agents reliably all session. The next builder round should
-probe one cheap general-agent dispatch first and fall back to explore-type
-critics + ESC-002's authority if it dies.**
+**Task 8 is CLOSED (this session). ESC-002 status unchanged: general-agent
+delegation worked reliably all session (four dispatched builders, all
+delivered; Explore critics cannot write files — their reports arrive
+in-message and the orchestrator persists them verbatim; that deviation
+class is now expected, not a failure).**
 
-**Task 8 — Mock AgentRunner and fixtures** (plan Task 8; gate
-`cargo nextest run -p gauntlet-adapter-agent-mock && cargo nextest run
--p gauntlet-ports contract::agent_runner`). Eight REQUIRED scenarios under
-`tests/fixtures/scenarios/*.yaml` (happy; malformed result; no result written
-= timeout; wrong `invocation_id`; stale `context_envelope_digest`; lying
-builder; answer-key write attempt; critic-pass-without-evidence), plus
-deterministic clock and seeded id-generator adapters selected by
-`GAUNTLET_CLOCK` / `GAUNTLET_ID_SEED`. The mock must pass the UNMODIFIED
-Task-4 `AgentRunner` contract suite (AK-059). Read the runaway-memory defect
-report first: the lesson generalizes — **"compiles" was never "passing";
-never-run test suites are unproven code, and the first gate run of any
-recovered slice must budget for finding exactly this class of defect.**
+**Task 9 — Observers and the observation bundle** (plan Task 9; proves
+P3; gate `cargo nextest run --test p3_real_observation && cargo nextest
+run -p gauntlet-app observation::`). Facet adapters `filesystem`,
+`versioning` (NOT `git` — operator rename absorbed, see above), `build`,
+`test`, plus a generic `command` facet under `crates/adapters/observe-*/`;
+every facet records instrument identity, exact command, env fingerprint,
+timing, exit status, content-addressed evidence ref; bundle assembly with
+`observation_digest` over timestamp-free normalized bytes;
+`unavailable_evidence`/`observation_failures` REQUIRED arrays populated on
+every probe failure; `claims_facet` carries `excluded_from_verification:
+true` and is filtered at the TYPE level when constructing verification
+inputs. Proof test `p3_real_observation` consumes Task 8's
+lying-builder fixture — the claim must not influence any verification
+input. Trigger watch: the Task-8 deferral ledger's `written_document`
+entry fires if observer forensics need the raw document text.**

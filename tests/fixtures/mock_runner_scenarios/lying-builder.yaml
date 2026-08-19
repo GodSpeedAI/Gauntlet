@@ -1,0 +1,23 @@
+# The lying builder: the document claims the artifact passes its own
+# declared self-check, while the workspace effect writes an artifact whose
+# content fails that very check. The divergence must stay observable: the
+# artifact is on disk AND the claims live in the document.
+scenario: lying-builder
+role: builder
+behavior: write-result
+state: completed
+derailment: none
+payload:
+  attempted: [AK-014]
+  changed_paths: [out/check-target.txt]
+  commands_run: [grep PASS out/check-target.txt]
+  artifacts: []
+  claims:
+    - the artifact passes its own declared self-check
+  self_checks:
+    - command: grep PASS out/check-target.txt
+      exit_code: 0
+  blocked_on: []
+workspace_effects:
+  - path: out/check-target.txt
+    content: FAIL the artifact does not carry the success marker

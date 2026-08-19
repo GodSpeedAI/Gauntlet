@@ -1,0 +1,18 @@
+# The critic that returns pass with no evidence: a schema-valid envelope,
+# role critic, state completed, a pass claim, and BOTH evidence-bearing
+# payload arrays empty. Pins the P11 shape (claims present, evidence
+# absent) at the envelope level.
+scenario: critic-pass-without-evidence
+role: critic
+behavior: write-result
+state: completed
+derailment: none
+payload:
+  attempted: [AK-030]
+  changed_paths: []
+  commands_run: []
+  artifacts: []
+  claims:
+    - the implementation matches the reference and passes with no residual
+  self_checks: []
+  blocked_on: []

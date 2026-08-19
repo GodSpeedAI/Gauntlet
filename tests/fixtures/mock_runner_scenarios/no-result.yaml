@@ -1,0 +1,6 @@
+# The silent child: no document is ever written; the runtime deadline
+# fires after three polls (spec 10.3 rule 5 — TimedOut, never Completed).
+scenario: no-result
+role: builder
+behavior: stall
+timeout_after_probes: 3

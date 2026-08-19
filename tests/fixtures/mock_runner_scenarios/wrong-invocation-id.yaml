@@ -1,0 +1,16 @@
+# The cross-wired child: a grammar-valid document carrying a foreign
+# invocation id (spec 10.3 rule 6 — Failed{contract_mismatch}).
+scenario: wrong-invocation-id
+role: builder
+behavior: write-result
+state: completed
+derailment: foreign-invocation-id
+payload:
+  attempted: [AK-014]
+  changed_paths: []
+  commands_run: []
+  artifacts: []
+  claims:
+    - finished the other invocation's work
+  self_checks: []
+  blocked_on: []

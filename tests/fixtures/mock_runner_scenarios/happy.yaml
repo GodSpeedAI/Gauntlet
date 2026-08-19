@@ -1,0 +1,21 @@
+# The happy path: the child writes a schema-valid result document that
+# echoes the dispatch identity exactly, after one probe of in-flight work.
+scenario: happy
+role: builder
+behavior: write-result
+probes_before_write: 1
+state: completed
+derailment: none
+payload:
+  attempted: [AK-014]
+  changed_paths: [src/lib.rs]
+  commands_run: [cargo nextest run -p gauntlet-domain]
+  artifacts:
+    - path: out/summary.txt
+      evidence_ref: evd-000042
+  claims:
+    - the assigned slice is implemented and its focused tests pass
+  self_checks:
+    - command: cargo nextest run -p gauntlet-domain
+      exit_code: 0
+  blocked_on: []

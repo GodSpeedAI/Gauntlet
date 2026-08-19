@@ -1,0 +1,16 @@
+# The stale child: a well-formed document echoing a stale envelope digest
+# (spec 10.3 rule 6 — Failed{contract_mismatch}).
+scenario: stale-envelope-digest
+role: builder
+behavior: write-result
+state: completed
+derailment: stale-envelope-digest
+payload:
+  attempted: [AK-014]
+  changed_paths: []
+  commands_run: []
+  artifacts: []
+  claims:
+    - finished against an earlier envelope
+  self_checks: []
+  blocked_on: []

@@ -1,0 +1,16 @@
+# The malformed child intends to complete but writes prose where the
+# result contract demanded a typed document (spec 10.3 rule 4).
+scenario: malformed
+role: builder
+behavior: write-result
+state: completed
+derailment: raw-malformed
+payload:
+  attempted: [AK-014]
+  changed_paths: []
+  commands_run: []
+  artifacts: []
+  claims:
+    - done, probably
+  self_checks: []
+  blocked_on: []
