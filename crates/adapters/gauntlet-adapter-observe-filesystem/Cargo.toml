@@ -17,3 +17,7 @@ workspace = true
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
+# Plan Task 9: the filesystem facet's manifest digests and the environment
+# fingerprint need SHA-256 — the same adapter-allowlisted crate the
+# evidence-fs store uses; std has none.
+sha2.workspace = true

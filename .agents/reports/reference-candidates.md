@@ -166,3 +166,114 @@ through the normal spec process, never a builder's direct edit.
 - **Not changed by this entry:** the answer key, the spec, and the frozen
   lock (`just ruler` PASS verified by the orchestrator in the same session).
   Settlement of this candidate belongs to the ruler's owner, not the builder.
+
+## 2026-08-19 — AK-028 evidence locator names an unmaterializable test target (Task 9, deliverable D5)
+
+- **Unit:** AK-028 (`.wayfinder/answer-key.md` lines 193–198).
+- **Claim under review (unchanged):** "Every observation facet records
+  instrument identity, exact command, environment fingerprint, exit status,
+  and a content-addressed evidence ref."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/contract/observer::facet_provenance`; no such repo-root target can
+  exist under the same cargo-target-path rule as the AK-049 entry above.
+  This is an **additional instance of the existing
+  locator-materialization class (first recorded 2026-08-17, AK-049)** —
+  not a new defect class.
+- **Proposed correction:** re-declare the locator to the per-adapter
+  provenance tests plus the application layer's cross-check tests, all
+  existing and green in this round:
+  - filesystem → `gauntlet-adapter-observe-filesystem::shared_contract
+    a_facet_carries_full_provenance_and_matching_evidence`;
+  - git/versioning → `gauntlet-adapter-observe-git::shared_contract
+    a_facet_carries_full_provenance_and_matching_evidence`;
+  - build/test/command → `gauntlet-adapter-observe-{build,test,command}::shared_contract
+    a_facet_carries_full_provenance_and_a_failing_exit_is_still_a_facet`;
+  - the evidence document's own codec (instrument identity, command, env
+    fingerprint fields) → `gauntlet-ports observer_evidence::*`
+    (7 tests, strict-decode teeth);
+  - app cross-check (facet vs stored evidence, exit-status agreement) →
+    `gauntlet-app observation::assembly::tests::a_provenance_disagreement_is_recorded_not_fatal`
+    and
+    `observation::assembly::tests::the_assembled_document_round_trips_and_feeds_verification_inputs`;
+  - composed-path corroboration → `gauntlet-cli
+    tests/p3_real_observation.rs
+    the_lying_builders_claim_diverges_from_reality_inside_the_bundle`
+    (asserts the command facet's stored evidence strict-decodes with
+    matching exit status 1, exact declared command, non-empty env
+    fingerprint).
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock (`just ruler` runs in the round's gate run; the orchestrator's
+  post-land re-run is the confirming evidence). Settlement of this
+  candidate belongs to the ruler's owner, not the builder.
+
+## 2026-08-19 — AK-029 evidence locator names an unmaterializable test target (Task 9, deliverable D5)
+
+- **Unit:** AK-029 (`.wayfinder/answer-key.md` lines 200–205).
+- **Claim under review (unchanged):** "Builder-authored claims are stored
+  in a claims facet that is excluded from verification inputs by
+  construction."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/proofs/p3_real_observation`; no such repo-root target can exist
+  under the same cargo-target-path rule as the AK-049 entry above.
+  **Additional instance of the existing locator-materialization class
+  (first recorded 2026-08-17, AK-049)** — not a new defect class.
+- **Proposed correction:** re-declare the locator to the composed-path
+  proof at the composition root, under the target name the plan's gate
+  already uses (`cargo nextest run --test p3_real_observation`;
+  `crates/gauntlet-cli/tests/p3_real_observation.rs`, with its
+  location-rationale header comment — the AK-022/023/024 p1 precedent):
+  - `the_lying_builders_claim_diverges_from_reality_inside_the_bundle`
+    (the full P3 story: claims facet carries the lying document's success
+    claims verbatim while the re-run self-check's failure is the recorded
+    facet reality, and `VerificationInputs::of_bundle` canonical bytes
+    contain NONE of the claims text — canary over every claim);
+  - `a_claims_swap_moves_the_digest_but_not_the_facet_inputs`
+    (claims are digest-covered but never facet inputs);
+  - substrate: `gauntlet-app observation::input::tests::claims_text_never_reaches_verification_inputs`,
+    `...::the_facet_and_gap_inputs_are_identical_under_a_claims_swap`, and
+    `observation::bundle::tests::a_claims_facet_claiming_inclusion_does_not_decode`
+    (the "by construction" half: `InstrumentFacets` is built only by
+    `of_bundle`, `ClaimsFacet` has no conversion path, and a wire document
+    spelling `excluded_from_verification: false` does not decode).
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock (`just ruler` runs in the round's gate run; the orchestrator's
+  post-land re-run is the confirming evidence). Settlement of this
+  candidate belongs to the ruler's owner, not the builder.
+
+## 2026-08-19 — AK-030 evidence locator names an unmaterializable test target (Task 9, deliverable D5)
+
+- **Unit:** AK-030 (`.wayfinder/answer-key.md` lines 207–212).
+- **Claim under review (unchanged):** "Unavailable evidence and observation
+  failures are recorded explicitly and never dropped or defaulted to
+  success."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/antigaming/g6_hide_failed_observations`; no such repo-root target
+  can exist under the same cargo-target-path rule as the AK-049 entry
+  above. **Additional instance of the existing locator-materialization
+  class (first recorded 2026-08-17, AK-049)** — not a new defect class.
+- **Proposed correction:** re-declare the locator to the composed-path
+  anti-gaming proof at the composition root, under the target name the
+  plan's gate already uses (`cargo nextest run --test
+  g6_hide_failed_observations`;
+  `crates/gauntlet-cli/tests/g6_hide_failed_observations.rs`, with its
+  location-rationale header comment — p1 precedent):
+  - `a_failed_probe_is_recorded_in_both_arrays_and_covered_by_the_digest`
+    (spawn-failure observer: both gap arrays populated exactly once with
+    the failed kind, `has_gaps()` true, and a rebuilt document with a
+    mutated gap array digests differently — hidden edits are
+    tamper-evident);
+  - `a_probe_store_write_failure_surfaces_as_gap_entries`
+    (store-put failure at the probe: same double gap, bundle still
+    durably written);
+  - `an_all_healthy_bundle_attests_empty_gap_arrays_explicitly`
+    (the positive statement: EMPTY arrays as populated types, never
+    `Option`);
+  - substrate: `gauntlet-app observation::assembly::tests::observer_failures_populate_both_gap_arrays_exactly_once`,
+    `...::an_observer_store_write_failure_surfaces_as_gap_entries`,
+    `...::all_healthy_observers_leave_both_arrays_explicitly_empty`, and
+    `...::a_provenance_disagreement_is_recorded_not_fatal` (the fourth
+    failure shape, recorded as data).
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock (`just ruler` runs in the round's gate run; the orchestrator's
+  post-land re-run is the confirming evidence). Settlement of this
+  candidate belongs to the ruler's owner, not the builder.

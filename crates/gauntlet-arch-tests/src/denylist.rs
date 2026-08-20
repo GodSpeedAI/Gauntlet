@@ -305,6 +305,14 @@ pub fn contains_term(haystack_lower: &str, term: &str) -> bool {
 pub fn scan_source(path: &str, text: &str, deny: &Denylist, role: Role) -> Vec<String> {
     let terms = deny.terms_for(role);
     let mut out: Vec<String> = Vec::new();
+    // The file's physical lines by number (for the wire-key mask's
+    // array-element shape: a rustfmt-formatted multi-line array puts each
+    // element at the start of its own line, so the opening `[` or `,`
+    // lives on the PREVIOUS line).
+    let physical: std::collections::BTreeMap<usize, String> = crate::text::physical_lines(text)
+        .into_iter()
+        .map(|unit| (unit.line, unit.text))
+        .collect();
     for unit in crate::text::scan_units(text) {
         let lowered = unit.text.to_lowercase();
         // The composition root's carve-out: mask the adapter crate names out
@@ -333,7 +341,11 @@ pub fn scan_source(path: &str, text: &str, deny: &Denylist, role: Role) -> Vec<S
         if role == Role::Inner {
             for (start, end, literal) in crate::text::string_literal_spans(&unit.text) {
                 if let Some(segment) = deny.segment_literal(&literal) {
-                    if annex_b_wire_key_access(path, &unit.text, start, end, segment) {
+                    let previous: &str = physical
+                        .get(&unit.line.saturating_sub(1))
+                        .map(String::as_str)
+                        .unwrap_or("");
+                    if annex_b_wire_key_access(path, &unit.text, previous, start, end, segment) {
                         continue;
                     }
                     let message = format!(
@@ -353,23 +365,28 @@ pub fn scan_source(path: &str, text: &str, deny: &Denylist, role: Role) -> Vec<S
 }
 
 /// The Annex-B wire-vocabulary mask: a whole-literal adapter-segment hit is
-/// consumed ONLY inside [`crate::walk::ANNEX_B_CONTRACT_PARSER`], only when
-/// the literal is a declared [`crate::walk::ANNEX_B_WIRE_KEYS`] key, and only
-/// in a key-ACCESS position — because matching the wire schema is not adapter
-/// selection (AK-014). Position is a byte-level shape, not a parse tree: a
-/// `.get("k")` argument (`get` as a whole identifier ended by `(`) or an
-/// `&[…"k"…]` array element (bracketed by `[`/`,` before and `,`/`]` after).
-/// Every other use of the same literal in the module reports exactly as
-/// before; see the [`crate::walk::ANNEX_B_WIRE_KEYS`] doc for the recorded
-/// residual of the shape.
+/// consumed ONLY inside one of [`crate::walk::ANNEX_B_CONTRACT_PARSERS`]
+/// (the B.2 decoder plus plan Task 9's B.3-family codec modules), only when
+/// the literal is a declared [`crate::walk::ANNEX_B_WIRE_KEYS`] key, and
+/// only in a key-ACCESS position — because matching the wire schema is not
+/// adapter selection (AK-014). Position is a byte-level shape, not a parse
+/// tree: a `.get("k")` argument (`get` as a whole identifier ended by `(`)
+/// or an `&[…"k"…]` array element (bracketed by `[`/`,` before and
+/// `,`/`]` after — either on the same line, or line-initial with the
+/// opening `[`/`,` on the previous physical line, which is how
+/// rustfmt-formatted schema tables spell their elements). Every other use
+/// of the same literal in those modules reports exactly as before; see the
+/// [`crate::walk::ANNEX_B_WIRE_KEYS`] doc for the recorded residual of the
+/// shape.
 fn annex_b_wire_key_access(
     path: &str,
     unit: &str,
+    previous: &str,
     start: usize,
     end: usize,
     segment: &str,
 ) -> bool {
-    if path != crate::walk::ANNEX_B_CONTRACT_PARSER
+    if !crate::walk::ANNEX_B_CONTRACT_PARSERS.contains(&path)
         || !crate::walk::ANNEX_B_WIRE_KEYS
             .iter()
             .any(|(key, _)| *key == segment)
@@ -386,12 +403,23 @@ fn annex_b_wire_key_access(
                 .next_back()
                 .is_none_or(|c| !(c.is_alphanumeric() || c == '_'))
         });
-    let array_element = before
+    let same_line_element = before
         .chars()
         .next_back()
         .is_some_and(|c| c == '[' || c == ',')
         && after.chars().next().is_some_and(|c| c == ',' || c == ']');
-    get_call || array_element
+    // A rustfmt-formatted array puts each element at the start of its own
+    // line, with the opening `[` (or the preceding element's `,`) on the
+    // previous physical line. Line-initial position + previous line ending
+    // in `[`/`,` + same-line `,`/`]` (or line end) is that element shape —
+    // recorded residual: the shape cannot see the array's purpose, exactly
+    // like the same-line form, and a line-initial literal following ANY
+    // line ending in `[`/`,` (a split call argument list, say) is masked
+    // in these four codec modules.
+    let line_initial_element = before.is_empty()
+        && previous.trim_end().ends_with(['[', ','])
+        && after.chars().next().is_none_or(|c| c == ',' || c == ']');
+    get_call || same_line_element || line_initial_element
 }
 
 /// Scan one `Cargo.toml`'s dependency keys, `package = "..."` rename values,
@@ -1197,7 +1225,7 @@ let prime = match object.get(\"prime\") {
 };
 ";
         let parser = scan_source(
-            crate::walk::ANNEX_B_CONTRACT_PARSER,
+            crate::walk::ANNEX_B_CONTRACT_PARSERS[0],
             fixture,
             &deny,
             Role::Inner,
@@ -1231,6 +1259,47 @@ let prime = match object.get(\"prime\") {
     }
 
     #[test]
+    fn annex_b_wire_keys_are_masked_in_the_task9_codec_modules_too() {
+        // Plan Task 9's growth of the parser list (see the pinned const):
+        // the B.3-family codec modules get the SAME mask under the SAME
+        // gates — declared key, key-access position — and core files
+        // outside the list still report every spelling.
+        let deny = annex_deny();
+        let fixture = "\
+let command = match object.get(\"command\") {
+    Some(JsonValue::Str(s)) => s.clone(),
+    None => return Err(missing(&[\"command\"])),
+};
+let prime = match object.get(\"prime\") {
+    None => return Err(missing(\"prime\")),
+};
+";
+        for parser in &crate::walk::ANNEX_B_CONTRACT_PARSERS[1..] {
+            let violations = scan_source(parser, fixture, &deny, Role::Inner);
+            assert!(
+                !violations.iter().any(|v| v.contains("'command'")),
+                "a declared wire key in key-access position must be masked in {parser}: \
+                 {violations:?}"
+            );
+            assert!(
+                violations.iter().any(|v| v.contains("'prime'")),
+                "a non-wire segment must still report at the same position in {parser}: \
+                 {violations:?}"
+            );
+        }
+        let outside = scan_source(
+            "crates/gauntlet-app/src/observation/digest.rs",
+            fixture,
+            &deny,
+            Role::Inner,
+        );
+        assert!(
+            outside.iter().filter(|v| v.contains("'command'")).count() >= 2,
+            "outside the parser list every key-access use must report: {outside:?}"
+        );
+    }
+
+    #[test]
     fn annex_b_wire_key_outside_key_access_still_reports_in_the_parser() {
         let deny = annex_deny();
         for fixture in [
@@ -1242,7 +1311,7 @@ let prime = match object.get(\"prime\") {
             "getter(\"command\");\n",
         ] {
             let violations = scan_source(
-                crate::walk::ANNEX_B_CONTRACT_PARSER,
+                crate::walk::ANNEX_B_CONTRACT_PARSERS[0],
                 fixture,
                 &deny,
                 Role::Inner,
@@ -1267,7 +1336,7 @@ let prime = match object.get(\"prime\") {
             "object.get(\" command\");\n",
         ] {
             let violations = scan_source(
-                crate::walk::ANNEX_B_CONTRACT_PARSER,
+                crate::walk::ANNEX_B_CONTRACT_PARSERS[0],
                 fixture,
                 &deny,
                 Role::Inner,
@@ -1281,7 +1350,7 @@ let prime = match object.get(\"prime\") {
         // receiver — recorded residuals, not a silent widening.
         for fixture in ["other(&[\"command\"]);\n", "commands.get(\"command\");\n"] {
             let violations = scan_source(
-                crate::walk::ANNEX_B_CONTRACT_PARSER,
+                crate::walk::ANNEX_B_CONTRACT_PARSERS[0],
                 fixture,
                 &deny,
                 Role::Inner,
@@ -1291,5 +1360,121 @@ let prime = match object.get(\"prime\") {
                 "{fixture:?} -> {violations:?}"
             );
         }
+        // RECORDED RESIDUAL (critic-B BIT-5a, correction C9 — pinned
+        // visibility, not acceptance): a SPLIT call argument —
+        // `registry.select("builder",\n    "command",\n)` — is
+        // selection-shaped, and it MASKS today in these codec modules: the
+        // literal is line-initial, its previous line ends in `,`, and its
+        // same-line `after` starts with `,`, so the line-initial element
+        // shape (and the joined-unit same-line shape) both fire. This is
+        // ledger entry D4 of the Task-9 correction adjudication: the
+        // accepted masking class for these four modules, whose
+        // re-litigation trigger is the next arch-suite touch (alongside
+        // E4/F1/F3 per the standing rule). The assertion pins that we SEE
+        // it mask; the outside-the-module control below pins that the
+        // fixture is genuinely detectable, so this can never quietly pass
+        // vacuously.
+        let split_argument = "let observer = registry.select(\"builder\",\n    \"command\",\n);\n";
+        for parser in crate::walk::ANNEX_B_CONTRACT_PARSERS {
+            let violations = scan_source(parser, split_argument, &deny, Role::Inner);
+            assert!(
+                !violations.iter().any(|v| v.contains("'command'")),
+                "the recorded split-argument residual masks in {parser} (D4): {violations:?}"
+            );
+        }
+        let outside = scan_source(
+            "crates/gauntlet-app/src/observation/digest.rs",
+            split_argument,
+            &deny,
+            Role::Inner,
+        );
+        assert!(
+            outside.iter().any(|v| v.contains("'command'")),
+            "outside the codec modules the same split argument reports: {outside:?}"
+        );
+        // Plan Task 9's line-initial element form: a rustfmt-formatted
+        // schema table masks its line-initial declared keys (previous line
+        // ends in `[`/`,`), while the same line-initial spelling WITHOUT
+        // that predecessor still reports.
+        let multi_line_table = "const FIELDS: &[&str] = &[\n    \"command\",\n];\n";
+        for parser in crate::walk::ANNEX_B_CONTRACT_PARSERS {
+            let violations = scan_source(parser, multi_line_table, &deny, Role::Inner);
+            assert!(
+                !violations.iter().any(|v| v.contains("'command'")),
+                "a line-initial declared key in a schema table must be masked in {parser}: \
+                 {violations:?}"
+            );
+        }
+        let orphan_line_initial = "let role =\n    \"command\";\n";
+        let violations = scan_source(
+            crate::walk::ANNEX_B_CONTRACT_PARSERS[0],
+            orphan_line_initial,
+            &deny,
+            Role::Inner,
+        );
+        assert!(
+            violations.iter().any(|v| v.contains("'command'")),
+            "a line-initial literal whose previous line ends in `=` still reports: {violations:?}"
+        );
+    }
+
+    /// C7 (critic-B BIT-5b'): the maskable vocabulary — what the Annex-B
+    /// wire-key mask can ever hide at a key-access position in the four
+    /// codec modules — is the intersection of the derived adapter
+    /// SEGMENTS with the DECLARED wire keys. This pin computes that
+    /// intersection from the REAL workspace member list
+    /// ([`Denylist::derive`] over [`crate::deps::read_members`], exactly
+    /// what the repo scan uses), so landing an adapter whose last name
+    /// segment collides with a declared wire key (say
+    /// `gauntlet-adapter-observe-path` or `-claims`) FAILS here and
+    /// forces a deliberate, recorded decision — widening the pin and the
+    /// mask's documented residual together — instead of silently
+    /// widening what the mask can hide.
+    #[test]
+    fn the_maskable_wire_key_intersection_is_pinned() {
+        let root = crate::walk::repo_root();
+        let manifest =
+            std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest is readable");
+        let members =
+            crate::deps::read_members(&root, &manifest).expect("the workspace members resolve");
+        let deny = Denylist::derive(&members);
+        assert_eq!(
+            maskable_wire_keys(&deny).as_slice(),
+            ["command"],
+            "an adapter segment now collides with a declared Annex-B wire key: growing the \
+             maskable set is a deliberate, recorded decision — update this pin and the mask's \
+             documented residual together"
+        );
+
+        // The control that keeps the pin honest: the intersection is
+        // COMPUTED from the member list, not a constant — a hypothetical
+        // member whose last segment is a declared wire key widens it, which
+        // is exactly the failure this pin must produce on a real edit.
+        let mut grown = members.clone();
+        grown.push(Member {
+            dir: "crates/adapters/gauntlet-adapter-observe-path".to_string(),
+            name: "gauntlet-adapter-observe-path".to_string(),
+        });
+        let widened = Denylist::derive(&grown);
+        assert!(
+            maskable_wire_keys(&widened).as_slice().contains(&"path"),
+            "the control member must widen the intersection"
+        );
+    }
+
+    /// The adapter segments that are ALSO declared Annex-B wire keys — the
+    /// whole vocabulary the parser mask can hide, in the segment sort
+    /// order (length, then alphabetical). Same inputs and same predicate
+    /// as the mask's own module+key gates, so it cannot drift from them.
+    fn maskable_wire_keys(deny: &Denylist) -> Vec<&str> {
+        deny.adapter_segments
+            .iter()
+            .map(String::as_str)
+            .filter(|segment| {
+                crate::walk::ANNEX_B_WIRE_KEYS
+                    .iter()
+                    .any(|(key, _)| key == segment)
+            })
+            .collect()
     }
 }

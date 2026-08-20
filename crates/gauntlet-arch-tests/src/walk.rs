@@ -99,16 +99,28 @@ pub const DEFAULTS_TABLE_SETTINGS: &[&str] = &[
     "git_strategy",
 ];
 
-/// The ONE file where Annex-B wire vocabulary is parsed: the contract
-/// envelope/payload decoder in `gauntlet-ports`. Its `from_json` paths MUST
-/// match the exact JSON keys of the annex — that is schema conformance, not
-/// adapter selection — so the segment-whole-literal rule (AK-014) masks the
-/// declared wire keys there, in key-ACCESS position only. Everything else
-/// this module contains is policed exactly as before.
-pub const ANNEX_B_CONTRACT_PARSER: &str = "crates/gauntlet-ports/src/role_result.rs";
+/// The files where Annex-B wire vocabulary is parsed or canonically
+/// serialized. The B.2 contract decoder in `gauntlet-ports` (index 0) and,
+/// since plan Task 9, the Annex-B.3-family codec modules: the
+/// `facet_evidence@v1` document codec (ports) plus the
+/// `observation_bundle@v1` bundle codec and the verification-inputs
+/// serializer (application). Their encode/decode paths MUST match the
+/// exact JSON keys of the annexes — that is schema conformance, not
+/// adapter selection — so the segment-whole-literal rule (AK-014) masks
+/// the declared wire keys there, in key-ACCESS position only. Everything
+/// else these modules contain is policed exactly as before. Growth of
+/// this list is a deliberate, recorded boundary-test change (plan Task 9:
+/// the B.3 generation of codecs); it is pinned by test in `scope_tests`.
+pub const ANNEX_B_CONTRACT_PARSERS: &[&str] = &[
+    "crates/gauntlet-ports/src/role_result.rs",
+    "crates/gauntlet-ports/src/observer_evidence.rs",
+    "crates/gauntlet-app/src/observation/bundle.rs",
+    "crates/gauntlet-app/src/observation/input.rs",
+];
 
-/// The declared field-key vocabulary of **Annex B.2** (`builder_result@v1`),
-/// each key paired with its spec field reference:
+/// The declared field-key vocabulary of **Annex B.2** (`builder_result@v1`)
+/// — plus the one Annex-B.3-family key that collides with an adapter
+/// segment — each key paired with its spec field reference:
 ///
 /// ```json
 /// { "attempted": ["AK-014"], "changed_paths": [], "commands_run": [],
@@ -119,7 +131,7 @@ pub const ANNEX_B_CONTRACT_PARSER: &str = "crates/gauntlet-ports/src/role_result
 /// ```
 ///
 /// A string literal equal to one of these keys, inside
-/// [`ANNEX_B_CONTRACT_PARSER`], at a key-access position (a `.get("k")`
+/// [`ANNEX_B_CONTRACT_PARSERS`], at a key-access position (a `.get("k")`
 /// argument or an `&[…"k"…]` allowlist array), is the parser MATCHING the
 /// wire schema — never an adapter selection, and therefore not an AK-014
 /// violation. The mask has three independent gates (module, declared key,
@@ -179,7 +191,12 @@ pub const ANNEX_B_WIRE_KEYS: &[(&str, &str)] = &[
         "self_checks",
         "Annex B.2 `builder_result@v1` top-level `self_checks`",
     ),
-    ("command", "Annex B.2 `self_checks[].command`"),
+    (
+        "command",
+        "Annex B.2 `self_checks[].command`; Annex B.3 `observation_bundle@v1` \
+         `facets[].command` and `facet_evidence@v1` top-level `command` (plan Task 9 \
+         codec modules — same key spelling, same schema-conformance class)",
+    ),
     ("exit_code", "Annex B.2 `self_checks[].exit_code`"),
     (
         "blocked_on",
@@ -498,6 +515,23 @@ mod scope_tests {
     }
 
     #[test]
+    fn annex_b_contract_parsers_are_pinned() {
+        // The wire-key mask's module gate (see the const's doc): the B.2
+        // decoder, then plan Task 9's Annex-B.3-family codec modules.
+        // Adding a module is a deliberate, recorded boundary-test change
+        // that updates this pin — the same discipline as the wire-key pin.
+        assert_eq!(
+            ANNEX_B_CONTRACT_PARSERS,
+            &[
+                "crates/gauntlet-ports/src/role_result.rs",
+                "crates/gauntlet-ports/src/observer_evidence.rs",
+                "crates/gauntlet-app/src/observation/bundle.rs",
+                "crates/gauntlet-app/src/observation/input.rs",
+            ]
+        );
+    }
+
+    #[test]
     fn annex_b_wire_keys_are_pinned_to_their_spec_references() {
         // The mask consumes exactly the declared Annex-B.2 vocabulary (see
         // the const's doc): widening, deleting, or reordering a key is a
@@ -529,7 +563,12 @@ mod scope_tests {
                     "self_checks",
                     "Annex B.2 `builder_result@v1` top-level `self_checks`"
                 ),
-                ("command", "Annex B.2 `self_checks[].command`"),
+                (
+                    "command",
+                    "Annex B.2 `self_checks[].command`; Annex B.3 `observation_bundle@v1` \
+         `facets[].command` and `facet_evidence@v1` top-level `command` (plan Task 9 \
+         codec modules — same key spelling, same schema-conformance class)",
+                ),
                 ("exit_code", "Annex B.2 `self_checks[].exit_code`"),
                 (
                     "blocked_on",

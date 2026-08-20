@@ -33,3 +33,15 @@ gauntlet-app.workspace = true
 [dev-dependencies]
 gauntlet-adapter-state-sqlite.workspace = true
 gauntlet-adapter-evidence-fs.workspace = true
+# Task 9 adds the observe adapters + the mock runner the same way: the P3
+# and G6 proofs (tests/p3_real_observation.rs,
+# tests/g6_hide_failed_observations.rs) compose REAL observers over the
+# Task-8 lying-builder fixture and assemble bundles through the
+# application layer's assembler. Still dev-only — production wiring lands
+# with the plan-task composition that needs it (Tasks 12/15).
+gauntlet-adapter-agent-mock.workspace = true
+gauntlet-adapter-observe-filesystem.workspace = true
+gauntlet-adapter-observe-git.workspace = true
+gauntlet-adapter-observe-build.workspace = true
+gauntlet-adapter-observe-test.workspace = true
+gauntlet-adapter-observe-command.workspace = true

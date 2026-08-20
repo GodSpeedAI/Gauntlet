@@ -10,51 +10,75 @@
 //! would let deadlines un-expire, which no real clock can do and which
 //! `Deadline::exceeded_at` consumers rely on never seeing).
 
-use core::cell::Cell;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 use gauntlet_domain::EpochSeconds;
 use gauntlet_ports::clock::{Clock, ClockError};
 
 /// A virtual clock whose instant moves only when something sleeps.
 ///
-/// Single-threaded by design (a `Cell` interior): the mock runner family is
-/// a test double, and cross-thread virtual time would need a shared
-/// timeline contract the spec does not define. Tests needing one timeline
-/// share one `&DeterministicClock`.
-#[derive(Debug, Clone)]
+/// The interior is one atomic word, so the clock is `Send + Sync` and
+/// shareable as `Arc<dyn Clock>` — the shape every port consumer wires
+/// (the Task-9 composition root hands the same clock to several observers
+/// and the assembler). The shared timeline contract is the atomic itself:
+/// monotonic max under [`Clock::sleep_until`], from any thread.
+#[derive(Debug)]
 pub struct DeterministicClock {
-    now: Cell<EpochSeconds>,
+    now: AtomicU64,
 }
 
 impl DeterministicClock {
     /// A clock resting at the given instant.
     pub fn start_at(instant: EpochSeconds) -> Self {
         Self {
-            now: Cell::new(instant),
+            now: AtomicU64::new(instant.get()),
         }
     }
 
     /// The current virtual instant — the port's `now`, exposed for tests
     /// that want to assert the time line directly.
     pub fn instant(&self) -> EpochSeconds {
-        self.now.get()
+        EpochSeconds::new(self.now.load(Ordering::Relaxed))
+    }
+}
+
+impl Clone for DeterministicClock {
+    /// Snapshots the current instant into an independent clock (a clone of
+    /// a clock is a new clock reading the same time, not a shared handle —
+    /// sharing is what `Arc` is for).
+    fn clone(&self) -> Self {
+        Self {
+            now: AtomicU64::new(self.now.load(Ordering::Relaxed)),
+        }
     }
 }
 
 impl Clock for DeterministicClock {
     fn now(&self) -> EpochSeconds {
-        self.now.get()
+        EpochSeconds::new(self.now.load(Ordering::Relaxed))
     }
 
     fn sleep_until(&self, at: EpochSeconds) -> Result<(), ClockError> {
-        // Monotonic max: advance only forward. The ports' trait doc pins the
-        // deterministic-adapter reading — "a sleep to `at` moves the clock
-        // to `at`" — and a backwards move is silently swallowed rather than
-        // an error because real `sleep_until(past)` also returns instantly
-        // without moving the clock; matching that observable is the honest
-        // emulation, and callers that need to notice can compare `now()`.
-        if at > self.now.get() {
-            self.now.set(at);
+        // Monotonic max: advance only forward, via compare-exchange so a
+        // concurrent sleep can never lose the maximum target. The ports'
+        // trait doc pins the deterministic-adapter reading — "a sleep to
+        // `at` moves the clock to `at`" — and a backwards move is silently
+        // swallowed rather than an error because real `sleep_until(past)`
+        // also returns instantly without moving the clock; matching that
+        // observable is the honest emulation, and callers that need to
+        // notice can compare `now()`.
+        let target = at.get();
+        let mut current = self.now.load(Ordering::Relaxed);
+        while target > current {
+            match self.now.compare_exchange_weak(
+                current,
+                target,
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(observed) => current = observed,
+            }
         }
         Ok(())
     }
@@ -111,5 +135,34 @@ mod tests {
             .sleep_until(EpochSeconds::new(LATE))
             .expect("virtual sleep never fails");
         assert_eq!(clock.now().get(), LATE);
+    }
+
+    /// The composition-root shape this clock must support (Task 9's p3
+    /// proof hands one clock to several observers under `Arc<dyn Clock>`):
+    /// concurrent sleeps from several threads settle on the maximum
+    /// target, never a lost update. A `Cell` interior cannot even compile
+    /// this test — the atomic interior is what makes the clock shareable.
+    #[test]
+    fn concurrent_sleeps_settle_on_the_maximum_target_under_sharing() {
+        use std::sync::Arc;
+        let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(EARLY)));
+        let shared: Arc<dyn Clock + Send + Sync> = clock.clone();
+        let mut threads = Vec::new();
+        for offset in [10u64, 90, 30] {
+            let shared = shared.clone();
+            threads.push(std::thread::spawn(move || {
+                shared
+                    .sleep_until(EpochSeconds::new(EARLY + offset))
+                    .expect("virtual sleep never fails");
+            }));
+        }
+        for thread in threads {
+            thread.join().expect("the sleeper threads must not panic");
+        }
+        assert_eq!(
+            shared.now().get(),
+            LATE,
+            "the maximum target wins and no concurrent sleep is lost"
+        );
     }
 }

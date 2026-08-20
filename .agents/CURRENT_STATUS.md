@@ -1,12 +1,27 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-19 — **Tasks 2–7 CLOSED (records below). Task 8
-CLOSED (this session, after an interruption-recovery start: the round-1
-builder's code was already in the tree; recovered per the lesson — gates
-run personally, missing report slice written, lint closure delegated, 3
-teeth, two blind critics (0 critical, 3 major) + C1–C6 correction +
-confirmation CONFIRM + N1 micro-fix). Next: Task 9 (observers +
-observation bundle, P3) — unblocked by 8; 10/11/12 also unblocked.**
+**Last updated:** 2026-08-20 — **Tasks 2–9 CLOSED (records below). Task 9
+closed this session after: a usage-limit interruption mid-D4 (recovered by
+a finisher per the lesson), orchestrator-run gates + 4 teeth (T1–T4, all
+bit, all reverted), two blind critics (0 critical; 3 major spec + 5 major
+adversarial), C1–C10 correction round (fail-first per item), confirmation
+critic CONFIRM + N1 doc micro-fix. Next: Task 10 (comparator + envelope
+builder, P2) — unblocked; its first ledger dependency is D3 below (the
+comparison envelope must carry facet-level reality).**
+
+**Task 9's interruption record (seventh instance of the class):** the
+round-1 builder died from a **usage limit** mid-D4 (D1–D3 green and
+checkpointed; D4 code landed never-executed; D5/D6 unstarted). Recovery per
+`.agents/lessons/session-interruption-recovery.md`: reconcile `git status`
+against the checkpoint file, dispatch a finisher that proves-what-landed
+instead of re-dispatching. The finisher also surfaced two items the critics
+then adjudicated: (1) `DeterministicClock` interior `Cell`→`AtomicU64`
+(closed-Task-8 crate; composition-root `Arc<dyn Clock>` requirement — the
+"intended production/composition path" a closed-task green had failed to
+prove reachable); (2) a deliberate, pinned boundary-suite growth —
+`ANNEX_B_CONTRACT_PARSERS` (4 codec modules) + the line-initial
+array-element mask shape — same adjudicated class as Task 4's B.2
+exemption; adversarially attacked (5a) and ledgered as D4 below.**
 
 **Read this file first.** Then `AGENTS.md`, `.agents/specs/Core-spec.md`,
 `.agents/plans/gauntlet-impl.md` — in that order.
@@ -136,6 +151,70 @@ dispatch check (Task 14, the `Isolation` ladder is in place).
   the escapes rule → second entry in
   `.agents/reports/reference-candidates.md`, citing the three real tests
   (app filter test, adapter golden, CLI stack test).
+
+### Task 9 closure record (this session, 2026-08-20)
+
+- **Interruption recovery (seventh instance of the class, new subclass —
+  usage limit):** the round-1 builder completed D1–D3 with checkpoints
+  (ports codec 7/7, five adapters 20/20, app `observation::` 23/23) and
+  died mid-D4; the two proof files + cli dev-deps landed NEVER EXECUTED.
+  Recovered per the documented procedure by a finisher: prove-what-landed
+  (p3/g6 first-ever runs), D5 recorded acts, D6 gates — which surfaced a
+  **red boundaries gate** the dying builder never ran (92 hits: B.3 wire
+  key `"command"`, kind tokens in tests, one adapter name in a ports doc).
+- **Artifact:** ports `facet_evidence@v1` strict codec (per-facet env
+  fingerprint lives in the evidence document — the §12.2-vs-B.3
+  reconciliation, documented); five facet adapters (`filesystem` bounded
+  walk with named caps + `\xNN` manifest determinism, `git`→Versioning
+  with the documented nonzero-exit exception, `build`, `test`, generic
+  `command`) — all passing the UNMODIFIED Task-4 shared contract suite,
+  each with an AK-028 provenance test; `gauntlet-app observation::{bundle,
+  digest, input, assembly}` (typed B.3 mirror with strict decode, §12.4
+  digest over timestamp-stripped normalized bytes, structural claims
+  exclusion — `ClaimsFacet` has no path into `InstrumentFacets`/
+  `VerificationInputs`, single §21.3 gap-population site feeding BOTH
+  arrays, provenance cross-check); composition-root proofs
+  `p3_real_observation` (the lying builder's declared self-check re-run as
+  a real `FacetKind::Test` instrument → facet exit 1 + failing evidence
+  while the claims facet asserts success; claims canary over verification
+  inputs; digest stability/sensitivity) and `g6_hide_failed_observations`
+  (spawn-failure and store-write-failure → both gap arrays exactly once,
+  digest covers gap entries, all-healthy = explicitly empty arrays).
+- **Teeth (orchestrator-run, all reverted, `task9/teeth.md`):** T1 delete
+  the `unavailable_evidence` population → 4 tests fail (app + g6); T2 add
+  a "helpful" `claims_context` field to `VerificationInputs` → both canary
+  tests + the p3 PROOF fail; T3 empty env fingerprint in the codec →
+  round-trip (strict decode refuses) + adapter provenance fail; T4 include
+  `observed_at` in the digest → both determinism tests fail. Note: teeth
+  on untracked files revert by manual inverse edit, not `git checkout`.
+- **Critic yield:** A (spec): 0 critical, 3 major (AK-028 locator —
+  already dispositioned by the reference-candidates entry, which A
+  independently confirmed without seeing the ledger; subprocess
+  unboundedness; P3's comparison half uncomposed), 10 minor. B
+  (adversarial): 0 critical, 5 major (weak cross-check; env-fingerprint
+  semantics; symlinked-root/`..`-ref containment absence; no process
+  timeout), 10 minor; could NOT break claims exclusion, gap totality, or
+  digest normalization (bounded batteries). Correction C1–C10 (fail-first
+  per item, `task9/correction-adjudication.md`): workspace containment in
+  all five adapters; mismatch→both arrays; cross-check identity/command/
+  exit/window agreement incl. the None-bypass; three typed plan refusals
+  (empty plan, fingerprint shape, empty revision); manifest error-line
+  cap; non-UTF-8 escape determinism; **the maskable-intersection pin**
+  (`segments ∩ ANNEX_B_WIRE_KEYS == ["command"]` computed from the real
+  member list — a colliding adapter name now fails a pin); spawn-failure
+  taxonomy unified to `Unavailable`; the split-argument mask residual
+  pinned-as-masking; the verdict-carrier doc note. Confirmation critic:
+  **CONFIRM**, 10/10 CLOSED, 0 new critical/major, 2 minors (MINOR-1 doc
+  accuracy — closed by orchestrator micro-fix; MINOR-2 informational).
+- **Final gates (orchestrator-run, post-correction):** p3 2/2, g6 3/3, app
+  `observation::` 29/29 (filter non-empty), ports observer 9/9, adapters
+  29/29, arch 193/193, workspace **621/621**, check/lint/deny 0,
+  boundaries **193/193**, ruler PASS.
+- **Recorded acts:** adapter-layer `sha2` reason extended (env
+  fingerprints + manifest digests); three reference-candidates entries
+  (AK-028/029/030, locator-materialization class); boundary-suite growth
+  (4-module parser list + line-initial element shape + 3 new pins/mask
+  tests — adversarially reviewed, residual ledgered as D4).
 
 ### Task 8 closure record (this session)
 
@@ -329,6 +408,45 @@ opportunistically at the next domain-crate touch.
   `LD_LIBRARY_PATH`) not denied — recorded policy call, not taken.
 
 ### Deferral ledger (recorded, never silent — from critics 8/9, post-6.1)
+
+**Task-9 deferrals (added this session; same upgrade rule — a deferred finding
+blocks the moment a task walks into its trigger):**
+
+- **Observer process timeouts + subprocess output-size caps** (B-7a/A-M2,
+  MAJOR): `observe()` blocks unboundedly; a lying builder declaring
+  `sleep infinity` as its self-check hangs the run instead of producing a
+  gap record. Extends the standing Task-8 "deadlines noted, not consulted"
+  convention to observers explicitly. Trigger: **Task 12** (controller
+  deadline composition — §18.4 hang disposal needs the controller anyway).
+- **Env fingerprint vs actual child environment** (B-3b core, MAJOR):
+  fingerprints snapshot the observer's construction-time env; children
+  inherit the live process env; `PATH` (binary resolution) is outside the
+  fingerprint; `from_parts` declares rather than captures. Shape now
+  validated at assemble (C4). Trigger: **Tasks 15–16** (tool binding).
+- **Digest recompute at the consumption boundary + envelope widening**
+  (B-3c + A-M3, MAJOR): no production caller recomputes
+  `observation_digest`; `ComparisonEnvelope` carries the domain bundle
+  (digest + gaps, NO facets) so a comparator wired today could not see the
+  recorded instrument failure — P3's "comparison operates on it" half
+  composes in Task 10. Trigger: **Task 10** (its own plan section).
+- **Masked selection-shaped spellings in the four codec modules** (B-5a,
+  MINOR–MAJOR): split fn-arg, purpose-blind array element,
+  receiver-invisible `.get` mask inside `ANNEX_B_CONTRACT_PARSERS`; now
+  PINNED-as-masking (C9) with the maskable intersection pinned (C7).
+  Trigger: **next arch-suite touch** — re-litigate alongside E4/F1/F3.
+- **Domain view drops facets/identity/revision** (B-8a): `as_domain_view`
+  carries digest + gap arrays only. Trigger: **Task 10 / ports revision**.
+- **Port-shape gaps** (A-m7/m9/m10): `Option` facet fields permit
+  incomplete facets; `FacetKind` vocabulary narrower than §12.2's wider
+  class list (lint/static, runtime_probe, logs, metrics, security_scan,
+  external unrepresentable); command adapter's kind is caller-bound with
+  no type restraint. Trigger: **ports revision** (facet Optionality) and
+  **production wiring** (kind↔command binding, Task 12/15).
+- **Command adapter lacks an in-crate spawn-classification test** (confirm
+  nano; property discriminated cross-crate by g6 face 1). Trigger: next
+  observe-command touch.
+- **Evidence timestamps digest-covered only transitively** via
+  content-addressed refs (A-m8) — inherent, documented, no trigger.
 
 **Task-8 deferrals (added this session; same upgrade rule — a deferred finding
 blocks the moment a task walks into its trigger):**
@@ -527,7 +645,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 6 — State store, evidence store, event log | **done** — closed after interruption recovery + 2 critics + correction + confirmation, closure record above | this session |
 | 7 — ReferenceProvider: normalize, digest, freeze, verify | **done** — closed after runaway-memory defect fix + 4+1 teeth + 2 blind critics + C1–C7 correction + confirmation CONFIRM, closure record above | this session |
 | 8 — Mock AgentRunner + fixtures | **done** — closed after interruption recovery + lint closure + 3 teeth + 2 blind critics + C1–C6 correction + confirmation CONFIRM + N1 micro-fix, closure record above | this session |
-| 9–27 | not started | — |
+| 9 — Observers + observation bundle | **done** — closed after usage-limit interruption recovery + finisher + orchestrator gates + 4 teeth + 2 blind critics (0 critical) + C1–C10 correction + confirmation CONFIRM + N1 doc micro-fix, closure record above | this session |
+| 10–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -639,7 +758,7 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (16):** **AK-001**, **AK-002**, **AK-016** — mechanisms
+- **implemented but provisional (19):** **AK-001**, **AK-002**, **AK-016** — mechanisms
   enforced by `just boundaries`, teeth demonstrated, blind-critic-hardened through seven
   rounds; provisional because no `VerificationRecord` exists yet and deferred majors
   remain on record. **AK-019** — `env_example_complete` instrument landed and green;
@@ -672,8 +791,25 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   UNMODIFIED Task-4 shared contract suite through `MockRunnerFactory`;
   teeth on classification, inventory, and capability honesty) — same
   provisional class: instrument-level proof with teeth, no
-  `VerificationRecord` yet.
-- **proposed (61):** every other Unit, including AK-014 (vacuously true; no adapter
+  `VerificationRecord` yet. **Task 9 added AK-028, AK-029, AK-030** —
+  **AK-028** (every facet records instrument identity, exact command, env
+  fingerprint in the evidence document, exit status, timing, and a
+  content-addressed evidence ref; per-adapter provenance tests + the
+  assembler cross-check, which after C3 compares identity/command/exit/
+  window agreement and refuses mismatches into both gap arrays),
+  **AK-029** (claims live only in a `ClaimsFacet` with no type-level path
+  into `VerificationInputs`; proven at the composition root by p3: the
+  lying builder's claim diverges from the instrument-observed reality
+  inside the bundle, and a canary sweep shows zero claims text in the
+  verification inputs; the T2 tooth — a "helpful" claims field — fails
+  the proof), **AK-030** (both gap arrays REQUIRED and populated at the
+  single §21.3 site on every observer failure and provenance mismatch;
+  g6 proves spawn-failure, store-failure, and explicitly-empty faces,
+  with the T1 tooth deleting the population failing four tests) — same
+  provisional class: instrument-level proof with teeth, no
+  `VerificationRecord` yet; all three locators have dated
+  reference-candidates entries (materialization class).
+- **proposed (58):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
 - **blocked: none. · unknown: none.**
 

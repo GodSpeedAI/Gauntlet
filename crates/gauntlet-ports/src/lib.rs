@@ -40,6 +40,7 @@ pub mod human_escalation;
 pub mod id_generator;
 pub mod json;
 pub mod observer;
+pub mod observer_evidence;
 pub mod operator_surface;
 pub mod policy_provider;
 pub mod reference_provider;
@@ -71,6 +72,9 @@ pub use id_generator::IdGenerator;
 pub use json::{JsonError, JsonNumber, JsonValue};
 pub use observer::{
     FacetKind, InstrumentIdentity, ObservationFacet, ObservationRequest, Observer, ObserverError,
+};
+pub use observer_evidence::{
+    FACET_EVIDENCE_SCHEMA, FacetEvidenceDoc, FacetEvidenceError, ObservedRun, command_line,
 };
 pub use operator_surface::{
     OperatorAction, OperatorSurface, OperatorSurfaceError, RuntimeSnapshot, UnitSnapshot,

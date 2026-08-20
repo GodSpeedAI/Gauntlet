@@ -149,8 +149,10 @@ pub const ADAPTER_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[
     (
         "sha2",
         "content addressing for the evidence-fs adapter's put(bytes, kind) (plan Task 6, spec \
-         6.2 EvidenceStore) — std has no SHA-256; the same crate the application layer already \
-         carries for the §8.1 config fingerprint, inherited from the root table",
+         6.2 EvidenceStore) and the five observe adapters' sha256:<hex> environment fingerprints \
+         plus the filesystem manifest's per-entry content digests (plan Task 9, spec 12.2) — std \
+         has no SHA-256; the same crate the application layer already carries for the §8.1 \
+         config fingerprint, inherited from the root table",
     ),
 ];
 

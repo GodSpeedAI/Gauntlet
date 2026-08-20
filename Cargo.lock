@@ -145,6 +145,7 @@ version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
+ "sha2",
 ]
 
 [[package]]
@@ -153,6 +154,7 @@ version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
+ "sha2",
 ]
 
 [[package]]
@@ -161,6 +163,7 @@ version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
+ "sha2",
 ]
 
 [[package]]
@@ -169,6 +172,7 @@ version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
+ "sha2",
 ]
 
 [[package]]
@@ -177,6 +181,7 @@ version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
+ "sha2",
 ]
 
 [[package]]
@@ -208,7 +213,13 @@ dependencies = [
 name = "gauntlet-cli"
 version = "0.1.0"
 dependencies = [
+ "gauntlet-adapter-agent-mock",
  "gauntlet-adapter-evidence-fs",
+ "gauntlet-adapter-observe-build",
+ "gauntlet-adapter-observe-command",
+ "gauntlet-adapter-observe-filesystem",
+ "gauntlet-adapter-observe-git",
+ "gauntlet-adapter-observe-test",
  "gauntlet-adapter-state-sqlite",
  "gauntlet-app",
  "gauntlet-domain",
