@@ -37,8 +37,9 @@ invalid states unrepresentable or typed-error-rejected; confirmation blind criti
 **0 criticals**. **Task 4 CLOSED** (`b27b152`): all 17 ports as traits with typed error
 enums, `role_result@v1` envelope + Annex-B payloads with strict-only decoding, 17 shared
 contract suites with proven teeth, gates 322/322 workspace; three blind critics, 0
-criticals, correction round closed 5 residuals; adversarial critic found **no AK-014
-evasion route** through the Annex-B wire-key exemption. **Task 5 CLOSED** (this session):
+criticals, correction round closed 5 residuals; the adversarial critic found **no
+AK-014 evasion within its bounded search** of the Annex-B wire-key exemption. **Task 5
+CLOSED** (this session):
 config resolution (defaults < GAUNTLET.md < env < flags, `.env` under process env),
 §8.6 defaults module, canonical serialization + `config_fingerprint`, all eight §8.5
 doctor checks, repo `GAUNTLET.md`, `gauntlet doctor` CLI. Critic loop found the round's
@@ -77,9 +78,10 @@ agents) → finisher brief → blind critics → correction round → final doc 
 `"command"` in `role_result.rs` (spec-mandated JSON vocabulary, not adapter selection).
 Resolution: module+key+position-gated exemption (`ANNEX_B_CONTRACT_PARSER` +
 `ANNEX_B_WIRE_KEYS`, key-access positions only), fail-closed across escaped/byte/raw/
-padded spellings, corners pinned; **adversarial blind critic verified no evasion route** —
-the exemption is "the tightest defensible slice". Its recorded residuals: receiver
-invisibility incl. module-path callees (`helpers::get("k")`), array-purpose masking inside
+padded spellings, corners pinned; **the adversarial blind critic found no evasion
+within its declared bounded search**. The exemption survived that bounded adversarial
+battery; its recorded residuals: receiver invisibility incl. module-path callees
+(`helpers::get("k")`), array-purpose masking inside
 the one module, leading-space spellings all masked. Any future widening is a deliberate
 edit to walk.rs's audited inventory.
 
@@ -162,6 +164,12 @@ dispatch check (Task 14, the `Isolation` ladder is in place).
   (p3/g6 first-ever runs), D5 recorded acts, D6 gates — which surfaced a
   **red boundaries gate** the dying builder never ran (92 hits: B.3 wire
   key `"command"`, kind tokens in tests, one adapter name in a ports doc).
+- **P3 scope:** the plan assigns Task 9 the real-observation, gap-recording,
+  and structural claims-exclusion slice. P3's authoritative predicate also
+  requires that comparison operate on the recorded instrument failure. Task 9
+  closes the observation/acquisition portion; Task 10 must compose the
+  comparison-consumption portion through its envelope (D3), carrying
+  facet-level observation reality rather than only digest/gap projections.
 - **Artifact:** ports `facet_evidence@v1` strict codec (per-facet env
   fingerprint lives in the evidence document — the §12.2-vs-B.3
   reconciliation, documented); five facet adapters (`filesystem` bounded
@@ -174,9 +182,9 @@ dispatch check (Task 14, the `Isolation` ladder is in place).
   exclusion — `ClaimsFacet` has no path into `InstrumentFacets`/
   `VerificationInputs`, single §21.3 gap-population site feeding BOTH
   arrays, provenance cross-check); composition-root proofs
-  `p3_real_observation` (the lying builder's declared self-check re-run as
-  a real `FacetKind::Test` instrument → facet exit 1 + failing evidence
-  while the claims facet asserts success; claims canary over verification
+  `p3_real_observation` (P3 observation half; the lying builder's declared
+  self-check re-run as a real `FacetKind::Test` instrument → facet exit 1 +
+  failing evidence while the claims facet asserts success; claims canary over verification
   inputs; digest stability/sensitivity) and `g6_hide_failed_observations`
   (spawn-failure and store-write-failure → both gap arrays exactly once,
   digest covers gap entries, all-healthy = explicitly empty arrays).
@@ -193,8 +201,11 @@ dispatch check (Task 14, the `Isolation` ladder is in place).
   unboundedness; P3's comparison half uncomposed), 10 minor. B
   (adversarial): 0 critical, 5 major (weak cross-check; env-fingerprint
   semantics; symlinked-root/`..`-ref containment absence; no process
-  timeout), 10 minor; could NOT break claims exclusion, gap totality, or
-  digest normalization (bounded batteries). Correction C1–C10 (fail-first
+  timeout), 10 minor. Within its static, typed scopes, B found no break in
+  claims-facet content exclusion (not builder-authored invocation/failure-detail
+  strings), both-array population for returned `ObserverError`s (not hangs,
+  panics, or assembly aborts), or normalized-byte canonicalization (not digest
+  recomputation at consumption). Correction C1–C10 (fail-first
   per item, `task9/correction-adjudication.md`): workspace containment in
   all five adapters; mismatch→both arrays; cross-check identity/command/
   exit/window agreement incl. the None-bypass; three typed plan refusals
@@ -758,10 +769,15 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (19):** **AK-001**, **AK-002**, **AK-016** — mechanisms
-  enforced by `just boundaries`, teeth demonstrated, blind-critic-hardened through seven
-  rounds; provisional because no `VerificationRecord` exists yet and deferred majors
-  remain on record. **AK-019** — `env_example_complete` instrument landed and green;
+- **implemented but provisional (19):** the derived, Unit-by-Unit set (each
+  counted once) is **AK-001**, **AK-002**, **AK-004**, **AK-015**, **AK-016**,
+  **AK-017**, **AK-018**, **AK-019**, **AK-021**, **AK-022**, **AK-023**,
+  **AK-024**, **AK-025**, **AK-028**, **AK-029**, **AK-030**, **AK-049**,
+  **AK-054**, **AK-059**. **AK-001**, **AK-002**, **AK-016** — mechanisms
+  enforced by `just boundaries`, teeth
+  demonstrated, blind-critic-hardened through seven rounds; provisional because no
+  `VerificationRecord` exists yet and deferred majors remain on record. **AK-019** —
+  `env_example_complete` instrument landed and green;
   same provisional status. (Task 4 did not move these — the new wire-key exemption and
   E4/F1/F3 closures are boundary-suite changes, not Unit settlements.) **Task 5 added
   AK-015** (config precedence, all four layers test-proven), **AK-017** (unknown
@@ -772,18 +788,20 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   reflects Task-7/14/15-16 dependencies, not open defects. **Task 6 added AK-054**
   (deterministic export, byte-identical at all three layers: adapter golden, app
   canonical re-export under reordered input, composed stack at the CLI root) — same
-  provisional class; its declared locator has a recorded reference candidate. AK-041/
-  AK-042/AK-053 gained substrate-level support (commit-order primitive + exactly-once
-  keyed replay + full §18.2 checkpoint durability, real process-kill proven) but their
+  provisional class; its declared locator has a recorded reference candidate. **Task 7
+  added AK-004** (strict `wire_enum!` parsing rejects unknown enum values) — same
+  provisional class. AK-041/AK-042/AK-053 gained substrate-level support
+  (commit-order primitive + exactly-once keyed replay + full §18.2 checkpoint
+  durability, real process-kill proven) but their
   declared locators are Task-13 proofs — not claimed. **Task 7 added AK-021**
   (script-exact typed normalization, pinned-output determinism + sensitivity tests,
   both digest implementations agreeing on the frozen key AND a trailing-space
   fixture), **AK-022** (frozen copy outside workspaces at the content address,
   SUT-rooted confinement asserts, composed with real stores), **AK-025's
   anti-adoption half** (any mid-run ruler move aborts with both digests; candidate
-  recording is Task 22/24) — same provisional class; **AK-023/AK-024 remain
-  substrate-level** (tripwire primitive proven at the composition root; the
-  production boundary/settlement callsites are Tasks 12–13). All five Units'
+  recording is Task 22/24) — same provisional class; **AK-023/AK-024 remain substrate-level provisional mechanisms**
+  (tripwire primitive proven at the composition root; the production
+  boundary/settlement callsites are Tasks 12–13). All five Units'
   declared locators have dated reference-candidates entries (materialization
   class). **Task 8 added AK-059** (the mock replays all eight scripted
   shapes — malformed, timeout, reference-mutation attempt among them — with
@@ -809,9 +827,10 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   provisional class: instrument-level proof with teeth, no
   `VerificationRecord` yet; all three locators have dated
   reference-candidates entries (materialization class).
-- **proposed (58):** every other Unit, including AK-014 (vacuously true; no adapter
+- **proposed (51):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
-- **blocked: none. · unknown: none.**
+- **blocked: none. · unknown: none.** The arithmetic is **0 proven + 19 provisional +
+  51 proposed + 0 blocked + 0 unknown = 70 frozen Units**.
 
 ---
 
@@ -833,24 +852,15 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Task 8 is CLOSED (this session). ESC-002 status unchanged: general-agent
-delegation worked reliably all session (four dispatched builders, all
-delivered; Explore critics cannot write files — their reports arrive
-in-message and the orchestrator persists them verbatim; that deviation
-class is now expected, not a failure).**
+**Tasks 2–9 are CLOSED. Task 10 — Comparator and envelope builder — is next and
+unblocked** (plan Task 10; proves P2; gate `cargo nextest run --test
+p2_context_isolation && cargo nextest run -p gauntlet-app compare::`).
 
-**Task 9 — Observers and the observation bundle** (plan Task 9; proves
-P3; gate `cargo nextest run --test p3_real_observation && cargo nextest
-run -p gauntlet-app observation::`). Facet adapters `filesystem`,
-`versioning` (NOT `git` — operator rename absorbed, see above), `build`,
-`test`, plus a generic `command` facet under `crates/adapters/observe-*/`;
-every facet records instrument identity, exact command, env fingerprint,
-timing, exit status, content-addressed evidence ref; bundle assembly with
-`observation_digest` over timestamp-free normalized bytes;
-`unavailable_evidence`/`observation_failures` REQUIRED arrays populated on
-every probe failure; `claims_facet` carries `excluded_from_verification:
-true` and is filtered at the TYPE level when constructing verification
-inputs. Proof test `p3_real_observation` consumes Task 8's
-lying-builder fixture — the claim must not influence any verification
-input. Trigger watch: the Task-8 deferral ledger's `written_document`
-entry fires if observer forensics need the raw document text.**
+**Task-9 dependency carried into Task 10 (D3):** Task 9 closed P3's
+observation/acquisition portion: it records instrument reality, explicit gaps, and
+structurally excludes claims from verification inputs. P3 also requires comparison
+to operate on that recorded instrument failure. The present `ComparisonEnvelope`
+carries only digest/gap projections, not facets or exit statuses; Task 10 must
+compose the comparison-consumption edge with facet-level observation reality and
+recompute/validate `observation_digest` at that consumption boundary. D1/D2 and D4
+retain their recorded later-task triggers in the deferral ledger.
