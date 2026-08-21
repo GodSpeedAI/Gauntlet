@@ -1,0 +1,23 @@
+# Task 10 blind critic — specification conformance
+
+**Scope and method.** Read-only review of the frozen Core Spec, frozen Answer Key, Task 10 plan, and current Task-10 sources/tests. No build/test was run. Severity is for the claimed Task-10 mechanism, not later settlement work.
+
+## Critical residuals
+
+1. **P2 leaks the prohibited attempt count.** `ComparisonEnvelope` exposes and serializes `iteration_no` (`crates/gauntlet-ports/src/comparator.rs:500-503,527-542`); `EnvelopeInputs` accepts it and `build_envelope` copies it (`crates/gauntlet-app/src/compare/envelope.rs:86-105,193-208`). The model adapter sends those exact bytes to the critic (`crates/adapters/gauntlet-adapter-compare-model/src/lib.rs:162-171`). An envelope for iteration 7 contains `"iteration_no":7`, telling the critic at least six prior attempts/trajectory steps occurred. That is an attempt count, expressly forbidden by §13.2 and AK-026. `assert_blind` only searches its manually selected names (`envelope.rs:258-304`), so P2 incorrectly passes this counterexample.
+
+2. **The model critic has an out-of-envelope context channel.** `ModelComparator` gives `RoleInvocationSpec` the caller-supplied workspace (`compare-model/src/lib.rs:162-178`), although §13.2 says the comparator receives only the five allowlisted classes and requires fresh context (`Core-spec.md:910-924`). A caller can set this to the builder workspace containing a session log/reasoning/identity; a readable permission set lets the critic obtain every denied field without it appearing in envelope bytes. The P2 composition test exercises only `DiffComparator` (`crates/gauntlet-cli/tests/p2_context_isolation.rs:36-44,424-429`), so it cannot prove the model path blind. This defeats structural blindness for the required model-backed adapter.
+
+## Major residuals
+
+3. **Untrusted model payload is not coupled to its dispatched envelope.** After outer result validation, `comparison_document` returns the inner `ComparisonRecordDoc` unchanged (`compare-model/src/lib.rs:224-252`), and `to_domain_record` merely copies that document's three digests (`293-305`). No check compares payload `run_id`, `iteration_no`, `reference_digest`, `observation_digest`, `envelope_digest`, or contract version with the dispatch/envelope. A correctly wrapped critic result can echo the required outer invocation and context digest but set payload reference/observation digests to a different run and be admitted. This violates §9.5 frozen-contract recording, §13.2 digest binding, and §21.2's validate-before-admit rule.
+
+4. **Review discards B.4 provenance and residual evidence before aggregation.** `review` calls the domain-returning trait method then `to_doc` (`crates/gauntlet-app/src/compare/review.rs:204,223,274,297-339`). `to_doc` replaces comparator identity with `review-dispatch` and empties model/dimension (`328-332`), and creates residuals with empty `unit_refs`, `expected`, and `evidence_refs` (`305-318`). Counterexample: a model record with evidence `[evd-1]` is converted to none; aggregation cannot perform §13.5's required union of evidence refs and loses the adapter/model provenance required by `comparison_record@v1`.
+
+5. **Fanout is serial, not parallel.** The `Fanout`/`HighAssurance` loop invokes and waits on each model comparator before advancing (`review.rs:211-240`); adaptive does likewise (`242-277`). §13.3 requires one comparator per dimension **in parallel**. With two 60-second comparators this implementation takes about 120 seconds and can consume a deadline/budget differently from the mandated fanout.
+
+6. **Adaptive cannot recognize a conclusive deterministic pass.** A dimension is marked settled solely when its probe produces a residual (`review.rs:255-274`). A deterministic probe that conclusively establishes conformance returns Pass with no residual and is nevertheless sent to a model critic. This violates §13.3/AK-033's rule to fan out only dimensions left undecided; the existing test covers only a conclusive failure (`521-589`).
+
+## Scope deferral (not counted as a Task-10 implementation defect)
+
+There is no production CLI composition or runtime adapter registry yet: `gauntlet-cli` has no comparator-adapter dependency and explicitly defers production wiring to Tasks 12/20 (`crates/gauntlet-cli/Cargo.toml:48-52`); the CLI exposes only doctor/reference (`src/main.rs:20-40`). Consequently this slice cannot yet claim production reachability or §6.3 conformance. That is an explicit staged-scope deferral, but it also means Task 10's test-only diff composition is not evidence that the required model-backed path is reachable.

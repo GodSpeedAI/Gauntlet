@@ -45,3 +45,11 @@ gauntlet-adapter-observe-git.workspace = true
 gauntlet-adapter-observe-build.workspace = true
 gauntlet-adapter-observe-test.workspace = true
 gauntlet-adapter-observe-command.workspace = true
+# Task 10 adds the deterministic comparator the same way: the P2 proof
+# (tests/p2_context_isolation.rs) runs the REAL compare-diff adapter over
+# the composed §13.2 envelope. Still dev-only — production wiring lands
+# with the plan-task composition that needs it (Tasks 12/20).
+gauntlet-adapter-compare-diff.workspace = true
+# Task 10 durable critic-binding proof composes the model adapter with the
+# application recording boundary and real durable adapters.
+gauntlet-adapter-compare-model.workspace = true

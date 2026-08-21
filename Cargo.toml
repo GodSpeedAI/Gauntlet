@@ -27,6 +27,7 @@ members = [
     "crates/adapters/gauntlet-adapter-observe-test",
     "crates/adapters/gauntlet-adapter-observe-command",
     "crates/adapters/gauntlet-adapter-compare-diff",
+    "crates/adapters/gauntlet-adapter-compare-model",
     "crates/gauntlet-arch-tests",
 ]
 
@@ -54,6 +55,7 @@ gauntlet-adapter-observe-build = { path = "crates/adapters/gauntlet-adapter-obse
 gauntlet-adapter-observe-test = { path = "crates/adapters/gauntlet-adapter-observe-test" }
 gauntlet-adapter-observe-command = { path = "crates/adapters/gauntlet-adapter-observe-command" }
 gauntlet-adapter-compare-diff = { path = "crates/adapters/gauntlet-adapter-compare-diff" }
+gauntlet-adapter-compare-model = { path = "crates/adapters/gauntlet-adapter-compare-model" }
 # The one external dependency permitted by plan Task 2: manifest parsing for
 # the architecture boundary tests. gauntlet-arch-tests is NOT listed above as
 # anything's dependency — it is test-only.

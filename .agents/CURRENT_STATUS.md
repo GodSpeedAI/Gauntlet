@@ -1,13 +1,103 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-20 — **Tasks 2–9 CLOSED (records below). Task 9
+**Last updated:** 2026-08-21 — **Tasks 2–9 CLOSED (records below). Task 9
 closed this session after: a usage-limit interruption mid-D4 (recovered by
 a finisher per the lesson), orchestrator-run gates + 4 teeth (T1–T4, all
 bit, all reverted), two blind critics (0 critical; 3 major spec + 5 major
 adversarial), C1–C10 correction round (fail-first per item), confirmation
-critic CONFIRM + N1 doc micro-fix. Next: Task 10 (comparator + envelope
-builder, P2) — unblocked; its first ledger dependency is D3 below (the
-comparison envelope must carry facet-level reality).**
+critic CONFIRM + N1 doc micro-fix. Task 10 (comparator + envelope builder,
+P2) is CLOSED: an architecture diagnosis found the round-3 residuals to be one
+root invariant; correction rounds 7-10 landed the governed authority/admission
+chain, the durable write-once observation binding over the bundle's CONTENT
+digest, unforgeable `ComparisonProduct`/`AdmittedComparison` values, acceptance
+anchored to the issued envelope, and a sealed capability; fresh blind
+confirmation round 7 returned CONFIRM against a compiled external attack crate
+(697/697, 194/194, all gates green). No frozen Wayfinder material was
+modified and no reference candidate was created or promoted.**
+
+**CLOSED (2026-08-21, Task 10 — fresh blind confirmation round 7: CONFIRM):** An architecture diagnosis
+(`architecture-diagnosis.md`) established that the round-3 residuals were **one
+root invariant** — Task 10 modelled provenance as value validation at each
+boundary (every check compared two values the caller already held) rather than
+as authority conferred by a governed operation — plus one independent bounded
+defect and one honestly-ledgered later-scope half (durable adversarial
+attestation has no §5.3.5/Annex-B carrier and is claimed by no Task-10 plan step
+or AK). Correction round 7 landed the earned `RunComparisonAuthority`, the
+application-owned consuming admission chain, `pub(crate)` sealing of
+`compare::{envelope,review,aggregate}`, and deletion of
+`StateStore::record_comparison`. Fresh confirmation round 4 was NOT CONFIRM
+(two compiled public-API bypasses).
+
+**Correction round 8** (`correction-round8.md`) completed the §5 architecture
+with the two operator-required corrections:
+
+- **Observation provenance now terminates in durable state.** New write-once
+  `StateStore::bind_observation_bundle` / `observation_binding` (sqlite
+  migration `0005_observation_bindings`, PK `(run_id, iteration_no)`);
+  `RunComparisonAuthority::open` performs BOTH durable reads; `GovernedRun::issue`
+  takes **no observation argument at all**, so substituting a second valid,
+  correctly hashed, pinned bundle is unrepresentable rather than detected.
+- **Builder-originated TEXT is not contraband.** The diagnosis's proposed T3 was
+  withdrawn, not implemented: Task 9's structural claims exclusion governs, and a
+  tooth asserts the *opposite* — the exact executed command reaches the
+  comparator and its text is byte-identical to the builder's own declared
+  self-check.
+- `RunComparisonAuthority` is documented as **durable provenance authority, not
+  actor-permission authority**.
+- Round-4 C1–C4 closed: `accept_comparison` takes an unforgeable
+  `AdmittedComparison`, minted only by acceptance, which takes a
+  `ComparisonProduct` minted only by dispatch; `assemble` /
+  `from_frozen_projection` / `ObservationView::new` are `pub(crate)` behind a
+  single `TrustedComparisonContext::issue` that projects the view from the bound
+  bytes and runs the P2 blindness assertion (moved into the port); the
+  adversarial doc claims only what is true; `dispatch_context()` deleted; the
+  model adapter no longer accepts its own output.
+
+Gates green: workspace **691/691**, boundaries **194/194**,
+check/lint/deny/ruler. Five teeth proven to bite by reverting the corresponding
+production check.
+
+**Correction rounds 9 and 10 closed every blocking finding, and fresh blind
+confirmation round 7 returned CONFIRM** (`correction-round9.md`,
+`correction-round10.md`, `final-confirmation-round7.md`).
+
+- **Round 9** deleted `TrustedComparisonContext::contract_fixture` — the ports
+  contract suite was a publicly reachable second minting path (round-5 F1).
+  The suite now earns its capability through `open` + `issue` against an
+  in-suite store, leaving `issue` as the only minting path in existence.
+- **Round 10** closed three MAJOR findings from confirmation round 6:
+  acceptance now anchors the comparator's reported `context_envelope` to the
+  envelope the capability actually issued (previously both sides of that check
+  were comparator-supplied); the §12.4 observation digest moved into ports and
+  is re-derived from the bundle's bytes rather than believed; the durable
+  binding now records the observation's CONTENT digest, not just its evidence
+  ref, so bytes that are not the recorded observation are refused whoever
+  serves them; and `TrustedComparisonContext::authority()` is `pub(crate)`, so
+  the capability no longer leaks out of every comparator callback.
+- **Round 7 confirmation** compiled an external attack crate: direct
+  construction, struct literals, and capability retention are all compile
+  errors; the forged-envelope, misdeclared-digest, and swapped-bytes attacks
+  are all refused at runtime. All remaining findings are MINOR.
+
+Two toothless checks the round-7 critic found were fixed in the same round:
+`verify_envelope_digest` now has a biting in-crate tooth, and the CLI test
+formerly named `p2_adapter_refuses_a_stale_envelope_digest` — which asserted
+`is_ok()` and proved no refusal — is renamed to what it actually proves.
+
+Recorded MINOR residuals: the public `comparator_suite` lends a fixture
+capability to dependent crates; the observation-owner write
+(`bind_observation_bundle`) is ungated and has no production writer yet — when
+the Task-12 controller wires it, that write should be capability-gated;
+blindness is field-name-only; and `assert_blind` inside `issue` is
+unfalsifiable by construction.
+
+Gates: workspace **697/697**, boundaries **194/194**,
+check/lint/deny/ruler. No frozen Wayfinder material was modified and no
+reference candidate was created or promoted.
+
+Evidence: `.agents/reports/task10/{architecture-diagnosis,correction-round7,
+final-confirmation-round4,correction-round8,final-confirmation-round5,
+correction-round9,correction-round10,final-confirmation-round7}.md`.
 
 **Task 9's interruption record (seventh instance of the class):** the
 round-1 builder died from a **usage limit** mid-D4 (D1–D3 green and
@@ -657,7 +747,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 7 — ReferenceProvider: normalize, digest, freeze, verify | **done** — closed after runaway-memory defect fix + 4+1 teeth + 2 blind critics + C1–C7 correction + confirmation CONFIRM, closure record above | this session |
 | 8 — Mock AgentRunner + fixtures | **done** — closed after interruption recovery + lint closure + 3 teeth + 2 blind critics + C1–C6 correction + confirmation CONFIRM + N1 micro-fix, closure record above | this session |
 | 9 — Observers + observation bundle | **done** — closed after usage-limit interruption recovery + finisher + orchestrator gates + 4 teeth + 2 blind critics (0 critical) + C1–C10 correction + confirmation CONFIRM + N1 doc micro-fix, closure record above | this session |
-| 10–27 | not started | — |
+| 10 — Comparator and envelope builder | **done** — closed after architecture diagnosis + correction rounds 7–10 + fresh blind confirmation round 7 CONFIRM (compiled external attack crate), closure record above; committed after interruption recovery (gates re-verified personally) | this session |
+| 11–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -852,15 +943,26 @@ Full context in `.agents/reports/escalations.md`. No escalations currently open.
 
 ## Next action, concretely
 
-**Tasks 2–9 are CLOSED. Task 10 — Comparator and envelope builder — is next and
-unblocked** (plan Task 10; proves P2; gate `cargo nextest run --test
-p2_context_isolation && cargo nextest run -p gauntlet-app compare::`).
+**Tasks 2–10 are CLOSED** (Task 10's artifact was left uncommitted by a session
+interruption after its confirmation round; recovered per the documented
+procedure — gates re-verified personally: check/lint/deny 0, workspace 697/697,
+boundaries 194/194, ruler PASS — then committed). Its MINOR residuals are
+recorded in the Task-10 entry above; the observation-owner write gate is the
+one that hands work to the Task-12 controller when that task opens.
+
+**Task 11 — Verifier and evidence binding (proves P12) — is the next task.**
+It has a frozen research preregistration at
+`.agents/research/preregistrations/task-11.prereg.yaml` (verify with
+`just prereg-check 11`; never edit the prereg after implementation begins —
+record observations only in `task-11.outcome.yaml`).
 
 **Task-9 dependency carried into Task 10 (D3):** Task 9 closed P3's
 observation/acquisition portion: it records instrument reality, explicit gaps, and
 structurally excludes claims from verification inputs. P3 also requires comparison
 to operate on that recorded instrument failure. The present `ComparisonEnvelope`
-carries only digest/gap projections, not facets or exit statuses; Task 10 must
-compose the comparison-consumption edge with facet-level observation reality and
-recompute/validate `observation_digest` at that consumption boundary. D1/D2 and D4
+carried only digest/gap projections, not facets or exit statuses. Task 10 closed
+this: the envelope's observation is PROJECTED from the bound bundle's §5.3.6 wire
+bytes (facets, exit statuses, both gap arrays) inside the port, and
+`observation_digest` is re-derived at that consumption boundary and cross-checked
+against the durable binding. D1/D2 and D4
 retain their recorded later-task triggers in the deferral ledger.

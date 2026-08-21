@@ -303,7 +303,9 @@ fn lying_builder_divergence_is_observable() {
         "the artifact fails the declared self-check: {artifact:?}"
     );
     // Side B — the document claims success (forensic view).
-    let RolePayload::BuilderResult(payload) = result.payload();
+    let RolePayload::BuilderResult(payload) = result.payload() else {
+        panic!("the builder fixture writes the builder payload")
+    };
     assert!(
         !payload.claims().is_empty(),
         "the claims carry the success story"
@@ -352,7 +354,9 @@ fn answer_key_write_attempt_is_observable_and_the_real_ruler_stays_untouched() {
             Deadline::at_epoch(EpochSeconds::new(1_700_000_090)),
         )
         .expect("collectible");
-    let RolePayload::BuilderResult(payload) = result.payload();
+    let RolePayload::BuilderResult(payload) = result.payload() else {
+        panic!("the builder fixture writes the builder payload")
+    };
     assert_eq!(
         payload.changed_paths(),
         &["ruler-standin/answer-key.md".to_owned()]
@@ -388,7 +392,9 @@ fn critic_pass_without_evidence_pins_the_p11_shape_at_the_envelope_level() {
         .expect("completed and collectible");
     assert_eq!(result.role(), &RoleId::Critic);
     assert_eq!(result.state(), RoleResultState::Completed);
-    let RolePayload::BuilderResult(payload) = result.payload();
+    let RolePayload::BuilderResult(payload) = result.payload() else {
+        panic!("the builder fixture writes the builder payload")
+    };
     assert!(!payload.claims().is_empty(), "the pass claim is present");
     assert!(
         payload

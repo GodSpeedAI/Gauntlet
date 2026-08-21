@@ -269,7 +269,12 @@ impl ReferenceProvider for FileReferenceProvider {
             .map_err(|err| ReferenceProviderError::FreezeFailed {
                 detail: format!("pinning the frozen key to the run failed: {err}"),
             })?;
-        Ok(reference.freeze())
+        Ok(ReferenceVersion::with_evidence(
+            reference.id().clone(),
+            reference.version(),
+            reference.digest().clone(),
+            evidence_ref,
+        ))
     }
 
     fn verify_unchanged(

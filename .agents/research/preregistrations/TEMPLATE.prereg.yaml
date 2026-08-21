@@ -1,0 +1,85 @@
+# Template — task preregistration (research instrumentation, non-normative).
+# Copy to task-N.prereg.yaml, fill from repository evidence only, then freeze:
+#   sha256sum task-N.prereg.yaml | awk '{print $1}' > task-N.prereg.sha256
+# After implementation begins this file is immutable. Later observations go in
+# task-N.outcome.yaml.
+
+schema_version: 1
+task: 0
+
+frozen_at:
+  git_commit: "<HEAD at freeze time>"
+  timestamp_utc: "<ISO-8601 UTC>"
+  # SHA-256 of this file's exact bytes lives in task-N.prereg.sha256, not here
+  # (a hash cannot contain itself). This field names that file.
+  prereg_sha256: "see task-N.prereg.sha256"
+
+# The repository documents this preregistration was derived from. Nothing outside
+# this scope may be used; no future/implementation artifacts.
+source_scope:
+  - ".agents/CURRENT_STATUS.md"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      The smallest representation of what this task is expected to establish or
+      potentially fail on, before implementation begins.
+
+    important_distinctions:
+      - id: D1
+        statement: "..."
+
+    known_blindspots:
+      - "..."
+
+  # Kinds of implementation move visible from the existing plan/spec. Classes,
+  # not code guesses; do not enumerate detailed changes the plan does not require.
+  visible_intervention_classes:
+    - id: A1
+      class: "..."
+      why_visible_now: "..."
+
+  # Genuinely discriminating predictions. Each must name an observation that would
+  # support it and an observation that would count against it.
+  predictions:
+    - id: P1
+      claim: "..."
+      kind: "implementation_defect | representation_inadequacy | expected_later_scope"
+      supporting_observation: "..."
+      disconfirming_observation: "..."
+
+  # Evidence that would justify stopping repeated local correction and
+  # reconsidering how the problem itself is represented.
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        An observation indicating the current problem representation is
+        inadequate, rather than merely the implementation being wrong.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "..."
+
+  # Three evidence levels. Do not claim in advance that a level will be reached.
+  transfer_tests:
+    replay:
+      level: L1
+      description: >
+        Exact historical failure/regression is rejected.
+      preregistered_expectation: "..."
+    parametric_variation:
+      level: L2
+      description: >
+        Same known structural failure with changed payload/values is rejected.
+      preregistered_expectation: "..."
+    structural_transfer:
+      level: L3
+      description: >
+        A previously untested bypass expressing the same causal failure class is
+        rejected without adding a special-case rule for that exact bypass.
+      preregistered_expectation: "..."
+
+  explicit_nonclaims:
+    - "..."

@@ -35,13 +35,15 @@ use gauntlet_app::reference::normalize::{digest_of, normalize_bytes};
 use gauntlet_app::reference::parse::parse_answer_key;
 use gauntlet_app::reference::provider::FileReferenceProvider;
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceRef, Limits, MicroUsd, Reference,
-    ReferenceVersion, Run, RunDefinition, RunId,
+    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceRef, IterationNo,
+    Limits, MicroUsd, Reference, ReferenceVersion, Run, RunDefinition, RunId,
 };
+use gauntlet_ports::comparator::ComparatorError;
+use gauntlet_ports::comparator::{FrozenReferenceProjection, RunComparisonAuthority};
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::evidence_store::EvidenceStore;
 use gauntlet_ports::reference_provider::{ReferenceProvider, ReferenceProviderError};
-use gauntlet_ports::state_store::StateStore;
+use gauntlet_ports::state_store::{Checkpoint, StateStore};
 
 const RUN: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 /// Fixed points far from any clock (the pipeline under test must never read
@@ -363,8 +365,39 @@ fn the_run_carries_the_frozen_version() {
     })
     .expect("legal run");
     state.record_run(&run, bound()).expect("the run records");
+    state
+        .checkpoint(
+            Checkpoint {
+                run_id: run_id(),
+                reference_digest: version.digest().clone(),
+                iteration_no: IterationNo::new(1).expect("first iteration"),
+                unit_states: Vec::new(),
+                budget_spent: *run.budget().spent(),
+                in_flight: Vec::new(),
+                event_log_offset: EventLogOffset::new(0),
+            },
+            bound(),
+        )
+        .expect("the frozen run checkpoints");
+    // Comparison authority also requires the iteration's durable observation
+    // binding. This test is about the REFERENCE half, so it binds a placeholder
+    // ref: the authority resolves the ref, and only the comparison chain reads
+    // its bytes.
+    state
+        .bind_observation_bundle(
+            &run_id(),
+            IterationNo::new(1).expect("first iteration"),
+            &gauntlet_ports::state_store::ObservationBinding::new(
+                gauntlet_domain::EvidenceRef::new("evd-observation-bundle-p1").expect("valid ref"),
+                gauntlet_domain::Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            ),
+            bound(),
+        )
+        .expect("the observation binds durably");
+    drop(state);
 
-    let loaded = state
+    let reopened = EmbeddedStateStore::open(&db).expect("the state store reopens");
+    let loaded = reopened
         .load_run(&run_id(), bound())
         .expect("the run loads")
         .expect("the recorded run is durable");
@@ -374,4 +407,28 @@ fn the_run_carries_the_frozen_version() {
         "the loaded run carries the identical frozen reference version"
     );
     assert_eq!(loaded.id(), &run_id(), "the loaded run is the same run");
+
+    let evidence_after_reopen = FsEvidenceStore::open(&store_root).expect("evidence reopens");
+    // The projection is loaded through the EARNED authority: the reference
+    // version comes out of the durable run, never from this test.
+    let authority = RunComparisonAuthority::open(
+        &reopened,
+        &run_id(),
+        gauntlet_domain::IterationNo::new(1).expect("iteration"),
+        bound(),
+    )
+    .expect("the durable run yields comparison authority");
+    assert_eq!(authority.reference(), &version);
+    let projection = FrozenReferenceProjection::load(&authority, &evidence_after_reopen, bound())
+        .expect("the rehydrated version still projects its frozen evidence");
+    assert_eq!(projection.version(), &version);
+
+    // Tooth: a rehydrated version never treats an absent evidence object as a
+    // binding. The typed unavailable outcome is required instead.
+    let missing_evidence = FsEvidenceStore::open(&scratch.path.join("missing-evidence"))
+        .expect("empty evidence store opens");
+    assert!(matches!(
+        FrozenReferenceProjection::load(&authority, &missing_evidence, bound()),
+        Err(ComparatorError::EnvelopeInvalid { .. })
+    ));
 }

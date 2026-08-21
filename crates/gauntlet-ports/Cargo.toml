@@ -9,6 +9,10 @@ workspace = true
 
 [dependencies]
 gauntlet-domain.workspace = true
+# §13.2 envelopes are port values consumed by adapters, so their canonical
+# SHA-256 integrity check belongs here rather than in an application-only
+# builder that adapters cannot call.
+sha2.workspace = true
 
 # Spec §4.1/§24.3: ports depend on the domain only. Traits here name semantic
 # capabilities, never products — vendor names belong in adapters and

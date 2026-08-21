@@ -170,7 +170,9 @@ fn the_lying_builders_claim_diverges_from_reality_inside_the_bundle() {
         .expect("the written document matches the dispatch identity");
     assert_eq!(rechecked, result);
 
-    let RolePayload::BuilderResult(payload) = result.payload();
+    let RolePayload::BuilderResult(payload) = result.payload() else {
+        panic!("the lying builder writes the builder payload")
+    };
     let claims: Vec<String> = payload.claims().to_vec();
     assert!(!claims.is_empty(), "the claims carry the success story");
     let declared = &payload.self_checks()[0];
@@ -398,7 +400,9 @@ fn a_claims_swap_moves_the_digest_but_not_the_facet_inputs() {
         other => panic!("the lying builder Completes, got {other:?}"),
     }
     let result = runner.collect(&handle, bound()).expect("collectible");
-    let RolePayload::BuilderResult(payload) = result.payload();
+    let RolePayload::BuilderResult(payload) = result.payload() else {
+        panic!("the lying builder writes the builder payload")
+    };
     let claims: Vec<String> = payload.claims().to_vec();
 
     let store = Arc::new(

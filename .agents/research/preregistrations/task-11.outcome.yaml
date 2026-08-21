@@ -1,0 +1,62 @@
+# Task 11 outcome record — research instrumentation, non-normative.
+# NOT YET OBSERVED. Task 11 implementation has not begun; every field below is
+# an honest placeholder. Fill only as evidence appears. Never edit
+# task-11.prereg.yaml to match what is observed here.
+
+schema_version: 1
+task: 11
+
+preregistration:
+  path: ".agents/research/preregistrations/task-11.prereg.yaml"
+  sha256: "13a99ef5829d0b93468d39f833bc2920a1dc6e5ad501f9795b73483d3d0e8f2d"
+
+observed:
+  task_result: null
+
+  material_events: []
+
+  predictions:
+    - prediction_ref: P1
+      result: "non_discriminating"
+      evidence: []
+      notes: "Not yet observed — no Task-11 implementation exists."
+    - prediction_ref: P2
+      result: "non_discriminating"
+      evidence: []
+      notes: "Not yet observed — no Task-11 implementation exists."
+    - prediction_ref: P3
+      result: "non_discriminating"
+      evidence: []
+      notes: "Not yet observed — no Task-11 implementation exists."
+    - prediction_ref: P4
+      result: "non_discriminating"
+      evidence: []
+      notes: "Not yet observed — no Task-11 implementation exists."
+
+representation_change:
+  occurred: null
+  before: ""
+  after: ""
+  trigger_evidence: []
+
+newly_visible_intervention_classes: []
+
+interventions_taken: []
+
+transfer_results:
+  replay:
+    result: "not_tested"
+    evidence: []
+  parametric_variation:
+    result: "not_tested"
+    evidence: []
+  structural_transfer:
+    result: "not_tested"
+    evidence: []
+
+alternative_explanations: []
+
+interpretation:
+  smallest_claim_earned: ""
+  unresolved:
+    - "Everything. Task 11 has not run."

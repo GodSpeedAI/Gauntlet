@@ -1,0 +1,53 @@
+# Template — task outcome record (research instrumentation, non-normative).
+# Copy to task-N.outcome.yaml. Fill fields ONLY once evidence exists; `null` and
+# "not_tested" are honest values. Never edit the frozen preregistration to match
+# what was observed.
+
+schema_version: 1
+task: 0
+
+preregistration:
+  path: ".agents/research/preregistrations/task-N.prereg.yaml"
+  sha256: "<contents of task-N.prereg.sha256>"
+
+observed:
+  task_result: null
+
+  # Things that actually happened, whether or not they bear on a prediction.
+  # Not every observation is evidence for or against something.
+  material_events: []
+
+  predictions:
+    - prediction_ref: P1
+      # supported | weakened | falsified | non_discriminating
+      result: "non_discriminating"
+      evidence: []
+      notes: ""
+
+representation_change:
+  occurred: null
+  before: ""
+  after: ""
+  trigger_evidence: []
+
+# Intervention classes that only became visible after the representation changed.
+newly_visible_intervention_classes: []
+
+interventions_taken: []
+
+transfer_results:
+  replay:
+    result: "not_tested"   # not_tested | rejected | not_rejected
+    evidence: []
+  parametric_variation:
+    result: "not_tested"
+    evidence: []
+  structural_transfer:
+    result: "not_tested"
+    evidence: []
+
+alternative_explanations: []
+
+interpretation:
+  smallest_claim_earned: ""
+  unresolved: []

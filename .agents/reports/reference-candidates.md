@@ -277,3 +277,95 @@ through the normal spec process, never a builder's direct edit.
   lock (`just ruler` runs in the round's gate run; the orchestrator's
   post-land re-run is the confirming evidence). Settlement of this
   candidate belongs to the ruler's owner, not the builder.
+
+## 2026-08-20 — AK-026 and AK-027 evidence locators name unmaterializable test targets (Task 10, deliverable D6)
+
+- **Units:** AK-026 (`.wayfinder/answer-key.md` lines 178–183), AK-027
+  (lines 185–190).
+- **Claims under review (unchanged, satisfied at the instrument level):**
+  "The comparison envelope is built from an allowlist and contains no
+  builder trajectory, reasoning, identity, attempt count, or prior
+  verdicts" (AK-026); "Adding a deny-listed field to the envelope makes
+  the blindness proof fail" (AK-027).
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/proofs/p2_context_isolation` and
+  `tests/proofs/p2_context_isolation::teeth`; no such repo-root target can
+  exist under the same cargo-target-path rule as the AK-049 entry
+  (exemption list exactly `["crates/gauntlet-arch-tests"]`). **Additional
+  instances of the existing locator-materialization class (first recorded
+  2026-08-17, AK-049)** — not a new defect class.
+- **Proposed correction:** re-declare the locators to the composed-path
+  proof at the composition root, under the target name the plan's gate
+  already uses (`cargo nextest run --test p2_context_isolation`;
+  `crates/gauntlet-cli/tests/p2_context_isolation.rs`, with its
+  location-rationale header comment — the p1/p3 precedent):
+  - `the_envelope_is_structurally_blind_and_carries_instrument_reality`
+    (AK-026: six canaries — claims content, builder reasoning, identity,
+    attempt count, prior verdicts, operator chat — each present in
+    builder-side source material and absent from the envelope's canonical
+    bytes; `assert_blind` passes; the failing instrument's exit status and
+    evidence ref ARE in the bytes; a tampered bundle is refused at the
+    consumption boundary; the real compare-diff adapter derives its
+    blocking residual from the instrument failure with all three digests
+    coupled to the run's frozen reference digest);
+  - `teeth` (AK-027: the designed-to-fail pair — `builder_reasoning` +
+    canary injected into the serialization, `assert_blind` FAILS and names
+    the field; every deny-listed spelling likewise);
+  - substrate: `gauntlet-app compare::envelope::tests::the_envelope_carries_facet_reality_and_none_of_the_claims`,
+    `...::a_poisoned_serialization_fails_the_blindness_proof` (every
+    deny-listed name), and `...::a_tampered_bundle_is_refused_at_the_consumption_boundary`.
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock (`just ruler` runs in the round's gate run; the orchestrator's
+  post-land re-run is the confirming evidence). Settlement of this
+  candidate belongs to the ruler's owner, not the builder.
+
+## 2026-08-20 — AK-032, AK-033, AK-034 evidence locators name unmaterializable test targets (Task 10, deliverable D6)
+
+- **Units:** AK-032 (`.wayfinder/answer-key.md` lines 221–226), AK-033
+  (lines 228–233), AK-034 (lines 235–240).
+- **Claims under review (unchanged, satisfied at the instrument level):**
+  "Residual aggregation is deterministic, is not performed by a model, and
+  any blocking residual forces an aggregate fail verdict" (AK-032);
+  "Adaptive review runs deterministic probes first and fans out model
+  critics only across dimensions those probes left undecided" (AK-033);
+  "Critic fan-out truncated by budget records the missing dimensions as
+  unavailable evidence rather than omitting them" (AK-034).
+- **Defect (evidence declaration only):** the locators
+  `tests/contract/comparison::deterministic_aggregation`,
+  `tests/contract/review_mode::adaptive_skips_settled_dimensions`, and
+  `tests/contract/review_mode::truncation_is_recorded` spell repo-root
+  test targets under `tests/contract/`, which the same cargo-target-path
+  rule forbids for core crates; the `tests/contract/` directory itself
+  exists only for the Task-2 evidence-locator stubs. **Additional
+  instances of the existing locator-materialization class (first recorded
+  2026-08-17, AK-049)** — not a new defect class.
+- **Proposed correction:** re-declare the locators to the in-crate tests
+  that prove the claims today (all in `crates/gauntlet-app`, under the
+  module path the plan's own Task-10 gate filter `compare::` already
+  hits):
+  - `gauntlet-app compare::aggregate::tests::deterministic_aggregation`
+    (AK-032: all six input permutations byte-identical; highest-severity
+    merge with evidence union; dispute preserved; blocking forces fail;
+    no model in the merge path — identity runner
+    `gauntlet-app::compare::aggregate`, empty model field; corroborated by
+    `...::any_blocking_residual_forces_fail_regardless_of_everything_else`
+    and `...::empty_and_incoherent_inputs_are_typed_errors`);
+  - `gauntlet-app compare::review::tests::adaptive_skips_settled_dimensions`
+    (AK-033: the instrument-settled dimension receives NO model dispatch
+    and its probe residual survives the merge; the clean control
+    dispatches both);
+  - `gauntlet-app compare::review::tests::truncation_is_recorded`
+    (AK-034: budget-truncated dimensions recorded as unavailable-evidence
+    entries with dimension-name kinds and truncation-citing reasons;
+    zero-budget single mode records every dimension with no fabricated
+    record; a truncated adversarial pass is recorded too);
+  - adapter corroboration: `gauntlet-adapter-compare-diff
+    tests::a_failing_facet_yields_a_blocking_residual_from_the_instrument`
+    and `gauntlet-adapter-compare-model
+    tests::the_critic_composition_couples_the_dispatch_and_the_record`
+    (the two §6.3 REQUIRED comparator adapters over the widened envelope,
+    both passing the unmodified shared suite).
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock (`just ruler` runs in the round's gate run; the orchestrator's
+  post-land re-run is the confirming evidence). Settlement of these
+  candidates belongs to the ruler's owner, not the builder.

@@ -19,7 +19,7 @@ use core::fmt;
 
 use crate::unit::{EvidenceRequirement, Unit};
 use crate::values::{
-    Digest, DimensionId, EvidenceKind, ReferenceId, TerminalState, UnitId, Verdict,
+    Digest, DimensionId, EvidenceKind, EvidenceRef, ReferenceId, TerminalState, UnitId, Verdict,
 };
 
 /// Which §5.3.1 narrative field was missing.
@@ -118,14 +118,37 @@ pub struct ReferenceVersion {
     reference_id: ReferenceId,
     version: u32,
     digest: Digest,
+    /// Immutable evidence holding the normalized frozen reference bytes.
+    evidence_ref: EvidenceRef,
 }
 
 impl ReferenceVersion {
+    /// Legacy constructor retained for old persisted/test projections. New
+    /// freezes MUST use [`Self::with_evidence`]; an unbound version cannot
+    /// construct a `FrozenReferenceProjection`.
     pub fn new(reference_id: ReferenceId, version: u32, digest: Digest) -> Self {
+        Self::with_evidence(
+            reference_id,
+            version,
+            digest,
+            EvidenceRef::new("unbound-frozen-reference-evidence")
+                .expect("the fixed legacy evidence marker is valid"),
+        )
+    }
+
+    /// Constructs the complete §9.4 frozen identity, including the evidence
+    /// object from which downstream projections must be rendered.
+    pub fn with_evidence(
+        reference_id: ReferenceId,
+        version: u32,
+        digest: Digest,
+        evidence_ref: EvidenceRef,
+    ) -> Self {
         Self {
             reference_id,
             version,
             digest,
+            evidence_ref,
         }
     }
 
@@ -139,6 +162,11 @@ impl ReferenceVersion {
 
     pub fn digest(&self) -> &Digest {
         &self.digest
+    }
+
+    /// The immutable evidence object containing the normalized frozen bytes.
+    pub fn evidence_ref(&self) -> &EvidenceRef {
+        &self.evidence_ref
     }
 }
 

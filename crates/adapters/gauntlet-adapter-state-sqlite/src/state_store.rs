@@ -30,14 +30,15 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceRef, Limits,
-    MicroUsd, ReferenceId, ReferenceVersion, Run, RunDefinition, RunId, SettlementRecord, Spent,
-    UnitId, VerificationRef,
+    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceRef, IterationNo,
+    Limits, MicroUsd, ReferenceId, ReferenceVersion, RoleInvocation, Run, RunDefinition, RunId,
+    SettlementRecord, Spent, UnitId, VerificationRef,
 };
+use gauntlet_ports::comparison_record::ComparisonRecordDoc;
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::json::{self, JsonNumber, JsonValue};
 use gauntlet_ports::state_store::{
-    Checkpoint, RunEvent, RunEventKind, StateStore, StateStoreError,
+    Checkpoint, ObservationBinding, RunEvent, RunEventKind, StateStore, StateStoreError,
 };
 use rusqlite::Connection;
 
@@ -117,6 +118,90 @@ impl core::fmt::Display for RecordKind {
     }
 }
 
+/// Canonical durable representation of the exact admitted domain aggregate.
+/// Keeping this here prevents application code from depending on SQLite's raw
+/// records table while preserving all §5.3.5 fields in one immutable row.
+fn encode_role_invocation(invocation: &RoleInvocation) -> String {
+    let optional = |value: Option<String>| value.map_or(JsonValue::Null, JsonValue::Str);
+    JsonValue::Object(vec![
+        ("id".to_owned(), JsonValue::Str(invocation.id().to_string())),
+        (
+            "run_id".to_owned(),
+            JsonValue::Str(invocation.run_id().to_string()),
+        ),
+        (
+            "iteration_no".to_owned(),
+            uint(u64::from(invocation.iteration_no().get())),
+        ),
+        (
+            "role".to_owned(),
+            JsonValue::Str(invocation.role().to_string()),
+        ),
+        (
+            "runner".to_owned(),
+            JsonValue::Str(invocation.runner().to_string()),
+        ),
+        (
+            "model".to_owned(),
+            optional(invocation.model().map(ToString::to_string)),
+        ),
+        (
+            "permissions".to_owned(),
+            JsonValue::Str(invocation.permissions().to_string()),
+        ),
+        (
+            "context_envelope_digest".to_owned(),
+            JsonValue::Str(invocation.context_envelope_digest().to_string()),
+        ),
+        (
+            "workspace_ref".to_owned(),
+            JsonValue::Str(invocation.workspace_ref().to_string()),
+        ),
+        (
+            "tier".to_owned(),
+            JsonValue::Str(invocation.tier().to_string()),
+        ),
+        (
+            "sandbox_policy_ref".to_owned(),
+            optional(invocation.sandbox_policy_ref().map(ToString::to_string)),
+        ),
+        (
+            "result_contract_path".to_owned(),
+            JsonValue::Str(invocation.result_contract_path().to_string()),
+        ),
+        (
+            "state".to_owned(),
+            JsonValue::Str(invocation.state().to_string()),
+        ),
+        (
+            "admitted_at".to_owned(),
+            invocation
+                .admitted_at()
+                .map_or(JsonValue::Null, |at| uint(at.get())),
+        ),
+        (
+            "session_ref".to_owned(),
+            optional(invocation.session_ref().map(ToString::to_string)),
+        ),
+    ])
+    .to_json_text()
+}
+
+fn encode_comparison(document: &ComparisonRecordDoc, evidence: &EvidenceRef) -> String {
+    // The document came from a strict parser; reparse before nesting so a
+    // broken implementation cannot smuggle non-JSON through a typed method.
+    let document =
+        json::parse(&document.to_json()).expect("ComparisonRecordDoc serializes valid JSON");
+    JsonValue::Object(vec![
+        ("document".to_owned(), document),
+        (
+            "evidence_ref".to_owned(),
+            JsonValue::Str(evidence.to_string()),
+        ),
+    ])
+    .to_json_text()
+}
+
 /// The §16.3 settlement commit: the event's fields verbatim
 /// (`SettlementEvent{unit_id, evidence_ref, verification_ref, digest, ts}`).
 #[derive(Debug, Clone)]
@@ -169,14 +254,16 @@ impl SqliteStateStore {
         let insert = conn.execute(
             "INSERT INTO runs (
                 run_id, created_at, reference_id, reference_version, reference_digest,
-                intent, config_fingerprint, environment_fingerprint, parent_run, budget
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                reference_evidence_ref, intent, config_fingerprint, environment_fingerprint,
+                parent_run, budget
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             (
                 run.id().to_string(),
                 run.created_at().get(),
                 run.reference_version().reference_id().as_str(),
                 u64::from(run.reference_version().version()),
                 run.reference_version().digest().to_string(),
+                run.reference_version().evidence_ref().as_str(),
                 run.intent(),
                 run.config_fingerprint().to_string(),
                 run.environment_fingerprint().to_string(),
@@ -196,10 +283,9 @@ impl SqliteStateStore {
                 // absorbed as a no-op.
                 let stored = conn
                     .query_row(
-                        "SELECT created_at, reference_id, reference_version, \
-                         reference_digest, intent, config_fingerprint, \
-                         environment_fingerprint, parent_run, budget \
-                         FROM runs WHERE run_id = ?1",
+                        "SELECT created_at, reference_id, reference_version, reference_digest, \
+                         reference_evidence_ref, intent, config_fingerprint, \
+                         environment_fingerprint, parent_run, budget FROM runs WHERE run_id = ?1",
                         [run.id().to_string()],
                         |row| {
                             Ok((
@@ -207,11 +293,12 @@ impl SqliteStateStore {
                                 row.get::<_, String>(1)?,
                                 row.get::<_, i64>(2)?,
                                 row.get::<_, String>(3)?,
-                                row.get::<_, String>(4)?,
+                                row.get::<_, Option<String>>(4)?,
                                 row.get::<_, String>(5)?,
                                 row.get::<_, String>(6)?,
-                                row.get::<_, Option<String>>(7)?,
-                                row.get::<_, String>(8)?,
+                                row.get::<_, String>(7)?,
+                                row.get::<_, Option<String>>(8)?,
+                                row.get::<_, String>(9)?,
                             ))
                         },
                     )
@@ -415,9 +502,9 @@ impl SqliteStateStore {
         run_id: &RunId,
     ) -> Result<Option<Run>, StateStoreError> {
         let row = conn.query_row(
-            "SELECT created_at, reference_id, reference_version, reference_digest, intent, \
-             config_fingerprint, environment_fingerprint, parent_run, budget \
-             FROM runs WHERE run_id = ?1",
+            "SELECT created_at, reference_id, reference_version, reference_digest, \
+             reference_evidence_ref, intent, config_fingerprint, environment_fingerprint, \
+             parent_run, budget FROM runs WHERE run_id = ?1",
             [run_id.to_string()],
             |row| {
                 Ok((
@@ -425,11 +512,12 @@ impl SqliteStateStore {
                     row.get::<_, String>(1)?,
                     row.get::<_, i64>(2)?,
                     row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<String>>(4)?,
                     row.get::<_, String>(5)?,
                     row.get::<_, String>(6)?,
-                    row.get::<_, Option<String>>(7)?,
-                    row.get::<_, String>(8)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, String>(9)?,
                 ))
             },
         );
@@ -438,6 +526,7 @@ impl SqliteStateStore {
             reference_id,
             reference_version,
             reference_digest,
+            reference_evidence_ref,
             intent,
             config_fingerprint,
             environment_fingerprint,
@@ -476,13 +565,21 @@ impl SqliteStateStore {
         let run = Run::new(RunDefinition {
             id: run_id.clone(),
             created_at: EpochSeconds::new(created_at.max(0) as u64),
-            reference_version: ReferenceVersion::new(
+            reference_version: ReferenceVersion::with_evidence(
                 ReferenceId::new(&reference_id).map_err(|err| StateStoreError::Corrupt {
                     detail: format!("run {run_id} holds an invalid reference id: {err}"),
                 })?,
                 u32::try_from(reference_version).unwrap_or(0),
                 Digest::parse(&reference_digest).map_err(|err| StateStoreError::Corrupt {
                     detail: format!("run {run_id} holds an invalid digest: {err}"),
+                })?,
+                EvidenceRef::new(&reference_evidence_ref.ok_or_else(|| StateStoreError::Unavailable {
+                    detail: format!(
+                        "run {run_id} was written before frozen reference evidence was persisted; \
+                         migrate/recreate it from its original frozen evidence, never synthesize a binding"
+                    ),
+                })?).map_err(|err| StateStoreError::Corrupt {
+                    detail: format!("run {run_id} holds an invalid frozen reference evidence ref: {err}"),
                 })?,
             ),
             intent,
@@ -793,23 +890,29 @@ fn uint(value: u64) -> JsonValue {
     JsonValue::Number(JsonNumber::Uint(value))
 }
 
+/// The immutable columns that define a stored run. The nullable evidence
+/// field identifies legacy rows written before migration 0004; it is never
+/// converted into a fabricated reference during rehydration.
+type StoredRunIdentity = (
+    i64,
+    String,
+    i64,
+    String,
+    Option<String>,
+    String,
+    String,
+    String,
+    Option<String>,
+    String,
+);
+
 /// Every identity column on which a stored `runs` row and a re-recorded
 /// [`Run`] disagree, as "field (stored X, offered Y)" entries — empty when
 /// the recording is idempotent. The budget is compared field-by-field after
 /// decoding (an undecodable stored budget is `Corrupt`, not a silent
 /// mismatch).
 fn identity_differences(
-    stored: &(
-        i64,
-        String,
-        i64,
-        String,
-        String,
-        String,
-        String,
-        Option<String>,
-        String,
-    ),
+    stored: &StoredRunIdentity,
     run: &Run,
 ) -> Result<Vec<String>, StateStoreError> {
     let (
@@ -817,6 +920,7 @@ fn identity_differences(
         reference_id,
         reference_version,
         reference_digest,
+        reference_evidence_ref,
         intent,
         config_fingerprint,
         environment_fingerprint,
@@ -846,6 +950,12 @@ fn identity_differences(
         differences.push(format!(
             "reference_digest (stored {reference_digest:?}, offered {:?})",
             run.reference_version().digest().to_string()
+        ));
+    }
+    let offered_evidence = run.reference_version().evidence_ref().as_str();
+    if reference_evidence_ref.as_deref() != Some(offered_evidence) {
+        differences.push(format!(
+            "frozen reference evidence (stored {reference_evidence_ref:?}, offered {offered_evidence:?})"
         ));
     }
     if intent != run.intent() {
@@ -1092,6 +1202,197 @@ impl StateStore for SqliteStateStore {
         }))
     }
 
+    fn record_role_invocation(
+        &self,
+        invocation: &RoleInvocation,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.append_record(
+            invocation.run_id(),
+            RecordKind::RoleInvocation,
+            &encode_role_invocation(invocation),
+            invocation
+                .admitted_at()
+                .unwrap_or(gauntlet_domain::EpochSeconds::new(0)),
+            deadline,
+        )
+        .map(|_| ())
+    }
+
+    fn bind_observation_bundle(
+        &self,
+        run_id: &RunId,
+        iteration_no: IterationNo,
+        binding: &ObservationBinding,
+        _deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        let evidence = binding.evidence();
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let existing: Option<(String, String)> = match conn.query_row(
+            "SELECT evidence_ref, observation_digest FROM observation_bindings \
+             WHERE run_id = ?1 AND iteration_no = ?2",
+            (run_id.to_string(), u64::from(iteration_no.get())),
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ) {
+            Ok(found) => Some(found),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(err) => {
+                return Err(StateStoreError::ReadFailed {
+                    detail: format!(
+                        "reading the observation binding of run {run_id} iteration {} failed: \
+                         {err}",
+                        iteration_no.get()
+                    ),
+                });
+            }
+        };
+        // Write-once. Re-binding the SAME ref is idempotent; re-binding a
+        // different one is a substitution attempt and is refused, never
+        // absorbed.
+        if let Some((found_ref, found_digest)) = existing {
+            if found_ref == evidence.as_str() && found_digest == binding.digest().to_string() {
+                return Ok(());
+            }
+            return Err(StateStoreError::WriteFailed {
+                detail: format!(
+                    "run {run_id} iteration {} is already bound to observation evidence \
+                     {found_ref} ({found_digest}); rebinding it to {evidence} ({}) is refused",
+                    iteration_no.get(),
+                    binding.digest()
+                ),
+            });
+        }
+        conn.execute(
+            "INSERT INTO observation_bindings \
+             (run_id, iteration_no, evidence_ref, observation_digest) \
+             VALUES (?1, ?2, ?3, ?4)",
+            (
+                run_id.to_string(),
+                u64::from(iteration_no.get()),
+                evidence.as_str(),
+                binding.digest().to_string(),
+            ),
+        )
+        .map_err(|err| StateStoreError::WriteFailed {
+            detail: format!(
+                "binding observation evidence {evidence} to run {run_id} iteration {} failed: \
+                 {err}",
+                iteration_no.get()
+            ),
+        })?;
+        Ok(())
+    }
+
+    fn observation_binding(
+        &self,
+        run_id: &RunId,
+        iteration_no: IterationNo,
+        _deadline: Deadline,
+    ) -> Result<Option<ObservationBinding>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let found: Option<(String, String)> = match conn.query_row(
+            "SELECT evidence_ref, observation_digest FROM observation_bindings \
+             WHERE run_id = ?1 AND iteration_no = ?2",
+            (run_id.to_string(), u64::from(iteration_no.get())),
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ) {
+            Ok(found) => Some(found),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(err) => {
+                return Err(StateStoreError::ReadFailed {
+                    detail: format!(
+                        "reading the observation binding of run {run_id} iteration {} failed: \
+                         {err}",
+                        iteration_no.get()
+                    ),
+                });
+            }
+        };
+        found
+            .map(|(reference, digest)| {
+                let corrupt = |error: String| StateStoreError::Corrupt {
+                    detail: format!(
+                        "the stored observation binding of run {run_id} iteration {} does not \
+                         decode: {error}",
+                        iteration_no.get()
+                    ),
+                };
+                let reference =
+                    EvidenceRef::new(&reference).map_err(|error| corrupt(error.to_string()))?;
+                let digest = Digest::parse(&digest).map_err(|error| corrupt(error.to_string()))?;
+                Ok(ObservationBinding::new(reference, digest))
+            })
+            .transpose()
+    }
+
+    fn accept_comparison(
+        &self,
+        admitted: &gauntlet_ports::comparator::AdmittedComparison,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        let spec = admitted.spec();
+        let document = admitted.document();
+        let evidence = admitted.evidence();
+        if document.run_id() != &spec.run_id
+            || document.iteration_no() != spec.iteration_no
+            || document.envelope_digest() != spec.context_envelope.digest()
+        {
+            return Err(StateStoreError::WriteFailed {
+                detail: "comparison does not match its admitted invocation tuple".to_owned(),
+            });
+        }
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let run = Self::load_recorded_run(&conn, &spec.run_id)?.ok_or_else(|| {
+            StateStoreError::Unavailable {
+                detail: format!(
+                    "cannot accept comparison: durable run {} does not exist",
+                    spec.run_id
+                ),
+            }
+        })?;
+        if document.reference_digest() != run.reference_version().digest() {
+            return Err(StateStoreError::WriteFailed {
+                detail: format!(
+                    "comparison reference digest {} differs from durable run {} frozen digest {}",
+                    document.reference_digest(),
+                    spec.run_id,
+                    run.reference_version().digest()
+                ),
+            });
+        }
+        let invocation_present: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM records WHERE run_id = ?1 AND record_type = 'role_invocation' AND json_extract(payload, '$.id') = ?2 AND json_extract(payload, '$.iteration_no') = ?3 AND json_extract(payload, '$.context_envelope_digest') = ?4",
+            (spec.run_id.to_string(), spec.invocation_id.to_string(), u64::from(spec.iteration_no.get()), spec.context_envelope.digest().to_string()),
+            |row| row.get(0),
+        ).map_err(|error| StateStoreError::ReadFailed { detail: format!("checking durable admitted invocation failed: {error}") })?;
+        if invocation_present != 1 {
+            return Err(StateStoreError::Unavailable {
+                detail: format!(
+                    "cannot accept comparison: admitted invocation {} is absent or ambiguous",
+                    spec.invocation_id
+                ),
+            });
+        }
+        drop(conn);
+        self.append_record(
+            &spec.run_id,
+            RecordKind::Comparison,
+            &encode_comparison(document, evidence),
+            gauntlet_domain::EpochSeconds::new(0),
+            deadline,
+        )
+        .map(|_| ())
+    }
+
     /// Deterministic export (spec §6.2: "Export is deterministic"): stable
     /// segments and explicit `ORDER BY` everywhere — the output is a pure
     /// function of durable state, never of query timing. Timestamps are the
@@ -1126,6 +1427,10 @@ impl StateStore for SqliteStateStore {
                     (
                         "reference_digest".to_owned(),
                         JsonValue::Str(run.reference_version().digest().to_string()),
+                    ),
+                    (
+                        "reference_evidence_ref".to_owned(),
+                        JsonValue::Str(run.reference_version().evidence_ref().as_str().to_owned()),
                     ),
                     ("intent".to_owned(), JsonValue::Str(run.intent().to_owned())),
                     (
@@ -1363,13 +1668,18 @@ mod tests {
     }
 
     fn run() -> Run {
+        run_with_evidence(EvidenceRef::new("evd-task6-frozen-reference").expect("valid evidence"))
+    }
+
+    fn run_with_evidence(evidence_ref: EvidenceRef) -> Run {
         Run::new(RunDefinition {
             id: run_id(),
             created_at: EpochSeconds::new(1_700_000_000),
-            reference_version: ReferenceVersion::new(
+            reference_version: ReferenceVersion::with_evidence(
                 ReferenceId::new("ref-task6").expect("valid reference id"),
                 3,
                 digest(),
+                evidence_ref,
             ),
             intent: "settle the task".to_owned(),
             config_fingerprint: Digest::new("sha256", "a1b2c3d4e5f6a7b8").expect("valid digest"),
@@ -1460,7 +1770,7 @@ mod tests {
         assert_eq!(export, again, "two exports must be byte-identical");
 
         let expected = [
-            r#"{"record":"run","run_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","created_at":1700000000,"reference_id":"ref-task6","reference_version":3,"reference_digest":"sha256:c4d3e2f1a0b1c2d3","intent":"settle the task","config_fingerprint":"sha256:a1b2c3d4e5f6a7b8","environment_fingerprint":"sha256:e5f6a7b8c4d3e2f1","parent_run":null,"budget":{"recovery_reserve_pct":20,"limits":{"rounds":8,"parallel":2,"depth":2,"wall_seconds":3600,"tokens":1000,"cost_usd":500},"diagnostic":{"tokens":100,"cost_usd":50}}}"#,
+            r#"{"record":"run","run_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","created_at":1700000000,"reference_id":"ref-task6","reference_version":3,"reference_digest":"sha256:c4d3e2f1a0b1c2d3","reference_evidence_ref":"evd-task6-frozen-reference","intent":"settle the task","config_fingerprint":"sha256:a1b2c3d4e5f6a7b8","environment_fingerprint":"sha256:e5f6a7b8c4d3e2f1","parent_run":null,"budget":{"recovery_reserve_pct":20,"limits":{"rounds":8,"parallel":2,"depth":2,"wall_seconds":3600,"tokens":1000,"cost_usd":500},"diagnostic":{"tokens":100,"cost_usd":50}}}"#,
             r#"{"record":"event","offset":1,"at":1700000100,"kind":"invocation_admitted","body":{"kind":"invocation_admitted","invocation_id":"01ARZ3NDEKTSV4RRFFQ69G5FAW"}}"#,
             r#"{"record":"event","offset":2,"at":1700000101,"kind":"settlement_committed","body":{"kind":"settlement_committed","unit_id":"AK-900","evidence":"evd-000900","verification":"vrf-000900","reference_digest":"sha256:c4d3e2f1a0b1c2d3"}}"#,
             r#"{"record":"checkpoint","seq":2,"iteration_no":1,"event_log_offset":1,"reference_digest":"sha256:c4d3e2f1a0b1c2d3","unit_states":[["AK-900","open"]],"budget_spent":{"rounds":0,"wall_seconds":0,"tokens":0,"cost_usd":0,"diagnostic_tokens":0,"diagnostic_cost_usd":0},"in_flight":[]}"#,
@@ -1504,6 +1814,62 @@ mod tests {
         assert!(
             error.to_string().contains("frozen reference"),
             "the refusal names the invariant: {error}"
+        );
+    }
+
+    /// A legacy runs row predating migration 0004 has no immutable evidence
+    /// binding. Rehydration is explicitly unavailable; no synthetic ref may
+    /// stand in for evidence that was never persisted.
+    #[test]
+    fn legacy_run_without_frozen_evidence_is_unavailable_not_rebound() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let run = run();
+        store
+            .conn
+            .lock()
+            .expect("connection lock")
+            .execute(
+                "INSERT INTO runs (run_id, created_at, reference_id, reference_version, \
+                 reference_digest, intent, config_fingerprint, environment_fingerprint, \
+                 parent_run, budget) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                (
+                    run.id().to_string(),
+                    run.created_at().get(),
+                    run.reference_version().reference_id().as_str(),
+                    u64::from(run.reference_version().version()),
+                    run.reference_version().digest().to_string(),
+                    run.intent(),
+                    run.config_fingerprint().to_string(),
+                    run.environment_fingerprint().to_string(),
+                    run.parent_run().map(ToString::to_string),
+                    encode::encode_budget_ceiling(run.budget()),
+                ),
+            )
+            .expect("a legacy-shaped row inserts");
+
+        assert!(matches!(
+            store.load_run(&run_id(), bound()),
+            Err(StateStoreError::Unavailable { .. })
+        ));
+    }
+
+    /// A conflicting immutable evidence ref is a run-identity change, even
+    /// when every former identity field agrees. The state store must reject it
+    /// rather than silently retaining or overwriting either binding.
+    #[test]
+    fn recording_a_wrong_frozen_evidence_binding_is_refused() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store.record_run(&run(), bound()).expect("run records");
+        let wrong = run_with_evidence(
+            EvidenceRef::new("evd-task6-wrong-frozen-reference").expect("valid evidence"),
+        );
+        let error = store
+            .record_run(&wrong, bound())
+            .expect_err("a run cannot exchange frozen evidence");
+        assert!(matches!(error, StateStoreError::WriteFailed { .. }));
+        assert!(
+            error.to_string().contains("frozen reference evidence"),
+            "the error identifies the immutable binding: {error}"
         );
     }
 

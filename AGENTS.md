@@ -139,7 +139,7 @@ Rust conventions: `UpperCamelCase` types/traits/enums, `snake_case` functions/mo
 Keep architecture discoverable from the tree. Use existing conventions once established; do not create competing layouts. Do not place new files at the repository root when an existing location fits.
 
 ```text
-.agents/{specs,plans,skills,roles,reports}
+.agents/{specs,plans,skills,roles,reports,research}
 .wayfinder/{map.md,answer-key.md,reference.yaml}
 .gauntlet/{policies,comparison-contract.yaml}
 domain/ application/ ports/ adapters/ cli/
@@ -149,6 +149,8 @@ tests/{contract,proofs,antigaming,e2e,fixtures}
 Dependencies point inward: `adapters → application → domain`. The domain is framework- and infrastructure-independent. Provider-, model-, MCP-, persistence-, browser-, sandbox-, and observability-specific code lives behind adapters.
 
 Generated artifacts must not become competing sources of truth.
+
+When a task has a research preregistration under `.agents/research/preregistrations/`, never modify its frozen `.prereg.yaml` or its `.sha256` after implementation begins. Record later observations only in the corresponding `.outcome.yaml`. Verify with `just prereg-check <task>`; it is independent of `just ruler` and of task gates.
 
 ## End-to-end verification
 

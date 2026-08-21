@@ -80,6 +80,18 @@ use crate::deps::Member;
 // future legitimate need is a deliberate, recorded boundary-test change —
 // not a silent edit here.
 
+/// Adapter LAST-name segments that are the spec's own field vocabulary and
+/// therefore NOT distinguishing selection literals (plan Task 10, first
+/// entry `model`: spec §5.3.5 `model:`, §6.1 `model_hint`, §8.2
+/// `runners.by_role.<role>.model`). The full crate names, the hyphenated
+/// and underscore suffix spellings (`compare-model`, `compare_model`),
+/// and the reversed-segment spellings remain denied — only the bare
+/// generic word stops being a segment term, exactly as the capability
+/// first segments (`agent`, `state`, `observe`, `compare`, `evidence`)
+/// already are. Pinned by test: growth is a deliberate edit that updates
+/// the pin.
+pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model"];
+
 /// Identifiers that name products rather than capabilities. In every scanned
 /// text the match is a case-insensitive substring (compound identifiers
 /// included). If a term starts producing false positives on legitimate domain
@@ -216,8 +228,20 @@ impl Denylist {
             // of the spellings above. The LAST segment is the distinguishing
             // one; the first (`agent`, `state`, `observe`, `compare`,
             // `evidence`) is the capability the spec itself uses, so it is
-            // deliberately not derived.
-            if let Some(last) = reversed.first() {
+            // deliberately not derived. Plan Task 10 extended the same
+            // non-distinguishing ruling to a LAST segment that is the spec's
+            // own FIELD vocabulary: `model` (spec §5.3.5 `model:`, §6.1
+            // `model_hint`, §8.2 `runners.by_role.<role>.model`) landed as
+            // the last segment of `gauntlet-adapter-compare-model` while the
+            // closed Task-5 config code already spelled the settings key
+            // `"model"` ten times — a word that generic is not a
+            // distinguishing selection literal (the `compare-model`,
+            // `compare_model`, and full crate-name spellings ARE still
+            // derived and denied), so deriving it would only have made the
+            // AK-014 class a false-positive factory on spec vocabulary.
+            if let Some(last) = reversed.first()
+                && !SPEC_VOCABULARY_SEGMENTS.contains(last)
+            {
                 push_unique(&mut segments, (*last).to_string());
             }
         }
@@ -366,7 +390,8 @@ pub fn scan_source(path: &str, text: &str, deny: &Denylist, role: Role) -> Vec<S
 
 /// The Annex-B wire-vocabulary mask: a whole-literal adapter-segment hit is
 /// consumed ONLY inside one of [`crate::walk::ANNEX_B_CONTRACT_PARSERS`]
-/// (the B.2 decoder plus plan Task 9's B.3-family codec modules), only when
+/// (the B.2 decoder, plan Task 9's B.3-family codec modules, and plan Task
+/// 10's B.4-generation modules), only when
 /// the literal is a declared [`crate::walk::ANNEX_B_WIRE_KEYS`] key, and
 /// only in a key-ACCESS position — because matching the wire schema is not
 /// adapter selection (AK-014). Position is a byte-level shape, not a parse
@@ -415,7 +440,7 @@ fn annex_b_wire_key_access(
     // recorded residual: the shape cannot see the array's purpose, exactly
     // like the same-line form, and a line-initial literal following ANY
     // line ending in `[`/`,` (a split call argument list, say) is masked
-    // in these four codec modules.
+    // in these codec modules.
     let line_initial_element = before.is_empty()
         && previous.trim_end().ends_with(['[', ','])
         && after.chars().next().is_none_or(|c| c == ',' || c == ']');
@@ -979,6 +1004,72 @@ pub fn runner_for(role: &str) -> &'static str {
                 "'{capability}' is spec vocabulary and must not be a segment term"
             );
         }
+
+        // The whole-word segment stays denied when the word is NOT spec
+        // vocabulary: the fixture's adapters() list carries the real
+        // distinguishing segments, and a fresh one still flags.
+        let fixture = "let pick = \"diff\";\n";
+        let violations = scan_source(
+            "crates/gauntlet-app/src/lib.rs",
+            fixture,
+            &deny,
+            Role::Inner,
+        );
+        assert!(
+            violations.iter().any(|v| v.contains("'diff'")),
+            "a distinguishing segment still flags: {violations:?}"
+        );
+    }
+
+    /// Plan Task 10: `model` — the spec's own field word — landed as the
+    /// last segment of `gauntlet-adapter-compare-model`. It is pinned here
+    /// as NOT a segment term (the closed Task-5 config code spells the
+    /// §8.2 settings key `model` ten times), while the distinguishing
+    /// spellings of the same adapter ARE still denied: a match-arm or
+    /// const selecting the comparator by `compare-model`, by
+    /// `compare_model`, or by the full crate name reports.
+    #[test]
+    fn spec_vocabulary_segments_are_pinned_and_the_spellings_still_deny() {
+        let mut members = adapters();
+        members.push(Member {
+            dir: "crates/adapters/gauntlet-adapter-compare-model".to_string(),
+            name: "gauntlet-adapter-compare-model".to_string(),
+        });
+        let deny = Denylist::derive(&members);
+        assert_eq!(SPEC_VOCABULARY_SEGMENTS, &["model"]);
+        assert!(
+            !deny.adapter_segments.iter().any(|s| s == "model"),
+            "'model' is spec field vocabulary and must not be a segment term"
+        );
+        for spelling in [
+            "gauntlet-adapter-compare-model",
+            "compare-model",
+            "compare_model",
+            "model-compare",
+            "model_compare",
+        ] {
+            let fixture = format!("const PICK: &str = {spelling:?};\n");
+            let violations = scan_source(
+                "crates/gauntlet-app/src/lib.rs",
+                &fixture,
+                &deny,
+                Role::Inner,
+            );
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.contains(&format!("'{spelling}'"))),
+                "the distinguishing spelling {spelling:?} must still be denied: {violations:?}"
+            );
+        }
+        // And the bare word stays legal inner-layer vocabulary.
+        let clean = scan_source(
+            "crates/gauntlet-app/src/lib.rs",
+            "let hint = \"model\";\n",
+            &deny,
+            Role::Inner,
+        );
+        assert!(clean.is_empty(), "{clean:?}");
     }
 
     #[test]
@@ -1443,7 +1534,10 @@ let prime = match object.get(\"prime\") {
             ["command"],
             "an adapter segment now collides with a declared Annex-B wire key: growing the \
              maskable set is a deliberate, recorded decision — update this pin and the mask's \
-             documented residual together"
+             documented residual together (plan Task 10 recomputed this pin from the real \
+             member list when gauntlet-adapter-compare-model landed; it stayed [command] \
+             because `model` is excluded at segment derivation — see \
+             SPEC_VOCABULARY_SEGMENTS)"
         );
 
         // The control that keeps the pin honest: the intersection is

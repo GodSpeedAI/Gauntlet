@@ -2279,7 +2279,9 @@ mod tests {
         assert_eq!(result.role(), &RoleId::Builder);
         assert_eq!(result.state(), RoleResultState::Completed);
         let payload = result.payload();
-        let gauntlet_ports::role_result::RolePayload::BuilderResult(parts) = payload;
+        let gauntlet_ports::role_result::RolePayload::BuilderResult(parts) = payload else {
+            panic!("the fixture renderer writes the builder payload")
+        };
         assert_eq!(parts.attempted().len(), 2);
         assert_eq!(parts.artifacts().len(), 1);
         assert_eq!(parts.claims().len(), 2);

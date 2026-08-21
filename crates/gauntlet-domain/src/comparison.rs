@@ -5,10 +5,18 @@
 //! `reference_digest` differs from the run's frozen digest invalidates the
 //! iteration (I1)."
 //!
-//! Both digests are required constructor arguments — a record without them
-//! does not exist. Cross-checking against the run's frozen digest happens
-//! where the run is knowable (plan Task 10/13); the domain guarantees the
-//! record always carries both.
+//! Spec §13.2 adds the third digest: "The envelope is serialized, digested,
+//! and the digest is stored on both the `RoleInvocation` and the
+//! `ComparisonRecord`." Annex B.4's example JSON does not spell
+//! `envelope_digest` — the same reconciliation class as Task 9's
+//! environment-fingerprint-in-evidence-doc: the annex example is a MINIMUM
+//! shape, and the normative body section's MUST wins. `envelope_digest` is
+//! therefore a required constructor argument alongside the other two.
+//!
+//! All three digests are required constructor arguments — a record without
+//! them does not exist. Cross-checking against the run's frozen digest
+//! happens where the run is knowable (plan Task 10/13); the domain
+//! guarantees the record always carries all three.
 
 use core::fmt;
 
@@ -89,11 +97,12 @@ impl Residual {
     }
 }
 
-/// What a fresh-context comparison found (spec §5.3.6).
+/// What a fresh-context comparison found (spec §5.3.6, §13.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComparisonRecord {
     reference_digest: Digest,
     observation_digest: Digest,
+    envelope_digest: Digest,
     residuals: Vec<Residual>,
     verdict: Verdict,
 }
@@ -102,7 +111,9 @@ impl ComparisonRecord {
     /// Records a comparison outcome. `reference_digest` is what was
     /// compared against; the caller must have checked it equals the run's
     /// frozen digest (I1) — carrying it here is what makes that check
-    /// possible at every later boundary.
+    /// possible at every later boundary. `envelope_digest` is the digest of
+    /// the serialized comparison envelope the comparison ran under (spec
+    /// §13.2: stored on both the `RoleInvocation` and this record).
     ///
     /// Spec §13.5: "Any `blocking` residual makes the aggregate verdict
     /// `fail` regardless of other dimensions and regardless of weighted
@@ -113,6 +124,7 @@ impl ComparisonRecord {
     pub fn new(
         reference_digest: Digest,
         observation_digest: Digest,
+        envelope_digest: Digest,
         residuals: Vec<Residual>,
         verdict: Verdict,
     ) -> Result<Self, ComparisonError> {
@@ -123,6 +135,7 @@ impl ComparisonRecord {
         Ok(Self {
             reference_digest,
             observation_digest,
+            envelope_digest,
             residuals,
             verdict,
         })
@@ -134,6 +147,12 @@ impl ComparisonRecord {
 
     pub fn observation_digest(&self) -> &Digest {
         &self.observation_digest
+    }
+
+    /// The digest of the serialized envelope this comparison ran under
+    /// (spec §13.2).
+    pub fn envelope_digest(&self) -> &Digest {
+        &self.envelope_digest
     }
 
     pub fn residuals(&self) -> &[Residual] {
@@ -177,23 +196,33 @@ mod tests {
         Digest::new("sha256", "e5f6a7b8").expect("valid parts")
     }
 
+    fn envelope_digest() -> Digest {
+        Digest::new("sha256", "c3d4e5f6").expect("valid parts")
+    }
+
     #[test]
-    fn a_comparison_record_carries_both_digests() {
+    fn a_comparison_record_carries_all_three_digests() {
         // Spec §5.3.6: "`ComparisonRecord` MUST carry `reference_digest` and
         // `observation_digest`; a record whose `reference_digest` differs
         // from the run's frozen digest invalidates the iteration (I1)."
+        // Spec §13.2: the envelope digest "is stored on both the
+        // RoleInvocation and the ComparisonRecord".
         let record = ComparisonRecord::new(
             reference_digest(),
             observation_digest(),
+            envelope_digest(),
             Vec::new(),
             Verdict::Pass,
         )
         .expect("no residuals, no contradiction");
         assert_eq!(record.reference_digest(), &reference_digest());
         assert_eq!(record.observation_digest(), &observation_digest());
-        // Carrying the reference digest is what makes the later I1 check
+        assert_eq!(record.envelope_digest(), &envelope_digest());
+        // Carrying the digests is what makes the later I1/§13.2 checks
         // possible at every boundary; distinct digests stay distinct.
         assert_ne!(record.reference_digest(), record.observation_digest());
+        assert_ne!(record.envelope_digest(), record.reference_digest());
+        assert_ne!(record.envelope_digest(), record.observation_digest());
     }
 
     #[test]
@@ -216,6 +245,7 @@ mod tests {
             ComparisonRecord::new(
                 reference_digest(),
                 observation_digest(),
+                envelope_digest(),
                 vec![residual("res-000001", Severity::Blocking)],
                 Verdict::Pass,
             ),
@@ -226,6 +256,7 @@ mod tests {
             ComparisonRecord::new(
                 reference_digest(),
                 observation_digest(),
+                envelope_digest(),
                 vec![residual("res-000001", Severity::Blocking)],
                 Verdict::Inconclusive,
             ),
@@ -236,6 +267,7 @@ mod tests {
         let record = ComparisonRecord::new(
             reference_digest(),
             observation_digest(),
+            envelope_digest(),
             vec![
                 residual("res-000001", Severity::Blocking),
                 residual("res-000002", Severity::Minor),
@@ -253,6 +285,7 @@ mod tests {
         let record = ComparisonRecord::new(
             reference_digest(),
             observation_digest(),
+            envelope_digest(),
             vec![
                 residual("res-000004", Severity::Minor),
                 residual("res-000005", Severity::Informational),

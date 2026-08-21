@@ -115,9 +115,14 @@ pub type ExternalAllowance = (&'static str, &'static str);
 /// AK-001: zero dependencies on port, adapter, or infrastructure crates).
 pub const DOMAIN_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
 
-/// External crates `gauntlet-ports` may depend on. EMPTY (spec §4.1: ports
-/// depend on the domain only).
-pub const PORTS_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
+/// External crates `gauntlet-ports` may depend on. The envelope's canonical
+/// bytes are consumed by adapters, therefore the §13.2 SHA-256 revalidation
+/// lives at the port boundary rather than only in the application builder.
+pub const PORTS_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[(
+    "sha2",
+    "canonical comparison-envelope SHA-256 recomputation at every comparator consumption \
+     boundary (Task 10 correction round 2, spec §13.2); std has no SHA-256",
+)];
 
 /// External crates `gauntlet-app` may depend on. Plan Task 5 adds the one
 /// entry, following the recorded-act procedure above: the §8.1
@@ -1783,7 +1788,15 @@ toml = "0.9"
             DOMAIN_EXTERNAL_ALLOWLIST.is_empty(),
             "the domain allowlist is empty (AK-001)"
         );
-        assert!(PORTS_EXTERNAL_ALLOWLIST.is_empty());
+        // Task 10 correction round 2 adds the same mature SHA-256 crate at
+        // the port boundary, where both adapter consumption paths can
+        // recompute canonical envelope bytes. The pin keeps that growth
+        // explicit rather than reopening ports to arbitrary dependencies.
+        assert_eq!(
+            allowlist_names(PORTS_EXTERNAL_ALLOWLIST),
+            vec!["sha2"],
+            "the ports allowlist carries only the §13.2 envelope digest crate"
+        );
         // Plan Task 5 (spec §8.1 config_fingerprint) added the application
         // layer's one recorded dependency; AK-002's "ports only" default
         // fails closed around exactly this entry.

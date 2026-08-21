@@ -32,6 +32,7 @@ pub mod agent_runner;
 pub mod budget_meter;
 pub mod clock;
 pub mod comparator;
+pub mod comparison_record;
 pub mod contract;
 pub mod deadline;
 pub mod event_log;
@@ -39,6 +40,7 @@ pub mod evidence_store;
 pub mod human_escalation;
 pub mod id_generator;
 pub mod json;
+pub mod observation_digest;
 pub mod observer;
 pub mod observer_evidence;
 pub mod operator_surface;
@@ -59,7 +61,16 @@ pub use agent_runner::{
 };
 pub use budget_meter::{BudgetMeter, BudgetMeterError, BudgetSlice, Remaining, Reservation};
 pub use clock::{Clock, ClockError};
-pub use comparator::{Comparator, ComparatorError, ComparisonEnvelope};
+pub use comparator::{
+    AdversarialComparator, AdversarialComparatorSource, ApplicableConstraint, Comparator,
+    ComparatorError, ComparatorSource, ComparisonEnvelope, ContractView, FacetSummary, FailureGap,
+    FrozenReferenceProjection, MandatoryComparisonAcceptance, ObservationView, RubricEntry,
+    RunComparisonAuthority, TrustedComparisonContext, UnavailableGap,
+};
+pub use comparison_record::{
+    COMPARISON_RECORD_SCHEMA, ComparatorIdentity, ComparisonDocError, ComparisonRecordDoc,
+    HardGateResult, RecordContent, RecordVerdict, ResidualDoc,
+};
 pub use contract::{ContractFinding, SuiteSetupError};
 pub use deadline::Deadline;
 pub use event_log::{EventLog, EventLogError, LogEntry};

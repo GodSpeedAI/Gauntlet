@@ -57,3 +57,10 @@ schemas:
 # (spec §10.1). Lands in plan Task 17; must fail loudly until then.
 roles-verify:
     @echo "roles-verify: not implemented — lands in plan Task 17 (role drift detection)" >&2; exit 2
+
+# prereg-check — research instrumentation ONLY (`.agents/research/preregistrations/`).
+# Verifies a task's frozen preregistration is byte-identical to its recorded SHA-256.
+# Deliberately NOT wired into `ruler` or `ci`: the ruler and this instrument are
+# independent, and this recipe has no bearing on gates, acceptance, or closure.
+prereg-check task:
+    ./scripts/prereg-check.sh {{task}}

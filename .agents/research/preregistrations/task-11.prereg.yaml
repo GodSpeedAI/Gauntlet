@@ -1,0 +1,254 @@
+# Task 11 preregistration — research instrumentation, non-normative.
+# Written BEFORE any Task-11 implementation exists. Immutable once frozen.
+# Derived only from: .agents/CURRENT_STATUS.md, .agents/specs/Core-spec.md
+# (§6.2, §14.1-§14.4, §16.1, I8, P12, AK-005/AK-035/AK-036),
+# .agents/plans/gauntlet-impl.md (Task 11), and the Task-4/Task-9/Task-10
+# closure records already in CURRENT_STATUS.
+
+schema_version: 1
+task: 11
+
+frozen_at:
+  git_commit: "a39c3cb6046853f964ff8efc601f9f8f13578007"
+  timestamp_utc: "2026-08-21T00:00:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-11.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.md"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+  - "crates/gauntlet-ports/src/verifier.rs"
+  - "crates/gauntlet-ports/src/evidence_store.rs"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task 11 is expected to establish that a claim's outcome is decided by the
+      cheapest conclusive instrument (§14.2) and that a VerificationRecord is
+      admitted only when its evidence resolves, was produced by the required
+      producer, at a matching locator, in this run at or after the transform it
+      certifies (§14.3) — and that every binding failure yields INCONCLUSIVE with
+      a typed class rather than PASS or silence (§14.4, I8, P12). The failure the
+      task is most likely to have is not "a check is missing" but "a check
+      compares two values the caller already supplied": the existing
+      `VerificationRequest` (ports/verifier.rs) carries `evidence:
+      EvidenceLocator` and `requirement` side by side from the same caller, and
+      carries no reference to the transform the evidence must post-date, so
+      staleness is not decidable from the request as currently typed.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Deterministic-first (§14.2, AK-035) is a selection property of the
+          ladder, not a property of any single verifier. A suite that only proves
+          each adapter's `is_deterministic()` returns the right constant has not
+          proven that selection preferred a deterministic instrument over model
+          judgment when both could decide.
+      - id: D2
+        statement: >
+          Evidence binding (§14.3, AK-036) has four independent conditions —
+          resolvable, producer, recency-relative-to-transform, locator match. Three
+          of them are comparisons over values; the recency condition is the only one
+          that requires an ordering fact that no participant in the verification can
+          be trusted to assert about itself.
+      - id: D3
+        statement: >
+          INCONCLUSIVE-as-a-value (the domain's third state, closed in Task 3) is
+          distinct from INCONCLUSIVE-as-a-refusal-path: P12 requires that no code
+          path can reach settlement without a PASS record, not merely that the
+          enum has three variants.
+      - id: D4
+        statement: >
+          Task 11 owns verification; §16.1 settlement is Task 13. Absence of an
+          end-to-end "cannot settle" proof at Task 11 is expected later scope, not
+          a Task-11 defect — but the settlement *precondition* layer is explicitly
+          named in the plan's step 4 and is in scope.
+
+    known_blindspots:
+      - >
+        We do not yet know what identifies "the transform the evidence certifies"
+        in durable state at Task 11 time; Task 9's observation bundle and Task 10's
+        write-once observation binding exist, but no Task-11 plan step names them
+        as the recency anchor.
+      - >
+        We do not know whether the four verifier adapters named in the plan
+        (command-exit-code, test-report, file-digest, schema-check) can each
+        establish producer identity from the evidence itself, or only from what the
+        caller declares.
+      - >
+        We have no prior instance in this repository of a model-backed verifier, so
+        we cannot predict how the ladder's model rung behaves under gate conditions.
+      - >
+        Whether the answer key's declared `locator` values are exact-match strings
+        for all deterministic kinds in practice, or need contract-defined matching,
+        has not been checked against the frozen key.
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Add adapter implementations behind an existing port trait."
+      why_visible_now: >
+        Plan step 1 names four verifier adapters and `Verifier` already exists
+        (crates/gauntlet-ports/src/verifier.rs) with `verify` + `is_deterministic`.
+    - id: A2
+      class: "Add an application-layer selection ladder over a set of ports."
+      why_visible_now: >
+        Plan step 2 requires the §14.2 ordering, cheapest-conclusive-first, with
+        model-backed verification flagged in the record.
+    - id: A3
+      class: "Add boundary/admission checks that convert a failed precondition into a typed third-state outcome rather than an error or a default."
+      why_visible_now: >
+        Plan step 3 requires the four §14.3 checks with classes
+        evidence_unresolvable / evidence_stale / evidence_producer_mismatch.
+    - id: A4
+      class: "Add proof tests plus teeth (revert the production check, watch a test fail)."
+      why_visible_now: >
+        Plan step 4 and the Done-when clause require p12_missing_is_not_passing
+        across layers and a proven-biting staleness check; this is the repository's
+        standing closure method.
+    - id: A5
+      class: "Change a port's type so an invalid combination is unrepresentable rather than detected."
+      why_visible_now: >
+        This is the intervention class Task 10's architecture diagnosis converged on
+        and CURRENT_STATUS records as the root invariant of that task; the Task-11
+        request type has the same caller-supplies-both-sides shape. It is visible
+        now as a *class*, not as a decided change.
+
+  predictions:
+    - id: P1
+      claim: >
+        The first implementation will make the three value-comparison binding
+        checks (resolvable, producer, locator) pass their tests, while the
+        staleness check is decided from data the caller supplied in the same
+        request rather than from durable run state.
+      kind: "representation_inadequacy"
+      supporting_observation: >
+        A staleness test that passes only because the test constructs a request
+        whose declared timestamp/iteration is older than a value also chosen by the
+        test; no read of durable state (event log, observation binding, evidence
+        store metadata) occurs inside the staleness path.
+      disconfirming_observation: >
+        The staleness decision reads an ordering fact from durable state that no
+        caller of `verify` supplies, and a test that lies in the request about
+        recency is still rejected.
+
+    - id: P2
+      claim: >
+        Deterministic-first (AK-035) will initially be proven by asserting the
+        ladder's static order, not by a case where a model-backed verifier and a
+        deterministic verifier could both decide the same claim.
+      kind: "implementation_defect"
+      supporting_observation: >
+        `tests/contract/verifier::deterministic_first` (or its local equivalent)
+        contains no scenario with two candidate verifiers both able to decide.
+      disconfirming_observation: >
+        A test registers a model-backed and a deterministic verifier that both can
+        decide one claim, and asserts the deterministic instrument's identity is
+        the one recorded.
+
+    - id: P3
+      claim: >
+        Every §14.3 binding failure will produce INCONCLUSIVE with a distinct typed
+        class, and no binding failure will be representable as PASS.
+      kind: "implementation_defect"
+      supporting_observation: >
+        Each of the three classes is reachable in a test and the three are not
+        collapsed into one catch-all class.
+      disconfirming_observation: >
+        A binding failure surfaces as `VerifierError` only (an error, not a
+        recorded third-state outcome), or two distinct §14.3 conditions map to the
+        same class, losing the distinction the spec draws.
+
+    - id: P4
+      claim: >
+        Absence of an end-to-end proof that a Unit with INCONCLUSIVE evidence
+        cannot settle through the operator `resolve` action is expected later
+        scope (Task 12/13/21), not a Task-11 failure.
+      kind: "expected_later_scope"
+      supporting_observation: >
+        The Task-11 gate passes with the settlement-precondition layer covered and
+        the operator layer explicitly ledgered as deferred, matching the plan's own
+        "(later)" qualifier in step 4.
+      disconfirming_observation: >
+        The Task-11 gate as written cannot pass at all without the operator layer,
+        meaning the plan's scope split is wrong rather than merely staged.
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        Two or more locally valid corrections to the evidence-binding checks each
+        close the reported hole, and a further novel bypass appears that again
+        succeeds by supplying both sides of a binding comparison from the same
+        caller — i.e. the residuals share the causal structure "verification
+        validates values the caller already holds" rather than "a specific check
+        was missing". This is the Task-10 root invariant re-appearing at the
+        verification boundary.
+    - id: R2
+      trigger: >
+        The four §14.3 conditions cannot all be decided from any information
+        available at the verification boundary — specifically, if no durable fact
+        exists that orders the evidence against the transform it certifies — so
+        that satisfying §14.3 requires new state rather than new checks.
+    - id: R3
+      trigger: >
+        Most answer-key Units routed through the ladder land on the model rung.
+        The plan already names this as a redesign trigger: it would mean the
+        reference is mis-projected (quality dimensions recorded as Units, §5.3.2),
+        which is a change to the problem representation, not to the verifier.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: >
+        A5 — make the invalid pairing unrepresentable: verification consumes an
+        unforgeable value minted by a governed operation that reads durable state,
+        rather than a request struct in which the caller supplies requirement and
+        evidence together.
+    - trigger_ref: R2
+      expected_new_intervention_class: >
+        Introduce or bind to a durable ordering anchor for the transform (a state
+        or event-log fact), which is a persistence-layer intervention, not a
+        verifier one — and is not a currently listed Task-11 plan step.
+    - trigger_ref: R3
+      expected_new_intervention_class: >
+        Record a reference-candidate revision (per the plan's own redesign trigger)
+        instead of weakening the verifier. Note this touches frozen material and
+        therefore is a proposal, never an edit.
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: >
+        Exact historical failure/regression is rejected.
+      preregistered_expectation: >
+        Expected to be reached: the plan's Done-when already requires that an absent
+        evidence file yields INCONCLUSIVE and that stale evidence from a prior
+        iteration is rejected, with teeth.
+    parametric_variation:
+      level: L2
+      description: >
+        Same known structural failure with changed payload/values is rejected.
+      preregistered_expectation: >
+        Plausible but not required by the plan: a different locator spelling, a
+        different producer identity, a different iteration offset within the same
+        staleness structure. Not claimed in advance.
+    structural_transfer:
+      level: L3
+      description: >
+        A previously untested bypass expressing the same causal failure class is
+        rejected by the generalized mechanism without adding a special-case rule
+        for that exact bypass.
+      preregistered_expectation: >
+        NOT claimed. Whether a Task-11 correction generalizes to an untested
+        same-causal-class bypass is exactly what the outcome record is for.
+
+  explicit_nonclaims:
+    - "We do not claim Task 11 will reach L3 structural transfer."
+    - "We do not claim the representation-revision trigger R1 will fire."
+    - "We do not claim the four named verifier adapters are the right or complete set."
+    - >
+      We do not claim anything about Task 12 controller behaviour, Task 13
+      settlement, or the Task-21 operator surface beyond what the Task-11 plan
+      step 4 already qualifies as later.
+    - >
+      We make no claim about, and propose no change to, .wayfinder/, the frozen
+      answer key, the frozen reference, spec requirements, task acceptance
+      criteria, task gates, closure rules, or reference candidates.

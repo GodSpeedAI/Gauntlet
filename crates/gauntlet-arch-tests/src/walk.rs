@@ -104,18 +104,24 @@ pub const DEFAULTS_TABLE_SETTINGS: &[&str] = &[
 /// since plan Task 9, the Annex-B.3-family codec modules: the
 /// `facet_evidence@v1` document codec (ports) plus the
 /// `observation_bundle@v1` bundle codec and the verification-inputs
-/// serializer (application). Their encode/decode paths MUST match the
-/// exact JSON keys of the annexes — that is schema conformance, not
-/// adapter selection — so the segment-whole-literal rule (AK-014) masks
-/// the declared wire keys there, in key-ACCESS position only. Everything
-/// else these modules contain is policed exactly as before. Growth of
-/// this list is a deliberate, recorded boundary-test change (plan Task 9:
-/// the B.3 generation of codecs); it is pinned by test in `scope_tests`.
+/// serializer (application). Since plan Task 10, the B.4-generation
+/// modules: the `comparison_record@v1` codec and the comparison envelope's
+/// canonical serializer (both ports — the envelope serializes the B.3
+/// facet field vocabulary on its observation side). Their encode/decode
+/// paths MUST match the exact JSON keys of the annexes — that is schema
+/// conformance, not adapter selection — so the segment-whole-literal rule
+/// (AK-014) masks the declared wire keys there, in key-ACCESS position
+/// only. Everything else these modules contain is policed exactly as
+/// before. Growth of this list is a deliberate, recorded boundary-test
+/// change (plan Task 10: the B.4 generation of codecs); it is pinned by
+/// test in `scope_tests`.
 pub const ANNEX_B_CONTRACT_PARSERS: &[&str] = &[
     "crates/gauntlet-ports/src/role_result.rs",
     "crates/gauntlet-ports/src/observer_evidence.rs",
     "crates/gauntlet-app/src/observation/bundle.rs",
     "crates/gauntlet-app/src/observation/input.rs",
+    "crates/gauntlet-ports/src/comparison_record.rs",
+    "crates/gauntlet-ports/src/comparator.rs",
 ];
 
 /// The declared field-key vocabulary of **Annex B.2** (`builder_result@v1`)
@@ -195,7 +201,9 @@ pub const ANNEX_B_WIRE_KEYS: &[(&str, &str)] = &[
         "command",
         "Annex B.2 `self_checks[].command`; Annex B.3 `observation_bundle@v1` \
          `facets[].command` and `facet_evidence@v1` top-level `command` (plan Task 9 \
-         codec modules — same key spelling, same schema-conformance class)",
+         codec modules — same key spelling, same schema-conformance class); the \
+         comparison envelope's facet summaries reuse the B.3 facet field vocabulary \
+         (plan Task 10)",
     ),
     ("exit_code", "Annex B.2 `self_checks[].exit_code`"),
     (
@@ -517,7 +525,10 @@ mod scope_tests {
     #[test]
     fn annex_b_contract_parsers_are_pinned() {
         // The wire-key mask's module gate (see the const's doc): the B.2
-        // decoder, then plan Task 9's Annex-B.3-family codec modules.
+        // decoder, then plan Task 9's Annex-B.3-family codec modules, then
+        // plan Task 10's B.4 generation (the comparison_record codec and
+        // the comparison envelope's canonical serializer, which reuses the
+        // B.3 facet field vocabulary on its observation side).
         // Adding a module is a deliberate, recorded boundary-test change
         // that updates this pin — the same discipline as the wire-key pin.
         assert_eq!(
@@ -527,6 +538,8 @@ mod scope_tests {
                 "crates/gauntlet-ports/src/observer_evidence.rs",
                 "crates/gauntlet-app/src/observation/bundle.rs",
                 "crates/gauntlet-app/src/observation/input.rs",
+                "crates/gauntlet-ports/src/comparison_record.rs",
+                "crates/gauntlet-ports/src/comparator.rs",
             ]
         );
     }
@@ -566,8 +579,10 @@ mod scope_tests {
                 (
                     "command",
                     "Annex B.2 `self_checks[].command`; Annex B.3 `observation_bundle@v1` \
-         `facets[].command` and `facet_evidence@v1` top-level `command` (plan Task 9 \
-         codec modules — same key spelling, same schema-conformance class)",
+                     `facets[].command` and `facet_evidence@v1` top-level `command` (plan Task 9 \
+                     codec modules — same key spelling, same schema-conformance class); the \
+                     comparison envelope's facet summaries reuse the B.3 facet field vocabulary \
+                     (plan Task 10)",
                 ),
                 ("exit_code", "Annex B.2 `self_checks[].exit_code`"),
                 (

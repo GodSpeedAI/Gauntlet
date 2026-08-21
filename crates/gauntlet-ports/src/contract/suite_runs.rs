@@ -129,6 +129,144 @@ fn comparator_broken_is_caught() {
 }
 
 #[test]
+fn comparator_facet_blind_is_caught() {
+    // The widened-envelope case's teeth: a comparator that copies every
+    // digest faithfully but clean-passes over a recorded instrument
+    // failure is caught (plan Task 10, P3 comparison-consumption
+    // coupling).
+    assert_caught(
+        "ComparatorFacetBlind",
+        "facet_reality_is_visible_to_the_comparator",
+        super::comparator::comparator_suite(&ComparatorFacetBlind),
+    );
+}
+
+/// The F1 tooth (Task 10, round-9 correction). The comparator suite is a
+/// PUBLIC entry point of this crate: whatever context it dispatches, it
+/// dispatches into an adapter-supplied `Comparator`, which any downstream
+/// crate can implement and which can retain what it is handed. So the suite
+/// must not be able to fabricate one. This asserts the dispatched context is
+/// the product of the real chain — a digest verified against the fixture's
+/// own frozen bytes, an envelope digest computed over the canonical bytes,
+/// and an observation PROJECTED from the durably bound bundle — none of
+/// which a struct-literal fixture would satisfy.
+#[test]
+fn the_comparator_suite_dispatches_only_contexts_it_earned() {
+    use std::sync::{Arc, Mutex};
+
+    use gauntlet_domain::{ComparisonRecord, Digest, Verdict};
+    use sha2::{Digest as _, Sha256};
+
+    use crate::comparator::{
+        Comparator, ComparatorError, TrustedComparisonContext, assert_blind,
+        calculate_envelope_digest,
+    };
+    use crate::contract::comparator::ComparatorFactory;
+    use crate::deadline::Deadline;
+
+    #[derive(Default)]
+    struct Seen {
+        reference_digests: Vec<Digest>,
+        digest_self_consistent: Vec<bool>,
+        blind: Vec<bool>,
+        failing_facets: usize,
+    }
+
+    struct Capturing(Arc<Mutex<Seen>>);
+
+    impl Comparator for Capturing {
+        fn compare(
+            &self,
+            context: &TrustedComparisonContext,
+            _deadline: Deadline,
+        ) -> Result<ComparisonRecord, ComparatorError> {
+            let envelope = context.envelope();
+            {
+                let mut seen = self.0.lock().expect("the capture lock is uncontended");
+                seen.reference_digests
+                    .push(envelope.reference_digest().clone());
+                seen.digest_self_consistent
+                    .push(calculate_envelope_digest(envelope) == *envelope.envelope_digest());
+                seen.blind.push(assert_blind(&envelope.to_json()).is_ok());
+                seen.failing_facets += envelope
+                    .observation()
+                    .facets()
+                    .iter()
+                    .filter(|facet| facet.exit_status().is_some_and(|status| status != 0))
+                    .count();
+            }
+            ComparisonRecord::new(
+                envelope.reference_digest().clone(),
+                envelope.observation().observation_digest().clone(),
+                envelope.envelope_digest().clone(),
+                Vec::new(),
+                Verdict::Pass,
+            )
+            .map_err(|error| ComparatorError::ComparisonFailed {
+                detail: error.to_string(),
+            })
+        }
+    }
+
+    struct CapturingFactory(Arc<Mutex<Seen>>);
+
+    impl ComparatorFactory for CapturingFactory {
+        fn label(&self) -> &'static str {
+            "capturing-comparator"
+        }
+
+        fn supported_version(&self) -> String {
+            "1".to_owned()
+        }
+
+        fn build(&self) -> Result<Box<dyn Comparator>, String> {
+            Ok(Box::new(Capturing(Arc::clone(&self.0))))
+        }
+    }
+
+    let seen = Arc::new(Mutex::new(Seen::default()));
+    let _ = super::comparator::comparator_suite(&CapturingFactory(Arc::clone(&seen)));
+    let seen = seen.lock().expect("the capture lock is uncontended");
+
+    // The fixture's frozen reference bytes, hashed the way
+    // `FrozenReferenceProjection::load` hashes them. A context minted from a
+    // struct literal would carry whatever digest the literal named.
+    let earned = Digest::new(
+        "sha256",
+        &Sha256::digest(b"the runtime-rendered view of the frozen standard\n")
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>(),
+    )
+    .expect("sha-256 output is a valid digest");
+
+    assert!(
+        !seen.reference_digests.is_empty(),
+        "the suite dispatched no comparison at all"
+    );
+    for digest in &seen.reference_digests {
+        assert_eq!(
+            digest, &earned,
+            "the suite dispatched a context whose reference digest is not the verified digest \
+             of its own frozen reference bytes — it was fabricated, not earned"
+        );
+    }
+    assert!(
+        seen.digest_self_consistent.iter().all(|ok| *ok),
+        "the suite dispatched an envelope whose digest was not computed over its canonical bytes"
+    );
+    assert!(
+        seen.blind.iter().all(|ok| *ok),
+        "the suite dispatched an envelope that does not survive the blindness assertion"
+    );
+    assert_eq!(
+        seen.failing_facets, 1,
+        "the failing instrument facet must reach the comparator by projection from the durably \
+         bound bundle bytes"
+    );
+}
+
+#[test]
 fn event_log_green_is_clean() {
     assert_green(
         "EventLogGreen",

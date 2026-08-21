@@ -131,6 +131,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-compare-model"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-adapter-evidence-fs"
 version = "0.1.0"
 dependencies = [
@@ -214,6 +222,8 @@ name = "gauntlet-cli"
 version = "0.1.0"
 dependencies = [
  "gauntlet-adapter-agent-mock",
+ "gauntlet-adapter-compare-diff",
+ "gauntlet-adapter-compare-model",
  "gauntlet-adapter-evidence-fs",
  "gauntlet-adapter-observe-build",
  "gauntlet-adapter-observe-command",
@@ -235,6 +245,7 @@ name = "gauntlet-ports"
 version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
+ "sha2",
 ]
 
 [[package]]

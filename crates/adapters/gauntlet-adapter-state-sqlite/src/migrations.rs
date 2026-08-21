@@ -25,6 +25,21 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "state_records",
         sql: include_str!("../migrations/0002_state_records.sql"),
     },
+    Migration {
+        version: 3,
+        name: "critic_bindings",
+        sql: include_str!("../migrations/0003_critic_bindings.sql"),
+    },
+    Migration {
+        version: 4,
+        name: "frozen_reference_evidence",
+        sql: include_str!("../migrations/0004_frozen_reference_evidence.sql"),
+    },
+    Migration {
+        version: 5,
+        name: "observation_bindings",
+        sql: include_str!("../migrations/0005_observation_bindings.sql"),
+    },
 ];
 
 /// Why a migration could not be applied — typed, carrying the version.
@@ -163,9 +178,9 @@ mod tests {
     fn migrations_apply_in_order_and_reopening_applies_nothing_new() {
         let conn = Connection::open_in_memory().expect("in-memory database opens");
         apply(&conn).expect("the set applies");
-        assert_eq!(applied_versions(&conn).unwrap(), vec![1, 2]);
+        assert_eq!(applied_versions(&conn).unwrap(), vec![1, 2, 3, 4, 5]);
         apply(&conn).expect("an up-to-date database is a no-op");
-        assert_eq!(applied_versions(&conn).unwrap(), vec![1, 2]);
+        assert_eq!(applied_versions(&conn).unwrap(), vec![1, 2, 3, 4, 5]);
         // Every migration in the set is numbered strictly ascending, and the
         // versions recorded are exactly the set's versions — the append-only
         // property pinned mechanically.

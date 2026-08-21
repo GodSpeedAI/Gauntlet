@@ -33,7 +33,7 @@ use crate::agent_runner::{
 };
 use crate::budget_meter::{BudgetMeter, BudgetMeterError, BudgetSlice, Remaining, Reservation};
 use crate::clock::{Clock, ClockError};
-use crate::comparator::{Comparator, ComparatorError, ComparisonEnvelope};
+use crate::comparator::{Comparator, ComparatorError, TrustedComparisonContext};
 use crate::deadline::Deadline;
 use crate::event_log::{EventLog, EventLogError, LogEntry};
 use crate::evidence_store::{EvidenceStore, EvidenceStoreError};
@@ -795,19 +795,76 @@ struct VerbatimComparator;
 impl Comparator for VerbatimComparator {
     fn compare(
         &self,
-        envelope: &ComparisonEnvelope,
+        envelope: &TrustedComparisonContext,
         _deadline: Deadline,
     ) -> Result<ComparisonRecord, ComparatorError> {
-        if envelope.contract_version != "1" {
+        if envelope.envelope().contract().version() != "1" {
             return Err(ComparatorError::EnvelopeInvalid {
-                detail: format!("contract version {} is unknown", envelope.contract_version),
+                detail: format!(
+                    "contract version {} is unknown",
+                    envelope.envelope().contract().version()
+                ),
             });
         }
+        // The green stub honors the widened envelope's facet reality: a
+        // recorded instrument failure or a recorded gap is a residual, and
+        // a blocking one forces fail (spec 12.3, 13.5).
+        let mut residuals = Vec::new();
+        let mut blocking = 0usize;
+        for facet in envelope.envelope().observation().facets() {
+            if facet.exit_status().is_some_and(|status| status != 0) {
+                residuals.push(gauntlet_domain::Residual::new(
+                    gauntlet_domain::ResidualId::new(&format!(
+                        "stub-facet-{}",
+                        facet.kind().token()
+                    ))
+                    .expect("stub residual id"),
+                    gauntlet_domain::Severity::Blocking,
+                    format!(
+                        "instrument {} exited with {}",
+                        facet.kind().token(),
+                        facet.exit_status().unwrap_or_default()
+                    ),
+                    None,
+                ));
+                blocking += 1;
+            }
+        }
+        let gaps = envelope
+            .envelope()
+            .observation()
+            .unavailable_evidence()
+            .len()
+            + envelope
+                .envelope()
+                .observation()
+                .observation_failures()
+                .len();
+        if gaps > 0 {
+            residuals.push(gauntlet_domain::Residual::new(
+                gauntlet_domain::ResidualId::new("stub-gaps").expect("stub residual id"),
+                gauntlet_domain::Severity::Major,
+                format!("{gaps} recorded gap(s)"),
+                None,
+            ));
+        }
+        let verdict = if blocking > 0 {
+            Verdict::Fail
+        } else if gaps > 0 {
+            Verdict::Inconclusive
+        } else {
+            Verdict::Pass
+        };
         ComparisonRecord::new(
-            envelope.reference_digest.clone(),
-            envelope.observation.observation_digest().clone(),
-            Vec::new(),
-            Verdict::Pass,
+            envelope.envelope().reference_digest().clone(),
+            envelope
+                .envelope()
+                .observation()
+                .observation_digest()
+                .clone(),
+            envelope.envelope().envelope_digest().clone(),
+            residuals,
+            verdict,
         )
         .map_err(|error| ComparatorError::ComparisonFailed {
             detail: error.to_string(),
@@ -836,19 +893,27 @@ struct WrongDigestComparator;
 impl Comparator for WrongDigestComparator {
     fn compare(
         &self,
-        envelope: &ComparisonEnvelope,
+        envelope: &TrustedComparisonContext,
         _deadline: Deadline,
     ) -> Result<ComparisonRecord, ComparatorError> {
-        if envelope.contract_version != "1" {
+        if envelope.envelope().contract().version() != "1" {
             return Err(ComparatorError::EnvelopeInvalid {
-                detail: format!("contract version {} is unknown", envelope.contract_version),
+                detail: format!(
+                    "contract version {} is unknown",
+                    envelope.envelope().contract().version()
+                ),
             });
         }
-        ComparisonRecord::new(never_digest(), never_digest(), Vec::new(), Verdict::Pass).map_err(
-            |error| ComparatorError::ComparisonFailed {
-                detail: error.to_string(),
-            },
+        ComparisonRecord::new(
+            never_digest(),
+            never_digest(),
+            never_digest(),
+            Vec::new(),
+            Verdict::Pass,
         )
+        .map_err(|error| ComparatorError::ComparisonFailed {
+            detail: error.to_string(),
+        })
     }
 }
 
@@ -865,6 +930,58 @@ impl ComparatorFactory for ComparatorBroken {
 
     fn build(&self) -> Result<Box<dyn Comparator>, String> {
         Ok(Box::new(WrongDigestComparator))
+    }
+}
+
+struct FacetBlindComparator;
+
+impl Comparator for FacetBlindComparator {
+    fn compare(
+        &self,
+        envelope: &TrustedComparisonContext,
+        _deadline: Deadline,
+    ) -> Result<ComparisonRecord, ComparatorError> {
+        if envelope.envelope().contract().version() != "1" {
+            return Err(ComparatorError::EnvelopeInvalid {
+                detail: format!(
+                    "contract version {} is unknown",
+                    envelope.envelope().contract().version()
+                ),
+            });
+        }
+        // Copies every digest faithfully but IGNORES facet-level reality:
+        // a recorded instrument failure still yields a clean pass. The
+        // widened-envelope suite case exists to catch exactly this.
+        ComparisonRecord::new(
+            envelope.envelope().reference_digest().clone(),
+            envelope
+                .envelope()
+                .observation()
+                .observation_digest()
+                .clone(),
+            envelope.envelope().envelope_digest().clone(),
+            Vec::new(),
+            Verdict::Pass,
+        )
+        .map_err(|error| ComparatorError::ComparisonFailed {
+            detail: error.to_string(),
+        })
+    }
+}
+
+pub struct ComparatorFacetBlind;
+
+impl ComparatorFactory for ComparatorFacetBlind {
+    fn label(&self) -> &'static str {
+        "broken-facet-blind-comparator"
+    }
+
+    fn supported_version(&self) -> String {
+        "1".to_owned()
+    }
+
+    fn build(&self) -> Result<Box<dyn Comparator>, String> {
+        Ok(Box::new(FacetBlindComparator))
     }
 }
 

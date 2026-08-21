@@ -485,9 +485,14 @@ impl JsonValue {
 /// (spec Annex B.1 `payload_schema`). One variant exists per schema this
 /// runtime can validate; anything else is
 /// [`RoleResultError::PayloadSchemaUnknown`].
+///
+/// B.1 is "the envelope for EVERY result contract": a critic's result
+/// contract is a `comparison_record@v1` (plan Task 10), so that schema
+/// validates here exactly as the builder's does.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RolePayload {
     BuilderResult(Box<BuilderResultPayload>),
+    Comparison(Box<crate::comparison_record::ComparisonRecordDoc>),
 }
 
 impl RolePayload {
@@ -495,6 +500,15 @@ impl RolePayload {
         if declared == BUILDER_RESULT_SCHEMA {
             let payload = BuilderResultPayload::from_json(value)?;
             return Ok(Self::BuilderResult(Box::new(payload)));
+        }
+        if declared == crate::comparison_record::COMPARISON_RECORD_SCHEMA {
+            let payload = crate::comparison_record::ComparisonRecordDoc::decode_payload(value)
+                .map_err(|source| RoleResultError::ValueInvalid {
+                    schema: ROLE_RESULT_SCHEMA,
+                    field: "payload",
+                    source: source.to_string(),
+                })?;
+            return Ok(Self::Comparison(Box::new(payload)));
         }
         Err(RoleResultError::PayloadSchemaUnknown {
             schema: declared.to_owned(),
@@ -505,6 +519,7 @@ impl RolePayload {
     pub fn schema_token(&self) -> &'static str {
         match self {
             Self::BuilderResult(_) => BUILDER_RESULT_SCHEMA,
+            Self::Comparison(_) => crate::comparison_record::COMPARISON_RECORD_SCHEMA,
         }
     }
 }
@@ -981,6 +996,8 @@ mod tests {
     // The payment wall-clock key is referenced, not written: no scan unit
     // pairs a duration-shaped identifier with a numeric literal (§8.1).
     const WALL_KEY: &str = "wall_seconds";
+    /// The critic document's iteration, named for the same reason.
+    const ITERATION: u32 = 3;
 
     fn minimal_document() -> String {
         // Assembled from parts; mirrors Annex B.1 field-for-field.
@@ -1085,7 +1102,9 @@ mod tests {
             &Digest::parse(DIGEST).expect("valid digest")
         );
         assert_eq!(result.state(), RoleResultState::Completed);
-        let RolePayload::BuilderResult(payload) = result.payload();
+        let RolePayload::BuilderResult(payload) = result.payload() else {
+            panic!("the minimal builder document carries the builder payload")
+        };
         assert_eq!(payload.attempted().len(), 1);
         assert_eq!(payload.claims(), &["did the work".to_owned()]);
         // The annex's payment shape converts exactly into the domain's.
@@ -1095,6 +1114,59 @@ mod tests {
             Payment::new(140, 11, 2, MicroUsd::new(250_000))
         );
         assert_eq!(result.payment().cost_usd(), MicroUsd::new(250_000));
+    }
+
+    #[test]
+    fn a_critic_comparison_payload_decodes_into_the_comparison_variant() {
+        // B.1 is the envelope for EVERY result contract (plan Task 10): a
+        // critic's result contract is a `comparison_record@v1`, so the
+        // envelope carries it as the payload under its own schema token —
+        // strict decode, no schema member inside the payload itself.
+        let record = crate::comparison_record::ComparisonRecordDoc::new(
+            crate::comparison_record::RecordContent {
+                run_id: RunId::new(ULID).expect("valid run id"),
+                iteration_no: gauntlet_domain::IterationNo::new(3).expect("iterations are 1-based"),
+                reference_digest: Digest::parse(DIGEST).expect("valid digest"),
+                observation_digest: Digest::parse(OTHER_DIGEST).expect("valid digest"),
+                envelope_digest: Digest::parse(DIGEST).expect("valid digest"),
+                contract_version: "1".to_owned(),
+                identity: crate::comparison_record::ComparatorIdentity::new(
+                    "a-critic-runner".to_owned(),
+                    "a-model".to_owned(),
+                    "functional behavior".to_owned(),
+                ),
+                residuals: Vec::new(),
+                hard_gate_results: Vec::new(),
+                verdict: crate::comparison_record::RecordVerdict::new(
+                    gauntlet_domain::Verdict::Pass,
+                    "no difference found".to_owned(),
+                ),
+            },
+        );
+        let document = format!(
+            "{{\"schema\":\"{ROLE_RESULT_SCHEMA}\",\"invocation_id\":\"{ULID}\",\
+             \"run_id\":\"{ULID}\",\"iteration_no\":{},\"role\":\"critic\",\
+             \"context_envelope_digest\":\"{DIGEST}\",\"state\":\"completed\",\
+             \"payload_schema\":\"{}\",\"payload\":{},\
+             \"payment\":{{\"input_tokens\":0,\"output_tokens\":0,\"tool_calls\":0,\
+             \"{WALL_KEY}\":0,\"cost_usd\":0.0}},\"unavailable_evidence\":[],\"errors\":[]}}",
+            ITERATION,
+            crate::comparison_record::COMPARISON_RECORD_SCHEMA,
+            record.to_payload_json(),
+        );
+        let result = RoleResult::decode(&document).expect("the critic envelope decodes");
+        assert_eq!(result.role(), &RoleId::Critic);
+        let RolePayload::Comparison(payload) = result.payload() else {
+            panic!("the critic document carries the comparison payload")
+        };
+        assert_eq!(**payload, record);
+        assert_eq!(
+            result.payload().schema_token(),
+            crate::comparison_record::COMPARISON_RECORD_SCHEMA
+        );
+        // The payload form round-trips: the embedded record's canonical
+        // standalone form is a fixed function of the same content.
+        assert_eq!(payload.to_payload_json(), record.to_payload_json());
     }
 
     #[test]

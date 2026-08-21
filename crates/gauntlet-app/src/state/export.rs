@@ -162,6 +162,7 @@ fn canonical_fields(record: &str) -> &'static [&'static str] {
             "reference_id",
             "reference_version",
             "reference_digest",
+            "reference_evidence_ref",
             "intent",
             "config_fingerprint",
             "environment_fingerprint",

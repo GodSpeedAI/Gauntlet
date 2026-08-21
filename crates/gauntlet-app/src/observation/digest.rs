@@ -14,8 +14,6 @@
 //! digest field itself — pinned by test.
 
 use gauntlet_domain::Digest;
-use gauntlet_ports::json::JsonValue;
-use sha2::{Digest as _, Sha256};
 
 use super::bundle::ObservationBundleDoc;
 
@@ -24,45 +22,7 @@ use super::bundle::ObservationBundleDoc;
 /// and `observation_digest` pinned to `""`. Exposed so tests pin the
 /// normalization directly (plan Task 9 step 3).
 pub fn normalized_bytes(doc: &ObservationBundleDoc) -> String {
-    let JsonValue::Object(entries) = doc.object_entries() else {
-        // `object_entries` always builds an object; the arm exists for the
-        // compiler, not for callers.
-        return doc.to_json();
-    };
-    let normalized: Vec<(String, JsonValue)> = entries
-        .iter()
-        .filter_map(|(key, value)| match key.as_str() {
-            "observed_at" => None,
-            "observation_digest" => Some((key.clone(), JsonValue::Str(String::new()))),
-            "facets" => Some((key.clone(), strip_facet_timestamps(value))),
-            _ => Some((key.clone(), value.clone())),
-        })
-        .collect();
-    JsonValue::Object(normalized).to_json_text()
-}
-
-/// Removes `started_at`/`ended_at` from every facet object, in place of
-/// the full array.
-fn strip_facet_timestamps(facets: &JsonValue) -> JsonValue {
-    let JsonValue::Array(items) = facets else {
-        return facets.clone();
-    };
-    let stripped: Vec<JsonValue> = items
-        .iter()
-        .map(|facet| {
-            let JsonValue::Object(entries) = facet else {
-                return facet.clone();
-            };
-            JsonValue::Object(
-                entries
-                    .iter()
-                    .filter(|(key, _)| key != "started_at" && key != "ended_at")
-                    .cloned()
-                    .collect(),
-            )
-        })
-        .collect();
-    JsonValue::Array(stripped)
+    gauntlet_ports::observation_digest::normalized_bytes(&doc.object_entries())
 }
 
 /// The §12.4 digest: SHA-256 over [`normalized_bytes`], carried by the
@@ -70,15 +30,7 @@ fn strip_facet_timestamps(facets: &JsonValue) -> JsonValue {
 /// lowercase hex characters, exactly the domain's hex grammar (pinned by
 /// every test that compares digests).
 pub fn observation_digest(doc: &ObservationBundleDoc) -> Digest {
-    let bytes = normalized_bytes(doc);
-    let mut hasher = Sha256::new();
-    hasher.update(bytes.as_bytes());
-    let hex: String = hasher
-        .finalize()
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    Digest::new("sha256", &hex).expect("SHA-256 hex satisfies the Digest grammar by construction")
+    gauntlet_ports::observation_digest::observation_digest(&doc.object_entries())
 }
 
 #[cfg(test)]
