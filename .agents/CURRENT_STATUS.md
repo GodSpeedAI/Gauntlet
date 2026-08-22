@@ -1,19 +1,21 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-21 — **Tasks 2–9 CLOSED (records below). Task 9
-closed this session after: a usage-limit interruption mid-D4 (recovered by
-a finisher per the lesson), orchestrator-run gates + 4 teeth (T1–T4, all
-bit, all reverted), two blind critics (0 critical; 3 major spec + 5 major
-adversarial), C1–C10 correction round (fail-first per item), confirmation
-critic CONFIRM + N1 doc micro-fix. Task 10 (comparator + envelope builder,
-P2) is CLOSED: an architecture diagnosis found the round-3 residuals to be one
-root invariant; correction rounds 7-10 landed the governed authority/admission
-chain, the durable write-once observation binding over the bundle's CONTENT
-digest, unforgeable `ComparisonProduct`/`AdmittedComparison` values, acceptance
-anchored to the issued envelope, and a sealed capability; fresh blind
-confirmation round 7 returned CONFIRM against a compiled external attack crate
-(697/697, 194/194, all gates green). No frozen Wayfinder material was
-modified and no reference candidate was created or promoted.**
+**Last updated:** 2026-08-23 — **Tasks 2–11 CLOSED (records below). Task 11
+(verifier + evidence binding, P12) closed this session: round-1 builder +
+finisher, two blind critics + a denylist supplement (0 critical; prereg R1
+FIRED as predicted — the caller-supplies-both-sides seam at the ladder and
+the precondition store), correction round 1 (C1–C6+C8a), fresh confirmation
+round 1 NOT CONFIRM (new MAJOR: one-directional content binding — doctored
+locator bytes rode the real adapter to PASS), correction round 2 (F1
+three-way digest equality locator==production==store; F2 composition-seal
+arch pin; F3 symmetric gating), fresh blind confirmation round 2 **CONFIRM**
+with executed evidence (15-scenario probe; re-executed attack refused).
+Gates on the committed tree: workspace 783/783, boundaries 197/197, the
+plan's focused gate p12 12/12 + verify:: 44/44, check/lint/deny 0, ruler
+PASS, prereg-check PASS. Three builder sessions died to usage limits
+(ninth/ tenth/ eleventh interruption instances — all recovered per the
+lesson). No frozen Wayfinder material modified; three locator
+reference-candidates entries recorded (AK-005/035/036, existing class).**
 
 **CLOSED (2026-08-21, Task 10 — fresh blind confirmation round 7: CONFIRM):** An architecture diagnosis
 (`architecture-diagnosis.md`) established that the round-3 residuals were **one
@@ -510,6 +512,50 @@ opportunistically at the next domain-crate touch.
 
 ### Deferral ledger (recorded, never silent — from critics 8/9, post-6.1)
 
+**Task-11 deferrals (same upgrade rule — a deferred finding blocks the
+moment a task walks into its trigger):**
+
+- **Ungated evidence-production write + declared-iteration validation at
+  write time** (critic-b MAJOR-3, adjudicated C7): any in-process holder of
+  the state store can record a production for any store-resolvable bytes;
+  write-once per (run, ref) holds, but the write itself is not
+  capability-gated and the declared iteration is not checked against the
+  run's durable iteration. Task 10's `bind_observation_bundle` carries the
+  identical recorded residual. Trigger: **Task 12** — capability-gate BOTH
+  writes when the controller wires their production writers (evidence-owner
+  and observation-owner roles).
+- **Chain-read → instrument-read race** (round-2 residual, honestly
+  documented in-code, §22.2): the file at the locator could change between
+  the chain's pre-dispatch digest read and the instrument's read. Trigger:
+  any requirement for race-freedom — the recorded closure is the option-(b)
+  Verifier port revision (instruments consume store-served bytes).
+- **Workspace-root pairing is convention-bound at the library seam**
+  (confirmation round 2 NOTE-2): `for_run` accepts any root; nothing in the
+  library forces it to equal the root the adapters were constructed with.
+  Same §7.1 composition-root trust position as the ladder. Trigger:
+  **Tasks 12/20** production wiring must keep them one fact (the composed
+  fixture already does).
+- **Production-row crash-window replay** (critic-a unimplemented-3): the
+  window between the durable `EvidenceProduced` event append and the row
+  insert is named in the error string; no replay code exists. Trigger:
+  **Task 13** recovery composition (same class as the settlement
+  commit-window discipline).
+- **Ladder rungs 5–9 and 11** (broad test, static analysis, benchmark,
+  runtime probe, visual diff, human): §6.3 RECOMMENDED; visual-diff-shaped
+  evidence currently falls to the model rung. Trigger: **ports revision**
+  or the task that needs them.
+- **Locator "contract-defined" matching for non-deterministic kinds**
+  (critic-a MINOR-4): exact-only today (stricter, not looser). Trigger:
+  **ports revision**.
+- **`produced_at` integer vs Annex-B string placeholder** (critic-a
+  MINOR-6): annex samples use `""` placeholders; the codec is stricter.
+  Trigger: **docs/schemas** (Task 17/27).
+- **Containment is path-string level, not inode level** (confirmation
+  round 2 NOTE-1): a locator symlink resolves outside the workspace root
+  for BOTH readers identically; no false outcome is mintable through it;
+  requires workspace write access (§22.2). Recorded so nobody reads
+  "escape-refused" as inode-level containment.
+
 **Task-9 deferrals (added this session; same upgrade rule — a deferred finding
 blocks the moment a task walks into its trigger):**
 
@@ -721,6 +767,26 @@ is now closed). Re-litigate E4/F1/F3 first time the arch suite is touched for an
    the documented procedure; the recurring pattern is now lessoned
    (`.agents/lessons/session-interruption-recovery.md`) with an AGENTS.md failure-log
    rule and the IN-FLIGHT-line practice. Task 6 closed in the same session.
+10. **(2026-08-21..23) Task 11: THREE builder sessions died to usage limits**
+    (round-1 after D4; correction-1 mid-edit; correction-2 mid-edit — the
+    ninth, tenth, and eleventh instances; both correction deaths left
+    non-compiling trees and unfulfilled checkpoint contracts). All three
+    recovered by the documented procedure (reconcile footprint → finisher
+    completes → regenerate fail-first evidence). The mid-edit subclass
+    recurs often enough that the correction-brief template now says
+    "append to checkpoints after EACH item" — keep enforcing it.
+11. **(2026-08-22) The correction-1 finisher committed mid-loop** (before the
+    confirmation critic) and included three operator-owned files (AGENTS.md,
+    justfile, .agents/prompts/) against the one-task-one-commit discipline.
+    Repaired by soft-reset + selective recommit (a507d08); operator files
+    left uncommitted for the operator. The confirmation critic subsequently
+    returned NOT CONFIRM, validating the rule the premature commit broke.
+12. **(2026-08-21) The operator updated the toolchain mid-task**
+    (rustc 1.92.0 → 1.98.0, "tooling optimizations") and separately landed
+    AGENTS.md/justfile recipe work driven by a `.agents/prompts/` recipe-
+    integration prompt. The toolchain change surfaced one pre-existing lint
+    (walk.rs unused binding) + three more 1.98 lints — four compensating
+    fixes recorded, no logic changes. Operator files remain uncommitted.
 
 **Before you touch anything:** run `just ruler`. It must print PASS. If it does not,
 that is a higher-priority problem than any task — stop, diagnose, and report it in
@@ -747,7 +813,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 7 — ReferenceProvider: normalize, digest, freeze, verify | **done** — closed after runaway-memory defect fix + 4+1 teeth + 2 blind critics + C1–C7 correction + confirmation CONFIRM, closure record above | this session |
 | 8 — Mock AgentRunner + fixtures | **done** — closed after interruption recovery + lint closure + 3 teeth + 2 blind critics + C1–C6 correction + confirmation CONFIRM + N1 micro-fix, closure record above | this session |
 | 9 — Observers + observation bundle | **done** — closed after usage-limit interruption recovery + finisher + orchestrator gates + 4 teeth + 2 blind critics (0 critical) + C1–C10 correction + confirmation CONFIRM + N1 doc micro-fix, closure record above | this session |
-| 10 — Comparator and envelope builder | **done** — closed after architecture diagnosis + correction rounds 7–10 + fresh blind confirmation round 7 CONFIRM (compiled external attack crate), closure record above; committed after interruption recovery (gates re-verified personally) | this session |
+| 10 — Comparator and envelope builder | **done** — closed after architecture diagnosis + correction rounds 7–10 + fresh blind confirmation round 7 CONFIRM (compiled external attack crate), closure record above; committed after interruption recovery (gates re-verified personally) | `1dab05c` |
+| 11 — Verifier and evidence binding | **done** — closed after 2 blind critics + denylist supplement + correction rounds 1–2 + fresh confirmation round 2 CONFIRM (executed evidence); prereg R1 fired and resolved by the preregistered A5 class | `a507d08`, `793d115` |
 | 11–27 | not started | — |
 
 ### Task 2 — final shape
@@ -813,7 +880,7 @@ and Task 9 (observers) must use `versioning`, not `git`.
 | Thing | State |
 |---|---|
 | Host | WSL2, kernel 6.18.35.2, x86_64, **6 cores, 7.8 GiB RAM (tight — ~1.6 GiB free)** |
-| Rust | rustc/cargo 1.92.0, rustup 1.29.0, rust-analyzer 1.92.0 |
+| Rust | rustc/cargo **1.98.0** (updated from 1.92.0 mid-Task-11 by the operator's tooling optimization, 2026-08-21; four compensating lint fixes recorded — no logic changes; 1.92.0 still installed), rustup 1.29.0, rust-analyzer 1.92.0 |
 | `just` | 1.58.0 |
 | `cargo-nextest` | 0.9.143 ✅ installed |
 | `cargo-deny` | 0.20.2 ✅ installed |
@@ -860,11 +927,26 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (19):** the derived, Unit-by-Unit set (each
-  counted once) is **AK-001**, **AK-002**, **AK-004**, **AK-015**, **AK-016**,
+- **implemented but provisional (22):** the derived, Unit-by-Unit set (each
+  counted once) is **AK-001**, **AK-002**, **AK-004**, **AK-005**,
+  **AK-015**, **AK-016**,
   **AK-017**, **AK-018**, **AK-019**, **AK-021**, **AK-022**, **AK-023**,
-  **AK-024**, **AK-025**, **AK-028**, **AK-029**, **AK-030**, **AK-049**,
-  **AK-054**, **AK-059**. **AK-001**, **AK-002**, **AK-016** — mechanisms
+  **AK-024**, **AK-025**, **AK-028**, **AK-029**, **AK-030**, **AK-035**,
+  **AK-036**, **AK-049**,
+  **AK-054**, **AK-059**. **Task 11 added AK-005** (three-state Outcome;
+  INCONCLUSIVE never satisfies settlement — the composed p12 proof asserts
+  NotPass{Inconclusive} through the real chain for absent/stale/wrong
+  evidence at every layer; the no-boolean-conversion half rests on the
+  pre-existing domain source-scan test outside the proof's locator — the
+  split is stated in the reference-candidates entry), **AK-035**
+  (deterministic-first: both-rung scenario at unit AND composed level with a
+  zero-model-dispatch counter; neutering the ascending sort fails the test),
+  **AK-036** (three binding classes reachable and pairwise distinct;
+  lying-request, producer, locator, stale, absent, and content-divergence
+  scenarios each typed, with 23 bite-proven teeth) — same provisional
+  class: instrument-level proof with teeth, no settlement yet; all three
+  locators have dated reference-candidates entries (materialization class).
+  **AK-001**, **AK-002**, **AK-016** — mechanisms
   enforced by `just boundaries`, teeth
   demonstrated, blind-critic-hardened through seven rounds; provisional because no
   `VerificationRecord` exists yet and deferred majors remain on record. **AK-019** —
@@ -918,10 +1000,10 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
   provisional class: instrument-level proof with teeth, no
   `VerificationRecord` yet; all three locators have dated
   reference-candidates entries (materialization class).
-- **proposed (51):** every other Unit, including AK-014 (vacuously true; no adapter
+- **proposed (48):** every other Unit, including AK-014 (vacuously true; no adapter
   selection exists yet).
-- **blocked: none. · unknown: none.** The arithmetic is **0 proven + 19 provisional +
-  51 proposed + 0 blocked + 0 unknown = 70 frozen Units**.
+- **blocked: none. · unknown: none.** The arithmetic is **0 proven + 22 provisional +
+  48 proposed + 0 blocked + 0 unknown = 70 frozen Units**.
 
 ---
 
@@ -950,30 +1032,45 @@ boundaries 194/194, ruler PASS — then committed). Its MINOR residuals are
 recorded in the Task-10 entry above; the observation-owner write gate is the
 one that hands work to the Task-12 controller when that task opens.
 
-**Task 11 — Verifier and evidence binding (proves P12) — is the next task.**
-It has a frozen research preregistration at
-`.agents/research/preregistrations/task-11.prereg.yaml` (verify with
-`just prereg-check 11`; never edit the prereg after implementation begins —
-record observations only in `task-11.outcome.yaml`).
+**Task 11 — Verifier and evidence binding (proves P12) — CLOSED** (commits
+`a507d08` round 1 + correction 1; `793d115` correction 2; fresh blind
+confirmation round 2 **CONFIRM** with executed evidence). The loop: round-1
+builder (died to a usage limit after D4 — ninth interruption instance;
+finisher proved-what-landed and landed D5/D6) → two blind critics + a
+denylist supplement (0 critical; 7 major code findings; prereg **R1 FIRED**
+exactly as preregistered — the caller-supplies-both-sides seam reappeared at
+the ladder and the precondition store) → correction round 1 (C1–C6+C8a; its
+builder also died mid-edit — tenth instance; finisher recovered) → fresh
+confirmation round 1 **NOT CONFIRM** (new MAJOR F1: the content-digest
+discipline protected only the store side; a doctored workspace file at the
+locator rode the real adapter to a PASS over pinned FAILING bytes — executed
+attack) → correction round 2 (F1 three-way digest equality `locator ==
+production.content == store` at the governed open with the earned workspace
+root; F2 composition-seal arch pin, boundaries 194→197; F3 symmetric gating;
+its builder died mid-edit too — eleventh instance; finisher recovered) →
+fresh blind confirmation round 2 **CONFIRM** (15-scenario executed probe
+incl. the re-executed attack → refused; crafted-manifest attacks on the
+seal; 4×E0599 constructor-absence probe; four non-blocking NOTEs recorded).
 
-**IN-FLIGHT (2026-08-22):** Task 11 round 1 LANDED (D1–D6; report
-`task11/builder-round1.md`; 764/764 green at the time). Two blind critics
-+ a denylist supplement then found B-M1..M5/A-M1..M2; adjudication
-`task11/correction-adjudication.md` (prereg R1 FIRED — the predicted
-caller-supplied-value seam reappeared at the ladder and the precondition
-store). Correction round 1 COMPLETE (`task11/correction-round1.md`;
-checkpoints appended to `task11/builder-checkpoints.md`): C1 ladder as
-earned authority (composition-feature seal), C2 terminal
-`RungFailed` for supported broken rungs, C3 production content-digest
-discipline (migration 0007) with chain re-derivation, C4 precondition
-over the claim's own chain store, C5 durable-checkpoint anchor
-validation, C6.1–6.6 minors, C8a comment. The first correction builder
-died mid-edit (non-compiling tree, empty log); a finisher session
-recovered per the interruption lesson — recovery note in the correction
-report. Gates: focused suites green (ports 80, sqlite 37, app 219,
-fs 9, adapters 15, p12 11); `just test` 778/778; boundaries 194/194;
-ruler PASS before and after. NEXT: confirmation critic (blind re-review
-of the correction round), then settlement.
+**Final gates (orchestrator-run, on the committed tree):** the plan's focused
+gate `--test p12_missing_is_not_passing` **12/12** + `-p gauntlet-app
+verify::` **44/44**; workspace **783/783**; boundaries **197/197**;
+check/lint/deny 0; ruler PASS; `just prereg-check 11` PASS. Prereg outcome
+observations recorded (`task-11.outcome.yaml`: P1/P2 falsified, P3/P4
+supported; R1 fired and was resolved by the preregistered A5 intervention
+class — earned authority + unforgeable values — at three seams; **no
+representation change**; R2/R3 did not fire).
+
+**Task 12 — Controller: selection, budget, diagnosis (proves P4, P6) — is
+the next task.** Two recorded Task-11 residuals hand it work directly: the
+**ungated `record_evidence_production` write** (+ declared-iteration
+validation at write time) must be capability-gated to the evidence-owner
+role when the controller wires the production writer (same for Task-10's
+ungated `bind_observation_bundle`), and the **workspace-root pairing**
+(chain root == adapters' root) must be kept one fact in production wiring.
+Evidence: `.agents/reports/task11/` (13 files: builder briefs/checkpoints/
+rounds, critics A/B/C, adjudication, correction rounds 1–2, fail-first
+logs, teeth, confirmations 1–2).
 
 **Task-9 dependency carried into Task 10 (D3):** Task 9 closed P3's
 observation/acquisition portion: it records instrument reality, explicit gaps, and
