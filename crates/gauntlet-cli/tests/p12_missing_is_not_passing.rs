@@ -50,6 +50,16 @@
 //! the bytes they ingested (C3), and the settlement precondition consults
 //! the claim's own chain store (C4 — no store argument exists anymore).
 //!
+//! Correction round 2 note (2026-08-21): the governed open also receives
+//! the fixture's WORKSPACE ROOT (F1 — the same root the real adapters are
+//! bound with), the chain re-reads locator bytes under it before dispatch
+//! (`digest(locator) == recorded == digest(store)`), and the proof's
+//! fixtures keep the locator file, the stored object, and the recorded
+//! digest ONE fact (`PASSING_REPORT`/`FAILING_REPORT` are exactly the
+//! adapter-written bytes). The doctored-workspace attack — honest FAILING
+//! store record plus a doctored PASSING file at the locator — is test 12,
+//! a permanent refusal proof.
+//!
 //! AK-035's deterministic-first property is proved here too: when a model
 //! rung and a deterministic rung could BOTH decide one claim, the
 //! deterministic instrument's identity is the one recorded.
@@ -101,6 +111,19 @@ const BOUND_AT: u64 = BASE_INSTANT + 90;
 /// store file, which lives under the per-test scratch tree).
 const RUN_ULID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const FIXTURE_REFERENCE: &str = "p12-proof-reference";
+
+/// The bytes of the fixture's PASSING report — EXACTLY what the real
+/// adapter's own writer produces for `write_report(7, 0,
+/// "the-p12-fixture-suite")` (correction round 2, F1): the locator file,
+/// the stored object, and the recorded content digest are ONE fact now,
+/// and these constants keep every `produce` call on the honest side of
+/// that identity. Drift is caught by the proof itself — any divergence
+/// between these bytes and the adapter-written artifact is the F1
+/// three-way mismatch, refused.
+const PASSING_REPORT: &[u8] = b"{\"tests\":7,\"failures\":0,\"command\":\"the-p12-fixture-suite\"}";
+/// The honest FAILING report: tests RAN and some failed (present-and-wrong
+/// evidence is a decision, not an absence).
+const FAILING_REPORT: &[u8] = b"{\"tests\":1,\"failures\":1,\"command\":\"the-p12-fixture-suite\"}";
 
 /// AK-9101 — the focused-test unit every binding scenario centres on.
 const REPORT_UNIT: &str = "AK-9101";
@@ -332,6 +355,12 @@ impl Fixture {
                 &self.run(),
                 IterationNo::new(iteration).expect("iterations are 1-based"),
                 ladder,
+                // F1: the evidence workspace root travels to the governed
+                // open under the same earned-authority discipline as the
+                // ladder — the SAME root `report_ladder`/`full_ladder` bind
+                // the real adapters with, so the chain's locator re-read and
+                // the instruments' reads resolve one tree.
+                self.workspace.clone(),
                 bound(),
             )
             .expect("the durable fixture run opens under the real frozen reference")
@@ -786,7 +815,7 @@ fn an_absent_artifact_at_a_resolving_production_is_inconclusive_p12() {
         &report_instrument(),
         REPORT_LOCATOR,
         2,
-        b"{\"tests\":7,\"failures\":0}",
+        PASSING_REPORT,
         EvidenceKind::TestReport,
     );
     let claim = fixture
@@ -832,7 +861,7 @@ fn stale_evidence_from_a_prior_iteration_is_inconclusive_stale() {
         &report_instrument(),
         REPORT_LOCATOR,
         1,
-        b"{\"tests\":7,\"failures\":0}",
+        PASSING_REPORT,
         EvidenceKind::TestReport,
     );
     let claim = fixture
@@ -862,7 +891,7 @@ fn a_request_lying_about_recency_producer_and_locator_cannot_make_stale_fresh() 
         &report_instrument(),
         REPORT_LOCATOR,
         1,
-        b"{\"tests\":7,\"failures\":0}",
+        PASSING_REPORT,
         EvidenceKind::TestReport,
     );
     // The lie: the request's claim asserts freshness, its requirement names
@@ -910,7 +939,7 @@ fn instrument_produced_evidence_never_satisfies_a_human_producer() {
         &report_instrument(),
         SIGNOFF_LOCATOR,
         2,
-        b"{\"tests\":7,\"failures\":0}",
+        PASSING_REPORT,
         EvidenceKind::TestReport,
     );
     let claim = fixture
@@ -944,7 +973,7 @@ fn evidence_at_another_locator_is_unresolvable_not_the_required_evidence() {
         &report_instrument(),
         ELSEWHERE_LOCATOR,
         2,
-        b"{\"tests\":7,\"failures\":0}",
+        PASSING_REPORT,
         EvidenceKind::TestReport,
     );
     let claim = fixture
@@ -984,7 +1013,7 @@ fn fresh_resolving_pinned_evidence_passes_and_approaches_settlement() {
         &report_instrument(),
         REPORT_LOCATOR,
         2,
-        b"{\"tests\":7,\"failures\":0}",
+        PASSING_REPORT,
         EvidenceKind::TestReport,
     );
     fixture
@@ -1023,7 +1052,7 @@ fn the_deterministic_rung_decides_when_the_model_rung_could_too() {
         &report_instrument(),
         REPORT_LOCATOR,
         2,
-        b"{\"tests\":7,\"failures\":0}",
+        PASSING_REPORT,
         EvidenceKind::TestReport,
     );
     let (judgment, model) = judgment_rung(
@@ -1113,6 +1142,70 @@ fn every_model_rung_record_is_flagged_non_deterministic() {
 }
 
 // ---------------------------------------------------------------------------
+// 12 — F1 (correction round 2): a doctored workspace file cannot ride the
+//      locator to a verdict over pinned bytes it is not
+// ---------------------------------------------------------------------------
+
+/// F1 (MAJOR, confirmation round 1): the C3 content binding covered only
+/// the STORE side; the confirmation critic EXECUTED the swapped-bytes
+/// attack in the LOCATOR direction through this composed path — an honest
+/// producer stores a FAILING report with its honest digest, the run pins
+/// it, a builder-class write (spec §22.2) doctors the mutable workspace
+/// file at the locator into a passing one, and the real adapter read the
+/// doctored bytes. FAIL-FIRST evidence (2026-08-21, pristine HEAD —
+/// captured verbatim in correction-round2.md): the attack minted `Pass`
+/// and the settlement precondition GRANTED readiness over the pinned
+/// FAILING bytes. The chain now re-reads the locator under the governed
+/// workspace root BEFORE dispatch and requires the three-way
+/// `digest(locator bytes) == production.content() == digest(store bytes)`;
+/// the doctored write is a typed refusal, and no claim exists to settle.
+#[test]
+fn a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass() {
+    let fixture = Fixture::new("doctored-locator");
+    // The honest producer: a FAILING report ingested at the locator,
+    // stored through the REAL content-addressed store, recorded with its
+    // honest digest, and pinned by the run.
+    let evidence = fixture.produce(
+        &report_instrument(),
+        REPORT_LOCATOR,
+        2,
+        FAILING_REPORT,
+        EvidenceKind::TestReport,
+    );
+    fixture
+        .evidence
+        .pin(&fixture.run(), &evidence, bound())
+        .expect("the run pins its evidence");
+    // The builder-class write: the mutable workspace file at the locator is
+    // doctored into a PASSING report. Every durable column stays honest —
+    // the store, the record, the digest, the pin — the lie lives only in
+    // the examination surface.
+    std::fs::write(fixture.workspace.join(REPORT_LOCATOR), PASSING_REPORT)
+        .expect("the doctored workspace file is written");
+    match fixture
+        .governed(2, report_ladder(&fixture))
+        .verify_claim(&lying_request(REPORT_UNIT), bound())
+    {
+        Err(gauntlet_app::verify::VerificationRefusal::LocatorContentMismatch {
+            locator,
+            recorded,
+            examined,
+        }) => {
+            assert_eq!(locator.as_str(), REPORT_LOCATOR);
+            assert_eq!(recorded, content_digest(FAILING_REPORT));
+            assert_eq!(examined, content_digest(PASSING_REPORT));
+        }
+        Ok(claim) => panic!(
+            "a doctored workspace file must be refused before dispatch, never mint an outcome; \
+             got {:?} (settlement readiness granted: {})",
+            claim.record().outcome(),
+            settlement_precondition(&claim, &fixture.run(), bound()).is_ok()
+        ),
+        Err(other) => panic!("expected the typed locator-content refusal, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 11 — the three §14.3 classes are reachable and distinct (no collapsed
 //      catch-all)
 // ---------------------------------------------------------------------------
@@ -1137,7 +1230,7 @@ fn the_three_binding_classes_are_reachable_and_distinct() {
             &report_instrument(),
             REPORT_LOCATOR,
             1,
-            b"{\"tests\":7,\"failures\":0}",
+            PASSING_REPORT,
             EvidenceKind::TestReport,
         );
         fixture
@@ -1154,7 +1247,7 @@ fn the_three_binding_classes_are_reachable_and_distinct() {
             &report_instrument(),
             SIGNOFF_LOCATOR,
             2,
-            b"{\"tests\":7,\"failures\":0}",
+            PASSING_REPORT,
             EvidenceKind::TestReport,
         );
         fixture

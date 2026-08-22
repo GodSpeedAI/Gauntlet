@@ -240,12 +240,13 @@ mod tests {
         store.insert("evd-pinned", b"test report bytes");
         state.checkpoint_at(2);
         let authority =
-            VerificationAuthority::new(state, store.clone(), Arc::new(SeededIds::new()));
+            VerificationAuthority::new(state.clone(), store.clone(), Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("run"),
                 IterationNo::new(2).expect("1-based"),
                 passing_ladder(),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -279,12 +280,14 @@ mod tests {
     fn an_inconclusive_record_is_refused_and_stays_distinct_from_fail() {
         let (state, store) = authority_parts();
         // No production at all: INCONCLUSIVE/evidence_unresolvable.
-        let authority = VerificationAuthority::new(state, store, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), store, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("run"),
                 IterationNo::new(1).expect("1-based"),
                 passing_ladder(),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("opens");
@@ -364,12 +367,14 @@ mod tests {
         store.insert("evd-pinned", b"test report bytes");
         state.checkpoint_at(2);
         store.fail_pin_queries();
-        let authority = VerificationAuthority::new(state, store, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), store, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("run"),
                 IterationNo::new(2).expect("1-based"),
                 passing_ladder(),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("opens");
@@ -446,12 +451,14 @@ mod tests {
         )
         .rung();
         let ladder = Ladder::new(vec![model]).expect("ladder");
-        let authority = VerificationAuthority::new(state, store, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), store, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder,
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("opens");

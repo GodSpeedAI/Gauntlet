@@ -34,11 +34,13 @@
 //! governed state, `pub(crate)` sealing, unforgeable products:
 //!
 //! ```text
-//! VerificationAuthority::for_run(run, iteration, LADDER) -> GovernedVerification
+//! VerificationAuthority::for_run(run, iteration, LADDER, WORKSPACE_ROOT) -> GovernedVerification
 //!   (durable run + durable-iteration anchor + verified frozen projection
 //!    + the composition root's rung set — C1: the ladder is earned
 //!    authority injected at the open, and no public ladder constructor
-//!    exists in a normal build of this crate)
+//!    exists in a normal build of this crate — and the canonicalized
+//!    evidence workspace root — F1: the same root the adapters bind, under
+//!    which the chain re-reads locator bytes before dispatch)
 //! GovernedVerification::verify_claim -> VerifiedClaim            (the only verification mint)
 //! settlement_precondition(&VerifiedClaim) -> SettlementReadiness  (§16.1 conditions 1–2 only;
 //!    C4 — evidence facts re-derived from the claim's OWN chain store,
@@ -188,24 +190,53 @@ pub(crate) mod testing {
     /// A production-record-holding state store: one durable run, its
     /// production bindings, monotonically minted event offsets (the
     /// store-side anchor, never a caller value), and a durable checkpoint
-    /// the fixture can advance (the C5 anchor-validation substrate).
+    /// the fixture can advance (the C5 anchor-validation substrate). It
+    /// also owns a REAL scratch workspace root (correction round 2, F1):
+    /// the producer-side `record` writes its artifact at the locator under
+    /// that root, so the chain's locator re-read — and any doctored
+    /// overwrite a test performs — operate on actual files, the way the
+    /// composed path does.
     pub(crate) struct VerifyingState {
         run: Run,
+        workspace: std::path::PathBuf,
         productions: Mutex<Vec<EvidenceProductionBinding>>,
         next_offset: Mutex<u64>,
         checkpoint: Mutex<Option<Checkpoint>>,
         leak_off_locator: Mutex<bool>,
     }
 
+    impl Drop for VerifyingState {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.workspace);
+        }
+    }
+
     impl VerifyingState {
         pub(crate) fn new(run: Run) -> Self {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let seq = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let workspace = std::env::temp_dir().join(format!(
+                "gauntlet-verify-authority-{}-{seq}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&workspace);
+            std::fs::create_dir_all(&workspace).expect("the fixture workspace root is creatable");
             Self {
                 run,
+                workspace,
                 productions: Mutex::new(Vec::new()),
                 next_offset: Mutex::new(0),
                 checkpoint: Mutex::new(None),
                 leak_off_locator: Mutex::new(false),
             }
+        }
+
+        /// The fixture's real workspace root — what a governed open pins
+        /// as its evidence workspace (F1). The state store hands it out so
+        /// the same fixture root travels to `for_run` and to any doctored
+        /// write a test performs.
+        pub(crate) fn workspace_root(&self) -> &std::path::Path {
+            &self.workspace
         }
 
         /// Makes `evidence_productions_at` ignore its locator filter — a
@@ -239,7 +270,11 @@ pub(crate) mod testing {
         /// embedded-SQL adapter performs it: the offset is minted HERE,
         /// inside the store, and the record carries the digest of the
         /// ingested payload (C3's content binding — pass the SAME bytes the
-        /// evidence store holds, as an honest producer does).
+        /// evidence store holds, as an honest producer does). F1: the
+        /// write also lands the artifact at the locator under the fixture's
+        /// real workspace root — an honest producer's bytes at the locator,
+        /// in the store, and in the recorded digest are ONE fact, so the
+        /// chain's three-way binding has a truthful substrate to defend.
         pub(crate) fn record(
             &self,
             evidence: &str,
@@ -248,6 +283,11 @@ pub(crate) mod testing {
             iteration: u32,
             payload: &[u8],
         ) -> EvidenceProductionBinding {
+            let path = self.workspace.join(locator);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("the fixture artifact parent is creatable");
+            }
+            std::fs::write(&path, payload).expect("the fixture artifact lands at the locator");
             let production = EvidenceProduction::new(
                 EvidenceRef::new(evidence).expect("fixture evidence ref"),
                 sha256_digest(payload),

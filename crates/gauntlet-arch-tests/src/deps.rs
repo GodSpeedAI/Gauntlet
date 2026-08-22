@@ -547,13 +547,48 @@ struct ExternalDep {
     source: ExternalSource,
 }
 
+/// One enabled FEATURE on one INTERNAL (workspace-member) dependency edge
+/// (Task 11 correction round 2, F2 — recorded boundary-suite growth): the
+/// section it was declared in (including target-scoped labels), the
+/// manifest key, the resolved member crate, and the feature specifier.
+/// Until F2 the walker read every field of a dependency spec EXCEPT
+/// `features`, so "no production edge enables `gauntlet-app/composition`"
+/// was true but unpinned — invisible to every check here, silently
+/// regressable. This type is the visibility: feature specifiers on
+/// internal edges are COLLECTED, and [`composition_seal_violations`] pins
+/// the one legal edge.
+#[derive(Clone, Debug)]
+pub struct FeatureEdge {
+    pub section: String,
+    pub key: String,
+    pub dep: String,
+    pub feature: String,
+}
+
+/// The `features` specifier of a dependency spec table, in cargo's both
+/// spellings: an array of feature names, or a single name as a bare string.
+/// Anything else (absent, wrong type) is no feature specifier.
+fn features_of(fields: &Table) -> Vec<String> {
+    match fields.get("features") {
+        Some(toml::Value::Array(list)) => list
+            .iter()
+            .filter_map(|value| value.as_str())
+            .map(str::to_string)
+            .collect(),
+        Some(toml::Value::String(single)) => vec![single.clone()],
+        _ => Vec::new(),
+    }
+}
+
 /// Internal (workspace-member) dependencies declared in `text`, the `path`
-/// dependencies that resolve to nothing known, and every external dependency
-/// whatever its source kind.
+/// dependencies that resolve to nothing known, every external dependency
+/// whatever its source kind, and the feature specifiers on the internal
+/// edges (F2).
 struct DeclaredDeps {
     internal: Vec<(String, String)>,
     unresolved_paths: Vec<(String, String, String, String)>,
     external: Vec<ExternalDep>,
+    feature_edges: Vec<FeatureEdge>,
 }
 
 fn declared_deps(
@@ -566,6 +601,7 @@ fn declared_deps(
     let mut internal = Vec::new();
     let mut unresolved_paths = Vec::new();
     let mut external = Vec::new();
+    let mut feature_edges = Vec::new();
     for (section, table) in &dependency_sections(&manifest) {
         for (key, spec) in *table {
             let fields = spec.as_table();
@@ -630,7 +666,20 @@ fn declared_deps(
                 source = ExternalSource::Registry;
             }
             if members.iter().any(|m| m.name == dep) {
-                internal.push((section.clone(), dep));
+                internal.push((section.clone(), dep.clone()));
+                // F2: the walker no longer ignores feature specifiers on
+                // internal edges — the composition seal pins against them.
+                // (For a `workspace = true` edge these are the member's OWN
+                // additions; features inherited from the root table are
+                // collected by `root_feature_edges`.)
+                for feature in fields.map(features_of).unwrap_or_default() {
+                    feature_edges.push(FeatureEdge {
+                        section: section.clone(),
+                        key: key.clone(),
+                        dep: dep.clone(),
+                        feature,
+                    });
+                }
             } else if !unresolved {
                 external.push(ExternalDep {
                     section: section.clone(),
@@ -645,6 +694,7 @@ fn declared_deps(
         internal,
         unresolved_paths,
         external,
+        feature_edges,
     })
 }
 
@@ -761,6 +811,108 @@ pub fn check_member(
         }
     }
     violations
+}
+
+// ---------------------------------------------------------------------------
+// Feature specifiers on internal edges (Task 11 correction round 2, F2 —
+// recorded boundary-suite growth). Until F2 this crate read every field of
+// a dependency spec except `features`, so the application layer's
+// `composition` cargo feature — the audited §7.1 seam correction round 1
+// (C1/B-M1) opened for ladder/rung construction — was sealed by nothing
+// mechanical: "no production edge enables it" was true and unpinned. The
+// three items below are deliberately NARROW: collect feature specifiers on
+// internal edges (member manifests and the inheritable root table), and
+// pin exactly one seal. Recorded act for the next adversarial review:
+// this is a new class of manifest evidence, not a widening of any
+// existing check.
+// ---------------------------------------------------------------------------
+
+/// Feature specifiers on the INTERNAL (workspace-member) dependency edges
+/// of one member manifest, one edge per enabled feature. Sections are
+/// labeled as [`dependency_sections`] labels them (including
+/// `target.<cfg>.<section>` spellings, so a feature cannot hide behind a
+/// target scope).
+pub fn member_feature_edges(
+    member_dir: &str,
+    text: &str,
+    members: &[Member],
+    root_deps: &BTreeMap<String, RootDep>,
+) -> Result<Vec<FeatureEdge>, String> {
+    declared_deps(member_dir, text, members, root_deps).map(|declared| declared.feature_edges)
+}
+
+/// Feature specifiers on the ROOT `[workspace.dependencies]` table's
+/// member entries. That table is inheritable by EVERY member,
+/// `gauntlet-domain` included, so a feature enabled there is the widest
+/// possible opening of any seam — it can never be the dev-only edge.
+pub fn root_feature_edges(root_manifest: &Table, members: &[Member]) -> Vec<FeatureEdge> {
+    let mut out = Vec::new();
+    let Some(deps) = root_manifest
+        .get("workspace")
+        .and_then(|w| w.get("dependencies"))
+        .and_then(|d| d.as_table())
+    else {
+        return out;
+    };
+    for (alias, spec) in deps {
+        let Some(fields) = spec.as_table() else {
+            continue;
+        };
+        let dep = fields
+            .get("package")
+            .and_then(|value| value.as_str())
+            .unwrap_or(alias)
+            .to_string();
+        if !members.iter().any(|m| m.name == dep) {
+            continue;
+        }
+        for feature in features_of(fields) {
+            out.push(FeatureEdge {
+                section: "workspace.dependencies".to_owned(),
+                key: alias.clone(),
+                dep: dep.clone(),
+                feature,
+            });
+        }
+    }
+    out
+}
+
+/// The composition feature seal (F2): the ONLY edge in the workspace
+/// permitted to enable `gauntlet-app/composition` is `gauntlet-cli`'s
+/// unscoped `[dev-dependencies]` edge — the one correction round 1
+/// recorded as the audited §7.1 composition seam. Every other spelling is
+/// a violation: any production section (a normal build of that crate
+/// would then contain the ladder/rung constructors C1 sealed away), any
+/// other member, any target-scoped or build-dependency section, and any
+/// root `[workspace.dependencies]` entry (`owner: None`, inheritable by
+/// every member). Narrow by design: this pins ONE seam; a general
+/// feature-policy language is not being invented here.
+pub fn composition_seal_violations(
+    manifest: &str,
+    owner: Option<&str>,
+    edges: &[FeatureEdge],
+) -> Vec<String> {
+    let mut out = Vec::new();
+    for edge in edges {
+        if edge.dep != "gauntlet-app" || edge.feature != "composition" {
+            continue;
+        }
+        let legal = owner == Some("gauntlet-cli") && edge.section == "dev-dependencies";
+        if !legal {
+            out.push(format!(
+                "composition-seal: {manifest}: {} enables feature 'composition' on '{}' via \
+                 [{}] — the audited §7.1 seam (Task 11 correction round 1, C1) may be enabled \
+                 ONLY by gauntlet-cli's unscoped [dev-dependencies] edge; any other edge puts \
+                 the sealed ladder/rung constructors into a normal build of a crate that must \
+                 not have them (Task 11 correction round 2, F2)",
+                owner.unwrap_or("the root [workspace.dependencies] table"),
+                edge.dep,
+                edge.section
+            ));
+        }
+    }
+    out
 }
 
 /// Read `[workspace].members` from the root manifest and each member's
@@ -1434,6 +1586,66 @@ mod repo {
             violations.is_empty(),
             "{}",
             crate::summarize("dependency-direction", &violations)
+        );
+    }
+
+    /// F2 (Task 11 correction round 2): the composition feature seal is
+    /// PINNED, not merely true today. "No production (non-dev) edge enables
+    /// `gauntlet-app/composition`" held at commit a507d08 with no test or
+    /// arch rule asserting it — the manifest walker ignored feature
+    /// specifiers entirely. The pin walks every member manifest AND the
+    /// root `[workspace.dependencies]` table (inheritable by every member)
+    /// through the new feature-edge surface and asserts the only
+    /// composition-enabling edge in the workspace is gauntlet-cli's
+    /// dev-dependency. Anti-vacuity: a walker that saw nothing would pass
+    /// emptily, so the pin also asserts it SEES the one legal edge.
+    #[test]
+    fn the_composition_feature_seal_holds() {
+        let root = crate::repo_root();
+        let root_text =
+            std::fs::read_to_string(root.join("Cargo.toml")).expect("workspace manifest reads");
+        let members = super::read_members(&root, &root_text)
+            .unwrap_or_else(|e| panic!("workspace members resolve: {e}"));
+        let root_table = root_text
+            .parse::<toml::Table>()
+            .expect("the root manifest parses");
+        let root_deps = super::workspace_dep_records(&root_table, &members);
+        let mut violations = Vec::new();
+        let mut saw_the_legal_edge = false;
+        violations.extend(super::composition_seal_violations(
+            "Cargo.toml",
+            None,
+            &super::root_feature_edges(&root_table, &members),
+        ));
+        for member in &members {
+            let manifest_path = format!("{}/Cargo.toml", member.dir);
+            let text = std::fs::read_to_string(root.join(&manifest_path))
+                .unwrap_or_else(|e| panic!("{manifest_path} is readable: {e}"));
+            let edges = super::member_feature_edges(&member.dir, &text, &members, &root_deps)
+                .unwrap_or_else(|e| panic!("{manifest_path} parses: {e}"));
+            if edges.iter().any(|edge| {
+                member.name == "gauntlet-cli"
+                    && edge.dep == "gauntlet-app"
+                    && edge.feature == "composition"
+                    && edge.section == "dev-dependencies"
+            }) {
+                saw_the_legal_edge = true;
+            }
+            violations.extend(super::composition_seal_violations(
+                &manifest_path,
+                Some(&member.name),
+                &edges,
+            ));
+        }
+        assert!(
+            saw_the_legal_edge,
+            "the walker must SEE gauntlet-cli's dev-dependency composition edge — a blind \
+             walker would pass this pin vacuously (F2 anti-vacuity)"
+        );
+        assert!(
+            violations.is_empty(),
+            "{}",
+            crate::summarize("composition-seal", &violations)
         );
     }
 }
@@ -2522,5 +2734,163 @@ infra = { git = "git@github.com:attacker/gauntlet-infra" }
         );
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // ------------------------------------------------------------------
+    // F2 (Task 11 correction round 2): feature specifiers on internal
+    // edges are visible, and the composition seal admits exactly one edge.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn feature_specifiers_on_internal_edges_are_visible_in_both_spellings() {
+        // The walker used to ignore the `features` key entirely (F2's
+        // finding). Array and bare-string spellings, target-scoped labels,
+        // and renamed packages must all surface.
+        let members = fixture_members();
+        let text = r#"
+[dependencies]
+gauntlet-app = { workspace = true, features = ["composition", "unrelated"] }
+
+[target.'cfg(unix)'.dev-dependencies]
+core = { package = "gauntlet-domain", features = "serde" }
+"#;
+        let edges = member_feature_edges("crates/gauntlet-cli", text, &members, &no_root_deps())
+            .expect("fixture parses");
+        let mut seen: Vec<(String, String, String)> = edges
+            .iter()
+            .map(|edge| (edge.section.clone(), edge.dep.clone(), edge.feature.clone()))
+            .collect();
+        seen.sort();
+        assert_eq!(
+            seen,
+            vec![
+                (
+                    "dependencies".to_owned(),
+                    "gauntlet-app".to_owned(),
+                    "composition".to_owned()
+                ),
+                (
+                    "dependencies".to_owned(),
+                    "gauntlet-app".to_owned(),
+                    "unrelated".to_owned()
+                ),
+                (
+                    "target.cfg(unix).dev-dependencies".to_owned(),
+                    "gauntlet-domain".to_owned(),
+                    "serde".to_owned()
+                ),
+            ],
+            "{edges:?}"
+        );
+        // External deps carry no internal feature edges.
+        let external = member_feature_edges(
+            "crates/gauntlet-domain",
+            "[dependencies]\nserde = { version = \"1\", features = [\"derive\"] }\n",
+            &members,
+            &no_root_deps(),
+        )
+        .expect("fixture parses");
+        assert!(external.is_empty(), "{external:?}");
+    }
+
+    #[test]
+    fn the_composition_seal_accepts_only_the_cli_dev_edge() {
+        let members = fixture_members();
+        let root_deps = no_root_deps();
+        let cli = "crates/gauntlet-cli/Cargo.toml";
+
+        // The one legal edge: gauntlet-cli's unscoped dev-dependency.
+        let legal = "[dev-dependencies]\ngauntlet-app = { workspace = true, features = \
+                     [\"composition\"] }\n";
+        let edges = member_feature_edges("crates/gauntlet-cli", legal, &members, &root_deps)
+            .expect("parses");
+        assert!(
+            composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
+            "{edges:?}"
+        );
+
+        // FAIL-FIRST SHAPE (demonstrated against the live repo before the
+        // pin landed): a PRODUCTION `features = ["composition"]` edge on
+        // the same crate — the exact regression the seal exists to catch.
+        let production =
+            "[dependencies]\ngauntlet-app = { workspace = true, features = [\"composition\"] }\n";
+        let edges = member_feature_edges("crates/gauntlet-cli", production, &members, &root_deps)
+            .expect("parses");
+        let violations = composition_seal_violations(cli, Some("gauntlet-cli"), &edges);
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("[dependencies]") && violations[0].contains("composition-seal"),
+            "{}",
+            violations[0]
+        );
+
+        // The bare-string spelling is equally caught.
+        let string_form = "[dependencies]\ngauntlet-app = { workspace = true, features = \
+                           \"composition\" }\n";
+        let edges = member_feature_edges("crates/gauntlet-cli", string_form, &members, &root_deps)
+            .expect("parses");
+        assert_eq!(
+            composition_seal_violations(cli, Some("gauntlet-cli"), &edges).len(),
+            1,
+            "{edges:?}"
+        );
+
+        // Any OTHER member's dev edge — even a dev edge — is refused.
+        let foreign = "[dev-dependencies]\ngauntlet-app = { workspace = true, features = \
+                       [\"composition\"] }\n";
+        let edges = member_feature_edges(
+            "crates/adapters/gauntlet-adapter-agent-mock",
+            foreign,
+            &members,
+            &root_deps,
+        )
+        .expect("parses");
+        assert_eq!(
+            composition_seal_violations(
+                "crates/adapters/gauntlet-adapter-agent-mock/Cargo.toml",
+                Some("gauntlet-adapter-agent-mock"),
+                &edges
+            )
+            .len(),
+            1,
+            "{edges:?}"
+        );
+
+        // A target-scoped dev edge on the cli itself: dev-only under a
+        // cfg, still not the one recorded seam spelling.
+        let scoped = "[target.'cfg(unix)'.dev-dependencies]\ngauntlet-app = { workspace = true, \
+                      features = [\"composition\"] }\n";
+        let edges = member_feature_edges("crates/gauntlet-cli", scoped, &members, &root_deps)
+            .expect("parses");
+        assert_eq!(
+            composition_seal_violations(cli, Some("gauntlet-cli"), &edges).len(),
+            1,
+            "{edges:?}"
+        );
+
+        // The root table: inheritable by EVERY member — never legal.
+        let root_manifest = "[workspace.dependencies]\ngauntlet-app = { path = \
+                             \"crates/gauntlet-app\", features = [\"composition\"] }\n";
+        let table = parse_table(root_manifest).expect("parses");
+        let edges = root_feature_edges(&table, &members);
+        assert_eq!(edges.len(), 1, "{edges:?}");
+        let violations = composition_seal_violations("Cargo.toml", None, &edges);
+        assert_eq!(violations.len(), 1, "{violations:?}");
+        assert!(
+            violations[0].contains("root [workspace.dependencies] table"),
+            "{}",
+            violations[0]
+        );
+
+        // Unrelated features on internal edges stay clean: the seal is one
+        // seam, not a feature-policy language.
+        let unrelated =
+            "[dependencies]\ngauntlet-domain = { workspace = true, features = [\"serde\"] }\n";
+        let edges = member_feature_edges("crates/gauntlet-cli", unrelated, &members, &root_deps)
+            .expect("parses");
+        assert!(
+            composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
+            "{edges:?}"
+        );
     }
 }

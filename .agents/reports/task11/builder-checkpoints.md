@@ -367,3 +367,74 @@ feature seal) are sound and were completed, not reverted.
 DONE — Task 11 correction round 1: C1–C6 + C8a landed, fail-first
 evidence captured verbatim for every item, all gates green, ruler PASS
 before and after. Awaiting the confirmation critic.
+
+## 2026-08-22 — CORRECTION ROUND 2 (finisher session; round-2 builder died mid-edit)
+
+Session context: the dispatched round-2 builder (mandate: confirmation
+findings F1 MAJOR / F2 MINOR / F3 MINOR) died to a usage limit MID-EDIT —
+`CandidateRejection::Refused` half-refactored to `Box<VerificationRefusal>`
+(6 E0308s, five unboxed constructions + one un-unboxed consumption), no
+result-contract output, nothing appended here. Recovery per the
+session-interruption lesson: every footprint file reconciled against
+`final-confirmation-round1.md` BEFORE editing. Verdict: the dead builder's
+designs (canonicalized workspace root + pre-dispatch three-way digest
+binding; feature-edge walker + seal pin; symmetric ModelRung gating) are
+sound — completed, not reverted. Full recovery note + option defense +
+bounded claims: `correction-round2.md`.
+
+- Compile recovered: `Box::new(..)` at the five refusal constructions,
+  `*refusal` at the walk's single consumption (`verify/authority.rs`).
+- F1 (MAJOR): `for_run(run, iteration, ladder, WORKSPACE_ROOT, deadline)`
+  — root canonicalized at the open (`WorkspaceRootRefused` on failure);
+  last check before dispatch re-reads the locator under the governed root
+  with the adapters' containment discipline and requires
+  `digest(locator) == production.content() == digest(store)`; mismatch =
+  typed `VerificationRefusal::LocatorContentMismatch` (refusal, never an
+  outcome); absent artifact stays the instrument's EvidenceMissing finding
+  (layered P12 preserved); §22.2 chain-read→instrument-read race recorded
+  as the honest residual (race-free closure = the not-chosen option (b)
+  Verifier port revision). Fail-first (neuter-and-capture, backup
+  byte-identical): both permanent tests failed — app: `got Ok(Pass)`;
+  p12 (REAL sqlite/fs/adapter, pinned honest evidence):
+  `got Pass (settlement readiness granted: true)` — the critic's executed
+  attack reproduced. Permanent tests: app authority
+  `a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass` + p12 test
+  12 (same name, composed layer). p12 fixture divergence fixed:
+  `PASSING_REPORT`/`FAILING_REPORT` are byte-equal to the real adapter's
+  writer output (locator file / store object / recorded digest = one
+  fact); eight scenarios' payload literals substituted — fixture bytes
+  only, no assertion weakened.
+- F2 (MINOR): deps.rs `FeatureEdge` surface — `features` specifiers
+  collected on internal member edges (both cargo spellings, target-scoped
+  sections labeled) and the inheritable root `[workspace.dependencies]`
+  table; `composition_seal_violations` pins the ONE legal edge
+  (gauntlet-cli unscoped dev-dependencies). Repo pin
+  `the_composition_feature_seal_holds` with anti-vacuity (asserts the
+  walker SEES the legal edge) + 2 unit tests. Fail-first (live probe):
+  production `features=["composition"]` edge on gauntlet-cli's
+  `[dependencies]` → pin FAILED with the composition-seal violation naming
+  the section; backup restore byte-identical, re-green. Recorded act:
+  boundary-suite growth +3 tests (194 → 197), one new manifest-evidence
+  class, documented in-code, deliberately narrow (one seam pinned, no
+  feature-policy language).
+- F3 (MINOR): `ModelRung::new` gated `#[cfg(any(test, feature =
+  "composition"))]` symmetric with `Ladder::new`/`LadderRung::new`/
+  `ModelRung::rung`, doc defense in-code (gate chosen over a
+  why-public-is-safe note). Pre-fix evidence: `git show a507d08` — the
+  ungated `pub fn new`. Seal probe: non-test lib reference, normal build →
+  E0599 (`no associated function or constant named 'new' found for
+  struct 'ModelRung'`); probe removed, restore byte-identical, ladder
+  17/17 (cfg(test) half) and p12 12/12 (composition half) green.
+- Raw captures: `correction-failfirst-round2.log` (all verbatim, incl. the
+  recovery E0308s). No operator file, `.wayfinder/` path, prereg, spec,
+  plan, or existing suite assertion touched. No commit (orchestrator
+  commits).
+- Gates: app 220/220 (44 `verify::`), arch 197/197, p12 12/12;
+  `cargo fmt --check` clean; `just check`/`lint`/`deny`/`boundaries`
+  (197/197) green; `just test` 783/783 (778 baseline + 5 new);
+  `just ruler` PASS before and after.
+
+DONE — Task 11 correction round 2: F1/F2/F3 landed with fail-first evidence
+(neuter-and-capture for the half-landed items; live manifest probe for the
+pin; seal probes for the gating), reverts byte-identical, all gates green,
+ruler PASS before and after. Awaiting the confirmation critic.

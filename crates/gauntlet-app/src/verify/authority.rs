@@ -8,11 +8,12 @@
 //! this module compares two values the same caller supplied — see the
 //! module doc in [`super`].
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gauntlet_domain::{
-    EpochSeconds, EvidenceRef, InstrumentName, IterationNo, Outcome, Producer, Run, RunId, Unit,
-    UnitId, VerificationRecord,
+    EpochSeconds, EvidenceLocator, EvidenceRef, InstrumentName, IterationNo, Outcome, Producer,
+    Run, RunId, Unit, UnitId, VerificationRecord,
 };
 use gauntlet_ports::comparator::{ComparatorError, FrozenReferenceProjection};
 use gauntlet_ports::deadline::Deadline;
@@ -49,6 +50,12 @@ pub enum VerificationAdmissionError {
     },
     /// A durable read failed.
     State(StateStoreError),
+    /// The evidence workspace root cannot be resolved (correction round 2,
+    /// F1): the chain re-reads locator bytes under a CANONICALIZED root —
+    /// the same construction discipline the verifier adapters bind with —
+    /// and a root that does not resolve refuses the governed open. Nothing
+    /// downstream may read evidence through a root the open never pinned.
+    WorkspaceRootRefused { detail: String },
     /// The frozen reference could not be loaded or its pinned digest did
     /// not cover the served bytes (the I1 tripwire fires here too).
     ReferenceRefused(ComparatorError),
@@ -76,6 +83,9 @@ impl core::fmt::Display for VerificationAdmissionError {
                 requested.get()
             ),
             Self::State(error) => write!(f, "a durable verification read failed: {error}"),
+            Self::WorkspaceRootRefused { detail } => {
+                write!(f, "the evidence workspace root was refused: {detail}")
+            }
             Self::ReferenceRefused(error) => {
                 write!(f, "the frozen reference was refused: {error}")
             }
@@ -120,6 +130,27 @@ pub enum VerificationRefusal {
         recorded: gauntlet_domain::Digest,
         served: gauntlet_domain::Digest,
     },
+    /// The bytes at the evidence LOCATOR — the mutable workspace surface
+    /// the dispatched instrument examines — are not the content the
+    /// durable production record names (correction round 2, F1: the C3
+    /// store-side binding was one-directional, and a doctored workspace
+    /// file rode through the real adapter to a PASS over pinned FAILING
+    /// bytes). Before the instrument is dispatched, the chain re-reads the
+    /// locator under the governed workspace root — the same containment
+    /// discipline the adapters apply — and requires the three-way
+    /// equality `digest(locator bytes) == production.content() ==
+    /// digest(store bytes)`. A mismatch is tampering or corruption:
+    /// refused BEFORE dispatch, never converted into an outcome, never
+    /// settled over. Residual (bounded, recorded): the chain's read and
+    /// the instrument's read are two reads of a mutable file microseconds
+    /// apart in one process — spec §22.2 records that the harness is not a
+    /// sandbox; closing the race entirely means feeding instruments
+    /// store-served bytes (a Verifier port revision), not chosen here.
+    LocatorContentMismatch {
+        locator: EvidenceLocator,
+        recorded: gauntlet_domain::Digest,
+        examined: gauntlet_domain::Digest,
+    },
     /// The ladder refused the dispatch (empty, mis-ordered, or no rung can
     /// decide the requirement).
     Ladder(super::ladder::LadderError),
@@ -152,6 +183,17 @@ impl core::fmt::Display for VerificationRefusal {
                  record names {recorded} as the ingested content — the examined content and the \
                  pinned ref are not one fact (refused, whoever serves the bytes)"
             ),
+            Self::LocatorContentMismatch {
+                locator,
+                recorded,
+                examined,
+            } => write!(
+                f,
+                "the workspace file at locator {locator} hashes to {examined}, but the durable \
+                 production record names {recorded} as the ingested content — the bytes the \
+                 instrument would examine are not the pinned bytes (refused before dispatch, \
+                 whoever wrote the file)"
+            ),
             Self::InstrumentContradictsDispatch {
                 record_instrument,
                 rung_instrument,
@@ -171,10 +213,12 @@ impl std::error::Error for VerificationRefusal {}
 /// Why one candidate failed the §14.3 binding validation: a binding CLASS
 /// (minted on the INCONCLUSIVE record) or a typed REFUSAL (infrastructure —
 /// never an outcome; §21 loci). Module-private: only the earned chain's
-/// candidate walk produces or consumes it.
+/// candidate walk produces or consumes it. The refusal is boxed to keep
+/// the walk's error small (clippy `result_large_err`); it is unboxed
+/// exactly once, at the walk's single `return Err`.
 enum CandidateRejection {
     Class(BindingClass, String),
-    Refused(VerificationRefusal),
+    Refused(Box<VerificationRefusal>),
 }
 
 /// The composition-root-injected substrate. Substituting these adapters is
@@ -206,8 +250,13 @@ impl VerificationAuthority {
     /// [`GovernedVerification::verify_claim`]. A hand-built rung has no
     /// parameter to travel through; the `AdmittedComparison` precedent —
     /// no public ladder constructor exists in a normal build of this
-    /// crate). Three governed reads happen here and nowhere else: the
-    /// durable run (which carries its own frozen
+    /// crate). The evidence WORKSPACE ROOT travels with it under the same
+    /// earned-authority discipline (correction round 2, F1): the root the
+    /// composition root also binds its file-reading verifier adapters with
+    /// — the chain re-reads locator bytes under the CANONICALIZED root so
+    /// the bytes it binds are the bytes the instruments examine. Three
+    /// governed reads happen here and nowhere else: the durable run (which
+    /// carries its own frozen
     /// [`gauntlet_domain::ReferenceVersion`]), the run's latest durable
     /// CHECKPOINT (whose iteration must support the requested anchor,
     /// C5/B-M2), and the frozen projection's bytes, loaded at that
@@ -218,6 +267,7 @@ impl VerificationAuthority {
         run_id: &RunId,
         iteration_no: IterationNo,
         ladder: Ladder,
+        workspace_root: PathBuf,
         deadline: Deadline,
     ) -> Result<GovernedVerification, VerificationAdmissionError> {
         let run = self
@@ -227,6 +277,18 @@ impl VerificationAuthority {
             .ok_or_else(|| VerificationAdmissionError::RunNotDurable {
                 run_id: run_id.clone(),
             })?;
+        // F1: canonicalize the evidence workspace root NOW — the same
+        // construction discipline the verifier adapters apply — so every
+        // later locator read resolves under one pinned root, never a path
+        // the caller can swap between the open and the read.
+        let workspace = std::fs::canonicalize(&workspace_root).map_err(|error| {
+            VerificationAdmissionError::WorkspaceRootRefused {
+                detail: format!(
+                    "the evidence workspace root {} does not resolve: {error}",
+                    workspace_root.display()
+                ),
+            }
+        })?;
         // C5: the anchor must be the run's durable iteration. The latest
         // checkpoint names where the run durably stands; a run that has
         // crossed no boundary stands at iteration 1. An older anchor would
@@ -262,13 +324,14 @@ impl VerificationAuthority {
             projection,
             iteration_no,
             ladder,
+            workspace,
         })
     }
 }
 
-/// A run whose durable identity, frozen reference, iteration anchor, and
-/// rung set are established. Not `Clone`: authority is earned per (run,
-/// iteration), not copied around.
+/// A run whose durable identity, frozen reference, iteration anchor, rung
+/// set, and evidence workspace root are established. Not `Clone`: authority
+/// is earned per (run, iteration), not copied around.
 pub struct GovernedVerification {
     state: Arc<dyn StateStore>,
     evidence: Arc<dyn EvidenceStore>,
@@ -277,6 +340,10 @@ pub struct GovernedVerification {
     projection: FrozenReferenceProjection,
     iteration_no: IterationNo,
     ladder: Ladder,
+    /// The canonicalized evidence workspace root (F1): locators resolve
+    /// under it with the adapters' own containment discipline, so the
+    /// bytes the chain binds are the bytes the instruments examine.
+    workspace: PathBuf,
 }
 
 impl GovernedVerification {
@@ -331,8 +398,11 @@ impl GovernedVerification {
     /// - requirement ← the frozen unit's `evidence_required`;
     /// - evidence candidates ← the durable production bindings recorded at
     ///   that locator in this run;
-    /// - resolvability AND content ← the evidence store (the served bytes
-    ///   must hash to the production's recorded content digest, C3);
+    /// - resolvability AND content ← the evidence store AND the workspace
+    ///   locator (the store-served bytes and the locator file must EACH
+    ///   hash to the production's recorded content digest — C3's store
+    ///   half, F1's locator half: the examined bytes and the pinned bytes
+    ///   are one fact before any instrument is dispatched);
     /// - recency ← each production's ordering anchor (iteration + store-
     ///   minted event-log offset) versus the governed iteration.
     ///
@@ -383,7 +453,7 @@ impl GovernedVerification {
                             Some((class, detail, binding.production().evidence().clone()));
                     }
                 }
-                Err(CandidateRejection::Refused(refusal)) => return Err(refusal),
+                Err(CandidateRejection::Refused(refusal)) => return Err(*refusal),
             }
         }
 
@@ -573,12 +643,12 @@ impl GovernedVerification {
             .evidence
             .get(production.evidence(), deadline)
             .map_err(|error| {
-                CandidateRejection::Refused(VerificationRefusal::Evidence {
+                CandidateRejection::Refused(Box::new(VerificationRefusal::Evidence {
                     detail: format!(
                         "reading evidence {} from the store failed: {error}",
                         production.evidence()
                     ),
-                })
+                }))
             })?;
         let Some(bytes) = resolved else {
             return Err(CandidateRejection::Class(
@@ -597,13 +667,13 @@ impl GovernedVerification {
         // is refused, whoever serves the bytes.
         let served = super::content_digest(&bytes);
         if &served != production.content() {
-            return Err(CandidateRejection::Refused(
+            return Err(CandidateRejection::Refused(Box::new(
                 VerificationRefusal::EvidenceContentMismatch {
                     evidence: production.evidence().clone(),
                     recorded: production.content().clone(),
                     served,
                 },
-            ));
+            )));
         }
         // Condition 2 — the producing instrument matches
         // `evidence_required.producer`. The domain's Producer vocabulary is
@@ -644,7 +714,79 @@ impl GovernedVerification {
                 ),
             ));
         }
+        // Content binding, locator half — the LAST check before admission
+        // (correction round 2, F1): the store-side check above binds the
+        // durable record's own bytes, but the dispatched instrument
+        // examines the LOCATOR — a mutable workspace file (spec §22.2) —
+        // and nothing else bound those bytes. The binding is load-bearing
+        // exactly when this candidate is about to dispatch, so it stands at
+        // the gate: re-read the locator under the governed workspace root
+        // (the adapters' own containment discipline) and require the
+        // three-way equality `digest(locator bytes) ==
+        // production.content() == digest(store bytes)`. An honest store
+        // record plus a doctored workspace file — the confirmation critic's
+        // executed attack — is refused HERE, as tampering, before any
+        // instrument is dispatched. Candidates excluded by a class (stale,
+        // producer mismatch) never dispatch, so they never reach this
+        // read. Bounded residual: this read and the instrument's read are
+        // microseconds apart in one process; §22.2 records that the
+        // harness is not a sandbox (the race-free closure is a Verifier
+        // port revision, recorded not chosen).
+        if let Some(examined_bytes) = self.read_locator_content(production.locator())? {
+            let examined = super::content_digest(&examined_bytes);
+            if &examined != production.content() {
+                return Err(CandidateRejection::Refused(Box::new(
+                    VerificationRefusal::LocatorContentMismatch {
+                        locator: production.locator().clone(),
+                        recorded: production.content().clone(),
+                        examined,
+                    },
+                )));
+            }
+        }
         Ok(())
+    }
+
+    /// Reads the bytes at one evidence locator under the governed
+    /// workspace root — the SAME containment discipline the verifier
+    /// adapters apply (correction round 2, F1): an absolute path or any
+    /// `..` segment never resolves under the root, so the chain never
+    /// binds bytes from outside the workspace the instruments read.
+    ///
+    /// `Ok(None)` is an ABSENT artifact, and the chain does not class the
+    /// absence itself: the dispatched instrument reports it
+    /// (`VerifierError::EvidenceMissing`) and the layered P12
+    /// reconciliation mints the INCONCLUSIVE record naming the rung —
+    /// absent evidence stays the instrument's finding, never a
+    /// chain-minted PASS and never silence. Any other read failure is a
+    /// typed refusal (the §21 persistence locus, the C6.1 discipline):
+    /// the unanswerable never degrades into an outcome.
+    fn read_locator_content(
+        &self,
+        locator: &EvidenceLocator,
+    ) -> Result<Option<Vec<u8>>, CandidateRejection> {
+        if escapes_the_workspace_root(locator.as_str()) {
+            return Err(CandidateRejection::Refused(Box::new(
+                VerificationRefusal::Evidence {
+                    detail: format!(
+                        "locator {locator} escapes the governed evidence workspace root — the \
+                         chain refuses to bind bytes outside the workspace the instruments read"
+                    ),
+                },
+            )));
+        }
+        match std::fs::read(self.workspace.join(locator.as_str())) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(CandidateRejection::Refused(Box::new(
+                VerificationRefusal::Evidence {
+                    detail: format!(
+                        "reading the evidence locator {locator} under the governed workspace \
+                         root failed: {error}"
+                    ),
+                },
+            ))),
+        }
     }
 
     /// Mints the §14.3 binding-failure record: INCONCLUSIVE, typed class,
@@ -734,6 +876,23 @@ impl GovernedVerification {
     }
 }
 
+/// Whether a locator can never resolve under a workspace root: an
+/// absolute path (a root component, or a Windows drive prefix) or any
+/// parent-directory segment escapes it. This is the adapters' own
+/// containment discipline (`contained_path` in the verify adapters),
+/// expressed through std's semantic path components — a strictly STRONGER
+/// refusal (a drive-prefixed locator is refused here too), so the chain
+/// never binds bytes from outside the workspace the instruments read.
+fn escapes_the_workspace_root(raw: &str) -> bool {
+    use std::path::Component;
+    Path::new(raw).components().any(|component| {
+        matches!(
+            component,
+            Component::RootDir | Component::ParentDir | Component::Prefix(_)
+        )
+    })
+}
+
 /// A verification that happened and counts — the only value downstream
 /// services (the settlement precondition, later the controller) may treat
 /// as a verification result. It has no constructor outside this module.
@@ -814,20 +973,23 @@ mod tests {
         .expect("a single-rung ladder is well formed")
     }
 
-    fn chain() -> VerificationAuthority {
+    fn chain() -> (VerificationAuthority, Arc<VerifyingState>) {
         let (state, evidence) = authority_parts();
-        VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()))
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
+        (authority, state)
     }
 
     #[test]
     fn a_run_that_is_not_durable_refuses_authority() {
-        let authority = chain();
+        let (authority, state) = chain();
         let absent = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAB").expect("other run");
         assert!(matches!(
             authority.for_run(
                 &absent,
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound()
             ),
             Err(VerificationAdmissionError::RunNotDurable { .. })
@@ -844,13 +1006,15 @@ mod tests {
             b"## AK-9001\nclaim: a tampered replacement\n",
         );
         let state = Arc::new(VerifyingState::new(fixture_run(frozen)));
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let run = RunId::new(RUN_ULID).expect("fixture run");
         assert!(matches!(
             authority.for_run(
                 &run,
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound()
             ),
             Err(VerificationAdmissionError::ReferenceRefused(_))
@@ -859,11 +1023,13 @@ mod tests {
 
     #[test]
     fn a_request_naming_another_run_is_refused() {
-        let governed = chain()
+        let (authority, state) = chain();
+        let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -877,11 +1043,13 @@ mod tests {
 
     #[test]
     fn a_unit_absent_from_the_frozen_reference_is_refused() {
-        let governed = chain()
+        let (authority, state) = chain();
+        let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -893,11 +1061,13 @@ mod tests {
 
     #[test]
     fn no_production_record_at_the_locator_is_inconclusive_unresolvable() {
-        let governed = chain()
+        let (authority, state) = chain();
+        let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -937,12 +1107,14 @@ mod tests {
             1,
             b"never stored bytes",
         );
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -976,12 +1148,14 @@ mod tests {
         );
         evidence.insert("evd-fresh-once", b"test report bytes");
         state.checkpoint_at(2);
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(2).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1009,12 +1183,14 @@ mod tests {
         );
         evidence.insert("evd-old", b"test report bytes");
         state.checkpoint_at(3);
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(3).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1045,12 +1221,14 @@ mod tests {
             b"an instrument's attestation",
         );
         evidence.insert("evd-signoff", b"an instrument's attestation");
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1081,7 +1259,8 @@ mod tests {
             b"test report bytes",
         );
         evidence.insert("evd-present", b"test report bytes");
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
@@ -1089,6 +1268,7 @@ mod tests {
                 // The ladder's rung's passing set is EMPTY: the instrument
                 // reports the artifact absent at the locator.
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1121,12 +1301,14 @@ mod tests {
         );
         evidence.insert("evd-good", b"test report bytes");
         state.checkpoint_at(2);
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(2).expect("1-based"),
                 ladder_with_test_report_rung(&["fixture-report-locator"]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1175,12 +1357,14 @@ mod tests {
         evidence.insert("evd-older", b"older bytes");
         evidence.insert("evd-newer", b"newer bytes");
         state.checkpoint_at(2);
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(2).expect("1-based"),
                 ladder_with_test_report_rung(&["fixture-report-locator"]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1216,12 +1400,14 @@ mod tests {
         evidence.insert("evd-stale-a", b"older bytes");
         evidence.insert("evd-stale-b", b"newer bytes");
         state.checkpoint_at(3);
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(3).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1279,12 +1465,14 @@ mod tests {
             Arc::new(RenegadeVerifier),
         )])
         .expect("ladder");
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder,
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1368,12 +1556,14 @@ mod tests {
             Arc::new(ForgedRung),
         )])
         .expect("the forged one-rung ladder is well formed");
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1418,12 +1608,14 @@ mod tests {
         evidence.insert("evd-swapped", swapped);
         // The instrument-side rung sees the LOCATOR in its passing set, so
         // without the content binding the swapped bytes certify a PASS.
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&["fixture-report-locator"]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1439,6 +1631,76 @@ mod tests {
             }
             other => panic!(
                 "swapped store bytes must be a typed refusal naming the digests, got {:?}",
+                other.as_ref().map(|claim| claim.record().outcome())
+            ),
+        }
+    }
+
+    /// F1 (MAJOR, confirmation round 1): the C3 content binding covered
+    /// only the STORE side — the dispatched instrument examines the
+    /// LOCATOR, a mutable workspace file, and nothing bound those bytes.
+    /// The executed attack: an honest producer records and stores FAILING
+    /// bytes (store digest == recorded digest, so C3 is satisfied), then a
+    /// builder-class write (§22.2) doctors the workspace file at the
+    /// locator into PASSING bytes — pre-correction the doctored file rode
+    /// through to a PASS over pinned FAILING bytes. The chain now re-reads
+    /// the locator under the governed workspace root BEFORE dispatch and
+    /// requires `digest(locator bytes) == production.content() ==
+    /// digest(store bytes)`; a mismatch is the typed
+    /// `LocatorContentMismatch` refusal, never an outcome. FAIL-FIRST
+    /// evidence (2026-08-21, pristine HEAD, the REAL adapter — captured in
+    /// correction-round2.md): the attack minted `Pass` and the settlement
+    /// precondition GRANTED readiness over the pinned FAILING bytes.
+    #[test]
+    fn a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass() {
+        let (state, evidence) = authority_parts();
+        // The honest producer: failing bytes ingested at the locator,
+        // stored, and recorded (record writes the artifact too — one fact
+        // in all three places).
+        let failing = b"{\"tests\":1,\"failures\":1}";
+        let doctored = b"{\"tests\":7,\"failures\":0}";
+        state.record(
+            "evd-locator-doctored",
+            "fixture-report-verifier",
+            "fixture-report-locator",
+            1,
+            failing,
+        );
+        evidence.insert("evd-locator-doctored", failing);
+        // The builder-class write: the mutable workspace file at the
+        // locator is doctored into a passing report. The store side stays
+        // perfectly honest — every durable column tells the truth.
+        std::fs::write(
+            state.workspace_root().join("fixture-report-locator"),
+            doctored,
+        )
+        .expect("the doctored workspace file is written");
+        // The instrument's passing set names the locator: without the
+        // locator half of the binding, the doctored file certifies a PASS.
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
+        let governed = authority
+            .for_run(
+                &RunId::new(RUN_ULID).expect("fixture run"),
+                IterationNo::new(1).expect("1-based"),
+                ladder_with_test_report_rung(&["fixture-report-locator"]),
+                state.workspace_root().to_owned(),
+                bound(),
+            )
+            .expect("the fixture run opens");
+        match governed.verify_claim(&unit_request("AK-9001"), bound()) {
+            Err(VerificationRefusal::LocatorContentMismatch {
+                locator,
+                recorded,
+                examined,
+            }) => {
+                assert_eq!(locator.as_str(), "fixture-report-locator");
+                assert_eq!(recorded, sha256_digest(failing));
+                assert_eq!(examined, sha256_digest(doctored));
+            }
+            other => panic!(
+                "a doctored workspace file must be a typed locator-content refusal naming the \
+                 digests BEFORE dispatch, got {:?}",
                 other.as_ref().map(|claim| claim.record().outcome())
             ),
         }
@@ -1464,7 +1726,8 @@ mod tests {
         evidence.insert("evd-old-anchor", b"prior-iteration bytes");
         // The run's durable state has crossed into iteration 4.
         state.checkpoint_at(4);
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         // The attack: anchor at iteration 1 so the iteration-1 production
         // is "fresh" again. Durable state says the run stands at iteration 4.
         assert!(matches!(
@@ -1472,6 +1735,7 @@ mod tests {
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound()
             ),
             Err(VerificationAdmissionError::IterationUnsupported {
@@ -1486,6 +1750,7 @@ mod tests {
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(5).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound()
             ),
             Err(VerificationAdmissionError::IterationUnsupported {
@@ -1502,6 +1767,7 @@ mod tests {
                     &RunId::new(RUN_ULID).expect("fixture run"),
                     IterationNo::new(4).expect("1-based"),
                     ladder_with_test_report_rung(&[]),
+                    state.workspace_root().to_owned(),
                     bound()
                 )
                 .is_ok()
@@ -1527,12 +1793,13 @@ mod tests {
         );
         evidence.insert("evd-unreadable", b"present but unservable bytes");
         let authority =
-            VerificationAuthority::new(state, evidence.clone(), Arc::new(SeededIds::new()));
+            VerificationAuthority::new(state.clone(), evidence.clone(), Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");
@@ -1576,12 +1843,14 @@ mod tests {
         );
         evidence.insert("evd-elsewhere", b"produced elsewhere");
         state.leak_off_locator();
-        let authority = VerificationAuthority::new(state, evidence, Arc::new(SeededIds::new()));
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
         let governed = authority
             .for_run(
                 &RunId::new(RUN_ULID).expect("fixture run"),
                 IterationNo::new(1).expect("1-based"),
                 ladder_with_test_report_rung(&["fixture-elsewhere-locator"]),
+                state.workspace_root().to_owned(),
                 bound(),
             )
             .expect("the fixture run opens");

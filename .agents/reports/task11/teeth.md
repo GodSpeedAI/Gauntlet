@@ -109,3 +109,48 @@ occupying a deterministic position.
 Verified post-revert (after the LAST revert, all backups diff-clean):
 `verify::` 43/43, sqlite 37/37, fs 9/9 — and the full gates at the end of
 the round: `just test` 778/778, boundaries 194/194, ruler PASS.
+
+## Correction round 2 — teeth (2026-08-22)
+
+Same discipline (neuter one production check on the working tree, run the
+named test, capture verbatim, restore from a /tmp backup verified
+byte-identical with `cmp`, re-green). Raw captures:
+`correction-failfirst-round2.log`. One row is a LIVE manifest probe (F2 —
+the neuter is the regression itself, added to the real workspace) and one
+is a compile-level seal probe (F3).
+
+| # | Neutered production check (file) | Failing test | Failure (verbatim, abridged — full text in the log) |
+|---|---|---|---|
+| 20 | F1: the locator-half content binding in `GovernedVerification::binding_class` (`verify/authority.rs`, the `read_locator_content` + `LocatorContentMismatch` refusal) commented out | `a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass` (app, `verify::authority::tests`) | `a doctored workspace file must be a typed locator-content refusal naming the digests BEFORE dispatch, got Ok(Pass)` |
+| 21 | same neuter, composed layer (REAL sqlite state, REAL fs store, REAL test-report adapter, run-pinned honest evidence) | `a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass` (p12 test 12) | `a doctored workspace file must be refused before dispatch, never mint an outcome; got Pass (settlement readiness granted: true)` |
+| 22 | F2: a production composition edge added to the LIVE workspace (`crates/gauntlet-cli/Cargo.toml` `[dependencies] gauntlet-app = { workspace = true, features = ["composition"] }`) | `deps::repo::the_composition_feature_seal_holds` (arch) | `composition-seal: 1 violation(s) — crates/gauntlet-cli/Cargo.toml: gauntlet-cli enables feature 'composition' on 'gauntlet-app' via [dependencies] …` |
+| 23 | F3: `ModelRung::new` referenced from non-test lib code (temporary `verify/mod.rs` probe), normal build | the build itself | `error[E0599]: no associated function or constant named 'new' found for struct 'ModelRung' in the current scope` |
+
+What the round-2 teeth rule out, one line each: (20) a doctored workspace
+file riding the app-layer chain to a verdict over bytes it is not; (21)
+the same through the composed REAL-adapter path — the confirmation
+critic's executed attack, now a permanent failing-before capture ending in
+`settlement readiness granted: true`; (22) any production (non-dev),
+foreign-member, target-scoped, or root-table edge silently enabling the
+sealed composition seam; (23) any rung-shaped value constructed outside
+the audited §7.1 seam in a normal build.
+
+Reproduction (one tooth at a time):
+
+```bash
+# 20/21. neuter: comment out the locator-half binding block in
+#    crates/gauntlet-app/src/verify/authority.rs::binding_class
+cargo nextest run -p gauntlet-app a_doctored_workspace_file
+cargo nextest run -p gauntlet-cli --test p12_missing_is_not_passing a_doctored
+# 22. add a production `features = ["composition"]` edge to a real
+#     Cargo.toml (revert after)
+cargo nextest run -p gauntlet-arch-tests the_composition_feature_seal_holds
+# 23. reference ModelRung::new from non-test lib code (feature off)
+just check-package gauntlet-app
+```
+
+Each command must FAIL while neutered/probed and PASS after the inverse
+revert. Ran 2026-08-22 under rustc 1.98.0. Verified post-revert (after the
+LAST revert, all backups `cmp`-clean): `verify::` 44/44, ladder 17/17,
+arch 197/197, p12 12/12 — and the full round-2 gates: `just test` 783/783,
+boundaries 197/197, ruler PASS before and after.

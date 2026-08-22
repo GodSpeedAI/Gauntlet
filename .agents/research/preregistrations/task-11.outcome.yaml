@@ -1,7 +1,7 @@
 # Task 11 outcome record — research instrumentation, non-normative.
-# NOT YET OBSERVED. Task 11 implementation has not begun; every field below is
-# an honest placeholder. Fill only as evidence appears. Never edit
-# task-11.prereg.yaml to match what is observed here.
+# Observations recorded as evidence appeared (2026-08-21..23), after the
+# prereg froze. The prereg was never edited (just prereg-check 11 PASS
+# brackets every session; hash 13a99ef5…8f2d).
 
 schema_version: 1
 task: 11
@@ -11,52 +11,130 @@ preregistration:
   sha256: "13a99ef5829d0b93468d39f833bc2920a1dc6e5ad501f9795b73483d3d0e8f2d"
 
 observed:
-  task_result: null
+  task_result: "implemented; closed after two correction rounds and a fresh blind confirmation round 2 CONFIRM (executed evidence; no new critical/major)"
 
-  material_events: []
+  material_events:
+    - "2026-08-21: round-1 builder died to a usage limit after D1-D4 (eighth interruption-class instance); recovered per the documented procedure (independent gate verification + finisher for D5/D6)."
+    - "2026-08-21/22: rustc 1.92.0 -> 1.98.0 mid-task (operator-authorized toolchain update); four compensating lint fixes, no logic changes."
+    - "2026-08-22: blind critics A/B + denylist supplement C: 0 critical; B found the ladder and the precondition-store caller-supplied-value seams (MAJOR) — prereg R1 FIRED."
+    - "2026-08-22: correction round 1 (C1-C6, C8a) — first correction builder died mid-edit (non-compiling tree, empty fail-first log; ninth instance); finisher recovered and completed; fail-first regenerated for every item."
+    - "2026-08-22: fresh confirmation round 1 NOT CONFIRM — new MAJOR F1: the examined-bytes/pinned-bytes binding was one-directional; the round-1 attack re-mounted in the LOCATOR direction (honest durable record + doctored workspace file) minted PASS + settlement readiness through the real adapter."
+    - "2026-08-22: correction round 2 (F1/F2/F3) — builder again died mid-edit (tenth instance); finisher recovered; three-way digest equality (locator == production.content == store) at the governed open; composition-seal arch pin (+3 boundary tests, 194->197); symmetric ModelRung gating."
+    - "2026-08-23: fresh blind confirmation round 2 CONFIRM — all closure claims verified with executed probes (15-scenario F1/F2 battery; 4xE0599 seal probe; live workspace walk)."
+    - "AK-005's frozen locator empirically unmaterializable (boundary suite: scope-escape + hardcoded-relative-path); dated reference-candidates entries landed for AK-005/035/036 (existing class)."
 
   predictions:
     - prediction_ref: P1
-      result: "non_discriminating"
-      evidence: []
-      notes: "Not yet observed — no Task-11 implementation exists."
+      result: "falsified"
+      evidence:
+        - "gauntlet-app verify::authority::tests::a_lying_request_cannot_make_stale_evidence_fresh (request lies about recency/producer/locator; durable state decides)"
+        - "p12 tests 2-5 (composed path)"
+        - "the disconfirming observation occurred: the staleness decision reads the store-minted event-log offset plus (post-C5) the checkpoint-validated iteration — no verify caller supplies an ordering fact"
+      notes: >
+        Falsified at the VALUE level as predicted, but the supporting
+        observation appeared in partial form before correction: critic-b
+        MAJOR-2 found the ITERATION COORDINATE was caller-chosen and
+        validated against nothing durable (closed by C5 against the durable
+        checkpoint), and critic-b MAJOR-1/5 found two more instances of the
+        caller-supplies-both-sides structure (ladder argument; precondition
+        store argument). The prereg's own supporting-observation shape
+        ('compares two values the caller already holds') was the round's
+        dominant residual generator.
     - prediction_ref: P2
-      result: "non_discriminating"
-      evidence: []
-      notes: "Not yet observed — no Task-11 implementation exists."
+      result: "falsified"
+      evidence:
+        - "gauntlet-app verify::ladder::tests::when_a_deterministic_rung_and_the_model_rung_could_both_decide_the_deterministic_one_does"
+        - "p12 test 9 the_deterministic_rung_decides_when_the_model_rung_could_too (real adapters; scripted model runner records ZERO dispatches)"
+        - "teeth.md row: neutering the ascending sort fails the both-rung test"
+      notes: "The disconfirming observation occurred: a both-able-to-decide scenario exists and asserts the deterministic instrument's identity."
     - prediction_ref: P3
-      result: "non_discriminating"
-      evidence: []
-      notes: "Not yet observed — no Task-11 implementation exists."
+      result: "supported"
+      evidence:
+        - "p12 test 11 the_three_binding_classes_are_reachable_and_distinct (pairwise distinct; PASS records carry class None)"
+        - "verification_record.rs refuses class-on-PASS/FAIL at construction AND decode"
+        - "precondition refuses every non-PASS with the outcome carried distinctly"
+      notes: >
+        Supported, with two round-1 vacuities recorded and closed: the
+        locator condition's app-layer check was dead (by-construction query
+        enforcement; given a real tooth + honest test title in C6.2), and
+        store-read errors were classed instead of typed-refused (C6.1). The
+        classes were never collapsed and never reachable as PASS.
     - prediction_ref: P4
-      result: "non_discriminating"
+      result: "supported"
+      evidence:
+        - "the plan's gate passed with the settlement-precondition layer covered (verify::precondition, §16.1 conditions 1-2) and the operator resolve action explicitly ledgered as later scope"
+      notes: "Exactly the preregistered expected-later-scope shape."
+
+  representation_change:
+    occurred: false
+    before: ""
+    after: ""
+    trigger_evidence: []
+    notes: >
+      No change to the problem representation was required. R2 did not fire
+      (the durable ordering anchor — the evidence-production binding with a
+      store-minted offset — was available and sufficient). R1 FIRED but was
+      resolved inside the existing representation by applying the
+      preregistered A5 intervention class (earned authority, unforgeable
+      values) at the two new seams; the round-2 F1 fix (workspace-root
+      injection at the governed open + three-way digest equality) is another
+      A5 instance, not a new class. R3 did not fire (no Unit landed on the
+      model rung in the composed proofs except the deliberately
+      model-only screenshot claim).
+
+  newly_visible_intervention_classes: []
+  interventions_taken:
+    - "A1: four verifier adapters behind the existing Verifier port (command-exit-code, test-report, file-digest, schema-check), each passing the unmodified shared suite"
+    - "A2: §14.2 ladder in the app layer with the flagged AgentRunner-backed model rung"
+    - "A3: §14.3 binding failures as INCONCLUSIVE-with-class at the chain layer; typed refusals for unanswerable states"
+    - "A4: p12 proof (12 composed tests) + 23 recorded teeth"
+    - "A5 (R1-triggered): ladder sealed behind the composition feature and injected at for_run; precondition store-less; workspace-root + three-way digest equality (F1)"
+
+  transfer_results:
+    replay:
+      result: "supported"
+      evidence:
+        - "the Task-10 caller-supplies-both-sides failure re-appeared at three verification seams (ladder argument, precondition store, examined-vs-pinned bytes) and each instance was rejected by the generalized earned-authority/digest-binding mechanism, then pinned by permanent tests (C1/C4/F1 tests at both layers)"
+    parametric_variation:
+      result: "partially_tested"
+      evidence:
+        - "three payload variants of the same causal class (hand-built rung set; stooge evidence store; doctored locator file) were each rejected — different values, same structure — but as loop findings, not a systematic preregistered parametric sweep"
+    structural_transfer:
+      result: "not_tested"
       evidence: []
-      notes: "Not yet observed — no Task-11 implementation exists."
+      notes: "NOT claimed, per the prereg's explicit nonclaims."
 
-representation_change:
-  occurred: null
-  before: ""
-  after: ""
-  trigger_evidence: []
+  alternative_explanations:
+    - "Confirmation verdicts rest on declared static + probe scopes (the round-2 critic's scope statement); executed probes cover the composed p12 configuration on this host only (rustc 1.98.0), not live model runners, concurrency, or scenarios not constructed."
+    - "Green gates could reflect fixture blind spots rather than absence of defects; mitigated by 23 teeth (neuter-and-capture, byte-identical restores) and executed external attacks, but bounded by the enumerated check set."
 
-newly_visible_intervention_classes: []
-
-interventions_taken: []
-
-transfer_results:
-  replay:
-    result: "not_tested"
-    evidence: []
-  parametric_variation:
-    result: "not_tested"
-    evidence: []
-  structural_transfer:
-    result: "not_tested"
-    evidence: []
-
-alternative_explanations: []
-
-interpretation:
-  smallest_claim_earned: ""
-  unresolved:
-    - "Everything. Task 11 has not run."
+  interpretation:
+    smallest_claim_earned: >
+      Within the composed verification path the Task-11 artifact establishes
+      (real embedded state store, real content-addressed fs store, four real
+      deterministic adapters, scripted model runner; 12 composed scenarios,
+      44 app-layer unit tests, 23 bite-proven teeth, executed external
+      attacks): evidence that is absent, stale, wrong-producer,
+      wrong-locator, or content-divergent (store vs production digest vs
+      locator bytes) yields INCONCLUSIVE-with-class or a typed refusal at
+      every layer and never PASS; the settlement precondition (§16.1
+      conditions 1-2) refuses every non-PASS; deterministic instruments are
+      preferred when both deterministic and model rungs could decide (zero
+      model dispatches, asserted); every model-produced record is flagged
+      non-deterministic and a model claiming determinism is refused; ladder
+      constructors are absent from normal builds (4xE0599) and the only
+      composition-feature edge in the workspace is the CLI dev-dependency,
+      pinned by an arch test. NOT claimed: race-freedom between the chain's
+      locator read and the instrument's read (documented residual; the
+      option-(b) port revision is the recorded race-free closure); the
+      ungated evidence-production write (Task-12 seam); production-row
+      crash-window replay (Task-13); inode-level containment; live model
+      runners.
+    unresolved:
+      - "Ungated record_evidence_production write + declared-iteration validation at write time — Task 12 (capability-gate the evidence-owner role)."
+      - "Crash-window replay for production rows (event durable, row absent) — Task 13 recovery composition."
+      - "Chain-read -> instrument-read race — bounded residual, documented in-code; option-(b) Verifier port revision if ever required."
+      - "Workspace-root pairing (chain root == adapters' root) is convention-bound at the library seam — Tasks 12/20 production wiring must keep them one fact."
+      - "Ladder rungs 5-9 and 11 (broad test, static analysis, benchmark, runtime probe, visual diff, human) — §6.3 RECOMMENDED, ports-revision/later-task surface."
+      - "produced_at integer vs Annex-B string placeholder — reconcile when docs/schemas lands."
+      - "Locator 'contract-defined' matching for non-deterministic kinds — unimplemented (exact-only, stricter); ports revision."

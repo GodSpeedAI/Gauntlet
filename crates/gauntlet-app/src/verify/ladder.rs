@@ -429,6 +429,16 @@ pub struct ModelRung {
 }
 
 impl ModelRung {
+    /// The composition-root constructor. Sealed with the ladder's own
+    /// constructors (correction round 2, F3: `ModelRung::new` was the one
+    /// constructor the C1 sealing missed — public in a normal build even
+    /// though `rung()`, the only way to give it ladder authority, was
+    /// already sealed. Harmless in isolation — a constructed-but-unwrappable
+    /// rung decides nothing — but the seal's claim is that NO rung-shaped
+    /// value can be built outside the audited §7.1 seam, and one
+    /// constructible half is a seam a future refactor could grow on. Gate
+    /// it identically: in a normal build the constructor does not exist.)
+    #[cfg(any(test, feature = "composition"))]
     pub fn new(
         runner: Arc<dyn AgentRunner>,
         ids: Arc<dyn IdGenerator>,
