@@ -33,6 +33,12 @@ gauntlet-app.workspace = true
 [dev-dependencies]
 gauntlet-adapter-state-sqlite.workspace = true
 gauntlet-adapter-evidence-fs.workspace = true
+# Task 11 correction round 1 (C1/B-M1): the p12 proof Wires the rung set at
+# the composition root, which requires the application layer's audited
+# `composition` feature (the §7.1 seam — the ONLY edge in the workspace that
+# enables it; no production dependency does, so `Ladder::new` and friends do
+# not exist in a normal build of any crate).
+gauntlet-app = { workspace = true, features = ["composition"] }
 # Task 9 adds the observe adapters + the mock runner the same way: the P3
 # and G6 proofs (tests/p3_real_observation.rs,
 # tests/g6_hide_failed_observations.rs) compose REAL observers over the
@@ -53,3 +59,13 @@ gauntlet-adapter-compare-diff.workspace = true
 # Task 10 durable critic-binding proof composes the model adapter with the
 # application recording boundary and real durable adapters.
 gauntlet-adapter-compare-model.workspace = true
+# Task 11 adds the four deterministic verifier adapters the same way: the
+# P12 proof (tests/p12_missing_is_not_passing.rs) composes the REAL
+# verification chain — the embedded state store, the fs evidence store, the
+# earned verify:: chain, and these instruments — at the composition root.
+# Still dev-only; production wiring lands with the plan-task composition
+# that needs it (Tasks 12/20).
+gauntlet-adapter-verify-command-exit-code.workspace = true
+gauntlet-adapter-verify-test-report.workspace = true
+gauntlet-adapter-verify-file-digest.workspace = true
+gauntlet-adapter-verify-schema-check.workspace = true

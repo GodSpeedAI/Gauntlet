@@ -369,3 +369,57 @@ through the normal spec process, never a builder's direct edit.
   lock (`just ruler` runs in the round's gate run; the orchestrator's
   post-land re-run is the confirming evidence). Settlement of these
   candidates belongs to the ruler's owner, not the builder.
+
+## 2026-08-21 — AK-005, AK-035, AK-036 evidence locators name unmaterializable test targets (Task 11)
+
+- **Units:** AK-005 (three-state `Outcome`; INCONCLUSIVE never satisfies a
+  settlement requirement — locator `tests/proofs/p12_missing_is_not_passing`),
+  AK-035 (deterministic-first — locator
+  `tests/contract/verifier::deterministic_first`), AK-036 (evidence binding —
+  locator `tests/contract/verifier::evidence_binding`).
+- **Defect class (existing, not new):** locator materialization — first
+  recorded 2026-08-17 for AK-049, then AK-021/022/023/024/025 (Task 7),
+  AK-026/027/032/033/034 (Task 10), AK-028/029/030 (Task 9). All three
+  Task-11 locators spell repo-root test-target paths that the frozen boundary
+  suite forbids for core crates. For AK-005 the forbiddance is empirical, not
+  inferred: declaring `tests/proofs/p12_missing_is_not_passing.rs` (repo root)
+  as a `[[test]]` target of `gauntlet-cli` failed `just boundaries` twice —
+  `scope-escape` (target source root outside the crate — spec §24.3, AK-001)
+  and `hardcoded-relative-path` (spec §8.1, AK-016) — with the target-path
+  exemption list pinned by an existing suite case; verbatim messages in
+  `.agents/reports/task11/builder-round1.md` §4. `gauntlet-arch-tests` cannot
+  host it either (depends on no internal crate by its own manifest
+  constraint). AK-035/AK-036's `::`-form paths are the same
+  cargo-target-path shape already adjudicated for AK-049.
+- **Proposed correction — AK-005:** re-declare the locator to
+  `gauntlet-cli tests/p12_missing_is_not_passing` (the composition-root proof
+  whose cargo target name is exactly the plan's Task-11 gate spelling).
+  Carrying tests: all eleven (absent evidence → INCONCLUSIVE at every layer,
+  never PASS; stale → `evidence_stale`; lying request rejected; producer and
+  locator mismatches; happy anchor PASS; deterministic-first with zero model
+  dispatches; model flag; three distinct classes).
+- **Proposed correction — AK-035:**
+  `gauntlet-cli tests::p12_missing_is_not_passing::the_deterministic_rung_decides_when_the_model_rung_could_too`
+  (composed: both rungs declare support; the deterministic instrument's
+  identity is recorded; the scripted model runner records ZERO dispatches),
+  corroborated by
+  `gauntlet-app verify::ladder::tests::when_a_deterministic_rung_and_the_model_rung_could_both_decide_the_deterministic_one_does`
+  and `...::the_model_rung_decides_only_where_no_deterministic_rung_can`, plus
+  the composed flag test
+  `every_model_rung_record_is_flagged_non_deterministic`.
+- **Proposed correction — AK-036:**
+  `gauntlet-cli tests::p12_missing_is_not_passing::the_three_binding_classes_are_reachable_and_distinct`
+  with its sibling scenario tests
+  (`absent_store_evidence_is_inconclusive_at_every_layer_never_pass`,
+  `stale_evidence_from_a_prior_iteration_is_inconclusive_stale`,
+  `instrument_produced_evidence_never_satisfies_a_human_producer`,
+  `evidence_at_another_locator_is_unresolvable_not_the_required_evidence`,
+  `an_absent_artifact_at_a_resolving_production_is_inconclusive_p12`),
+  corroborated by `gauntlet-app verify::authority::tests::*`
+  (`an_unresolvable_evidence_ref_is_inconclusive_unresolvable`,
+  `evidence_from_a_prior_iteration_is_inconclusive_stale`,
+  `instrument_produced_evidence_never_satisfies_a_human_requirement`,
+  `a_lying_request_cannot_make_stale_evidence_fresh`) and
+  `gauntlet-adapter-state-sqlite state_store::tests::evidence_production_records_are_write_once_and_idempotent`.
+- **Not changed by this entry:** the answer key, the spec, the frozen lock.
+  Settlement of these candidates belongs to the ruler's owner, not the task.

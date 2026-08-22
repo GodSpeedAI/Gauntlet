@@ -1,0 +1,18 @@
+[package]
+name = "gauntlet-adapter-verify-file-digest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+
+# Spec 4.1/24.3: adapters depend on domain and ports only — never on
+# gauntlet-app or gauntlet-cli. Plan Task 11's deterministic verifier.
+[dependencies]
+gauntlet-domain.workspace = true
+gauntlet-ports.workspace = true
+# Plan Task 11: the digest revalidation needs SHA-256 — the adapter-
+# allowlisted crate the evidence-fs store and the observe adapters already
+# carry; std has none.
+sha2.workspace = true

@@ -280,6 +280,44 @@ impl EvidenceStore for FsEvidenceStore {
             )),
         }
     }
+
+    fn is_pinned(
+        &self,
+        run_id: &RunId,
+        reference: &EvidenceRef,
+        _deadline: Deadline,
+    ) -> Result<bool, EvidenceStoreError> {
+        // A pin marker whose object no longer resolves is NOT a pin: the
+        // membership answer couples the marker to the content-addressed
+        // object it names (a marker for absent content is stale bookkeeping,
+        // never "pinned" evidence — I8). The object must also be a regular
+        // file this store wrote — `is_pinned` refuses a symlinked (or
+        // otherwise aliased) object path exactly like `get` does, instead
+        // of following the link: a marker over an alias is not membership
+        // of content the store owns.
+        let Some(hex) = self.hex_of(reference) else {
+            return Ok(false);
+        };
+        match std::fs::symlink_metadata(self.object_path(&hex)) {
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+            Err(err) => {
+                return Err(EvidenceStoreError::ReadFailed {
+                    detail: format!("inspecting evidence {ALGO}:{hex} failed: {err}"),
+                });
+            }
+            Ok(metadata) if !metadata.is_file() => {
+                return Err(EvidenceStoreError::ReadFailed {
+                    detail: format!(
+                        "evidence {ALGO}:{hex} exists but is {} — an object must be a regular \
+                         file this store wrote, never an alias",
+                        describe_path_kind(&metadata)
+                    ),
+                });
+            }
+            Ok(_) => {}
+        }
+        Ok(self.pin_path(run_id, reference).exists())
+    }
 }
 
 /// An existing object must hold exactly the offered bytes; anything else is a
@@ -606,6 +644,48 @@ mod tests {
                 );
             }
             other => panic!("a symlinked object must be refused on get, got {other:?}"),
+        }
+        std::fs::remove_file(&outside).ok();
+    }
+
+    /// C6.5 (B-m7) FAIL-FIRST: `is_pinned` used a following `exists()`, so
+    /// a pin marker over a SYMLINKED object path answered `true` — unlike
+    /// `get`, which refuses the alias. Membership must couple the marker to
+    /// a regular file this store wrote, never an alias.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_object_path_is_not_pinned_membership() {
+        let outside = scratch_sibling("symlink-pinned-outside");
+        std::fs::write(&outside, b"the aliased pinned bytes").expect("the target file writes");
+        let scratch = Scratch::new("symlink-pinned");
+        let store = FsEvidenceStore::open(&scratch.path).expect("store opens");
+        let run = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("a valid run id");
+        let reference = store
+            .put(b"the aliased pinned bytes", EvidenceKind::Log, bound())
+            .expect("the original lands");
+        store
+            .pin(&run, &reference, bound())
+            .expect("the run pins its evidence");
+        let hex = store
+            .hex_of(&reference)
+            .expect("the ref is this store's shape");
+        let target = store.object_path(&hex);
+        std::fs::remove_file(&target).expect("the object file is removed for the swap");
+        std::os::unix::fs::symlink(&outside, &target).expect("the symlink lands");
+        // FAIL-FIRST shape: assert the membership question REFUSES the
+        // alias (typed error, the `get` discipline); when the fix lands the
+        // arm tightens to the ReadFailed refusal naming the path kind.
+        match store.is_pinned(&run, &reference, bound()) {
+            Err(EvidenceStoreError::ReadFailed { detail }) => {
+                assert!(
+                    detail.contains("symbolic link"),
+                    "the refusal names the path kind: {detail}"
+                );
+            }
+            Ok(true) => panic!(
+                "is_pinned followed the symlink and reported membership over an aliased object"
+            ),
+            other => panic!("a symlinked object must be a typed refusal, got {other:?}"),
         }
         std::fs::remove_file(&outside).ok();
     }

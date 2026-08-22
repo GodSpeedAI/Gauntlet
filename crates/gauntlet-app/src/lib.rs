@@ -17,6 +17,7 @@ pub mod doctor;
 pub mod observation;
 pub mod reference;
 pub mod state;
+pub mod verify;
 
 pub use config::defaults::{
     DIAGNOSTIC_BUDGET, DIGEST_ALGO, GIT_STRATEGY, INTERACTIVE, InteractiveDefault, MAX_COST_USD,

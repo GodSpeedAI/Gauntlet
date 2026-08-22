@@ -7,6 +7,17 @@ publish.workspace = true
 [lints]
 workspace = true
 
+# Task 11 correction round 1 (C1/B-M1): the 14.2 ladder is earned authority
+# — injected when a governed verification opens — so its constructors
+# (`Ladder::new`, `LadderRung::new`, `ModelRung::rung`) do not exist in a
+# normal build of this crate. The `composition` feature is the audited
+# §7.1 seam at which a composition root (the CLI's proof wiring; the
+# production wiring of Tasks 12/20) builds the rung set; enabling it is a
+# deliberate, manifest-visible act, and no production dependency edge of
+# this workspace enables it.
+[features]
+composition = []
+
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true

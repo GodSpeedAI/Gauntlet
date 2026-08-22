@@ -202,6 +202,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-verify-command-exit-code"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
+name = "gauntlet-adapter-verify-file-digest"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+ "sha2",
+]
+
+[[package]]
+name = "gauntlet-adapter-verify-schema-check"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
+name = "gauntlet-adapter-verify-test-report"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-app"
 version = "0.1.0"
 dependencies = [
@@ -231,6 +264,10 @@ dependencies = [
  "gauntlet-adapter-observe-git",
  "gauntlet-adapter-observe-test",
  "gauntlet-adapter-state-sqlite",
+ "gauntlet-adapter-verify-command-exit-code",
+ "gauntlet-adapter-verify-file-digest",
+ "gauntlet-adapter-verify-schema-check",
+ "gauntlet-adapter-verify-test-report",
  "gauntlet-app",
  "gauntlet-domain",
  "gauntlet-ports",

@@ -10,9 +10,9 @@
 //! `Damaged`/`Corrupt`, never as a silent skip.
 
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceRef, InvocationId,
-    InvocationState, IterationNo, Limits, MicroUsd, ResultContractPath, RunId, Spent, UnitId,
-    UnitStatus, VerificationRef,
+    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceLocator,
+    EvidenceRef, InvocationId, InvocationState, IterationNo, Limits, MicroUsd, ResultContractPath,
+    RunId, Spent, UnitId, UnitStatus, VerificationRef,
 };
 use gauntlet_ports::json::{self, JsonNumber, JsonValue};
 use gauntlet_ports::state_store::{RunEvent, RunEventKind};
@@ -22,6 +22,7 @@ pub(crate) const KIND_SETTLEMENT: &str = "settlement_committed";
 pub(crate) const KIND_INVOCATION_ADMITTED: &str = "invocation_admitted";
 pub(crate) const KIND_INVOCATION_TERMINAL: &str = "invocation_terminal";
 pub(crate) const KIND_CHECKPOINT_WRITTEN: &str = "checkpoint_written";
+pub(crate) const KIND_EVIDENCE_PRODUCED: &str = "evidence_produced";
 
 /// A payload did not decode into the domain types — typed (spec §21.2).
 /// Details carry field names, ids, and digests; never record payloads.
@@ -169,12 +170,18 @@ pub(crate) fn encode_event(kind: &RunEventKind) -> (String, String) {
             ("iteration_no", number(u64::from(iteration_no.get()))),
             ("event_log_offset", number(event_log_offset.get())),
         ]),
+        RunEventKind::EvidenceProduced { evidence, locator } => obj(vec![
+            ("kind", text(KIND_EVIDENCE_PRODUCED)),
+            ("evidence", text(evidence.as_str())),
+            ("locator", text(locator.as_str())),
+        ]),
     };
     let tag = match kind {
         RunEventKind::SettlementCommitted { .. } => KIND_SETTLEMENT,
         RunEventKind::InvocationAdmitted { .. } => KIND_INVOCATION_ADMITTED,
         RunEventKind::InvocationTerminal { .. } => KIND_INVOCATION_TERMINAL,
         RunEventKind::CheckpointWritten { .. } => KIND_CHECKPOINT_WRITTEN,
+        RunEventKind::EvidenceProduced { .. } => KIND_EVIDENCE_PRODUCED,
     };
     (tag.to_owned(), value.to_json_text())
 }
@@ -263,6 +270,20 @@ pub(crate) fn decode_event(
                 detail: err.to_string(),
             })?,
             event_log_offset: EventLogOffset::new(get_u64(&parsed, "event_log_offset")?),
+        },
+        KIND_EVIDENCE_PRODUCED => RunEventKind::EvidenceProduced {
+            evidence: EvidenceRef::new(&get_str(&parsed, "evidence")?).map_err(|err| {
+                DecodeError::ValueInvalid {
+                    field: "evidence",
+                    detail: err.to_string(),
+                }
+            })?,
+            locator: EvidenceLocator::new(&get_str(&parsed, "locator")?).map_err(|err| {
+                DecodeError::ValueInvalid {
+                    field: "locator",
+                    detail: err.to_string(),
+                }
+            })?,
         },
         other => {
             return Err(DecodeError::ValueInvalid {

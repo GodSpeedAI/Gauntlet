@@ -11,12 +11,14 @@
 use core::fmt;
 
 use gauntlet_domain::{
-    Digest, EpochSeconds, EventLogOffset, EvidenceRef, InvocationId, InvocationState, IterationNo,
-    ResultContractPath, RoleInvocation, Run, RunId, Spent, UnitId, UnitStatus, VerificationRef,
+    Digest, EpochSeconds, EventLogOffset, EvidenceLocator, EvidenceRef, InvocationId,
+    InvocationState, IterationNo, ResultContractPath, RoleInvocation, Run, RunId, Spent, UnitId,
+    UnitStatus, VerificationRef,
 };
 
 use crate::comparator::AdmittedComparison;
 use crate::deadline::Deadline;
+use crate::observer::InstrumentIdentity;
 
 /// `StateStore` failures — typed (spec §21.2).
 #[derive(Debug, Clone, PartialEq)]
@@ -84,6 +86,15 @@ pub enum RunEventKind {
         iteration_no: IterationNo,
         event_log_offset: EventLogOffset,
     },
+    /// The evidence owner recorded the production of one evidence ref
+    /// (plan Task 11, §14.3): the durable event behind
+    /// [`StateStore::record_evidence_production`]. Its append offset IS the
+    /// ordering anchor of the production binding — the monotonic fact
+    /// §14.3's no-stale-evidence condition is decided against.
+    EvidenceProduced {
+        evidence: EvidenceRef,
+        locator: EvidenceLocator,
+    },
 }
 
 /// A durable checkpoint (spec §18, quoted: "Every iteration boundary writes
@@ -131,6 +142,127 @@ impl ObservationBinding {
     /// The §12.4 observation digest of the bound bundle's content.
     pub fn digest(&self) -> &Digest {
         &self.digest
+    }
+}
+
+/// The production facts the evidence owner records when it produces one
+/// evidence ref (plan Task 11; spec §14.3). The `EvidenceStore` is
+/// content-addressed bytes with no metadata — producer, locator, and
+/// iteration facts therefore live HERE, in a durable record the producer
+/// side wrote. `produced_at` is the wall-clock provenance field (Annex B.5
+/// carries it); it is NOT the recency anchor — ordering is decided by the
+/// event-log offset the STORE mints when the [`RunEventKind::EvidenceProduced`]
+/// event is appended, a value no caller supplies.
+///
+/// `content` mirrors [`ObservationBinding`]'s content-digest discipline
+/// (correction round 1, B-M4): the digest of the bytes the producer
+/// ingested at that locator and stored at the ref. Binding the pointer
+/// alone leaves the examined content and the pinned content disconnected —
+/// a store serving different bytes at the ref would change what the
+/// instrument's decision certifies. The verification chain re-derives the
+/// digest from the bytes the store serves and refuses anything that is not
+/// the recorded content, whoever serves them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceProduction {
+    evidence: EvidenceRef,
+    content: Digest,
+    producer: InstrumentIdentity,
+    locator: EvidenceLocator,
+    iteration_no: IterationNo,
+    produced_at: EpochSeconds,
+}
+
+impl EvidenceProduction {
+    /// The digest of the ingested content — the bytes the producer wrote at
+    /// the locator and stored at the ref. (Six producer-side facts; the
+    /// repo's `mint`-style allow.)
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        evidence: EvidenceRef,
+        content: Digest,
+        producer: InstrumentIdentity,
+        locator: EvidenceLocator,
+        iteration_no: IterationNo,
+        produced_at: EpochSeconds,
+    ) -> Self {
+        Self {
+            evidence,
+            content,
+            producer,
+            locator,
+            iteration_no,
+            produced_at,
+        }
+    }
+
+    pub fn evidence(&self) -> &EvidenceRef {
+        &self.evidence
+    }
+
+    /// The §12.4-style content digest of the bytes ingested at the
+    /// production's locator — what the chain re-derives from the store's
+    /// bytes and compares.
+    pub fn content(&self) -> &Digest {
+        &self.content
+    }
+
+    /// The named instrument that produced the evidence (§14.3 condition 2).
+    pub fn producer(&self) -> &InstrumentIdentity {
+        &self.producer
+    }
+
+    /// The locator the evidence was produced at (§14.3 condition 4).
+    pub fn locator(&self) -> &EvidenceLocator {
+        &self.locator
+    }
+
+    /// The loop pass the production happened in (§14.3 condition 3's
+    /// in-this-run half).
+    pub fn iteration_no(&self) -> IterationNo {
+        self.iteration_no
+    }
+
+    pub fn produced_at(&self) -> EpochSeconds {
+        self.produced_at
+    }
+}
+
+/// The durable production record: the production facts plus the run they
+/// belong to and the SERVER-MINTED ordering anchor (the offset of the
+/// `EvidenceProduced` event). This is what §14.3's recency decision reads —
+/// a value written by the store, never an argument of any verification call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceProductionBinding {
+    run_id: RunId,
+    production: EvidenceProduction,
+    event_log_offset: EventLogOffset,
+}
+
+impl EvidenceProductionBinding {
+    pub fn new(
+        run_id: RunId,
+        production: EvidenceProduction,
+        event_log_offset: EventLogOffset,
+    ) -> Self {
+        Self {
+            run_id,
+            production,
+            event_log_offset,
+        }
+    }
+
+    pub fn run_id(&self) -> &RunId {
+        &self.run_id
+    }
+
+    pub fn production(&self) -> &EvidenceProduction {
+        &self.production
+    }
+
+    /// The ordering anchor: the event-log offset of the durable
+    /// `EvidenceProduced` event (monotonic; store-minted).
+    pub fn event_log_offset(&self) -> EventLogOffset {
+        self.event_log_offset
     }
 }
 
@@ -211,6 +343,63 @@ pub trait StateStore {
         _deadline: Deadline,
     ) -> Result<Option<ObservationBinding>, StateStoreError> {
         Ok(None)
+    }
+
+    /// Records the production of one evidence ref in one run, write-once
+    /// per `(run_id, evidence_ref)` — the evidence owner's durable fact
+    /// behind every §14.3 producer/locator/recency decision (plan Task 11).
+    ///
+    /// The store appends the durable [`RunEventKind::EvidenceProduced`]
+    /// event and MINTS the ordering anchor from that append's offset; the
+    /// caller supplies the production facts (including the ingested
+    /// content's digest), never the ordering. Re-recording the SAME facts
+    /// is idempotent (the original binding returns); a second record naming
+    /// a DIFFERENT producer, locator, iteration, instant, or content digest
+    /// for the same ref is refused, never overwritten — a later substitute
+    /// cannot displace what the evidence owner certified.
+    ///
+    /// **Recorded residual (mirrors Task 10's ledger note):** when Task 12
+    /// wires the production writer into the observation pipeline, this
+    /// write should be capability-gated to the evidence-owner role exactly
+    /// as `bind_observation_bundle` should be; today both are
+    /// composition-root-wired with no role check in the store.
+    fn record_evidence_production(
+        &self,
+        _run_id: &RunId,
+        _production: &EvidenceProduction,
+        _deadline: Deadline,
+    ) -> Result<EvidenceProductionBinding, StateStoreError> {
+        Err(StateStoreError::WriteFailed {
+            detail: "this state store does not implement durable evidence-production bindings"
+                .to_owned(),
+        })
+    }
+
+    /// The durable production record for one `(run, evidence ref)`;
+    /// `None` when no production was ever recorded. §14.3's producer,
+    /// locator, and recency facts are read from HERE — never from a
+    /// verification request.
+    fn evidence_production(
+        &self,
+        _run_id: &RunId,
+        _evidence: &EvidenceRef,
+        _deadline: Deadline,
+    ) -> Result<Option<EvidenceProductionBinding>, StateStoreError> {
+        Ok(None)
+    }
+
+    /// Every durable production record the run recorded at one locator,
+    /// ordered by their anchors (oldest first). This is how the
+    /// verification chain finds the evidence for
+    /// `evidence_required.locator` without accepting any caller-named
+    /// evidence ref.
+    fn evidence_productions_at(
+        &self,
+        _run_id: &RunId,
+        _locator: &EvidenceLocator,
+        _deadline: Deadline,
+    ) -> Result<Vec<EvidenceProductionBinding>, StateStoreError> {
+        Ok(Vec::new())
     }
 
     /// Atomically admits a comparison only when the durable run and its exact

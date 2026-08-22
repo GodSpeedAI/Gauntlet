@@ -956,6 +956,25 @@ It has a frozen research preregistration at
 `just prereg-check 11`; never edit the prereg after implementation begins —
 record observations only in `task-11.outcome.yaml`).
 
+**IN-FLIGHT (2026-08-22):** Task 11 round 1 LANDED (D1–D6; report
+`task11/builder-round1.md`; 764/764 green at the time). Two blind critics
++ a denylist supplement then found B-M1..M5/A-M1..M2; adjudication
+`task11/correction-adjudication.md` (prereg R1 FIRED — the predicted
+caller-supplied-value seam reappeared at the ladder and the precondition
+store). Correction round 1 COMPLETE (`task11/correction-round1.md`;
+checkpoints appended to `task11/builder-checkpoints.md`): C1 ladder as
+earned authority (composition-feature seal), C2 terminal
+`RungFailed` for supported broken rungs, C3 production content-digest
+discipline (migration 0007) with chain re-derivation, C4 precondition
+over the claim's own chain store, C5 durable-checkpoint anchor
+validation, C6.1–6.6 minors, C8a comment. The first correction builder
+died mid-edit (non-compiling tree, empty log); a finisher session
+recovered per the interruption lesson — recovery note in the correction
+report. Gates: focused suites green (ports 80, sqlite 37, app 219,
+fs 9, adapters 15, p12 11); `just test` 778/778; boundaries 194/194;
+ruler PASS before and after. NEXT: confirmation critic (blind re-review
+of the correction round), then settlement.
+
 **Task-9 dependency carried into Task 10 (D3):** Task 9 closed P3's
 observation/acquisition portion: it records instrument reality, explicit gaps, and
 structurally excludes claims from verification inputs. P3 also requires comparison

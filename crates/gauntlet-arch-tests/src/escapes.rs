@@ -287,16 +287,16 @@ fn scan_unterminated(path: &str, text: &str) -> Vec<String> {
         }
         match bytes[i] {
             b'[' => brackets.push(i),
-            b']' => {
-                if brackets.pop().is_none() {
-                    out.push(format!(
-                        "scope-escape: {path}:{}: a `]` closes a bracket that was never opened — \
-                         the file is not the Rust the compiler reads, or the lexing pass lost \
-                         synchronization; either way the evidence is missing, not negative (I8, \
-                         spec §24.3)",
-                        line_of(text, i)
-                    ));
-                }
+            b']' if brackets.pop().is_none() => {
+                // (clippy 1.98 collapsible_match: the arm body was only this
+                // check; the guard pops exactly once per `]` as before)
+                out.push(format!(
+                    "scope-escape: {path}:{}: a `]` closes a bracket that was never opened — \
+                     the file is not the Rust the compiler reads, or the lexing pass lost \
+                     synchronization; either way the evidence is missing, not negative (I8, \
+                     spec §24.3)",
+                    line_of(text, i)
+                ));
             }
             _ => {}
         }

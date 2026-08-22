@@ -90,7 +90,25 @@ use crate::deps::Member;
 /// first segments (`agent`, `state`, `observe`, `compare`, `evidence`)
 /// already are. Pinned by test: growth is a deliberate edit that updates
 /// the pin.
-pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model"];
+pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model", "digest", "check"];
+
+// Plan Task 11 extended the same non-distinguishing ruling to two more
+// LAST segments, by the same argument the Round-3 V7 note makes for
+// "model": `digest` (last segment of `gauntlet-adapter-verify-file-digest`)
+// is the spec's own FIELD vocabulary — the `Digest` domain type (§5.2) and
+// the `reference_digest`/`observation_digest`/`context_envelope_digest`
+// fields (§9.4, §12.4, §13.2) — and `check` (last segment of
+// `gauntlet-adapter-verify-schema-check`) is §14.2's own rung name
+// ("file/digest check", "schema check") and §8.5's doctor-check vocabulary.
+// Both landed as last segments of Task-11 verifier adapters while closed
+// earlier tasks already spelled those words as ordinary domain literals;
+// neither word can SELECT an adapter on its own (the distinguishing
+// spellings `verify-file-digest`, `digest-file-verify`,
+// `verify-schema-check`, `check-schema-verify` — and the full crate names —
+// ARE still derived and denied; a bare `digest-file`/`check-schema` literal
+// contains no derived term and passes, which is why the PIN test asserts the
+// full derived spellings), so deriving the bare segment would only make the
+// AK-014 class a false-positive factory on spec vocabulary.
 
 /// Identifiers that name products rather than capabilities. In every scanned
 /// text the match is a case-insensitive substring (compound identifiers
@@ -1035,11 +1053,27 @@ pub fn runner_for(role: &str) -> &'static str {
             dir: "crates/adapters/gauntlet-adapter-compare-model".to_string(),
             name: "gauntlet-adapter-compare-model".to_string(),
         });
+        members.push(Member {
+            dir: "crates/adapters/gauntlet-adapter-verify-file-digest".to_string(),
+            name: "gauntlet-adapter-verify-file-digest".to_string(),
+        });
+        members.push(Member {
+            dir: "crates/adapters/gauntlet-adapter-verify-schema-check".to_string(),
+            name: "gauntlet-adapter-verify-schema-check".to_string(),
+        });
         let deny = Denylist::derive(&members);
-        assert_eq!(SPEC_VOCABULARY_SEGMENTS, &["model"]);
+        // Plan Task 11 extended the list (see the const's doc): `digest` is
+        // the §5.2 Digest field vocabulary, `check` is §14.2's own rung
+        // name — both landed as last segments of the Task-11 verifier
+        // adapters while closed earlier tasks already spelled those words
+        // as ordinary domain literals.
+        assert_eq!(SPEC_VOCABULARY_SEGMENTS, &["model", "digest", "check"]);
         assert!(
-            !deny.adapter_segments.iter().any(|s| s == "model"),
-            "'model' is spec field vocabulary and must not be a segment term"
+            !deny
+                .adapter_segments
+                .iter()
+                .any(|s| s == "model" || s == "digest" || s == "check"),
+            "spec field vocabulary must not be a segment term"
         );
         for spelling in [
             "gauntlet-adapter-compare-model",
@@ -1047,6 +1081,16 @@ pub fn runner_for(role: &str) -> &'static str {
             "compare_model",
             "model-compare",
             "model_compare",
+            "gauntlet-adapter-verify-file-digest",
+            "verify-file-digest",
+            "verify_file_digest",
+            "digest-file-verify",
+            "digest_file_verify",
+            "gauntlet-adapter-verify-schema-check",
+            "verify-schema-check",
+            "verify_schema_check",
+            "check-schema-verify",
+            "check_schema_verify",
         ] {
             let fixture = format!("const PICK: &str = {spelling:?};\n");
             let violations = scan_source(
@@ -1062,14 +1106,16 @@ pub fn runner_for(role: &str) -> &'static str {
                 "the distinguishing spelling {spelling:?} must still be denied: {violations:?}"
             );
         }
-        // And the bare word stays legal inner-layer vocabulary.
-        let clean = scan_source(
-            "crates/gauntlet-app/src/lib.rs",
-            "let hint = \"model\";\n",
-            &deny,
-            Role::Inner,
-        );
-        assert!(clean.is_empty(), "{clean:?}");
+        // And the bare words stay legal inner-layer vocabulary.
+        for word in ["model", "digest", "check"] {
+            let clean = scan_source(
+                "crates/gauntlet-app/src/lib.rs",
+                &format!("let word = {word:?};\n"),
+                &deny,
+                Role::Inner,
+            );
+            assert!(clean.is_empty(), "{word:?}: {clean:?}");
+        }
     }
 
     #[test]

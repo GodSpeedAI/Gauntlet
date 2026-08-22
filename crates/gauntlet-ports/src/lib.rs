@@ -51,6 +51,7 @@ pub mod sandbox;
 pub mod state_store;
 pub mod tokens;
 pub mod tool_provider;
+pub mod verification_record;
 pub mod verifier;
 pub mod workspace_provider;
 
@@ -102,10 +103,17 @@ pub use sandbox::{
     NetworkPosture, PolicyValidation, Sandbox, SandboxBackendRef, SandboxError, SandboxPolicy,
     SandboxedCommand,
 };
-pub use state_store::{Checkpoint, RunEvent, RunEventKind, StateStore, StateStoreError};
+pub use state_store::{
+    Checkpoint, EvidenceProduction, EvidenceProductionBinding, RunEvent, RunEventKind, StateStore,
+    StateStoreError,
+};
 pub use tokens::UnknownToken;
 pub use tool_provider::{
     SemanticCapability, ToolBinding, ToolIdentity, ToolProvider, ToolProviderError,
+};
+pub use verification_record::{
+    BindingClass, RequirementDoc, VERIFICATION_RECORD_SCHEMA, VerificationContent,
+    VerificationDocError, VerificationRecordDoc, VerifyingInstrument,
 };
 pub use verifier::{VerificationRequest, Verifier, VerifierError};
 pub use workspace_provider::{

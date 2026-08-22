@@ -2233,6 +2233,13 @@ impl Verifier for LocalVerifier {
     fn is_deterministic(&self) -> bool {
         true
     }
+
+    fn instrument(&self) -> crate::observer::InstrumentIdentity {
+        crate::observer::InstrumentIdentity::new(
+            InstrumentName::new("suite-verifier").expect("stub instrument name"),
+            "1".to_owned(),
+        )
+    }
 }
 
 pub struct VerifierGreen;
@@ -2273,6 +2280,13 @@ impl Verifier for FabricatingVerifier {
 
     fn is_deterministic(&self) -> bool {
         true
+    }
+
+    fn instrument(&self) -> crate::observer::InstrumentIdentity {
+        crate::observer::InstrumentIdentity::new(
+            InstrumentName::new("suite-verifier").expect("stub instrument name"),
+            "1".to_owned(),
+        )
     }
 }
 

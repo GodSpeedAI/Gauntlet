@@ -231,11 +231,78 @@ fn deterministic_verifiers_do_not_flap(factory: &dyn VerifierFactory) -> Vec<Con
     }
 }
 
+/// Case: the record carries its instrument's identity and the adapter's
+/// determinism is what it reports (spec §14.1: the output is the outcome
+/// "plus the evidence ref and the instrument identity"; §14.2: the
+/// deterministic-first ladder depends on `is_deterministic` being truthful).
+///
+/// Task-11 extension of the suite (recorded act): new port surface — named
+/// instruments and the §14.2 flag — gets its own case; no existing case was
+/// modified.
+fn records_carry_their_instruments_identity(factory: &dyn VerifierFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "records_carry_their_instruments_identity";
+    const RULE: &str = "spec 14.1/14.2: the record carries a named instrument and is_deterministic matches the factory's declaration";
+    let locator = EvidenceLocator::new("locator-suite-01").expect("suite locator");
+    let Ok(verifier) = factory.build(vec![locator.clone()]) else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the factory could not build a verifier for the case".to_owned(),
+        )];
+    };
+    if verifier.is_deterministic() != factory.deterministic() {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!(
+                "is_deterministic() returned {} but the factory declares {} — the ladder cannot \
+                 trust the flag",
+                verifier.is_deterministic(),
+                factory.deterministic()
+            ),
+        )];
+    }
+    let request = request(locator);
+    let record = match verifier.verify(&request, bound()) {
+        Ok(record) => record,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("verifying a claim over present evidence failed: {error}"),
+            )];
+        }
+    };
+    if record.instrument().as_str().is_empty() {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the record carries an empty instrument name — outcomes are produced by a NAMED \
+             instrument (spec 5.3.6)"
+                .to_owned(),
+        )];
+    }
+    if record.instrument().as_str() != verifier.instrument().name().as_str() {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!(
+                "the record names instrument {:?} but the adapter reports {:?} — a record must \
+                 carry the identity of the instrument that produced it",
+                record.instrument().as_str(),
+                verifier.instrument().name().as_str()
+            ),
+        )];
+    }
+    Vec::new()
+}
+
 /// Runs the full `Verifier` contract suite against one factory.
 pub fn verifier_suite(factory: &dyn VerifierFactory) -> Vec<ContractFinding> {
     let mut findings = Vec::new();
     findings.extend(verified_claims_are_bound_to_their_request(factory));
     findings.extend(missing_evidence_is_an_error_not_silence(factory));
     findings.extend(deterministic_verifiers_do_not_flap(factory));
+    findings.extend(records_carry_their_instruments_identity(factory));
     findings
 }

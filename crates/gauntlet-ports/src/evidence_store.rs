@@ -74,4 +74,23 @@ pub trait EvidenceStore {
         reference: &EvidenceRef,
         deadline: Deadline,
     ) -> Result<(), EvidenceStoreError>;
+
+    /// Whether the run pinned this ref (§16.1 condition 2: settlement
+    /// requires evidence that "resolves AND IS PINNED" — a read, never the
+    /// idempotent write). FAILS CLOSED by default: a store that cannot
+    /// answer reports an error, and a caller enforcing the precondition
+    /// must refuse, never treat unknown as pinned or unpinned (I8).
+    ///
+    /// Plan Task 11 addition; this also closes Task 10's recorded residual
+    /// ("the EvidenceStore port has no pin-membership query").
+    fn is_pinned(
+        &self,
+        _run_id: &RunId,
+        _reference: &EvidenceRef,
+        _deadline: Deadline,
+    ) -> Result<bool, EvidenceStoreError> {
+        Err(EvidenceStoreError::ReadFailed {
+            detail: "this evidence store does not implement pin-membership queries".to_owned(),
+        })
+    }
 }

@@ -326,7 +326,10 @@ pub fn unfiltered_listing(root: &Path, dirs: &[&str]) -> Vec<String> {
 fn list_unfiltered(root: &Path, dir: &Path, out: &mut Vec<String>) {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
-        Err(err) if !dir.exists() => return,
+        // The guard needs only the error's existence, not its value (rustc
+        // 1.98 began linting the unused `err` binding here); the arm below
+        // still reports the error verbatim.
+        Err(_) if !dir.exists() => return,
         Err(err) => panic!("{} is readable: {err}", rel_of(root, dir)),
     };
     for entry in entries.flatten() {

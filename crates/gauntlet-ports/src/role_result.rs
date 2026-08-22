@@ -488,11 +488,13 @@ impl JsonValue {
 ///
 /// B.1 is "the envelope for EVERY result contract": a critic's result
 /// contract is a `comparison_record@v1` (plan Task 10), so that schema
-/// validates here exactly as the builder's does.
+/// validates here exactly as the builder's does; a model verifier's result
+/// contract is a `verification_record@v1` (plan Task 11), same rule.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RolePayload {
     BuilderResult(Box<BuilderResultPayload>),
     Comparison(Box<crate::comparison_record::ComparisonRecordDoc>),
+    Verification(Box<crate::verification_record::VerificationRecordDoc>),
 }
 
 impl RolePayload {
@@ -510,6 +512,15 @@ impl RolePayload {
                 })?;
             return Ok(Self::Comparison(Box::new(payload)));
         }
+        if declared == crate::verification_record::VERIFICATION_RECORD_SCHEMA {
+            let payload = crate::verification_record::VerificationRecordDoc::decode_payload(value)
+                .map_err(|source| RoleResultError::ValueInvalid {
+                    schema: ROLE_RESULT_SCHEMA,
+                    field: "payload",
+                    source: source.to_string(),
+                })?;
+            return Ok(Self::Verification(Box::new(payload)));
+        }
         Err(RoleResultError::PayloadSchemaUnknown {
             schema: declared.to_owned(),
         })
@@ -520,6 +531,7 @@ impl RolePayload {
         match self {
             Self::BuilderResult(_) => BUILDER_RESULT_SCHEMA,
             Self::Comparison(_) => crate::comparison_record::COMPARISON_RECORD_SCHEMA,
+            Self::Verification(_) => crate::verification_record::VERIFICATION_RECORD_SCHEMA,
         }
     }
 }

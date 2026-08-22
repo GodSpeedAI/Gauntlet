@@ -1,0 +1,14 @@
+[package]
+name = "gauntlet-adapter-verify-test-report"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+
+# Spec 4.1/24.3: adapters depend on domain and ports only — never on
+# gauntlet-app or gauntlet-cli. Plan Task 11's deterministic verifier.
+[dependencies]
+gauntlet-domain.workspace = true
+gauntlet-ports.workspace = true

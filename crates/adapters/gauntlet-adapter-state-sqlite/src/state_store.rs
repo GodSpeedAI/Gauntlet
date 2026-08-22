@@ -30,9 +30,9 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceRef, IterationNo,
-    Limits, MicroUsd, ReferenceId, ReferenceVersion, RoleInvocation, Run, RunDefinition, RunId,
-    SettlementRecord, Spent, UnitId, VerificationRef,
+    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceLocator,
+    EvidenceRef, InstrumentName, IterationNo, Limits, MicroUsd, ReferenceId, ReferenceVersion,
+    RoleInvocation, Run, RunDefinition, RunId, SettlementRecord, Spent, UnitId, VerificationRef,
 };
 use gauntlet_ports::comparison_record::ComparisonRecordDoc;
 use gauntlet_ports::deadline::Deadline;
@@ -890,6 +890,64 @@ fn uint(value: u64) -> JsonValue {
     JsonValue::Number(JsonNumber::Uint(value))
 }
 
+/// Rebuilds one durable [`gauntlet_ports::state_store::EvidenceProductionBinding`]
+/// from its stored columns. Strict: any column the domain constructors
+/// refuse is `Corrupt`, never a silently degraded record (spec §21.2).
+/// The column-for-column signature is the row's own shape (clippy 1.98
+/// began counting it over the threshold; the repo's `mint`-style allow).
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+fn production_from_parts(
+    run_id: &RunId,
+    evidence: &EvidenceRef,
+    producer_name: &str,
+    producer_version: &str,
+    locator: &str,
+    iteration: i64,
+    produced_at: i64,
+    offset: i64,
+    content: &str,
+) -> Result<gauntlet_ports::state_store::EvidenceProductionBinding, StateStoreError> {
+    let corrupt = |detail: String| StateStoreError::Corrupt {
+        detail: format!(
+            "a stored evidence-production record of run {run_id} does not decode: {detail}"
+        ),
+    };
+    let name = InstrumentName::new(producer_name).map_err(|err| corrupt(err.to_string()))?;
+    let identity =
+        gauntlet_ports::observer::InstrumentIdentity::new(name, producer_version.to_owned());
+    let locator = EvidenceLocator::new(locator).map_err(|err| corrupt(err.to_string()))?;
+    let iteration = u32::try_from(iteration)
+        .map_err(|_| corrupt(format!("iteration {iteration} exceeds the u32 space")))?;
+    let iteration = IterationNo::new(iteration).map_err(|err| corrupt(err.to_string()))?;
+    let produced_at = u64::try_from(produced_at)
+        .map_err(|_| corrupt(format!("produced_at {produced_at} is negative")))?;
+    let offset = u64::try_from(offset)
+        .map_err(|_| corrupt(format!("event-log offset {offset} is negative")))?;
+    // The content digest rides as its Display form (`algo:hex`). An empty
+    // digest is a row written before migration 0007 — Corrupt, never a
+    // production record with no content binding (spec §21.2).
+    let (content_algo, content_hex) = content.split_once(':').ok_or_else(|| {
+        corrupt(format!(
+            "the content digest {content:?} is not in `algo:hex` form (a pre-0007 row has no \
+             content binding)"
+        ))
+    })?;
+    let content = gauntlet_domain::Digest::new(content_algo, content_hex)
+        .map_err(|err| corrupt(err.to_string()))?;
+    Ok(gauntlet_ports::state_store::EvidenceProductionBinding::new(
+        run_id.clone(),
+        gauntlet_ports::state_store::EvidenceProduction::new(
+            evidence.clone(),
+            content,
+            identity,
+            locator,
+            iteration,
+            EpochSeconds::new(produced_at),
+        ),
+        EventLogOffset::new(offset),
+    ))
+}
+
 /// The immutable columns that define a stored run. The nullable evidence
 /// field identifies legacy rows written before migration 0004; it is never
 /// converted into a fabricated reference during rehydration.
@@ -1329,6 +1387,209 @@ impl StateStore for SqliteStateStore {
                 Ok(ObservationBinding::new(reference, digest))
             })
             .transpose()
+    }
+
+    fn record_evidence_production(
+        &self,
+        run_id: &RunId,
+        production: &gauntlet_ports::state_store::EvidenceProduction,
+        deadline: Deadline,
+    ) -> Result<gauntlet_ports::state_store::EvidenceProductionBinding, StateStoreError> {
+        // Write-once per (run, ref), checked BEFORE any event is appended:
+        // re-recording identical facts is idempotent and appends nothing;
+        // a conflicting record is refused and appends nothing either.
+        if let Some(existing) = self.evidence_production(run_id, production.evidence(), deadline)? {
+            if existing.production() == production {
+                return Ok(existing);
+            }
+            return Err(StateStoreError::WriteFailed {
+                detail: format!(
+                    "run {run_id} already recorded evidence {} produced by {} at {} iteration {} \
+                     (anchor offset {}); recording it again with different facts is refused",
+                    production.evidence(),
+                    production.producer().name(),
+                    production.locator(),
+                    production.iteration_no().get(),
+                    existing.event_log_offset().get(),
+                ),
+            });
+        }
+        // The ordering anchor: minted by THIS append, inside the store, from
+        // a value no caller of this method supplies (spec §14.3 condition 3).
+        let event = RunEvent {
+            run_id: run_id.clone(),
+            kind: RunEventKind::EvidenceProduced {
+                evidence: production.evidence().clone(),
+                locator: production.locator().clone(),
+            },
+            at: production.produced_at(),
+        };
+        let offset = self.append_event(event, deadline)?;
+        let binding = gauntlet_ports::state_store::EvidenceProductionBinding::new(
+            run_id.clone(),
+            production.clone(),
+            offset,
+        );
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        // If THIS insert fails the event above is already durable; the row
+        // is the authority and its absence is visible to every read, so the
+        // error names the durable offset rather than pretending nothing
+        // happened (the same crash-window discipline as settlement step 2).
+        conn.execute(
+            "INSERT INTO evidence_productions (
+                run_id, evidence_ref, producer_name, producer_version, locator, iteration_no,
+                produced_at, event_log_offset, content_digest
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            (
+                run_id.to_string(),
+                production.evidence().as_str(),
+                production.producer().name().as_str(),
+                production.producer().version(),
+                production.locator().as_str(),
+                u64::from(production.iteration_no().get()),
+                production.produced_at().get(),
+                offset.get(),
+                production.content().to_string(),
+            ),
+        )
+        .map_err(|err| StateStoreError::WriteFailed {
+            detail: format!(
+                "recording the production of evidence {} in run {run_id} failed: {err}; the \
+                 EvidenceProduced event IS durable at offset {} — replay recovery should complete \
+                 the row before re-recording",
+                production.evidence(),
+                offset.get(),
+            ),
+        })?;
+        Ok(binding)
+    }
+
+    fn evidence_production(
+        &self,
+        run_id: &RunId,
+        evidence: &EvidenceRef,
+        _deadline: Deadline,
+    ) -> Result<Option<gauntlet_ports::state_store::EvidenceProductionBinding>, StateStoreError>
+    {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let row: Option<(String, String, String, i64, i64, i64, String)> = match conn.query_row(
+            "SELECT producer_name, producer_version, locator, iteration_no, produced_at, \
+             event_log_offset, content_digest FROM evidence_productions WHERE run_id = ?1 AND \
+             evidence_ref = ?2",
+            (run_id.to_string(), evidence.as_str()),
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            },
+        ) {
+            Ok(row) => Some(row),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(err) => {
+                return Err(StateStoreError::ReadFailed {
+                    detail: format!(
+                        "reading the production record of evidence {evidence} in run {run_id} \
+                         failed: {err}",
+                    ),
+                });
+            }
+        };
+        row.map(
+            |(name, version, locator, iteration, produced_at, offset, content)| {
+                production_from_parts(
+                    run_id,
+                    evidence,
+                    &name,
+                    &version,
+                    &locator,
+                    iteration,
+                    produced_at,
+                    offset,
+                    &content,
+                )
+            },
+        )
+        .transpose()
+    }
+
+    fn evidence_productions_at(
+        &self,
+        run_id: &RunId,
+        locator: &gauntlet_domain::EvidenceLocator,
+        _deadline: Deadline,
+    ) -> Result<Vec<gauntlet_ports::state_store::EvidenceProductionBinding>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let mut statement = conn
+            .prepare(
+                "SELECT evidence_ref, producer_name, producer_version, iteration_no, produced_at, \
+                 event_log_offset, content_digest FROM evidence_productions WHERE run_id = ?1 AND \
+                 locator = ?2 ORDER BY event_log_offset ASC",
+            )
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!(
+                    "preparing the locator production query for run {run_id} failed: {err}"
+                ),
+            })?;
+        let rows = statement
+            .query_map((run_id.to_string(), locator.as_str()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, String>(6)?,
+                ))
+            })
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!(
+                    "reading the productions at locator {locator} of run {run_id} failed: {err}"
+                ),
+            })?;
+        let mut bindings = Vec::new();
+        for row in rows {
+            let (reference, name, version, iteration, produced_at, offset, content) =
+                row.map_err(|err| StateStoreError::ReadFailed {
+                    detail: format!(
+                        "stepping the productions at locator {locator} of run {run_id} failed: \
+                         {err}",
+                    ),
+                })?;
+            let evidence =
+                EvidenceRef::new(&reference).map_err(|err| StateStoreError::Corrupt {
+                    detail: format!(
+                        "a production record of run {run_id} holds an invalid evidence ref: {err}"
+                    ),
+                })?;
+            bindings.push(production_from_parts(
+                run_id,
+                &evidence,
+                &name,
+                &version,
+                locator.as_str(),
+                iteration,
+                produced_at,
+                offset,
+                &content,
+            )?);
+        }
+        Ok(bindings)
     }
 
     fn accept_comparison(
@@ -2034,5 +2295,231 @@ mod tests {
             0,
             "replay after the duplicate-key commit adds nothing"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Evidence-production bindings (plan Task 11; spec 14.3)
+    // -----------------------------------------------------------------------
+
+    fn production(
+        evidence: &str,
+        producer: &str,
+        locator: &str,
+        iteration: u32,
+    ) -> gauntlet_ports::state_store::EvidenceProduction {
+        production_with_content(
+            evidence,
+            producer,
+            locator,
+            iteration,
+            &content_digest(b"bytes"),
+        )
+    }
+
+    /// The production helper with an explicit content digest (correction
+    /// round 1: the production record carries the digest of the bytes
+    /// ingested at the locator).
+    fn production_with_content(
+        evidence: &str,
+        producer: &str,
+        locator: &str,
+        iteration: u32,
+        content: &gauntlet_domain::Digest,
+    ) -> gauntlet_ports::state_store::EvidenceProduction {
+        gauntlet_ports::state_store::EvidenceProduction::new(
+            EvidenceRef::new(evidence).expect("valid evidence ref"),
+            content.clone(),
+            gauntlet_ports::observer::InstrumentIdentity::new(
+                InstrumentName::new(producer).expect("valid instrument name"),
+                "1".to_owned(),
+            ),
+            EvidenceLocator::new(locator).expect("valid locator"),
+            IterationNo::new(iteration).expect("1-based"),
+            EpochSeconds::new(1_700_000_200),
+        )
+    }
+
+    /// A valid `sha256:…`-shaped digest (fixed bytes — the tests exercise
+    /// persistence of the digest, not its derivation).
+    fn content_digest(_bytes: &[u8]) -> gauntlet_domain::Digest {
+        gauntlet_domain::Digest::new("sha256", &"ab".repeat(32))
+            .expect("a lowercase hex digest is valid")
+    }
+
+    #[test]
+    fn evidence_production_records_are_write_once_and_idempotent() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store.record_run(&run(), bound()).expect("run records");
+        let first = production(
+            "evd-report-0001",
+            "gauntlet-verify-test-report",
+            "tests/proofs/x",
+            1,
+        );
+        let bound_record = store
+            .record_evidence_production(&run_id(), &first, bound())
+            .expect("the first record lands");
+        // The anchor is server-minted: a real offset, not a caller value.
+        assert!(bound_record.event_log_offset().get() > 0);
+        // Re-recording the SAME facts is idempotent: the ORIGINAL binding
+        // (original anchor) returns and no second event is appended.
+        let again = store
+            .record_evidence_production(&run_id(), &first, bound())
+            .expect("identical re-record is idempotent");
+        assert_eq!(again, bound_record);
+        // A CONFLICTING record for the same ref is refused, never absorbed.
+        let conflicting = production(
+            "evd-report-0001",
+            "gauntlet-observe-test",
+            "tests/proofs/x",
+            2,
+        );
+        assert!(matches!(
+            store.record_evidence_production(&run_id(), &conflicting, bound()),
+            Err(StateStoreError::WriteFailed { .. })
+        ));
+        // And the stored record is still the original.
+        let stored = store
+            .evidence_production(
+                &run_id(),
+                &EvidenceRef::new("evd-report-0001").unwrap(),
+                bound(),
+            )
+            .expect("the lookup succeeds")
+            .expect("the original record stands");
+        assert_eq!(stored, bound_record);
+    }
+
+    #[test]
+    fn the_production_content_digest_is_durable_and_write_once() {
+        // Correction round 1 (B-M4): the production record carries the
+        // digest of the bytes ingested at the locator; it persists, round-
+        // trips through the strict decoder, and a second record naming a
+        // DIFFERENT content digest for the same ref is refused.
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store.record_run(&run(), bound()).expect("run records");
+        let first = production_with_content(
+            "evd-content-0001",
+            "gauntlet-verify-test-report",
+            "tests/proofs/x",
+            2,
+            &gauntlet_domain::Digest::new("sha256", &"11".repeat(32)).expect("valid digest"),
+        );
+        let bound_record = store
+            .record_evidence_production(&run_id(), &first, bound())
+            .expect("the record lands");
+        assert_eq!(
+            bound_record.production().content(),
+            &gauntlet_domain::Digest::new("sha256", &"11".repeat(32)).expect("valid digest")
+        );
+        let stored = store
+            .evidence_production(
+                &run_id(),
+                &EvidenceRef::new("evd-content-0001").unwrap(),
+                bound(),
+            )
+            .expect("the lookup succeeds")
+            .expect("the record stands");
+        assert_eq!(stored, bound_record, "the content digest round-trips");
+        let same_facts_other_digest = production_with_content(
+            "evd-content-0001",
+            "gauntlet-verify-test-report",
+            "tests/proofs/x",
+            2,
+            &gauntlet_domain::Digest::new("sha256", &"22".repeat(32)).expect("valid digest"),
+        );
+        assert!(matches!(
+            store.record_evidence_production(&run_id(), &same_facts_other_digest, bound()),
+            Err(StateStoreError::WriteFailed { .. })
+        ));
+    }
+
+    #[test]
+    fn productions_at_a_locator_are_ordered_by_their_anchors() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store.record_run(&run(), bound()).expect("run records");
+        let older = production(
+            "evd-report-old",
+            "gauntlet-verify-test-report",
+            "tests/proofs/x",
+            1,
+        );
+        let newer = production(
+            "evd-report-new",
+            "gauntlet-verify-test-report",
+            "tests/proofs/x",
+            3,
+        );
+        let first = store
+            .record_evidence_production(&run_id(), &older, bound())
+            .expect("older records");
+        let second = store
+            .record_evidence_production(&run_id(), &newer, bound())
+            .expect("newer records");
+        assert!(
+            second.event_log_offset().get() > first.event_log_offset().get(),
+            "the second production's anchor is minted after the first"
+        );
+        let locator = EvidenceLocator::new("tests/proofs/x").expect("valid locator");
+        let found = store
+            .evidence_productions_at(&run_id(), &locator, bound())
+            .expect("the locator query succeeds");
+        assert_eq!(found.len(), 2, "both refs recorded at one locator stand");
+        assert_eq!(found[0], first, "anchor order, oldest first");
+        assert_eq!(found[1], second);
+        // A locator with no productions is an empty vector, never an error.
+        let absent = EvidenceLocator::new("tests/proofs/none").expect("valid locator");
+        assert!(
+            store
+                .evidence_productions_at(&run_id(), &absent, bound())
+                .expect("the locator query succeeds")
+                .is_empty()
+        );
+        // Lookups are run-keyed: another run sees none of this run's records.
+        let other = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAB").expect("valid run id");
+        assert!(
+            store
+                .evidence_production(
+                    &other,
+                    &EvidenceRef::new("evd-report-new").unwrap(),
+                    bound()
+                )
+                .expect("the lookup succeeds")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn the_production_event_replays_through_the_event_log() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store.record_run(&run(), bound()).expect("run records");
+        let record = production(
+            "evd-report-0001",
+            "gauntlet-verify-test-report",
+            "tests/proofs/x",
+            2,
+        );
+        let binding = store
+            .record_evidence_production(&run_id(), &record, bound())
+            .expect("the record lands");
+        let entries = read_entries(
+            &store.conn.lock().expect("connection lock"),
+            EventLogOffset::new(0),
+        )
+        .expect("the log replays");
+        let produced = entries
+            .iter()
+            .find(|entry| matches!(entry.event.kind, RunEventKind::EvidenceProduced { .. }));
+        let produced = produced.expect("the EvidenceProduced event is durable");
+        assert_eq!(
+            produced.event.kind,
+            RunEventKind::EvidenceProduced {
+                evidence: EvidenceRef::new("evd-report-0001").expect("valid ref"),
+                locator: EvidenceLocator::new("tests/proofs/x").expect("valid locator"),
+            }
+        );
+        // The binding's anchor names exactly that event's offset — the
+        // ordering fact and the durable history are one fact, not two.
+        assert_eq!(binding.event_log_offset(), produced.offset);
     }
 }

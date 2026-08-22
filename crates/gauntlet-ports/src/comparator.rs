@@ -1027,7 +1027,21 @@ impl FrozenReferenceProjection {
         evidence: &dyn EvidenceStore,
         deadline: Deadline,
     ) -> Result<Self, ComparatorError> {
-        let version = authority.reference().clone();
+        Self::load_version(authority.reference(), evidence, deadline)
+    }
+
+    /// The same governed load over ANY durable run's frozen
+    /// [`ReferenceVersion`] (plan Task 11): the verification chain holds the
+    /// run itself from `StateStore::load_run` — its version is exactly as
+    /// durable as the comparison authority's. The bytes are loaded at the
+    /// version's pinned ref and verified against its pinned digest; neither
+    /// is a caller argument.
+    pub fn load_version(
+        version: &ReferenceVersion,
+        evidence: &dyn EvidenceStore,
+        deadline: Deadline,
+    ) -> Result<Self, ComparatorError> {
+        let version = version.clone();
         let raw = evidence
             .get(version.evidence_ref(), deadline)
             .map_err(|error| ComparatorError::EnvelopeInvalid {

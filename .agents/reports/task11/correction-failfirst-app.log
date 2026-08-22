@@ -1,0 +1,85 @@
+# Task 11 correction round 1 — raw fail-first captures (2026-08-21/22)
+#
+# The correction builder that started this round died to a usage limit
+# mid-edit and captured nothing; this file was empty. The finisher
+# regenerated the evidence per the teeth discipline: with each fix
+# present, the named check was temporarily neutered to its pre-fix
+# behavior, the named test run, the failing output captured verbatim,
+# and the file restored byte-identical (diff-verified against backups;
+# suites re-green after each restore). Method note: because the fixes
+# were already in the tree, "failing-before" is demonstrated by neuter
+# (behavioral replay of the pre-fix code), which reproduces exactly the
+# failure mode each test discriminates.
+
+## C1 (B-M1) — mint replay: the pre-fix per-call ladder seam re-added
+# (verify_claim_opt(request, Some(&forged_ladder), deadline)); temporary
+# replay test asserts the POST-fix expectation through it.
+thread 'verify::authority::tests::c1_failfirst_replay_the_forged_ladder_mints_through_the_per_call_seam' panicked at crates/gauntlet-app/src/verify/authority.rs:1466:9:
+assertion `left == right` failed: the forged rung must never decide the claim
+  left: Pass
+ right: Inconclusive
+
+## C1 (B-M1) — seal probe: Ladder::new referenced from non-test lib code
+# in a normal build (no test cfg, no composition feature).
+error[E0599]: no associated function or constant named `new` found for struct `Ladder` in the current scope
+   --> crates/gauntlet-app/src/verify/mod.rs:64:21
+    |
+ 64 |     let _ = Ladder::new(Vec::new());
+    |                     ^^^ associated function or constant not found in `Ladder`
+
+## C2 (A-M1) — InstrumentFailed arm neutered back to fall-through
+thread 'verify::ladder::tests::a_supported_broken_rung_terminates_selection_and_never_reaches_the_model' panicked at crates/gauntlet-app/src/verify/ladder.rs:1337:22:
+a mechanically-broken deciding rung must terminate selection with the typed refusal naming it, got Ok(Decided { rung: LadderRung { kind: ModelJudgment, instrument: "gauntlet-verify-model" }, record: VerificationRecord { id: VerificationRef { raw: "vrf-ladder-0001" }, run_id: RunId { ulid: "01ARZ3NDEKTSV4RRFFQ69G5FAV" }, unit_id: UnitId { raw: "AK-9001" }, evidence: EvidenceRef { raw: "fixture-report-locator" }, outcome: Pass, instrument: InstrumentName { raw: "gauntlet-verify-model" } } })
+
+## C3 (B-M4) — chain half: content-digest comparison removed
+thread 'verify::authority::tests::store_bytes_that_are_not_the_recorded_content_are_refused' panicked at crates/gauntlet-app/src/verify/authority.rs:1433:22:
+swapped store bytes must be a typed refusal naming the digests, got Ok(Pass)
+
+## C3 (B-M4) — store half: write-once pre-check ignores a differing content digest
+thread 'state_store::tests::the_production_content_digest_is_durable_and_write_once' panicked at crates/gauntlet-adapter-state-sqlite/src/state_store.rs:2432:9:
+assertion failed: matches!(store.record_evidence_production(&run_id(), &same_facts_other_digest, bound()), Err(StateStoreError::WriteFailed { .. }))
+
+## C4 (B-M5) — pin consult neutered to unconditional success
+thread 'verify::precondition::tests::a_stooge_store_cannot_satisfy_the_settlement_precondition' panicked at crates/gauntlet-app/src/verify/precondition.rs:404:9:
+assertion failed: matches!(settlement_precondition(&claim, &RunId::new(RUN_ULID).expect("run"), bound()), Err(PreconditionFailure::EvidenceUnpinned { reference }) if reference.as_str() == "evd-pinned")
+
+## C5 (B-M2 first half) — durable-iteration validation removed
+thread 'verify::authority::tests::an_iteration_no_durable_checkpoint_supports_is_refused' panicked at crates/gauntlet-app/src/verify/authority.rs:1465:9:
+assertion failed: matches!(authority.for_run(&RunId::new(RUN_ULID).expect("fixture run"), IterationNo::new(1).expect("1-based"), ladder_with_test_report_rung(&[]), bound()), Err(VerificationAdmissionError::IterationUnsupported { durable, requested, .. }) if durable.get() == 4 && requested.get() == 1)
+
+## C6.1 (A-m5/B-m4) — read error mapped back to the binding class
+thread 'verify::authority::tests::an_evidence_store_read_failure_is_a_typed_refusal_not_a_class' panicked at crates/gauntlet-app/src/verify/authority.rs:1548:26:
+a store read failure must be a typed refusal, not an outcome; got Inconclusive with class Some(EvidenceUnresolvable)
+
+## C6.2 (A-m3/B-m1) — locator equality check removed; leaking fixture store
+thread 'verify::authority::tests::the_locator_check_bites_a_store_that_leaks_off_locator_productions' panicked at crates/gauntlet-app/src/verify/authority.rs:1579:9:
+assertion `left == right` failed: evidence at another locator is not the required evidence
+  left: Pass
+ right: Inconclusive
+
+## C6.3a (B-m5) — model result role check removed
+thread 'verify::ladder::tests::a_model_result_under_another_role_is_refused' panicked at crates/gauntlet-app/src/verify/ladder.rs:1470:22:
+a role result under another role must be refused, got Ok(VerificationRecord { id: VerificationRef { raw: "vrf-ladder-0001" }, run_id: RunId { ulid: "01ARZ3NDEKTSV4RRFFQ69G5FAV" }, unit_id: UnitId { raw: "AK-9001" }, evidence: EvidenceRef { raw: "fixture-report-locator" }, outcome: Pass, instrument: InstrumentName { raw: "gauntlet-verify-model" } })
+
+## C6.3b (B-m5) — model result iteration check removed
+thread 'verify::ladder::tests::a_model_result_at_another_iteration_is_refused' panicked at crates/gauntlet-app/src/verify/ladder.rs:1485:22:
+a role result at another iteration must be refused, got Ok(VerificationRecord { id: VerificationRef { raw: "vrf-ladder-0001" }, run_id: RunId { ulid: "01ARZ3NDEKTSV4RRFFQ69G5FAV" }, unit_id: UnitId { raw: "AK-9001" }, evidence: EvidenceRef { raw: "fixture-report-locator" }, outcome: Pass, instrument: InstrumentName { raw: "gauntlet-verify-model" } })
+
+## C6.3c (B-m5, dispatch half) — spec hardcodes IterationNo::new(1) again
+thread 'verify::ladder::tests::the_model_rung_dispatch_carries_the_governed_iteration' panicked at crates/gauntlet-app/src/verify/ladder.rs:1517:14:
+the judgment that echoes the governed iteration 2 verifies: InstrumentFailed { detail: "the model rung's result names iteration 1, but this verification is governed at iteration 2" }
+
+## C6.4 (B-m6) — verifier_envelope reverted to raw interpolation
+thread 'verify::ladder::tests::the_verifier_envelope_is_serialized_json_even_with_hostile_text' panicked at crates/gauntlet-app/src/verify/ladder.rs:1416:13:
+the envelope body must be valid JSON under hostile claim text: json: unexpected byte 0x71 at offset 24
+
+## C6.5 (B-m7) — is_pinned reverted to the following exists() check
+thread 'store::tests::a_symlinked_object_path_is_not_pinned_membership' panicked at crates/adapters/gauntlet-adapter-evidence-fs/src/store.rs:669:25:
+is_pinned followed the symlink and reported membership over an aliased object
+
+## C6.6 (B-m3) — kind-vs-verifier consistency check removed
+thread 'verify::ladder::tests::a_rung_whose_kind_and_verifier_disagree_is_refused_at_construction' panicked at crates/gauntlet-app/src/verify/ladder.rs:1377:9:
+assertion failed: matches!(mislabeled, Err(super::LadderError::KindVerifierMismatch { kind, .. }) if kind == RungKind::FileDigest)
+
+## C8a (critic C MINOR-2) — comment-only; no runtime behavior to neuter.
+# Evidence is the text diff itself (see correction-round1.md).
