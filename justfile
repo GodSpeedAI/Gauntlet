@@ -64,3 +64,32 @@ roles-verify:
 # independent, and this recipe has no bearing on gates, acceptance, or closure.
 prereg-check task:
     ./scripts/prereg-check.sh {{task}}
+
+# Standard Rust developer recipe interface. These focused commands supplement the
+# existing global gates; `verify` deliberately delegates to `ci` rather than
+# redefining its ordered checks, tests, lint, dependency, boundary, and ruler gates.
+check-package package:
+    cargo check -p {{package}} --all-targets
+
+test-package package:
+    cargo nextest run -p {{package}}
+
+test-doc:
+    cargo test --workspace --doc
+
+fmt-check:
+    cargo fmt --all -- --check
+
+timings:
+    cargo build --workspace --timings
+
+coverage:
+    cargo llvm-cov nextest --workspace --html
+
+mutation:
+    cargo mutants
+
+cache-stats:
+    sccache --show-stats
+
+verify: ci

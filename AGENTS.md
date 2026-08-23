@@ -27,12 +27,12 @@ Do not add speculative rules for failures that have never occurred.
 
 ### Failure log
 
-- Task 4 (2026-08-16): sub-agent final messages lost/truncated four times (two builders,
+* Task 4 (2026-08-16): sub-agent final messages lost/truncated four times (two builders,
   two critics); one builder session died without writing. Rule: every delegated slice
   writes a checkpoint/report file as it goes; critics write reports to files first;
   prefer `explore`-type agents for read-only work. Full guidance:
   `.agents/lessons/subagent-message-loss.md`.
-- Tasks 4–6 (2026-08-16/17): the orchestrating session itself was interrupted five
+* Tasks 4–6 (2026-08-16/17): the orchestrating session itself was interrupted five
   times across three sessions, leaving orphaned builder state (code landed, proof loop
   not run). Rule: reconcile `git status` and the task's report files against
   CURRENT_STATUS.md before treating any task as unstarted; on mismatch, run the
@@ -44,11 +44,11 @@ Do not add speculative rules for failures that have never occurred.
 
 Role boundaries are architectural boundaries, not etiquette.
 
-- **Orchestrator**: owns discovery, decomposition, interface contracts, acceptance criteria, verification architecture, evidence review, integration, settlement, and promotion decisions. **Does not write implementation code while delegation is available.** If no delegation mechanism exists, stop with an explicit blocked condition unless `GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION=1`.
-- **Builder**: implements bounded transformations. May not modify the frozen reference, comparison criteria, acceptance gates, immutable evidence, or prior settlement records. A builder's claim that work is finished carries no settlement authority.
-- **Critic**: read-only. Compares an observation bundle against the frozen reference under an explicit comparison contract, in a **fresh context**, and emits residuals. Never receives builder history, reasoning, attempt counts, or identity. Never fixes anything.
-- **Verifier**: decides whether a specific claim meets its declared evidence requirement. Prefers instruments over judgment.
-- **Process optimizer**: proposals only.
+* **Orchestrator**: owns discovery, decomposition, interface contracts, acceptance criteria, verification architecture, evidence review, integration, settlement, and promotion decisions. **Does not write implementation code while delegation is available.** If no delegation mechanism exists, stop with an explicit blocked condition unless `GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION=1`.
+* **Builder**: implements bounded transformations. May not modify the frozen reference, comparison criteria, acceptance gates, immutable evidence, or prior settlement records. A builder's claim that work is finished carries no settlement authority.
+* **Critic**: read-only. Compares an observation bundle against the frozen reference under an explicit comparison contract, in a **fresh context**, and emits residuals. Never receives builder history, reasoning, attempt counts, or identity. Never fixes anything.
+* **Verifier**: decides whether a specific claim meets its declared evidence requirement. Prefers instruments over judgment.
+* **Process optimizer**: proposals only.
 
 Delegation is admission-based. `rlm(...)`-style calls return a handle, **not an answer** — never `await` a result from them. Every delegated invocation declares a result-contract path; completion means a schema-valid result file exists there. A mailbox reply is a signal, not the contract.
 
@@ -58,27 +58,75 @@ Never delegate the question of whether the total system actually settled.
 
 Testing is part of the development loop, not a final cleanup step.
 
-Use the repository `justfile` as the normal human-and-agent CLI. For Rust, prefer:
-
-```bash
-cargo nextest run
-```
+Use the repository `justfile` as the canonical human-and-agent CLI whenever an applicable recipe exists. Existing project-specific recipes and gates are authoritative; do not bypass them with raw Cargo commands merely to normalize the workflow.
 
 For each bounded behavioral change:
 
 1. Identify what observable result distinguishes correct from incorrect behavior.
-2. Add or identify the relevant test first when practical.
+2. Add or identify the rele`vant test first when practical.
 3. Confirm the test fails for the expected reason before implementing.
 4. Implement the smallest coherent change.
-5. Run focused tests immediately; run broader relevant tests before declaring the slice complete.
+5. Run the narrowest sufficient check immediately.
+6. Run broader relevant verification before declaring the slice complete.
+7. Run the task's required closure gates before claiming settlement.
+
+### Rust fast-feedback workflow
+
+Prefer package-scoped work before workspace-wide work:
+
+```text
+rust-analyzer semantics
+→ targeted source inspection
+→ just check-package <crate>
+→ just test-package <crate>
+→ just check
+→ just test
+→ task-specific verification
+→ closure gates
+```
+
+Use these standard recipes when present:
+
+* `just check-package <crate>` — package-scoped type checking.
+* `just test-package <crate>` — package-scoped nextest execution.
+* `just check` — workspace-level type checking.
+* `just test` — workspace-level nextest execution.
+* `just test-doc` — doctests when applicable.
+* `just fmt-check` — formatting verification.
+* `just lint` — Clippy/static analysis under repository policy.
+* `just deny` — dependency/licence policy when configured.
+* `just verify` — canonical normal repository verification entrypoint.
+* `just timings` — Cargo compilation timing diagnostics.
+* `just cache-stats` — compiler-cache diagnostics.
+
+Raw `cargo` commands remain appropriate for diagnostics or when no equivalent repository recipe exists, but do not silently substitute them for a stronger project-specific recipe.
 
 Every port has a **shared contract suite**. Adding an adapter means passing the existing suite, not writing a bespoke one.
 
-Use `cargo-mutants` at settlement boundaries to check that tests discriminate correct from incorrect behavior; coverage alone proves nothing. Use `cargo-deny` for dependency policy.
+### Expensive evidence
+
+Mutation testing and coverage are evidence-generation operations, not ordinary inner-loop checks.
+
+* Use `just mutation` / `cargo mutants` at settlement boundaries or when required by the task to verify that tests discriminate correct from incorrect behavior.
+* Use `just coverage` / `cargo llvm-cov` when coverage evidence is required.
+* Coverage alone proves nothing.
+* Do not add mutation or coverage to every edit/check cycle unless the repository's explicit verification contract requires it.
+
+Use `cargo-deny` through the repository's canonical recipe for dependency policy.
 
 Never: disable a failing test to reach green; weaken an assertion because the implementation fails it; update a golden artifact merely because output differs; report success with a red relevant test; change the reference or an acceptance criterion to make implementation pass; treat `INCONCLUSIVE` as `PASS`.
 
 If a test or a reference is wrong, demonstrate why before changing it. Changing the ruler and changing the implementation are separate operations.
+
+### Rust tooling policy
+
+The workstation may provide shared developer tooling such as `sccache`, `mold`, `cargo-nextest`, `cargo-mutants`, `cargo-deny`, `cargo-llvm-cov`, `just`, `clippy`, and `rustfmt`.
+
+Global tool availability is capability, not project policy.
+
+Do not modify `rust-toolchain.toml`, `deny.toml`, nextest configuration, mutation exclusions, coverage thresholds, tracing/evidence configuration, CI, or closure gates merely to conform to a generic workstation baseline. Such changes require project-specific justification.
+
+Do not add project-local installation or configuration for globally supplied developer tooling unless reproducibility, CI, or a required project-specific version demands it.
 
 ## Ask before you assume
 
@@ -98,11 +146,11 @@ Use the type system to prevent invalid states rather than relying on comments or
 
 Rust:
 
-- Explicit domain types, enums, and newtypes over stringly-typed state. Every fixed-value-set field in the spec is a type.
-- `Outcome` is three-state; do not implement a boolean conversion for it.
-- Typed errors carrying the failure locus. No bare strings, no swallowed errors.
-- `unsafe` narrowly scoped with a documented invariant; avoid `unwrap`/`expect` in production paths unless impossibility is an established invariant.
-- `clippy` runs as part of normal verification.
+* Explicit domain types, enums, and newtypes over stringly-typed state. Every fixed-value-set field in the spec is a type.
+* `Outcome` is three-state; do not implement a boolean conversion for it.
+* Typed errors carrying the failure locus. No bare strings, no swallowed errors.
+* `unsafe` narrowly scoped with a documented invariant; avoid `unwrap`/`expect` in production paths unless impossibility is an established invariant.
+* `clippy` runs as part of normal verification.
 
 TypeScript, if introduced: strict mode, no `any`, use `unknown` then validate and narrow, no casts to silence the compiler.
 
@@ -132,7 +180,7 @@ Do not substitute: goal for reference; review for verification; output for settl
 
 Name ports for semantic capabilities, never vendors: `AgentRunner`, not `ClaudeRunner`. Vendor names belong in adapters and configuration.
 
-Rust conventions: `UpperCamelCase` types/traits/enums, `snake_case` functions/modules/variables, `SCREAMING_SNAKE_CASE` constants.
+Rust conventions: `UpperCamelCase` types/traits/enums`, `snake_case`functions/modules/variables,`SCREAMING_SNAKE_CASE` constants.
 
 ## Project structure
 
@@ -171,9 +219,21 @@ A successful tool call is not settlement. Do not work around a failed E2E step a
 Compilation is expensive; do not use it as a substitute for reasoning. Use the cheapest operation that settles the current question:
 
 ```text
-rust-analyzer semantics → targeted source inspection → cargo check
-→ focused cargo-nextest → broader suite → cargo build only for a real linked artifact
+rust-analyzer semantics
+→ targeted source inspection
+→ just check-package <crate>
+→ just test-package <crate>
+→ just check
+→ just test
+→ broader/task-specific suite
+→ cargo build only when a real linked artifact is required
 ```
+
+Do not repeatedly run workspace-wide verification after small localized edits when a package-scoped check provides sufficient feedback.
+
+The faster inner loop does **not** replace task gates, confirmation rounds, evidence requirements, or settlement criteria. Optimization changes when verification cost is paid, not what must ultimately be proven.
+
+Use `just timings` when compilation itself requires investigation. Use `just cache-stats` to inspect `sccache` effectiveness when available.
 
 ## UI testing
 
@@ -221,18 +281,18 @@ Prime-Agent, Claude, OpenAI, MCP, SQLite, rust-analyzer, browsers, sandbox backe
 
 Non-negotiable structural rules:
 
-- The builder never modifies the standard its work is evaluated against. Freeze, digest, re-verify.
-- Formal comparison uses a fresh context, with the envelope built by the runtime from an allowlist.
-- **Authority gates whether something runs; containment gates how contained it is if it does.** Both precede builder process start. Neither substitutes for the other.
-- `irreversible` units are never automatic dispatch candidates, at the scheduler, regardless of any prompt.
-- An agent may never lower a Unit's blast radius or authority.
-- Prefer deterministic verification wherever deterministic evidence exists.
-- When a residual is found, select the next affordable, governable, recoverable, settleable correction — not the largest possible change.
-- Self-improvement follows candidate revision: `current → candidate → isolated evaluation → held-out/regression comparison → promote or rollback`.
+* The builder never modifies the standard its work is evaluated against. Freeze, digest, re-verify.
+* Formal comparison uses a fresh context, with the envelope built by the runtime from an allowlist.
+* **Authority gates whether something runs; containment gates how contained it is if it does.** Both precede builder process start. Neither substitutes for the other.
+* `irreversible` units are never automatic dispatch candidates, at the scheduler, regardless of any prompt.
+* An agent may never lower a Unit's blast radius or authority.
+* Prefer deterministic verification wherever deterministic evidence exists.
+* When a residual is found, select the next affordable, governable, recoverable, settleable correction — not the largest possible change.
+* Self-improvement follows candidate revision: `current → candidate → isolated evaluation → held-out/regression comparison → promote or rollback`.
 
 The active system never moves its own ruler and then claims improvement.
 
-Commit often and meaningful milestones amd keep .agents/CURRENT_STATUS.md current.
+Commit often at meaningful milestones and keep `.agents/CURRENT_STATUS.md` current.
 
 Do not upgrade bounded search into a universal claim. “No issue found” means none was found within the declared scope, threat model, search procedure, and budget; claim absence or minimality only when the relevant space is explicitly bounded and exhausted.
 
@@ -242,7 +302,10 @@ Existence is not composition. When a task claims an integrated capability, prove
 
 This workspace runs under a memory-constrained WSL environment.
 
-- Respect the repository's Cargo and nextest configuration; do not override configured build or test parallelism unless explicitly required.
-- Prefer targeted package/test execution before workspace-wide verification.
-- Do not increase Cargo build jobs or nextest test concurrency to speed up verification.
-- If a test/build is OOM-killed, diagnose the failing process rather than retrying with greater parallelism.
+* Respect the repository's Cargo and nextest configuration; do not override configured build or test parallelism unless explicitly required.
+* Prefer `just check-package <crate>` and `just test-package <crate>` before workspace-wide verification when the changed scope permits it.
+* Use `just check` / `just test` only when workspace-level verification is warranted.
+* Do not increase Cargo build jobs or nextest test concurrency to speed up verification.
+* Do not disable `sccache`, replace the configured linker, or perform `cargo clean` merely to troubleshoot a normal compile unless evidence indicates the cache/build state is itself the problem.
+* If a test/build is OOM-killed, diagnose the failing process rather than retrying with greater parallelism.
+* Before task settlement, run every broader verification, evidence, and closure gate required by the task even if focused inner-loop checks were green.

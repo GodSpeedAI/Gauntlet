@@ -17,3 +17,5 @@ Cargo.lock.bak
 # spec §8.3/§8.6). Their default paths are fixed in Task 5's defaults table; entries
 # below are added there rather than guessed here so this file never lags the actual
 # defaults.
+
+.tmp/
