@@ -52,7 +52,7 @@
       "sub": [
         {
           "evidence": [
-            "manifest exists; top level is a mapping (1 keys)"
+            "manifest exists; top level is a mapping (1 keys); deep-parses under the frozen reference shape (id gauntlet-core-bootstrap, version 1)"
           ],
           "name": "manifest",
           "status": "pass"
@@ -215,8 +215,8 @@
       ]
     }
   ],
-  "config_fingerprint": "sha256:775113a5c86be4062513d549a4a57226e5bc4b2c9f0ef7ad858e71eb1149ce6d",
+  "config_fingerprint": "sha256:7acfc25f7eda51ae4d708c5e352461a7bfd99ed43e22a3da1a1de1d749c918e7",
   "config_origin": "/home/sprime01/projects/gauntlet/GAUNTLET.md",
   "exit_code": 0,
-  "generated_at": 1787088972
+  "generated_at": 1787698940
 }

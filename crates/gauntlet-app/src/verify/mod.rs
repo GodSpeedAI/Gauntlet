@@ -87,6 +87,25 @@ pub fn content_digest(bytes: &[u8]) -> gauntlet_domain::Digest {
     gauntlet_domain::Digest::new("sha256", &hex).expect("SHA-256 hex is a valid digest")
 }
 
+/// ONE hashing rule per digest kind (plan Task 12, digest-rule discipline):
+/// the ports minting authority's production content digest and this layer's
+/// [`content_digest`] are the same rule — SHA-256 over the raw bytes. The
+/// producer side now records digests derived inside
+/// `gauntlet_ports::producer_authority`; this pin keeps the two spellings
+/// from drifting apart into two rules.
+#[cfg(test)]
+mod content_digest_pins {
+    #[test]
+    fn the_ports_production_content_digest_is_this_layers_rule() {
+        for bytes in [&b""[..], b"a", b"the fixture production bytes"] {
+            assert_eq!(
+                gauntlet_ports::producer_authority::evidence_content_digest(bytes),
+                super::content_digest(bytes)
+            );
+        }
+    }
+}
+
 /// Test substrate for the chain's unit tests (the `compare::testing`
 /// pattern): the earned chain is opened over REAL governed reads — a state
 /// fake that actually holds the run and its production bindings, and an

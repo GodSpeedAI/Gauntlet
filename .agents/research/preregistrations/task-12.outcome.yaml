@@ -1,0 +1,140 @@
+# Task 12 outcome record — research instrumentation, non-normative.
+# Observations recorded after the prereg froze (2026-08-23..25). The
+# prereg was never edited (just prereg-check 12 PASS brackets the
+# sessions; hash 402e444a…8486).
+
+schema_version: 1
+task: 12
+
+preregistration:
+  path: ".agents/research/preregistrations/task-12.prereg.yaml"
+  sha256: "402e444ae08a86ca7e4ba2dd4dd7f1b0161608fe201a78dd5e7b096ba8ec8486"
+
+observed:
+  task_result: "implemented; closed after correction round 1 (C1-C9 + N1-N6, sliced F1/F2/F3 after operator stops and session deaths) plus an F4 confirmation-driven slice, and two fresh blind confirmation rounds (round 1 NOT CONFIRM -> F4; round 2 CONFIRM, six MINOR residuals)"
+
+  material_events:
+    - "2026-08-23..25: FOUR builder slices (B1 ports/meter, B2 scheduler/selector/diagnosis, B3 controller composition, B4 proofs+teeth) each interrupted at least once by usage limits or operator stops (12th-15th interruption-class instances); every resume followed the documented reconciliation procedure."
+    - "2026-08-25: the C5 incident — a cancelled builder landed all five C5 sub-parts PAST its last checkpoint write; the handoff said 'outstanding' about correct landed work. NEW interruption subclass (record present, well-formed, confidently wrong). Mitigations: .agents/lessons/unrecorded-landed-work.md, scripts/reconcile-checkpoints.sh, declare-first checkpointing, tree-outranks-record rule."
+    - "2026-08-25: blind critics A+B converged (rounds dead in the shipped meter, degenerate composed diagnosis, non-convergence unreachable composed, vacuous selection record) — R1/P1/P3 fired (+P2 partial) exactly as preregistered."
+    - "2026-08-25: C7 mis-specification finding — the critic's attack (operator edits a queued unit's status) is unconstructible on every shipped surface (parser frozen, typed-refusing, Unit::new hardwires Open); adjudicated vacuous-by-surface and pinned. SECOND instance in one round of a critic finding encoding an unexpressible attack (after L4 cohorts); disposition rule recorded: a finding names a hazard, reachability is checked against the tree."
+    - "2026-08-25: F4 predecessor landed the confirmation-driven meter wiring unrecorded and died at the limit (the C5 incident's exact shape, caught by the new reconcile script); orchestrator verified-and-recorded per the new lesson, re-deriving all three fail-first legs."
+    - "2026-08-25: process finding — a Task-10 deferral ('full BudgetMeter wiring remains Task 12') lived only in the closed task's own reports, never in the standing ledger, so no adjudication ever saw its trigger fire; surfaced only by the blind confirmation layer. Deferral-ledger entries must live in CURRENT_STATUS, not task-local files."
+    - "Reference-candidates entries landed for AK-037/038/039/051/052 (locator-materialization class); N1's governed stop did NOT fire (the real reference.yaml deep-parses)."
+
+  predictions:
+    - prediction_ref: P1
+      result: "supported"
+      evidence:
+        - "critic-A M1 / critic-B A2 (independent discovery): the shipped meter booked zero rounds per charge — the rounds gate was dead under the real adapter; B3's in-crate green was FakeMeter semantics"
+        - "critic-B A2: the exhaustion path terminated via bare ControlError, not a terminal — consult and dispatch diverged"
+        - "resolved by C2 (ONE rounds authority on the run Budget, booked at the iteration boundary), C9.1 (Reservation construction only through BudgetMeter::mint — the prereg's disconfirming observation now holds: no path constructs an unreserved invocation), and F4 (the consult extended to the critic-fan-out leg the first confirmation round found unmetered)"
+      notes: >
+        The predicted first-implementation shape occurred and was caught by
+        the blind critics, not by the in-crate suites — the FakeMeter
+        fixture-locality defect (F1 item 1) is itself a P1-family instance:
+        the fixture supplied both sides of the scope decision.
+    - prediction_ref: P2
+      result: "partially_supported"
+      evidence:
+        - "in-flight leg implemented pre-correction: reread_answer_key cancels edited in-flight attempts (p4 composed test; tooth T3) and the boundary abort carries both digests (tooth T2)"
+        - "queued-unit status leg: SPEC_ONLY_NO_SHIPPED_SURFACE — the parser's field set is closed and typed-refusing, Unit::new hardwires Open (C7.1, pinned by test); the C7.2/3 prune/seed design was MIS-SPECIFIED (would adapt to a mutated ruler instead of aborting) and was ruled against"
+        - "the real residual closed as F2 item 0: dispatch-eligible membership bounded by the FROZEN reference (a file-only unit is never dispatched; the boundary abort handles the mutation)"
+      notes: >
+        The prediction's framing (in-memory snapshot authoritative) was
+        half-right: the snapshot was authoritative for MEMBERSHIP (fixed),
+        and the file-side authority for queued STATUS was unexpressible.
+    - prediction_ref: P3
+      result: "supported"
+      evidence:
+        - "critic-A M2/B-A8 and the C4 fail-firsts: composed diagnosis never ran (hardcoded loci, whole-allowance phases); recurrence counted only under fixture-stable ids"
+        - "fixed by C4: ResidualKey carries the §13.5 (dimension, expected, observed-locator) merge key; a composed p4 test drives THREE real-comparator recurrences into bounded five-phase diagnosis ending INCONCLUSIVE + quarantine + escalation"
+    - prediction_ref: P4
+      result: "supported"
+      evidence:
+        - "the gate and Done-when passed on verification-outcome and settlement-precondition assertions; commit_settlement remains Task 13's P7 surface (L2/L3 deferrals)"
+      notes: "Exactly the preregistered expected-later-scope shape."
+
+  representation_change:
+    occurred: false
+    before: ""
+    after: ""
+    trigger_evidence: []
+    notes: >
+      R1 FIRED (multiple seams shared "the composition certifies its own
+      admission": rounds shadow, synthetic selection candidates, hardcoded
+      diagnosis shapes, unattributed residuals, and later the unmetered
+      critic fan-out) and was resolved by applying the PREREGISTERED
+      intervention class (A3/A5 composite: meter-minted Reservation as the
+      only budget path; authority-gated owner writes; scheduler eligibility
+      reading durable state; frozen-reference membership; the meter on the
+      critic leg) — no new class was required. R2 did not fire (deadline
+      composition used the injected Clock and operation bounds; the observe
+      adapters gained run_bounded; no wall-clock waits in proofs). R3 did
+      not fire (selection records carry per-alternative typed rejection
+      reasons; the m5 loser-notes residual stayed a deferred minor).
+
+  newly_visible_intervention_classes: []
+  interventions_taken:
+    - "A1: gauntlet-adapter-meter-memory (MeteredBudget) over the domain Budget, with the meter's own admission counter for AK-052's rows-vs-reservations truth"
+    - "A2: control modules (scheduler, select, diagnosis, disposition, controller) with the C1 terminal truth (blocked vs budget_exhausted) and C3 composed diagnosis (per-phase allowance div, input-driven evidence)"
+    - "A3 (R1-triggered): Reservation mint-gated behind the port; producer_authority owner-write anchor; durable statuses projection for graph membership; frozen-membership dispatch bound (F2 item 0); typed refusals for multi-member slices, escaping locators, tampered offsets"
+    - "A4: proofs p4_corrective_loop (4 tests) + p6_budget_control (2) over REAL adapters; SEVEN bite-proven teeth (T1-T7), all re-run personally at closure with byte-identical reverts"
+    - "A5: injected Clock + workspace root; run_bounded deadline enforcement in all four observe adapters; top-of-iteration checkpoint (C8.2) with store-returned event-log offsets (C8.1) and attempts restored on resume (C8.3)"
+    - "F4 (confirmation round 1): the run meter REQUIRED in ReviewDeps and consulted at every model admission — §10.4/§17.4's critic-leg bound, with truncation-with-typed-cause records and slot release at fan-in"
+
+  transfer_results:
+    replay:
+      result: "supported"
+      evidence:
+        - "the Task-10/11 caller-supplies-both-sides class reappeared at four new seams (rounds shadow, fixture-local meter semantics, synthetic selection candidates, unmetered critic fan-out) and each instance was rejected by the generalized mint/durable-state mechanisms, then pinned by permanent tests and teeth"
+    parametric_variation:
+      result: "partially_tested"
+      evidence:
+        - "reserve refusal under different dimensions (rounds ceiling p6 main; token ceiling p6 second test; scope ceiling C6.1 truncation; critic-slice refusal F4) — different values, same structure — as loop findings, not a systematic sweep"
+    structural_transfer:
+      result: "not_tested"
+      evidence: []
+      notes: "NOT claimed, per the prereg's explicit nonclaims."
+
+  alternative_explanations:
+    - "Confirmation verdicts rest on declared static + probe scopes (round 2's scope statement); executed probes cover the composed p4/p6 configuration on this host only, not live model runners, concurrency, or scenarios not constructed."
+    - "Green gates could reflect fixture blind spots; mitigated by seven teeth (byte-identical restores) and the round-2 critic's executed gates, but bounded by the enumerated check set."
+    - "The critic-fan-out meter leg is proven with admitting/refusing STUB sources; no real model comparator is composed yet (Task 15/20), so the wiring's production behaviour under real payments is unobserved (payment unification deferral)."
+
+  interpretation:
+    smallest_claim_earned: >
+      Within the composed production path (real controller over real sqlite
+      state, fs evidence, command observers, diff comparator, MeteredBudget,
+      mock runner; 75 control + 36 compare unit tests, 914 workspace, seven
+      bite-proven teeth, two blind confirmation rounds): the run budget is
+      the single rounds authority and terminates a non-converging run
+      budget_exhausted at the forward ceiling with the reserve unspent on
+      every dimension (AK-051); the meter is consulted before every dispatch
+      the shipped controller makes — builder leg and critic fan-out — with
+      reservations minted only by the meter, released at terminal, and every
+      refusal recorded as typed truncation evidence, never a silent drop
+      (AK-052); both loop paths durably record §15.1 selections with
+      non-empty rejected alternatives whose numbers equal the decision's
+      numbers (AK-037); an injected defect is closed by a routed corrective
+      iteration through the real comparator (AK-038); repeated identical
+      residuals under the §13.5 semantic key route into bounded per-phase
+      diagnosis ending INCONCLUSIVE with quarantined evidence (AK-039);
+      every iteration boundary writes a resumable checkpoint with real
+      offsets and forward-headroom facts. NOT claimed: critic payment
+      booking into run budget_spent (Task 15/20); retry-ledger persistence
+      beyond attempts (L2, Task 13); settlement commit ordering (Task 13);
+      authority-gate tier posture (Task 14); §21.3 non-integrity degradation
+      policy; the mint type-level seal; the model-rung meter seam (Task 20).
+    unresolved:
+      - "L1 authority-escalation-before-transform + capability-vs-tier dispatch — Task 14."
+      - "L2 full §18.3 resume (log replay, workspace sweep, preflight) + retry-ledger field-set persistence — Task 13 P7 (ports revision)."
+      - "L3 settlement-commit crash-window replay — Task 13 §16.3."
+      - "L4 cohort non-separability — spec-awaiting; Task 20 E2E reference fixture."
+      - "Payment unification (critic costs into run budget_spent) — Task 15/20 composition root."
+      - "BudgetMeter mint type-level seal — next BudgetMeter ports revision."
+      - "§21.3 non-integrity mid-run failures (answer-key read failure; runner poll transport error) — Task 13 recovery composition or the next §21.3 policy touch."
+      - "Model-rung dispatch has no meter consult (verify/ladder.rs) — latent, unreachable today; Task 20 composition."
+      - "Evidence production binds the first facet's bytes to every attempted unit — coarse but honest; Task 13/20."
+      - "p6's module doc mischaracterizes p4's diagnosis mechanism (comment-only; free cleanup next p6 edit)."
+      - "T3 arch-suite guard-evasion minors — standing deferral at the next arch-suite touch."

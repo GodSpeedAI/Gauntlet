@@ -1,21 +1,38 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-23 — **Tasks 2–11 CLOSED (records below). Task 11
-(verifier + evidence binding, P12) closed this session: round-1 builder +
-finisher, two blind critics + a denylist supplement (0 critical; prereg R1
-FIRED as predicted — the caller-supplies-both-sides seam at the ladder and
-the precondition store), correction round 1 (C1–C6+C8a), fresh confirmation
-round 1 NOT CONFIRM (new MAJOR: one-directional content binding — doctored
-locator bytes rode the real adapter to PASS), correction round 2 (F1
-three-way digest equality locator==production==store; F2 composition-seal
-arch pin; F3 symmetric gating), fresh blind confirmation round 2 **CONFIRM**
-with executed evidence (15-scenario probe; re-executed attack refused).
-Gates on the committed tree: workspace 783/783, boundaries 197/197, the
-plan's focused gate p12 12/12 + verify:: 44/44, check/lint/deny 0, ruler
-PASS, prereg-check PASS. Three builder sessions died to usage limits
-(ninth/ tenth/ eleventh interruption instances — all recovered per the
-lesson). No frozen Wayfinder material modified; three locator
-reference-candidates entries recorded (AK-005/035/036, existing class).**
+**Last updated:** 2026-08-25 — **Tasks 2–11 CLOSED (records below). Task 12
+(controller: selection, budget, diagnosis — P4, P6) is IN FLIGHT, stopped
+mid-correction-round by operator direction; full resume state in
+`.agents/reports/task12/` (read IN-FLIGHT.md first, then
+correction-checkpoints.md).** Task-12 progress: prereg frozen before
+implementation (`just prereg-check 12` PASS); four builder slices landed
+(B1 domain `Spent`/`Budget::restore` + ports owner-write capability gating
+(`producer_authority.rs` minting authorities, following AdmittedComparison)
++ `gauntlet-adapter-meter-memory` (renamed from budget-meter — denylist);
+B2 `control::{scheduler,select,diagnosis}` + domain `correction.rs` +
+durable `record_correction_selection` (migration 0008); B3 controller
+composition + §11.5 disposition table + observer `run_bounded` deadlines in
+all four command adapters; B4 proofs p4/p6 + teeth T1–T6); two blind
+critics returned **1 CRITICAL + 8 MAJOR (A) and 8 ESCAPED areas (B)** —
+prereg **R1 FIRED** as predicted (composition certifies its own admission:
+rounds dead in shipped meter, degenerate composed diagnosis, non-convergence
+unreachable composed, vacuous selection record); adjudication C1–C9 fix-now
+/ L1–L4 later-scope; correction round 1 **completed C1, C2, C4, C3**
+(fail-first evidenced) before the builder was cancelled — tree verified
+green at the stop point (control:: 58/58, p4+p6 6/6, ruler PASS, boundaries
+197/197 as of B4). **Everything is UNCOMMITTED in the working tree**
+(one-task-one-commit lands only at closure). Remaining to close Task 12:
+correction C5–C9, full gates + teeth re-record, correction-round1.md
+contract, fresh blind confirmation, orchestrator gate/teeth re-verification,
+reference-candidates entries (AK-037/038/039/051/052), task-12.outcome.yaml,
+closure record here, single commit with explicit pathspecs. Three more
+interruption instances this task (12th–14th; two mid-builder usage-limit
+deaths recovered by documented finisher procedure, one
+admission-refusal; one operator-directed stop). Operator events: `dbe529a`
+committed the previously-uncommitted AGENTS.md/justfile/.gitignore work;
+an uncommitted AGENTS.md edit renaming CURRENT_STATUS.md → current_status.yml
+references (operator's, mtime 2026-08-24 19:28) is left untouched — the .md
+remains the status file until the operator lands that migration.
 
 **CLOSED (2026-08-21, Task 10 — fresh blind confirmation round 7: CONFIRM):** An architecture diagnosis
 (`architecture-diagnosis.md`) established that the round-3 residuals were **one
@@ -815,7 +832,8 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 9 — Observers + observation bundle | **done** — closed after usage-limit interruption recovery + finisher + orchestrator gates + 4 teeth + 2 blind critics (0 critical) + C1–C10 correction + confirmation CONFIRM + N1 doc micro-fix, closure record above | this session |
 | 10 — Comparator and envelope builder | **done** — closed after architecture diagnosis + correction rounds 7–10 + fresh blind confirmation round 7 CONFIRM (compiled external attack crate), closure record above; committed after interruption recovery (gates re-verified personally) | `1dab05c` |
 | 11 — Verifier and evidence binding | **done** — closed after 2 blind critics + denylist supplement + correction rounds 1–2 + fresh confirmation round 2 CONFIRM (executed evidence); prereg R1 fired and resolved by the preregistered A5 class | `a507d08`, `793d115` |
-| 11–27 | not started | — |
+| 12 — Controller: selection, budget, diagnosis (P4, P6) | **IN FLIGHT** — B1–B4 + critics + adjudication + correction C1/C2/C4/C3 landed (UNCOMMITTED); resume per the Task-12 section below | — |
+| 13–27 | not started | — |
 
 ### Task 2 — final shape
 
@@ -927,13 +945,29 @@ recorded for `docs/CONFORMANCE.md` at Task 27. Not a Task 14 redesign trigger.
 ## Answer-key unit status (spec §26 categories)
 
 - **implemented and proven: none.** No Unit has settled (verification machinery is Task 11).
-- **implemented but provisional (22):** the derived, Unit-by-Unit set (each
+- **implemented but provisional (27):** the derived, Unit-by-Unit set (each
   counted once) is **AK-001**, **AK-002**, **AK-004**, **AK-005**,
   **AK-015**, **AK-016**,
   **AK-017**, **AK-018**, **AK-019**, **AK-021**, **AK-022**, **AK-023**,
   **AK-024**, **AK-025**, **AK-028**, **AK-029**, **AK-030**, **AK-035**,
-  **AK-036**, **AK-049**,
-  **AK-054**, **AK-059**. **Task 11 added AK-005** (three-state Outcome;
+  **AK-036**, **AK-037**, **AK-038**, **AK-039**, **AK-049**,
+  **AK-051**, **AK-052**, **AK-054**, **AK-059**. **Task 12 added
+  AK-037** (durable §15.1 selections on both loop paths, non-empty
+  rejected alternatives with true numbers — the domain refuses vacuous
+  records; teeth T5), **AK-038** (injected defect closed by a ROUTED
+  corrective iteration through the real diff comparator over the real
+  workspace), **AK-039** (three real-comparator recurrences under the
+  §13.5 semantic key route into bounded per-phase diagnosis ending
+  INCONCLUSIVE + quarantine), **AK-051** (budget_exhausted at the exact
+  forward rounds ceiling, reserve unspent on every dimension, durable
+  checkpoint arithmetic; teeth T1), **AK-052** (meter binding on every
+  dispatch the shipped controller makes — builder leg and, after F4,
+  the critic fan-out; reservations meter-minted only, released at
+  terminal, refusals recorded as typed truncations; teeth T4 + T7) —
+  same provisional class: composed proofs with teeth over real adapters
+  through two blind confirmation rounds, no VerificationRecord yet; all
+  five locators have dated reference-candidates entries
+  (materialization class). **Task 11 added AK-005** (three-state Outcome;
   INCONCLUSIVE never satisfies settlement — the composed p12 proof asserts
   NotPass{Inconclusive} through the real chain for absent/stale/wrong
   evidence at every layer; the no-boolean-conversion half rests on the
@@ -1061,16 +1095,89 @@ supported; R1 fired and was resolved by the preregistered A5 intervention
 class — earned authority + unforgeable values — at three seams; **no
 representation change**; R2/R3 did not fire).
 
-**Task 12 — Controller: selection, budget, diagnosis (proves P4, P6) — is
-the next task.** Two recorded Task-11 residuals hand it work directly: the
-**ungated `record_evidence_production` write** (+ declared-iteration
-validation at write time) must be capability-gated to the evidence-owner
-role when the controller wires the production writer (same for Task-10's
-ungated `bind_observation_bundle`), and the **workspace-root pairing**
-(chain root == adapters' root) must be kept one fact in production wiring.
-Evidence: `.agents/reports/task11/` (13 files: builder briefs/checkpoints/
-rounds, critics A/B/C, adjudication, correction rounds 1–2, fail-first
-logs, teeth, confirmations 1–2).
+**Task 12 — Controller: selection, budget, diagnosis (proves P4, P6) —
+CLOSED** (single closure commit; fresh blind confirmation round 2
+**CONFIRM** with executed gates). The loop: four builder slices (B1
+ports `BudgetMeter`/`MeteredBudget` + owner-write gating + producer
+authority; B2 scheduler/selector/diagnosis in-crate; B3 controller
+composition + observer deadline enforcement; B4 proofs p4/p6 + teeth) —
+every slice interrupted at least once by usage limits or operator stops
+(12th–15th interruption-class instances; each resume via the documented
+reconciliation, never redoing recorded work) → two blind critics
+(convergent: rounds dead in the shipped meter, degenerate composed
+diagnosis, non-convergence unreachable composed, vacuous selection
+record; prereg **R1/P1/P3 (+P2 partial) FIRED** as preregistered) →
+correction round 1 C1–C9 + N1–N6, re-sliced mid-round into finishers
+F1 (C5 verify-and-record, C6, C7, N6), F2 (C8.1–8.3, C9.2–9.4, N3–N5,
++ ITEM 0), F3 (N1, N2, full gates) after an operator stop at C4 →
+**fresh blind confirmation round 1 NOT CONFIRM** (one MAJOR: AK-052's
+critic-fan-out leg unmetered — the review path's own doc had deferred
+the wiring to "Task 12", a deferral that never reached this ledger; two
+MINORs: overstated `mint` doc, §21.3 bare-Err residue) → correction F4
+(the run meter REQUIRED in `ReviewDeps`, consulted at every model
+admission with truncation-with-typed-cause records and slot release at
+fan-in; mint doc-truthed) — F4's builder died at the limit having
+landed the work unrecorded (the C5-incident shape, caught by
+`reconcile-checkpoints.sh`); the orchestrator verified-and-recorded per
+`unrecorded-landed-work.md`, re-deriving all three fail-first legs →
+**fresh blind confirmation round 2 CONFIRM** (six MINOR findings, all
+dispositioned below; executed gates green).
+
+Two research-relevant events of the round, recorded in
+`task-12.outcome.yaml`: the **C7 mis-specification** (a critic finding
+encoded an attack no shipped surface can express — the parser's field
+set is frozen and typed-refusing; second instance after L4 cohorts;
+reachability must be checked against the tree, not assumed from prose),
+and the **C5 incident** (work landed past the last checkpoint write;
+the record was present, well-formed, and confidently wrong — new
+interruption subclass, mitigated by the declare-first rule +
+`scripts/reconcile-checkpoints.sh` + the tree-outranks-record rule in
+`.agents/lessons/unrecorded-landed-work.md`).
+
+**Final gates (orchestrator-run, on the final tree):** the plan's
+focused gate `--test p4_corrective_loop --test p6_budget_control`
+**6/6** + `-p gauntlet-app control::` **75/75** (compare:: 36/36, p2
+13/13, ports 88/88, sqlite 41/41, meter-memory 7/7); workspace
+**914/914**; boundaries **197/197** (no growth); check/lint/deny 0;
+ruler PASS; `just doctor` exit OK (check 2 now deep-parse-backed);
+`just prereg-check 12` PASS. Prereg outcome recorded
+(`task-12.outcome.yaml`: P1/P3/P4 supported, P2 partial; R1 fired,
+resolved by the preregistered A3/A5 class; **no representation
+change**; R2/R3 did not fire). **Seven teeth** bite-proven on the final
+tree (T1/T4 re-expressed post-C2; T7 new on the F4 mechanism), every
+revert cmp-verified byte-identical (`task12/teeth.md`).
+Reference-candidates entries landed for AK-037/038/039/051/052
+(materialization class); N1's governed stop did NOT fire (the real
+reference.yaml deep-parses).
+
+**Residuals carried forward:** L1 authority-gate + tier posture
+(Task 14); L2 full §18.3 resume + retry-ledger persistence beyond
+attempts (Task 13 P7); L3 settlement crash-window replay (Task 13);
+L4 cohort non-separability (spec-awaiting; Task 20 fixture); payment
+unification — critic costs into run `budget_spent` (Task 15/20);
+`BudgetMeter::mint` type-level seal (next ports revision); §21.3
+non-integrity mid-run failures — answer-key read failure + runner poll
+transport error (Task 13 recovery composition / next §21.3 touch);
+model-rung dispatch unmetered (latent, unreachable today; Task 20);
+evidence production binds first-facet bytes per attempted unit (Task
+13/20); p6's module-doc mischaracterization of p4's mechanism
+(comment-only); T3 arch-suite minors (standing); the deferral-ledger
+process rule (deferrals live in CURRENT_STATUS, not task-local files).
+
+**Next action, concretely:** Task 13 — Settlement, atomic commit,
+single-writer discipline (proves P7, P11) per `.agents/plans/
+gauntlet-impl.md`: `SettlementService` (§16.1 five preconditions),
+idempotent `(run_id, unit_id, verification_ref)`-keyed commit replay,
+answer-key single-writer confinement, proofs `p7_recovery` +
+`p11_critic_is_not_verifier`; its inherited surfaces are L2/L3 above
+plus the settlement-side sqlite coercions (`settled_at`,
+non-checkpoint `unwrap_or(0)` legs) named in
+`task12/residual-readjudication.md`.
+
+Evidence: `.agents/reports/task12/` (recon, residual + critic
+adjudications, briefs B1–B4 + finishers F1–F4, checkpoints, critic
+results, confirmation rounds 1–2 + adjudication, teeth ×7, IN-FLIGHT),
+`task-12.outcome.yaml`, and the reference-candidates entries.
 
 **Task-9 dependency carried into Task 10 (D3):** Task 9 closed P3's
 observation/acquisition portion: it records instrument reality, explicit gaps, and

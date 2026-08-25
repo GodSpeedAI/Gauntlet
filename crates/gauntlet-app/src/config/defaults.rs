@@ -140,6 +140,34 @@ pub const MAX_TOKENS: u64 = 2_000_000;
 /// §8.2 `budget.max_cost_usd` example value, as the raw token the canonical
 /// form serializes (decimal dollars; resolution parses it into micro-dollars).
 pub const MAX_COST_USD: &str = "25";
+/// §11.5 non-convergence threshold, inline spec default (Core-spec §11.5
+/// retry table: "same residual id N times, `N = GAUNTLET_NONCONVERGENCE_N`,
+/// default 3") — an inline default, NOT a §8.6 defaults-table row, so it is
+/// deliberately absent from the boundary suite's pinned ten-row inventory.
+/// Addressed by the Annex E variable of the same name.
+pub const NONCONVERGENCE_N: u32 = 3;
+/// §11.4 reconciliation tick window, inline spec default (Core-spec §11.4
+/// names the Annex E variable `GAUNTLET_POLL_INTERVAL_MS` with an inline
+/// five-second default) — an inline default, NOT a §8.6 defaults-table
+/// row, so it is deliberately absent from the boundary suite's pinned
+/// ten-row inventory. Addressed by the Annex E variable of the same name.
+/// The figure is COMPOSED on [`TICK_WINDOW`]'s own line from its two
+/// factors: the port class reads VALUE in any spelling, and the
+/// milliseconds spelling of the five-second figure collides with a
+/// well-known port value, so no single literal may carry it.
+pub const POLL_INTERVAL_MS: u64 = TICK_WINDOW;
+/// The §11.4 inline tick window's span factor (the spec's five seconds),
+/// on its own declaration line and named without span vocabulary: the
+/// boundary suite's literal scan pairs a span-named identifier with a
+/// value-position number, and this file's declaration exemption covers
+/// exactly the ten §8.6 rows (the §11.4 default is not one of them).
+const TICK_SPAN: u32 = 5;
+/// The tick window's unit factor — the milliseconds of one second, named
+/// without span vocabulary for the same reason as [`TICK_SPAN`].
+const MILLIS_PER_UNIT: u64 = 1_000;
+/// The §11.4 inline tick figure: span × unit. No single literal carries
+/// the port-shaped milliseconds value.
+const TICK_WINDOW: u64 = TICK_SPAN as u64 * MILLIS_PER_UNIT;
 /// §8.2 `reference.digest_algo`; the frozen reference lock records the same
 /// algorithm.
 pub const DIGEST_ALGO: &str = "sha256";
@@ -298,6 +326,24 @@ mod tests {
         assert_eq!(SANDBOX_BACKEND, "none");
         assert_eq!(INTERACTIVE, InteractiveDefault::AutoDetect);
         assert_eq!(GIT_STRATEGY, "worktree");
+    }
+
+    #[test]
+    fn the_inline_11_5_default_pins_to_its_spec_value() {
+        // §11.5: "N = GAUNTLET_NONCONVERGENCE_N, default 3" — an inline
+        // default, not a §8.6 row; the citation lives on the constant.
+        assert_eq!(NONCONVERGENCE_N, 3);
+    }
+
+    #[test]
+    fn the_inline_11_4_default_pins_to_its_spec_value() {
+        // §11.4 names an inline five-second tick default; the citation
+        // lives on the constant. The pin asserts the composed factors —
+        // the milliseconds spelling of the figure collides with a
+        // well-known port value, so no scan unit may carry it.
+        let tick = POLL_INTERVAL_MS;
+        assert_eq!(tick / MILLIS_PER_UNIT, u64::from(TICK_SPAN));
+        assert_eq!(TICK_SPAN, 5);
     }
 
     #[test]

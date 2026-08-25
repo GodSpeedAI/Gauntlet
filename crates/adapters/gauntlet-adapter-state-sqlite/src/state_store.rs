@@ -14,13 +14,15 @@
 //! ([`SqliteStateStore::record_run`], the composition root's job) is what
 //! makes the record authoritative.
 //!
-//! One recorded port gap: the domain's `Spent` has no constructor that
-//! carries values (spend accrues only through `Budget::charge`), so no code
-//! outside the domain can build a non-zero `Spent`. Every `Checkpoint` value
-//! that can exist today therefore carries zero spend, and `resume` returns
-//! exactly that; the six counters stay durable in the database and the
-//! export, and a future non-zero value — which only a domain change can
-//! produce — is refused loudly rather than silently zeroed.
+//! One recorded port gap: no production caller of `Budget::charge` exists
+//! yet (the controller lands with Task 12's later slices), so every
+//! `Checkpoint` value that can exist today carries zero spend, and `resume`
+//! returns exactly that. The six counters stay durable in the database and
+//! the export; the domain's reconstruction path (`Spent::from_counters` +
+//! `Budget::restore`, Task 12) makes a non-zero resume representable, but
+//! admitting it belongs to the resume composition that can read the run's
+//! durable ceilings — until then a non-zero value is refused loudly rather
+//! than silently zeroed.
 //!
 //! Port methods carry a `Deadline` (spec §6 preamble); like the event log,
 //! this adapter runs single bounded statements with no retry loop and no
@@ -30,9 +32,11 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceLocator,
+    Authority, BlastRadius, Budget, CorrectionDescriptor, CorrectionSelection, CorrectionShape,
+    DecisionStep, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceLocator,
     EvidenceRef, InstrumentName, IterationNo, Limits, MicroUsd, ReferenceId, ReferenceVersion,
-    RoleInvocation, Run, RunDefinition, RunId, SettlementRecord, Spent, UnitId, VerificationRef,
+    RejectedAlternative, RejectionClass, RejectionReason, RoleInvocation, Run, RunDefinition,
+    RunId, SelectionDimension, SettlementRecord, Spent, UnitId, VerificationRef,
 };
 use gauntlet_ports::comparison_record::ComparisonRecordDoc;
 use gauntlet_ports::deadline::Deadline;
@@ -89,6 +93,10 @@ pub enum RecordKind {
     CandidateRevision,
     PromotionDecision,
     Escalation,
+    /// The controller's §15.1 selection record (plan Task 12, AK-037).
+    /// Beyond the §18.1 minimum list by exactly this one kind; the 0008
+    /// migration widened the records CHECK for it (a recorded act).
+    CorrectionSelection,
 }
 
 impl RecordKind {
@@ -108,6 +116,7 @@ impl RecordKind {
             Self::CandidateRevision => "candidate_revision",
             Self::PromotionDecision => "promotion_decision",
             Self::Escalation => "escalation",
+            Self::CorrectionSelection => "correction_selection",
         }
     }
 }
@@ -200,6 +209,427 @@ fn encode_comparison(document: &ComparisonRecordDoc, evidence: &EvidenceRef) -> 
         ),
     ])
     .to_json_text()
+}
+
+// ---------------------------------------------------------------------------
+// Correction selections (spec §15.1 step 4, AK-037; plan Task 12)
+// ---------------------------------------------------------------------------
+
+/// The budget-facts object shared by the descriptor and the meter-refusal
+/// reason.
+fn encode_budget_facts(facts: &gauntlet_domain::BudgetFacts) -> JsonValue {
+    JsonValue::Object(vec![
+        (
+            "requested_rounds".to_owned(),
+            uint(u64::from(facts.requested_rounds)),
+        ),
+        (
+            "requested_wall_seconds".to_owned(),
+            uint(facts.requested_wall_seconds),
+        ),
+        ("requested_tokens".to_owned(), uint(facts.requested_tokens)),
+        (
+            "requested_cost_usd".to_owned(),
+            uint(facts.requested_cost_usd.get()),
+        ),
+        (
+            "remaining_rounds".to_owned(),
+            uint(u64::from(facts.remaining_rounds)),
+        ),
+        (
+            "remaining_wall_seconds".to_owned(),
+            uint(facts.remaining_wall_seconds),
+        ),
+        ("remaining_tokens".to_owned(), uint(facts.remaining_tokens)),
+        (
+            "remaining_cost_usd".to_owned(),
+            uint(facts.remaining_cost_usd.get()),
+        ),
+    ])
+}
+
+fn encode_descriptor(descriptor: &CorrectionDescriptor) -> JsonValue {
+    JsonValue::Object(vec![
+        (
+            "summary".to_owned(),
+            JsonValue::Str(descriptor.summary().to_owned()),
+        ),
+        (
+            "shape".to_owned(),
+            JsonValue::Str(descriptor.shape().to_string()),
+        ),
+        (
+            "unit_refs".to_owned(),
+            JsonValue::Array(
+                descriptor
+                    .unit_refs()
+                    .iter()
+                    .map(|unit| JsonValue::Str(unit.as_str().to_owned()))
+                    .collect(),
+            ),
+        ),
+        (
+            "estimated".to_owned(),
+            encode_budget_facts(&descriptor.estimated()),
+        ),
+    ])
+}
+
+fn encode_rejection_reason(reason: &RejectionReason) -> JsonValue {
+    match reason {
+        RejectionReason::AuthorityAboveCeiling {
+            required,
+            exercisable,
+        } => JsonValue::Object(vec![
+            (
+                "kind".to_owned(),
+                JsonValue::Str("authority_above_ceiling".to_owned()),
+            ),
+            ("required".to_owned(), JsonValue::Str(required.to_string())),
+            (
+                "exercisable".to_owned(),
+                JsonValue::Str(exercisable.to_string()),
+            ),
+        ]),
+        RejectionReason::TierNotDispatchable { tier } => JsonValue::Object(vec![
+            (
+                "kind".to_owned(),
+                JsonValue::Str("tier_not_dispatchable".to_owned()),
+            ),
+            ("tier".to_owned(), JsonValue::Str(tier.to_string())),
+        ]),
+        RejectionReason::MeterRefusedReserve { facts } => JsonValue::Object(vec![
+            (
+                "kind".to_owned(),
+                JsonValue::Str("meter_refused_reserve".to_owned()),
+            ),
+            ("facts".to_owned(), encode_budget_facts(facts)),
+        ]),
+        RejectionReason::IrreversibleTier { tier } => JsonValue::Object(vec![
+            (
+                "kind".to_owned(),
+                JsonValue::Str("irreversible_tier".to_owned()),
+            ),
+            ("tier".to_owned(), JsonValue::Str(tier.to_string())),
+        ]),
+        RejectionReason::LowerPriority { decided_by } => JsonValue::Object(vec![
+            (
+                "kind".to_owned(),
+                JsonValue::Str("lower_priority".to_owned()),
+            ),
+            (
+                "decided_by".to_owned(),
+                JsonValue::Str(decided_by.name().to_owned()),
+            ),
+        ]),
+        RejectionReason::SpeculativeWhenBoundedAvailable => JsonValue::Object(vec![(
+            "kind".to_owned(),
+            JsonValue::Str("speculative_when_bounded_available".to_owned()),
+        )]),
+    }
+}
+
+/// Canonical durable representation of one controller correction selection.
+/// The payload decodes back through the domain constructors only — a row
+/// this adapter did not write, or a damaged one, is `Corrupt`, never a
+/// partially-populated selection.
+fn encode_correction_selection(selection: &CorrectionSelection) -> String {
+    let rejected = selection
+        .rejected()
+        .iter()
+        .map(|alternative| {
+            JsonValue::Object(vec![
+                (
+                    "correction".to_owned(),
+                    encode_descriptor(alternative.correction()),
+                ),
+                (
+                    "class".to_owned(),
+                    JsonValue::Str(alternative.class().to_string()),
+                ),
+                (
+                    "reason".to_owned(),
+                    encode_rejection_reason(alternative.reason()),
+                ),
+            ])
+        })
+        .collect();
+    let trace = selection
+        .trace()
+        .iter()
+        .map(|step| {
+            JsonValue::Object(vec![
+                (
+                    "dimension".to_owned(),
+                    JsonValue::Str(step.dimension().name().to_owned()),
+                ),
+                ("note".to_owned(), JsonValue::Str(step.note().to_owned())),
+            ])
+        })
+        .collect();
+    JsonValue::Object(vec![
+        (
+            "run_id".to_owned(),
+            JsonValue::Str(selection.run_id().to_string()),
+        ),
+        (
+            "iteration_no".to_owned(),
+            uint(u64::from(selection.iteration_no().get())),
+        ),
+        ("chosen".to_owned(), encode_descriptor(selection.chosen())),
+        ("rejected".to_owned(), JsonValue::Array(rejected)),
+        ("trace".to_owned(), JsonValue::Array(trace)),
+    ])
+    .to_json_text()
+}
+
+/// Decode-side helpers: every field routes through a domain constructor or
+/// typed parse; anything else is corrupt.
+fn corrupt_selection(detail: String) -> StateStoreError {
+    StateStoreError::Corrupt {
+        detail: format!("a stored correction selection does not decode: {detail}"),
+    }
+}
+
+fn decode_uint(value: Option<&JsonValue>, field: &str) -> Result<u64, StateStoreError> {
+    match value {
+        Some(JsonValue::Number(JsonNumber::Uint(n))) => Ok(*n),
+        _ => Err(corrupt_selection(format!("{field} is not a whole number"))),
+    }
+}
+
+fn decode_str<'a>(value: Option<&'a JsonValue>, field: &str) -> Result<&'a str, StateStoreError> {
+    match value {
+        Some(JsonValue::Str(text)) => Ok(text),
+        _ => Err(corrupt_selection(format!("{field} is not a string"))),
+    }
+}
+
+fn decode_budget_facts(
+    value: Option<&JsonValue>,
+) -> Result<gauntlet_domain::BudgetFacts, StateStoreError> {
+    let Some(JsonValue::Object(_)) = value else {
+        return Err(corrupt_selection(
+            "estimated budget facts are not an object".to_owned(),
+        ));
+    };
+    let narrow_u32 = |field: &str| -> Result<u32, StateStoreError> {
+        u32::try_from(decode_uint(value.unwrap().get(field), field)?)
+            .map_err(|_| corrupt_selection(format!("{field} exceeds the u32 space")))
+    };
+    Ok(gauntlet_domain::BudgetFacts {
+        requested_rounds: narrow_u32("requested_rounds")?,
+        requested_wall_seconds: decode_uint(
+            value.unwrap().get("requested_wall_seconds"),
+            "requested_wall_seconds",
+        )?,
+        requested_tokens: decode_uint(value.unwrap().get("requested_tokens"), "requested_tokens")?,
+        requested_cost_usd: MicroUsd::new(decode_uint(
+            value.unwrap().get("requested_cost_usd"),
+            "requested_cost_usd",
+        )?),
+        remaining_rounds: narrow_u32("remaining_rounds")?,
+        remaining_wall_seconds: decode_uint(
+            value.unwrap().get("remaining_wall_seconds"),
+            "remaining_wall_seconds",
+        )?,
+        remaining_tokens: decode_uint(value.unwrap().get("remaining_tokens"), "remaining_tokens")?,
+        remaining_cost_usd: MicroUsd::new(decode_uint(
+            value.unwrap().get("remaining_cost_usd"),
+            "remaining_cost_usd",
+        )?),
+    })
+}
+
+fn decode_descriptor(value: Option<&JsonValue>) -> Result<CorrectionDescriptor, StateStoreError> {
+    let Some(JsonValue::Object(_)) = value else {
+        return Err(corrupt_selection(
+            "a correction descriptor is not an object".to_owned(),
+        ));
+    };
+    let object = value.unwrap();
+    let summary = decode_str(object.get("summary"), "descriptor.summary")?.to_owned();
+    let shape = match decode_str(object.get("shape"), "descriptor.shape")? {
+        "bounded" => CorrectionShape::Bounded,
+        "speculative" => CorrectionShape::Speculative,
+        other => {
+            return Err(corrupt_selection(format!(
+                "unknown correction shape token {other:?}"
+            )));
+        }
+    };
+    let unit_refs = match object.get("unit_refs") {
+        Some(JsonValue::Array(items)) => items
+            .iter()
+            .map(|item| match item {
+                JsonValue::Str(raw) => {
+                    UnitId::new(raw).map_err(|err| corrupt_selection(err.to_string()))
+                }
+                _ => Err(corrupt_selection(
+                    "descriptor.unit_refs holds a non-string".to_owned(),
+                )),
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        _ => {
+            return Err(corrupt_selection(
+                "descriptor.unit_refs is not an array".to_owned(),
+            ));
+        }
+    };
+    CorrectionDescriptor::new(
+        summary,
+        shape,
+        unit_refs,
+        decode_budget_facts(object.get("estimated"))?,
+    )
+    .map_err(|err| corrupt_selection(err.to_string()))
+}
+
+fn decode_rejection_reason(value: Option<&JsonValue>) -> Result<RejectionReason, StateStoreError> {
+    let Some(JsonValue::Object(_)) = value else {
+        return Err(corrupt_selection(
+            "a rejection reason is not an object".to_owned(),
+        ));
+    };
+    let object = value.unwrap();
+    let tier = |field: &str| -> Result<BlastRadius, StateStoreError> {
+        BlastRadius::parse(decode_str(object.get(field), field)?)
+            .map_err(|err| corrupt_selection(err.to_string()))
+    };
+    match decode_str(object.get("kind"), "reason.kind")? {
+        "authority_above_ceiling" => Ok(RejectionReason::AuthorityAboveCeiling {
+            required: Authority::parse(decode_str(object.get("required"), "reason.required")?)
+                .map_err(|err| corrupt_selection(err.to_string()))?,
+            exercisable: Authority::parse(decode_str(
+                object.get("exercisable"),
+                "reason.exercisable",
+            )?)
+            .map_err(|err| corrupt_selection(err.to_string()))?,
+        }),
+        "tier_not_dispatchable" => Ok(RejectionReason::TierNotDispatchable {
+            tier: tier("tier")?,
+        }),
+        "meter_refused_reserve" => Ok(RejectionReason::MeterRefusedReserve {
+            facts: decode_budget_facts(object.get("facts"))?,
+        }),
+        "irreversible_tier" => Ok(RejectionReason::IrreversibleTier {
+            tier: tier("tier")?,
+        }),
+        "lower_priority" => {
+            let decided_by = match decode_str(object.get("decided_by"), "reason.decided_by")? {
+                "impact" => SelectionDimension::Impact,
+                "dependency order" => SelectionDimension::DependencyOrder,
+                "confidence" => SelectionDimension::Confidence,
+                "payment" => SelectionDimension::Payment,
+                "reversibility" => SelectionDimension::Reversibility,
+                "risk" => SelectionDimension::Risk,
+                "governance status" => SelectionDimension::GovernanceStatus,
+                "settlement accessibility" => SelectionDimension::SettlementAccessibility,
+                "recovery cost" => SelectionDimension::RecoveryCost,
+                "expected information gain" => SelectionDimension::ExpectedInformationGain,
+                other => {
+                    return Err(corrupt_selection(format!(
+                        "unknown 15.1 dimension {other:?}"
+                    )));
+                }
+            };
+            Ok(RejectionReason::LowerPriority { decided_by })
+        }
+        "speculative_when_bounded_available" => {
+            Ok(RejectionReason::SpeculativeWhenBoundedAvailable)
+        }
+        other => Err(corrupt_selection(format!(
+            "unknown rejection reason kind {other:?}"
+        ))),
+    }
+}
+
+fn decode_correction_selection(payload: &str) -> Result<CorrectionSelection, StateStoreError> {
+    let parsed = json::parse(payload)
+        .map_err(|err| corrupt_selection(format!("the payload is not valid JSON: {err}")))?;
+    if !matches!(parsed, JsonValue::Object(_)) {
+        return Err(corrupt_selection("the payload is not an object".to_owned()));
+    }
+    let get = |field: &str| parsed.get(field);
+    let run_id = RunId::new(decode_str(get("run_id"), "run_id")?)
+        .map_err(|err| corrupt_selection(err.to_string()))?;
+    let iteration = decode_uint(get("iteration_no"), "iteration_no")?;
+    let iteration_no =
+        IterationNo::new(u32::try_from(iteration).map_err(|_| {
+            corrupt_selection(format!("iteration {iteration} exceeds the u32 space"))
+        })?)
+        .map_err(|err| corrupt_selection(err.to_string()))?;
+    let chosen = decode_descriptor(get("chosen"))?;
+    let rejected = match get("rejected") {
+        Some(JsonValue::Array(items)) => items
+            .iter()
+            .map(|item| {
+                let JsonValue::Object(_) = item else {
+                    return Err(corrupt_selection(
+                        "a rejected alternative is not an object".to_owned(),
+                    ));
+                };
+                let class = match decode_str(item.get("class"), "alternative.class")? {
+                    "authority" => RejectionClass::Authority,
+                    "tier" => RejectionClass::Tier,
+                    "budget" => RejectionClass::Budget,
+                    "irreversibility" => RejectionClass::Irreversibility,
+                    "not selected" => RejectionClass::NotSelected,
+                    other => {
+                        return Err(corrupt_selection(format!(
+                            "unknown rejection class {other:?}"
+                        )));
+                    }
+                };
+                Ok(RejectedAlternative::new(
+                    decode_descriptor(item.get("correction"))?,
+                    class,
+                    decode_rejection_reason(item.get("reason"))?,
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        _ => {
+            return Err(corrupt_selection(
+                "rejected alternatives are not an array".to_owned(),
+            ));
+        }
+    };
+    let trace = match get("trace") {
+        Some(JsonValue::Array(items)) => items
+            .iter()
+            .map(|item| {
+                let JsonValue::Object(_) = item else {
+                    return Err(corrupt_selection(
+                        "a trace step is not an object".to_owned(),
+                    ));
+                };
+                let dimension = match decode_str(item.get("dimension"), "trace.dimension")? {
+                    "impact" => SelectionDimension::Impact,
+                    "dependency order" => SelectionDimension::DependencyOrder,
+                    "confidence" => SelectionDimension::Confidence,
+                    "payment" => SelectionDimension::Payment,
+                    "reversibility" => SelectionDimension::Reversibility,
+                    "risk" => SelectionDimension::Risk,
+                    "governance status" => SelectionDimension::GovernanceStatus,
+                    "settlement accessibility" => SelectionDimension::SettlementAccessibility,
+                    "recovery cost" => SelectionDimension::RecoveryCost,
+                    "expected information gain" => SelectionDimension::ExpectedInformationGain,
+                    other => {
+                        return Err(corrupt_selection(format!(
+                            "unknown 15.1 dimension {other:?}"
+                        )));
+                    }
+                };
+                Ok(DecisionStep::new(
+                    dimension,
+                    decode_str(item.get("note"), "trace.note")?.to_owned(),
+                ))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        _ => return Err(corrupt_selection("the trace is not an array".to_owned())),
+    };
+    CorrectionSelection::new(run_id, iteration_no, chosen, rejected, trace)
+        .map_err(|err| corrupt_selection(err.to_string()))
 }
 
 /// The §16.3 settlement commit: the event's fields verbatim
@@ -678,13 +1108,14 @@ fn projection_budget() -> Result<Budget, StateStoreError> {
     })
 }
 
-/// A zero `Spent` — the only value the domain can hand out without a charge,
-/// and therefore the only value any `Checkpoint` can carry today (see the
-/// module docs).
+/// A zero `Spent` — the only value any `Checkpoint` can carry today (see
+/// the module docs). Since the domain's value-carrying constructor landed
+/// (Task 12), this is the plain zero value rather than a budget-construction
+/// dance; non-zero water-marks are still refused below until resume composes
+/// `Budget::restore` against the run's durable ceilings (B3's controller
+/// composition — the equivalence is recorded in the Task-12 report).
 fn zero_spent() -> Spent {
-    *projection_budget()
-        .expect("the minimal legal budget is established above")
-        .spent()
+    Spent::from_counters(0, 0, 0, MicroUsd::new(0), 0, MicroUsd::new(0))
 }
 
 /// §16.3 step 2: the idempotent keyed insert, returning how many rows it
@@ -1103,6 +1534,15 @@ fn identity_differences(
 }
 
 impl StateStore for SqliteStateStore {
+    /// The trait half of the adapter's identity recording: the inherent
+    /// method (idempotent by run id, disagreeing re-record refused with
+    /// every differing field named) is the implementation; the port method
+    /// exists so the Task-12 controller composition can make a run durable
+    /// through `Arc<dyn StateStore>` like every other durable write.
+    fn record_run(&self, run: &Run, deadline: Deadline) -> Result<(), StateStoreError> {
+        Self::record_run(self, run, deadline)
+    }
+
     fn append_event(
         &self,
         event: RunEvent,
@@ -1239,7 +1679,14 @@ impl StateStore for SqliteStateStore {
             encode::decode_in_flight(&in_flight).map_err(|err| StateStoreError::Corrupt {
                 detail: format!("run {run_id} checkpoint {seq} holds bad in-flight work: {err}"),
             })?;
-        let budget_spent = spent_or_refuse(spent, run_id, seq)?;
+        let budget_spent = {
+            // The ceilings that admit a non-zero water-mark live on the
+            // DURABLE RUN's own budget row (loaded through the same
+            // connection; a checkpoint-projected run has none and keeps
+            // the loud zero-only refusal).
+            let ceiling = Self::load_recorded_run(&conn, run_id)?.map(|run| run.budget().clone());
+            spent_or_restore(spent, ceiling.as_ref(), run_id, seq)?
+        };
         Ok(Some(Checkpoint {
             run_id: run_id.clone(),
             reference_digest: Digest::parse(&digest_text).map_err(|err| {
@@ -1256,7 +1703,19 @@ impl StateStore for SqliteStateStore {
             unit_states,
             budget_spent,
             in_flight,
-            event_log_offset: EventLogOffset::new(u64::try_from(offset).unwrap_or(0)),
+            // N3 (Task-12 correction, checkpoint leg only): the offset is
+            // the §18.3 replay anchor — a stored value no u64 water-mark
+            // can represent is CORRUPT, never a silent 0 (the constant-
+            // zero defect C8.1 removed from the write path must not
+            // return through the read path).
+            event_log_offset: EventLogOffset::new(u64::try_from(offset).map_err(|_| {
+                StateStoreError::Corrupt {
+                    detail: format!(
+                        "run {run_id} checkpoint {seq} holds a non-representable event-log \
+                         offset ({offset})"
+                    ),
+                }
+            })?),
         }))
     }
 
@@ -1277,14 +1736,69 @@ impl StateStore for SqliteStateStore {
         .map(|_| ())
     }
 
+    /// The controller's §15.1 selection record (AK-037): one append-only
+    /// `records` row per recorded selection, like the role-invocation
+    /// precedent. The `at` column carries zero — the port method takes no
+    /// clock and the aggregate carries no timestamp; record order (the
+    /// append's `seq`) is the ordering fact, exactly as for comparisons.
+    fn record_correction_selection(
+        &self,
+        selection: &CorrectionSelection,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.append_record(
+            selection.run_id(),
+            RecordKind::CorrectionSelection,
+            &encode_correction_selection(selection),
+            EpochSeconds::new(0),
+            deadline,
+        )
+        .map(|_| ())
+    }
+
+    fn correction_selections(
+        &self,
+        run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<CorrectionSelection>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let mut statement = conn
+            .prepare(
+                "SELECT payload FROM records WHERE run_id = ?1 AND record_type = 'correction_selection' \
+                 ORDER BY seq ASC",
+            )
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!("preparing the correction-selection query failed: {err}"),
+            })?;
+        let rows = statement
+            .query_map([run_id.to_string()], |row| row.get::<_, String>(0))
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!("reading correction selections of run {run_id} failed: {err}"),
+            })?;
+        let mut selections = Vec::new();
+        for row in rows {
+            let payload = row.map_err(|err| StateStoreError::ReadFailed {
+                detail: format!("stepping correction selections of run {run_id} failed: {err}"),
+            })?;
+            // Every row decodes through the domain constructors or names
+            // itself Corrupt — never a degraded selection.
+            selections.push(decode_correction_selection(&payload)?);
+        }
+        Ok(selections)
+    }
+
     fn bind_observation_bundle(
         &self,
         run_id: &RunId,
         iteration_no: IterationNo,
-        binding: &ObservationBinding,
+        binding: &gauntlet_ports::producer_authority::AdmittedObservationBinding,
         _deadline: Deadline,
     ) -> Result<(), StateStoreError> {
-        let evidence = binding.evidence();
+        let payload = binding.binding();
+        let evidence = payload.evidence();
         let conn = self
             .conn
             .lock()
@@ -1311,7 +1825,7 @@ impl StateStore for SqliteStateStore {
         // different one is a substitution attempt and is refused, never
         // absorbed.
         if let Some((found_ref, found_digest)) = existing {
-            if found_ref == evidence.as_str() && found_digest == binding.digest().to_string() {
+            if found_ref == evidence.as_str() && found_digest == payload.digest().to_string() {
                 return Ok(());
             }
             return Err(StateStoreError::WriteFailed {
@@ -1319,7 +1833,7 @@ impl StateStore for SqliteStateStore {
                     "run {run_id} iteration {} is already bound to observation evidence \
                      {found_ref} ({found_digest}); rebinding it to {evidence} ({}) is refused",
                     iteration_no.get(),
-                    binding.digest()
+                    payload.digest()
                 ),
             });
         }
@@ -1331,7 +1845,7 @@ impl StateStore for SqliteStateStore {
                 run_id.to_string(),
                 u64::from(iteration_no.get()),
                 evidence.as_str(),
-                binding.digest().to_string(),
+                payload.digest().to_string(),
             ),
         )
         .map_err(|err| StateStoreError::WriteFailed {
@@ -1392,9 +1906,14 @@ impl StateStore for SqliteStateStore {
     fn record_evidence_production(
         &self,
         run_id: &RunId,
-        production: &gauntlet_ports::state_store::EvidenceProduction,
+        production: &gauntlet_ports::producer_authority::AdmittedEvidenceProduction,
         deadline: Deadline,
     ) -> Result<gauntlet_ports::state_store::EvidenceProductionBinding, StateStoreError> {
+        // The payload is authority-minted (plan Task 12): its content digest
+        // was derived from the store's own bytes by the ports authority, so
+        // this method receives producer FACTS only — never a caller-chosen
+        // digest.
+        let production = production.production();
         // Write-once per (run, ref), checked BEFORE any event is appended:
         // re-recording identical facts is idempotent and appends nothing;
         // a conflicting record is refused and appends nothing either.
@@ -1874,12 +2393,19 @@ impl StateStore for SqliteStateStore {
     }
 }
 
-/// Resume fidelity for `budget_spent`: the six counters are durable, but the
-/// domain's `Spent` cannot carry values back (no constructor outside
-/// `Budget::charge`). Zero round-trips exactly; anything else is refused
-/// loudly — never silently zeroed.
-fn spent_or_refuse(
+/// Resume fidelity for `budget_spent`: the six counters are durable, and
+/// admission is the DURABLE RUN BUDGET's own restore gate — the domain
+/// `Budget::restore` path landed for exactly this composition (plan Task
+/// 12, B1's deferred item: the controller composition is what first
+/// produces charged checkpoints). A water-mark no legal charge sequence
+/// can leave refuses with the domain's typed `RestoreUnreachable` cause,
+/// never a silent zeroing; the zero water-mark round-trips exactly. A run
+/// with NO recorded budget (the checkpoint-projected shape) still has no
+/// ceilings in scope to admit against, so it keeps the loud zero-only
+/// refusal.
+fn spent_or_restore(
     numbers: encode::SpentNumbers,
+    ceiling: Option<&Budget>,
     run_id: &RunId,
     seq: i64,
 ) -> Result<Spent, StateStoreError> {
@@ -1890,18 +2416,39 @@ fn spent_or_refuse(
         && numbers.diagnostic_tokens == 0
         && numbers.diagnostic_cost_usd == 0;
     if zero {
-        Ok(zero_spent())
-    } else {
-        Err(StateStoreError::Corrupt {
+        return Ok(zero_spent());
+    }
+    let Some(budget) = ceiling else {
+        return Err(StateStoreError::Corrupt {
             detail: format!(
                 "run {run_id} checkpoint {seq} stores non-zero spend (tokens {}, micro-usd {}) \
-                 that the domain Spent type cannot carry back — the port type needs a \
-                 reconstruction path before non-zero spend can resume; refusing rather than \
+                 with no recorded run budget to admit it against — refusing rather than \
                  silently zeroing",
                 numbers.tokens, numbers.cost_usd
             ),
-        })
-    }
+        });
+    };
+    let spent = Spent::from_counters(
+        u32::try_from(numbers.rounds).unwrap_or(u32::MAX),
+        numbers.wall_seconds,
+        numbers.tokens,
+        MicroUsd::new(numbers.cost_usd),
+        numbers.diagnostic_tokens,
+        MicroUsd::new(numbers.diagnostic_cost_usd),
+    );
+    let _ = Budget::restore(
+        *budget.limits(),
+        budget.recovery_reserve_pct(),
+        *budget.diagnostic_allowance(),
+        spent,
+    )
+    .map_err(|cause| StateStoreError::Corrupt {
+        detail: format!(
+            "run {run_id} checkpoint {seq} stores a spend water-mark the durable run budget \
+             does not admit: {cause}",
+        ),
+    })?;
+    Ok(spent)
 }
 
 #[cfg(test)]
@@ -1973,6 +2520,43 @@ mod tests {
                 Vec::new()
             },
             event_log_offset: EventLogOffset::new(offset),
+        }
+    }
+
+    /// N3 (Task-12 correction, checkpoint leg ONLY): §18.3 step 1 makes the
+    /// checkpoint's `event_log_offset` the anchor replay starts from, so a
+    /// tampered or negative stored offset silently reading `0` re-introduces
+    /// the constant-zero defect through the READ path — exactly what C8.1
+    /// removed from the write path. A non-representable stored offset is
+    /// CORRUPT, never a silent zero.
+    #[test]
+    fn a_tampered_checkpoint_offset_is_corrupt_never_a_silent_zero() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store.record_run(&run(), bound()).expect("run records");
+        store
+            .checkpoint(checkpoint(1, 3, UnitStatus::Open, false), bound())
+            .expect("checkpoint writes");
+        // Tamper the durable row directly: a negative integer cannot
+        // round-trip a u64 event-log water-mark.
+        store
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned")
+            .execute("UPDATE checkpoints SET event_log_offset = -1", [])
+            .expect("the tamper applies");
+        match store.resume(&run_id(), bound()) {
+            Err(StateStoreError::Corrupt { detail }) => {
+                assert!(
+                    detail.contains("event-log offset") && detail.contains("-1"),
+                    "the refusal names the locus and the stored value: {detail}"
+                );
+            }
+            Ok(Some(checkpoint)) => panic!(
+                "a non-representable stored offset is corrupt, never a silent zero (got {})",
+                checkpoint.event_log_offset.get()
+            ),
+            Ok(None) => panic!("the checkpoint exists; the read cannot pretend otherwise"),
+            Err(other) => panic!("the refusal is Corrupt, got {other}"),
         }
     }
 
@@ -2155,6 +2739,73 @@ mod tests {
         );
     }
 
+    /// Task 12 B4 (the B1-deferred composition, completed): a checkpoint
+    /// written by the CONTROLLER carries charged spend (§18.2's
+    /// `budget_spent`), and the owner-write authorities read their durable
+    /// anchor through `resume` — so a non-zero water-mark must round-trip
+    /// when (and only when) the DURABLE RUN BUDGET's own `Budget::restore`
+    /// gate admits it. Reachable: exactly back. Unreachable (inside the
+    /// recovery reserve): the domain's typed cause, never a silent zero.
+    #[test]
+    fn resume_admits_charged_checkpoints_through_the_durable_run_budget() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store
+            .record_run(&run(), bound())
+            .expect("the run is durable");
+        // Reachable: one round and a moderate token spend against the
+        // fixture budget (rounds 8 at a fifth in reserve; tokens 1000).
+        let reachable = Checkpoint {
+            budget_spent: Spent::from_counters(1, 60, 100, MicroUsd::new(10), 0, MicroUsd::new(0)),
+            ..checkpoint(3, 9, UnitStatus::InProgress, false)
+        };
+        store
+            .checkpoint(reachable.clone(), bound())
+            .expect("writes");
+        assert_eq!(
+            store.resume(&run_id(), bound()).expect("resume works"),
+            Some(reachable),
+            "a reachable charged water-mark round-trips exactly"
+        );
+        // Unreachable: tokens past the forward ceiling (four fifths of
+        // 1000) — the restore gate's own refusal, naming the dimension.
+        let unreachable = Checkpoint {
+            budget_spent: Spent::from_counters(1, 0, 900, MicroUsd::new(0), 0, MicroUsd::new(0)),
+            ..checkpoint(4, 12, UnitStatus::Open, false)
+        };
+        store.checkpoint(unreachable, bound()).expect("writes");
+        match store.resume(&run_id(), bound()) {
+            Err(StateStoreError::Corrupt { detail }) => {
+                assert!(
+                    detail.contains("does not admit"),
+                    "the refusal names the restore gate: {detail}"
+                );
+            }
+            other => panic!("an unreachable water-mark refuses loudly, got {other:?}"),
+        }
+    }
+
+    /// The projected-run shape (checkpoints, no recorded identity) has no
+    /// durable budget to admit a charged water-mark against: the loud
+    /// zero-only refusal stands — never a silent zeroing.
+    #[test]
+    fn a_projected_run_still_refuses_charged_checkpoints_loudly() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let charged = Checkpoint {
+            budget_spent: Spent::from_counters(1, 0, 100, MicroUsd::new(0), 0, MicroUsd::new(0)),
+            ..checkpoint(1, 1, UnitStatus::Open, false)
+        };
+        store.checkpoint(charged, bound()).expect("writes");
+        match store.resume(&run_id(), bound()) {
+            Err(StateStoreError::Corrupt { detail }) => {
+                assert!(
+                    detail.contains("no recorded run budget"),
+                    "the refusal names the missing ceilings: {detail}"
+                );
+            }
+            other => panic!("a projected run keeps the zero-only refusal, got {other:?}"),
+        }
+    }
+
     /// A payload that is not JSON is refused at the door (§21.2: model
     /// output is untrusted input — parse, validate, then admit).
     #[test]
@@ -2298,85 +2949,193 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Evidence-production bindings (plan Task 11; spec 14.3)
+    // Evidence-production bindings (plan Task 11; spec 14.3) — earned
+    // through the ports authority since Task 12's capability gate
     // -----------------------------------------------------------------------
 
-    fn production(
-        evidence: &str,
-        producer: &str,
-        locator: &str,
-        iteration: u32,
-    ) -> gauntlet_ports::state_store::EvidenceProduction {
-        production_with_content(
-            evidence,
-            producer,
-            locator,
-            iteration,
-            &content_digest(b"bytes"),
-        )
+    /// A test evidence store with REAL content semantics plus one power a
+    /// real store does not have: the bytes at a ref can be swapped after
+    /// the fact (`replace`). That swap is exactly the after-the-fact tamper
+    /// the authority's derived-from-bytes digest must catch — the adapter's
+    /// tests exercise it through the ports authority the way production
+    /// does, since direct construction of a production record is no longer
+    /// representable (plan Task 12).
+    #[derive(Default)]
+    struct SwappableEvidence {
+        objects: std::sync::Mutex<Vec<(EvidenceRef, Vec<u8>)>>,
     }
 
-    /// The production helper with an explicit content digest (correction
-    /// round 1: the production record carries the digest of the bytes
-    /// ingested at the locator).
-    fn production_with_content(
-        evidence: &str,
+    impl SwappableEvidence {
+        fn insert(&self, name: &str, bytes: &[u8]) -> EvidenceRef {
+            let reference = EvidenceRef::new(name).expect("valid evidence ref");
+            self.objects
+                .lock()
+                .expect("not poisoned")
+                .push((reference.clone(), bytes.to_vec()));
+            reference
+        }
+
+        fn replace(&self, name: &str, bytes: &[u8]) {
+            let reference = EvidenceRef::new(name).expect("valid evidence ref");
+            let mut objects = self.objects.lock().expect("not poisoned");
+            if let Some(entry) = objects.iter_mut().find(|(found, _)| *found == reference) {
+                entry.1 = bytes.to_vec();
+            }
+        }
+    }
+
+    impl gauntlet_ports::evidence_store::EvidenceStore for SwappableEvidence {
+        fn put(
+            &self,
+            bytes: &[u8],
+            _: gauntlet_domain::EvidenceKind,
+            _: gauntlet_ports::deadline::Deadline,
+        ) -> Result<EvidenceRef, gauntlet_ports::evidence_store::EvidenceStoreError> {
+            let index = self.objects.lock().expect("not poisoned").len();
+            Ok(self.insert(&format!("evd-adapter-test-{index:04}"), bytes))
+        }
+        fn get(
+            &self,
+            reference: &EvidenceRef,
+            _: gauntlet_ports::deadline::Deadline,
+        ) -> Result<Option<Vec<u8>>, gauntlet_ports::evidence_store::EvidenceStoreError> {
+            Ok(self
+                .objects
+                .lock()
+                .expect("not poisoned")
+                .iter()
+                .find(|(found, _)| found == reference)
+                .map(|(_, bytes)| bytes.clone()))
+        }
+        fn pin(
+            &self,
+            _: &RunId,
+            _: &EvidenceRef,
+            _: gauntlet_ports::deadline::Deadline,
+        ) -> Result<(), gauntlet_ports::evidence_store::EvidenceStoreError> {
+            Ok(())
+        }
+    }
+
+    /// The evidence owner's EARNED write (plan Task 12): the bytes are
+    /// placed at a named ref, the durable anchor stands at the declared
+    /// iteration (a checkpoint, the way the controller does), and the ports
+    /// authority derives the content digest from the bytes and mints the
+    /// record this store accepts. There is no direct construction path left.
+    fn earn_production(
+        store: &std::sync::Arc<SqliteStateStore>,
+        evidence: &std::sync::Arc<SwappableEvidence>,
+        evidence_name: &str,
         producer: &str,
         locator: &str,
         iteration: u32,
-        content: &gauntlet_domain::Digest,
-    ) -> gauntlet_ports::state_store::EvidenceProduction {
-        gauntlet_ports::state_store::EvidenceProduction::new(
-            EvidenceRef::new(evidence).expect("valid evidence ref"),
-            content.clone(),
-            gauntlet_ports::observer::InstrumentIdentity::new(
+        bytes: &[u8],
+    ) -> gauntlet_ports::state_store::EvidenceProductionBinding {
+        evidence.insert(evidence_name, bytes);
+        store
+            .checkpoint(checkpoint(iteration, 0, UnitStatus::Open, false), bound())
+            .expect("the durable anchor checkpoint lands");
+        gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            store.clone(),
+            evidence.clone(),
+        )
+        .record(
+            &run_id(),
+            IterationNo::new(iteration).expect("1-based"),
+            &EvidenceRef::new(evidence_name).expect("valid evidence ref"),
+            &gauntlet_ports::observer::InstrumentIdentity::new(
                 InstrumentName::new(producer).expect("valid instrument name"),
                 "1".to_owned(),
             ),
-            EvidenceLocator::new(locator).expect("valid locator"),
-            IterationNo::new(iteration).expect("1-based"),
+            &EvidenceLocator::new(locator).expect("valid locator"),
             EpochSeconds::new(1_700_000_200),
+            bound(),
+        )
+        .expect("the authority mints and the store records")
+    }
+
+    /// A re-earn attempt over the SAME ref through the same authority —
+    /// used by the write-once tests to reach the store's refusal with an
+    /// honestly-minted conflicting record.
+    fn earn_production_result(
+        store: &std::sync::Arc<SqliteStateStore>,
+        evidence: &std::sync::Arc<SwappableEvidence>,
+        evidence_name: &str,
+        producer: &str,
+        locator: &str,
+        iteration: u32,
+    ) -> Result<
+        gauntlet_ports::state_store::EvidenceProductionBinding,
+        gauntlet_ports::producer_authority::ProducerAuthorityError,
+    > {
+        gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            store.clone(),
+            evidence.clone(),
+        )
+        .record(
+            &run_id(),
+            IterationNo::new(iteration).expect("1-based"),
+            &EvidenceRef::new(evidence_name).expect("valid evidence ref"),
+            &gauntlet_ports::observer::InstrumentIdentity::new(
+                InstrumentName::new(producer).expect("valid instrument name"),
+                "1".to_owned(),
+            ),
+            &EvidenceLocator::new(locator).expect("valid locator"),
+            EpochSeconds::new(1_700_000_200),
+            bound(),
         )
     }
 
-    /// A valid `sha256:…`-shaped digest (fixed bytes — the tests exercise
-    /// persistence of the digest, not its derivation).
-    fn content_digest(_bytes: &[u8]) -> gauntlet_domain::Digest {
-        gauntlet_domain::Digest::new("sha256", &"ab".repeat(32))
-            .expect("a lowercase hex digest is valid")
+    /// A valid `sha256:…`-shaped digest of the given bytes through the
+    /// ports' own derivation rule (the digest the authority derives).
+    fn content_digest(bytes: &[u8]) -> gauntlet_domain::Digest {
+        gauntlet_ports::producer_authority::evidence_content_digest(bytes)
     }
 
     #[test]
     fn evidence_production_records_are_write_once_and_idempotent() {
-        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let store = std::sync::Arc::new(SqliteStateStore::open_in_memory().expect("store opens"));
         store.record_run(&run(), bound()).expect("run records");
-        let first = production(
+        let evidence = std::sync::Arc::new(SwappableEvidence::default());
+        let bound_record = earn_production(
+            &store,
+            &evidence,
             "evd-report-0001",
             "gauntlet-verify-test-report",
             "tests/proofs/x",
             1,
+            b"the report bytes",
         );
-        let bound_record = store
-            .record_evidence_production(&run_id(), &first, bound())
-            .expect("the first record lands");
         // The anchor is server-minted: a real offset, not a caller value.
         assert!(bound_record.event_log_offset().get() > 0);
-        // Re-recording the SAME facts is idempotent: the ORIGINAL binding
-        // (original anchor) returns and no second event is appended.
-        let again = store
-            .record_evidence_production(&run_id(), &first, bound())
-            .expect("identical re-record is idempotent");
-        assert_eq!(again, bound_record);
-        // A CONFLICTING record for the same ref is refused, never absorbed.
-        let conflicting = production(
+        // Re-recording the SAME facts (same ref, same bytes, same digest) is
+        // idempotent: the ORIGINAL binding (original anchor) returns.
+        let again = earn_production_result(
+            &store,
+            &evidence,
             "evd-report-0001",
-            "gauntlet-observe-test",
+            "gauntlet-verify-test-report",
             "tests/proofs/x",
-            2,
-        );
+            1,
+        )
+        .expect("identical re-record is idempotent");
+        assert_eq!(again, bound_record);
+        // A CONFLICTING record for the same ref (different producer) is
+        // minted honestly and refused by the STORE, never absorbed.
         assert!(matches!(
-            store.record_evidence_production(&run_id(), &conflicting, bound()),
-            Err(StateStoreError::WriteFailed { .. })
+            earn_production_result(
+                &store,
+                &evidence,
+                "evd-report-0001",
+                "gauntlet-observe-test",
+                "tests/proofs/x",
+                1,
+            ),
+            Err(
+                gauntlet_ports::producer_authority::ProducerAuthorityError::State(
+                    StateStoreError::WriteFailed { .. }
+                )
+            )
         ));
         // And the stored record is still the original.
         let stored = store
@@ -2392,25 +3151,26 @@ mod tests {
 
     #[test]
     fn the_production_content_digest_is_durable_and_write_once() {
-        // Correction round 1 (B-M4): the production record carries the
-        // digest of the bytes ingested at the locator; it persists, round-
-        // trips through the strict decoder, and a second record naming a
-        // DIFFERENT content digest for the same ref is refused.
-        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        // Correction round 1 (B-M4) under the Task-12 gate: the production
+        // record carries the digest DERIVED from the bytes the store serves;
+        // it persists, round-trips through the strict decoder, and a record
+        // minted over swapped bytes (a different derived digest for the same
+        // ref) is refused.
+        let store = std::sync::Arc::new(SqliteStateStore::open_in_memory().expect("store opens"));
         store.record_run(&run(), bound()).expect("run records");
-        let first = production_with_content(
+        let evidence = std::sync::Arc::new(SwappableEvidence::default());
+        let bound_record = earn_production(
+            &store,
+            &evidence,
             "evd-content-0001",
             "gauntlet-verify-test-report",
             "tests/proofs/x",
             2,
-            &gauntlet_domain::Digest::new("sha256", &"11".repeat(32)).expect("valid digest"),
+            b"the original content bytes",
         );
-        let bound_record = store
-            .record_evidence_production(&run_id(), &first, bound())
-            .expect("the record lands");
         assert_eq!(
             bound_record.production().content(),
-            &gauntlet_domain::Digest::new("sha256", &"11".repeat(32)).expect("valid digest")
+            &content_digest(b"the original content bytes")
         );
         let stored = store
             .evidence_production(
@@ -2421,41 +3181,68 @@ mod tests {
             .expect("the lookup succeeds")
             .expect("the record stands");
         assert_eq!(stored, bound_record, "the content digest round-trips");
-        let same_facts_other_digest = production_with_content(
-            "evd-content-0001",
-            "gauntlet-verify-test-report",
-            "tests/proofs/x",
-            2,
-            &gauntlet_domain::Digest::new("sha256", &"22".repeat(32)).expect("valid digest"),
-        );
+        // The tamper: the bytes at the SAME ref are swapped. The authority
+        // derives the digest of the SWAPPED bytes, so the minted record
+        // names a different content for the same ref — and the store's
+        // write-once rule refuses it. The doctored digest cannot ride.
+        evidence.replace("evd-content-0001", b"the doctored content bytes");
         assert!(matches!(
-            store.record_evidence_production(&run_id(), &same_facts_other_digest, bound()),
-            Err(StateStoreError::WriteFailed { .. })
+            earn_production_result(
+                &store,
+                &evidence,
+                "evd-content-0001",
+                "gauntlet-verify-test-report",
+                "tests/proofs/x",
+                2,
+            ),
+            Err(
+                gauntlet_ports::producer_authority::ProducerAuthorityError::State(
+                    StateStoreError::WriteFailed { .. }
+                )
+            )
         ));
+        // And the durable record still names the ORIGINAL content.
+        assert_eq!(
+            store
+                .evidence_production(
+                    &run_id(),
+                    &EvidenceRef::new("evd-content-0001").unwrap(),
+                    bound()
+                )
+                .expect("the lookup succeeds")
+                .expect("the record stands")
+                .production()
+                .content(),
+            &content_digest(b"the original content bytes")
+        );
     }
 
     #[test]
     fn productions_at_a_locator_are_ordered_by_their_anchors() {
-        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let store = std::sync::Arc::new(SqliteStateStore::open_in_memory().expect("store opens"));
         store.record_run(&run(), bound()).expect("run records");
-        let older = production(
+        let evidence = std::sync::Arc::new(SwappableEvidence::default());
+        // A prior loop pass's production (iteration 1), then the run crosses
+        // to iteration 3 and produces again — the anchor ordering is by
+        // event-log offset, not by iteration number.
+        let first = earn_production(
+            &store,
+            &evidence,
             "evd-report-old",
             "gauntlet-verify-test-report",
             "tests/proofs/x",
             1,
+            b"older report bytes",
         );
-        let newer = production(
+        let second = earn_production(
+            &store,
+            &evidence,
             "evd-report-new",
             "gauntlet-verify-test-report",
             "tests/proofs/x",
             3,
+            b"newer report bytes",
         );
-        let first = store
-            .record_evidence_production(&run_id(), &older, bound())
-            .expect("older records");
-        let second = store
-            .record_evidence_production(&run_id(), &newer, bound())
-            .expect("newer records");
         assert!(
             second.event_log_offset().get() > first.event_log_offset().get(),
             "the second production's anchor is minted after the first"
@@ -2489,19 +3276,138 @@ mod tests {
         );
     }
 
+    // -----------------------------------------------------------------------
+    // Correction selections (plan Task 12, spec 15.1 step 4, AK-037)
+    // -----------------------------------------------------------------------
+
+    fn selection() -> CorrectionSelection {
+        let facts = gauntlet_domain::BudgetFacts {
+            requested_rounds: 1,
+            requested_wall_seconds: 60,
+            requested_tokens: 400,
+            requested_cost_usd: MicroUsd::new(5),
+            remaining_rounds: 6,
+            remaining_wall_seconds: 3000,
+            remaining_tokens: 400,
+            remaining_cost_usd: MicroUsd::new(395),
+        };
+        let descriptor = |summary: &str, shape| {
+            CorrectionDescriptor::new(
+                summary.to_owned(),
+                shape,
+                vec![UnitId::new("AK-914").expect("valid unit id")],
+                facts,
+            )
+            .expect("complete descriptor")
+        };
+        CorrectionSelection::new(
+            run_id(),
+            IterationNo::new(3).expect("1-based"),
+            descriptor("bound the parser branch", CorrectionShape::Bounded),
+            vec![
+                RejectedAlternative::new(
+                    descriptor("rewrite everything", CorrectionShape::Speculative),
+                    RejectionClass::Budget,
+                    RejectionReason::MeterRefusedReserve { facts },
+                ),
+                RejectedAlternative::new(
+                    descriptor("neighboring tweak", CorrectionShape::Bounded),
+                    RejectionClass::Authority,
+                    RejectionReason::AuthorityAboveCeiling {
+                        required: Authority::Human,
+                        exercisable: Authority::LeadAgent,
+                    },
+                ),
+            ],
+            gauntlet_domain::SelectionDimension::ALL
+                .iter()
+                .map(|dimension| {
+                    DecisionStep::new(*dimension, format!("adapter-test fact: {dimension}"))
+                })
+                .collect(),
+        )
+        .expect("the selection satisfies the aggregate")
+    }
+
+    /// The durable round trip (AK-037): the chosen correction, both
+    /// rejected alternatives with class and typed reason, and the full
+    /// trace read back exactly, in record order; a damaged row is Corrupt.
+    #[test]
+    fn correction_selections_round_trip_with_alternatives_and_reasons() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let chosen = selection();
+        // A second, later selection of the same run: record order holds.
+        let later = selection();
+        store
+            .record_correction_selection(&chosen, bound())
+            .expect("the selection records");
+        store
+            .record_correction_selection(&later, bound())
+            .expect("the second selection records");
+        let read = store
+            .correction_selections(&run_id(), bound())
+            .expect("reads back");
+        assert_eq!(read.len(), 2, "append order, both rows");
+        assert_eq!(read[0], chosen, "the exact aggregate returns");
+        assert_eq!(read[0].rejected().len(), 2);
+        assert_eq!(read[0].rejected()[0].class(), RejectionClass::Budget);
+        assert!(matches!(
+            read[0].rejected()[0].reason(),
+            RejectionReason::MeterRefusedReserve { .. }
+        ));
+        assert_eq!(read[1], later);
+        // Run-keyed: another run reads nothing.
+        let other = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAB").expect("valid run id");
+        assert!(
+            store
+                .correction_selections(&other, bound())
+                .expect("reads")
+                .is_empty()
+        );
+        // A damaged payload names itself Corrupt, never degrades.
+        store
+            .append_record(
+                &run_id(),
+                RecordKind::CorrectionSelection,
+                r#"{"run_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV"}"#,
+                EpochSeconds::new(0),
+                bound(),
+            )
+            .expect("the damaged row inserts (the write side is generic JSON)");
+        assert!(matches!(
+            store.correction_selections(&run_id(), bound()),
+            Err(StateStoreError::Corrupt { .. })
+        ));
+        // The migration actually widened the CHECK: the new kind inserts.
+        // (A pre-0008 database would refuse it — the 0008 rebuild is what
+        // admits this row; pinned again by the migration version test.)
+        let count: i64 = store
+            .conn
+            .lock()
+            .expect("connection lock")
+            .query_row(
+                "SELECT COUNT(*) FROM records WHERE record_type = 'correction_selection'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("counts");
+        assert_eq!(count, 3);
+    }
+
     #[test]
     fn the_production_event_replays_through_the_event_log() {
-        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let store = std::sync::Arc::new(SqliteStateStore::open_in_memory().expect("store opens"));
         store.record_run(&run(), bound()).expect("run records");
-        let record = production(
+        let evidence = std::sync::Arc::new(SwappableEvidence::default());
+        let binding = earn_production(
+            &store,
+            &evidence,
             "evd-report-0001",
             "gauntlet-verify-test-report",
             "tests/proofs/x",
             2,
+            b"the replayed report bytes",
         );
-        let binding = store
-            .record_evidence_production(&run_id(), &record, bound())
-            .expect("the record lands");
         let entries = read_entries(
             &store.conn.lock().expect("connection lock"),
             EventLogOffset::new(0),

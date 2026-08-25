@@ -81,7 +81,19 @@ impl AnswerKeySource {
         }
     }
 
-    fn describe(&self) -> String {
+    /// Reads the current answer-key TEXT — the per-tick re-read path the
+    /// Task-12 controller uses (§11.4 step 3: "Re-read the answer key …
+    /// The in-memory snapshot is never authoritative over the file").
+    /// Unavailable reads surface as the caller's typed Unavailable class;
+    /// this returns the raw read failure verbatim.
+    pub fn read_text(&self) -> Result<String, String> {
+        let bytes = self.read()?;
+        String::from_utf8(bytes).map_err(|err| format!("the answer key is not valid UTF-8: {err}"))
+    }
+
+    /// The source's own description, for typed refusals that must name
+    /// where the answer key was sought.
+    pub fn describe(&self) -> String {
         match self {
             Self::Path(path) => format!("{:?}", path),
             Self::Shared(_) => "<shared artifact>".to_owned(),

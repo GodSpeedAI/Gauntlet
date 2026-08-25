@@ -265,6 +265,14 @@ impl std::error::Error for LadderError {}
 /// The §14.2 ladder over a configured rung set, ordered
 /// cheapest-conclusive-first by construction (ascending §14.2 position;
 /// duplicate positions refused).
+///
+/// `Clone` (plan Task 12 B3): the controller opens a governed verification
+/// per iteration anchor, and [`super::VerificationAuthority::for_run`]
+/// consumes the ladder by value — so an already-composed ladder must be
+/// passable to each open. Cloning an existing ladder mints no new rungs
+/// from outside: the rung set still originates only at the composition
+/// seam, so the C1 seal is untouched.
+#[derive(Clone)]
 pub struct Ladder {
     rungs: Vec<LadderRung>,
 }

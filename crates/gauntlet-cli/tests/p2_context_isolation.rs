@@ -203,6 +203,73 @@ fn bound() -> Deadline {
     Deadline::at_epoch(EpochSeconds::new(BOUND_AT))
 }
 
+// Meter figures for the permissive stub, referenced not written (the
+// literal-scan idiom: no duration-shaped identifier shares a line with a
+// value-position number).
+const STUB_ROUND_HEADROOM: u32 = 10;
+const STUB_PARALLEL_HEADROOM: u32 = 4;
+const STUB_DEPTH_HEADROOM: u32 = 2;
+const STUB_WALL_HEADROOM: u64 = 3600;
+const STUB_TOKEN_HEADROOM: u64 = 1000;
+const STUB_COST_HEADROOM: u64 = 500;
+const STUB_CRITIC_ROUNDS: u32 = 1;
+const STUB_CRITIC_WALL: u64 = 60;
+const STUB_CRITIC_TOKENS: u64 = 100;
+const STUB_CRITIC_COST: u64 = 10;
+
+/// F4 (Task-12 correction): review dispatch consults the budget meter
+/// before every model comparator admission (spec 10.4/17.4), so
+/// `ReviewDeps` requires one. P2's surface is context isolation, not
+/// budgeting, so its review fixtures stub the meter's permissive
+/// extreme (test-only): full headroom, refuses nothing, books nothing.
+struct PermissiveMeter;
+
+impl gauntlet_ports::budget_meter::BudgetMeter for PermissiveMeter {
+    fn reserve(
+        &self,
+        slice: gauntlet_ports::budget_meter::BudgetSlice,
+    ) -> Result<
+        gauntlet_ports::budget_meter::Reservation,
+        gauntlet_ports::budget_meter::BudgetMeterError,
+    > {
+        Ok(self.mint(slice))
+    }
+    fn charge(
+        &self,
+        _: &gauntlet_ports::budget_meter::Reservation,
+        _: gauntlet_domain::Payment,
+    ) -> Result<(), gauntlet_ports::budget_meter::BudgetMeterError> {
+        Ok(())
+    }
+    fn remaining(&self) -> gauntlet_ports::budget_meter::Remaining {
+        gauntlet_ports::budget_meter::Remaining {
+            rounds: STUB_ROUND_HEADROOM,
+            parallel: STUB_PARALLEL_HEADROOM,
+            depth: STUB_DEPTH_HEADROOM,
+            wall_seconds: STUB_WALL_HEADROOM,
+            tokens: STUB_TOKEN_HEADROOM,
+            cost_usd: MicroUsd::new(STUB_COST_HEADROOM),
+        }
+    }
+    fn would_breach_reserve(&self, _: gauntlet_ports::budget_meter::BudgetSlice) -> bool {
+        false
+    }
+}
+
+/// The one shared permissive-meter instance the review fixtures borrow.
+static PERMISSIVE_METER: PermissiveMeter = PermissiveMeter;
+
+/// The critic slice p2's review fixtures reserve: a non-zero forward
+/// share (a zero slice would make the §5.3.7 consult vacuous).
+fn critic_slice() -> gauntlet_ports::budget_meter::BudgetSlice {
+    gauntlet_ports::budget_meter::BudgetSlice {
+        rounds: STUB_CRITIC_ROUNDS,
+        wall_seconds: STUB_CRITIC_WALL,
+        tokens: STUB_CRITIC_TOKENS,
+        cost_usd: MicroUsd::new(STUB_CRITIC_COST),
+    }
+}
+
 fn proof_env() -> Vec<(String, String)> {
     vec![(
         "GAUNTLET_PROOF_ENV".to_owned(),
@@ -267,20 +334,6 @@ fn proof_residuals() -> Vec<Residual> {
 
 /// Everything the composed proof produces: the single governed dispatch
 /// capability plus the durable substrate it was earned from.
-/// The durable binding for a bundle: its ref AND the §12.4 digest of its
-/// content. Binding the pointer alone would leave the bytes at that ref
-/// authoritative; binding the content means the comparison port can refuse
-/// bytes that are not what the run recorded, whatever store served them.
-fn binding_of(
-    reference: &gauntlet_domain::EvidenceRef,
-    doc: &gauntlet_app::observation::bundle::ObservationBundleDoc,
-) -> gauntlet_ports::state_store::ObservationBinding {
-    gauntlet_ports::state_store::ObservationBinding::new(
-        reference.clone(),
-        gauntlet_app::observation::digest::observation_digest(doc),
-    )
-}
-
 struct Composed {
     issued: IssuedComparison,
     #[allow(dead_code)]
@@ -289,12 +342,38 @@ struct Composed {
     assembled: gauntlet_app::observation::assembly::AssembledBundle,
     state: Arc<EmbeddedStateStore>,
     evidence: Arc<FsEvidenceStore>,
+    /// The fs evidence store's root — the absent-object tooth removes a
+    /// stored object through the adapter's documented content-addressed
+    /// layout (`objects/<b0-2>/<b2-4>/<64-hex>`, refs `sha256:<hex>`).
+    #[allow(dead_code)]
+    evidence_root: std::path::PathBuf,
     #[allow(dead_code)]
     reference_version: ReferenceVersion,
     /// The self-check command string the BUILDER declared in its own
     /// `builder_result@v1` document — builder-authored text that the command
     /// instrument then executed verbatim.
     declared_command: String,
+}
+
+impl Composed {
+    /// Removes one stored object through the fs adapter's DOCUMENTED layout,
+    /// constructing the bytes-vanish state honestly (the object was real
+    /// when it was bound; then it is gone).
+    fn remove_stored_object(&self, evidence: &gauntlet_domain::EvidenceRef) {
+        let hex = evidence
+            .as_str()
+            .strip_prefix("sha256:")
+            .expect("fs store refs are sha256:<hex>");
+        assert_eq!(hex.len(), 64, "a SHA-256 ref names 64 hex characters");
+        let object = self
+            .evidence_root
+            .join("objects")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(hex);
+        std::fs::remove_file(&object)
+            .expect("the stored object exists and is removed for the scenario");
+    }
 }
 
 /// Drives the lying builder, observes the SAME workspace with the real
@@ -341,9 +420,8 @@ fn composed_envelope(scratch: &Scratch) -> Composed {
 
     // 3. Observe the SAME workspace: the filesystem manifest and the
     // fixture's own declared self-check, re-run as a command instrument.
-    let store = Arc::new(
-        FsEvidenceStore::open(&scratch.path.join("evidence")).expect("the evidence store opens"),
-    );
+    let evidence_root = scratch.path.join("evidence");
+    let store = Arc::new(FsEvidenceStore::open(&evidence_root).expect("the evidence store opens"));
     let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(
         BASE_INSTANT,
     )));
@@ -412,17 +490,24 @@ fn composed_envelope(scratch: &Scratch) -> Composed {
     state
         .record_run(&durable_run, bound())
         .expect("the run is durable before any comparison authority exists");
-    // The observation owner binds what it observed. This is the write that
-    // makes one pinned bundle THIS run's observation at THIS iteration; the
-    // comparison chain resolves it from here and takes no bundle argument.
-    state
-        .bind_observation_bundle(
-            &spec.run_id,
-            spec.iteration_no,
-            &binding_of(&assembled.bundle_ref, &assembled.doc),
-            bound(),
-        )
-        .expect("the observed bundle binds durably");
+    // The observation owner binds what it observed. Since Task 12's
+    // capability gate this write is EARNED through the ports authority: the
+    // bundle ref is the only argument, the §12.4 digest is re-derived from
+    // the bytes the store serves, and the declared iteration is validated
+    // against the run's durable anchor. This is the write that makes one
+    // pinned bundle THIS run's observation at THIS iteration; the comparison
+    // chain resolves it from here and takes no bundle argument.
+    gauntlet_ports::producer_authority::ObservationBindingAuthority::new(
+        state.clone(),
+        store.clone(),
+    )
+    .bind(
+        &spec.run_id,
+        spec.iteration_no,
+        &assembled.bundle_ref,
+        bound(),
+    )
+    .expect("the observed bundle binds durably");
     let issued = ComparisonAuthority::new(state.clone(), store.clone())
         .for_run(&spec.run_id, spec.iteration_no, bound())
         .expect("the durable run yields comparison authority")
@@ -434,6 +519,7 @@ fn composed_envelope(scratch: &Scratch) -> Composed {
         assembled,
         state,
         evidence: store,
+        evidence_root,
         reference_version,
         declared_command,
     }
@@ -613,7 +699,7 @@ impl StateStore for RejectingAcceptanceStore {
         &self,
         run_id: &RunId,
         iteration_no: IterationNo,
-        binding: &gauntlet_ports::state_store::ObservationBinding,
+        binding: &gauntlet_ports::producer_authority::AdmittedObservationBinding,
         deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         self.inner
@@ -796,15 +882,20 @@ fn the_envelope_is_structurally_blind_and_carries_instrument_reality() {
         .state
         .record_run(&second, bound())
         .expect("the second run is durable");
-    composed
-        .state
-        .bind_observation_bundle(
-            &tampered_run,
-            IterationNo::new(1).expect("iterations are 1-based"),
-            &binding_of(&tampered_ref, &tampered),
-            bound(),
-        )
-        .expect("the tampered bundle is bound to the second run");
+    // Bound through the EARNED authority (Task 12): the ref is the argument,
+    // the §12.4 digest is derived from the bytes the store serves, and the
+    // tampered bundle's self-declared digest never enters the binding.
+    gauntlet_ports::producer_authority::ObservationBindingAuthority::new(
+        composed.state.clone(),
+        composed.evidence.clone(),
+    )
+    .bind(
+        &tampered_run,
+        IterationNo::new(1).expect("iterations are 1-based"),
+        &tampered_ref,
+        bound(),
+    )
+    .expect("the tampered bundle is bound to the second run");
     let refusal = ComparisonAuthority::new(composed.state.clone(), composed.evidence.clone())
         .for_run(
             &tampered_run,
@@ -834,6 +925,8 @@ fn the_envelope_is_structurally_blind_and_carries_instrument_reality() {
         deterministic: &probes,
         model: &probes,
         adversarial: None,
+        meter: &PERMISSIVE_METER,
+        critic_slice: critic_slice(),
     };
     let accepted = composed
         .issued
@@ -973,6 +1066,8 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
         deterministic: &normal_source,
         model: &normal_source,
         adversarial: Some(&adversarial_source),
+        meter: &PERMISSIVE_METER,
+        critic_slice: critic_slice(),
     };
     let accepted = composed
         .issued
@@ -1081,14 +1176,17 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
     rejected
         .record_run(&durable, bound())
         .expect("the run is durable in the second store");
-    rejected
-        .bind_observation_bundle(
-            envelope.run_id(),
-            envelope.iteration_no(),
-            &binding_of(&composed.assembled.bundle_ref, &composed.assembled.doc),
-            bound(),
-        )
-        .expect("the same observation binds in the second store");
+    gauntlet_ports::producer_authority::ObservationBindingAuthority::new(
+        rejected.clone(),
+        composed.evidence.clone(),
+    )
+    .bind(
+        envelope.run_id(),
+        envelope.iteration_no(),
+        &composed.assembled.bundle_ref,
+        bound(),
+    )
+    .expect("the same observation binds in the second store");
     let contract = ComparisonContract::load(&comparison_contract_path())
         .expect("the frozen comparison contract loads");
     let rejected_issued = ComparisonAuthority::new(rejected.clone(), composed.evidence.clone())
@@ -1106,6 +1204,8 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
         deterministic: &rejected_source,
         model: &rejected_source,
         adversarial: None,
+        meter: &PERMISSIVE_METER,
+        critic_slice: critic_slice(),
     };
     assert!(matches!(
         rejected_issued.review(
@@ -1177,6 +1277,8 @@ fn mandatory_acceptance_failure_is_non_success_and_never_writes_a_comparison() {
         deterministic: &source,
         model: &source,
         adversarial: None,
+        meter: &PERMISSIVE_METER,
+        critic_slice: critic_slice(),
     };
     assert!(matches!(
         issued.review(
@@ -1376,14 +1478,18 @@ fn an_unrecorded_substitute_observation_cannot_enter_comparison() {
         .expect("the substitute pins");
 
     // 1. It cannot become the binding: the durable binding is write-once.
-    let rebind = composed.state.bind_observation_bundle(
-        &run_id,
-        iteration_no,
-        &binding_of(&substitute_ref, &substitute),
-        bound(),
-    );
+    //    The re-bind is EARNED through the authority (the substitute's bytes
+    //    are real and stored, so the mint succeeds) — and the STORE still
+    //    refuses the substitution, surfacing verbatim through the authority.
+    let rebind = gauntlet_ports::producer_authority::ObservationBindingAuthority::new(
+        composed.state.clone(),
+        composed.evidence.clone(),
+    )
+    .bind(&run_id, iteration_no, &substitute_ref, bound());
     let detail = match rebind {
-        Err(StateStoreError::WriteFailed { detail }) => detail,
+        Err(gauntlet_ports::producer_authority::ProducerAuthorityError::State(
+            StateStoreError::WriteFailed { detail },
+        )) => detail,
         other => panic!("rebinding an observed iteration must be refused, got {other:?}"),
     };
     assert!(
@@ -1604,18 +1710,30 @@ fn a_bound_observation_whose_bytes_are_absent_is_refused_never_treated_as_empty(
         .state
         .record_run(&durable, bound())
         .expect("the orphan run is durable");
-    composed
-        .state
-        .bind_observation_bundle(
-            &orphan_run,
-            IterationNo::new(1).expect("iterations are 1-based"),
-            &gauntlet_ports::state_store::ObservationBinding::new(
-                gauntlet_domain::EvidenceRef::new("evd-never-stored-0001").expect("valid ref"),
-                Digest::new("sha256", &"ef".repeat(32)).expect("digest"),
-            ),
+    // The binding is EARNED over real bytes (Task 12's gate: a binding for
+    // bytes that never existed is unrepresentable), and THEN the stored
+    // object vanishes — the bytes-absent state constructed the way it
+    // actually happens.
+    let orphan_bundle = composed
+        .evidence
+        .put(
+            br#"{"schema":"observation_bundle@v1","facets":[]}"#,
+            EvidenceKind::Transcript,
             bound(),
         )
-        .expect("the binding is recorded even though the bytes are absent");
+        .expect("the orphan run's bundle stores");
+    gauntlet_ports::producer_authority::ObservationBindingAuthority::new(
+        composed.state.clone(),
+        composed.evidence.clone(),
+    )
+    .bind(
+        &orphan_run,
+        IterationNo::new(1).expect("iterations are 1-based"),
+        &orphan_bundle,
+        bound(),
+    )
+    .expect("the binding is recorded over real bytes");
+    composed.remove_stored_object(&orphan_bundle);
     let refusal = ComparisonAuthority::new(composed.state.clone(), composed.evidence.clone())
         .for_run(
             &orphan_run,

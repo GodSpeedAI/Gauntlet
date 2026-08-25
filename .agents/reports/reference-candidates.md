@@ -423,3 +423,76 @@ through the normal spec process, never a builder's direct edit.
   `gauntlet-adapter-state-sqlite state_store::tests::evidence_production_records_are_write_once_and_idempotent`.
 - **Not changed by this entry:** the answer key, the spec, the frozen lock.
   Settlement of these candidates belongs to the ruler's owner, not the task.
+
+## 2026-08-25 — AK-037, AK-038, AK-039, AK-051, AK-052 evidence locators name unmaterializable test targets (Task 12 closure)
+
+- **Units:** AK-037 (`.wayfinder/answer-key.md` lines 256–262), AK-038
+  (lines 263–269), AK-039 (lines 270–276), AK-051 (lines 355–361), AK-052
+  (lines 362–368).
+- **Claims under review (unchanged):** AK-037 — "The controller records the
+  selected correction together with rejected alternatives and their
+  reasons." AK-038 — "An injected controlled defect is exposed by
+  observation and comparison and closed by a routed corrective iteration."
+  AK-039 — "A repeated identical residual triggers bounded diagnosis rather
+  than another patch, and exhausting the diagnostic budget yields
+  INCONCLUSIVE." AK-051 — "A non-converging task terminates at the declared
+  budget limit with the recovery reserve unspent." AK-052 — "The budget
+  meter is consulted before every dispatch and refuses any dispatch that
+  would consume the recovery reserve."
+- **Defect (evidence declaration only):** all five `evidence_required`
+  locator spellings name repo-root test targets that cannot exist under the
+  architecture boundary suite's cargo-target-path rule (the
+  locator-materialization class first recorded 2026-08-17, AK-049; same
+  class as AK-021/AK-028 and the Task-10/Task-11 entries above) — not a
+  new defect class. AK-038 and AK-051 additionally name a `tests/proofs/`
+  root that has never existed: the proofs live at the composition root as
+  `crates/gauntlet-cli/tests/{p4_corrective_loop,p6_budget_control}.rs`
+  under the target names the plan's own gate already uses.
+- **Proposed correction — AK-037:** re-declare to the composed-path
+  evidence that proves the record today:
+  `gauntlet-cli tests/p4_corrective_loop.rs an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction`
+  (both the correcting and the closing iteration durably record a §15.1
+  selection; the correcting record names the bounded re-dispatch and a
+  `SpeculativeWhenBoundedAvailable` rejection);
+  `gauntlet-cli tests/p6_budget_control.rs a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact`
+  (one residual-driven record per forward round, every one non-vacuous,
+  read back from the durable store); and the vacuity refusal itself,
+  `gauntlet-domain correction::tests a_selection_without_rejected_alternatives_is_unrepresentable`.
+- **Proposed correction — AK-038:**
+  `gauntlet-cli tests/p4_corrective_loop.rs an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction`
+  — the full composed loop (real controller, real diff comparator over the
+  real workspace the builder wrote, governed-chain verification settling
+  the unit), plus the routing teeth evidence in
+  `.agents/reports/task12/teeth.md` T5.
+- **Proposed correction — AK-039:**
+  `gauntlet-cli tests/p4_corrective_loop.rs a_recurring_residual_through_the_real_diff_comparator_enters_bounded_diagnosis`
+  (three REAL-comparator recurrences under the §13.5 key route into one
+  bounded five-phase cycle, honestly INCONCLUSIVE with quarantined pinned
+  evidence); `gauntlet-app control::controller::tests a_recurring_residual_routes_composed_diagnosis_to_correction_indicated`
+  and `a_surviving_hypothesis_ends_inconclusive_with_quarantine_composed`;
+  engine-level exhaustion at
+  `gauntlet-app control::diagnosis::tests budget_exhaustion_yields_inconclusive_quarantine_and_escalation`.
+- **Proposed correction — AK-051:**
+  `gauntlet-cli tests/p6_budget_control.rs a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact`
+  — terminal `budget_exhausted` at exactly the forward rounds ceiling with
+  every forward dimension under its ceiling in the durable checkpoint and
+  the reserve round unspent, plus teeth T1 (both rounds-authority arms).
+- **Proposed correction — AK-052:** the claim's two legs are proven at
+  different locators after correction F4 wired the critic-fan-out leg:
+  builder leg (composed) —
+  `gauntlet-cli tests/p6_budget_control.rs a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact`
+  (rows == reservations on the meter's own counter; reserve intact) and
+  `the_meter_refuses_the_reserve_consuming_slice_and_books_nothing`, plus
+  teeth T4 (mint-bypass caught by the admission count); critic leg
+  (composed, correction F4) —
+  `gauntlet-app control::controller::tests a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues`
+  and
+  `a_critic_reservation_releases_at_fan_in_so_a_later_iteration_still_dispatches`,
+  with the review-level truncation record pinned at
+  `gauntlet-app compare::review::tests a_meter_refusal_truncates_the_dimension_with_the_typed_cause`;
+  port contract — the shared budget-meter contract suite
+  (`gauntlet-adapter-meter-memory`, in-crate and integration) and
+  `gauntlet-ports budget_meter::tests remaining_is_forward_ceiling_minus_spent`.
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock (`just ruler` PASS verified by the orchestrator in this session).
+  Settlement of these candidates belongs to the ruler's owner, not the task.

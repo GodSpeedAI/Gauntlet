@@ -93,7 +93,7 @@ use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::evidence_store::EvidenceStore;
 use gauntlet_ports::observer::InstrumentIdentity;
 use gauntlet_ports::role_result::RoleResult;
-use gauntlet_ports::state_store::{Checkpoint, EvidenceProduction, StateStore};
+use gauntlet_ports::state_store::{Checkpoint, StateStore};
 use gauntlet_ports::verification_record::{
     BindingClass, RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
 };
@@ -230,6 +230,10 @@ struct Fixture {
     _scratch: Scratch,
     state: Arc<EmbeddedStateStore>,
     evidence: Arc<FsEvidenceStore>,
+    /// The fs store's root — the only handle the absent-object test needs
+    /// to remove a stored object through the adapter's documented layout
+    /// (`objects/<b0-2>/<b2-4>/<64-hex>`, refs are `sha256:<hex>`).
+    evidence_root: PathBuf,
     workspace: PathBuf,
     reference_digest: gauntlet_domain::Digest,
 }
@@ -238,9 +242,9 @@ impl Fixture {
     fn new(tag: &str) -> Self {
         let scratch = Scratch::new(tag);
         let workspace = scratch.child("workspace");
+        let evidence_root = scratch.child("evidence");
         let evidence = Arc::new(
-            FsEvidenceStore::open(&scratch.child("evidence"))
-                .expect("the real fs evidence store opens"),
+            FsEvidenceStore::open(&evidence_root).expect("the real fs evidence store opens"),
         );
         let state = Arc::new(
             EmbeddedStateStore::open(&scratch.child("state").join("p12-state.db"))
@@ -280,6 +284,7 @@ impl Fixture {
             _scratch: scratch,
             state,
             evidence,
+            evidence_root,
             workspace,
             reference_digest,
         }
@@ -289,12 +294,14 @@ impl Fixture {
         run_id()
     }
 
-    /// The producer-side write the way the evidence owner performs it: the
-    /// bytes land in the store, the durable production record names ref,
-    /// CONTENT DIGEST (C3 — the digest of the bytes ingested at the
-    /// locator, computed through the application layer's own rule),
-    /// producer, locator, and iteration — and the ordering anchor is MINTED
-    /// by the store, never supplied here.
+    /// The producer-side write the way the evidence owner performs it since
+    /// Task 12's capability gate: the bytes land in the store, the run's
+    /// durable checkpoint stands at the production's iteration (the way the
+    /// loop's controller leaves it), and the ports
+    /// `EvidenceProductionAuthority` performs the governed read, derives the
+    /// CONTENT DIGEST from the stored bytes (C3 — never a fixture-supplied
+    /// digest), mints the record, and hands it to the store, which MINTS the
+    /// ordering anchor.
     fn produce(
         &self,
         producer: &InstrumentIdentity,
@@ -307,23 +314,66 @@ impl Fixture {
             .evidence
             .put(payload, kind, bound())
             .expect("the production bytes are stored");
-        let production = EvidenceProduction::new(
-            evidence.clone(),
-            content_digest(payload),
-            producer.clone(),
-            locator(at),
+        // The declared iteration must be the run's durable iteration — the
+        // same anchor rule the governed verification open enforces.
+        self.state
+            .checkpoint(
+                Checkpoint {
+                    run_id: self.run(),
+                    reference_digest: self.reference_digest.clone(),
+                    iteration_no: IterationNo::new(iteration).expect("iterations are 1-based"),
+                    unit_states: Vec::new(),
+                    budget_spent: *budget().spent(),
+                    in_flight: Vec::new(),
+                    event_log_offset: gauntlet_domain::EventLogOffset::new(0),
+                },
+                bound(),
+            )
+            .expect("the fixture writes the run's durable anchor checkpoint");
+        let binding = gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            self.state.clone(),
+            self.evidence.clone(),
+        )
+        .record(
+            &self.run(),
             IterationNo::new(iteration).expect("iterations are 1-based"),
+            &evidence,
+            producer,
+            &locator(at),
             EpochSeconds::new(BASE_INSTANT + u64::from(iteration) * 100),
-        );
-        let binding = self
-            .state
-            .record_evidence_production(&self.run(), &production, bound())
-            .expect("the write-once production record lands");
+            bound(),
+        )
+        .expect("the authority mints and the write-once record lands");
         assert!(
             binding.event_log_offset().get() > 0,
             "the ordering anchor is minted server-side"
         );
+        // The derived content digest is the digest of the bytes just stored
+        // — the fixture never supplied one (the Task 11 F1 lesson, made
+        // structural by the gate).
+        assert_eq!(binding.production().content(), &content_digest(payload));
         evidence
+    }
+
+    /// Removes one stored object through the fs adapter's DOCUMENTED layout
+    /// (content-addressed `objects/<b0-2>/<b2-4>/<64-hex>`, refs
+    /// `sha256:<hex>`). The absent-store scenario is constructed honestly:
+    /// the production is earned over real bytes first, and THEN the object
+    /// vanishes — the way a lost object actually happens.
+    fn remove_stored_object(&self, evidence: &EvidenceRef) {
+        let hex = evidence
+            .as_str()
+            .strip_prefix("sha256:")
+            .expect("fs store refs are sha256:<hex>");
+        assert_eq!(hex.len(), 64, "a SHA-256 ref names 64 hex characters");
+        let object = self
+            .evidence_root
+            .join("objects")
+            .join(&hex[0..2])
+            .join(&hex[2..4])
+            .join(hex);
+        std::fs::remove_file(&object)
+            .expect("the stored object exists and is removed for the scenario");
     }
 
     /// Opens the governed verification at one iteration over one rung set
@@ -750,26 +800,20 @@ fn the_four_real_adapters_report_absent_evidence_as_a_typed_error() {
 fn absent_store_evidence_is_inconclusive_at_every_layer_never_pass() {
     let fixture = Fixture::new("absent-store");
     // The artifact EXISTS at the locator and would PASS; the production
-    // record is fresh and by the right instrument class — but its evidence
-    // ref was never stored (the bytes are absent from the evidence store).
+    // record is fresh, by the right instrument class, and was EARNED over
+    // real bytes (Task 12's gate: a record for bytes that never landed is
+    // unrepresentable) — but the stored object VANISHES before verification
+    // (a lost object, not a forged record). The resolve check fires before
+    // any digest comparison because there are no bytes to resolve.
     fixture.write_passing_report(REPORT_LOCATOR);
-    let producer = report_instrument();
-    let never_stored = reference("p12-never-stored");
-    let production = EvidenceProduction::new(
-        never_stored.clone(),
-        // The producer-side content digest (C3) of the bytes it says it
-        // ingested — the resolve check fires before any digest comparison
-        // because those bytes never landed in the store.
-        content_digest(b"the bytes the producer claims to have ingested"),
-        producer,
-        locator(REPORT_LOCATOR),
-        IterationNo::new(2).expect("iterations are 1-based"),
-        EpochSeconds::new(BASE_INSTANT + 200),
+    let stored = fixture.produce(
+        &report_instrument(),
+        REPORT_LOCATOR,
+        2,
+        PASSING_REPORT,
+        EvidenceKind::TestReport,
     );
-    fixture
-        .state
-        .record_evidence_production(&fixture.run(), &production, bound())
-        .expect("the production record lands");
+    fixture.remove_stored_object(&stored);
 
     // The request lies about everything decidable. The decision still reads
     // durable state: the requirement's evidence does not resolve there.

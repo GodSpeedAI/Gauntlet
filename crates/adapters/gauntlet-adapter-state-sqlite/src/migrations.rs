@@ -50,6 +50,11 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "evidence_production_content",
         sql: include_str!("../migrations/0007_evidence_production_content.sql"),
     },
+    Migration {
+        version: 8,
+        name: "correction_selection_records",
+        sql: include_str!("../migrations/0008_correction_selection_records.sql"),
+    },
 ];
 
 /// Why a migration could not be applied — typed, carrying the version.
@@ -188,9 +193,17 @@ mod tests {
     fn migrations_apply_in_order_and_reopening_applies_nothing_new() {
         let conn = Connection::open_in_memory().expect("in-memory database opens");
         apply(&conn).expect("the set applies");
-        assert_eq!(applied_versions(&conn).unwrap(), vec![1, 2, 3, 4, 5, 6, 7]);
+        // 0008 (correction-selection records) widened the records CHECK by
+        // rebuilding the table — a recorded act, pinned here with the rest.
+        assert_eq!(
+            applied_versions(&conn).unwrap(),
+            vec![1, 2, 3, 4, 5, 6, 7, 8]
+        );
         apply(&conn).expect("an up-to-date database is a no-op");
-        assert_eq!(applied_versions(&conn).unwrap(), vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(
+            applied_versions(&conn).unwrap(),
+            vec![1, 2, 3, 4, 5, 6, 7, 8]
+        );
         // Every migration in the set is numbered strictly ascending, and the
         // versions recorded are exactly the set's versions — the append-only
         // property pinned mechanically.

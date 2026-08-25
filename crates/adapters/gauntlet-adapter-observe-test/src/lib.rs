@@ -15,11 +15,13 @@
 //! (spawn failure, missing workspace, store write failure) or that dies by
 //! signal (no exit status exists to record) is an [`ObserverError`].
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use gauntlet_domain::{EvidenceKind, InstrumentName, WorkspaceRef};
+use gauntlet_domain::{EpochSeconds, EvidenceKind, InstrumentName, WorkspaceRef};
 use gauntlet_ports::clock::Clock;
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::evidence_store::EvidenceStore;
@@ -32,6 +34,153 @@ use sha2::{Digest as _, Sha256};
 /// The wrapper instrument's name — the capability is `test`
 /// (`FacetKind::Test`); this names the adapter that observed.
 pub const INSTRUMENT_NAME: &str = "gauntlet-observe-test";
+
+/// Captured-output ceiling per stream, in bytes (plan Task-9 D1): the
+/// facet records the instrument's output verbatim up to this ceiling;
+/// past it the stream is truncated with a recorded marker, so an
+/// instrument that produces unbounded output cannot grow the evidence
+/// store without bound. Sized to hold a realistic diagnostic transcript
+/// whole; the truncation marker names the ceiling in the document itself.
+const OUTPUT_CEILING_BYTES: usize = 64 * 1024;
+
+/// The pause between child `try_wait` probes while the observe deadline
+/// is enforced (plan Task-9 D1). Deliberately the smallest expressible
+/// tick: the wait is bounded by the deadline, and the probe itself is a
+/// cheap syscall — the bound, not the tick, is the policy.
+const TRY_WAIT_PAUSE: Duration = Duration::from_millis(1);
+
+/// The read chunk of the capped stream drainers.
+const READ_CHUNK: usize = 4096;
+
+/// One bounded instrument execution (plan Task-9 D1): the observe
+/// deadline is ENFORCED, not noted — a deadline with no time left at the
+/// call refuses WITHOUT spawning, and a child still running at the
+/// deadline is killed and reported [`ObserverError::Unavailable`] (spec
+/// §18.4's "test hangs" disposition: the assembler records the gap into
+/// BOTH gap arrays, never a hang). Captured output is ceilinged per
+/// stream ([`OUTPUT_CEILING_BYTES`]) with a recorded truncation marker.
+///
+/// The kill bounds the OBSERVATION, not the whole process tree: it
+/// signals the instrument process itself; grandchildren are the runner's
+/// containment concern (plan Task 14), not the observer's.
+fn run_bounded(
+    program: &str,
+    args: &[String],
+    workspace: &Path,
+    kind: FacetKind,
+    deadline: Deadline,
+    now: EpochSeconds,
+) -> Result<BoundedOutput, ObserverError> {
+    if deadline.instant().get() <= now.get() {
+        return Err(ObserverError::Unavailable {
+            kind,
+            detail: format!(
+                "the observe deadline {deadline} has no time left at {now} — the instrument is \
+                 not spawned"
+            ),
+        });
+    }
+    let span = Duration::from_secs(deadline.instant().get() - now.get());
+    let kill_at = Instant::now() + span;
+    let mut child = Command::new(program)
+        .args(args)
+        .current_dir(workspace)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|err| ObserverError::Unavailable {
+            // C8: a program that cannot spawn "could not run at all" —
+            // `Unavailable`. The instrument never ran, so it cannot have
+            // failed.
+            kind,
+            detail: format!("spawning the test instrument failed: {err}"),
+        })?;
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let stdout_reader = std::thread::spawn(move || drain_capped(stdout_pipe));
+    let stderr_reader = std::thread::spawn(move || drain_capped(stderr_pipe));
+    let status = loop {
+        match child.try_wait() {
+            Ok(found) => {
+                let Some(found) = found else {
+                    if Instant::now() >= kill_at {
+                        let _ = child.kill();
+                        // Reap so the pipes close and the drainers see EOF.
+                        let _ = child.wait();
+                        break None;
+                    }
+                    std::thread::sleep(TRY_WAIT_PAUSE);
+                    continue;
+                };
+                break Some(found);
+            }
+            Err(err) => {
+                return Err(ObserverError::Unavailable {
+                    kind,
+                    detail: format!("waiting on the test instrument failed: {err}"),
+                });
+            }
+        }
+    };
+    let stdout = stdout_reader.join().unwrap_or_default();
+    let stderr = stderr_reader.join().unwrap_or_default();
+    let Some(status) = status else {
+        return Err(ObserverError::Unavailable {
+            kind,
+            detail: format!(
+                "the test instrument exceeded the observe deadline {deadline} and was killed — \
+                 the spec 18.4 'test hangs' disposition: a recorded gap, never a hang"
+            ),
+        });
+    };
+    Ok(BoundedOutput {
+        status,
+        stdout,
+        stderr,
+    })
+}
+
+/// What one bounded execution captured.
+#[derive(Debug)]
+struct BoundedOutput {
+    status: std::process::ExitStatus,
+    stdout: String,
+    stderr: String,
+}
+
+/// Drains one output stream up to [`OUTPUT_CEILING_BYTES`], then keeps
+/// READING AND DISCARDING to EOF — a reader that stopped early would
+/// block a chatty-but-healthy child on a full pipe and get it killed at
+/// the deadline for the wrong reason. A capped stream ends with a marker
+/// naming the ceiling, so the truncation is evidence, not silence. A
+/// missing pipe (None) is an empty stream.
+fn drain_capped<R: Read>(pipe: Option<R>) -> String {
+    let Some(mut pipe) = pipe else {
+        return String::new();
+    };
+    let mut kept: Vec<u8> = Vec::new();
+    let mut buffer = [0u8; READ_CHUNK];
+    let mut capped = false;
+    loop {
+        match pipe.read(&mut buffer) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => {
+                let room = OUTPUT_CEILING_BYTES.saturating_sub(kept.len());
+                if read > room {
+                    capped = true;
+                }
+                kept.extend_from_slice(&buffer[..read.min(room)]);
+            }
+        }
+    }
+    let mut text = String::from_utf8_lossy(&kept).into_owned();
+    if capped {
+        text.push_str(&format!(
+            "\n[output truncated at the {OUTPUT_CEILING_BYTES}-byte ceiling]"
+        ));
+    }
+    text
+}
 
 /// The declared instrument this adapter wraps (plan Tasks 15–16 bind real
 /// tools): the program and its arguments, verbatim.
@@ -131,24 +280,21 @@ impl Observer for TestObserver {
         let workspace = resolve_workspace(&self.root, request, kind)?;
         let query = command_line(&self.command.program, &self.command.args);
         let started = self.clock.now();
-        let output = Command::new(&self.command.program)
-            .args(&self.command.args)
-            .current_dir(&workspace)
-            .output()
-            .map_err(|err| ObserverError::Unavailable {
-                // C8: a program that cannot spawn "could not run at all" —
-                // `Unavailable`, matching the versioning adapter. The
-                // instrument never ran, so it cannot have failed.
-                kind,
-                detail: format!("spawning the test instrument failed: {err}"),
-            })?;
+        let bounded = run_bounded(
+            &self.command.program,
+            &self.command.args,
+            &workspace,
+            kind,
+            deadline,
+            started,
+        )?;
         let ended = self.clock.now();
-        let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
-        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        let stdout = bounded.stdout;
+        let stderr = bounded.stderr;
         // ANY exit status is the observed reality (P3 core: failing tests
         // are the observation, not an observation failure). A signal death
         // produced no exit status — that is an instrument failure.
-        let exit = match output.status.code() {
+        let exit = match bounded.status.code() {
             Some(code) => i64::from(code),
             None => {
                 return Err(ObserverError::InstrumentFailed {
@@ -431,6 +577,132 @@ mod tests {
         );
     }
 
+    /// A wall clock for the deadline tests: a REAL child needs a REAL
+    /// `now` for the deadline arithmetic.
+    struct WallClock;
+
+    impl Clock for WallClock {
+        fn now(&self) -> gauntlet_domain::EpochSeconds {
+            gauntlet_domain::EpochSeconds::new(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .expect("the system clock is after the epoch")
+                    .as_secs(),
+            )
+        }
+
+        fn sleep_until(
+            &self,
+            _at: gauntlet_domain::EpochSeconds,
+        ) -> Result<(), gauntlet_ports::clock::ClockError> {
+            Ok(())
+        }
+    }
+
+    /// The short grace the deadline tests bound their real waits by: the
+    /// child outlives it, the kill fires within it.
+    const SHORT_SPAN: u64 = 1;
+
+    /// The bytes the chatty-child fixture emits — well past the capture
+    /// ceiling.
+    const BIG_EMIT: u32 = 200_000;
+
+    /// Task-9 D1: a test run that outlives the observe deadline is
+    /// killed and reported `Unavailable` — the §18.4 "test hangs"
+    /// disposition.
+    #[test]
+    fn a_test_run_that_outlives_the_deadline_is_killed_and_reported_unavailable() {
+        let scratch = Scratch::new("deadline");
+        let workspace = scratch.dir("ws");
+        let now = WallClock.now();
+        let bound = Deadline::at_epoch(EpochSeconds::new(now.get() + SHORT_SPAN));
+        match run_bounded(
+            "sleep",
+            &["3".to_owned()],
+            &workspace,
+            FacetKind::Test,
+            bound,
+            now,
+        ) {
+            Err(ObserverError::Unavailable { detail, .. }) => {
+                assert!(
+                    detail.contains("deadline"),
+                    "the refusal names the deadline: {detail}"
+                );
+            }
+            other => panic!("an outlived deadline is an unavailable instrument, got {other:?}"),
+        }
+    }
+
+    /// Task-9 D1: an already-expired deadline refuses WITHOUT spawning —
+    /// the sentinel the instrument would create never appears.
+    #[test]
+    fn an_expired_deadline_refuses_without_spawning() {
+        let scratch = Scratch::new("expired");
+        let root = scratch.dir("root");
+        let workspace = root.join("ws");
+        std::fs::create_dir_all(&workspace).expect("the live workspace is creatable");
+        let sentinel = workspace.join("gauntlet-expired-sentinel");
+        let observer = TestObserver::from_parts(
+            TestCommand::new(
+                "sh",
+                vec!["-c".to_owned(), format!("touch {}", sentinel.display())],
+            ),
+            root,
+            Arc::new(WallClock),
+            Arc::new(NeverStore),
+            &[],
+        );
+        let now = WallClock.now();
+        let expired = Deadline::at_epoch(now);
+        match observer.observe(&containment_request("ws"), expired) {
+            Err(ObserverError::Unavailable { detail, .. }) => {
+                assert!(
+                    detail.contains("not spawned"),
+                    "the refusal names that nothing was spawned: {detail}"
+                );
+            }
+            other => panic!("an expired deadline is a typed refusal, got {other:?}"),
+        }
+        assert!(
+            !sentinel.exists(),
+            "an expired deadline must not spawn the instrument"
+        );
+    }
+
+    /// Task-9 D1: captured output is ceilinged per stream and the
+    /// truncation is RECORDED in the stream, not silent.
+    #[test]
+    fn captured_output_is_ceilinged_with_a_recorded_marker() {
+        let scratch = Scratch::new("ceiling");
+        let workspace = scratch.dir("ws");
+        let now = WallClock.now();
+        let bound = Deadline::at_epoch(EpochSeconds::new(now.get() + 30));
+        let bounded = run_bounded(
+            "head",
+            &[
+                "-c".to_owned(),
+                BIG_EMIT.to_string(),
+                "/dev/zero".to_owned(),
+            ],
+            &workspace,
+            FacetKind::Test,
+            bound,
+            now,
+        )
+        .expect("the chatty fixture child exits on its own");
+        let marker = format!("\n[output truncated at the {OUTPUT_CEILING_BYTES}-byte ceiling]");
+        assert!(
+            bounded.stdout.contains(marker.trim()),
+            "the truncation marker is recorded: {} bytes",
+            bounded.stdout.len()
+        );
+        assert!(
+            bounded.stdout.len() <= OUTPUT_CEILING_BYTES + marker.len(),
+            "the captured stream is bounded by the ceiling plus its marker"
+        );
+    }
+
     /// C8 (Task-9 adjudication): a test instrument whose program cannot
     /// spawn "could not run at all" — the port's `Unavailable` class, the
     /// one the versioning adapter already used — not `InstrumentFailed`
@@ -450,7 +722,11 @@ mod tests {
         );
         match observer.observe(
             &containment_request("ws"),
-            Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(0)),
+            // A budgeted bound (the fixture clock reads epoch 0): the
+            // spawn must be ATTEMPTED and fail — a zero-budget deadline
+            // would refuse before spawning, which is a different
+            // disposition with its own test.
+            Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(30)),
         ) {
             Err(ObserverError::Unavailable { detail, .. }) => {
                 assert!(

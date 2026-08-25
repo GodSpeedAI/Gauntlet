@@ -389,12 +389,29 @@ mod tests {
         }
     }
 
-    /// The scratch manifest — shallow on purpose: check 2's manifest clause
-    /// validates top-level mapping shape (deep `parse_manifest` validation
-    /// is a recorded deferral), and the digest clause hashes these exact
-    /// bytes against the lock's manifest half.
+    /// The scratch manifest — a minimal FROZEN-SHAPE manifest that
+    /// deep-parses under the strict reader (N1 promoted the fixture: the
+    /// clause now runs `parse_manifest`, so the fixture must satisfy it).
+    /// The digest clause hashes these exact bytes against the lock's
+    /// manifest half.
     fn scratch_manifest() -> String {
-        "reference:\n  id: scratch\n  version: 1\n".to_owned()
+        [
+            "reference:",
+            "  id: scratch-ref-01",
+            "  version: 1",
+            "  purpose: >",
+            "    A scratch reference narrative for the doctor suite.",
+            "  desired_state: >",
+            "    The scratch destination is reached.",
+            "  settlement:",
+            "    success_criteria:",
+            "      - the scratch destination is reached",
+            "    minimum_reliability: >",
+            "      spec 19.2 default: >= 1 settlements before promotion.",
+            "    terminal_conditions: [settled, aborted]",
+            "",
+        ]
+        .join("\n")
     }
 
     /// A strict, frozen-shaped lock for the scratch: the true digests of the
@@ -919,17 +936,20 @@ mod tests {
     }
 
     /// The manifest half of digest-vs-lock (critic-A M3 / critic-B F2): a
-    /// rewrite of the ruler's narrative half — keeping every shape-level
-    /// clause green — is caught ONLY by the recomputed manifest digest, and
-    /// is a reference-class failure on both surfaces.
+    /// rewrite of the ruler's narrative half — one that still deep-parses,
+    /// keeping every shape-level clause green — is caught ONLY by the
+    /// recomputed manifest digest, and is a reference-class failure on both
+    /// surfaces. (N1 note: the rewrite keeps the frozen shape precisely so
+    /// the digest clause stays the only possible locus.)
     #[test]
     fn a_moved_manifest_fails_check_two_as_a_reference_class_failure() {
         let scratch = Scratch::new();
-        std::fs::write(
-            scratch.root.join("reference.yaml"),
-            "reference:\n  id: scratch\n  version: 999\n",
-        )
-        .expect("moved manifest");
+        let moved = scratch_manifest().replace(
+            "A scratch reference narrative",
+            "A quietly rewritten narrative",
+        );
+        assert_ne!(&moved, &scratch_manifest(), "the rewrite must move bytes");
+        std::fs::write(scratch.root.join("reference.yaml"), moved).expect("moved manifest");
         let report = run_doctor(&scratch.input(Some(&healthy_doc())));
         assert_eq!(status_of(&report, 2), &CheckStatus::Fail);
         let check = &report.checks[id_to_index(2)];
@@ -962,6 +982,97 @@ mod tests {
             "the untouched key half still reports its match: {evidence}"
         );
         assert!(!report.exit_ok());
+    }
+
+    /// N1, vacuity leg: a manifest whose every line is indented carries NO
+    /// top-level mapping entry — zero keys is not a mapping, so the manifest
+    /// clause must fail. The lock is rewritten TRUE for the doctored bytes,
+    /// so the manifest clause is the only possible locus.
+    #[test]
+    fn an_all_indented_manifest_is_not_a_mapping_and_fails_check_two() {
+        let scratch = Scratch::new();
+        let doctored = "  reference:\n    id: scratch-ref-01\n    version: 1\n";
+        std::fs::write(scratch.root.join("reference.yaml"), doctored).expect("doctored manifest");
+        let key_bytes = std::fs::read(scratch.root.join("answer-key.md")).expect("key reads");
+        std::fs::write(
+            scratch.root.join(".gauntlet").join("reference.lock"),
+            lock_text(&key_bytes, doctored.as_bytes(), 2),
+        )
+        .expect("lock placed");
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        assert_eq!(
+            status_of(&report, 2),
+            &CheckStatus::Fail,
+            "an all-indented manifest is not a mapping: {}",
+            report.human_summary()
+        );
+        let check = &report.checks[id_to_index(2)];
+        let manifest_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "manifest")
+            .expect("manifest clause");
+        assert_eq!(
+            manifest_clause.status,
+            CheckStatus::Fail,
+            "zero top-level keys is a vacuous pass, never a pass: {:?}",
+            manifest_clause.evidence
+        );
+        let digest_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "digest")
+            .expect("digest clause");
+        assert_eq!(
+            digest_clause.status,
+            CheckStatus::Pass,
+            "the lock was rewritten true for the doctored bytes, so the \
+             manifest clause is the only locus: {:?}",
+            digest_clause.evidence
+        );
+    }
+
+    /// N1, strict-parse leg: a manifest that keeps its top-level mapping
+    /// shape but cannot deep-parse under the frozen manifest shape (the
+    /// pre-promotion scratch shape: id and version only) fails check 2 as a
+    /// reference-class failure carrying the typed parse locus.
+    #[test]
+    fn a_manifest_that_cannot_deep_parse_fails_check_two_as_a_reference_class_failure() {
+        let scratch = Scratch::new();
+        let shallow = "reference:\n  id: scratch-ref-01\n  version: 1\n";
+        std::fs::write(scratch.root.join("reference.yaml"), shallow).expect("shallow manifest");
+        let key_bytes = std::fs::read(scratch.root.join("answer-key.md")).expect("key reads");
+        std::fs::write(
+            scratch.root.join(".gauntlet").join("reference.lock"),
+            lock_text(&key_bytes, shallow.as_bytes(), 2),
+        )
+        .expect("lock placed");
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        assert_eq!(status_of(&report, 2), &CheckStatus::Fail);
+        assert!(!report.exit_ok());
+        let check = &report.checks[id_to_index(2)];
+        let manifest_clause = check
+            .sub
+            .iter()
+            .find(|clause| clause.name == "manifest")
+            .expect("manifest clause");
+        assert_eq!(
+            manifest_clause.status,
+            CheckStatus::Fail,
+            "a shape-only clause admits a manifest the strict reader refuses: {:?}",
+            manifest_clause.evidence
+        );
+        let evidence = manifest_clause.evidence.join("\n");
+        assert!(
+            evidence.contains("reference-class"),
+            "the failure is reference-class: {evidence}"
+        );
+        // The typed ManifestError names its locus: the first missing
+        // required key of the frozen shape.
+        assert!(
+            evidence.contains("purpose"),
+            "the typed parse error names the missing required key: {evidence}"
+        );
     }
 
     /// The strict lock read: an unknown field in the freeze record is a

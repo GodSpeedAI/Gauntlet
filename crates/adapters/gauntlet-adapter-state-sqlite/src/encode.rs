@@ -403,10 +403,10 @@ pub(crate) fn encode_spent(spent: &Spent) -> String {
     .to_json_text()
 }
 
-/// Decodes [`encode_spent`]. The counters are stored verbatim; the domain
-/// offers no constructor that sets them (spend accrues through `Budget`), so
-/// the decoded value is returned as the six numbers, for the caller to admit
-/// through its own accounting.
+/// Decodes [`encode_spent`]. The counters are stored verbatim and returned
+/// as the six numbers, for the caller to admit through its own accounting —
+/// the domain's `Budget::restore` (Task 12) is the admission path that
+/// enforces the water-mark invariants against the run's ceilings.
 pub(crate) fn decode_spent(payload: &str) -> Result<SpentNumbers, DecodeError> {
     let parsed = json::parse(payload).map_err(|err| DecodeError::Json {
         detail: err.to_string(),

@@ -69,3 +69,10 @@ gauntlet-adapter-verify-command-exit-code.workspace = true
 gauntlet-adapter-verify-test-report.workspace = true
 gauntlet-adapter-verify-file-digest.workspace = true
 gauntlet-adapter-verify-schema-check.workspace = true
+# Task 12 adds the budget-meter adapter the same way: the P4/P6 proofs
+# (tests/p4_corrective_loop.rs, tests/p6_budget_control.rs) compose the
+# REAL controller over the REAL metered budget at the composition root
+# (plan Task 12's gate spells those two test targets). Still dev-only —
+# production wiring lands with the plan-task composition that needs it
+# (Tasks 15/20).
+gauntlet-adapter-meter-memory.workspace = true

@@ -6,15 +6,33 @@
 //! and frozen reference digest intact; a run never stored is `None`; and
 //! export is deterministic — same run history, byte-identical JSONL (spec
 //! §6.2: "Export is deterministic").
+//!
+//! The two owner writes (`record_evidence_production`,
+//! `bind_observation_bundle`) are capability-gated (plan Task 12): the
+//! suite EARNS them through the ports minting authorities exactly the way
+//! production does — no minting fixture exists anywhere, and the store
+//! methods themselves accept only the minted values. What the suite holds
+//! the ADAPTER to is everything downstream of the mint: the production
+//! facts persist exactly (write-once per ref, idempotent for identical
+//! facts, refused for different facts), the observation binding persists
+//! the derived §12.4 digest, and both read back through the port's own
+//! queries.
 
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceRef, InvocationId,
-    IterationNo, Limits, MicroUsd, ReferenceId, ResultContractPath, Run, RunDefinition, RunError,
-    RunId, UnitId, UnitStatus, VerificationRef,
+    Budget, CorrectionDescriptor, CorrectionSelection, CorrectionShape, DecisionStep,
+    DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind, EvidenceRef,
+    InstrumentName, InvocationId, IterationNo, Limits, MicroUsd, ReferenceId, RejectedAlternative,
+    RejectionClass, RejectionReason, ResultContractPath, Run, RunDefinition, RunError, RunId,
+    SelectionDimension, UnitId, UnitStatus, VerificationRef,
 };
 
 use crate::contract::ContractFinding;
 use crate::deadline::Deadline;
+use crate::evidence_store::{EvidenceStore, EvidenceStoreError};
+use crate::observer::InstrumentIdentity;
+use crate::producer_authority::{
+    EvidenceProductionAuthority, ObservationBindingAuthority, ProducerAuthorityError,
+};
 use crate::state_store::{Checkpoint, RunEvent, RunEventKind, StateStore};
 
 /// The suite's name in findings.
@@ -325,11 +343,547 @@ fn export_is_byte_identical_and_faithful(factory: &dyn StateStoreFactory) -> Vec
     findings
 }
 
+/// The suite's own evidence store: content-addressed by insertion name, no
+/// overwrite — enough store semantics for the authorities to read honest
+/// bytes at a ref (the Task-10 round-9 pattern: the suite stands up its own
+/// substrate rather than a minting fixture).
+#[derive(Default)]
+struct SuiteEvidence {
+    objects: std::sync::Mutex<Vec<(EvidenceRef, Vec<u8>)>>,
+}
+
+impl SuiteEvidence {
+    fn insert(&self, name: &str, bytes: &[u8]) -> EvidenceRef {
+        let reference = EvidenceRef::new(name).expect("suite evidence ref is valid");
+        self.objects
+            .lock()
+            .expect("the suite evidence store is not poisoned")
+            .push((reference.clone(), bytes.to_vec()));
+        reference
+    }
+}
+
+impl EvidenceStore for SuiteEvidence {
+    fn put(
+        &self,
+        bytes: &[u8],
+        _: EvidenceKind,
+        _: Deadline,
+    ) -> Result<EvidenceRef, EvidenceStoreError> {
+        let index = self
+            .objects
+            .lock()
+            .expect("the suite evidence store is not poisoned")
+            .len();
+        Ok(self.insert(&format!("evd-state-suite-{index:06}"), bytes))
+    }
+    fn get(
+        &self,
+        reference: &EvidenceRef,
+        _: Deadline,
+    ) -> Result<Option<Vec<u8>>, EvidenceStoreError> {
+        Ok(self
+            .objects
+            .lock()
+            .expect("the suite evidence store is not poisoned")
+            .iter()
+            .find(|(found, _)| found == reference)
+            .map(|(_, bytes)| bytes.clone()))
+    }
+    fn pin(&self, _: &RunId, _: &EvidenceRef, _: Deadline) -> Result<(), EvidenceStoreError> {
+        Ok(())
+    }
+}
+
+/// Case: the two owner writes are earned through the minting authorities —
+/// the store accepts the minted values, persists the derived content digest
+/// and every production fact write-once, refuses a conflicting re-record,
+/// and both records read back through the port's own queries.
+fn owner_writes_are_earned_through_the_authorities(
+    factory: &dyn StateStoreFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "owner_writes_are_earned_through_the_authorities";
+    const RULE: &str = "plan Task 12 (Task-11 C7 / Task-10 MINOR-2): the owner writes accept only authority-minted values; production facts and the derived §12.4 digest persist exactly and read back";
+    let built = match factory.build() {
+        Ok(store) => store,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the factory could not build a store for the case: {error}"),
+            )];
+        }
+    };
+    // One store, shared by the authorities and the readbacks — the
+    // composition root's single-adapter seam, reproduced here.
+    let store: std::sync::Arc<dyn StateStore> = built.into();
+    let evidence = std::sync::Arc::new(SuiteEvidence::default());
+    let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("suite run id is a ULID");
+    // The durable substrate: a checkpoint makes the run durable (the suite's
+    // own pinned case above) and stands the durable iteration anchor at 2.
+    let checkpoint = match checkpoint(&run_id) {
+        Ok(checkpoint) => checkpoint,
+        Err(_) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                "the suite checkpoint is unusable".to_owned(),
+            )];
+        }
+    };
+    if let Err(error) = store.checkpoint(checkpoint, bound()) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("writing the durable-anchor checkpoint failed: {error}"),
+        )];
+    }
+    let evidence_objects = evidence.clone();
+    evidence_objects.insert(
+        "evd-state-suite-production-0001",
+        b"the suite's produced evidence bytes",
+    );
+    evidence_objects.insert(
+        "evd-state-suite-bundle-0001",
+        br#"{"schema":"observation_bundle@v1","run_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","iteration_no":2,"observed_at":1700000060,"facets":[],"observation_digest":"00"}"#,
+    );
+    let production_authority = EvidenceProductionAuthority::new(store.clone(), evidence.clone());
+    let binding_authority = ObservationBindingAuthority::new(store.clone(), evidence.clone());
+    let mut findings = Vec::new();
+    let anchor = IterationNo::new(2).expect("suite iteration is 1-based");
+    let production_bytes: &[u8] = b"the suite's produced evidence bytes";
+    let production_ref =
+        EvidenceRef::new("evd-state-suite-production-0001").expect("suite evidence ref is valid");
+    let producer = InstrumentIdentity::new(
+        InstrumentName::new("suite-owner-instrument").expect("suite instrument name"),
+        "1".to_owned(),
+    );
+    let locator = gauntlet_domain::EvidenceLocator::new("suite-owner-locator.json")
+        .expect("suite locator is valid");
+    let produced_at = EpochSeconds::new(BASE_INSTANT + 5);
+    // The authority derives the content digest from the bytes it read; the
+    // suite recomputes it independently (SHA-256 of the literal bytes) so a
+    // digest that is not OF THE BYTES cannot pass.
+    let expected_content = {
+        use sha2::Digest as _;
+        Digest::new(
+            "sha256",
+            &sha2::Sha256::digest(production_bytes)
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>(),
+        )
+        .expect("SHA-256 hex is a valid digest")
+    };
+    let binding = match production_authority.record(
+        &run_id,
+        anchor,
+        &production_ref,
+        &producer,
+        &locator,
+        produced_at,
+        bound(),
+    ) {
+        Ok(binding) => binding,
+        Err(ProducerAuthorityError::State(error)) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the store refused a minted production record: {error}"),
+            )];
+        }
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("earning the production capability failed: {error}"),
+            )];
+        }
+    };
+    if binding.production().content() != &expected_content {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "the recorded content digest {} is not the digest of the served bytes {}",
+                binding.production().content(),
+                expected_content
+            ),
+        ));
+    }
+    if binding.event_log_offset().get() == 0 {
+        findings.push(finding(
+            CASE,
+            RULE,
+            "the production binding carries no store-minted ordering anchor".to_owned(),
+        ));
+    }
+    // Readback through the port's own query: the durable facts are exactly
+    // the minted ones.
+    match store.evidence_production(&run_id, &production_ref, bound()) {
+        Ok(Some(found)) => {
+            if found.production() != binding.production() {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    format!(
+                        "the durable production record for {} differs from the minted one",
+                        production_ref
+                    ),
+                ));
+            }
+        }
+        Ok(None) => findings.push(finding(
+            CASE,
+            RULE,
+            "the recorded production does not read back — no durable fact exists".to_owned(),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("reading the production back failed: {error}"),
+        )),
+    }
+    // Write-once: a CONFLICTING record for the same ref (different producer)
+    // is minted honestly by the authority — same bytes, so the same derived
+    // digest — and must be refused by the STORE, never overwritten.
+    let other_producer = InstrumentIdentity::new(
+        InstrumentName::new("suite-other-instrument").expect("suite instrument name"),
+        "1".to_owned(),
+    );
+    match production_authority.record(
+        &run_id,
+        anchor,
+        &production_ref,
+        &other_producer,
+        &locator,
+        produced_at,
+        bound(),
+    ) {
+        Err(ProducerAuthorityError::State(crate::state_store::StateStoreError::WriteFailed {
+            ..
+        })) => {}
+        Err(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "a conflicting re-record was refused before the store's write-once rule ({other})"
+            ),
+        )),
+        Ok(_) => findings.push(finding(
+            CASE,
+            RULE,
+            "a second record with different facts for the same ref succeeded — the write-once \
+             rule was not enforced"
+                .to_owned(),
+        )),
+    }
+    // The observation binding: earned the same way, digest derived from the
+    // bundle's bytes by the canonical §12.4 rule.
+    let bundle_ref =
+        EvidenceRef::new("evd-state-suite-bundle-0001").expect("suite evidence ref is valid");
+    if let Err(error) = binding_authority.bind(&run_id, anchor, &bundle_ref, bound()) {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!("earning the observation-binding capability failed: {error}"),
+        ));
+        return findings;
+    }
+    let expected_observation = {
+        let bytes = evidence_objects
+            .get(&bundle_ref, bound())
+            .expect("the suite's own evidence store serves the bundle")
+            .expect("the bundle object was inserted above");
+        let document = crate::json::parse(std::str::from_utf8(&bytes).expect("UTF-8 fixture"))
+            .expect("the suite bundle is JSON");
+        crate::observation_digest::observation_digest(&document)
+    };
+    match store.observation_binding(&run_id, anchor, bound()) {
+        Ok(Some(found)) => {
+            if found.evidence() != &bundle_ref || found.digest() != &expected_observation {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    format!(
+                        "the durable observation binding ({}, {}) is not the bundle ref with its \
+                         derived §12.4 digest ({}, {})",
+                        found.evidence(),
+                        found.digest(),
+                        bundle_ref,
+                        expected_observation
+                    ),
+                ));
+            }
+        }
+        Ok(None) => findings.push(finding(
+            CASE,
+            RULE,
+            "the bound observation does not read back — no durable binding exists".to_owned(),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("reading the observation binding back failed: {error}"),
+        )),
+    }
+    findings
+}
+
+/// Case: the controller's §15.1 selection record — chosen correction,
+/// rejected alternatives with class and reason, decision trace — round-trips
+/// durably (AK-037 is a recording claim: selection + alternatives + reasons
+/// must read back exactly as recorded, and a run with no selections reads
+/// as empty, never as an error).
+fn correction_selections_round_trip(factory: &dyn StateStoreFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "correction_selection_round_trip";
+    const RULE: &str = "spec 15.1 step 4: the selection and the rejected alternatives with reasons are recorded on the iteration and read back exactly";
+    let Ok(store) = factory.build() else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the factory could not build a store for the case".to_owned(),
+        )];
+    };
+    let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("suite run id is a ULID");
+    let mut findings = Vec::new();
+    // A run with no selections reads empty, not as an error.
+    match store.correction_selections(&run_id, bound()) {
+        Ok(empty) if empty.is_empty() => {}
+        Ok(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("a fresh run read {other:?} selections — it has none"),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("reading a fresh run's selections errored instead of empty: {error}"),
+        )),
+    }
+    if !findings.is_empty() {
+        return findings;
+    }
+    // The suite's selection: a chosen bounded correction plus one
+    // budget-blocked and one lower-priority rejected alternative, with a
+    // trace naming all ten §15.1 dimensions (the aggregate refuses less).
+    // Duration- and cost-shaped values are named facts (§8.1 literal
+    // discipline), never inline numbers.
+    const REQ_ROUNDS: u32 = 1;
+    const REQ_SPAN: u64 = 60;
+    const REQ_TOKENS: u64 = 400;
+    const REQ_COST: u64 = 5;
+    const REM_ROUNDS: u32 = 6;
+    const REM_SPAN: u64 = 2700;
+    const REM_TOKENS: u64 = 400;
+    const REM_COST: u64 = 395;
+    let facts = gauntlet_domain::BudgetFacts {
+        requested_rounds: REQ_ROUNDS,
+        requested_wall_seconds: REQ_SPAN,
+        requested_tokens: REQ_TOKENS,
+        requested_cost_usd: MicroUsd::new(REQ_COST),
+        remaining_rounds: REM_ROUNDS,
+        remaining_wall_seconds: REM_SPAN,
+        remaining_tokens: REM_TOKENS,
+        remaining_cost_usd: MicroUsd::new(REM_COST),
+    };
+    let chosen = CorrectionDescriptor::new(
+        "bound the parser branch to the frozen grammar".to_owned(),
+        CorrectionShape::Bounded,
+        vec![UnitId::new("AK-014").expect("suite unit id")],
+        facts,
+    )
+    .expect("suite descriptor is complete");
+    let blocked = RejectedAlternative::new(
+        CorrectionDescriptor::new(
+            "rewrite the whole reference pipeline".to_owned(),
+            CorrectionShape::Speculative,
+            vec![UnitId::new("AK-015").expect("suite unit id")],
+            facts,
+        )
+        .expect("suite descriptor is complete"),
+        RejectionClass::Budget,
+        RejectionReason::MeterRefusedReserve { facts },
+    );
+    let outranked = RejectedAlternative::new(
+        CorrectionDescriptor::new(
+            "adjust the neighboring lint".to_owned(),
+            CorrectionShape::Bounded,
+            vec![UnitId::new("AK-016").expect("suite unit id")],
+            facts,
+        )
+        .expect("suite descriptor is complete"),
+        RejectionClass::NotSelected,
+        RejectionReason::LowerPriority {
+            decided_by: SelectionDimension::Impact,
+        },
+    );
+    let trace = SelectionDimension::ALL
+        .iter()
+        .map(|dimension| DecisionStep::new(*dimension, format!("suite fact for {dimension}")))
+        .collect::<Vec<_>>();
+    let selection = CorrectionSelection::new(
+        run_id.clone(),
+        IterationNo::new(2).expect("suite iteration is 1-based"),
+        chosen,
+        vec![blocked, outranked],
+        trace,
+    )
+    .expect("the suite selection satisfies the aggregate's invariants");
+    if let Err(error) = store.record_correction_selection(&selection, bound()) {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!("recording the controller's selection failed: {error}"),
+        ));
+        return findings;
+    }
+    match store.correction_selections(&run_id, bound()) {
+        Ok(recorded) => {
+            if recorded.is_empty() {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    "the recorded selection does not read back — no durable selection exists"
+                        .to_owned(),
+                ));
+            } else if recorded[0] != selection {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    format!(
+                        "the durable selection differs from the recorded one: {recorded:?} vs \
+                         {selection:?}"
+                    ),
+                ));
+            }
+        }
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("reading the recorded selection back failed: {error}"),
+        )),
+    }
+    // Lookups are run-keyed: a stranger's selections never leak.
+    let stranger = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FZZ").expect("distinct ULID");
+    if let Ok(leaked) = store.correction_selections(&stranger, bound())
+        && !leaked.is_empty()
+    {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!("another run read {leaked:?} selections — records are run-keyed"),
+        ));
+    }
+    findings
+}
+
 /// Runs the full `StateStore` contract suite against one factory.
 pub fn state_store_suite(factory: &dyn StateStoreFactory) -> Vec<ContractFinding> {
     let mut findings = Vec::new();
     findings.extend(checkpoint_and_resume_round_trip(factory));
     findings.extend(checkpointed_runs_load(factory));
+    findings.extend(run_identity_recording_round_trips(factory));
     findings.extend(export_is_byte_identical_and_faithful(factory));
+    findings.extend(owner_writes_are_earned_through_the_authorities(factory));
+    findings.extend(correction_selections_round_trip(factory));
+    findings
+}
+
+/// Case: run identity recording (plan Task 12's port addition): a recorded
+/// run loads back with its frozen reference intact; re-recording the SAME
+/// identity is idempotent; a re-recording that moves the frozen reference
+/// is a typed error, never a silent overwrite (spec §5.3.3: a run has
+/// exactly one frozen `reference_version` for its whole life).
+fn run_identity_recording_round_trips(factory: &dyn StateStoreFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "run_identity_recording_round_trips";
+    const RULE: &str = "spec 5.3.3 via 18.1: record_run makes the run durable; identity re-recording is idempotent and a moved reference is refused";
+    let Ok(store) = factory.build() else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the factory could not build a store for the case".to_owned(),
+        )];
+    };
+    let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("suite run id is a ULID");
+    let Ok(run) = run(&run_id) else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the suite run fixture is unusable".to_owned(),
+        )];
+    };
+    if let Err(error) = store.record_run(&run, bound()) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the run identity failed: {error}"),
+        )];
+    }
+    let mut findings = Vec::new();
+    match store.load_run(&run_id, bound()) {
+        Ok(Some(loaded)) => {
+            if loaded.reference_version().digest() != run.reference_version().digest() {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    "the loaded run's frozen reference digest differs from the recorded one"
+                        .to_owned(),
+                ));
+            }
+        }
+        Ok(None) => findings.push(finding(
+            CASE,
+            RULE,
+            "the recorded run does not load back".to_owned(),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("loading the recorded run failed: {error}"),
+        )),
+    }
+    if let Err(error) = store.record_run(&run, bound()) {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!("re-recording the SAME identity must be idempotent, it failed: {error}"),
+        ));
+    }
+    // A re-recording that moves the frozen reference is refused — the run's
+    // one frozen reference is not editable through the recording path.
+    let moved_version = gauntlet_domain::ReferenceVersion::new(
+        run.reference_version().reference_id().clone(),
+        run.reference_version().version(),
+        Digest::new("sha256", &"9f9f9f9f".repeat(4)).expect("suite digest"),
+    );
+    let moved = Run::new(RunDefinition {
+        id: run.id().clone(),
+        created_at: run.created_at(),
+        reference_version: moved_version,
+        intent: run.intent().to_owned(),
+        config_fingerprint: run.config_fingerprint().clone(),
+        environment_fingerprint: run.environment_fingerprint().clone(),
+        budget: run.budget().clone(),
+        parent_run: run.parent_run().cloned(),
+    });
+    match moved {
+        Ok(moved) => {
+            if store.record_run(&moved, bound()).is_ok() {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    "a re-recording that moves the frozen reference must be refused, it was \
+                     accepted"
+                        .to_owned(),
+                ));
+            }
+        }
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("the suite could not build a moved-reference variant: {error}"),
+        )),
+    }
     findings
 }

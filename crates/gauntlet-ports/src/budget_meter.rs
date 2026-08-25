@@ -70,19 +70,28 @@ impl fmt::Display for BudgetMeterError {
 
 impl std::error::Error for BudgetMeterError {}
 
-/// A granted reservation: the slice held for one dispatch.
+/// A granted reservation: the slice held for one dispatch. Constructible
+/// only through [`BudgetMeter::mint`] — never from raw parts outside the
+/// trait (Task-12 correction C9: minting requires a meter INSTANCE, so
+/// the parallelism-accounting token a zero-payment charge releases is
+/// minted inside the port, not assembled by whoever wants one). Honest
+/// scope of that guarantee (Task-12 confirmation round 1, finding 2,
+/// adjudicated in
+/// `.agents/reports/task12/confirmation-adjudication-round1.md`):
+/// it is an authority-of-CONSTRUCTION guarantee, not a
+/// caller guarantee — `mint` is a public trait method, so any code
+/// already holding a meter can mint a reservation and charge it to
+/// saturating-release a slot it never reserved. The composition root
+/// carries the obligation: meters are handed only to code the root
+/// trusts. A type-level seal that removes the public-mint surface
+/// entirely is a recorded ports-revision candidate (later scope;
+/// trigger: the next `BudgetMeter` ports revision).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Reservation {
     slice: BudgetSlice,
 }
 
 impl Reservation {
-    /// Wraps a slice as a reservation. Minting is the meter's job at
-    /// runtime; adapters construct the value their meter grants.
-    pub fn new(slice: BudgetSlice) -> Self {
-        Self { slice }
-    }
-
     /// The slice this reservation holds.
     pub fn slice(&self) -> BudgetSlice {
         self.slice
@@ -103,6 +112,28 @@ pub struct Remaining {
 
 /// The budget port (spec §6.2). Pure — no deadlines.
 pub trait BudgetMeter {
+    /// Mints the reservation this meter grants for `slice` — the ONLY
+    /// construction path for [`Reservation`] (Task-12 correction C9, the
+    /// B1 minting pattern: the value is minted inside a meter
+    /// implementation, so it cannot be assembled from raw parts outside
+    /// the trait). Provided because every implementation mints
+    /// identically; adapters call it from `reserve` and nowhere else.
+    /// Honest scope (Task-12 confirmation round 1, finding 2,
+    /// adjudicated in
+    /// `.agents/reports/task12/confirmation-adjudication-round1.md`):
+    /// because this is a PUBLIC trait method, minting requires a meter
+    /// INSTANCE but not the implementor's own call site — any holder of
+    /// a `dyn BudgetMeter` can mint a reservation and charge it to
+    /// saturating-release a slot never held (the recovery reserve is
+    /// NOT bypassable that way; the charge still passes the domain
+    /// gate). The composition root carries the obligation of handing
+    /// meters only to trusted code; a type-level seal is a recorded
+    /// ports-revision candidate (trigger: the next `BudgetMeter` ports
+    /// revision).
+    fn mint(&self, slice: BudgetSlice) -> Reservation {
+        Reservation { slice }
+    }
+
     /// Reserves a forward slice (spec §6.2). Refused outright when the
     /// slice would consume the recovery reserve (§5.3.7).
     fn reserve(&self, slice: BudgetSlice) -> Result<Reservation, BudgetMeterError>;
@@ -121,24 +152,34 @@ pub trait BudgetMeter {
     fn would_breach_reserve(&self, slice: BudgetSlice) -> bool;
 }
 
-/// Projects the domain budget's forward ceilings into a [`Remaining`] view.
-/// The ceiling arithmetic (`limit * (100 - pct) / 100`) stays in the domain;
-/// this only subtracts spent.
+/// Projects the domain budget's forward ceilings into a [`Remaining`] view
+/// (N5, Task-12 correction: previously this subtracted spent from the RAW
+/// limits, durably overstating headroom by the recovery reserve in every
+/// §15.1 record). The ceiling arithmetic (`limit * (100 - pct) / 100`)
+/// stays in the domain — this reads `Budget::forward_ceiling` — and only
+/// spent is subtracted here. §17.4: "The recovery reserve is never
+/// spendable on forward work", so `remaining()` reports exactly what
+/// forward work may still spend, consistent with the same budget's
+/// `would_breach_reserve` gate. Parallel and depth are scope dimensions
+/// with no reserve and no spend; they pass through unchanged.
 pub fn remaining_of(budget: &Budget) -> Remaining {
     let limits: &Limits = budget.limits();
     let spent = budget.spent();
     Remaining {
-        rounds: limits.max_rounds().saturating_sub(spent.rounds()),
+        rounds: u32::try_from(budget.forward_ceiling(u64::from(limits.max_rounds())))
+            .unwrap_or(0)
+            .saturating_sub(spent.rounds()),
         parallel: limits.max_parallel(),
         depth: limits.max_depth(),
-        wall_seconds: limits
-            .max_wall_seconds()
+        wall_seconds: budget
+            .forward_ceiling(limits.max_wall_seconds())
             .saturating_sub(spent.wall_seconds()),
-        tokens: limits.max_tokens().saturating_sub(spent.tokens()),
+        tokens: budget
+            .forward_ceiling(limits.max_tokens())
+            .saturating_sub(spent.tokens()),
         cost_usd: MicroUsd::new(
-            limits
-                .max_cost_usd()
-                .get()
+            budget
+                .forward_ceiling(limits.max_cost_usd().get())
                 .saturating_sub(spent.cost_usd().get()),
         ),
     }
@@ -150,8 +191,10 @@ mod tests {
     use gauntlet_domain::{Budget, DiagnosticAllowance, Limits, MicroUsd};
 
     // Duration figures are referenced, not written; the value sits on its
-    // own line with no duration-shaped identifier.
+    // own line with no duration-shaped identifier (span vocabulary under
+    // neutral names).
     const WALL_SPAN: u64 = 3600;
+    const WALL_SPAN_FORWARD: u64 = 2_880;
 
     fn budget() -> Budget {
         // Headroom arithmetic is the subject; the values sit on a line with
@@ -165,14 +208,31 @@ mod tests {
     }
 
     #[test]
-    fn remaining_is_limits_minus_spent() {
+    fn remaining_is_forward_ceiling_minus_spent() {
+        // N5 (Task-12 correction): §17.4 — "The recovery reserve is never
+        // spendable on forward work." A meter whose `remaining()` reports
+        // reserve-inclusive headroom contradicts its own
+        // `would_breach_reserve` gate, and every §15.1 record built from
+        // it durably overstates what the run may still spend. The
+        // projection is the FORWARD ceiling (`limit × (100−pct)/100`,
+        // the domain's own arithmetic) minus spent; parallel and depth
+        // are scope dimensions with no reserve.
         let meter_budget = budget();
         let headroom = remaining_of(&meter_budget);
-        assert_eq!(headroom.rounds, 10);
+        assert_eq!(
+            headroom.rounds, 8,
+            "10 rounds at a 20 percent reserve: 8 forward"
+        );
         assert_eq!(headroom.parallel, 2);
         assert_eq!(headroom.depth, 2);
-        assert_eq!(headroom.wall_seconds, WALL_SPAN);
-        assert_eq!(headroom.tokens, 1000);
-        assert_eq!(headroom.cost_usd, MicroUsd::new(500));
+        assert_eq!(
+            headroom.wall_seconds, WALL_SPAN_FORWARD,
+            "{WALL_SPAN} at a 20 percent reserve: the span minus its fifth"
+        );
+        assert_eq!(
+            headroom.tokens, 800,
+            "1000 at a 20 percent reserve: 800 forward"
+        );
+        assert_eq!(headroom.cost_usd, MicroUsd::new(400));
     }
 }

@@ -86,6 +86,17 @@ pub enum BudgetError {
     },
     /// The configured reserve percentage is not a usable portion.
     ReserveOutOfRange { pct: u8 },
+    /// A restored `Spent` water-mark sits where no legal charge sequence
+    /// can leave it — past a raw limit, inside the recovery reserve, or
+    /// past the diagnostic allowance (spec §18.2 resume fidelity: durable
+    /// state that the charge path cannot produce is corrupt, not resumed).
+    RestoreUnreachable {
+        dimension: BudgetDimension,
+        /// The bound the water-mark crossed: the raw limit, the forward
+        /// ceiling, or the allowance, whichever the dimension enforces.
+        ceiling: u64,
+        spent: u64,
+    },
     /// A ceiling of zero was configured — indistinguishable from
     /// unconfigured, and never permission for unlimited recursion.
     LimitZero { dimension: BudgetDimension },
@@ -121,6 +132,16 @@ impl fmt::Display for BudgetError {
                 "recovery reserve of {pct} percent is outside the legal one through one \
                  hundred range: the reserve must be a real portion that is never spendable on \
                  forward work (spec 5.3.7)"
+            ),
+            Self::RestoreUnreachable {
+                dimension,
+                ceiling,
+                spent,
+            } => write!(
+                f,
+                "restored budget {dimension} spend of {spent} sits past the {ceiling} bound the \
+                 charge path enforces — no legal charge sequence can leave this water-mark, so \
+                 the durable spend is corrupt and refused rather than resumed (spec 18.2)"
             ),
             Self::LimitZero { dimension } => write!(
                 f,
@@ -258,6 +279,32 @@ impl Spent {
         }
     }
 
+    /// The value-carrying constructor — the §18.2 resume-fidelity path
+    /// (Task 12, closing Task-6 critic-A MAJOR-2: without it, non-zero
+    /// durable `budget_spent` could not resume, because spend accrued only
+    /// through [`Budget::charge`]). It performs NO invariant checking by
+    /// design: a `Spent` is inert counters, and admission under ceilings is
+    /// [`Budget::restore`]'s refusal to make — the same way `charge` is the
+    /// only path that ACCRUES spend, `restore` is the only path that
+    /// re-admits it, and both enforce the same watermark.
+    pub fn from_counters(
+        rounds: u32,
+        wall_seconds: u64,
+        tokens: u64,
+        cost_usd: MicroUsd,
+        diagnostic_tokens: u64,
+        diagnostic_cost_usd: MicroUsd,
+    ) -> Self {
+        Self {
+            rounds,
+            wall_seconds,
+            tokens,
+            cost_usd,
+            diagnostic_tokens,
+            diagnostic_cost_usd,
+        }
+    }
+
     pub fn rounds(&self) -> u32 {
         self.rounds
     }
@@ -316,6 +363,92 @@ impl Budget {
         })
     }
 
+    /// Rebuilds a budget from durable spend counters (spec §18.2 resume
+    /// fidelity: "Every iteration boundary writes a durable checkpoint
+    /// containing … budget spent", and a checkpoint is only worth writing
+    /// if it is worth resuming). The reserve-portion rule is the
+    /// constructor's own; on top of it, restore refuses any `spent`
+    /// water-mark the charge path could not have left:
+    ///
+    /// - every forward component at or under its raw limit AND at or under
+    ///   the forward ceiling `charge` enforces (a water-mark inside the
+    ///   recovery reserve means the reserve was already consumed —
+    ///   unreachable via `charge`, corrupt to resume);
+    /// - diagnostic spend at or under the diagnostic allowance.
+    ///
+    /// Landing exactly ON the forward ceiling restores: the boundary charge
+    /// books and leaves the reserve intact.
+    pub fn restore(
+        limits: Limits,
+        recovery_reserve_pct: u8,
+        diagnostic: DiagnosticAllowance,
+        spent: Spent,
+    ) -> Result<Self, BudgetError> {
+        if recovery_reserve_pct == 0 || recovery_reserve_pct > 100 {
+            return Err(BudgetError::ReserveOutOfRange {
+                pct: recovery_reserve_pct,
+            });
+        }
+        let forward = [
+            (
+                BudgetDimension::Rounds,
+                u64::from(limits.max_rounds),
+                u64::from(spent.rounds),
+            ),
+            (
+                BudgetDimension::WallSeconds,
+                limits.max_wall_seconds,
+                spent.wall_seconds,
+            ),
+            (BudgetDimension::Tokens, limits.max_tokens, spent.tokens),
+            (
+                BudgetDimension::CostUsd,
+                limits.max_cost_usd.get(),
+                spent.cost_usd.get(),
+            ),
+        ];
+        for (dimension, limit, booked) in forward {
+            let ceiling = limit * u64::from(100 - recovery_reserve_pct) / 100;
+            if booked > ceiling {
+                return Err(BudgetError::RestoreUnreachable {
+                    dimension,
+                    // Name the binding bound: the raw limit when the
+                    // water-mark is past even that, the forward ceiling
+                    // when only the reserve rule refuses it.
+                    ceiling: if booked > limit { limit } else { ceiling },
+                    spent: booked,
+                });
+            }
+        }
+        let diagnostic_bounds = [
+            (
+                BudgetDimension::DiagnosticTokens,
+                diagnostic.tokens(),
+                spent.diagnostic_tokens,
+            ),
+            (
+                BudgetDimension::DiagnosticCostUsd,
+                diagnostic.cost_usd().get(),
+                spent.diagnostic_cost_usd.get(),
+            ),
+        ];
+        for (dimension, allowance, booked) in diagnostic_bounds {
+            if booked > allowance {
+                return Err(BudgetError::RestoreUnreachable {
+                    dimension,
+                    ceiling: allowance,
+                    spent: booked,
+                });
+            }
+        }
+        Ok(Self {
+            limits,
+            recovery_reserve_pct,
+            diagnostic,
+            spent,
+        })
+    }
+
     pub fn limits(&self) -> &Limits {
         &self.limits
     }
@@ -333,8 +466,13 @@ impl Budget {
     }
 
     /// The forward ceiling for one dimension: `limit * (100 - pct) / 100`.
-    /// The remainder is the recovery reserve.
-    fn forward_ceiling(&self, limit: u64) -> u64 {
+    /// The remainder is the recovery reserve. Public (N5, Task-12
+    /// correction): the budget-meter port's `remaining()` projection reads
+    /// the DOMAIN's own ceiling arithmetic rather than duplicating the
+    /// formula — `remaining()` must report what forward work may still
+    /// spend (§17.4: the reserve is never spendable on forward work), and
+    /// the single source of that number is here.
+    pub fn forward_ceiling(&self, limit: u64) -> u64 {
         limit * u64::from(100 - self.recovery_reserve_pct) / 100
     }
 
@@ -658,5 +796,217 @@ mod tests {
             budget.charge(8, 0, 0, MicroUsd::new(0)),
             Err(BudgetError::RecoveryReserveBreached { .. })
         ));
+    }
+
+    // -----------------------------------------------------------------------
+    // restore — the §18.2 resume-fidelity reconstruction path (Task 12,
+    // closing Task-6 critic-A MAJOR-2: non-zero `budget_spent` could not
+    // resume because `Spent` had no value-carrying constructor)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn a_zero_spent_restores_to_a_fresh_budget() {
+        let restored = Budget::restore(
+            limits(),
+            20,
+            DiagnosticAllowance::new(100, MicroUsd::new(50)),
+            Spent::from_counters(0, 0, 0, MicroUsd::new(0), 0, MicroUsd::new(0)),
+        )
+        .expect("zero spend restores");
+        let fresh = budget(20);
+        assert_eq!(restored.spent(), fresh.spent());
+        assert_eq!(restored.limits(), fresh.limits());
+        assert_eq!(
+            restored.recovery_reserve_pct(),
+            fresh.recovery_reserve_pct()
+        );
+    }
+
+    #[test]
+    fn restore_refuses_spend_no_charge_sequence_can_produce() {
+        // Past the RAW limit (1000 tokens): unreachable via charge, which
+        // refuses past the limit outright.
+        assert!(matches!(
+            Budget::restore(
+                limits(),
+                20,
+                DiagnosticAllowance::new(100, MicroUsd::new(50)),
+                Spent::from_counters(0, 0, 1001, MicroUsd::new(0), 0, MicroUsd::new(0)),
+            ),
+            Err(BudgetError::RestoreUnreachable {
+                dimension: BudgetDimension::Tokens,
+                ..
+            })
+        ));
+        // Inside the raw limit but INSIDE the reserve (forward ceiling 800
+        // at a 20 percent reserve): a spent water-mark no legal charge can
+        // leave, because charge refuses to cross the ceiling. Restoring it
+        // would resume a run whose reserve is already spent.
+        assert!(matches!(
+            Budget::restore(
+                limits(),
+                20,
+                DiagnosticAllowance::new(100, MicroUsd::new(50)),
+                Spent::from_counters(0, 0, 801, MicroUsd::new(0), 0, MicroUsd::new(0)),
+            ),
+            Err(BudgetError::RestoreUnreachable {
+                dimension: BudgetDimension::Tokens,
+                ..
+            })
+        ));
+        // Every forward dimension enforces the same refusal, each with its
+        // own dimension tag: rounds (ceiling 8 of 10), wall seconds (2880
+        // of 3600), cost (400 of 500 micro-usd).
+        for (dimension, spent) in [
+            (
+                BudgetDimension::Rounds,
+                Spent::from_counters(9, 0, 0, MicroUsd::new(0), 0, MicroUsd::new(0)),
+            ),
+            (
+                BudgetDimension::WallSeconds,
+                Spent::from_counters(0, 2881, 0, MicroUsd::new(0), 0, MicroUsd::new(0)),
+            ),
+            (
+                BudgetDimension::CostUsd,
+                Spent::from_counters(0, 0, 0, MicroUsd::new(401), 0, MicroUsd::new(0)),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    Budget::restore(
+                        limits(),
+                        20,
+                        DiagnosticAllowance::new(100, MicroUsd::new(50)),
+                        spent,
+                    ),
+                    Err(BudgetError::RestoreUnreachable { dimension: found, .. })
+                        if found == dimension
+                ),
+                "restore accepted a spent water-mark inside the {dimension} reserve"
+            );
+        }
+        // Diagnostic spend past its own allowance is equally unreachable.
+        assert!(matches!(
+            Budget::restore(
+                limits(),
+                20,
+                DiagnosticAllowance::new(100, MicroUsd::new(50)),
+                Spent::from_counters(0, 0, 0, MicroUsd::new(0), 101, MicroUsd::new(0)),
+            ),
+            Err(BudgetError::RestoreUnreachable {
+                dimension: BudgetDimension::DiagnosticTokens,
+                ..
+            })
+        ));
+        assert!(matches!(
+            Budget::restore(
+                limits(),
+                20,
+                DiagnosticAllowance::new(100, MicroUsd::new(50)),
+                Spent::from_counters(0, 0, 0, MicroUsd::new(0), 0, MicroUsd::new(51)),
+            ),
+            Err(BudgetError::RestoreUnreachable {
+                dimension: BudgetDimension::DiagnosticCostUsd,
+                ..
+            })
+        ));
+        // Landing exactly ON every forward ceiling is reachable (the
+        // boundary charge books) and restores.
+        assert!(
+            Budget::restore(
+                limits(),
+                20,
+                DiagnosticAllowance::new(100, MicroUsd::new(50)),
+                Spent::from_counters(8, 2880, 800, MicroUsd::new(400), 100, MicroUsd::new(50)),
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn restore_reuses_the_new_reserve_range_rule() {
+        // The reserve portion rule is the constructor's own; restore does
+        // not get a second, laxer one.
+        assert!(matches!(
+            Budget::restore(
+                limits(),
+                0,
+                DiagnosticAllowance::new(100, MicroUsd::new(50)),
+                Spent::from_counters(0, 0, 0, MicroUsd::new(0), 0, MicroUsd::new(0)),
+            ),
+            Err(BudgetError::ReserveOutOfRange { pct: 0 })
+        ));
+    }
+
+    #[test]
+    fn restore_agrees_with_replaying_the_charges() {
+        // Behavioral equivalence: for a sequence of legal charges, the
+        // budget restored from the spent water-mark those charges left
+        // agrees with the budget built by replaying them — same counters,
+        // same reserve arithmetic, same admission for later charges.
+        let charges = [
+            (1u32, 60u64, 100u64, MicroUsd::new(10)),
+            (0, 120, 250, MicroUsd::new(15)),
+            (2, 30, 40, MicroUsd::new(5)),
+        ];
+        let mut replayed = budget(20);
+        for (rounds, wall, tokens, cost) in charges {
+            replayed
+                .charge(rounds, wall, tokens, cost)
+                .expect("the sequence is legal");
+        }
+        let restored = Budget::restore(
+            limits(),
+            20,
+            DiagnosticAllowance::new(100, MicroUsd::new(50)),
+            *replayed.spent(),
+        )
+        .expect("a water-mark left by legal charges restores");
+        assert_eq!(restored.spent(), replayed.spent());
+
+        // Reserve arithmetic agrees across the follow-up probes, including
+        // the boundary values: the last legal charge, one past it.
+        for (rounds, wall, tokens, cost) in [
+            (5u32, 2670u64, 410u64, MicroUsd::new(380)),
+            (6, 2671, 411, MicroUsd::new(381)),
+            (0, 0, 1, MicroUsd::new(0)),
+        ] {
+            assert_eq!(
+                restored.would_breach_reserve(rounds, wall, tokens, cost),
+                replayed.would_breach_reserve(rounds, wall, tokens, cost),
+                "the restored and replayed budgets disagree on a follow-up slice"
+            );
+        }
+        // Subsequent charge admission agrees — including refusals.
+        let mut restored_admission = restored;
+        let mut replayed_admission = replayed;
+        assert_eq!(
+            restored_admission
+                .charge(5, 2670, 410, MicroUsd::new(380))
+                .is_ok(),
+            replayed_admission
+                .charge(5, 2670, 410, MicroUsd::new(380))
+                .is_ok()
+        );
+        assert_eq!(
+            restored_admission.charge(0, 0, 1, MicroUsd::new(0)),
+            replayed_admission.charge(0, 0, 1, MicroUsd::new(0))
+        );
+        assert_eq!(
+            restored_admission.spent(),
+            replayed_admission.spent(),
+            "agreed admissions must book identically"
+        );
+        // Diagnostic accounting rides along unchanged.
+        assert!(
+            restored_admission
+                .charge_diagnostic(100, MicroUsd::new(50))
+                .is_ok()
+        );
+        assert!(
+            restored_admission
+                .charge_diagnostic(1, MicroUsd::new(0))
+                .is_err()
+        );
     }
 }

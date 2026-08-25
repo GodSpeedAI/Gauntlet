@@ -21,10 +21,21 @@ the tree.
   file does not explain are the signature.
 - A checkpoints file that is complete while the promised final report does not exist.
 - Source mtimes newer than the HEAD commit that CURRENT_STATUS.md points at.
+- **Source mtimes newer than the task's own checkpoint file.** Run
+  `./scripts/reconcile-checkpoints.sh <task>`; exit 1 lists every task-surface file
+  modified after the record's last write — changes the record cannot be describing.
+  This catches the subclass where the report is present and confidently *understates*
+  the tree; see [unrecorded-landed-work.md](unrecorded-landed-work.md).
 
 ## Recovery procedure (worked every time: Tasks 4, 5, 6)
 
 1. `just ruler` first. If it fails, that outranks the recovery.
+1b. `./scripts/reconcile-checkpoints.sh <task>` **before planning anything**. What it
+   flags is landed-but-unrecorded work; read it and classify it before deciding what
+   remains. A checkpoint file is an agent's *report*; the tree is the *contract*. Where
+   they disagree the tree wins — **including when the tree says more was done than the
+   record claims**, which is the more dangerous direction because an understating report
+   reads as conservative.
 2. Reconstruct state from `git log`, `git status`, and the task's report files — never
    from conversational memory and never from what "should" have happened next.
 3. Cheapest question first: does the tree compile (`cargo check --workspace
@@ -51,3 +62,12 @@ the tree.
 - Checkpoint-as-you-go stays mandatory for every delegated slice. This failure class
   compounds with [subagent-message-loss.md](subagent-message-loss.md): a cancelled agent
   that also lost its final message is recoverable *only* through its checkpoint file.
+- **Declare-first**, not write-after: every slice appends a one-line `STARTED` marker
+  for an item *before* editing, and a `DONE` entry after. Write-after-completion leaves
+  a window one item wide in which silence means either "not started" or "finished but
+  unrecorded" — and the reader's natural default is the unsafe one. Task 12 lost a whole
+  correction item to exactly that window while following the checkpoint rule correctly;
+  see [unrecorded-landed-work.md](unrecorded-landed-work.md).
+- Work recovered by reconciliation is recorded as **recovered-and-verified**, naming the
+  evidence that established it — never as the recovering agent's own implementation. Its
+  fail-first evidence is genuinely missing and the record must not imply otherwise.

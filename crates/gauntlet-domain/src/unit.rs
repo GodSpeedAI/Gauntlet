@@ -250,8 +250,12 @@ impl EvidenceRequirement {
 
 /// Raises-only ordering on the tier axis (spec §5.3.2). Declaration order in
 /// [`BlastRadius`] is the severity order: contained < local < cross_cutting <
-/// irreversible.
-pub(crate) fn blast_rank(blast: BlastRadius) -> u8 {
+/// irreversible. Public since Task 12: the application scheduler's §11.2
+/// ordering (ascending blast-radius risk) and §11.3 slice inheritance
+/// (highest blast radius, most restrictive authority) consume the SAME
+/// lattice that `retier`'s raises-only rule enforces — one ordering, not a
+/// copy that could drift.
+pub fn blast_rank(blast: BlastRadius) -> u8 {
     match blast {
         BlastRadius::Contained => 0,
         BlastRadius::Local => 1,
@@ -261,8 +265,11 @@ pub(crate) fn blast_rank(blast: BlastRadius) -> u8 {
 }
 
 /// Raises-only ordering on the authority axis (spec §5.3.2): critic <
-/// lead_agent < human.
-pub(crate) fn authority_rank(authority: Authority) -> u8 {
+/// lead_agent < human. Public for the same reason as [`blast_rank`]: the
+/// §11.3 "most restrictive authority" inheritance is this lattice, and the
+/// §5.3.2 coupling (`irreversible ⟹ human`, `cross_cutting|irreversible ⟹
+/// authority ≠ critic`) is what pins it — see [`validate_coupling`].
+pub fn authority_rank(authority: Authority) -> u8 {
     match authority {
         Authority::Critic => 0,
         Authority::LeadAgent => 1,

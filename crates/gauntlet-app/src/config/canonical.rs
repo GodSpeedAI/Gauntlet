@@ -229,6 +229,44 @@ pub fn effective_tree(config: &EffectiveConfig) -> CanonValue {
         CanonValue::Uint(u64::from(config.budget.recovery_reserve_pct)),
     );
     root.insert("budget".to_owned(), CanonValue::Object(budget));
+    let mut control = BTreeMap::new();
+    control.insert(
+        "max_attempts_per_unit".to_owned(),
+        config
+            .control
+            .max_attempts_per_unit
+            .map_or(CanonValue::Null, |value| CanonValue::Uint(u64::from(value))),
+    );
+    control.insert(
+        "poll_interval_ms".to_owned(),
+        CanonValue::Uint(config.control.poll_interval_ms),
+    );
+    control.insert(
+        "retry_base_ms".to_owned(),
+        config
+            .control
+            .retry_base_ms
+            .map_or(CanonValue::Null, CanonValue::Uint),
+    );
+    control.insert(
+        "retry_max_ms".to_owned(),
+        config
+            .control
+            .retry_max_ms
+            .map_or(CanonValue::Null, CanonValue::Uint),
+    );
+    control.insert(
+        "stall_timeout_ms".to_owned(),
+        config
+            .control
+            .stall_timeout_ms
+            .map_or(CanonValue::Null, CanonValue::Uint),
+    );
+    root.insert("control".to_owned(), CanonValue::Object(control));
+    root.insert(
+        "nonconvergence_n".to_owned(),
+        CanonValue::Uint(u64::from(config.nonconvergence_n)),
+    );
     let mut evidence = BTreeMap::new();
     evidence.insert(
         "dir".to_owned(),
@@ -381,10 +419,12 @@ impl EffectiveConfig {
         // the canonical form is this runtime's own closed contract.
         let known = [
             "budget",
+            "control",
             "evidence",
             "git_strategy",
             "interactive",
             "mcp_required",
+            "nonconvergence_n",
             "observation",
             "operator",
             "reference",
@@ -542,6 +582,34 @@ impl EffectiveConfig {
             .and_then(|value| value.as_str())
             .map(str::to_owned)
             .ok_or_else(wrong_shape)?;
+        config.nonconvergence_n = u32::try_from(
+            root.get("nonconvergence_n")
+                .and_then(|value| value.as_u64())
+                .ok_or_else(wrong_shape)?,
+        )
+        .map_err(|_| wrong_shape())?;
+        let control = section(root, "control")?;
+        let required_control_uint =
+            |map: &BTreeMap<String, CanonValue>, key: &str| -> Result<Option<u64>, ConfigError> {
+                let value = map.get(key).ok_or_else(wrong_shape)?;
+                match value {
+                    CanonValue::Null => Ok(None),
+                    CanonValue::Uint(value) => Ok(Some(*value)),
+                    _ => Err(wrong_shape()),
+                }
+            };
+        config.control.poll_interval_ms = control
+            .get("poll_interval_ms")
+            .and_then(|value| value.as_u64())
+            .ok_or_else(wrong_shape)?;
+        config.control.stall_timeout_ms = required_control_uint(&control, "stall_timeout_ms")?;
+        config.control.retry_base_ms = required_control_uint(&control, "retry_base_ms")?;
+        config.control.retry_max_ms = required_control_uint(&control, "retry_max_ms")?;
+        config.control.max_attempts_per_unit =
+            required_control_uint(&control, "max_attempts_per_unit")?
+                .map(u32::try_from)
+                .transpose()
+                .map_err(|_| wrong_shape())?;
         Ok(config)
     }
 }
@@ -589,6 +657,7 @@ mod tests {
         // Byte-wise sorted top-level keys.
         let order: Vec<usize> = [
             "\"budget\"",
+            "\"control\"",
             "\"evidence\"",
             "\"git_strategy\"",
             "\"interactive\"",

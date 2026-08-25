@@ -380,21 +380,32 @@ fn the_run_carries_the_frozen_version() {
         )
         .expect("the frozen run checkpoints");
     // Comparison authority also requires the iteration's durable observation
-    // binding. This test is about the REFERENCE half, so it binds a placeholder
-    // ref: the authority resolves the ref, and only the comparison chain reads
-    // its bytes.
-    state
-        .bind_observation_bundle(
-            &run_id(),
-            IterationNo::new(1).expect("first iteration"),
-            &gauntlet_ports::state_store::ObservationBinding::new(
-                gauntlet_domain::EvidenceRef::new("evd-observation-bundle-p1").expect("valid ref"),
-                gauntlet_domain::Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
-            ),
+    // binding. This test is about the REFERENCE half, so it binds a
+    // placeholder bundle EARNED through the ports authority (Task 12: the
+    // direct store write is capability-gated, and the §12.4 digest is
+    // derived from the bundle's bytes, never supplied here): the authority
+    // resolves the ref, and only the comparison chain reads its bytes.
+    let binding_store = std::sync::Arc::new(
+        FsEvidenceStore::open(&store_root).expect("the evidence store reopens for the bind"),
+    );
+    let placeholder = binding_store
+        .put(
+            br#"{"schema":"observation_bundle@v1","facets":[]}"#,
+            gauntlet_domain::EvidenceKind::File,
             bound(),
         )
-        .expect("the observation binds durably");
-    drop(state);
+        .expect("the placeholder bundle stores");
+    gauntlet_ports::producer_authority::ObservationBindingAuthority::new(
+        std::sync::Arc::new(state),
+        binding_store,
+    )
+    .bind(
+        &run_id(),
+        IterationNo::new(1).expect("first iteration"),
+        &placeholder,
+        bound(),
+    )
+    .expect("the observation binds durably");
 
     let reopened = EmbeddedStateStore::open(&db).expect("the state store reopens");
     let loaded = reopened

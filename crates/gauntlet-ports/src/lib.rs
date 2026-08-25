@@ -45,6 +45,7 @@ pub mod observer;
 pub mod observer_evidence;
 pub mod operator_surface;
 pub mod policy_provider;
+pub mod producer_authority;
 pub mod reference_provider;
 pub mod role_result;
 pub mod sandbox;
@@ -93,6 +94,10 @@ pub use operator_surface::{
 };
 pub use policy_provider::{
     CredentialScope, Enforcement, PermissionSet, PolicyProvider, PolicyProviderError,
+};
+pub use producer_authority::{
+    AdmittedEvidenceProduction, AdmittedObservationBinding, EvidenceProductionAuthority,
+    ObservationBindingAuthority, ProducerAuthorityError, evidence_content_digest,
 };
 pub use reference_provider::{ReferenceDraft, ReferenceProvider, ReferenceProviderError};
 pub use role_result::{

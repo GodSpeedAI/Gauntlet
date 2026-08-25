@@ -13,6 +13,7 @@
 
 pub mod compare;
 pub mod config;
+pub mod control;
 pub mod doctor;
 pub mod observation;
 pub mod reference;
@@ -22,7 +23,7 @@ pub mod verify;
 pub use config::defaults::{
     DIAGNOSTIC_BUDGET, DIGEST_ALGO, GIT_STRATEGY, INTERACTIVE, InteractiveDefault, MAX_COST_USD,
     MAX_CRITICS, MAX_DEPTH, MAX_PARALLEL, MAX_ROUNDS, MAX_TOKENS, MAX_WALL_SECONDS,
-    PREFER_DETERMINISTIC, RECOVERY_RESERVE_PCT, REVIEW_MODE, SANDBOX_BACKEND,
+    NONCONVERGENCE_N, PREFER_DETERMINISTIC, RECOVERY_RESERVE_PCT, REVIEW_MODE, SANDBOX_BACKEND,
 };
 pub use config::{
     CanonValue, ConfigError, ConfigKey, EffectiveConfig, EnvLayer, FlagOverrides, ResolvedConfig,

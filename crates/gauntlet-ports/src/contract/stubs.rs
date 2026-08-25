@@ -604,7 +604,7 @@ impl BudgetMeter for DomainMeter {
         ) {
             return Err(self.probe_cause(slice));
         }
-        Ok(Reservation::new(slice))
+        Ok(self.mint(slice))
     }
 
     fn charge(&self, reservation: &Reservation, payment: Payment) -> Result<(), BudgetMeterError> {
@@ -673,7 +673,7 @@ const STUBBED_OFFSET: u64 = 5;
 
 impl BudgetMeter for LenientMeter {
     fn reserve(&self, slice: BudgetSlice) -> Result<Reservation, BudgetMeterError> {
-        Ok(Reservation::new(slice))
+        Ok(self.mint(slice))
     }
 
     fn charge(&self, reservation: &Reservation, payment: Payment) -> Result<(), BudgetMeterError> {
@@ -1953,8 +1953,12 @@ impl SandboxFactory for SandboxBroken {
 // ---------------------------------------------------------------------------
 
 struct DurableStore {
+    recorded_runs: RefCell<HashMap<RunId, Run>>,
     checkpoints: RefCell<HashMap<RunId, Checkpoint>>,
     events: RefCell<HashMap<RunId, Vec<LogEntry>>>,
+    productions: RefCell<Vec<crate::state_store::EvidenceProductionBinding>>,
+    bindings: RefCell<HashMap<(RunId, u32), crate::state_store::ObservationBinding>>,
+    selections: RefCell<HashMap<RunId, Vec<gauntlet_domain::CorrectionSelection>>>,
     next_offset: Cell<u64>,
 }
 
@@ -2011,7 +2015,39 @@ impl StateStore for DurableStore {
         run_id: &RunId,
         _deadline: Deadline,
     ) -> Result<Option<Run>, StateStoreError> {
+        if let Some(run) = self.recorded_runs.borrow().get(run_id) {
+            return Ok(Some(run.clone()));
+        }
         Ok(self.reconstruct(run_id))
+    }
+
+    /// Run identity recording with the port's idempotency rule: a
+    /// re-record of the SAME identity is a no-op, a disagreeing one is a
+    /// typed error naming the field (the frozen reference above all).
+    fn record_run(&self, run: &Run, _deadline: Deadline) -> Result<(), StateStoreError> {
+        let mut runs = self.recorded_runs.borrow_mut();
+        if let Some(existing) = runs.get(run.id()) {
+            let same_identity = existing.created_at() == run.created_at()
+                && existing.reference_version() == run.reference_version()
+                && existing.intent() == run.intent()
+                && existing.config_fingerprint() == run.config_fingerprint()
+                && existing.environment_fingerprint() == run.environment_fingerprint()
+                && existing.budget() == run.budget()
+                && existing.parent_run() == run.parent_run();
+            if same_identity {
+                return Ok(());
+            }
+            return Err(StateStoreError::WriteFailed {
+                detail: format!(
+                    "run {} is already recorded; the re-recording disagrees on at least one \
+                     identity field (frozen reference {}, intent, fingerprints, budget, parent)",
+                    run.id(),
+                    existing.reference_version().digest(),
+                ),
+            });
+        }
+        runs.insert(run.id().clone(), run.clone());
+        Ok(())
     }
 
     fn checkpoint(
@@ -2031,6 +2067,131 @@ impl StateStore for DurableStore {
         _deadline: Deadline,
     ) -> Result<Option<Checkpoint>, StateStoreError> {
         Ok(self.checkpoints.borrow().get(run_id).cloned())
+    }
+
+    // The two owner writes, gated the way every store now gates them: the
+    // payload arrives only as an authority-minted value, and this stub
+    // enforces the write-once rules the shared suite pins.
+    fn record_evidence_production(
+        &self,
+        run_id: &RunId,
+        production: &super::super::producer_authority::AdmittedEvidenceProduction,
+        _deadline: Deadline,
+    ) -> Result<crate::state_store::EvidenceProductionBinding, StateStoreError> {
+        let payload = production.production();
+        let mut productions = self.productions.borrow_mut();
+        if let Some(existing) = productions
+            .iter()
+            .find(|binding| binding.production().evidence() == payload.evidence())
+        {
+            if existing.production() == payload {
+                return Ok(existing.clone());
+            }
+            return Err(StateStoreError::WriteFailed {
+                detail: format!(
+                    "run {run_id} already recorded {} with different facts",
+                    payload.evidence()
+                ),
+            });
+        }
+        let offset = self.next_offset.get();
+        self.next_offset.set(offset + 1);
+        let binding = crate::state_store::EvidenceProductionBinding::new(
+            run_id.clone(),
+            payload.clone(),
+            EventLogOffset::new(offset),
+        );
+        productions.push(binding.clone());
+        Ok(binding)
+    }
+
+    fn evidence_production(
+        &self,
+        run_id: &RunId,
+        evidence: &gauntlet_domain::EvidenceRef,
+        _deadline: Deadline,
+    ) -> Result<Option<crate::state_store::EvidenceProductionBinding>, StateStoreError> {
+        Ok(self
+            .productions
+            .borrow()
+            .iter()
+            .find(|binding| {
+                binding.run_id() == run_id && binding.production().evidence() == evidence
+            })
+            .cloned())
+    }
+
+    fn bind_observation_bundle(
+        &self,
+        run_id: &RunId,
+        iteration_no: gauntlet_domain::IterationNo,
+        binding: &super::super::producer_authority::AdmittedObservationBinding,
+        _deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        let payload = binding.binding();
+        let mut bindings = self.bindings.borrow_mut();
+        let key = (run_id.clone(), iteration_no.get());
+        match bindings.get(&key) {
+            Some(found)
+                if found.evidence() == payload.evidence() && found.digest() == payload.digest() =>
+            {
+                return Ok(());
+            }
+            Some(found) => {
+                return Err(StateStoreError::WriteFailed {
+                    detail: format!(
+                        "run {run_id} iteration {} is already bound to {}",
+                        iteration_no.get(),
+                        found.evidence()
+                    ),
+                });
+            }
+            None => {}
+        }
+        bindings.insert(key, payload.clone());
+        Ok(())
+    }
+
+    fn observation_binding(
+        &self,
+        run_id: &RunId,
+        iteration_no: gauntlet_domain::IterationNo,
+        _deadline: Deadline,
+    ) -> Result<Option<crate::state_store::ObservationBinding>, StateStoreError> {
+        Ok(self
+            .bindings
+            .borrow()
+            .get(&(run_id.clone(), iteration_no.get()))
+            .cloned())
+    }
+
+    // The controller's §15.1 selection record (plan Task 12, the
+    // `record_role_invocation` precedent): append per record, read back in
+    // record order, keyed by run.
+    fn record_correction_selection(
+        &self,
+        selection: &gauntlet_domain::CorrectionSelection,
+        _deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.selections
+            .borrow_mut()
+            .entry(selection.run_id().clone())
+            .or_default()
+            .push(selection.clone());
+        Ok(())
+    }
+
+    fn correction_selections(
+        &self,
+        run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<gauntlet_domain::CorrectionSelection>, StateStoreError> {
+        Ok(self
+            .selections
+            .borrow()
+            .get(run_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     fn export_jsonl(&self, run_id: &RunId, _deadline: Deadline) -> Result<String, StateStoreError> {
@@ -2065,8 +2226,12 @@ impl StateStoreFactory for StateStoreGreen {
 
     fn build(&self) -> Result<Box<dyn StateStore>, String> {
         Ok(Box::new(DurableStore {
+            recorded_runs: RefCell::new(HashMap::new()),
             checkpoints: RefCell::new(HashMap::new()),
             events: RefCell::new(HashMap::new()),
+            productions: RefCell::new(Vec::new()),
+            bindings: RefCell::new(HashMap::new()),
+            selections: RefCell::new(HashMap::new()),
             next_offset: Cell::new(1),
         }))
     }

@@ -10,6 +10,7 @@
 mod budget;
 mod capability;
 mod comparison;
+mod correction;
 mod iteration;
 mod observation;
 mod reference;
@@ -32,6 +33,10 @@ pub use capability::{
     RevisionDecision,
 };
 pub use comparison::{ComparisonError, ComparisonRecord, Residual};
+pub use correction::{
+    BudgetFacts, CorrectionDescriptor, CorrectionError, CorrectionSelection, CorrectionShape,
+    DecisionStep, RejectedAlternative, RejectionClass, RejectionReason, SelectionDimension,
+};
 pub use iteration::{Iteration, IterationError};
 pub use observation::{ObservationBundle, ObservationFailure, UnavailableEvidence};
 pub use reference::{
@@ -42,7 +47,10 @@ pub use reference::{
 pub use role_invocation::{Payment, RoleInvocation, RoleInvocationDefinition, RoleInvocationError};
 pub use run::{Run, RunDefinition, RunError};
 pub use settlement::{EventLogOffset, SettlementRecord};
-pub use unit::{Actor, DraftField, DraftUnit, EvidenceRequirement, TierAxis, Unit, UnitError};
+pub use unit::{
+    Actor, DraftField, DraftUnit, EvidenceRequirement, TierAxis, Unit, UnitError, authority_rank,
+    blast_rank,
+};
 pub use values::{
     Authority, BlastRadius, CapabilityId, CustomRoleName, Digest, DimensionId, EpochSeconds,
     EvidenceKind, EvidenceLocator, EvidenceRef, InstrumentName, InvocationId, InvocationState,

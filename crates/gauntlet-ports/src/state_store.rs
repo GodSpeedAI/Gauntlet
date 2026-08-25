@@ -11,9 +11,9 @@
 use core::fmt;
 
 use gauntlet_domain::{
-    Digest, EpochSeconds, EventLogOffset, EvidenceLocator, EvidenceRef, InvocationId,
-    InvocationState, IterationNo, ResultContractPath, RoleInvocation, Run, RunId, Spent, UnitId,
-    UnitStatus, VerificationRef,
+    CorrectionSelection, Digest, EpochSeconds, EventLogOffset, EvidenceLocator, EvidenceRef,
+    InvocationId, InvocationState, IterationNo, ResultContractPath, RoleInvocation, Run, RunId,
+    Spent, UnitId, UnitStatus, VerificationRef,
 };
 
 use crate::comparator::AdmittedComparison;
@@ -279,6 +279,23 @@ pub trait StateStore {
     /// Loads a run's durable state; `None` when the run was never stored.
     fn load_run(&self, run_id: &RunId, deadline: Deadline) -> Result<Option<Run>, StateStoreError>;
 
+    /// Records the authoritative run identity (spec §5.3.3: "a `Run` has
+    /// exactly one frozen `reference_version` for its whole life"; §18.1's
+    /// minimum durable records include runs). Plan Task 12's controller
+    /// composition is the production caller: the governed authorities open
+    /// only over a durable run, so the loop must be able to make its run
+    /// durable through the same port it reads it from.
+    ///
+    /// Idempotent by `run_id`: re-recording the SAME identity is a no-op,
+    /// and a re-recording that disagrees on any identity field is a typed
+    /// error naming the disagreement — never a silent overwrite of the
+    /// run's one frozen reference.
+    fn record_run(&self, _run: &Run, _deadline: Deadline) -> Result<(), StateStoreError> {
+        Err(StateStoreError::WriteFailed {
+            detail: "this state store does not implement durable run identity recording".to_owned(),
+        })
+    }
+
     /// Writes a durable checkpoint (spec §18). Critical run state is never
     /// reconstructed from conversational memory (I11).
     fn checkpoint(&self, checkpoint: Checkpoint, deadline: Deadline)
@@ -306,6 +323,46 @@ pub trait StateStore {
         })
     }
 
+    /// Durably records one controller correction selection (spec §15.1
+    /// step 4: "Record the selection **and the rejected alternatives with
+    /// reasons** on the iteration"; AK-037 is a recording claim — the
+    /// record IS the obligation).
+    ///
+    /// The `record_role_invocation` precedent: the argument is the exact
+    /// domain aggregate, and the writer is the RUNTIME itself — §16.4's
+    /// single-writer discipline makes the runtime the sole writer of this
+    /// record, so there is no minting authority to earn (unlike the
+    /// evidence/observation owner writes, which roles must earn). The
+    /// aggregate's own constructor has already validated that the
+    /// selection carries its rejected alternatives and a trace naming all
+    /// ten §15.1 dimensions; a store cannot be handed a selection without
+    /// them.
+    ///
+    /// Appends one row per call (a selection is immutable once recorded —
+    /// the same iteration may legitimately record a corrected selection
+    /// later, which is a new row, never an edit of the old one).
+    fn record_correction_selection(
+        &self,
+        _selection: &CorrectionSelection,
+        _deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        Err(StateStoreError::WriteFailed {
+            detail: "this state store does not implement durable correction selections".to_owned(),
+        })
+    }
+
+    /// Every durable correction selection of one run, in record order
+    /// (append order) — the read side of
+    /// [`StateStore::record_correction_selection`]. A run with no
+    /// selections is an empty vector, never an error.
+    fn correction_selections(
+        &self,
+        _run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<CorrectionSelection>, StateStoreError> {
+        Ok(Vec::new())
+    }
+
     /// Binds the run/iteration's authoritative observation bundle evidence.
     ///
     /// This is the observation owner's write (spec §5.3.6, §18.1): it is what
@@ -317,11 +374,21 @@ pub trait StateStore {
     /// over. It records the bundle's CONTENT digest as well as its ref, so
     /// what is bound is the observation itself, not a pointer that some
     /// evidence store might resolve differently.
+    ///
+    /// The argument is an [`AdmittedObservationBinding`], which has no
+    /// constructor outside the [`crate::producer_authority`] module (plan
+    /// Task 12, the `AdmittedComparison` precedent): the observation owner
+    /// earns the write through
+    /// [`ObservationBindingAuthority::bind`](crate::producer_authority::ObservationBindingAuthority::bind),
+    /// which validates the run and the declared iteration against the
+    /// durable anchor and derives the §12.4 content digest from the bytes
+    /// the evidence store serves. A caller holding a hand-built
+    /// [`ObservationBinding`] has nothing to pass here.
     fn bind_observation_bundle(
         &self,
         _run_id: &RunId,
         _iteration_no: IterationNo,
-        _binding: &ObservationBinding,
+        _binding: &crate::producer_authority::AdmittedObservationBinding,
         _deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         Err(StateStoreError::WriteFailed {
@@ -358,15 +425,20 @@ pub trait StateStore {
     /// for the same ref is refused, never overwritten — a later substitute
     /// cannot displace what the evidence owner certified.
     ///
-    /// **Recorded residual (mirrors Task 10's ledger note):** when Task 12
-    /// wires the production writer into the observation pipeline, this
-    /// write should be capability-gated to the evidence-owner role exactly
-    /// as `bind_observation_bundle` should be; today both are
-    /// composition-root-wired with no role check in the store.
+    /// The argument is an [`AdmittedEvidenceProduction`], which has no
+    /// constructor outside the [`crate::producer_authority`] module (plan
+    /// Task 12, closing the residual recorded here since Task 11): the
+    /// evidence owner earns the write through
+    /// [`EvidenceProductionAuthority::record`](crate::producer_authority::EvidenceProductionAuthority::record),
+    /// which validates the run and the declared iteration against the
+    /// durable anchor and DERIVES the content digest from the bytes the
+    /// evidence store serves — a caller-supplied digest has no parameter to
+    /// travel through. A caller holding a hand-built [`EvidenceProduction`]
+    /// has nothing to pass here.
     fn record_evidence_production(
         &self,
         _run_id: &RunId,
-        _production: &EvidenceProduction,
+        _production: &crate::producer_authority::AdmittedEvidenceProduction,
         _deadline: Deadline,
     ) -> Result<EvidenceProductionBinding, StateStoreError> {
         Err(StateStoreError::WriteFailed {

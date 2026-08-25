@@ -22,6 +22,7 @@ use crate::config::env_layer::UnknownEnv;
 use crate::config::error::ConfigError;
 use crate::config::resolve::{ResolvedConfig, UnknownKey};
 use crate::doctor::report::{CheckOutcome, CheckStatus, SubResult};
+use crate::reference::manifest::parse_manifest;
 use crate::reference::normalize::digest_of;
 use crate::reference::parse::parse_answer_key;
 
@@ -204,9 +205,13 @@ pub fn check_config(input: &ConfigCheckInput) -> CheckOutcome {
 // ---------------------------------------------------------------------------
 
 pub fn check_reference(resolved: &ResolvedConfig) -> CheckOutcome {
-    // Manifest: exists, and its top level is a mapping. The raw bytes are
-    // read ONCE here and shared with the digest clause, which recomputes the
-    // manifest's normalized digest against the freeze record's other half.
+    // Manifest: exists, its top level is a mapping, and it deep-parses
+    // under the STRICT frozen-shape reader (`reference::manifest`) — the
+    // same parser the provider path uses at admission (N1: a shape-only
+    // clause is vacuous; `Ok(0)` top-level keys and a manifest the strict
+    // reader refuses both passed it). The raw bytes are read ONCE here and
+    // shared with the digest clause, which recomputes the manifest's
+    // normalized digest against the freeze record's other half.
     let manifest_bytes = std::fs::read(&resolved.reference.manifest);
     let manifest_status;
     let mut manifest_evidence = Vec::new();
@@ -234,12 +239,35 @@ pub fn check_reference(resolved: &ResolvedConfig) -> CheckOutcome {
                         "manifest top level is not a mapping (line {line} is not a `key:` entry)"
                     ));
                 }
-                Ok(keys) => {
-                    manifest_status = CheckStatus::Pass;
-                    manifest_evidence.push(format!(
-                        "manifest exists; top level is a mapping ({keys} keys)"
-                    ));
+                Ok(0) => {
+                    // N1's vacuity: every non-blank line indented (or a
+                    // comment-only body) yields zero top-level keys, and a
+                    // mapping with zero top-level keys is not a mapping.
+                    manifest_status = CheckStatus::Fail;
+                    manifest_evidence.push(
+                        "manifest top level carries no mapping entries — an all-indented \
+                         (or comment-only) document is not a mapping; zero keys is not a pass"
+                            .to_owned(),
+                    );
                 }
+                Ok(keys) => match parse_manifest(text) {
+                    Err(err) => {
+                        manifest_status = CheckStatus::Fail;
+                        manifest_evidence.push(format!(
+                            "manifest fails the strict frozen-shape parse — reference-class \
+                             failure: {err}"
+                        ));
+                    }
+                    Ok(definition) => {
+                        manifest_status = CheckStatus::Pass;
+                        manifest_evidence.push(format!(
+                            "manifest exists; top level is a mapping ({keys} keys); deep-parses \
+                             under the frozen reference shape (id {}, version {})",
+                            definition.id.as_str(),
+                            definition.version
+                        ));
+                    }
+                },
             },
         },
     }
@@ -462,7 +490,10 @@ fn leaf_of(path: &Path) -> String {
 
 /// Confirms a document's top level is a mapping: every non-blank,
 /// non-comment, column-zero line is a `key:` entry. Returns the count of
-/// top-level keys. Full YAML is NOT claimed — the manifest uses constructs
+/// top-level keys; the caller refuses a zero count (N1: zero keys is the
+/// vacuous shape an all-indented document produces, and a mapping with no
+/// top-level keys is not a mapping). Full YAML is NOT claimed — the deep
+/// shape is `parse_manifest`'s business, and the manifest uses constructs
 /// (block scalars) outside the §8.2 grammar on purpose.
 fn top_level_mapping_keys(text: &str) -> Result<usize, usize> {
     let mut keys = 0usize;

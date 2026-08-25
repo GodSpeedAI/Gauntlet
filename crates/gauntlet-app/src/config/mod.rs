@@ -35,9 +35,9 @@ pub use error::ConfigError;
 pub use fingerprint::{ALGO as DIGEST_ALGO, config_fingerprint, digest_canonical};
 pub use gauntlet_md::{FmEntry, FmScalar, FmValue, FrontMatter, GauntletMdError};
 pub use resolve::{
-    BudgetSettings, ConfigKey, EffectiveConfig, FlagOverrides, FlagValue, ReferenceSettings,
-    ResolveInput, Resolved, ResolvedBudget, ResolvedConfig, ResolvedReference, RoleRunner,
-    UnknownKey, ValueKind, discover_config_path, discover_project_root, resolve,
+    BudgetSettings, ConfigKey, ControlSettings, EffectiveConfig, FlagOverrides, FlagValue,
+    ReferenceSettings, ResolveInput, Resolved, ResolvedBudget, ResolvedConfig, ResolvedReference,
+    RoleRunner, UnknownKey, ValueKind, discover_config_path, discover_project_root, resolve,
 };
 
 /// Locates a data-only fixture under the repository's shared fixture tree

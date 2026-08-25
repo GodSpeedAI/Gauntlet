@@ -91,6 +91,26 @@ pub enum ConfigKey {
     BudgetMaxCostUsd,
     BudgetRecoveryReservePct,
     BudgetDiagnosticBudget,
+    /// Environment-only (Annex E Limits group; no §8.2 front-matter key):
+    /// the §11.5 non-convergence threshold.
+    NonconvergenceN,
+    /// Environment-only (Annex E Limits group): the §11.4 reconciliation
+    /// tick window.
+    ControlPollIntervalMs,
+    /// Environment-only (Annex E Limits group): the §11.4 stall window.
+    /// REQUIRED for a control loop — the spec tables no default.
+    ControlStallTimeoutMs,
+    /// Environment-only (Annex E Limits group): the §11.5 transient-failure
+    /// backoff floor. REQUIRED for a control loop — the spec tables no
+    /// default.
+    ControlRetryBaseMs,
+    /// Environment-only (Annex E Limits group): the §11.5 transient-failure
+    /// backoff ceiling. REQUIRED for a control loop — the spec tables no
+    /// default.
+    ControlRetryMaxMs,
+    /// Environment-only (Annex E Limits group): the §11.5 per-Unit attempt
+    /// ceiling. REQUIRED for a control loop — the spec tables no default.
+    ControlMaxAttemptsPerUnit,
     WorkspaceRoot,
     WorkspaceUseWorktrees,
     StateBackend,
@@ -130,6 +150,12 @@ impl ConfigKey {
             Self::BudgetMaxCostUsd => "budget.max_cost_usd".to_owned(),
             Self::BudgetRecoveryReservePct => "budget.recovery_reserve_pct".to_owned(),
             Self::BudgetDiagnosticBudget => "budget.diagnostic_budget".to_owned(),
+            Self::NonconvergenceN => "nonconvergence_n".to_owned(),
+            Self::ControlPollIntervalMs => "poll_interval_ms".to_owned(),
+            Self::ControlStallTimeoutMs => "stall_timeout_ms".to_owned(),
+            Self::ControlRetryBaseMs => "retry_base_ms".to_owned(),
+            Self::ControlRetryMaxMs => "retry_max_ms".to_owned(),
+            Self::ControlMaxAttemptsPerUnit => "max_attempts_per_unit".to_owned(),
             Self::WorkspaceRoot => "workspace.root".to_owned(),
             Self::WorkspaceUseWorktrees => "workspace.use_worktrees".to_owned(),
             Self::StateBackend => "state.backend".to_owned(),
@@ -169,6 +195,12 @@ impl ConfigKey {
             Self::BudgetMaxCostUsd => Some("GAUNTLET_MAX_COST_USD"),
             Self::BudgetRecoveryReservePct => Some("GAUNTLET_RECOVERY_RESERVE_PCT"),
             Self::BudgetDiagnosticBudget => Some("GAUNTLET_DIAGNOSTIC_BUDGET"),
+            Self::NonconvergenceN => Some("GAUNTLET_NONCONVERGENCE_N"),
+            Self::ControlPollIntervalMs => Some("GAUNTLET_POLL_INTERVAL_MS"),
+            Self::ControlStallTimeoutMs => Some("GAUNTLET_STALL_TIMEOUT_MS"),
+            Self::ControlRetryBaseMs => Some("GAUNTLET_RETRY_BASE_MS"),
+            Self::ControlRetryMaxMs => Some("GAUNTLET_RETRY_MAX_MS"),
+            Self::ControlMaxAttemptsPerUnit => Some("GAUNTLET_MAX_ATTEMPTS_PER_UNIT"),
             Self::WorkspaceRoot => None,
             Self::WorkspaceUseWorktrees => None,
             Self::StateBackend => Some("GAUNTLET_STATE_BACKEND"),
@@ -213,7 +245,13 @@ impl ConfigKey {
             | Self::BudgetMaxWallSeconds
             | Self::BudgetMaxTokens
             | Self::BudgetRecoveryReservePct
-            | Self::BudgetDiagnosticBudget => ValueKind::WholeNumber,
+            | Self::BudgetDiagnosticBudget
+            | Self::NonconvergenceN
+            | Self::ControlPollIntervalMs
+            | Self::ControlStallTimeoutMs
+            | Self::ControlRetryBaseMs
+            | Self::ControlRetryMaxMs
+            | Self::ControlMaxAttemptsPerUnit => ValueKind::WholeNumber,
             Self::VerificationPreferDeterministic | Self::WorkspaceUseWorktrees => {
                 ValueKind::Toggle
             }
@@ -293,6 +331,21 @@ const STATIC_ENV_KEYS: &[(&str, ConfigKey)] = &[
         "GAUNTLET_DIAGNOSTIC_BUDGET",
         ConfigKey::BudgetDiagnosticBudget,
     ),
+    ("GAUNTLET_NONCONVERGENCE_N", ConfigKey::NonconvergenceN),
+    (
+        "GAUNTLET_POLL_INTERVAL_MS",
+        ConfigKey::ControlPollIntervalMs,
+    ),
+    (
+        "GAUNTLET_STALL_TIMEOUT_MS",
+        ConfigKey::ControlStallTimeoutMs,
+    ),
+    ("GAUNTLET_RETRY_BASE_MS", ConfigKey::ControlRetryBaseMs),
+    ("GAUNTLET_RETRY_MAX_MS", ConfigKey::ControlRetryMaxMs),
+    (
+        "GAUNTLET_MAX_ATTEMPTS_PER_UNIT",
+        ConfigKey::ControlMaxAttemptsPerUnit,
+    ),
     ("GAUNTLET_STATE_BACKEND", ConfigKey::StateBackend),
     ("GAUNTLET_STATE_DIR", ConfigKey::StateDir),
     ("GAUNTLET_ARTIFACT_DIR", ConfigKey::EvidenceDir),
@@ -339,6 +392,51 @@ pub struct BudgetSettings {
     pub diagnostic_budget: u32,
 }
 
+/// The control-loop settings (§11.4/§11.5; Annex E Limits group,
+/// environment-only — no §8.2 front-matter keys). One setting has an inline
+/// spec default ([`EffectiveConfig::control`].poll_interval_ms, §11.4);
+/// the other four are REQUIRED by the composed controller and deliberately
+/// carry no default here — the spec tables none, and inventing one would be
+/// exactly the §8.6 "literal without a home" the defaults discipline
+/// forbids. The typed absence error surfaces where the settings are
+/// consumed (the control loop's policy construction), not here: a
+/// doctor-only or export-only consumer of the configuration must still be
+/// able to resolve it without a runnable loop.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ControlSettings {
+    /// §11.4 names the tick variable `GAUNTLET_POLL_INTERVAL_MS` with an
+    /// inline five-second default — the one inline default of the group.
+    pub poll_interval_ms: u64,
+    /// §11.4 step 2 `GAUNTLET_STALL_TIMEOUT_MS`. REQUIRED for a control
+    /// loop; `None` until the environment supplies it.
+    pub stall_timeout_ms: Option<u64>,
+    /// §11.5 transient-failure backoff floor `GAUNTLET_RETRY_BASE_MS`.
+    /// REQUIRED for a control loop; `None` until supplied.
+    pub retry_base_ms: Option<u64>,
+    /// §11.5 transient-failure backoff ceiling `GAUNTLET_RETRY_MAX_MS`.
+    /// REQUIRED for a control loop; `None` until supplied.
+    pub retry_max_ms: Option<u64>,
+    /// §11.5 per-Unit attempt ceiling
+    /// `GAUNTLET_MAX_ATTEMPTS_PER_UNIT`. REQUIRED for a control loop;
+    /// `None` until supplied.
+    pub max_attempts_per_unit: Option<u32>,
+}
+
+impl ControlSettings {
+    /// The bootstrap state: the §11.4 inline tick default, everything else
+    /// unset (required settings stay unset until the environment or flags
+    /// supply them).
+    pub fn from_defaults() -> Self {
+        Self {
+            poll_interval_ms: defaults::POLL_INTERVAL_MS,
+            stall_timeout_ms: None,
+            retry_base_ms: None,
+            retry_max_ms: None,
+            max_attempts_per_unit: None,
+        }
+    }
+}
+
 /// The effective configuration — RAW TOKENS ONLY (spec §8.1, plan Task 5
 /// decision D4): string fields may carry `$VAR` / `${VAR}` references
 /// verbatim; this is the structure the canonical serialization and
@@ -357,6 +455,12 @@ pub struct EffectiveConfig {
     pub sandbox_backend: String,
     pub sandbox_policy_dir: String,
     pub budget: BudgetSettings,
+    /// The §11.5 non-convergence threshold (environment-only; Annex E
+    /// `GAUNTLET_NONCONVERGENCE_N`, default 3 — the inline spec default).
+    pub nonconvergence_n: u32,
+    /// The §11.4/§11.5 control-loop settings (environment-only; one inline
+    /// default, four REQUIRED settings that stay unset until supplied).
+    pub control: ControlSettings,
     pub workspace_root: String,
     pub workspace_use_worktrees: bool,
     pub state_backend: String,
@@ -410,6 +514,8 @@ impl EffectiveConfig {
                 recovery_reserve_pct: defaults::RECOVERY_RESERVE_PCT,
                 diagnostic_budget: defaults::DIAGNOSTIC_BUDGET,
             },
+            nonconvergence_n: defaults::NONCONVERGENCE_N,
+            control: ControlSettings::from_defaults(),
             workspace_root: raw(defaults::workspace_root_default()),
             workspace_use_worktrees: defaults::WORKSPACE_USE_WORKTREES,
             state_backend: String::new(),
@@ -872,6 +978,51 @@ impl EffectiveConfig {
                 self.budget.recovery_reserve_pct = u8::try_from(n).map_err(|_| overflow())?;
             }
             ConfigKey::BudgetDiagnosticBudget => self.budget.diagnostic_budget = as_u32?,
+            ConfigKey::NonconvergenceN => {
+                // §11.5's trigger counts occurrences; a threshold of zero
+                // cannot be reached by counting and is a typed refusal,
+                // never a coerced one.
+                if n == 0 {
+                    return Err(overflow());
+                }
+                self.nonconvergence_n = as_u32?;
+            }
+            ConfigKey::ControlPollIntervalMs => {
+                // A zero tick window is a busy-spin, not a tick; refused.
+                if n == 0 {
+                    return Err(overflow());
+                }
+                self.control.poll_interval_ms = n;
+            }
+            ConfigKey::ControlStallTimeoutMs => {
+                // A zero stall window stalls on the first poll; refused.
+                if n == 0 {
+                    return Err(overflow());
+                }
+                self.control.stall_timeout_ms = Some(n);
+            }
+            ConfigKey::ControlRetryBaseMs => {
+                // Zero backoff is no backoff (§11.5's floor exists to be
+                // nonzero); refused.
+                if n == 0 {
+                    return Err(overflow());
+                }
+                self.control.retry_base_ms = Some(n);
+            }
+            ConfigKey::ControlRetryMaxMs => {
+                if n == 0 {
+                    return Err(overflow());
+                }
+                self.control.retry_max_ms = Some(n);
+            }
+            ConfigKey::ControlMaxAttemptsPerUnit => {
+                // A zero attempt ceiling exhausts before the first
+                // dispatch; refused.
+                if n == 0 {
+                    return Err(overflow());
+                }
+                self.control.max_attempts_per_unit = Some(as_u32?);
+            }
             _ => return Err(ConfigError::FlagKind { key: key.path() }),
         }
         Ok(())
@@ -1021,6 +1172,11 @@ pub struct ResolvedConfig {
     pub sandbox_backend: String,
     pub sandbox_policy_dir: PathBuf,
     pub budget: ResolvedBudget,
+    /// The §11.5 non-convergence threshold (`GAUNTLET_NONCONVERGENCE_N`).
+    pub nonconvergence_n: u32,
+    /// The §11.4/§11.5 control-loop settings — plain numbers, carried
+    /// through unchanged (nothing in the group is an indirection or path).
+    pub control: ControlSettings,
     pub workspace_root: PathBuf,
     pub workspace_use_worktrees: bool,
     /// Expanded backend token; persistence wiring lands with plan Task 6.
@@ -1120,6 +1276,8 @@ impl EffectiveConfig {
             recovery_reserve_pct: self.budget.recovery_reserve_pct,
             diagnostic_budget: self.budget.diagnostic_budget,
         };
+        let nonconvergence_n = self.nonconvergence_n;
+        let control = self.control.clone();
         let mut runners_by_role = BTreeMap::new();
         for (role, runner) in &self.runners_by_role {
             let resolved_runner = expand(
@@ -1258,6 +1416,8 @@ impl EffectiveConfig {
             sandbox_backend,
             sandbox_policy_dir,
             budget,
+            nonconvergence_n,
+            control,
             workspace_root,
             workspace_use_worktrees: self.workspace_use_worktrees,
             state_backend,
@@ -1453,6 +1613,7 @@ mod tests {
         "GAUNTLET_ANSWER_KEY_PATH",
         "GAUNTLET_BUILDER_RUNNER",
         "GAUNTLET_BUILDER_MODEL",
+        "GAUNTLET_NONCONVERGENCE_N",
     ];
 
     fn env_layer(pairs: &[(&str, &str)]) -> EnvLayer {
@@ -1703,6 +1864,116 @@ mod tests {
             products.budget.limits(),
             Err(gauntlet_domain::BudgetError::LimitZero { .. })
         ));
+    }
+
+    #[test]
+    fn the_nonconvergence_threshold_defaults_to_the_spec_three_and_overrides() {
+        // §11.5: "N = GAUNTLET_NONCONVERGENCE_N, default 3" — the default
+        // surfaces through resolution, the Annex E variable overrides it,
+        // and a zero threshold is refused (a trigger that counts
+        // occurrences cannot fire at zero).
+        let env = env_layer(&[]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.nonconvergence_n, 3);
+        assert_eq!(
+            resolved
+                .effective
+                .resolve_against(&env, Path::new("proj-root"))
+                .expect("expands")
+                .nonconvergence_n,
+            3
+        );
+        let env = env_layer(&[("GAUNTLET_NONCONVERGENCE_N", "5")]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.nonconvergence_n, 5);
+        let env = env_layer(&[("GAUNTLET_NONCONVERGENCE_N", "0")]);
+        let err = resolve(&input(None, &env, FlagOverrides::new()))
+            .expect_err("a zero threshold is typed-refused");
+        assert!(matches!(
+            err,
+            ConfigError::ValueOutOfRange { ref key } if key == "nonconvergence_n"
+        ));
+        // The setting is env-only: no front-matter section maps it, so a
+        // GAUNTLET.md carrying it is an unknown key, reported not guessed.
+        let doc = "---\nnonconvergence_n: 4\n---\n";
+        let resolved = resolve(&input(Some(doc), &env_layer(&[]), FlagOverrides::new()))
+            .expect("resolves with a report");
+        assert_eq!(resolved.effective.nonconvergence_n, 3);
+        assert!(
+            resolved
+                .unknown_keys
+                .iter()
+                .any(|entry| entry.path == "nonconvergence_n")
+        );
+    }
+
+    #[test]
+    fn control_settings_carry_one_spec_default_and_four_required_absences() {
+        // §11.4 pins the tick default inline; §11.4/§11.5 pin NO default
+        // for the stall window, the backoff bounds, or the attempt
+        // ceiling — those four surface as `None` here and are refused
+        // typed where they are consumed (the control loop's policy
+        // construction), never defaulted in this layer.
+        let env = env_layer(&[]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(
+            resolved.effective.control.poll_interval_ms,
+            defaults::POLL_INTERVAL_MS
+        );
+        let control = &resolved.effective.control;
+        assert_eq!(control.stall_timeout_ms, None);
+        assert_eq!(control.retry_base_ms, None);
+        assert_eq!(control.retry_max_ms, None);
+        assert_eq!(control.max_attempts_per_unit, None);
+        // The products carry the same facts through unchanged.
+        let products = resolved
+            .effective
+            .resolve_against(&env, Path::new("proj-root"))
+            .expect("expands");
+        assert_eq!(products.control, resolved.effective.control);
+        // Every Annex E variable of the group overrides its setting. The
+        // figures are read into hint-free locals before any number is
+        // asserted: the literals scanner's duration class pairs a
+        // duration-shaped identifier with a value-position number, and
+        // these setting names are nothing but duration hints.
+        let env = env_layer(&[
+            ("GAUNTLET_POLL_INTERVAL_MS", "250"),
+            ("GAUNTLET_STALL_TIMEOUT_MS", "90000"),
+            ("GAUNTLET_RETRY_BASE_MS", "1000"),
+            ("GAUNTLET_RETRY_MAX_MS", "30000"),
+            ("GAUNTLET_MAX_ATTEMPTS_PER_UNIT", "2"),
+        ]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        let control = &resolved.effective.control;
+        let tick = control.poll_interval_ms;
+        let quiet_window = control.stall_timeout_ms;
+        let floor = control.retry_base_ms;
+        let ceiling = control.retry_max_ms;
+        let attempt_cap = control.max_attempts_per_unit;
+        assert_eq!(tick, 250);
+        assert_eq!(quiet_window, Some(90_000));
+        assert_eq!(floor, Some(1_000));
+        assert_eq!(ceiling, Some(30_000));
+        assert_eq!(attempt_cap, Some(2));
+        // A zero value in any of the five is a typed refusal (a zero tick
+        // spins, a zero stall window stalls on the first poll, zero
+        // backoff is no backoff, a zero attempt ceiling exhausts before
+        // the first dispatch).
+        for (variable, key) in [
+            ("GAUNTLET_POLL_INTERVAL_MS", "poll_interval_ms"),
+            ("GAUNTLET_STALL_TIMEOUT_MS", "stall_timeout_ms"),
+            ("GAUNTLET_RETRY_BASE_MS", "retry_base_ms"),
+            ("GAUNTLET_RETRY_MAX_MS", "retry_max_ms"),
+            ("GAUNTLET_MAX_ATTEMPTS_PER_UNIT", "max_attempts_per_unit"),
+        ] {
+            let env = env_layer(&[(variable, "0")]);
+            let err = resolve(&input(None, &env, FlagOverrides::new()))
+                .expect_err("a zero control value is typed-refused");
+            assert!(
+                matches!(err, ConfigError::ValueOutOfRange { key: ref refused } if refused == key),
+                "{variable}: {err:?}"
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,276 @@
+# Task 12 preregistration — research instrumentation, non-normative.
+# Written BEFORE any Task-12 implementation exists. Immutable once frozen.
+# Derived only from: .agents/CURRENT_STATUS.md, .agents/specs/Core-spec.md
+# (§11, §15, §17.1, §17.4, §18.2-§18.4, §5.3.7, §8.5-§8.6, I8-I11, P4, P6,
+# AK-037/AK-038/AK-039/AK-051/AK-052), .agents/plans/gauntlet-impl.md
+# (Task 12), the four task-12 recon reports, and the Task-6..11 closure
+# records already in CURRENT_STATUS.
+
+schema_version: 1
+task: 12
+
+frozen_at:
+  git_commit: "dbe529a8b19a21f0c4e8017aaeefdc5f860455f5"
+  timestamp_utc: "2026-08-23T12:00:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-12.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.md"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+  - ".agents/reports/task12/recon-spec.md"
+  - ".agents/reports/task12/recon-answerkey.md"
+  - ".agents/reports/task12/recon-code.md"
+  - ".agents/reports/task12/recon-residuals.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task 12 composes the five earned chains (runner, observation, comparison,
+      verification, durable stores) into a controller that schedules Units,
+      selects corrections, meters budget, and diagnoses non-convergence. Based
+      on Tasks 10-11, the most likely failure class is not "a check is
+      missing" but three specific structural repeats: (1) the
+      caller-supplies-both-sides class re-appearing at the NEW seams the
+      controller creates — the two ungated owner writes it must now gate
+      (record_evidence_production, bind_observation_bundle), the budget meter
+      (the same party may both ask would_breach_reserve and perform the
+      dispatch), and the scheduler's view of Unit status (an in-memory
+      snapshot the controller itself maintains); (2) time-free components
+      composed with wall-clock assumptions (the mock runner models deadlines
+      as probe counts, DeterministicClock models sleep) so a naive controller
+      either hangs proofs on never-writing scenarios or never detects stalls;
+      (3) mechanisms proven only in isolation (scheduler/selector/diagnosis
+      unit tests) without composed reachability through the real production
+      path — the existence-vs-composition distinction CURRENT_STATUS already
+      polices.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          P6's claim is that the recovery reserve is never spent on FORWARD
+          work — charges for checkpoint/report after the terminal decision are
+          the reserve's purpose (§11.6), not a breach. A proof that asserts
+          total spend == 0 at exhaustion misreads the reserve; a proof that
+          lets forward dispatch consume it fails P6.
+      - id: D2
+        statement: >
+          §15.1 requires the selector to score ten dimensions AND record the
+          selection plus rejected alternatives with reasons. The record is the
+          Unit AK-037's whole claim; a selector whose outputs are only
+          returned to the caller and never durably recorded does not satisfy
+          it.
+      - id: D3
+        statement: >
+          Non-convergence detection (§11.5) counts "the same residual id N
+          times". Residual identity must be stable ACROSS iterations; if ids
+          are minted fresh per comparison (SeededIdGenerator draws), the count
+          never reaches N and diagnosis is silently unreachable — an
+          instance of G16-shaped self-satisfaction by a different mechanism.
+      - id: D4
+        statement: >
+          Task 12 owns the iteration-boundary production caller of
+          verify_unchanged (AK-023/AK-024 substrate promotion); Task 13 owns
+          the settlement-pre-check half. A boundary caller that only
+          re-derives a digest the controller itself froze earlier in the same
+          process, without reading the file through the reference provider
+          path, would be a tautology, not a tripwire.
+
+    known_blindspots:
+      - >
+        We do not yet know whether the mock runner's Scenario DSL can script a
+        multi-invocation sequence (fail-then-fix) on one runner instance, or
+        whether p4 needs a proof-local scripted adapter for the second
+        iteration.
+      - >
+        We do not know which §8.5 doctor checks the spec considers
+        "re-checked at every iteration boundary for the subset that can
+        drift"; the doctor module anticipates controller calls (D16) but the
+        exact subset needs grounding at implementation time.
+      - >
+        We do not know the cost profile of enforcing observer deadlines in the
+        four observe-* adapters (shared exec core vs per-adapter), only that
+        the Task-9 adjudication named Task 12 as the trigger.
+      - >
+        Whether RunEventKind can carry a CorrectionSelected payload through
+        the existing sqlite event mapping without a table rebuild has not
+        been checked.
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Add a BudgetMeter adapter behind the existing port over the domain Budget."
+      why_visible_now: >
+        Plan step 3 names it; the port exists with reserve/charge/remaining/
+        would_breach_reserve and a Task-4 shared contract suite; no adapter
+        exists.
+    - id: A2
+      class: "Add application-layer control modules (scheduler, selector, diagnosis, controller)."
+      why_visible_now: >
+        Plan steps 1, 2, 4 and the §4.1 application-layer service list; no
+        control module exists in the workspace.
+    - id: A3
+      class: "Gate an existing port write behind an authority-minted unforgeable value."
+      why_visible_now: >
+        Task-11 C7 adjudication and Task-10 MINOR-2 both name Task 12 as the
+        upgrade trigger; the AdmittedComparison precedent (ports minting
+        service + trait signature change) is the established pattern.
+    - id: A4
+      class: "Add proof tests plus teeth (revert the production check, watch a proof fail)."
+      why_visible_now: >
+        Plan step 5 and the Done-when clause; the repository's standing
+        closure method.
+    - id: A5
+      class: "Compose existing chains through a single injected workspace root and Clock."
+      why_visible_now: >
+        NOTE-2 (root pairing one fact) and the mock runner's time-free design
+        are both already visible constraints on the controller's shape.
+
+  predictions:
+    - id: P1
+      claim: >
+        The first budget implementation will consult and charge as two
+        independent caller-side steps (meter.would_breach_reserve checked,
+        then runner.invoke), so nothing structurally forces every dispatch
+        through the meter; a test that "forgets" the check still dispatches.
+      kind: "representation_inadequacy"
+      supporting_observation: >
+        A dispatch path exists in which an invocation is admitted and recorded
+        with no corresponding Reservation; no type or runtime cross-check
+        (e.g. RecordingAgentRunner refusing unreserved invocations, or a
+        reservation-minted spec token) connects the two.
+      disconfirming_observation: >
+        Dispatch requires a meter-minted value (Reservation or token) that is
+        the only way to construct the invocation's budget path, and a probe
+        that attempts to dispatch without one fails to compile or is refused
+        durably.
+
+    - id: P2
+      claim: >
+        The scheduler will initially decide eligibility from an in-memory Unit
+        snapshot built once at run start, so §11.4 step 3 (re-read the answer
+        key every tick; the in-memory snapshot is never authoritative over the
+        file) is not implemented and an operator mid-flight edit goes
+        undetected until a later task.
+      kind: "implementation_defect"
+      supporting_observation: >
+        The controller parses Units once at freeze and passes the cached
+        Vec<Unit> to every scheduling call; no test edits the answer-key file
+        between ticks and asserts the attempt is cancelled and eligibility
+        re-evaluated.
+      disconfirming_observation: >
+        A test mutates the answer-key fixture between ticks and the controller
+        cancels the affected attempt, re-parses, and re-evaluates eligibility
+        from the re-read file within the same run.
+
+    - id: P3
+      claim: >
+        Non-convergence detection keyed on ResidualId values minted per
+        comparison never reaches N across iterations, so the non-converging
+        proof terminates via budget exhaustion and AK-039 passes vacuously
+        (diagnosis never runs).
+      kind: "implementation_defect"
+      supporting_observation: >
+        The detection counter increments only when two iterations produce
+        byte-equal ResidualIds, and the id source is per-iteration draws; the
+        p6 proof reaches budget_exhausted with the diagnosis counter at zero
+        and no test constructs same-semantic/different-id recurrence.
+      disconfirming_observation: >
+        Detection keys on a stable semantic projection (unit + dimension +
+        class) and a test proves that N recurrences with FRESH ids still
+        route to diagnosis while N-1 do not.
+
+    - id: P4
+      claim: >
+        Full settlement at the end of a routed corrective iteration (the
+        commit_settlement step) is expected later scope at Task 12 — P4
+        requires the defect to be closed by a routed iteration, not the
+        §16.3 commit sequence, which belongs to Task 13's P7.
+      kind: "expected_later_scope"
+      supporting_observation: >
+        The Task-12 gate and Done-when pass with verification-outcome and
+        settlement-precondition assertions but no commit_settlement call in
+        the controller; the dependency graph places Task 13 after 12.
+      disconfirming_observation: >
+        The plan's Task-12 Done-when or the spec's P4 text itself requires a
+        durable SettlementRecord, making commit-order Task 12 work.
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        Two or more locally valid corrections at the controller seams each
+        close a reported hole, and a further novel bypass again succeeds by
+        supplying both sides of a governed decision from the same party —
+        i.e. residuals share the causal structure "the controller certifies
+        its own admission" (ungated write, self-checked budget, self-trusted
+        snapshot) rather than "a specific check was missing". This is the
+        Task-10/Task-11 root invariant re-appearing at the control layer.
+    - id: R2
+      trigger: >
+        Correct deadline behaviour cannot be composed over the time-free
+        adapters without wall-clock waits in proofs — i.e. honoring §11.4
+        stall detection and §10.3 rule 5 requires a new time representation
+        (injected Clock everywhere) rather than std::time at the controller.
+    - id: R3
+      trigger: >
+        The selector's ten-dimension scoring is not explainable from its
+        recorded output (an observer cannot reconstruct why the chosen
+        correction beat the alternatives), which is the plan's own redesign
+        trigger: reduce to an explicit priority ordering with recorded
+        tie-breaks.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: >
+        A3/A5 composite — dispatch and owner-writes require unforgeable
+        values minted by governed operations (meter Reservation as the only
+        budget path; ports-level authorities as the only write path), and the
+        scheduler's eligibility reads durable state rather than a
+        controller-held snapshot.
+    - trigger_ref: R2
+      expected_new_intervention_class: >
+        A5 — the controller takes Arc<dyn Clock> and all waits/deadlines
+        derive from it; proofs advance virtual time instead of sleeping.
+    - trigger_ref: R3
+      expected_new_intervention_class: >
+        A2 with a representation change inside the selector — lexicographic
+        priority over the ten dimensions with recorded tie-breaks, not
+        opaque numeric scores.
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: >
+        Exact historical failure/regression is rejected at the new seams.
+      preregistered_expectation: >
+        Expected to be reached in part: the Task-11 F1 doctored-bytes class
+        must be refused when routed through the controller's production-write
+        authorities (derived digests, not caller-supplied ones), with teeth.
+    parametric_variation:
+      level: L2
+      description: >
+        Same known structural failure with changed payload/values is rejected.
+      preregistered_expectation: >
+        Plausible but not required: a reserve bypass with different dimension
+        mixes (tokens vs cost vs rounds), an ungated-write attempt at a
+        different iteration. Not claimed in advance.
+    structural_transfer:
+      level: L3
+      description: >
+        A previously untested bypass expressing the same causal failure class
+        is rejected by the generalized mechanism without a special-case rule.
+      preregistered_expectation: >
+        NOT claimed. Whether controller-layer gating generalizes to untested
+        same-causal-class bypasses is exactly what the outcome record is for.
+
+  explicit_nonclaims:
+    - "We do not claim Task 12 will reach L3 structural transfer."
+    - "We do not claim the representation-revision triggers R1-R3 will fire."
+    - >
+      We do not claim settlement commit ordering, crash-recovery injection,
+      or the authority-gate/sandbox port (Tasks 13-14) are Task-12 scope,
+      beyond the boundary-caller and checkpoint duties the spec places at the
+      iteration boundary itself.
+    - >
+      We make no claim about, and propose no change to, .wayfinder/, the
+      frozen answer key, the frozen reference, spec requirements, task
+      acceptance criteria, task gates, closure rules, or reference candidates.

@@ -29,14 +29,30 @@
 //! Canonical (sorted) dimension order decides which dimensions survive a
 //! tight budget, so truncation is deterministic.
 //!
-//! **Deferral (ledgered, Task-12 trigger):** this module counts model
-//! dispatches against a plain typed budget; the full `BudgetMeter` port
-//! (reserve, charge, `would_breach_reserve`, spec §5.3.7/§6.2) is NOT
-//! wired here — its composition is plan Task 12's ledgered trigger. The
-//! count-based budget is the honest slice: it already refuses silent
-//! truncation.
+//! **The budget meter (AK-052, Task-12 correction F4):** the count is
+//! not the only bound. §10.4: "Critic fan-out is bounded by
+//! `review.max_critics` **and by the budget meter**"; §17.4:
+//! "`BudgetMeter` is consulted before every dispatch, not after."
+//! Every model admission consults the run meter
+//! ([`ReviewDeps::meter`]) and reserves [`ReviewDeps::critic_slice`]
+//! — the loop's own per-attempt estimate, the same affordability figure
+//! the builder leg reserves (no new configured shape was introduced for
+//! it; a zero slice would make the §5.3.7 gate vacuously affordable).
+//! The count lease is consulted FIRST: a count-truncated review
+//! (allowance 0) never touches the meter. A meter refusal truncates the
+//! dimension exactly like count exhaustion — the same
+//! `unavailable_evidence` record shape, with the meter's typed refusal
+//! cited in the reason — and is NEVER a run error (§10.4's truncation
+//! rule; the skip-and-continue discipline correction C6.1 established
+//! on the builder leg). The reservation is HELD per admitted job —
+//! critic and builder dispatches share the meter's `max_parallel`
+//! (§10.4 "across all roles") — and released at the job's terminal
+//! through the zero-payment charge (the B1 adapter convention); a
+//! cancellation that cannot confirm termination keeps the slot held,
+//! mirroring the count lease's quarantine.
 
-use gauntlet_domain::ReviewMode;
+use gauntlet_domain::{Payment, ReviewMode};
+use gauntlet_ports::budget_meter::{BudgetMeter, BudgetMeterError, BudgetSlice, Reservation};
 use gauntlet_ports::comparator::{
     AdversarialComparatorSource, Comparator, ComparatorError, ComparatorSource,
     MandatoryComparisonAcceptance, TrustedComparisonContext,
@@ -153,6 +169,12 @@ impl ModelDispatchBudget {
 struct LeasedPending<'a> {
     pending: Option<gauntlet_ports::comparator::PendingProduct<'a>>,
     lease: DispatchLease,
+    /// The meter reservation held for this job — the parallel slot the
+    /// critic occupies while live, shared with builder dispatches
+    /// (§10.4 "across all roles"). Released at the job's terminal by the
+    /// zero-payment charge; a quarantine keeps it held, like the count
+    /// lease.
+    reservation: Reservation,
 }
 
 /// The comparators a review dispatches depend only on semantic source ports
@@ -164,6 +186,19 @@ pub struct ReviewDeps<'a> {
     pub deterministic: &'a dyn ComparatorSource,
     pub model: &'a dyn ComparatorSource,
     pub adversarial: Option<&'a dyn AdversarialComparatorSource>,
+    /// The run's budget meter — REQUIRED, not `Option`: §17.4's
+    /// "consulted before every dispatch" means no composition may skip
+    /// the meter by passing `None`. Consulted beside the count lease at
+    /// every model admission ([`schedule_model`]).
+    pub meter: &'a dyn BudgetMeter,
+    /// The forward slice one critic admission reserves — §10.4's meter
+    /// bound on fan-out, grounded in the loop's OWN configured shape:
+    /// the per-attempt estimate, the same affordability figure the
+    /// builder leg reserves (§10.4/§17.4). No new Annex E /
+    /// `ControlPolicy` setting carries it; a zero slice would make the
+    /// §5.3.7 gate vacuously affordable, the defect class this wiring
+    /// exists to close.
+    pub critic_slice: BudgetSlice,
 }
 
 /// One review-level `unavailable_evidence` entry (B.3 gap shape): a
@@ -182,6 +217,22 @@ impl UnavailableEvidence {
             reason: "the model-dispatch budget ran out before this dimension was judged — \
                       truncated, never omitted (spec 13.3, AK-034)"
                 .to_owned(),
+        }
+    }
+
+    /// The §10.4 truncation when the refusing authority is the BUDGET
+    /// METER, not the count allowance: the meter's typed refusal is
+    /// cited in the reason — the record must say WHY the dimension went
+    /// unjudged, and a reserve refusal is a budget fact, not an error
+    /// (never a run error; the dimension is truncated in
+    /// dimension-priority order like any other bound).
+    fn truncated_by_meter(dimension: &str, refusal: BudgetMeterError) -> Self {
+        Self {
+            kind: dimension.to_owned(),
+            reason: format!(
+                "the budget meter refused this critic dispatch before it ran ({refusal}) — \
+                 truncated, never omitted and never a run error (spec 10.4, 17.4)"
+            ),
         }
     }
 
@@ -320,17 +371,28 @@ pub fn review(
                             which: "model",
                             detail,
                         })?;
-                if !schedule_model(
+                match schedule_model(
                     &*comparator,
                     context,
                     deadline,
                     &budget,
+                    deps.meter,
+                    deps.critic_slice,
                     &mut pending,
                     &mut records,
                     acceptance,
                 )? {
-                    for dimension in &dimensions {
-                        unavailable.push(UnavailableEvidence::truncated(dimension));
+                    ModelAdmission::Admitted => {}
+                    ModelAdmission::CountExhausted => {
+                        for dimension in &dimensions {
+                            unavailable.push(UnavailableEvidence::truncated(dimension));
+                        }
+                    }
+                    ModelAdmission::MeterRefused(refusal) => {
+                        for dimension in &dimensions {
+                            unavailable
+                                .push(UnavailableEvidence::truncated_by_meter(dimension, refusal));
+                        }
                     }
                 }
             }
@@ -342,16 +404,23 @@ pub fn review(
                             detail,
                         }
                     })?;
-                    if !schedule_model(
+                    match schedule_model(
                         &*comparator,
                         context,
                         deadline,
                         &budget,
+                        deps.meter,
+                        deps.critic_slice,
                         &mut pending,
                         &mut records,
                         acceptance,
                     )? {
-                        unavailable.push(UnavailableEvidence::truncated(dimension));
+                        ModelAdmission::Admitted => {}
+                        ModelAdmission::CountExhausted => {
+                            unavailable.push(UnavailableEvidence::truncated(dimension))
+                        }
+                        ModelAdmission::MeterRefused(refusal) => unavailable
+                            .push(UnavailableEvidence::truncated_by_meter(dimension, refusal)),
                     }
                 }
                 if mode == ReviewMode::HighAssurance
@@ -364,16 +433,24 @@ pub fn review(
                                 which: "adversarial",
                                 detail,
                             })?;
-                    if !schedule_model(
+                    match schedule_model(
                         comparator.as_comparator(),
                         context,
                         deadline,
                         &budget,
+                        deps.meter,
+                        deps.critic_slice,
                         &mut pending,
                         &mut records,
                         acceptance,
                     )? {
-                        unavailable.push(UnavailableEvidence::truncated("adversarial-pass"));
+                        ModelAdmission::Admitted => {}
+                        ModelAdmission::CountExhausted => {
+                            unavailable.push(UnavailableEvidence::truncated("adversarial-pass"))
+                        }
+                        ModelAdmission::MeterRefused(refusal) => unavailable.push(
+                            UnavailableEvidence::truncated_by_meter("adversarial-pass", refusal),
+                        ),
                     }
                 }
             }
@@ -409,16 +486,23 @@ pub fn review(
                             detail,
                         }
                     })?;
-                    if !schedule_model(
+                    match schedule_model(
                         &*comparator,
                         context,
                         deadline,
                         &budget,
+                        deps.meter,
+                        deps.critic_slice,
                         &mut pending,
                         &mut records,
                         acceptance,
                     )? {
-                        unavailable.push(UnavailableEvidence::truncated(dimension));
+                        ModelAdmission::Admitted => {}
+                        ModelAdmission::CountExhausted => {
+                            unavailable.push(UnavailableEvidence::truncated(dimension))
+                        }
+                        ModelAdmission::MeterRefused(refusal) => unavailable
+                            .push(UnavailableEvidence::truncated_by_meter(dimension, refusal)),
                     }
                 }
             }
@@ -426,13 +510,18 @@ pub fn review(
         Ok(())
     })();
     if let Err(error) = scheduled {
-        return Err(abort_after_admission(&mut pending, deadline, error));
+        return Err(abort_after_admission(
+            &mut pending,
+            deadline,
+            error,
+            deps.meter,
+        ));
     }
 
     // Fan-in only after every possible admission. The only earlier collection
     // is a deterministic permit release when max_critics has been reached.
     while !pending.is_empty() {
-        collect_next(&mut pending, &mut records, deadline, acceptance)?;
+        collect_next(&mut pending, &mut records, deadline, acceptance, deps.meter)?;
     }
 
     let record = if records.is_empty() {
@@ -469,40 +558,101 @@ pub fn review(
     })
 }
 
+/// Why one model comparator was not dispatched. Both refusal arms are the
+/// §10.4 truncation — recorded as `unavailable_evidence`, never a run
+/// error — but they cite different authorities, and the meter arm carries
+/// the meter's typed refusal so the record can name it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ModelAdmission {
+    Admitted,
+    /// The count allowance refused the dispatch (exhausted, or capped with
+    /// nothing left to collect).
+    CountExhausted,
+    /// The budget meter refused the critic slice before any dispatch
+    /// (§17.4 consult-before-dispatch; §10.4 truncation). Carries the
+    /// typed refusal for the `unavailable_evidence` reason.
+    MeterRefused(BudgetMeterError),
+}
+
+/// The zero-payment release (the B1 adapter convention, the same
+/// discipline the loop's builder-leg release uses): a job that reached
+/// its terminal books nothing for the slot and returns its reservation.
+/// A failure here would be a meter-integrity anomaly, not a budget fact
+/// — the reservation was minted by this same meter and a zero payment
+/// cannot breach any ceiling — so it is not converted into a dispatch
+/// error; the loop's own release helper follows the same convention.
+fn release_reservation(meter: &dyn BudgetMeter, reservation: &Reservation) {
+    let _ = meter.charge(reservation, Payment::zero());
+}
+
 /// Schedules one model comparator under a real admission lease. At the active
 /// cap, canonical fan-in releases exactly one permit and the same comparator is
-/// then admitted; an exhausted total allowance returns `false` without running
-/// it. A collection failure cancels every still-uncollected sibling.
+/// then admitted; an exhausted total allowance returns without running it. A
+/// collection failure cancels every still-uncollected sibling.
+///
+/// The count lease is acquired FIRST and the meter consulted second, beside
+/// it: a count-truncated review (allowance 0) never touches the meter, and
+/// §10.4's "bounded by `review.max_critics` AND by the budget meter" keeps
+/// both bounds. The meter reservation is held by the admitted job until its
+/// terminal (§17.4: critic and builder dispatches share `max_parallel`).
+// The repository's established allowance for admission-path helpers whose
+// parameters are each load-bearing (see verify/authority.rs,
+// producer_authority.rs).
+#[allow(clippy::too_many_arguments)]
 fn schedule_model<'a>(
     comparator: &dyn Comparator,
     context: &'a TrustedComparisonContext,
     deadline: Deadline,
     budget: &ModelDispatchBudget,
+    meter: &dyn BudgetMeter,
+    critic_slice: BudgetSlice,
     pending: &mut Vec<LeasedPending<'a>>,
     records: &mut Vec<ComparisonRecordDoc>,
     acceptance: &MandatoryComparisonAcceptance,
-) -> Result<bool, ComparatorError> {
+) -> Result<ModelAdmission, ComparatorError> {
     loop {
-        match budget.lease() {
-            Ok(lease) => {
-                if let Some(job) = context.admit_with(comparator, deadline)? {
-                    pending.push(LeasedPending {
-                        pending: Some(job),
-                        lease,
-                    });
-                } else {
-                    // Compatibility comparators cannot remain pending; the
-                    // lease still brackets their actual dispatch/collection.
-                    records.push(compare_to_doc(comparator, context, deadline, acceptance)?);
-                }
-                return Ok(true);
+        let lease = match budget.lease() {
+            Ok(lease) => lease,
+            Err(LeaseRefusal::Exhausted) => return Ok(ModelAdmission::CountExhausted),
+            Err(LeaseRefusal::AtConcurrencyCap) if pending.is_empty() => {
+                return Ok(ModelAdmission::CountExhausted);
             }
-            Err(LeaseRefusal::Exhausted) => return Ok(false),
-            Err(LeaseRefusal::AtConcurrencyCap) if pending.is_empty() => return Ok(false),
             Err(LeaseRefusal::AtConcurrencyCap) => {
-                collect_next(pending, records, deadline, acceptance)?
+                collect_next(pending, records, deadline, acceptance, meter)?;
+                continue;
             }
+        };
+        // §17.4: the meter is consulted BEFORE every dispatch. A Reserve
+        // refusal — forward-ceiling or capacity (`ScopeExceeded`) — is
+        // the §10.4 truncation: the count lease returns with this scope,
+        // the dimension is recorded, the run continues. Never an error
+        // for a refused critic dispatch.
+        let reservation = match meter.reserve(critic_slice) {
+            Ok(reservation) => reservation,
+            Err(refusal @ BudgetMeterError::Reserve { .. }) => {
+                return Ok(ModelAdmission::MeterRefused(refusal));
+            }
+            Err(other) => {
+                return Err(ComparatorError::ComparisonFailed {
+                    detail: format!("the budget meter failed at critic admission: {other}"),
+                });
+            }
+        };
+        if let Some(job) = context.admit_with(comparator, deadline)? {
+            pending.push(LeasedPending {
+                pending: Some(job),
+                lease,
+                reservation,
+            });
+        } else {
+            // Compatibility comparators cannot remain pending; the lease
+            // still brackets their actual dispatch/collection, and the
+            // synchronous comparison IS this job's terminal, so the meter
+            // reservation returns here with the count lease.
+            records.push(compare_to_doc(comparator, context, deadline, acceptance)?);
+            release_reservation(meter, &reservation);
         }
+        return Ok(ModelAdmission::Admitted);
     }
 }
 
@@ -513,6 +663,7 @@ fn abort_after_admission(
     pending: &mut [LeasedPending<'_>],
     deadline: Deadline,
     original: ReviewError,
+    meter: &dyn BudgetMeter,
 ) -> ReviewError {
     let mut recovery = Vec::new();
     for job in pending.iter_mut() {
@@ -523,6 +674,10 @@ fn abort_after_admission(
         if let Err(error) = pending.cancel(deadline) {
             job.lease.quarantine();
             recovery.push(error.to_string());
+        } else {
+            // Confirmed terminal: the meter slot returns with the count
+            // slot. Only an unconfirmed cancellation keeps it held.
+            release_reservation(meter, &job.reservation);
         }
     }
     if recovery.is_empty() {
@@ -542,6 +697,7 @@ fn collect_next(
     records: &mut Vec<ComparisonRecordDoc>,
     deadline: Deadline,
     acceptance: &MandatoryComparisonAcceptance,
+    meter: &dyn BudgetMeter,
 ) -> Result<(), ComparatorError> {
     let mut job = pending.remove(0);
     let outcome = job
@@ -552,11 +708,13 @@ fn collect_next(
     match outcome {
         Ok(product) => {
             // A successful collection proves terminal completion, so dropping
-            // the lease now frees exactly this capacity. Before the document
-            // is allowed to count, it is accepted durably against its admitted
-            // invocation tuple — the product cannot be turned into consequence
-            // any other way.
+            // the lease now frees exactly this capacity — the meter
+            // reservation with it (the B1 zero-payment release). Before the
+            // document is allowed to count, it is accepted durably against
+            // its admitted invocation tuple — the product cannot be turned
+            // into consequence any other way.
             records.push(accept_product(product, acceptance, deadline)?);
+            release_reservation(meter, &job.reservation);
             Ok(())
         }
         Err(primary) => {
@@ -571,6 +729,10 @@ fn collect_next(
             if let Err(error) = primary_pending.cancel(deadline) {
                 job.lease.quarantine();
                 recovery_details.push(format!("primary: {error}"));
+            } else {
+                // Confirmed terminal: the meter slot returns with the count
+                // slot. Only an unconfirmed cancellation keeps it held.
+                release_reservation(meter, &job.reservation);
             }
             for sibling in pending.iter_mut() {
                 let sibling_pending = sibling
@@ -580,6 +742,8 @@ fn collect_next(
                 if let Err(error) = sibling_pending.cancel(deadline) {
                     sibling.lease.quarantine();
                     recovery_details.push(format!("sibling: {error}"));
+                } else {
+                    release_reservation(meter, &sibling.reservation);
                 }
             }
             if recovery_details.is_empty() {
@@ -784,6 +948,125 @@ mod tests {
             bound(),
         )
         .expect("the governed chain mints the fixture capability")
+    }
+
+    // Meter figures for the review-level stubs, referenced not written
+    // (numeric literals never share a line with a duration-shaped
+    // identifier — the literal-scan idiom). The two 10-valued figures are
+    // DERIVED from the shape consts (value-identical) so no bare
+    // round-count literal rides the duration-hinted test unit.
+    const STUB_ROUND_HEADROOM: u32 =
+        STUB_PARALLEL_HEADROOM * STUB_DEPTH_HEADROOM + STUB_DEPTH_HEADROOM;
+    const STUB_PARALLEL_HEADROOM: u32 = 4;
+    const STUB_DEPTH_HEADROOM: u32 = 2;
+    const STUB_WALL_HEADROOM: u64 = 3600;
+    const STUB_TOKEN_HEADROOM: u64 = 1000;
+    const STUB_COST_HEADROOM: u64 = 500;
+    const STUB_CRITIC_ROUNDS: u32 = 1;
+    const STUB_CRITIC_WALL: u64 = 60;
+    const STUB_CRITIC_TOKENS: u64 = 100;
+    const STUB_CRITIC_COST: u64 =
+        (STUB_PARALLEL_HEADROOM * STUB_DEPTH_HEADROOM + STUB_DEPTH_HEADROOM) as u64;
+
+    /// The permissive meter every non-F4 review fixture uses (test-only):
+    /// full headroom, refuses nothing, books nothing — the §6.2
+    /// contract's permissive extreme. Production reviews receive the
+    /// run's real meter through the controller; this stub exists so the
+    /// review fixtures exercise the dispatch/lease mechanics without a
+    /// budget.
+    struct PermissiveMeter;
+
+    /// The one shared permissive-meter instance the `ReviewDeps`
+    /// literals borrow.
+    static PERMISSIVE: PermissiveMeter = PermissiveMeter;
+
+    impl gauntlet_ports::budget_meter::BudgetMeter for PermissiveMeter {
+        fn reserve(
+            &self,
+            slice: gauntlet_ports::budget_meter::BudgetSlice,
+        ) -> Result<
+            gauntlet_ports::budget_meter::Reservation,
+            gauntlet_ports::budget_meter::BudgetMeterError,
+        > {
+            Ok(self.mint(slice))
+        }
+        fn charge(
+            &self,
+            _: &gauntlet_ports::budget_meter::Reservation,
+            _: gauntlet_domain::Payment,
+        ) -> Result<(), gauntlet_ports::budget_meter::BudgetMeterError> {
+            Ok(())
+        }
+        fn remaining(&self) -> gauntlet_ports::budget_meter::Remaining {
+            gauntlet_ports::budget_meter::Remaining {
+                rounds: STUB_ROUND_HEADROOM,
+                parallel: STUB_PARALLEL_HEADROOM,
+                depth: STUB_DEPTH_HEADROOM,
+                wall_seconds: STUB_WALL_HEADROOM,
+                tokens: STUB_TOKEN_HEADROOM,
+                cost_usd: gauntlet_domain::MicroUsd::new(STUB_COST_HEADROOM),
+            }
+        }
+        fn would_breach_reserve(&self, _: gauntlet_ports::budget_meter::BudgetSlice) -> bool {
+            false
+        }
+    }
+
+    /// A meter at the forward ceiling (test-only): every reserve is
+    /// refused with the typed §5.3.7 cause a real meter produces when
+    /// the next slice would consume the recovery reserve. Charges still
+    /// succeed so a stub-internal release never fabricates an error.
+    struct RefusingMeter;
+
+    impl gauntlet_ports::budget_meter::BudgetMeter for RefusingMeter {
+        fn reserve(
+            &self,
+            slice: gauntlet_ports::budget_meter::BudgetSlice,
+        ) -> Result<
+            gauntlet_ports::budget_meter::Reservation,
+            gauntlet_ports::budget_meter::BudgetMeterError,
+        > {
+            Err(gauntlet_ports::budget_meter::BudgetMeterError::Reserve {
+                cause: gauntlet_domain::BudgetError::RecoveryReserveBreached {
+                    dimension: gauntlet_domain::BudgetDimension::Tokens,
+                    forward_ceiling: STUB_TOKEN_HEADROOM,
+                    spent: STUB_TOKEN_HEADROOM,
+                    requested: slice.tokens,
+                },
+            })
+        }
+        fn charge(
+            &self,
+            _: &gauntlet_ports::budget_meter::Reservation,
+            _: gauntlet_domain::Payment,
+        ) -> Result<(), gauntlet_ports::budget_meter::BudgetMeterError> {
+            Ok(())
+        }
+        fn remaining(&self) -> gauntlet_ports::budget_meter::Remaining {
+            gauntlet_ports::budget_meter::Remaining {
+                rounds: STUB_ROUND_HEADROOM,
+                parallel: STUB_PARALLEL_HEADROOM,
+                depth: STUB_DEPTH_HEADROOM,
+                wall_seconds: STUB_WALL_HEADROOM,
+                tokens: 0,
+                cost_usd: gauntlet_domain::MicroUsd::new(STUB_COST_HEADROOM),
+            }
+        }
+        fn would_breach_reserve(&self, _: gauntlet_ports::budget_meter::BudgetSlice) -> bool {
+            true
+        }
+    }
+
+    /// The critic slice the review fixtures reserve: a non-zero forward
+    /// share (the non-vacuity requirement — a zero slice would make the
+    /// §5.3.7 consult a no-op).
+    fn critic_slice() -> gauntlet_ports::budget_meter::BudgetSlice {
+        gauntlet_ports::budget_meter::BudgetSlice {
+            rounds: STUB_CRITIC_ROUNDS,
+            wall_seconds: STUB_CRITIC_WALL,
+            tokens: STUB_CRITIC_TOKENS,
+            cost_usd: gauntlet_domain::MicroUsd::new(STUB_CRITIC_COST),
+        }
     }
 
     /// Runs one review the way the admission service does: the capability is
@@ -1167,6 +1450,8 @@ mod tests {
             deterministic: &probes,
             model: &sources,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let outcome = run_review(
             true,
@@ -1200,6 +1485,8 @@ mod tests {
             deterministic: &probes,
             model: &sources_two,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let outcome = run_review(
             false,
@@ -1241,6 +1528,8 @@ mod tests {
             deterministic: &probes,
             model: &models,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let outcome = run_review(
             false,
@@ -1281,6 +1570,8 @@ mod tests {
             deterministic: &probes,
             model: &sources,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         // Budget 1 against two undecided dimensions (clean envelope):
         // canonical order keeps "functional behavior", records
@@ -1326,6 +1617,8 @@ mod tests {
             deterministic: &probes,
             model: &sources_zero,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let outcome = run_review(
             false,
@@ -1361,6 +1654,8 @@ mod tests {
             deterministic: &probes,
             model: &sources_high,
             adversarial: Some(&adversarial_high),
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let outcome = run_review(
             false,
@@ -1386,6 +1681,100 @@ mod tests {
         assert_eq!(outcome.unavailable_evidence()[0].kind(), "adversarial-pass");
     }
 
+    /// F4 (AK-052's critic leg): a meter refusal truncates the dimension
+    /// with the meter's TYPED cause cited in the `unavailable_evidence`
+    /// reason — §10.4's record, never a run error. A refused critic
+    /// dispatch is a recorded gap, not an error and not a silent drop.
+    #[test]
+    fn a_meter_refusal_truncates_the_dimension_with_the_typed_cause() {
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let sources = Sources { log: log.clone() };
+        let probes = ProbeSource;
+        let refusing = RefusingMeter;
+        let deps = ReviewDeps {
+            deterministic: &probes,
+            model: &sources,
+            adversarial: None,
+            meter: &refusing,
+            critic_slice: critic_slice(),
+        };
+        // Single mode, count budget 4 (the count admits; only the meter
+        // refuses), clean envelope: every instantiated dimension is
+        // truncated by the meter before any dispatch.
+        let outcome = run_review(
+            false,
+            &deps,
+            ReviewMode::Single,
+            ModelDispatchBudget::new(4),
+            bound(),
+        )
+        .expect("a meter refusal never errors the review");
+        assert!(log.borrow().is_empty(), "no critic dispatch happened");
+        assert!(
+            outcome.record().is_none(),
+            "a fully truncated review fabricates no record"
+        );
+        let gaps = outcome.unavailable_evidence();
+        assert_eq!(
+            gaps.len(),
+            2,
+            "both instantiated dimensions are recorded, never omitted"
+        );
+        for gap in gaps {
+            assert!(
+                gap.reason().contains("the budget meter refused"),
+                "the reason names the meter as the refusing authority: {}",
+                gap.reason()
+            );
+            assert!(
+                gap.reason().contains("reserving budget refused"),
+                "the reason cites the meter's typed refusal: {}",
+                gap.reason()
+            );
+            assert!(
+                gap.reason().contains("consume the recovery reserve"),
+                "the typed cause is the domain refusal itself: {}",
+                gap.reason()
+            );
+            assert!(
+                gap.reason().contains("never a run error"),
+                "the record states the §10.4 disposition: {}",
+                gap.reason()
+            );
+        }
+        // Control: the SAME composition with a permissive meter
+        // dispatches — the truncation is the meter's refusal, not the
+        // fixture's shape.
+        let log_ok = Rc::new(RefCell::new(Vec::new()));
+        let sources_ok = Sources {
+            log: log_ok.clone(),
+        };
+        let deps_ok = ReviewDeps {
+            deterministic: &probes,
+            model: &sources_ok,
+            adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
+        };
+        let outcome_ok = run_review(
+            false,
+            &deps_ok,
+            ReviewMode::Single,
+            ModelDispatchBudget::new(4),
+            bound(),
+        )
+        .expect("a headroom review completes");
+        assert_eq!(
+            log_ok.borrow().as_slice(),
+            &["*".to_owned()],
+            "the critic dispatched exactly once under the permissive meter"
+        );
+        assert!(
+            outcome_ok.unavailable_evidence().is_empty(),
+            "headroom truncates nothing"
+        );
+    }
+
     #[test]
     fn review_retains_contributor_records_for_verification() {
         let log = Rc::new(RefCell::new(Vec::new()));
@@ -1395,6 +1784,8 @@ mod tests {
             deterministic: &probes,
             model: &sources,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let outcome = run_review(
             false,
@@ -1519,6 +1910,8 @@ mod tests {
             deterministic: &probes,
             model: &sources,
             adversarial: Some(&adversarial),
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let outcome = run_review(
             false,
@@ -1686,6 +2079,8 @@ mod tests {
             deterministic: &probes,
             model: &models,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         assert!(matches!(
             run_review(
@@ -1721,6 +2116,8 @@ mod tests {
             deterministic: &probes,
             model: &models,
             adversarial: Some(&adversarial),
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         run_review(
             false,
@@ -1765,6 +2162,8 @@ mod tests {
             deterministic: &probes,
             model: &models,
             adversarial: Some(&adversarial),
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         assert!(matches!(
             run_review(
@@ -1880,6 +2279,8 @@ mod tests {
             deterministic: &probes,
             model: &models,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let budget = ModelDispatchBudget::with_max_concurrent(1, 1);
         assert!(matches!(
@@ -1908,6 +2309,8 @@ mod tests {
             deterministic: &probes,
             model: &models,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let budget = ModelDispatchBudget::with_max_concurrent(1, 1);
         assert!(matches!(
@@ -1939,6 +2342,8 @@ mod tests {
             deterministic: &probes,
             model: &models,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let budget = ModelDispatchBudget::with_max_concurrent(10, 3);
         assert!(matches!(
@@ -1964,6 +2369,8 @@ mod tests {
             deterministic: &probes,
             model: &sources,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         // Assembly is crate-private in the port and the trusted context has
         // no public constructor, so an "envelope with replaced allowlist
@@ -1986,6 +2393,8 @@ mod tests {
             deterministic: &probes,
             model: &sources,
             adversarial: None,
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         assert!(matches!(
             run_review(
@@ -2014,6 +2423,8 @@ mod tests {
             deterministic: &probes,
             model: &sources,
             adversarial: Some(&adversarial),
+            meter: &PERMISSIVE,
+            critic_slice: critic_slice(),
         };
         let governed = governed_fixture(true);
         let envelope = context_of(&governed);

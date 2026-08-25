@@ -148,6 +148,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-meter-memory"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-adapter-observe-build"
 version = "0.1.0"
 dependencies = [
@@ -258,6 +266,7 @@ dependencies = [
  "gauntlet-adapter-compare-diff",
  "gauntlet-adapter-compare-model",
  "gauntlet-adapter-evidence-fs",
+ "gauntlet-adapter-meter-memory",
  "gauntlet-adapter-observe-build",
  "gauntlet-adapter-observe-command",
  "gauntlet-adapter-observe-filesystem",
