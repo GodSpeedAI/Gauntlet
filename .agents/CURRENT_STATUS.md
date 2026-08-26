@@ -1,38 +1,30 @@
 # Current status — HANDOFF DOCUMENT
 
-**Last updated:** 2026-08-25 — **Tasks 2–11 CLOSED (records below). Task 12
-(controller: selection, budget, diagnosis — P4, P6) is IN FLIGHT, stopped
-mid-correction-round by operator direction; full resume state in
-`.agents/reports/task12/` (read IN-FLIGHT.md first, then
-correction-checkpoints.md).** Task-12 progress: prereg frozen before
-implementation (`just prereg-check 12` PASS); four builder slices landed
-(B1 domain `Spent`/`Budget::restore` + ports owner-write capability gating
-(`producer_authority.rs` minting authorities, following AdmittedComparison)
-+ `gauntlet-adapter-meter-memory` (renamed from budget-meter — denylist);
-B2 `control::{scheduler,select,diagnosis}` + domain `correction.rs` +
-durable `record_correction_selection` (migration 0008); B3 controller
-composition + §11.5 disposition table + observer `run_bounded` deadlines in
-all four command adapters; B4 proofs p4/p6 + teeth T1–T6); two blind
-critics returned **1 CRITICAL + 8 MAJOR (A) and 8 ESCAPED areas (B)** —
-prereg **R1 FIRED** as predicted (composition certifies its own admission:
-rounds dead in shipped meter, degenerate composed diagnosis, non-convergence
-unreachable composed, vacuous selection record); adjudication C1–C9 fix-now
-/ L1–L4 later-scope; correction round 1 **completed C1, C2, C4, C3**
-(fail-first evidenced) before the builder was cancelled — tree verified
-green at the stop point (control:: 58/58, p4+p6 6/6, ruler PASS, boundaries
-197/197 as of B4). **Everything is UNCOMMITTED in the working tree**
-(one-task-one-commit lands only at closure). Remaining to close Task 12:
-correction C5–C9, full gates + teeth re-record, correction-round1.md
-contract, fresh blind confirmation, orchestrator gate/teeth re-verification,
-reference-candidates entries (AK-037/038/039/051/052), task-12.outcome.yaml,
-closure record here, single commit with explicit pathspecs. Three more
-interruption instances this task (12th–14th; two mid-builder usage-limit
-deaths recovered by documented finisher procedure, one
-admission-refusal; one operator-directed stop). Operator events: `dbe529a`
-committed the previously-uncommitted AGENTS.md/justfile/.gitignore work;
-an uncommitted AGENTS.md edit renaming CURRENT_STATUS.md → current_status.yml
-references (operator's, mtime 2026-08-24 19:28) is left untouched — the .md
-remains the status file until the operator lands that migration.
+**Last updated:** 2026-08-25 (second session) — **Tasks 2–12 CLOSED
+(records below). Task 13 — Settlement, atomic commit, single-writer
+discipline (proves P7, P11) — is NEXT, opening this session.** Task 12
+closed at commit `1a88b39` (2026-08-25 19:07): correction rounds
+C1–C9+N1–N6 (re-sliced F1–F3) + F4, fresh blind confirmation round 2
+**CONFIRM**, final gates workspace 914/914, boundaries 197/197,
+check/lint/deny 0, ruler PASS, doctor OK, `just prereg-check 12` PASS;
+full closure record and carried-forward residuals in the Task-12 section
+below.
+
+**Record correction (this session, per the tree-outranks-record rule in
+`.agents/lessons/unrecorded-landed-work.md`):** this header and the
+completed-work table still described the 10:20 mid-flight operator stop
+("Task 12 IN FLIGHT, everything UNCOMMITTED") even though the same
+committed file's Task-12 section recorded full closure — the closing
+session updated the bottom of the file but not the top. Reconciled by the
+next session before opening Task 13: `just ruler` PASS, focused gates
+re-verified personally (p4+p6 6/6, `control::` 75/75), commit `1a88b39`
+confirmed as the closure commit. No work was redone. Fifteen
+interruption-class instances through Task 12 (see the Task-12 record).
+Operator events: `dbe529a` committed the previously-uncommitted
+AGENTS.md/justfile/.gitignore work; an uncommitted AGENTS.md edit renaming
+CURRENT_STATUS.md → current_status.yml references (operator's, mtime
+2026-08-24 19:28) remains untouched — the .md remains the status file
+until the operator lands that migration.
 
 **CLOSED (2026-08-21, Task 10 — fresh blind confirmation round 7: CONFIRM):** An architecture diagnosis
 (`architecture-diagnosis.md`) established that the round-3 residuals were **one
@@ -832,7 +824,7 @@ Blind critics are read-only and non-compiling; builders hold the lock exclusivel
 | 9 — Observers + observation bundle | **done** — closed after usage-limit interruption recovery + finisher + orchestrator gates + 4 teeth + 2 blind critics (0 critical) + C1–C10 correction + confirmation CONFIRM + N1 doc micro-fix, closure record above | this session |
 | 10 — Comparator and envelope builder | **done** — closed after architecture diagnosis + correction rounds 7–10 + fresh blind confirmation round 7 CONFIRM (compiled external attack crate), closure record above; committed after interruption recovery (gates re-verified personally) | `1dab05c` |
 | 11 — Verifier and evidence binding | **done** — closed after 2 blind critics + denylist supplement + correction rounds 1–2 + fresh confirmation round 2 CONFIRM (executed evidence); prereg R1 fired and resolved by the preregistered A5 class | `a507d08`, `793d115` |
-| 12 — Controller: selection, budget, diagnosis (P4, P6) | **IN FLIGHT** — B1–B4 + critics + adjudication + correction C1/C2/C4/C3 landed (UNCOMMITTED); resume per the Task-12 section below | — |
+| 12 — Controller: selection, budget, diagnosis (P4, P6) | **done** — closed after B1–B4 + two blind critics + correction C1–C9/N1–N6 (re-sliced F1–F3) + F4 + fresh blind confirmation round 2 CONFIRM; closure record above | `1a88b39` |
 | 13–27 | not started | — |
 
 ### Task 2 — final shape
