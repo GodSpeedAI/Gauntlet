@@ -35,7 +35,7 @@ Do not add speculative rules for failures that have never occurred.
 * Tasks 4–6 (2026-08-16/17): the orchestrating session itself was interrupted five
   times across three sessions, leaving orphaned builder state (code landed, proof loop
   not run). Rule: reconcile `git status` and the task's report files against
-  CURRENT_STATUS.md before treating any task as unstarted; on mismatch, run the
+  current_status.yml before treating any task as unstarted; on mismatch, run the
   documented recovery procedure instead of re-dispatching; write an IN-FLIGHT line at
   dispatch time. Full guidance:
   `.agents/lessons/session-interruption-recovery.md`.
@@ -292,7 +292,7 @@ Non-negotiable structural rules:
 
 The active system never moves its own ruler and then claims improvement.
 
-Commit often at meaningful milestones and keep `.agents/CURRENT_STATUS.md` current.
+Commit often at meaningful milestones and keep `.agents/current_status.yml` current.
 
 Do not upgrade bounded search into a universal claim. “No issue found” means none was found within the declared scope, threat model, search procedure, and budget; claim absence or minimality only when the relevant space is explicitly bounded and exhausted.
 

@@ -1,0 +1,158 @@
+You are modifying an existing Rust project/workspace.
+
+Project root:
+/home/sprime01/projects/gauntlet
+
+Existing justfile:
+justfile
+
+The workstation already provides the shared Rust tooling globally. Do not add
+tool installation or workstation configuration to this repository.
+
+Available standard tooling is expected to include:
+- cargo-nextest
+- cargo-mutants
+- cargo-deny
+- cargo-llvm-cov
+- sccache
+- mold
+- rustfmt
+- clippy
+- just
+
+Your task is to inspect this repository and integrate the missing standard Rust
+developer recipes into the EXISTING justfile without weakening, replacing, or
+duplicating project-specific verification semantics.
+
+IMPORTANT CONSTRAINTS
+
+1. Read the repository's applicable AGENTS.md/instructions before editing.
+2. Inspect the complete existing justfile before making changes.
+3. Inspect Cargo.toml/workspace structure.
+4. Inspect any existing test, CI, verification, coverage, mutation, dependency,
+   boundary, evidence, or acceptance commands before defining wrappers.
+5. Existing project commands and gates are authoritative.
+6. Do not replace existing recipes merely to normalize naming.
+7. Prefer thin aliases/wrappers around established project commands.
+8. Do not weaken an existing verification or closure gate.
+9. Do not add new Rust dependencies merely to implement these recipes.
+10. Do not modify rust-toolchain.toml.
+11. Do not modify global Cargo configuration.
+12. Do not create generic deny.toml, nextest policy, mutation exclusions,
+    coverage thresholds, or tracing policy without project-specific evidence
+    that they are appropriate.
+13. Mutation testing and coverage should remain explicit expensive operations
+    rather than being added to an ordinary fast development loop unless this
+    repository already requires them for its canonical verification gate.
+14. Nextest does not replace doctest execution; preserve or add a separate
+    cargo test --doc path when the project contains doctests.
+15. Preserve all existing project-specific recipes, comments, ordering, and
+    semantics unless a change is necessary for correct integration.
+
+The standard recipe vocabulary is:
+
+- check
+  Workspace type-checking. Baseline behavior:
+      cargo check --workspace --all-targets
+
+- check-package <package>
+  Fast package-scoped type-checking. Baseline behavior:
+      cargo check -p <package> --all-targets
+
+- test
+  Workspace test execution using nextest where compatible. Baseline:
+      cargo nextest run --workspace
+
+- test-package <package>
+  Package-scoped nextest execution:
+      cargo nextest run -p <package>
+
+- test-doc
+  Doctest execution:
+      cargo test --workspace --doc
+
+- fmt-check
+  Formatting verification:
+      cargo fmt --all -- --check
+
+- lint
+  Clippy using the project's existing lint policy. Baseline:
+      cargo clippy --workspace --all-targets
+
+- timings
+  Cargo compilation timing report:
+      cargo build --workspace --timings
+
+- coverage
+  Explicit coverage generation. Baseline:
+      cargo llvm-cov nextest --workspace --html
+
+- mutation
+  Explicit mutation testing. Baseline:
+      cargo mutants
+
+- deny
+  cargo-deny only when this repository already has or deliberately establishes
+  a project-specific deny.toml:
+      cargo deny check
+
+- cache-stats
+  Developer diagnostic:
+      sccache --show-stats
+
+- verify
+  Canonical normal verification entrypoint. This MUST reflect the repository's
+  actual existing verification contract rather than blindly using a generic
+  sequence.
+
+The bootstrap audit found these standard recipe names missing:
+
+check-package
+test-package
+test-doc
+fmt-check
+timings
+coverage
+mutation
+cache-stats
+verify
+
+Current project configuration detected:
+- deny.toml: present
+- .config/nextest.toml: absent
+- rust-toolchain pin: absent
+- AGENTS instructions: present
+
+Before editing, determine whether each missing recipe should:
+A. be added directly,
+B. alias an existing equivalent recipe,
+C. wrap a project-specific command, or
+D. intentionally remain absent because it would conflict with project
+   semantics.
+
+For an established verification-heavy repository, especially one with custom
+boundary, ruler, acceptance, evidence, integrity, or closure gates, preserve
+those gates exactly. The standard vocabulary is an interface layer, not a
+replacement verification model.
+
+After editing:
+
+1. Run:
+       just --list
+
+2. Verify every added alias/recipe resolves.
+
+3. Run the cheapest relevant checks first.
+
+4. Run the repository's existing required verification gates appropriate to
+   the scope of the change.
+
+5. Report:
+   - recipes added
+   - aliases created
+   - recipes intentionally not added and why
+   - existing project semantics preserved
+   - verification commands executed
+   - pass/fail results
+
+Do not perform unrelated refactoring.

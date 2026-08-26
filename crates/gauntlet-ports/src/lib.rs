@@ -96,8 +96,9 @@ pub use policy_provider::{
     CredentialScope, Enforcement, PermissionSet, PolicyProvider, PolicyProviderError,
 };
 pub use producer_authority::{
-    AdmittedEvidenceProduction, AdmittedObservationBinding, EvidenceProductionAuthority,
-    ObservationBindingAuthority, ProducerAuthorityError, evidence_content_digest,
+    AdmittedEvidenceProduction, AdmittedObservationBinding, AdmittedSettlement,
+    EvidenceProductionAuthority, ObservationBindingAuthority, ProducerAuthorityError,
+    SettlementAdmissionError, SettlementCommitAuthority, evidence_content_digest,
 };
 pub use reference_provider::{ReferenceDraft, ReferenceProvider, ReferenceProviderError};
 pub use role_result::{
@@ -109,8 +110,8 @@ pub use sandbox::{
     SandboxedCommand,
 };
 pub use state_store::{
-    Checkpoint, EvidenceProduction, EvidenceProductionBinding, RunEvent, RunEventKind, StateStore,
-    StateStoreError,
+    Checkpoint, EvidenceProduction, EvidenceProductionBinding, RunEvent, RunEventKind,
+    SettlementCommit, StateStore, StateStoreError,
 };
 pub use tokens::UnknownToken;
 pub use tool_provider::{

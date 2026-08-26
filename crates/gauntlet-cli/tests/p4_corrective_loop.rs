@@ -448,6 +448,58 @@ impl StateStore for CountingState {
         self.inner
             .evidence_productions_at(run_id, locator, deadline)
     }
+    // The settlement surface (Task 13 B2): delegated verbatim like every
+    // other method — the loop's settle path now rides these through the
+    // service, and the trait defaults fail closed, so a decorator that
+    // skipped them would fabricate a refusal the inner store never made.
+    fn record_verification(
+        &self,
+        record: &gauntlet_ports::verification_record::VerificationRecordDoc,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.inner.record_verification(record, deadline)
+    }
+    fn verification_records(
+        &self,
+        run_id: &RunId,
+        deadline: Deadline,
+    ) -> Result<Vec<gauntlet_ports::verification_record::VerificationRecordDoc>, StateStoreError>
+    {
+        self.inner.verification_records(run_id, deadline)
+    }
+    fn commit_settlement(
+        &self,
+        admitted: &gauntlet_ports::producer_authority::AdmittedSettlement,
+        deadline: Deadline,
+    ) -> Result<gauntlet_domain::EventLogOffset, StateStoreError> {
+        self.inner.commit_settlement(admitted, deadline)
+    }
+    fn settlements(
+        &self,
+        run_id: &RunId,
+        deadline: Deadline,
+    ) -> Result<Vec<gauntlet_domain::SettlementRecord>, StateStoreError> {
+        self.inner.settlements(run_id, deadline)
+    }
+    fn complete_pending_settlements(
+        &self,
+        run_id: &RunId,
+        anchor: gauntlet_domain::EventLogOffset,
+        deadline: Deadline,
+    ) -> Result<usize, StateStoreError> {
+        self.inner
+            .complete_pending_settlements(run_id, anchor, deadline)
+    }
+    fn complete_pending_evidence_production(
+        &self,
+        run_id: &RunId,
+        anchor: gauntlet_domain::EventLogOffset,
+        production: &gauntlet_ports::producer_authority::AdmittedEvidenceProduction,
+        deadline: Deadline,
+    ) -> Result<Option<EvidenceProductionBinding>, StateStoreError> {
+        self.inner
+            .complete_pending_evidence_production(run_id, anchor, production, deadline)
+    }
     fn accept_comparison(
         &self,
         admitted: &gauntlet_ports::comparator::AdmittedComparison,
@@ -1210,9 +1262,13 @@ fn an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction() {
 
     // Verification FAILed and recorded it in iteration 1, PASSed in
     // iteration 2 — both through the governed chain, both leaving pinned
-    // durable evidence: the §16.1 precondition's refusal records are
-    // pinned facts (settlement itself is plan Task 13's commit — asserted
-    // here only as the honest state, never called).
+    // durable evidence. Before Task 13 B2, iteration 2's PASS honestly
+    // recorded the settlement-precondition gap ("is not pinned to the
+    // settling run") because the loop never performed the condition-2 pin;
+    // B2's settle wiring pins the chain-minted PASS evidence and the
+    // settlement SERVICE commits — so the honest state is now the DURABLE
+    // settlement: a keyed settlement row naming the unit, plus the pinned
+    // B.6 authority-decision record.
     let records = fixture.stored_records();
     assert!(
         records
@@ -1221,11 +1277,28 @@ fn an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction() {
         "iteration 1's FAILING verification is pinned evidence"
     );
     assert!(
+        !records.is_empty(),
+        "the composed loop pinned durable evidence"
+    );
+    let settlements = fixture
+        .state
+        .settlements(&outcome.run_id, bound())
+        .expect("settlement rows readable");
+    assert_eq!(
+        settlements.len(),
+        1,
+        "iteration 2's PASS settles DURABLY through the service: {settlements:?}"
+    );
+    assert_eq!(settlements[0].unit_id().as_str(), UNIT);
+    assert!(
+        settlements[0].event_log_offset().get() > 0,
+        "the settlement names the durable event that made it real"
+    );
+    assert!(
         records
             .iter()
-            .any(|record| record.contains("is not pinned to the settling run")),
-        "iteration 2's PASS honestly records the settlement precondition gap \
-         (the commit is Task 13's boundary)"
+            .any(|record| record.contains("settlement_authority_decision")),
+        "the B.6 authority decision is pinned accompanying evidence"
     );
     // And the PASS is decisional: the unit SETTLED in the final checkpoint
     // — only a governed-chain PASS settles it.

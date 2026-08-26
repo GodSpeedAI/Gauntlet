@@ -148,6 +148,9 @@ use crate::compare::recording::RecordingAgentRunner;
 use crate::compare::review::{ModelDispatchBudget, ReviewDeps};
 use crate::observation::assembly::{AssemblyError, ObservationAssembler, ObservationPlan};
 use crate::reference::provider::AnswerKeySource;
+use crate::settle::{
+    BlockingResidual, ClosingActor, SettleError, SettleRequest, SettlementService,
+};
 use crate::verify::authority::{VerificationAuthority, VerificationRefusal};
 use crate::verify::ladder::Ladder;
 
@@ -315,6 +318,12 @@ pub enum ControlError {
         locator: EvidenceLocator,
         root: PathBuf,
     },
+    /// The settlement service refused (Task 13 B2): §16.1 gate refusals and
+    /// resume-completion failures carry their own typed locus — never
+    /// flattened into a state failure they are not. Boxed: the settle
+    /// error's variant set is large and this arm must not inflate every
+    /// `Result<_, ControlError>` in the crate.
+    Settlement(Box<crate::settle::SettleError>),
 }
 
 impl core::fmt::Display for ControlError {
@@ -378,7 +387,7 @@ impl core::fmt::Display for ControlError {
                  root {} and is refused at the write boundary",
                 root.display()
             ),
-        }
+            Self::Settlement(error) => write!(f, "the settlement service refused: {error}"),        }
     }
 }
 
@@ -447,6 +456,12 @@ impl From<DiagnosisError> for ControlError {
 impl From<SelectionError> for ControlError {
     fn from(source: SelectionError) -> Self {
         Self::Selection(source)
+    }
+}
+
+impl From<crate::settle::SettleError> for ControlError {
+    fn from(source: crate::settle::SettleError) -> Self {
+        Self::Settlement(Box::new(source))
     }
 }
 
@@ -604,6 +619,7 @@ pub struct RunController {
     evidence_production: EvidenceProductionAuthority,
     comparison_authority: ComparisonAuthority,
     verification_authority: VerificationAuthority,
+    settlement: SettlementService,
 }
 
 impl RunController {
@@ -702,6 +718,13 @@ impl RunController {
             ComparisonAuthority::new(deps.state.clone(), deps.evidence.clone());
         let verification_authority =
             VerificationAuthority::new(deps.state.clone(), deps.evidence.clone(), deps.ids.clone());
+        let settlement = SettlementService::new(
+            deps.state.clone(),
+            deps.evidence.clone(),
+            deps.reference.clone(),
+            deps.escalation.clone(),
+            deps.clock.clone(),
+        );
         let assembler = ObservationAssembler::new(deps.evidence.clone());
         Ok(Self {
             state: deps.state,
@@ -729,6 +752,7 @@ impl RunController {
             evidence_production,
             comparison_authority,
             verification_authority,
+            settlement,
         })
     }
 
@@ -838,6 +862,45 @@ impl RunController {
                 run_id: run_id.clone(),
             }
         })?;
+        // §18.3 step 1 (Task 13 B2 Item 3): complete the half-applied
+        // durable writes at/after the checkpoint's own anchor BEFORE
+        // re-planning — the anchored settlement replay and the
+        // evidence-production orphan completion (re-minted from durable
+        // facts only; orphans whose facts are not durably recoverable are
+        // pinned limitations by the service, never fabrications).
+        match self.settlement.complete_pending_after_checkpoint(
+            run_id,
+            checkpoint.event_log_offset,
+            deadline,
+        ) {
+            Ok(_completion) => {}
+            Err(SettleError::State(error)) => return Err(ControlError::State(error)),
+            Err(SettleError::Evidence(error)) => return Err(ControlError::Evidence(error)),
+            Err(SettleError::Escalation(error)) => return Err(ControlError::Escalation(error)),
+            Err(other) => return Err(ControlError::Settlement(Box::new(other))),
+        }
+        // §5.3.3: the projection is rebuilt from events — but EVENT ORDER
+        // decides which word wins. A settlement whose event sits STRICTLY
+        // BEYOND the checkpoint's water-mark is one the checkpoint could
+        // not have known (the §16.3 crash window: the event and row are
+        // durable, the projection update was lost) — the unit is Settled.
+        // A settlement at/below the anchor was already inside the
+        // checkpoint's knowledge; a projection that still says Open
+        // postdates that settlement (e.g. a §11.5 residual retry
+        // legitimately re-opened the unit for correction), and the later
+        // word stands.
+        let durable_settled: BTreeSet<UnitId> = self
+            .state
+            .settlements(run_id, deadline)?
+            .into_iter()
+            .filter(|record| record.event_log_offset().get() > checkpoint.event_log_offset.get())
+            .map(|record| record.unit_id().clone())
+            .collect();
+        let mut unit_states: std::collections::BTreeMap<UnitId, UnitStatus> =
+            checkpoint.unit_states.iter().cloned().collect();
+        for unit in &durable_settled {
+            unit_states.insert(unit.clone(), UnitStatus::Settled);
+        }
         // §18.2 resume fidelity: the durable spend water-mark re-admits
         // only through the domain's own restore gate.
         let budget = self
@@ -853,7 +916,7 @@ impl RunController {
             meter: (self.meter_factory)(budget.clone()),
             budget,
             iteration: checkpoint.iteration_no.get(),
-            unit_states: checkpoint.unit_states.iter().cloned().collect(),
+            unit_states,
             projections: BTreeMap::new(),
             attempts: BTreeMap::new(),
             pending_attachments: BTreeMap::new(),
@@ -1142,7 +1205,34 @@ impl RunController {
         // in-flight unit cancels the affected attempt. Eligibility is
         // re-evaluated from scratch by the plan below (the unit returns to
         // the eligible pool under its NEW tier/authority/claim).
-        let units = self.reread_answer_key(state)?;
+        //
+        // §21.3 row 1 (Task 13 B2 Item 4): a READ failure is a non-terminal
+        // degradation — stop new dispatch for THIS iteration, keep the
+        // process alive, keep reconciliation running, and stay resume-able
+        // (the gap is pinned evidence, never silence; the rounds dimension
+        // bounds the wait). A parse failure is not a read failure — it
+        // propagates.
+        let units = match self.reread_answer_key(state) {
+            Ok(units) => units,
+            Err(ControlError::Reference(ReferenceProviderError::Unavailable { detail })) => {
+                let record = format!(
+                    "{{\"class\":\"answer_key_read_failed\",\"run\":\"{}\",\"iteration\":{},\"detail\":\"{}\"}}",
+                    state.run.id(),
+                    state.iteration,
+                    escape_json_text(&detail)
+                );
+                let evidence = self.evidence.put(
+                    record.as_bytes(),
+                    EvidenceKind::Log,
+                    self.operation_bound(),
+                )?;
+                self.evidence
+                    .pin(state.run.id(), &evidence, self.operation_bound())?;
+                state.reference_breach = Some(ReferenceBreach::Unavailable { detail });
+                return Ok(());
+            }
+            Err(other) => return Err(other),
+        };
         // ITEM 0 — the C7 remainder (post-F1 ruling): dispatch-eligible
         // membership is bounded by the FROZEN REFERENCE, not the file. A
         // unit present in the file but absent from the frozen reference is
@@ -1695,7 +1785,18 @@ impl RunController {
                         state.in_flight[index].last_progress_at = last_event_at;
                     }
                     Ok(InvocationStatus::Admitted) => {}
-                    Err(error) => return Err(ControlError::Agent(error)),
+                    Err(error) => {
+                        // §11.5 row 2 / §21.3 (Task 13 B2 Item 4): a poll
+                        // transport error is a TRANSIENT failure of the
+                        // runner channel, not a run-fatal event — it routes
+                        // through the disposition table (retry with the
+                        // exponential backoff) instead of error-propagating
+                        // out of the loop. The invocation's fate may be
+                        // unknown; recovery re-probes result contracts
+                        // (§18), never assumes.
+                        let mut flight = state.in_flight.remove(index);
+                        self.dispose_transient(state, &mut flight, error)?;
+                    }
                 }
             }
             // Step 2: stall detection — no event and no result for the
@@ -1729,8 +1830,17 @@ impl RunController {
                 // 5): preserved through the disposition.
                 self.dispose_timeout(state, &mut flight)?;
             }
-            // Step 3: re-read the answer key (cancels edited attempts).
-            let _ = self.reread_answer_key(state)?;
+                // Step 3: re-read the answer key (cancels edited attempts).
+                // §21.3 row 1: an unreadable key skips CANCELLATION for
+                // this pass — the drain keeps reconciling; it never errors
+                // the run on a read failure.
+                match self.reread_answer_key(state) {
+                    Ok(_) => {}
+                    Err(ControlError::Reference(ReferenceProviderError::Unavailable {
+                        ..
+                    })) => {}
+                    Err(other) => return Err(other),
+                }
         }
         Ok(())
     }
@@ -1888,6 +1998,64 @@ impl RunController {
                     other => unreachable!("the transient cause maps to backoff, got {other:?}"),
                 }
             }
+        }
+    }
+
+    /// §11.5 row 2 / §21.3 (Task 13 B2 Item 4) for a POLL transport error:
+    /// the runner channel failed — a transient condition, never a
+    /// run-fatal one. The invocation's fate may be unknown; the terminal
+    /// event records the failure, the transient fact is PINNED evidence,
+    /// and the disposition table's row-2 retry (exponential backoff) is
+    /// queued. The loop stays alive and the run stays resume-able.
+    fn dispose_transient(
+        &self,
+        state: &mut LoopState,
+        flight: &mut InFlight,
+        error: AgentError,
+    ) -> Result<(), ControlError> {
+        state.last_offset = self
+            .append_terminal_event(
+                state.run.id(),
+                &flight.spec.invocation_id,
+                gauntlet_domain::InvocationState::Failed,
+            )?
+            .get();
+        let record = format!(
+            "{{\"class\":\"transient_runner_error\",\"run\":\"{}\",\"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\",\"error\":\"{}\"}}",
+            state.run.id(),
+            state.iteration,
+            flight.unit,
+            flight.spec.invocation_id,
+            escape_json_text(&error.to_string())
+        );
+        let evidence =
+            self.evidence
+                .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())?;
+        self.evidence
+            .pin(state.run.id(), &evidence, self.operation_bound())?;
+        let cause = IterationCause::TransientError {
+            locus: disposition::TransientLocus::Network,
+            attempt: flight.attempt,
+        };
+        match disposition::dispose(cause, &self.policy) {
+            Disposition::RetryAfterBackoff { delay_ms, .. } => {
+                release_reservation(state, flight);
+                // Virtual-time backoff: advance the clock to the retry
+                // instant — no wall-clock wait exists here.
+                let now = self.clock.now().get();
+                self.clock
+                    .sleep_until(EpochSeconds::new(
+                        now.saturating_add(delay_ms.div_ceil(MILLIS_PER_SECOND)),
+                    ))
+                    .map_err(|error| {
+                        ControlError::Agent(AgentError::Transport {
+                            detail: error.to_string(),
+                        })
+                    })?;
+                queue_retry_dispatch(state, flight, String::new());
+                Ok(())
+            }
+            other => unreachable!("the transient cause maps to backoff, got {other:?}"),
         }
     }
 
@@ -2160,7 +2328,32 @@ impl RunController {
             )
             .map_err(ControlError::VerificationOpen)?;
         let facet = assembled.doc.facets().first().cloned();
-        let parsed = strict_units(&self.answer_key)?;
+        // §21.3 row 1 (Task 13 B2 Item 4): an unreadable answer key skips
+        // this completion's verification leg — no unit of the completion
+        // is verified or settled under the gap (I8), the gap is pinned,
+        // and the loop keeps running (residual disposition included); the
+        // rounds dimension bounds the wait.
+        let parsed = match strict_units(&self.answer_key) {
+            Ok(parsed) => parsed,
+            Err(ControlError::Reference(ReferenceProviderError::Unavailable { detail })) => {
+                let record = format!(
+                    "{{\"class\":\"answer_key_read_failed\",\"run\":\"{}\",\"iteration\":{},\"locus\":\"verification\",\"detail\":\"{}\"}}",
+                    state.run.id(),
+                    state.iteration,
+                    escape_json_text(&detail)
+                );
+                let evidence = self.evidence.put(
+                    record.as_bytes(),
+                    EvidenceKind::Log,
+                    self.operation_bound(),
+                )?;
+                self.evidence
+                    .pin(state.run.id(), &evidence, self.operation_bound())?;
+                state.reference_breach = Some(ReferenceBreach::Unavailable { detail });
+                Vec::new()
+            }
+            Err(other) => return Err(other),
+        };
         for unit_id in attempted_units(&flight, &result) {
             let Some(unit) = parsed.iter().find(|unit| *unit.id() == unit_id) else {
                 continue;
@@ -2245,39 +2438,133 @@ impl RunController {
             state
                 .last_verifications
                 .insert(unit_id.clone(), verified.domain_record().outcome());
-            // The §16.1 precondition is ASSERTED (readiness failures are
-            // recorded as pinned evidence); the settlement commit itself
-            // is plan Task 13's P7.
-            if let Err(failure) = crate::verify::precondition::settlement_precondition(
+            // §16.1 conditions 1–2 mint the readiness (failures keep the
+            // pinned-forensic-evidence behavior and settle NOTHING); then
+            // the settlement service is the ONLY settle path (plan Task 13
+            // B2): conditions 3/4/5 → record → admit → commit, and only
+            // after the durable commit does the caller's projection
+            // advance.
+            //
+            // Condition 2's run-side act comes FIRST: the loop pins the
+            // chain-minted PASS evidence for the settling run (p12's
+            // earning pattern). The precondition then re-derives
+            // resolution AND pinning from the store itself — the pin is a
+            // durable fact the loop wrote, never the record's say-so.
+            // Before B2 this pin never happened: the precondition always
+            // refused `EvidenceUnpinned` and the in-memory settle ignored
+            // it — the readiness was never once earned in the composed
+            // loop.
+            if verified.record().outcome() == Outcome::Pass {
+                self.evidence.pin(
+                    state.run.id(),
+                    verified.record().evidence(),
+                    self.operation_bound(),
+                )?;
+            }
+            match crate::verify::precondition::settlement_precondition(
                 &verified,
                 state.run.id(),
                 self.operation_bound(),
             ) {
-                let record = format!(
-                    "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"precondition\":\"{failure}\"}}",
-                    state.run.id()
-                );
-                let evidence = self.evidence.put(
-                    record.as_bytes(),
-                    EvidenceKind::Log,
-                    self.operation_bound(),
-                )?;
-                self.evidence
-                    .pin(state.run.id(), &evidence, self.operation_bound())?;
-            }
-            if verified.domain_record().outcome() == Outcome::Pass {
-                let mut settled = unit.clone();
-                if settled
-                    .settle(
-                        state.run.id().clone(),
-                        verified.domain_record().evidence().clone(),
-                        verified.domain_record(),
-                    )
-                    .is_ok()
-                {
-                    state
-                        .unit_states
-                        .insert(unit_id.clone(), UnitStatus::Settled);
+                Err(failure) => {
+                    let record = format!(
+                        "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"precondition\":\"{failure}\"}}",
+                        state.run.id()
+                    );
+                    let evidence = self.evidence.put(
+                        record.as_bytes(),
+                        EvidenceKind::Log,
+                        self.operation_bound(),
+                    )?;
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                }
+                Ok(readiness) => {
+                    // The tracked residual view the service checks
+                    // condition 4 against: this iteration's comparison
+                    // results, attributed per unit — the BLOCKING subset
+                    // only, which is §16.1 condition 4's own word ("no
+                    // blocking residual references it"). §13.5 forces a
+                    // FAIL comparison verdict alongside a blocking
+                    // residual, so a blocking residual under a PASS
+                    // verification is the §18.4 disagreement shape, and
+                    // settlement refuses there; a minor/major residual
+                    // rides the §11.5 disposition rows instead of the
+                    // settlement gate.
+                    let tracked: Vec<BlockingResidual> = residuals
+                        .iter()
+                        .filter(|residual| residual.residual.is_blocking())
+                        .map(|residual| BlockingResidual {
+                            unit: residual.unit.clone(),
+                            detail: residual.residual.detail().to_owned(),
+                        })
+                        .collect();
+                    match self.settlement.settle(
+                        SettleRequest {
+                            claim: &verified,
+                            readiness,
+                            actor: ClosingActor::Automatic,
+                            tracked_residuals: &tracked,
+                        },
+                        self.operation_bound(),
+                    ) {
+                        Ok(outcome) => {
+                            // C8.1: the settlement append enters the
+                            // water-mark like every append.
+                            state.last_offset = outcome.event_log_offset.get();
+                            state
+                                .unit_states
+                                .insert(unit_id.clone(), UnitStatus::Settled);
+                        }
+                        // The settle-time mutation is §21.3's abort row: the
+                        // service already pinned BOTH digests; the run ends
+                        // `aborted{reference_mutated}` (§9.4).
+                        Err(SettleError::ReferenceMutated { expected, actual, .. }) => {
+                            state.terminal = Some(TerminalState::Aborted);
+                            state.reference_breach =
+                                Some(ReferenceBreach::Mutated { expected, actual });
+                        }
+                        // Environment failures propagate typed, never
+                        // swallowed into a silent non-settlement.
+                        Err(SettleError::State(error)) => {
+                            return Err(ControlError::State(error))
+                        }
+                        Err(SettleError::Evidence(error)) => {
+                            return Err(ControlError::Evidence(error))
+                        }
+                        Err(SettleError::Escalation(error)) => {
+                            return Err(ControlError::Escalation(error))
+                        }
+                        Err(SettleError::Admission(
+                            gauntlet_ports::producer_authority::SettlementAdmissionError::State(
+                                error,
+                            ),
+                        )) => return Err(ControlError::State(error)),
+                        Err(SettleError::Reference(error)) => {
+                            return Err(ControlError::Reference(error))
+                        }
+                        // A §16.1 gate refusal is a fact about THIS unit,
+                        // not a run error: pinned forensic evidence, the
+                        // unit stays open (the service already escalated
+                        // and pinned the authority-gap record where
+                        // §11.5 row 6 applies).
+                        Err(failure) => {
+                            let record = format!(
+                                "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"settlement_refused\":\"{failure}\"}}",
+                                state.run.id()
+                            );
+                            let evidence = self.evidence.put(
+                                record.as_bytes(),
+                                EvidenceKind::Log,
+                                self.operation_bound(),
+                            )?;
+                            self.evidence.pin(
+                                state.run.id(),
+                                &evidence,
+                                self.operation_bound(),
+                            )?;
+                        }
+                    }
                 }
             }
             // INCONCLUSIVE stays open — the dependent claim's gap is the
@@ -2523,7 +2810,30 @@ impl RunController {
         unit: &UnitId,
         residual_driven: bool,
     ) -> Result<(), ControlError> {
-        let parsed = strict_units(&self.answer_key)?;
+        // §21.3 row 1 (Task 13 B2 Item 4): an unreadable answer key skips
+        // THIS iteration's §15.1 record — the gap is pinned evidence, the
+        // loop keeps running; a read failure never errors the run.
+        let parsed = match strict_units(&self.answer_key) {
+            Ok(parsed) => parsed,
+            Err(ControlError::Reference(ReferenceProviderError::Unavailable { detail })) => {
+                let record = format!(
+                    "{{\"class\":\"answer_key_read_failed\",\"run\":\"{}\",\"iteration\":{},\"locus\":\"selection\",\"detail\":\"{}\"}}",
+                    state.run.id(),
+                    state.iteration,
+                    escape_json_text(&detail)
+                );
+                let evidence = self.evidence.put(
+                    record.as_bytes(),
+                    EvidenceKind::Log,
+                    self.operation_bound(),
+                )?;
+                self.evidence
+                    .pin(state.run.id(), &evidence, self.operation_bound())?;
+                state.reference_breach = Some(ReferenceBreach::Unavailable { detail });
+                return Ok(());
+            }
+            Err(other) => return Err(other),
+        };
         let Some(domain_unit) = parsed.iter().find(|candidate| candidate.id() == unit) else {
             return Ok(());
         };
@@ -2967,15 +3277,16 @@ fn add_slices(first: BudgetSlice, second: BudgetSlice) -> BudgetSlice {
 }
 
 /// C9.2: escapes the two characters that break a hand-built JSON string
-/// record — the BACKSLASH first (escaping the quote first would double
-/// the escapes the second pass just made), then the quote. One shared
+/// record — the BACKSLASH first (escaping the quote first would double the
+/// escapes the second pass just made), then the quote. One shared
 /// rule, not a per-site `replace`: `submit_ticket`'s evidence record (the
 /// single funnel for every escalation terminal since C1 — `escalated`,
 /// `blocked`, `inconclusive`), the §21.3 reference-unavailability record,
-/// and the §15.2 quarantine reason all embed operator- or
-/// instrument-authored text, and three copies of an escaping rule is the
+/// the §15.2 quarantine reason, and — since Task 13 B2 — the settle
+/// service's recovery-limitation records all embed operator- or
+/// instrument-authored text, and per-site copies of an escaping rule is the
 /// next defect.
-fn escape_json_text(text: &str) -> String {
+pub(crate) fn escape_json_text(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
@@ -3736,6 +4047,18 @@ mod tests {
                 .push((run_id.clone(), reference.clone()));
             Ok(())
         }
+        fn is_pinned(
+            &self,
+            run_id: &RunId,
+            reference: &EvidenceRef,
+            _: Deadline,
+        ) -> Result<bool, EvidenceStoreError> {
+            Ok(self
+                .0
+                .pins
+                .borrow()
+                .contains(&(run_id.clone(), reference.clone())))
+        }
     }
 
     /// The durable substrate, counting the two gated owner writes.
@@ -3748,9 +4071,15 @@ mod tests {
         bindings: RefCell<HashMap<(RunId, u32), ObservationBinding>>,
         selections: RefCell<HashMap<RunId, Vec<gauntlet_domain::CorrectionSelection>>>,
         role_invocations: RefCell<Vec<gauntlet_domain::RoleInvocation>>,
+        verifications: RefCell<Vec<gauntlet_ports::verification_record::VerificationRecordDoc>>,
+        settlement_rows: RefCell<Vec<(u64, gauntlet_ports::state_store::SettlementCommit)>>,
         pub bind_calls: Cell<u32>,
         pub production_calls: Cell<u32>,
         pub accepted_comparisons: Cell<u32>,
+        /// Fires ONCE on the first durable settlement commit — the test
+        /// lever for events that must postdate the settlement (e.g. the
+        /// §21.3 unavailability window opening after a durable commit).
+        pub on_first_settlement: RefCell<Option<Box<dyn Fn()>>>,
     }
 
     impl FakeState {
@@ -3764,9 +4093,12 @@ mod tests {
                 bindings: RefCell::new(HashMap::new()),
                 selections: RefCell::new(HashMap::new()),
                 role_invocations: RefCell::new(Vec::new()),
+                verifications: RefCell::new(Vec::new()),
+                settlement_rows: RefCell::new(Vec::new()),
                 bind_calls: Cell::new(0),
                 production_calls: Cell::new(0),
                 accepted_comparisons: Cell::new(0),
+                on_first_settlement: RefCell::new(None),
             })
         }
     }
@@ -3809,6 +4141,153 @@ mod tests {
             _: Deadline,
         ) -> Result<Option<Checkpoint>, StateStoreError> {
             Ok(self.checkpoints.borrow().get(run_id).cloned())
+        }
+        fn record_verification(
+            &self,
+            record: &gauntlet_ports::verification_record::VerificationRecordDoc,
+            _: Deadline,
+        ) -> Result<(), StateStoreError> {
+            let mut verifications = self.verifications.borrow_mut();
+            if verifications
+                .iter()
+                .any(|stored| stored == record)
+            {
+                return Ok(());
+            }
+            let identity_of =
+                |stored: &gauntlet_ports::verification_record::VerificationRecordDoc| {
+                    (
+                        stored.run_id().clone(),
+                        stored.unit_id().clone(),
+                        stored.evidence().clone(),
+                        stored.outcome(),
+                    )
+                };
+            if verifications
+                .iter()
+                .any(|stored| identity_of(stored) == identity_of(record))
+            {
+                return Err(StateStoreError::WriteFailed {
+                    detail: format!(
+                        "a verification record for the same identity holds different content: \
+                         unit {} of run {}",
+                        record.unit_id(),
+                        record.run_id()
+                    ),
+                });
+            }
+            verifications.push(record.clone());
+            Ok(())
+        }
+        fn verification_records(
+            &self,
+            run_id: &RunId,
+            _: Deadline,
+        ) -> Result<Vec<gauntlet_ports::verification_record::VerificationRecordDoc>, StateStoreError>
+        {
+            Ok(self
+                .verifications
+                .borrow()
+                .iter()
+                .filter(|record| record.run_id() == run_id)
+                .cloned()
+                .collect())
+        }
+        fn commit_settlement(
+            &self,
+            admitted: &gauntlet_ports::producer_authority::AdmittedSettlement,
+            _: Deadline,
+        ) -> Result<gauntlet_domain::EventLogOffset, StateStoreError> {
+            let commit = admitted.commit().clone();
+            let offset = self.next_offset.get();
+            self.next_offset.set(offset + 1);
+            self.events.borrow_mut().push(RunEvent {
+                run_id: commit.run_id.clone(),
+                kind: gauntlet_ports::state_store::RunEventKind::SettlementCommitted {
+                    unit_id: commit.unit_id.clone(),
+                    evidence: commit.evidence.clone(),
+                    verification: commit.verification.clone(),
+                    reference_digest: commit.reference_digest.clone(),
+                },
+                at: commit.at,
+            });
+            let mut rows = self.settlement_rows.borrow_mut();
+            if !rows.iter().any(|(_, row)| {
+                row.unit_id == commit.unit_id && row.verification == commit.verification
+            }) {
+                rows.push((offset, commit));
+            }
+            if let Some(callback) = self.on_first_settlement.borrow_mut().take() {
+                callback();
+            }
+            Ok(gauntlet_domain::EventLogOffset::new(offset))
+        }
+        fn settlements(
+            &self,
+            run_id: &RunId,
+            _: Deadline,
+        ) -> Result<Vec<gauntlet_domain::SettlementRecord>, StateStoreError> {
+            Ok(self
+                .settlement_rows
+                .borrow()
+                .iter()
+                .filter(|(_, commit)| &commit.run_id == run_id)
+                .map(|(offset, commit)| {
+                    gauntlet_domain::SettlementRecord::new(
+                        commit.run_id.clone(),
+                        commit.unit_id.clone(),
+                        commit.evidence.clone(),
+                        commit.verification.clone(),
+                        gauntlet_domain::EventLogOffset::new(*offset),
+                    )
+                })
+                .collect())
+        }
+        fn complete_pending_settlements(
+            &self,
+            run_id: &RunId,
+            anchor: gauntlet_domain::EventLogOffset,
+            _: Deadline,
+        ) -> Result<usize, StateStoreError> {
+            // The anchored keyed replay, mirroring the adapter's §16.3
+            // recovery: events below the anchor are the checkpoint's own
+            // certification; at/after it, each SettlementCommitted event
+            // whose keyed row is missing completes it. (Every `events`
+            // push mints exactly one offset monotonically, so the offset
+            // is the 1-based position.)
+            let events = self.events.borrow().clone();
+            let mut added = 0;
+            for (index, event) in events.into_iter().enumerate() {
+                let offset = (index as u64) + 1;
+                if offset < anchor.get() || &event.run_id != run_id {
+                    continue;
+                }
+                let gauntlet_ports::state_store::RunEventKind::SettlementCommitted {
+                    unit_id,
+                    evidence,
+                    verification,
+                    reference_digest,
+                } = event.kind
+                else {
+                    continue;
+                };
+                let commit = gauntlet_ports::state_store::SettlementCommit {
+                    run_id: event.run_id.clone(),
+                    unit_id,
+                    evidence,
+                    verification,
+                    reference_digest,
+                    at: event.at,
+                };
+                let mut rows = self.settlement_rows.borrow_mut();
+                if !rows.iter().any(|(_, row)| {
+                    row.unit_id == commit.unit_id && row.verification == commit.verification
+                }) {
+                    rows.push((offset, commit));
+                    added += 1;
+                }
+            }
+            Ok(added)
         }
         fn record_role_invocation(
             &self,
@@ -4904,6 +5383,63 @@ mod tests {
     }
 
     #[test]
+    fn the_pass_leg_settles_durably_through_the_service() {
+        // Task 13 B2 Item 2: the PASS leg's settle IS the service call — the
+        // durable §16.3 sequence (PASS verification record → admitted commit
+        // → keyed settlement row + settlement event) and the settlement
+        // append rides the `last_offset` water-mark (C8.1). Before B2 the
+        // loop settled in memory only: no durable settlement fact existed.
+        let composed =
+            fixture_composed(vec![Behavior::Complete], 0, 1, FIXTURE_ROUNDS).expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        // (1) the durable keyed settlement row exists at a real offset.
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(rows.len(), 1, "exactly one settlement row: {rows:?}");
+        assert_eq!(rows[0].unit_id().as_str(), "AK-9101");
+        let row_offset = rows[0].event_log_offset().get();
+        assert!(row_offset > 0, "the row names a real durable event");
+        // (2) the durable event names the same settlement.
+        assert!(
+            composed.state.events.borrow().iter().any(|event| matches!(
+                &event.kind,
+                gauntlet_ports::state_store::RunEventKind::SettlementCommitted { unit_id, .. }
+                    if unit_id.as_str() == "AK-9101"
+            )),
+            "the SettlementCommitted event is durable"
+        );
+        // (3) the admission's substrate: the PASS verification document is
+        // durable for the settled unit.
+        let records = composed
+            .state
+            .verification_records(&run_id, bound())
+            .expect("verification records readable");
+        assert!(
+            records.iter().any(|record| record.unit_id().as_str() == "AK-9101"
+                && record.outcome() == gauntlet_domain::Outcome::Pass),
+            "the PASS verification document is durable: {records:?}"
+        );
+        // (4) C8.1: the close-out checkpoint's water-mark covers the
+        // settlement append — the §18.3 anchor never sits past the
+        // settlement the same iteration made durable.
+        let checkpoint = composed
+            .state
+            .resume(&run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        assert!(
+            checkpoint.event_log_offset.get() >= row_offset,
+            "the settlement append entered the water-mark (anchor {}, settlement {})",
+            checkpoint.event_log_offset.get(),
+            row_offset
+        );
+    }
+
+    #[test]
     fn a_fresh_run_checkpoint_carries_a_real_event_log_offset() {
         // Correction C8.1 (critic-B A9.1): §18.2 lists the event-log
         // offset as a required checkpoint field and §18.3 step 1 makes it
@@ -4950,34 +5486,69 @@ mod tests {
         // Correction C8.2 (critic-B A9.2): §11.1's iterate order puts the
         // checkpoint LAST ("… dispose residuals → checkpoint"), and §18.3
         // says "Re-running settled work is a defect, not a safe default."
-        // A crash after iteration 1 settles AK-9101 but before the next
-        // checkpoint must leave the settlement DURABLE: the resume may
+        // A run ending after iteration 1 settles AK-9101 with AK-9102
+        // still owed must leave the settlement DURABLE: the resume may
         // re-plan only the still-owed AK-9102, never AK-9101.
+        //
+        // Task 13 B2 Item 4 re-pins HOW the run ends: a poll transport
+        // error is §11.5 row 2's TRANSIENT failure — the disposition table
+        // retries it with the exponential backoff (a pinned transient
+        // record + a Failed terminal event per occurrence) instead of
+        // error-propagating out of the loop. Repeated transients are
+        // bounded by the rounds dimension: the run ends
+        // `budget_exhausted` WITH its close-out checkpoint, resume-able.
         let key = Rc::new(RefCell::new(answer_key_with_dependency()));
         let state = FakeState::new();
         let evidence = FakeEvidence::new();
-        let crashed = ScriptedRunner::new(vec![Behavior::Complete, Behavior::PollError]);
+        let transient_forever = ScriptedRunner::new(vec![
+            Behavior::Complete,
+            Behavior::PollError,
+            Behavior::PollError,
+            Behavior::PollError,
+            Behavior::PollError,
+            Behavior::PollError,
+            Behavior::PollError,
+            Behavior::PollError,
+        ]);
         let first = compose(
             key.clone(),
             state.clone(),
             evidence.clone(),
-            crashed,
+            transient_forever,
             0,
             FIXTURE_ROUNDS,
         )
         .expect("composes");
-        // Iteration 1 settles AK-9101; iteration 2's dispatch of AK-9102
-        // crashes mid-drain — no close-out checkpoint.
-        match first.controller.start_run() {
-            Err(ControlError::Agent(AgentError::Transport { detail })) => {
-                assert!(
-                    detail.contains("crashed mid-drain"),
-                    "the crash is the injected one: {detail}"
-                );
-            }
-            Err(other) => panic!("the injected crash ends the run, got {other}"),
-            Ok(outcome) => panic!("the injected crash must end the run, got {outcome:?}"),
-        }
+        // Iteration 1 settles AK-9101; every later attempt of AK-9102 dies
+        // to the transient poll error and is retried after backoff, until
+        // the rounds dimension ends the run with a close-out checkpoint.
+        let outcome = first
+            .controller
+            .start_run()
+            .expect("a transient poll error degrades the iteration, never errors the run");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::BudgetExhausted,
+            "repeated transients are bounded by the rounds dimension"
+        );
+        // §11.5 row 2's disposition facts are PINNED, one per occurrence.
+        let transient_records = evidence.records_containing("transient_runner_error");
+        assert!(
+            !transient_records.is_empty(),
+            "the transient failures are pinned evidence"
+        );
+        // The transient retry actually re-dispatched the owed unit.
+        let owed_attempts = first
+            .runner
+            .prompts
+            .borrow()
+            .iter()
+            .filter(|(_, prompt)| prompt.contains("AK-9102"))
+            .count();
+        assert!(
+            owed_attempts > 1,
+            "row 2 re-dispatched the transient-failed work: {owed_attempts} attempts"
+        );
         // A second controller over the SAME durable state resumes.
         let resumed = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
         let second = compose(
@@ -5025,6 +5596,116 @@ mod tests {
     }
 
     #[test]
+    fn a_resume_completes_half_applied_settlements_and_reconciles_the_projection() {
+        // Task 13 B2 Item 3 (§18.3 step 1 composed): the §16.3 crash window
+        // — the settlement EVENT durable, the keyed row and the projection
+        // behind it. The resume's completion repairs the row from the
+        // anchored replay, the in-memory projection is rebuilt against the
+        // durable settlement rows (§5.3.3), and the loop NEVER re-dispatches
+        // the settled unit.
+        let key = Rc::new(RefCell::new(answer_key_with_dependency()));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        // Two rounds: iteration 1 settles AK-9101; the rounds dimension
+        // then ends the run with AK-9102 still owed and a close-out
+        // checkpoint. (A poll transport error no longer ends runs — §11.5
+        // row 2 retries it, Task 13 B2 Item 4.)
+        let first_run = ScriptedRunner::new(vec![Behavior::Complete]);
+        let first = compose(
+            key.clone(),
+            state.clone(),
+            evidence.clone(),
+            first_run,
+            0,
+            2,
+        )
+        .expect("composes");
+        let first_outcome = first
+            .controller
+            .start_run()
+            .expect("the bounded run ends by its own rounds dimension");
+        assert_eq!(first_outcome.terminal, TerminalState::BudgetExhausted);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        let owed = gauntlet_domain::UnitId::new("AK-9102").expect("fixture unit id");
+        // The crashed run's durable projection still owes AK-9102.
+        let checkpoint = state
+            .resume(&run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        assert_eq!(
+            checkpoint
+                .unit_states
+                .iter()
+                .find(|(unit, _)| unit == &owed)
+                .map(|(_, status)| *status),
+            Some(UnitStatus::Open),
+            "the checkpoint's projection still owes AK-9102"
+        );
+        // INJECT the crash window: the settlement event is durable at/after
+        // the checkpoint anchor; the keyed row never landed.
+        state
+            .append_event(
+                RunEvent {
+                    run_id: run_id.clone(),
+                    kind: gauntlet_ports::state_store::RunEventKind::SettlementCommitted {
+                        unit_id: owed.clone(),
+                        evidence: EvidenceRef::new("evd-injected-9102").expect("ref"),
+                        verification: gauntlet_domain::VerificationRef::new("vrf-injected-9102")
+                            .expect("ref"),
+                        reference_digest: Digest::new("sha256", &"ef".repeat(32)).expect("digest"),
+                    },
+                    at: EpochSeconds::new(BASE_INSTANT + 99),
+                },
+                bound(),
+            )
+            .expect("the half-applied settlement event lands");
+        // The resume runs with ZERO dispatch budget: reconciliation alone
+        // must close the unit — any prompt here is a §18.3 violation.
+        let resumed = ScriptedRunner::new(Vec::new());
+        let second = compose(
+            key,
+            state.clone(),
+            evidence,
+            resumed,
+            0,
+            FIXTURE_ROUNDS,
+        )
+        .expect("composes");
+        let outcome = second
+            .controller
+            .resume_run(&run_id)
+            .expect("the run resumes from the durable checkpoint");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        assert!(
+            second.runner.prompts.borrow().is_empty(),
+            "the durably settled unit is never re-dispatched: {:?}",
+            second.runner.prompts.borrow()
+        );
+        // The anchored replay completed the keyed row.
+        let rows = state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert!(
+            rows.iter().any(|row| row.unit_id() == &owed),
+            "the half-applied settlement completed: {rows:?}"
+        );
+        // The projection was rebuilt from the durable rows.
+        let checkpoint = state
+            .resume(&run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        assert_eq!(
+            checkpoint
+                .unit_states
+                .iter()
+                .find(|(unit, _)| unit == &owed)
+                .map(|(_, status)| *status),
+            Some(UnitStatus::Settled),
+            "the resumed projection carries the durable settlement"
+        );
+    }
+
+    #[test]
     fn an_escalation_summary_with_quotes_and_backslashes_stays_parseable_evidence() {
         // Correction C9.2 (critic-B A12): `submit_ticket`'s record is
         // FORENSIC — it must survive its own summary. Since C1 this one
@@ -5053,37 +5734,65 @@ mod tests {
     fn resume_restores_per_unit_attempts_from_durable_productions() {
         // Correction C8.3 (critic-B A11, counters): a crash-retry loop
         // must not re-arm the §11.5 max-attempts ceiling on every crash.
-        // The crashed controller spent ONE completed attempt on AK-9101
-        // (a residual re-dispatch was queued); the resume reconstructs
-        // attempts=1 from the durable evidence production at the unit's
+        //
+        // C8.3 re-shaped for the durable-settle era (Task 13 B2): a PASS
+        // now SETTLES its unit durably (a Major residual is not blocking,
+        // §16.1 condition 4), so the attempts ladder is exercised over a
+        // verifier that FAILs every attempt — nothing settles, and the
+        // §11.5 row-1 ladder keeps re-dispatching. Four rounds bound the
+        // first run after two attempts; the resume reconstructs
+        // attempts=2 from the durable evidence productions at the unit's
         // frozen locator, so the next residual disposes at the CAP
-        // (escalate) instead of restarting the ladder.
+        // (escalate) instead of restarting the ladder. (A poll transport
+        // error no longer ends runs — §11.5 row 2 retries it, Task 13 B2
+        // Item 4 — so the bounded ending is the rounds dimension.)
         const RESIDUAL_EVERY_COMPARISON: usize = 9;
         let key = Rc::new(RefCell::new(answer_key(1)));
         let state = FakeState::new();
         let evidence = FakeEvidence::new();
-        let crashed = ScriptedRunner::new(vec![Behavior::Complete, Behavior::PollError]);
-        let first = compose(
+        let never_passing = crate::verify::ladder::Ladder::new(vec![
+            crate::verify::ladder::LadderRung::new(
+                crate::verify::ladder::RungKind::TestReport,
+                Arc::new(FlakyVerdictVerifier {
+                    calls: std::cell::Cell::new(0),
+                    pass_from: u32::MAX,
+                }),
+            ),
+        ])
+        .expect("the never-passing ladder composes");
+        let first_run = ScriptedRunner::new(Vec::new());
+        let first = compose_full(
             key.clone(),
             state.clone(),
             evidence.clone(),
-            crashed,
+            first_run,
             RESIDUAL_EVERY_COMPARISON,
-            FIXTURE_ROUNDS,
+            4,
+            policy(),
+            never_passing.clone(),
+            meter_factory(),
         )
         .expect("composes");
-        assert!(
-            first.controller.start_run().is_err(),
-            "the injected crash ends the first run with no close-out"
+        let first_outcome = first
+            .controller
+            .start_run()
+            .expect("the rounds dimension bounds the first run");
+        assert_eq!(
+            first_outcome.terminal,
+            TerminalState::BudgetExhausted,
+            "the failing ladder burns its rounds without settling anything"
         );
         let resumed = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
-        let second = compose(
+        let second = compose_full(
             key.clone(),
             state.clone(),
             evidence.clone(),
             resumed,
             RESIDUAL_EVERY_COMPARISON,
             FIXTURE_ROUNDS,
+            policy(),
+            never_passing,
+            meter_factory(),
         )
         .expect("composes");
         let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
@@ -5107,8 +5816,8 @@ mod tests {
                 .count();
         assert_eq!(
             attempts_prompted, 3,
-            "two pre-crash attempts (the second died in flight, never completed — honestly \
-             re-runnable) + exactly ONE restored-ceiling attempt after the resume"
+            "two bounded-run attempts (each recorded durably) + exactly ONE \
+             restored-ceiling attempt after the resume"
         );
         assert_eq!(
             outcome.terminal,
@@ -5705,27 +6414,38 @@ mod tests {
         let key = Rc::new(RefCell::new(answer_key_with_dependency()));
         let state = FakeState::new();
         let evidence = FakeEvidence::new();
-        let runner = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
+        let runner = ScriptedRunner::new(Vec::new());
         let composed = compose(
             key.clone(),
-            state,
+            state.clone(),
             evidence.clone(),
             runner,
             0,
             FIXTURE_ROUNDS,
         )
         .expect("composes");
-        // On AK-9101's admission: append AK-9103 to the file AND make the
-        // provider unavailable, so the next boundary records the gap and
-        // continues instead of aborting on the digest change. AK-9102 is
-        // still owed (it depends on AK-9101), so the loop runs a second
-        // iteration over a file whose membership exceeds the freeze.
-        composed.runner.set_hook({
+        // On the FIRST durable settlement (AK-9101's): append AK-9103 to
+        // the file AND make the provider unavailable, so the next boundary
+        // records the gap and continues instead of aborting on the digest
+        // change, and the next plan runs over a file whose membership
+        // exceeds the freeze. AK-9102 is still owed (it depends on
+        // AK-9101), so every later iteration plans over that file.
+        //
+        // (Task 13 B2: the trigger moved from the first DISPATCH to the
+        // first durable SETTLEMENT. §16.1 condition 5 now consults the
+        // reference immediately before settlement and §21.2 forbids
+        // converting an unanswerable check into settled success — under an
+        // outage opened mid-drain the owed unit's settlement is refused
+        // and the old `Settled` outcome is unconstructible. The §21.3
+        // window still opens mid-run: the boundary gaps are recorded, the
+        // frozen membership still bounds dispatch, and the run ends
+        // bounded by its rounds dimension, resume-able.)
+        {
             let key = key.clone();
             let unavailable = composed.unavailable.clone();
-            move || {
+            *state.on_first_settlement.borrow_mut() = Some(Box::new(move || {
                 if key.borrow().contains("AK-9103") {
-                    return; // the edit lands once, on the first admission
+                    return; // the edit lands once
                 }
                 let mut text = key.borrow().clone();
                 text.push_str(
@@ -5736,22 +6456,22 @@ mod tests {
                 );
                 *key.borrow_mut() = text;
                 unavailable.set(true);
-            }
-        });
+            }));
+        }
         let outcome = composed
             .controller
             .start_run()
             .expect("a file-only unit never errors the run at verification");
         assert_eq!(
             outcome.terminal,
-            TerminalState::Settled,
-            "the frozen work settles; the file-only unit was never owed"
+            TerminalState::BudgetExhausted,
+            "the §21.3 window keeps the run alive and bounded: the owed unit cannot \
+             settle while the reference is unanswerable, and the rounds dimension ends \
+             the wait"
         );
-        assert_eq!(
-            composed.runner.prompts.borrow().len(),
-            2,
-            "only the two frozen units were ever dispatched"
-        );
+        // The frozen-membership guard held across EVERY post-edit plan:
+        // only the two frozen units were ever dispatched, and the file-only
+        // unit was never prompted.
         assert!(
             composed
                 .runner
@@ -5761,13 +6481,44 @@ mod tests {
                 .all(|(_, prompt)| !prompt.contains("AK-9103")),
             "the file-only unit was never prompted"
         );
-        // The window this test rides was genuinely open: the boundary's
-        // unavailability gap is pinned evidence, not an assumption.
+        assert!(
+            composed
+                .runner
+                .prompts
+                .borrow()
+                .iter()
+                .any(|(_, prompt)| prompt.contains("AK-9101"))
+                && composed
+                    .runner
+                    .prompts
+                    .borrow()
+                    .iter()
+                    .any(|(_, prompt)| prompt.contains("AK-9102")),
+            "both frozen units ran (the owed unit re-attempted under the window)"
+        );
+        // The pre-outage settlement is durable; the owed unit's refusals
+        // and the window's gaps are pinned evidence, not silence.
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        let rows = state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(
+            rows.len(),
+            1,
+            "exactly the pre-outage settlement is durable: {rows:?}"
+        );
+        assert_eq!(rows[0].unit_id().as_str(), "AK-9101");
         assert!(
             !evidence
                 .records_containing("\"class\":\"reference_unavailable\"")
                 .is_empty(),
             "the §21.3 unavailability window is recorded as pinned evidence"
+        );
+        assert!(
+            !evidence
+                .records_containing("settlement_refused")
+                .is_empty(),
+            "the owed unit's settle-time refusals are pinned forensic evidence"
         );
     }
 
@@ -6218,13 +6969,19 @@ mod tests {
         let state = FakeState::new();
         let evidence = FakeEvidence::new();
         let runner = ScriptedRunner::new(vec![Behavior::Complete]);
-        // The provider becomes unavailable AFTER the first dispatch —
-        // inside the drain, before the next boundary.
+        // The provider becomes unavailable AFTER the unit's durable
+        // settlement — mid-run, before the deciding boundary. (Before Task
+        // 13 B2 the settle leg never consulted the provider, so the window
+        // could open inside the drain; §16.1 condition 5 now consults
+        // immediately before settlement and §21.2 forbids converting an
+        // unanswerable check into settled success, so the window opens only
+        // once the settlement is already durable.)
         let flag = Rc::new(Cell::new(false));
-        runner.set_hook({
+        {
             let flag = flag.clone();
-            move || flag.set(true)
-        });
+            *state.on_first_settlement.borrow_mut() =
+                Some(Box::new(move || flag.set(true)));
+        }
         let scratch = Scratch::new("unavailable");
         let clock = DeterministicClock::new();
         let evidence_store = evidence.clone();
@@ -6284,6 +7041,167 @@ mod tests {
         );
         let records = evidence.records_containing("reference_unavailable");
         assert!(!records.is_empty(), "the unavailability is pinned evidence");
+    }
+
+    #[test]
+    fn an_answer_key_read_failure_degrades_the_iteration_and_stays_resumeable() {
+        // Task 13 B2 Item 4 (§21.3 row 1): an answer-key READ failure
+        // inside the loop is NOT a run-fatal error — new dispatch stops
+        // for the iteration, the process stays alive, reconciliation keeps
+        // running (the gap is pinned evidence), the rounds dimension
+        // bounds the wait, and restoring the source lets a resume finish
+        // the run. Before Item 4 this exact shape errored the run with
+        // `ControlError::Reference(Unavailable)` and no close-out.
+        let scratch = Scratch::new("read-failure");
+        let key_path = scratch.0.join("answer-key.md");
+        std::fs::write(&key_path, answer_key_with_dependency())
+            .expect("the answer key lands at the path source");
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(Vec::new());
+        // The key file VANISHES after the first durable settlement — the
+        // next plan's re-read fails.
+        {
+            let path = key_path.clone();
+            *state.on_first_settlement.borrow_mut() =
+                Some(Box::new(move || drop(std::fs::remove_file(&path))));
+        }
+        let clock = DeterministicClock::new();
+        let evidence_store = evidence.clone();
+        let provider = Arc::new(FileReferenceProvider::from_sources(
+            AnswerKeySource::Path(key_path.clone()),
+            ManifestSource::Inline(minimal_manifest()),
+            Rc::new(evidence_store),
+        ));
+        let comparators = ScriptedComparators::new(0);
+        let deps = ControllerDeps {
+            state: state.clone(),
+            evidence: Arc::new(evidence.clone()),
+            ids: Arc::new(SeededIds(RefCell::new(0))),
+            clock,
+            runner: runner.clone(),
+            runner_identity: gauntlet_domain::RunnerIdentity::new("fixture-runner")
+                .expect("runner identity"),
+            observers: vec![Arc::new(FixtureObserver {
+                store: evidence.clone(),
+                clock: DeterministicClock::new(),
+            })],
+            comparison: ComparisonDeps {
+                contract: minimal_contract(),
+                deterministic: Arc::new(ComparatorsSource(comparators.clone())),
+                model: Arc::new(ComparatorsSource(comparators)),
+                adversarial: None,
+                review_mode: gauntlet_domain::ReviewMode::Single,
+                model_dispatches: 4,
+            },
+            ladder: fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
+            reference: provider,
+            answer_key: AnswerKeySource::Path(key_path.clone()),
+            escalation: Arc::new(FakeEscalation::default()),
+            meter_factory: meter_factory(),
+            // Two rounds: iteration 1 settles AK-9101; iteration 2 degrades
+            // on the vanished key — the bounded wait ends, leaving rounds
+            // for the resume to finish the owed unit.
+            budget: budget_shape(2),
+            policy: policy(),
+            workspace_root: scratch.0.clone(),
+            config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
+            intent: "controller fixture".to_owned(),
+        };
+        std::mem::forget(scratch);
+        let controller = RunController::compose(deps).expect("composes");
+        let outcome = controller
+            .start_run()
+            .expect("a read failure degrades the iteration, never errors the run");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::BudgetExhausted,
+            "the degradation is bounded by the rounds dimension"
+        );
+        // The gap is pinned evidence, and the settled unit stayed settled.
+        assert!(
+            !evidence
+                .records_containing("answer_key_read_failed")
+                .is_empty(),
+            "the read failure is pinned evidence, not silence"
+        );
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        assert_eq!(
+            state
+                .settlements(&run_id, bound())
+                .expect("rows readable")
+                .len(),
+            1,
+            "the pre-failure settlement stands"
+        );
+        // Restore the source: the resume — reading the SAME path source —
+        // finishes the owed unit.
+        std::fs::write(&key_path, answer_key_with_dependency())
+            .expect("the answer key is restored");
+        let resumed = ScriptedRunner::new(Vec::new());
+        let second_scratch = Scratch::new("read-failure-resume");
+        let resumed_evidence = evidence.clone();
+        let resumed_provider = Arc::new(FileReferenceProvider::from_sources(
+            AnswerKeySource::Path(key_path.clone()),
+            ManifestSource::Inline(minimal_manifest()),
+            Rc::new(resumed_evidence),
+        ));
+        let resumed_comparators = ScriptedComparators::new(0);
+        let resumed_deps = ControllerDeps {
+            state: state.clone(),
+            evidence: Arc::new(evidence.clone()),
+            ids: Arc::new(SeededIds(RefCell::new(0))),
+            clock: DeterministicClock::new(),
+            runner: resumed.clone(),
+            runner_identity: gauntlet_domain::RunnerIdentity::new("fixture-runner")
+                .expect("runner identity"),
+            observers: vec![Arc::new(FixtureObserver {
+                store: evidence.clone(),
+                clock: DeterministicClock::new(),
+            })],
+            comparison: ComparisonDeps {
+                contract: minimal_contract(),
+                deterministic: Arc::new(ComparatorsSource(resumed_comparators.clone())),
+                model: Arc::new(ComparatorsSource(resumed_comparators)),
+                adversarial: None,
+                review_mode: gauntlet_domain::ReviewMode::Single,
+                model_dispatches: 4,
+            },
+            ladder: fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
+            reference: resumed_provider,
+            answer_key: AnswerKeySource::Path(key_path.clone()),
+            escalation: Arc::new(FakeEscalation::default()),
+            meter_factory: meter_factory(),
+            budget: budget_shape(FIXTURE_ROUNDS),
+            policy: policy(),
+            workspace_root: second_scratch.0.clone(),
+            config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
+            intent: "controller fixture".to_owned(),
+        };
+        std::mem::forget(second_scratch);
+        let second = RunController::compose(resumed_deps).expect("composes");
+        let outcome = second
+            .resume_run(&run_id)
+            .expect("the degraded run resumes");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        assert!(
+            resumed
+                .prompts
+                .borrow()
+                .iter()
+                .any(|(_, prompt)| prompt.contains("AK-9102")),
+            "the still-owed unit is re-planned by the resume"
+        );
+        assert!(
+            !resumed
+                .prompts
+                .borrow()
+                .iter()
+                .any(|(_, prompt)| prompt.contains("AK-9101")),
+            "the settled unit is never re-dispatched"
+        );
     }
 
     /// The FileReferenceProvider wrapper with a live Unavailable flag.

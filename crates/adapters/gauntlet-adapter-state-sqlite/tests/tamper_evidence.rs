@@ -13,7 +13,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use gauntlet_adapter_state_sqlite::{SettlementCommit, SqliteEventLog, SqliteStateStore};
+use gauntlet_adapter_state_sqlite::{SqliteEventLog, SqliteStateStore};
 use gauntlet_domain::{
     Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, IterationNo, Limits,
     MicroUsd, ReferenceId, ReferenceVersion, Run, RunDefinition, RunId, Spent, UnitId, UnitStatus,
@@ -21,8 +21,9 @@ use gauntlet_domain::{
 };
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::event_log::{EventLog, EventLogError};
+use gauntlet_ports::producer_authority::SettlementCommitAuthority;
 use gauntlet_ports::state_store::{
-    Checkpoint, RunEvent, RunEventKind, StateStore, StateStoreError,
+    Checkpoint, RunEvent, RunEventKind, SettlementCommit, StateStore, StateStoreError,
 };
 
 const RUN: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -112,6 +113,50 @@ fn commit() -> SettlementCommit {
         reference_digest: digest(),
         at: EpochSeconds::new(1_700_000_101),
     }
+}
+
+/// The PASS verification document the Task-13 settlement admission
+/// validates against: this run, the commit's unit, the commit's evidence.
+fn pass_record() -> gauntlet_ports::verification_record::VerificationRecordDoc {
+    gauntlet_ports::verification_record::VerificationRecordDoc::new(
+        gauntlet_ports::verification_record::VerificationContent {
+            run_id: run_id(),
+            iteration_no: IterationNo::new(1).expect("1-based"),
+            unit_id: UnitId::new(UNIT).expect("valid unit id"),
+            claim: "the tampered unit's claim".to_owned(),
+            requirement: gauntlet_ports::verification_record::RequirementDoc::new(
+                gauntlet_domain::EvidenceKind::TestReport,
+                gauntlet_domain::EvidenceLocator::new("tamper-report.json").expect("locator"),
+                gauntlet_domain::Producer::Instrument,
+            ),
+            instrument: gauntlet_ports::verification_record::VerifyingInstrument::new(
+                "tamper-verifier".to_owned(),
+                "1".to_owned(),
+                true,
+            ),
+            evidence: gauntlet_domain::EvidenceRef::new("evd-000900").expect("valid ref"),
+            produced_at: EpochSeconds::new(1_700_000_100),
+            outcome: gauntlet_domain::Outcome::Pass,
+            class: None,
+            detail: "the fixture PASS record".to_owned(),
+        },
+    )
+    .expect("fixture content is well formed")
+}
+
+/// Makes the durable substrate the admission validates against and mints
+/// the admission itself (the governed path, plan Task 13).
+fn earn_settlement(
+    store: &std::sync::Arc<SqliteStateStore>,
+    commit: SettlementCommit,
+) -> gauntlet_ports::producer_authority::AdmittedSettlement {
+    store.record_run(&run(), bound()).expect("the run records");
+    store
+        .record_verification(&pass_record(), bound())
+        .expect("the PASS record lands");
+    SettlementCommitAuthority::new(store.clone())
+        .admit(commit, bound())
+        .expect("the honest settlement earns its admission")
 }
 
 fn admitted_event(at: u64) -> RunEvent {
@@ -400,8 +445,9 @@ fn a_half_settled_failure_names_the_durable_offset_and_the_recovery() {
         .expect("the failure-injection trigger installs");
     drop(injector);
 
-    let store = SqliteStateStore::open(&db).expect("the store reopens");
-    match store.commit_settlement(commit(), bound()) {
+    let store = std::sync::Arc::new(SqliteStateStore::open(&db).expect("the store reopens"));
+    let admitted = earn_settlement(&store, commit());
+    match store.commit_settlement(&admitted, bound()) {
         Err(StateStoreError::WriteFailed { detail }) => {
             assert!(
                 detail.contains("durable at offset 1"),
@@ -440,11 +486,49 @@ fn a_half_settled_failure_names_the_durable_offset_and_the_recovery() {
     let store = SqliteStateStore::open(&db).expect("the store reopens");
     assert_eq!(
         store
-            .complete_pending_settlements(&run_id(), bound())
+            .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
             .expect("replay works"),
         1,
         "replay completes the half-settled unit exactly as the error said it would"
     );
+}
+
+/// A3's decode leg (plan Task 13): a settlement row holding an offset no
+/// u64 can represent is `Corrupt` naming the row — never silently coerced
+/// to offset 0 (the Task-12 N3 checkpoint discipline, mirrored). This
+/// adapter can never write such a row, so any negative read is tamper
+/// evidence.
+#[test]
+fn a_tampered_settlement_offset_is_corrupt_never_a_silent_zero() {
+    let scratch = Scratch::new("negative-settlement-offset");
+    let db = scratch.db();
+    let store = SqliteStateStore::open(&db).expect("the store opens");
+    let offset = store
+        .append_event(settlement_event(1_700_000_101), bound())
+        .expect("the settlement event appends");
+    store
+        .apply_settlement_row(commit(), offset, bound())
+        .expect("the settlement row applies");
+    drop(store);
+    raw(&db)
+        .execute("UPDATE settlements SET event_log_offset = -1", [])
+        .expect("the tamper applies");
+    let store = SqliteStateStore::open(&db).expect("the store reopens");
+    match store.settlements(&run_id(), bound()) {
+        Err(StateStoreError::Corrupt { detail }) => {
+            assert!(
+                detail.contains("event-log offset") && detail.contains("-1"),
+                "the refusal names the locus and the stored value: {detail}"
+            );
+        }
+        Ok(rows) => panic!(
+            "a non-representable stored settlement offset is corrupt, never a silent zero (got \
+             {} rows reading offset {:?})",
+            rows.len(),
+            rows.first().map(|row| row.event_log_offset().get())
+        ),
+        Err(other) => panic!("the refusal is Corrupt, got {other}"),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -482,7 +566,7 @@ fn log_damage_surfaces_as_corrupt_through_the_store() {
         }
         other => panic!("log damage on export must be Corrupt, got {other:?}"),
     }
-    match store.complete_pending_settlements(&run_id(), bound()) {
+    match store.complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound()) {
         Err(StateStoreError::Corrupt { detail }) => {
             assert!(
                 detail.contains("damaged"),

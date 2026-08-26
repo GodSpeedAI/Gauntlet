@@ -24,9 +24,9 @@
 			"title": "Current status — HANDOFF DOCUMENT",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/CURRENT_STATUS.md",
 			"addedAt": "2026-08-16T13:18:32.485Z",
-			"updatedAt": "2026-08-18T21:38:19.463Z",
-			"commitHash": "ff1ad0603581928ee8f5c0bb76432ad1bd8edf73",
-			"contentHashAtCommit": "e33eb3ab6c7483c19abde7c29ef06279528f2c205cd6244b49d3007cf123931a"
+			"updatedAt": "2026-08-26T03:29:41.398Z",
+			"commitHash": "f0a9d55f9630e67e8d845a068eeb1dc22be32ec8",
+			"contentHashAtCommit": "6eca23f0b2aae27a2a13d1d4b2823766bdc65c530f6cf23027a53eb47ffd0579"
 		},
 		"escalations": {
 			"slug": "escalations",
@@ -36,6 +36,69 @@
 			"updatedAt": "2026-08-18T21:38:19.466Z",
 			"commitHash": "ff1ad0603581928ee8f5c0bb76432ad1bd8edf73",
 			"contentHashAtCommit": "bd15efe254b5cb26fde24c7e10ad3e4c34fc818d41f01550a080d4795cbaa118"
+		},
+		"residual-readjudication": {
+			"slug": "residual-readjudication",
+			"title": "Task 12 — activated-residual RE-adjudication (orchestrator, mid-correction)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task12/residual-readjudication.md",
+			"addedAt": "2026-08-25T14:45:07.432Z",
+			"updatedAt": "2026-08-25T23:07:42.084Z",
+			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
+			"contentHashAtCommit": "cb8a7864871306d167876f9391ca0733c399aea4dd8bf716b5bdbdb82251c9ef"
+		},
+		"correction-brief-f1": {
+			"slug": "correction-brief-f1",
+			"title": "Task 12 — correction FINISHER F1: scheduler wiring + per-tick re-read",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task12/correction-brief-f1.md",
+			"addedAt": "2026-08-25T14:45:07.432Z",
+			"updatedAt": "2026-08-25T23:07:42.094Z",
+			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
+			"contentHashAtCommit": "3a015fd6dff74ee9749c726d39e670e231fd70bcd99c9a754e01ef459ad26a6a"
+		},
+		"correction-brief-f2": {
+			"slug": "correction-brief-f2",
+			"title": "Task 12 — correction FINISHER F2: checkpoint fidelity + small closes",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task12/correction-brief-f2.md",
+			"addedAt": "2026-08-25T14:45:07.432Z",
+			"updatedAt": "2026-08-25T23:07:42.139Z",
+			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
+			"contentHashAtCommit": "90adbc4eea1339b83eebdf6e61b47911f91e96b1464f5f4138f5595db2571953"
+		},
+		"correction-brief-f3": {
+			"slug": "correction-brief-f3",
+			"title": "Task 12 — correction FINISHER F3: activated-trigger closes + full gates",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task12/correction-brief-f3.md",
+			"addedAt": "2026-08-25T14:45:07.432Z",
+			"updatedAt": "2026-08-25T23:07:42.162Z",
+			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
+			"contentHashAtCommit": "bf5a1cd6e85f36cd91417c9dfaf3f783ebc41e42265bbdca5d9dd87f1db4a7f1"
+		},
+		"confirmation-brief": {
+			"slug": "confirmation-brief",
+			"title": "Task 12 — FRESH BLIND CONFIRMATION brief",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task12/confirmation-brief.md",
+			"addedAt": "2026-08-25T14:45:07.432Z",
+			"updatedAt": "2026-08-25T23:07:42.169Z",
+			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
+			"contentHashAtCommit": "75d109b608e2b5a45d49f08356073efc9fcbad36872981e1909980af3c7cb719"
+		},
+		"unrecorded-landed-work": {
+			"slug": "unrecorded-landed-work",
+			"title": "Lesson: checkpoint-as-you-go still loses work — the record lags the tree by one item",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/lessons/unrecorded-landed-work.md",
+			"addedAt": "2026-08-25T14:54:42.087Z",
+			"updatedAt": "2026-08-25T23:07:42.172Z",
+			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
+			"contentHashAtCommit": "b84b6db199de08b063cec1718793b3a0e79ebe95ec60b3cd81e0e08804a58aa6"
+		},
+		"session-interruption-recovery": {
+			"slug": "session-interruption-recovery",
+			"title": "Lesson: the orchestrating session itself gets interrupted — resume from files, never from memory",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/lessons/session-interruption-recovery.md",
+			"addedAt": "2026-08-25T14:54:42.087Z",
+			"updatedAt": "2026-08-25T23:07:42.183Z",
+			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
+			"contentHashAtCommit": "0572375eb64903ba1b2e8656d660c370c00e060802878d841bee814ea875fff3"
 		}
 	}
 }

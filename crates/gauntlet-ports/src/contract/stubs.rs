@@ -1959,6 +1959,8 @@ struct DurableStore {
     productions: RefCell<Vec<crate::state_store::EvidenceProductionBinding>>,
     bindings: RefCell<HashMap<(RunId, u32), crate::state_store::ObservationBinding>>,
     selections: RefCell<HashMap<RunId, Vec<gauntlet_domain::CorrectionSelection>>>,
+    verifications: RefCell<Vec<crate::verification_record::VerificationRecordDoc>>,
+    settlement_rows: RefCell<Vec<(crate::state_store::SettlementCommit, EventLogOffset)>>,
     next_offset: Cell<u64>,
 }
 
@@ -2194,6 +2196,148 @@ impl StateStore for DurableStore {
             .unwrap_or_default())
     }
 
+    // The settlement surface (plan Task 13), implemented the way the suite
+    // pins it: the verification record is a durable fact the admission
+    // reads; the commit appends the event and keeps the keyed row; replay
+    // scans at or after the anchor and completes half-applied keys.
+    fn record_verification(
+        &self,
+        record: &crate::verification_record::VerificationRecordDoc,
+        _deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.verifications.borrow_mut().push(record.clone());
+        Ok(())
+    }
+
+    fn verification_records(
+        &self,
+        run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<crate::verification_record::VerificationRecordDoc>, StateStoreError> {
+        Ok(self
+            .verifications
+            .borrow()
+            .iter()
+            .filter(|record| record.run_id() == run_id)
+            .cloned()
+            .collect())
+    }
+
+    fn commit_settlement(
+        &self,
+        admitted: &crate::producer_authority::AdmittedSettlement,
+        deadline: Deadline,
+    ) -> Result<EventLogOffset, StateStoreError> {
+        let commit = admitted.commit().clone();
+        let mut rows = self.settlement_rows.borrow_mut();
+        if rows.iter().any(|(row, _)| {
+            row.unit_id == commit.unit_id && row.verification == commit.verification
+        }) {
+            return Err(StateStoreError::WriteFailed {
+                detail: format!(
+                    "unit {} of run {} is already settled under verification {}",
+                    commit.unit_id, commit.run_id, commit.verification
+                ),
+            });
+        }
+        let offset = self.append_event(
+            RunEvent {
+                run_id: commit.run_id.clone(),
+                kind: crate::state_store::RunEventKind::SettlementCommitted {
+                    unit_id: commit.unit_id.clone(),
+                    evidence: commit.evidence.clone(),
+                    verification: commit.verification.clone(),
+                    reference_digest: commit.reference_digest.clone(),
+                },
+                at: commit.at,
+            },
+            deadline,
+        )?;
+        rows.push((commit, offset));
+        Ok(offset)
+    }
+
+    fn settlements(
+        &self,
+        run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<gauntlet_domain::SettlementRecord>, StateStoreError> {
+        let mut rows = self
+            .settlement_rows
+            .borrow()
+            .iter()
+            .filter(|(row, _)| &row.run_id == run_id)
+            .cloned()
+            .collect::<Vec<_>>();
+        rows.sort_by(|(left, _), (right, _)| {
+            (left.unit_id.as_str(), left.verification.as_str())
+                .cmp(&(right.unit_id.as_str(), right.verification.as_str()))
+        });
+        Ok(rows
+            .into_iter()
+            .map(|(row, offset)| {
+                gauntlet_domain::SettlementRecord::new(
+                    row.run_id,
+                    row.unit_id,
+                    row.evidence,
+                    row.verification,
+                    offset,
+                )
+            })
+            .collect())
+    }
+
+    fn complete_pending_settlements(
+        &self,
+        run_id: &RunId,
+        anchor: EventLogOffset,
+        _deadline: Deadline,
+    ) -> Result<usize, StateStoreError> {
+        let entries = self
+            .events
+            .borrow()
+            .get(run_id)
+            .cloned()
+            .unwrap_or_default();
+        let mut rows = self.settlement_rows.borrow_mut();
+        let mut applied = 0;
+        for entry in entries {
+            if entry.offset.get() < anchor.get() {
+                continue;
+            }
+            let crate::state_store::RunEventKind::SettlementCommitted {
+                unit_id,
+                evidence,
+                verification,
+                reference_digest,
+            } = entry.event.kind
+            else {
+                continue;
+            };
+            let keyed = rows.iter().any(|(row, _)| {
+                row.run_id == entry.event.run_id
+                    && row.unit_id == unit_id
+                    && row.verification == verification
+            });
+            if keyed {
+                continue;
+            }
+            rows.push((
+                crate::state_store::SettlementCommit {
+                    run_id: entry.event.run_id,
+                    unit_id,
+                    evidence,
+                    verification,
+                    reference_digest,
+                    at: entry.event.at,
+                },
+                entry.offset,
+            ));
+            applied += 1;
+        }
+        Ok(applied)
+    }
+
     fn export_jsonl(&self, run_id: &RunId, _deadline: Deadline) -> Result<String, StateStoreError> {
         let entries = self
             .events
@@ -2204,11 +2348,30 @@ impl StateStore for DurableStore {
         let lines = entries
             .iter()
             .map(|entry| {
+                // Valid JSON lines (the adapter's wire tags), so the
+                // suite's settlement case can read the exported offsets
+                // back out of any conforming store's export.
+                let kind = match &entry.event.kind {
+                    crate::state_store::RunEventKind::SettlementCommitted { .. } => {
+                        "settlement_committed"
+                    }
+                    crate::state_store::RunEventKind::InvocationAdmitted { .. } => {
+                        "invocation_admitted"
+                    }
+                    crate::state_store::RunEventKind::InvocationTerminal { .. } => {
+                        "invocation_terminal"
+                    }
+                    crate::state_store::RunEventKind::CheckpointWritten { .. } => {
+                        "checkpoint_written"
+                    }
+                    crate::state_store::RunEventKind::EvidenceProduced { .. } => {
+                        "evidence_produced"
+                    }
+                };
                 format!(
-                    "{{\"offset\":{},\"at\":{},\"kind\":{:?}}}",
+                    "{{\"offset\":{},\"at\":{},\"kind\":\"{kind}\"}}",
                     entry.offset.get(),
-                    entry.event.at.get(),
-                    entry.event.kind
+                    entry.event.at.get()
                 )
             })
             .collect::<Vec<_>>()
@@ -2232,7 +2395,163 @@ impl StateStoreFactory for StateStoreGreen {
             productions: RefCell::new(Vec::new()),
             bindings: RefCell::new(HashMap::new()),
             selections: RefCell::new(HashMap::new()),
+            verifications: RefCell::new(Vec::new()),
+            settlement_rows: RefCell::new(Vec::new()),
             next_offset: Cell::new(1),
+        }))
+    }
+}
+
+/// The settlement-surface FAKE (plan Task 13 teeth): a DurableStore whose
+/// `commit_settlement` reports success without appending the event or
+/// keeping the row, and whose replay always claims zero — the store that
+/// "implements" the surface while doing none of it. The suite must catch
+/// it on the earned-commit case (nothing reads back) and the replay case.
+struct SettlementLaxStore {
+    inner: DurableStore,
+}
+
+impl StateStore for SettlementLaxStore {
+    fn append_event(
+        &self,
+        event: RunEvent,
+        deadline: Deadline,
+    ) -> Result<EventLogOffset, StateStoreError> {
+        self.inner.append_event(event, deadline)
+    }
+    fn load_run(&self, run_id: &RunId, deadline: Deadline) -> Result<Option<Run>, StateStoreError> {
+        self.inner.load_run(run_id, deadline)
+    }
+    fn record_run(&self, run: &Run, deadline: Deadline) -> Result<(), StateStoreError> {
+        self.inner.record_run(run, deadline)
+    }
+    fn checkpoint(
+        &self,
+        checkpoint: Checkpoint,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.inner.checkpoint(checkpoint, deadline)
+    }
+    fn resume(
+        &self,
+        run_id: &RunId,
+        deadline: Deadline,
+    ) -> Result<Option<Checkpoint>, StateStoreError> {
+        self.inner.resume(run_id, deadline)
+    }
+    fn record_evidence_production(
+        &self,
+        run_id: &RunId,
+        production: &crate::producer_authority::AdmittedEvidenceProduction,
+        deadline: Deadline,
+    ) -> Result<crate::state_store::EvidenceProductionBinding, StateStoreError> {
+        self.inner
+            .record_evidence_production(run_id, production, deadline)
+    }
+    fn evidence_production(
+        &self,
+        run_id: &RunId,
+        evidence: &EvidenceRef,
+        deadline: Deadline,
+    ) -> Result<Option<crate::state_store::EvidenceProductionBinding>, StateStoreError> {
+        self.inner.evidence_production(run_id, evidence, deadline)
+    }
+    fn bind_observation_bundle(
+        &self,
+        run_id: &RunId,
+        iteration_no: gauntlet_domain::IterationNo,
+        binding: &crate::producer_authority::AdmittedObservationBinding,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.inner
+            .bind_observation_bundle(run_id, iteration_no, binding, deadline)
+    }
+    fn observation_binding(
+        &self,
+        run_id: &RunId,
+        iteration_no: gauntlet_domain::IterationNo,
+        deadline: Deadline,
+    ) -> Result<Option<crate::state_store::ObservationBinding>, StateStoreError> {
+        self.inner
+            .observation_binding(run_id, iteration_no, deadline)
+    }
+    fn record_correction_selection(
+        &self,
+        selection: &gauntlet_domain::CorrectionSelection,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.inner.record_correction_selection(selection, deadline)
+    }
+    fn correction_selections(
+        &self,
+        run_id: &RunId,
+        deadline: Deadline,
+    ) -> Result<Vec<gauntlet_domain::CorrectionSelection>, StateStoreError> {
+        self.inner.correction_selections(run_id, deadline)
+    }
+    fn record_verification(
+        &self,
+        record: &crate::verification_record::VerificationRecordDoc,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.inner.record_verification(record, deadline)
+    }
+    fn verification_records(
+        &self,
+        run_id: &RunId,
+        deadline: Deadline,
+    ) -> Result<Vec<crate::verification_record::VerificationRecordDoc>, StateStoreError> {
+        self.inner.verification_records(run_id, deadline)
+    }
+    fn settlements(
+        &self,
+        run_id: &RunId,
+        deadline: Deadline,
+    ) -> Result<Vec<gauntlet_domain::SettlementRecord>, StateStoreError> {
+        self.inner.settlements(run_id, deadline)
+    }
+    // The fakes: the commit "succeeds" having done nothing, and the replay
+    // always reports an empty window.
+    fn commit_settlement(
+        &self,
+        _admitted: &crate::producer_authority::AdmittedSettlement,
+        _deadline: Deadline,
+    ) -> Result<EventLogOffset, StateStoreError> {
+        Ok(EventLogOffset::new(1))
+    }
+    fn complete_pending_settlements(
+        &self,
+        _run_id: &RunId,
+        _anchor: EventLogOffset,
+        _deadline: Deadline,
+    ) -> Result<usize, StateStoreError> {
+        Ok(0)
+    }
+    fn export_jsonl(&self, run_id: &RunId, deadline: Deadline) -> Result<String, StateStoreError> {
+        self.inner.export_jsonl(run_id, deadline)
+    }
+}
+
+pub struct StateStoreSettlementLax;
+
+impl StateStoreFactory for StateStoreSettlementLax {
+    fn label(&self) -> &'static str {
+        "broken-settlement-lax-store"
+    }
+
+    fn build(&self) -> Result<Box<dyn StateStore>, String> {
+        Ok(Box::new(SettlementLaxStore {
+            inner: DurableStore {
+                recorded_runs: RefCell::new(HashMap::new()),
+                checkpoints: RefCell::new(HashMap::new()),
+                events: RefCell::new(HashMap::new()),
+                productions: RefCell::new(Vec::new()),
+                bindings: RefCell::new(HashMap::new()),
+                selections: RefCell::new(HashMap::new()),
+                verifications: RefCell::new(Vec::new()),
+                settlement_rows: RefCell::new(Vec::new()),
+                next_offset: Cell::new(1),
+            },
         }))
     }
 }

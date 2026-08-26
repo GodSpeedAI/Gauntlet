@@ -14,16 +14,22 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use gauntlet_adapter_state_sqlite::{EmbeddedStateStore, RecordKind, SettlementCommit};
+use gauntlet_adapter_state_sqlite::{EmbeddedStateStore, RecordKind};
 use gauntlet_app::state::export_run;
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceRef, IterationNo,
-    Limits, MicroUsd, ReferenceId, ReferenceVersion, Run, RunDefinition, RunId, Spent, UnitId,
-    UnitStatus, VerificationRef,
+    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind,
+    EvidenceLocator, EvidenceRef, IterationNo, Limits, MicroUsd, Producer, ReferenceId,
+    ReferenceVersion, Run, RunDefinition, RunId, Spent, UnitId, UnitStatus, VerificationRef,
 };
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::json::{self, JsonValue};
-use gauntlet_ports::state_store::{Checkpoint, RunEvent, RunEventKind, StateStore};
+use gauntlet_ports::producer_authority::SettlementCommitAuthority;
+use gauntlet_ports::state_store::{
+    Checkpoint, RunEvent, RunEventKind, SettlementCommit, StateStore,
+};
+use gauntlet_ports::verification_record::{
+    RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
+};
 
 const RUN: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
@@ -122,6 +128,35 @@ fn checkpoint(iteration: u32, offset: u64, status: UnitStatus) -> Checkpoint {
     }
 }
 
+/// The PASS verification document the Task-13 settlement admission
+/// validates against: this run, the settled unit, the settled evidence.
+/// Its durable row is itself exported (the records segment gains the
+/// `verification_record` line — an intended, evidenced golden change).
+fn pass_record() -> VerificationRecordDoc {
+    VerificationRecordDoc::new(VerificationContent {
+        run_id: run_id(),
+        iteration_no: IterationNo::new(1).expect("1-based"),
+        unit_id: UnitId::new("AK-900").expect("valid unit id"),
+        claim: "the export-stack unit's claim".to_owned(),
+        requirement: RequirementDoc::new(
+            EvidenceKind::TestReport,
+            EvidenceLocator::new("export-stack-report.json").expect("valid locator"),
+            Producer::Instrument,
+        ),
+        instrument: VerifyingInstrument::new(
+            "export-stack-verifier".to_owned(),
+            "1".to_owned(),
+            true,
+        ),
+        evidence: EvidenceRef::new("evd-000900").expect("valid ref"),
+        produced_at: EpochSeconds::new(ADMITTED_AT),
+        outcome: gauntlet_domain::Outcome::Pass,
+        class: None,
+        detail: "the fixture PASS record".to_owned(),
+    })
+    .expect("fixture content is well formed")
+}
+
 fn string_of(line: &str, field: &str) -> String {
     match json::parse(line)
         .expect("every export line is JSON")
@@ -152,7 +187,8 @@ fn uint_of(line: &str, field: &str) -> u64 {
 fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
     let scratch = Scratch::new();
     let db: PathBuf = scratch.db();
-    let store = EmbeddedStateStore::open(Path::new(&db)).expect("the store opens");
+    let store =
+        std::sync::Arc::new(EmbeddedStateStore::open(Path::new(&db)).expect("the store opens"));
 
     // A representative history, in the order a run would write it.
     store.record_run(&run(), bound()).expect("the run records");
@@ -169,8 +205,15 @@ fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
             bound(),
         )
         .expect("the first event appends");
-    let settled_at = store
-        .commit_settlement(
+    // Since plan Task 13 the packaged settlement commit is EARNED: the
+    // durable PASS verification record lands first, the ports authority
+    // validates it and mints the admission, and the store commits the
+    // minted payload — the same governed path the runtime composes.
+    store
+        .record_verification(&pass_record(), bound())
+        .expect("the PASS verification record lands");
+    let admitted = SettlementCommitAuthority::new(store.clone())
+        .admit(
             SettlementCommit {
                 run_id: run_id(),
                 unit_id: UnitId::new("AK-900").expect("valid unit id"),
@@ -181,6 +224,9 @@ fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
             },
             bound(),
         )
+        .expect("the honest settlement earns its admission");
+    let settled_at = store
+        .commit_settlement(&admitted, bound())
         .expect("the packaged settlement commit runs");
     assert_eq!(settled_at.get(), 2, "the settlement event is the second");
     // Two checkpoints, deliberately written OUT of iteration order: the
@@ -202,8 +248,8 @@ fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
         .expect("the generic record appends");
 
     // The stack, twice: byte-identical whatever the store does between calls.
-    let first = export_run(&store, &run_id(), bound()).expect("the stack exports");
-    let second = export_run(&store, &run_id(), bound()).expect("the stack exports again");
+    let first = export_run(store.as_ref(), &run_id(), bound()).expect("the stack exports");
+    let second = export_run(store.as_ref(), &run_id(), bound()).expect("the stack exports again");
     assert_eq!(
         first, second,
         "two exports of the same history must be byte-identical through the whole stack"
@@ -212,8 +258,9 @@ fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
     let lines: Vec<&str> = first.split('\n').collect();
     assert_eq!(
         lines.len(),
-        7,
-        "run + 2 events + 2 checkpoints + settlement + record"
+        8,
+        "run + 2 events + 2 checkpoints + settlement + 2 records (observation and the \
+         Task-13 verification_record the settlement admission validated against)"
     );
     let tags: Vec<String> = lines.iter().map(|line| string_of(line, "record")).collect();
     assert_eq!(
@@ -225,10 +272,12 @@ fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
             "checkpoint",
             "checkpoint",
             "settlement",
-            "observation"
+            "observation",
+            "verification_record"
         ],
         "the canonical total order: run, events by offset, checkpoints by \
-         iteration, settlement, then the generic records"
+         iteration, settlement, then the generic records in (kind, seq) order — \
+         the verification_record line is the Task-13 intended addition"
     );
     assert_eq!(string_of(lines[0], "run_id"), RUN, "the run record leads");
     assert_eq!(uint_of(lines[1], "offset"), 1, "events in offset order");

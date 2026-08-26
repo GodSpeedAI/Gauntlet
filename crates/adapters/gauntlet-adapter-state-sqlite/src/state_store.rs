@@ -41,9 +41,12 @@ use gauntlet_domain::{
 use gauntlet_ports::comparison_record::ComparisonRecordDoc;
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::json::{self, JsonNumber, JsonValue};
+use gauntlet_ports::producer_authority::AdmittedSettlement;
 use gauntlet_ports::state_store::{
-    Checkpoint, ObservationBinding, RunEvent, RunEventKind, StateStore, StateStoreError,
+    Checkpoint, ObservationBinding, RunEvent, RunEventKind, SettlementCommit, StateStore,
+    StateStoreError,
 };
+use gauntlet_ports::verification_record::VerificationRecordDoc;
 use rusqlite::Connection;
 
 use crate::encode;
@@ -632,18 +635,6 @@ fn decode_correction_selection(payload: &str) -> Result<CorrectionSelection, Sta
         .map_err(|err| corrupt_selection(err.to_string()))
 }
 
-/// The §16.3 settlement commit: the event's fields verbatim
-/// (`SettlementEvent{unit_id, evidence_ref, verification_ref, digest, ts}`).
-#[derive(Debug, Clone)]
-pub struct SettlementCommit {
-    pub run_id: RunId,
-    pub unit_id: UnitId,
-    pub evidence: EvidenceRef,
-    pub verification: VerificationRef,
-    pub reference_digest: Digest,
-    pub at: EpochSeconds,
-}
-
 /// A durable run-state store in one embedded database file.
 pub struct SqliteStateStore {
     conn: Mutex<Connection>,
@@ -756,64 +747,16 @@ impl SqliteStateStore {
         }
     }
 
-    /// The §16.3 atomic commit sequence, in order, no reordering:
-    ///
-    /// 1. `EventLog.append(SettlementEvent{...})` — durable, fsync-on-append;
-    /// 2. the settlement row — idempotent by `(run_id, unit_id,
-    ///    verification_ref)`.
-    ///
-    /// A crash between the two is repaired by
-    /// [`SqliteStateStore::complete_pending_settlements`]; a crash before
-    /// step 1 leaves the unit retryable, because nothing durable happened.
-    pub fn commit_settlement(
-        &self,
-        commit: SettlementCommit,
-        _deadline: Deadline,
-    ) -> Result<EventLogOffset, StateStoreError> {
-        let conn = self
-            .conn
-            .lock()
-            .expect("the store connection is not poisoned");
-        let event = RunEvent {
-            run_id: commit.run_id.clone(),
-            kind: RunEventKind::SettlementCommitted {
-                unit_id: commit.unit_id.clone(),
-                evidence: commit.evidence.clone(),
-                verification: commit.verification.clone(),
-                reference_digest: commit.reference_digest.clone(),
-            },
-            at: commit.at,
-        };
-        // Step 1 — durable before anything else happens (§16.3).
-        let offset = append_to_log(&conn, &event).map_err(|err| StateStoreError::WriteFailed {
-            detail: err.to_string(),
-        })?;
-        // Step 2 — idempotent keyed insert. If THIS step fails, the event
-        // from step 1 is already durable, and the error must say so: a
-        // caller reading a bare failure as "nothing happened" would re-run
-        // the unit and append a duplicate settlement event. The error names
-        // the durable offset, the recovery that completes it, and why
-        // re-running is wrong.
-        self.apply_settlement_row_with(&conn, &commit, offset)
-            .map_err(|err| StateStoreError::WriteFailed {
-                detail: format!(
-                    "{err}; the settlement event for unit {} of run {} IS durable at offset {} \
-                     — complete_pending_settlements will complete this settlement on replay; \
-                     re-running the unit is wrong (it would append a duplicate settlement \
-                     event)",
-                    commit.unit_id,
-                    commit.run_id,
-                    offset.get()
-                ),
-            })?;
-        Ok(offset)
-    }
-
     /// §16.3 step 2 on its own: writes the settlement row for a settlement
     /// event that is ALREADY durable at `offset`. Idempotent by
     /// `(run_id, unit_id, verification_ref)` — applying the same event twice
     /// adds one row and returns 0 the second time. This is the half the
-    /// crash-recovery path replays.
+    /// crash-recovery path replays; the offset (and, since plan Task 13,
+    /// the event's stored timestamp) is cross-validated against the durable
+    /// log before the row lands. The atomic commit sequence itself lives on
+    /// the port (`StateStore::commit_settlement`) and consumes an
+    /// authority-minted [`AdmittedSettlement`], never a caller-attested
+    /// payload.
     pub fn apply_settlement_row(
         &self,
         commit: SettlementCommit,
@@ -835,67 +778,6 @@ impl SqliteStateStore {
         offset: EventLogOffset,
     ) -> Result<usize, StateStoreError> {
         insert_settlement(conn, commit, offset)
-    }
-
-    /// §18.3 resume step 1: replays the run's settlement events from the log
-    /// and completes any half-applied settlement — idempotent by
-    /// `(run_id, unit_id, verification_ref)` (§16.3). Returns how many
-    /// settlement rows this call added; a second call over the same log adds
-    /// none.
-    pub fn complete_pending_settlements(
-        &self,
-        run_id: &RunId,
-        _deadline: Deadline,
-    ) -> Result<usize, StateStoreError> {
-        let conn = self
-            .conn
-            .lock()
-            .expect("the store connection is not poisoned");
-        let entries = read_entries(&conn, EventLogOffset::new(0)).map_err(map_log_error)?;
-        let mut applied = 0;
-        for entry in entries {
-            let event = entry.event;
-            if event.run_id != *run_id {
-                continue;
-            }
-            let RunEventKind::SettlementCommitted {
-                unit_id,
-                evidence,
-                verification,
-                reference_digest,
-            } = event.kind
-            else {
-                continue;
-            };
-            let added = insert_settlement(
-                &conn,
-                &SettlementCommit {
-                    run_id: event.run_id.clone(),
-                    unit_id,
-                    evidence,
-                    verification,
-                    reference_digest,
-                    at: event.at,
-                },
-                entry.offset,
-            )?;
-            applied += added;
-        }
-        Ok(applied)
-    }
-
-    /// The run's durable settlement rows, ordered by `(unit_id,
-    /// verification_ref)` — the order the export pins.
-    pub fn settlements(
-        &self,
-        run_id: &RunId,
-        _deadline: Deadline,
-    ) -> Result<Vec<SettlementRecord>, StateStoreError> {
-        let conn = self
-            .conn
-            .lock()
-            .expect("the store connection is not poisoned");
-        settlements_of(&conn, run_id)
     }
 
     /// Appends one §18.1 durable record. The payload MUST be valid JSON —
@@ -1122,13 +1004,15 @@ fn zero_spent() -> Spent {
 /// added. Replaying an event twice inserts once — the key is the spec's own.
 /// Before the insert, the claimed `offset` is cross-validated against the
 /// durable log (see [`verify_settlement_event_at`]): a settlement row may
-/// never name an event it did not come from.
+/// never name an event it did not come from, and `settled_at` is the
+/// DURABLE event's stored timestamp (plan Task 13, A3) — never the commit's
+/// caller-supplied construction `at`.
 fn insert_settlement(
     conn: &Connection,
     commit: &SettlementCommit,
     offset: EventLogOffset,
 ) -> Result<usize, StateStoreError> {
-    verify_settlement_event_at(conn, commit, offset)?;
+    let settled_at = verify_settlement_event_at(conn, commit, offset)?;
     conn.execute(
         "INSERT OR IGNORE INTO settlements (
             run_id, unit_id, verification_ref, evidence_ref, reference_digest,
@@ -1141,7 +1025,7 @@ fn insert_settlement(
             commit.evidence.as_str(),
             commit.reference_digest.to_string(),
             offset.get(),
-            commit.at.get(),
+            settled_at.get(),
         ),
     )
     .map_err(|err| StateStoreError::WriteFailed {
@@ -1154,30 +1038,34 @@ fn insert_settlement(
 
 /// Cross-validates a settlement row's claimed offset against the log before
 /// the row lands: the event at `offset` must exist, belong to the commit's
-/// run, be a `settlement_committed`, and carry exactly the commit's unit,
+/// run, be a `settlement_committed`, carry exactly the commit's unit,
 /// verification, evidence, and reference digest (spec §5.3.6: a
 /// `SettlementRecord` "references the event-log offset that made it
-/// durable" — its OWN offset, not an offset the caller attests). A missing
+/// durable" — its OWN offset, not an offset the caller attests), and —
+/// since plan Task 13 (A3) — the commit's constructed timestamp must AGREE
+/// with the timestamp stored at that offset. Returns the durable event's
+/// stored timestamp, which is what the row's `settled_at` takes. A missing
 /// row or any mismatch is a typed refusal naming both what was claimed and
 /// what is there; the replay path passes trivially because it hands over
-/// the log's own offsets.
+/// the log's own offsets and the event's own timestamp.
 fn verify_settlement_event_at(
     conn: &Connection,
     commit: &SettlementCommit,
     offset: EventLogOffset,
-) -> Result<(), StateStoreError> {
+) -> Result<EpochSeconds, StateStoreError> {
     let stored = conn.query_row(
-        "SELECT run_id, kind, payload FROM event_log WHERE offset = ?1",
+        "SELECT run_id, kind, payload, at FROM event_log WHERE offset = ?1",
         [offset.get()],
         |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)?,
             ))
         },
     );
-    let (stored_run, stored_kind, stored_payload) = match stored {
+    let (stored_run, stored_kind, stored_payload, stored_at) = match stored {
         Ok(columns) => columns,
         Err(rusqlite::Error::QueryReturnedNoRows) => {
             return Err(StateStoreError::WriteFailed {
@@ -1203,6 +1091,19 @@ fn verify_settlement_event_at(
             });
         }
     };
+    if stored_at < 0 {
+        return Err(StateStoreError::WriteFailed {
+            detail: format!(
+                "the settlement row for unit {} of run {} claims offset {}, but the event there \
+                 holds a negative timestamp ({stored_at}) — this adapter never writes one, so \
+                 the row was damaged or tampered out of band",
+                commit.unit_id,
+                commit.run_id,
+                offset.get()
+            ),
+        });
+    }
+    let stored_at = EpochSeconds::new(u64::try_from(stored_at).unwrap_or(0));
     let event = match encode::decode_event(
         RunId::new(&stored_run).map_err(|err| StateStoreError::WriteFailed {
             detail: format!(
@@ -1211,7 +1112,7 @@ fn verify_settlement_event_at(
                 offset.get()
             ),
         })?,
-        commit.at,
+        stored_at,
         &stored_kind,
         &stored_payload,
     ) {
@@ -1266,7 +1167,26 @@ fn verify_settlement_event_at(
             ),
         });
     }
-    Ok(())
+    // The A3 seam, checked LAST so the stronger refusals above stay
+    // authoritative: with every field agreeing, a constructed timestamp
+    // that disagrees with the stored one is the one remaining caller
+    // attestation, and it is refused.
+    if stored_at != commit.at {
+        return Err(StateStoreError::WriteFailed {
+            detail: format!(
+                "the settlement row for unit {} of run {} claims offset {} with constructed \
+                 timestamp {}, but the durable event there stores {} — the commit's `at` \
+                 constructs the event only; settled_at is the event's stored timestamp and a \
+                 disagreeing construction is refused (spec 5.3.6)",
+                commit.unit_id,
+                commit.run_id,
+                offset.get(),
+                commit.at.get(),
+                stored_at.get()
+            ),
+        });
+    }
+    Ok(stored_at)
 }
 
 /// The settlement rows of one run, ordered by `(unit_id, verification_ref)`.
@@ -1311,7 +1231,17 @@ fn settlements_of(
             VerificationRef::new(&verification).map_err(|err| StateStoreError::Corrupt {
                 detail: format!("a stored verification ref does not decode: {err}"),
             })?,
-            EventLogOffset::new(u64::try_from(offset).unwrap_or(0)),
+            // A3's decode leg (plan Task 13, the Task-12 N3 checkpoint
+            // discipline mirrored): the offset is the §5.3.6 durable-anchor
+            // reference — a stored value no u64 can represent is CORRUPT,
+            // never a silent 0 that would point the record at whatever
+            // event happens to sit at the log's start.
+            EventLogOffset::new(u64::try_from(offset).map_err(|_| StateStoreError::Corrupt {
+                detail: format!(
+                    "a settlement row of run {run_id} (unit {unit_id}) holds a \
+                     non-representable event-log offset ({offset})"
+                ),
+            })?),
         ));
     }
     Ok(out)
@@ -1790,6 +1720,181 @@ impl StateStore for SqliteStateStore {
         Ok(selections)
     }
 
+    /// The §5.3.6 verification decision, durably: the typed Annex B.5
+    /// document under the run it names, `at` the document's own
+    /// `produced_at` provenance fact. One `records` row per call, like the
+    /// role-invocation and correction-selection precedents.
+    fn record_verification(
+        &self,
+        record: &VerificationRecordDoc,
+        deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        self.append_record(
+            record.run_id(),
+            RecordKind::VerificationRecord,
+            &record.to_json(),
+            record.produced_at(),
+            deadline,
+        )
+        .map(|_| ())
+    }
+
+    /// The run's durable verification records in record order. Strict
+    /// decode through the Annex B.5 codec — a payload that does not decode
+    /// is `Corrupt`, never a degraded record (the correction-selection
+    /// precedent).
+    fn verification_records(
+        &self,
+        run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<VerificationRecordDoc>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let mut statement = conn
+            .prepare(
+                "SELECT payload FROM records WHERE run_id = ?1 AND record_type = \
+                 'verification_record' ORDER BY seq ASC",
+            )
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!("preparing the verification-record query failed: {err}"),
+            })?;
+        let rows = statement
+            .query_map([run_id.to_string()], |row| row.get::<_, String>(0))
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!("reading verification records of run {run_id} failed: {err}"),
+            })?;
+        let mut records = Vec::new();
+        for row in rows {
+            let payload = row.map_err(|err| StateStoreError::ReadFailed {
+                detail: format!("stepping verification records of run {run_id} failed: {err}"),
+            })?;
+            records.push(VerificationRecordDoc::decode(&payload).map_err(|err| {
+                StateStoreError::Corrupt {
+                    detail: format!(
+                        "a stored verification record of run {run_id} does not decode: {err}"
+                    ),
+                }
+            })?);
+        }
+        Ok(records)
+    }
+
+    /// The §16.3 atomic commit sequence behind the earned admission (the
+    /// port docs carry the full contract; the authority/store division of
+    /// labor is recorded there and in the Task-13 report). Step 1 appends
+    /// the durable event; step 2 writes the cross-validated, keyed row.
+    fn commit_settlement(
+        &self,
+        admitted: &AdmittedSettlement,
+        _deadline: Deadline,
+    ) -> Result<EventLogOffset, StateStoreError> {
+        let commit = admitted.commit().clone();
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let event = RunEvent {
+            run_id: commit.run_id.clone(),
+            kind: RunEventKind::SettlementCommitted {
+                unit_id: commit.unit_id.clone(),
+                evidence: commit.evidence.clone(),
+                verification: commit.verification.clone(),
+                reference_digest: commit.reference_digest.clone(),
+            },
+            at: commit.at,
+        };
+        // Step 1 — durable before anything else happens (§16.3).
+        let offset = append_to_log(&conn, &event).map_err(|err| StateStoreError::WriteFailed {
+            detail: err.to_string(),
+        })?;
+        // Step 2 — idempotent keyed insert. If THIS step fails, the event
+        // from step 1 is already durable, and the error must say so: a
+        // caller reading a bare failure as "nothing happened" would re-run
+        // the unit and append a duplicate settlement event. The error names
+        // the durable offset, the recovery that completes it, and why
+        // re-running is wrong.
+        self.apply_settlement_row_with(&conn, &commit, offset)
+            .map_err(|err| StateStoreError::WriteFailed {
+                detail: format!(
+                    "{err}; the settlement event for unit {} of run {} IS durable at offset {} \
+                     — complete_pending_settlements will complete this settlement on replay; \
+                     re-running the unit is wrong (it would append a duplicate settlement \
+                     event)",
+                    commit.unit_id,
+                    commit.run_id,
+                    offset.get()
+                ),
+            })?;
+        Ok(offset)
+    }
+
+    /// The run's durable settlement rows, ordered by `(unit_id,
+    /// verification_ref)` — the order the export pins.
+    fn settlements(
+        &self,
+        run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<SettlementRecord>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        settlements_of(&conn, run_id)
+    }
+
+    /// §18.3 resume step 1 (plan Task 13 B1 moves this to the port; the
+    /// anchor is the run's latest checkpoint offset — B2 composes
+    /// `resume` → checkpoint → here). Replays the run's settlement events
+    /// AT OR AFTER the anchor — events below it are the checkpoint's own
+    /// certification and are not re-scanned — and completes any half-applied
+    /// settlement, idempotent by `(run_id, unit_id, verification_ref)`
+    /// (§16.3). Returns how many settlement rows this call added; a second
+    /// call over the same range adds none.
+    fn complete_pending_settlements(
+        &self,
+        run_id: &RunId,
+        anchor: EventLogOffset,
+        _deadline: Deadline,
+    ) -> Result<usize, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let entries = read_entries(&conn, anchor).map_err(map_log_error)?;
+        let mut applied = 0;
+        for entry in entries {
+            let event = entry.event;
+            if event.run_id != *run_id {
+                continue;
+            }
+            let RunEventKind::SettlementCommitted {
+                unit_id,
+                evidence,
+                verification,
+                reference_digest,
+            } = event.kind
+            else {
+                continue;
+            };
+            let added = insert_settlement(
+                &conn,
+                &SettlementCommit {
+                    run_id: event.run_id.clone(),
+                    unit_id,
+                    evidence,
+                    verification,
+                    reference_digest,
+                    at: event.at,
+                },
+                entry.offset,
+            )?;
+            applied += added;
+        }
+        Ok(applied)
+    }
+
     fn bind_observation_bundle(
         &self,
         run_id: &RunId,
@@ -2171,6 +2276,116 @@ impl StateStore for SqliteStateStore {
             deadline,
         )
         .map(|_| ())
+    }
+
+    /// Completes the `EvidenceProduced` crash window (plan Task 13, A5 —
+    /// the window Task 11's error string names): the event is durable, the
+    /// row is not. The row's missing facts arrive authority-MINTED (the
+    /// same mint `record_evidence_production` takes); the completed row
+    /// binds to the ORPHAN EVENT'S offset with `produced_at` from the
+    /// event's stored timestamp, and NOTHING is appended. See the port docs
+    /// for the full contract.
+    fn complete_pending_evidence_production(
+        &self,
+        run_id: &RunId,
+        anchor: EventLogOffset,
+        production: &gauntlet_ports::producer_authority::AdmittedEvidenceProduction,
+        deadline: Deadline,
+    ) -> Result<Option<gauntlet_ports::state_store::EvidenceProductionBinding>, StateStoreError>
+    {
+        let payload = production.production();
+        // Already applied → nothing to complete (idempotent on the
+        // production identity). Checked before the lock is taken: this call
+        // takes its own.
+        if self
+            .evidence_production(run_id, payload.evidence(), deadline)?
+            .is_some()
+        {
+            return Ok(None);
+        }
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let entries = read_entries(&conn, anchor).map_err(map_log_error)?;
+        let orphan = entries.into_iter().find(|entry| {
+            entry.event.run_id == *run_id
+                && matches!(
+                    &entry.event.kind,
+                    RunEventKind::EvidenceProduced { evidence, .. } if evidence == payload.evidence()
+                )
+        });
+        let orphan = match orphan {
+            Some(entry) => entry,
+            // No orphan event at or after the anchor: nothing is pending.
+            None => return Ok(None),
+        };
+        let RunEventKind::EvidenceProduced { locator, .. } = &orphan.event.kind else {
+            return Err(StateStoreError::ReadFailed {
+                detail: format!(
+                    "the EvidenceProduced scan matched a non-production event at offset {}",
+                    orphan.offset.get()
+                ),
+            });
+        };
+        if locator != payload.locator() {
+            return Err(StateStoreError::WriteFailed {
+                detail: format!(
+                    "the durable EvidenceProduced event for {} of run {run_id} (offset {}) names \
+                     locator {locator}, but the minted production declares {} — the orphan event \
+                     belongs to a different production of the same ref and no row is fabricated \
+                     over it",
+                    payload.evidence(),
+                    orphan.offset.get(),
+                    payload.locator()
+                ),
+            });
+        }
+        // The completed row: every fact from the mint, the ordering anchor
+        // and the timestamp from the DURABLE event (the A3 discipline,
+        // mirrored — the re-mint's clock is not a durable fact).
+        let completed = gauntlet_ports::state_store::EvidenceProduction::new(
+            payload.evidence().clone(),
+            payload.content().clone(),
+            payload.producer().clone(),
+            payload.locator().clone(),
+            payload.iteration_no(),
+            orphan.event.at,
+        );
+        let binding = gauntlet_ports::state_store::EvidenceProductionBinding::new(
+            run_id.clone(),
+            completed.clone(),
+            orphan.offset,
+        );
+        // If THIS insert fails, a concurrent record may have landed the row
+        // (the check-then-insert window above); the constraint refusal says
+        // so — never a silent second row.
+        conn.execute(
+            "INSERT INTO evidence_productions (
+                run_id, evidence_ref, producer_name, producer_version, locator, iteration_no,
+                produced_at, event_log_offset, content_digest
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            (
+                run_id.to_string(),
+                completed.evidence().as_str(),
+                completed.producer().name().as_str(),
+                completed.producer().version(),
+                completed.locator().as_str(),
+                u64::from(completed.iteration_no().get()),
+                completed.produced_at().get(),
+                orphan.offset.get(),
+                completed.content().to_string(),
+            ),
+        )
+        .map_err(|err| StateStoreError::WriteFailed {
+            detail: format!(
+                "completing the production of evidence {} in run {run_id} against the durable \
+                 EvidenceProduced event at offset {} failed: {err}",
+                completed.evidence(),
+                orphan.offset.get()
+            ),
+        })?;
+        Ok(Some(binding))
     }
 
     /// Deterministic export (spec §6.2: "Export is deterministic"): stable
@@ -2590,7 +2805,7 @@ mod tests {
         };
         store.append_event(settled, bound()).expect("event appends");
         store
-            .complete_pending_settlements(&run_id(), bound())
+            .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
             .expect("replay applies the settlement");
         store
             .checkpoint(checkpoint(2, 2, UnitStatus::InProgress, true), bound())
@@ -2854,28 +3069,435 @@ mod tests {
         assert_eq!(recorded.reference_version().version(), 3);
     }
 
-    /// The PACKAGED §16.3 primitive, called directly (the correction round's
-    /// reopening finding: this method had zero callers; the crash tests
-    /// exercised only the helper's two-step re-implementation). Pins the
-    /// whole contract at the API that ships: the returned offset is the
-    /// settlement row's offset; the event at that offset is exactly the
-    /// commit's own settlement event; replay afterwards adds nothing; and a
-    /// second commit of the same key appends a second event (the log is
-    /// append-only) while the keyed row count stays one.
-    #[test]
-    fn commit_settlement_is_the_spec_sequence_and_idempotent_by_key() {
-        use crate::event_log::read_entries;
-        let store = SqliteStateStore::open_in_memory().expect("store opens");
-        let commit = SettlementCommit {
+    /// The PASS verification document the Task-13 settlement admission
+    /// validates against: this run, the commit's unit, the commit's
+    /// evidence.
+    fn pass_record() -> gauntlet_ports::verification_record::VerificationRecordDoc {
+        gauntlet_ports::verification_record::VerificationRecordDoc::new(
+            gauntlet_ports::verification_record::VerificationContent {
+                run_id: run_id(),
+                iteration_no: IterationNo::new(1).expect("1-based"),
+                unit_id: UnitId::new("AK-900").expect("valid unit id"),
+                claim: "the packaged unit's claim".to_owned(),
+                requirement: gauntlet_ports::verification_record::RequirementDoc::new(
+                    gauntlet_domain::EvidenceKind::TestReport,
+                    EvidenceLocator::new("packaged-report.json").expect("valid locator"),
+                    gauntlet_domain::Producer::Instrument,
+                ),
+                instrument: gauntlet_ports::verification_record::VerifyingInstrument::new(
+                    "packaged-verifier".to_owned(),
+                    "1".to_owned(),
+                    true,
+                ),
+                evidence: EvidenceRef::new("evd-000900").expect("valid ref"),
+                produced_at: EpochSeconds::new(1_700_000_100),
+                outcome: gauntlet_domain::Outcome::Pass,
+                class: None,
+                detail: "the fixture PASS record".to_owned(),
+            },
+        )
+        .expect("fixture content is well formed")
+    }
+
+    /// Makes the durable substrate the admission validates against (durable
+    /// run + PASS verification record naming the commit's unit and evidence)
+    /// and mints the admission — the governed path since plan Task 13.
+    fn earn_settlement(
+        store: &std::sync::Arc<SqliteStateStore>,
+    ) -> gauntlet_ports::producer_authority::AdmittedSettlement {
+        store.record_run(&run(), bound()).expect("the run records");
+        store
+            .record_verification(&pass_record(), bound())
+            .expect("the PASS record lands");
+        gauntlet_ports::producer_authority::SettlementCommitAuthority::new(store.clone())
+            .admit(commit_payload(), bound())
+            .expect("the honest settlement earns its admission")
+    }
+
+    fn commit_payload() -> SettlementCommit {
+        SettlementCommit {
             run_id: run_id(),
             unit_id: UnitId::new("AK-900").expect("valid unit id"),
             evidence: EvidenceRef::new("evd-000900").expect("valid ref"),
             verification: VerificationRef::new("vrf-000900").expect("valid ref"),
             reference_digest: digest(),
             at: EpochSeconds::new(1_700_000_101),
+        }
+    }
+
+    /// §18.3 anchors replay at the checkpoint offset (plan Task 13, A2):
+    /// events BELOW the anchor are the checkpoint's own certification — a
+    /// checkpoint stands at an offset only after everything at or below it
+    /// was applied — and are NOT re-scanned for completion. The half-applied
+    /// window at or after the anchor is completed exactly once; a whole-log
+    /// replay (anchor 0, the no-checkpoint fallback) remains available and
+    /// is what repairs anything a mis-anchored history left below.
+    #[test]
+    fn anchored_replay_skips_events_below_the_anchor_and_completes_the_rest() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let settlement = |unit: &str, at: u64| RunEvent {
+            run_id: run_id(),
+            kind: RunEventKind::SettlementCommitted {
+                unit_id: UnitId::new(unit).expect("valid unit id"),
+                evidence: EvidenceRef::new("evd-000900").expect("valid ref"),
+                verification: VerificationRef::new("vrf-000900").expect("valid ref"),
+                reference_digest: digest(),
+            },
+            at: EpochSeconds::new(at),
         };
+        // Offset 1: an APPLIED settlement (the pre-anchor history a
+        // checkpoint honestly certifies).
+        store
+            .append_event(settlement("AK-000", 1_700_000_101), bound())
+            .expect("the applied settlement event appends");
+        assert_eq!(
+            store
+                .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
+                .expect("the whole-log replay applies it"),
+            1
+        );
+        // Offset 2: a below-anchor event whose row never landed (a window a
+        // later checkpoint should not have certified, but the store's
+        // contract is the §18.3 anchor, not checkpoint forensics). Offset 3:
+        // the post-anchor half-applied window resume exists to complete.
+        store
+            .append_event(settlement("AK-001", 1_700_000_102), bound())
+            .expect("the below-anchor event appends");
+        store
+            .append_event(settlement("AK-002", 1_700_000_103), bound())
+            .expect("the post-anchor event appends");
+        // The §18.3 anchor: replay starts at the checkpoint offset (here 3,
+        // standing for a checkpoint written after offset 3).
+        assert_eq!(
+            store
+                .complete_pending_settlements(&run_id(), EventLogOffset::new(3), bound())
+                .expect("the anchored replay runs"),
+            1,
+            "exactly the post-anchor half-applied settlement is completed; the \
+             below-anchor event is not re-scanned"
+        );
+        let rows = store.settlements(&run_id(), bound()).expect("reads");
+        let units: Vec<&str> = rows.iter().map(|row| row.unit_id().as_str()).collect();
+        assert_eq!(
+            units,
+            ["AK-000", "AK-002"],
+            "the below-anchor row is absent"
+        );
+        // The second anchored call adds nothing (keyed idempotency).
+        assert_eq!(
+            store
+                .complete_pending_settlements(&run_id(), EventLogOffset::new(3), bound())
+                .expect("the anchored replay runs"),
+            0
+        );
+        // The whole-log replay stays available and repairs the below-anchor
+        // window — the superset behavior the crash-recovery tests pin.
+        assert_eq!(
+            store
+                .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
+                .expect("the whole-log replay runs"),
+            1,
+            "the whole-log fallback completes what the anchored scan skipped"
+        );
+        assert_eq!(
+            store.settlements(&run_id(), bound()).expect("reads").len(),
+            3
+        );
+    }
+
+    /// A3 (plan Task 13): `settled_at` is EVENT-DERIVED. The commit's
+    /// caller-supplied `at` constructs the event only; the row takes the
+    /// durable event's STORED timestamp, and a commit whose constructed
+    /// timestamp disagrees with what is stored at the offset is refused —
+    /// the previously unchecked seam between the caller's clock claim and
+    /// the durable history.
+    #[test]
+    fn a_commit_timestamp_disagreeing_with_the_durable_event_is_refused() {
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        let at_of_event = EpochSeconds::new(1_700_000_101);
         let offset = store
-            .commit_settlement(commit.clone(), bound())
+            .append_event(
+                RunEvent {
+                    run_id: run_id(),
+                    kind: RunEventKind::SettlementCommitted {
+                        unit_id: UnitId::new("AK-900").expect("valid unit id"),
+                        evidence: EvidenceRef::new("evd-000900").expect("valid ref"),
+                        verification: VerificationRef::new("vrf-000900").expect("valid ref"),
+                        reference_digest: digest(),
+                    },
+                    at: at_of_event,
+                },
+                bound(),
+            )
+            .expect("the settlement event appends durably at 1_700_000_101");
+        // The disagreeing commit: same fields, a DIFFERENT `at`.
+        let mut disagreeing = commit_payload();
+        disagreeing.at = EpochSeconds::new(1_700_000_999);
+        match store.apply_settlement_row(disagreeing, offset, bound()) {
+            Err(StateStoreError::WriteFailed { detail }) => {
+                assert!(
+                    detail.contains("timestamp") && detail.contains("1700000999"),
+                    "the refusal names the disagreement and both instants: {detail}"
+                );
+            }
+            other => panic!(
+                "a commit timestamp that disagrees with the durable event must be refused, \
+                 got {other:?}"
+            ),
+        }
+        assert!(
+            store
+                .settlements(&run_id(), bound())
+                .expect("reads")
+                .is_empty(),
+            "the refused settlement row must not exist"
+        );
+        // The agreeing commit applies, and the row's settled_at IS the
+        // event's stored timestamp.
+        let agreeing = commit_payload();
+        assert_eq!(agreeing.at, at_of_event);
+        assert_eq!(
+            store
+                .apply_settlement_row(agreeing, offset, bound())
+                .expect("the agreeing row applies"),
+            1
+        );
+        let settled_at: i64 = store
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned")
+            .query_row(
+                "SELECT settled_at FROM settlements WHERE unit_id = 'AK-900'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("the settled_at column reads");
+        assert_eq!(
+            u64::try_from(settled_at),
+            Ok(at_of_event.get()),
+            "settled_at is the durable event's stored timestamp"
+        );
+    }
+
+    /// A5 (plan Task 13): the `EvidenceProduced` crash window — event
+    /// durable, row missing — is completed exactly once, bound to the
+    /// ORPHAN event's offset (no second event appended), with `produced_at`
+    /// from the event's own stored timestamp; an already-applied production
+    /// completes nothing; a mint whose locator disagrees with the orphan
+    /// event is refused (the orphan belongs to a different production).
+    #[test]
+    fn a_half_applied_evidence_production_is_completed_exactly_once() {
+        let store = std::sync::Arc::new(SqliteStateStore::open_in_memory().expect("store opens"));
+        store.record_run(&run(), bound()).expect("run records");
+        let evidence = std::sync::Arc::new(SwappableEvidence::default());
+        evidence.insert("evd-orphan-0001", b"the orphaned production bytes");
+        // The durable half alone: the event exists, the row never landed
+        // (the crash window Task 11's error string names).
+        let orphan_at = EpochSeconds::new(1_700_000_201);
+        let orphan_offset = store
+            .append_event(
+                RunEvent {
+                    run_id: run_id(),
+                    kind: RunEventKind::EvidenceProduced {
+                        evidence: EvidenceRef::new("evd-orphan-0001").expect("valid ref"),
+                        locator: EvidenceLocator::new("tests/proofs/x").expect("valid locator"),
+                    },
+                    at: orphan_at,
+                },
+                bound(),
+            )
+            .expect("the EvidenceProduced event is durable");
+        // The durable iteration anchor the mint validates against.
+        store
+            .checkpoint(
+                checkpoint(2, orphan_offset.get(), UnitStatus::Open, false),
+                bound(),
+            )
+            .expect("the anchor checkpoint lands");
+        // The mint: governed reads, derived digest, NO write.
+        let minted = gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            store.clone(),
+            evidence.clone(),
+        )
+        .mint(
+            &run_id(),
+            IterationNo::new(2).expect("1-based"),
+            &EvidenceRef::new("evd-orphan-0001").expect("valid ref"),
+            &gauntlet_ports::observer::InstrumentIdentity::new(
+                InstrumentName::new("gauntlet-verify-test-report").expect("valid instrument"),
+                "1".to_owned(),
+            ),
+            &EvidenceLocator::new("tests/proofs/x").expect("valid locator"),
+            EpochSeconds::new(1_700_000_400),
+            bound(),
+        )
+        .expect("the mint earns over the honest bytes");
+        // Nothing was recorded by the mint alone.
+        assert!(
+            store
+                .evidence_production(
+                    &run_id(),
+                    &EvidenceRef::new("evd-orphan-0001").unwrap(),
+                    bound(),
+                )
+                .expect("reads")
+                .is_none(),
+            "the mint writes nothing"
+        );
+        // A locator-disagreeing mint is refused WHILE THE ROW IS MISSING
+        // (once applied, completion is a no-op): the orphan event belongs
+        // to a different production of the same ref.
+        let foreign = gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            store.clone(),
+            evidence.clone(),
+        )
+        .mint(
+            &run_id(),
+            IterationNo::new(2).expect("1-based"),
+            &EvidenceRef::new("evd-orphan-0001").expect("valid ref"),
+            &gauntlet_ports::observer::InstrumentIdentity::new(
+                InstrumentName::new("gauntlet-verify-test-report").expect("valid instrument"),
+                "1".to_owned(),
+            ),
+            &EvidenceLocator::new("tests/proofs/other").expect("valid locator"),
+            EpochSeconds::new(1_700_000_400),
+            bound(),
+        )
+        .expect("the mint earns over the same bytes");
+        assert!(matches!(
+            store.complete_pending_evidence_production(
+                &run_id(),
+                EventLogOffset::new(0),
+                &foreign,
+                bound(),
+            ),
+            Err(StateStoreError::WriteFailed { .. })
+        ));
+        // Completion binds the row to the orphan event — exactly once.
+        let completed = store
+            .complete_pending_evidence_production(
+                &run_id(),
+                EventLogOffset::new(0),
+                &minted,
+                bound(),
+            )
+            .expect("completion runs")
+            .expect("the half-applied production completes");
+        assert_eq!(
+            completed.event_log_offset(),
+            orphan_offset,
+            "the row names the durable event that made it real — no second event"
+        );
+        assert_eq!(
+            completed.production().produced_at(),
+            orphan_at,
+            "produced_at is the event's stored timestamp, not the re-mint's clock"
+        );
+        // No new event was appended by completion either.
+        {
+            let conn = store.conn.lock().expect("connection lock");
+            let entries = read_entries(&conn, EventLogOffset::new(0)).expect("replays");
+            assert_eq!(
+                entries.len(),
+                1,
+                "completion appends nothing; the orphan event remains the only one"
+            );
+        }
+        // The durable row reads back exactly as completed.
+        assert_eq!(
+            store
+                .evidence_production(
+                    &run_id(),
+                    &EvidenceRef::new("evd-orphan-0001").unwrap(),
+                    bound(),
+                )
+                .expect("reads")
+                .expect("the completed row stands"),
+            completed
+        );
+        // Second completion: already applied → nothing.
+        assert!(
+            store
+                .complete_pending_evidence_production(
+                    &run_id(),
+                    EventLogOffset::new(0),
+                    &minted,
+                    bound(),
+                )
+                .expect("completion runs")
+                .is_none(),
+            "an already-applied production completes nothing"
+        );
+    }
+
+    /// A fully-applied production (the normal earn path) has no window:
+    /// completion over it adds nothing and returns `None`.
+    #[test]
+    fn a_fully_applied_evidence_production_completes_nothing() {
+        let store = std::sync::Arc::new(SqliteStateStore::open_in_memory().expect("store opens"));
+        store.record_run(&run(), bound()).expect("run records");
+        let evidence = std::sync::Arc::new(SwappableEvidence::default());
+        let binding = earn_production(
+            &store,
+            &evidence,
+            "evd-complete-0001",
+            "gauntlet-verify-test-report",
+            "tests/proofs/x",
+            1,
+            b"the fully applied bytes",
+        );
+        // Re-mint the SAME facts (idempotent governed reads).
+        let minted = gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            store.clone(),
+            evidence.clone(),
+        )
+        .mint(
+            &run_id(),
+            IterationNo::new(1).expect("1-based"),
+            &EvidenceRef::new("evd-complete-0001").expect("valid ref"),
+            &gauntlet_ports::observer::InstrumentIdentity::new(
+                InstrumentName::new("gauntlet-verify-test-report").expect("valid instrument"),
+                "1".to_owned(),
+            ),
+            &EvidenceLocator::new("tests/proofs/x").expect("valid locator"),
+            EpochSeconds::new(1_700_000_200),
+            bound(),
+        )
+        .expect("the same facts re-mint");
+        assert_eq!(minted.production(), binding.production());
+        assert!(
+            store
+                .complete_pending_evidence_production(
+                    &run_id(),
+                    EventLogOffset::new(0),
+                    &minted,
+                    bound(),
+                )
+                .expect("completion runs")
+                .is_none(),
+            "an already-applied production completes nothing"
+        );
+    }
+
+    /// The PACKAGED §16.3 primitive, reached the only way it can be reached
+    /// since plan Task 13 — through an EARNED admission (the correction
+    /// round's reopening finding gave this method zero callers; Task 13
+    /// closes the ungated shape and keeps the packaged path pinned). Pins
+    /// the whole contract at the API that ships: the returned offset is the
+    /// settlement row's offset; the event at that offset is exactly the
+    /// commit's own settlement event; replay afterwards adds nothing; a
+    /// second ADMISSION of the committed key is refused (re-committing
+    /// would append a duplicate event — the store's own error calls that
+    /// wrong); and a raw duplicate EVENT for the same key leaves the keyed
+    /// row count at one.
+    #[test]
+    fn commit_settlement_is_the_spec_sequence_and_idempotent_by_key() {
+        use crate::event_log::read_entries;
+        let store = std::sync::Arc::new(SqliteStateStore::open_in_memory().expect("store opens"));
+        let admitted = earn_settlement(&store);
+        let commit = admitted.commit().clone();
+        let offset = store
+            .commit_settlement(&admitted, bound())
             .expect("the packaged commit sequence runs");
 
         // The settlement row references exactly the returned offset.
@@ -2918,22 +3540,41 @@ mod tests {
         // Nothing is half-applied: replay adds zero.
         assert_eq!(
             store
-                .complete_pending_settlements(&run_id(), bound())
+                .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
                 .expect("replay works"),
             0,
             "a completed commit needs no replay"
         );
 
-        // A second commit of the same key appends a second event (the log is
-        // append-only and never rewrites) but still one keyed row, and
-        // replay still adds zero.
-        let second = store
-            .commit_settlement(commit, bound())
-            .expect("the second commit runs");
-        assert!(
-            second.get() > offset.get(),
-            "the append-only log grows; offsets never rewind"
-        );
+        // A second admission of the committed key is refused at the gate
+        // (re-committing would append a duplicate settlement event; the
+        // settled work stands).
+        assert!(matches!(
+            gauntlet_ports::producer_authority::SettlementCommitAuthority::new(store.clone())
+                .admit(commit, bound()),
+            Err(
+                gauntlet_ports::producer_authority::SettlementAdmissionError::AlreadyCommitted { .. }
+            )
+        ));
+
+        // And the keyed row still names one settlement even if a duplicate
+        // EVENT for the same key lands raw: the log is append-only, the row
+        // is keyed, and replay of the duplicate adds nothing.
+        store
+            .append_event(
+                RunEvent {
+                    run_id: run_id(),
+                    kind: RunEventKind::SettlementCommitted {
+                        unit_id: UnitId::new("AK-900").expect("valid unit id"),
+                        evidence: EvidenceRef::new("evd-000900").expect("valid ref"),
+                        verification: VerificationRef::new("vrf-000900").expect("valid ref"),
+                        reference_digest: digest(),
+                    },
+                    at: EpochSeconds::new(1_700_000_101),
+                },
+                bound(),
+            )
+            .expect("the raw duplicate event appends");
         assert_eq!(
             store.settlements(&run_id(), bound()).expect("reads").len(),
             1,
@@ -2941,10 +3582,10 @@ mod tests {
         );
         assert_eq!(
             store
-                .complete_pending_settlements(&run_id(), bound())
+                .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
                 .expect("replay works"),
             0,
-            "replay after the duplicate-key commit adds nothing"
+            "replay after the duplicate-key event adds nothing"
         );
     }
 

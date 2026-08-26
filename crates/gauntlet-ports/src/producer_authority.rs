@@ -1,19 +1,23 @@
 //! The owner-write minting authorities (plan Task 12; the `AdmittedComparison`
 //! precedent from plan Task 10 / Task 11 C7).
 //!
-//! Two `StateStore` writes are OWNER writes, not caller writes:
+//! Three `StateStore` writes are OWNER writes, not caller writes:
 //! `record_evidence_production` (the evidence owner's durable production
-//! fact, spec §14.3) and `bind_observation_bundle` (the observation owner's
+//! fact, spec §14.3), `bind_observation_bundle` (the observation owner's
 //! binding of one pinned bundle as *this* run's observation at *this*
-//! iteration, spec §5.3.6/§18.1). Before Task 12 any holder of an
-//! `Arc<dyn StateStore>` could perform both for any store-resolvable bytes,
-//! and the declared iteration was never validated — the residual recorded on
-//! the trait since Task 11.
+//! iteration, spec §5.3.6/§18.1), and — since plan Task 13 —
+//! `commit_settlement` (the §16.3 settlement commit, the most consequential
+//! write in the system). Before Task 12 any holder of an
+//! `Arc<dyn StateStore>` could perform the first two for any
+//! store-resolvable bytes, and the declared iteration was never validated;
+//! before Task 13 the settlement commit was not on the port at all, and the
+//! adapter's inherent surface would take any caller-attested payload.
 //!
 //! The closure follows the established pattern exactly: the trait methods
-//! now accept only values minted HERE — [`AdmittedEvidenceProduction`] and
-//! [`AdmittedObservationBinding`] have no constructor outside this module —
-//! and the authorities perform the governed reads before minting:
+//! now accept only values minted HERE — [`AdmittedEvidenceProduction`],
+//! [`AdmittedObservationBinding`], and [`AdmittedSettlement`] have no
+//! constructor outside this module — and the authorities perform the
+//! governed reads before minting:
 //!
 //! 1. the durable run must exist (an undurable run can produce no
 //!    consequential record, §18.1);
@@ -33,14 +37,18 @@
 use core::fmt;
 use std::sync::Arc;
 
-use gauntlet_domain::{Digest, EpochSeconds, EvidenceLocator, EvidenceRef, IterationNo, RunId};
+use gauntlet_domain::{
+    Digest, EpochSeconds, EventLogOffset, EvidenceLocator, EvidenceRef, IterationNo, Outcome,
+    RunId, UnitId,
+};
 use sha2::{Digest as _, Sha256};
 
 use crate::deadline::Deadline;
 use crate::evidence_store::EvidenceStore;
 use crate::observer::InstrumentIdentity;
 use crate::state_store::{
-    EvidenceProduction, EvidenceProductionBinding, ObservationBinding, StateStore, StateStoreError,
+    EvidenceProduction, EvidenceProductionBinding, ObservationBinding, SettlementCommit,
+    StateStore, StateStoreError,
 };
 
 /// SHA-256 of raw evidence bytes as a domain [`Digest`] — the production
@@ -232,14 +240,18 @@ impl EvidenceProductionAuthority {
         Self { state, evidence }
     }
 
-    /// Records the production of `evidence_ref` in one run: run-exists and
-    /// durable-iteration validation, a bytes read at the ref, the content
-    /// digest derived from those bytes, then the store's write-once record
-    /// (idempotent for identical facts, refusing any different facts for
-    /// the same ref — the store's own rule, surfaced verbatim through
-    /// [`ProducerAuthorityError::State`]).
+    /// Performs every governed read `record` performs and mints the
+    /// [`AdmittedEvidenceProduction`] WITHOUT writing it — the mint half of
+    /// the authority, split for the crash-window completion path (plan
+    /// Task 13, A5): the durable `EvidenceProduced` event already exists,
+    /// so the re-earning side needs the minted production facts to complete
+    /// the missing row against that event, not a second append. The mint
+    /// carries the content digest derived HERE from the store's own bytes
+    /// and the run/iteration validation `record` enforces; `produced_at`
+    /// remains a producer FACT — the completed row's timestamp comes from
+    /// the durable event, not from this value.
     #[allow(clippy::too_many_arguments)]
-    pub fn record(
+    pub fn mint(
         &self,
         run_id: &RunId,
         iteration_no: IterationNo,
@@ -248,7 +260,7 @@ impl EvidenceProductionAuthority {
         locator: &EvidenceLocator,
         produced_at: EpochSeconds,
         deadline: Deadline,
-    ) -> Result<EvidenceProductionBinding, ProducerAuthorityError> {
+    ) -> Result<AdmittedEvidenceProduction, ProducerAuthorityError> {
         governed_run(self.state.as_ref(), run_id, iteration_no, deadline)?;
         let bytes = self
             .evidence
@@ -261,7 +273,7 @@ impl EvidenceProductionAuthority {
                 evidence: evidence_ref.clone(),
             })?;
         let content = evidence_content_digest(&bytes);
-        let admitted = AdmittedEvidenceProduction {
+        Ok(AdmittedEvidenceProduction {
             production: EvidenceProduction::new(
                 evidence_ref.clone(),
                 content,
@@ -270,7 +282,36 @@ impl EvidenceProductionAuthority {
                 iteration_no,
                 produced_at,
             ),
-        };
+        })
+    }
+
+    /// Records the production of `evidence_ref` in one run: run-exists and
+    /// durable-iteration validation, a bytes read at the ref, the content
+    /// digest derived from those bytes, then the store's write-once record
+    /// (idempotent for identical facts, refusing any different facts for
+    /// the same ref — the store's own rule, surfaced verbatim through
+    /// [`ProducerAuthorityError::State`]). The governed reads and the mint
+    /// live in [`Self::mint`]; recording is mint + the store write.
+    #[allow(clippy::too_many_arguments)]
+    pub fn record(
+        &self,
+        run_id: &RunId,
+        iteration_no: IterationNo,
+        evidence_ref: &EvidenceRef,
+        producer: &InstrumentIdentity,
+        locator: &EvidenceLocator,
+        produced_at: EpochSeconds,
+        deadline: Deadline,
+    ) -> Result<EvidenceProductionBinding, ProducerAuthorityError> {
+        let admitted = self.mint(
+            run_id,
+            iteration_no,
+            evidence_ref,
+            producer,
+            locator,
+            produced_at,
+            deadline,
+        )?;
         self.state
             .record_evidence_production(run_id, &admitted, deadline)
             .map_err(ProducerAuthorityError::State)
@@ -334,6 +375,221 @@ impl ObservationBindingAuthority {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Settlement admission (plan Task 13 B1; prereg R1/A5) — the most
+// consequential owner write in the system, earned the same way.
+// ---------------------------------------------------------------------------
+
+/// Settlement-admission failures — typed (spec §21.2). Store failures ride
+/// [`Self::State`] so a caller can distinguish the authority's governed-read
+/// refusals from the store's own write refusals (surfaced verbatim).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SettlementAdmissionError {
+    /// The run is not durable — nothing in this run can settle.
+    RunNotDurable { run_id: RunId },
+    /// §16.1 condition 1 failed against DURABLE state: no verification
+    /// record with `Outcome::Pass` exists for this (run, unit) naming the
+    /// committed evidence ref. `detail` distinguishes the three shapes: no
+    /// record at all, a record whose outcome is not PASS (an INCONCLUSIVE
+    /// or FAIL never satisfies a settlement requirement, I8), and a PASS
+    /// record whose evidence ref disagrees with the commit's (the committed
+    /// evidence must be the evidence the durable record verified).
+    VerificationNotPass {
+        run_id: RunId,
+        unit_id: UnitId,
+        detail: String,
+    },
+    /// The settlement is already durable for this
+    /// `(run_id, unit_id, verification_ref)` key — re-committing would
+    /// append a duplicate settlement event (the store's own error names
+    /// that "wrong"); the run's settled work stands and re-running the unit
+    /// is the §18.3 defect, not a retry.
+    AlreadyCommitted {
+        run_id: RunId,
+        unit_id: UnitId,
+        verification: gauntlet_domain::VerificationRef,
+        event_log_offset: EventLogOffset,
+    },
+    /// A durable read or the store write itself failed.
+    State(StateStoreError),
+}
+
+impl fmt::Display for SettlementAdmissionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RunNotDurable { run_id } => write!(
+                f,
+                "run {run_id} is not durable; a settlement admission cannot open"
+            ),
+            Self::VerificationNotPass {
+                run_id,
+                unit_id,
+                detail,
+            } => write!(
+                f,
+                "no PASS verification record for unit {unit_id} of run {run_id} names the \
+                 committed evidence — settlement requires one (spec 16.1 condition 1): {detail}"
+            ),
+            Self::AlreadyCommitted {
+                run_id,
+                unit_id,
+                verification,
+                event_log_offset,
+            } => write!(
+                f,
+                "unit {unit_id} of run {run_id} is already settled under verification \
+                 {verification} (event-log offset {}); re-committing would append a duplicate \
+                 settlement event — the settled work stands (spec 16.3/18.3)",
+                event_log_offset.get()
+            ),
+            Self::State(error) => write!(f, "a durable settlement step failed: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for SettlementAdmissionError {}
+
+/// A settlement commit the settlement authority minted — the only value
+/// [`StateStore::commit_settlement`] accepts. No constructor exists outside
+/// this module, so a caller that assembled a [`SettlementCommit`] itself
+/// (the shape any in-process store holder could write before Task 13) has
+/// nothing to pass to any store.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AdmittedSettlement {
+    commit: SettlementCommit,
+}
+
+impl AdmittedSettlement {
+    /// The minted commit payload, for the store that commits it.
+    pub fn commit(&self) -> &SettlementCommit {
+        &self.commit
+    }
+}
+
+/// The settlement minting authority (plan Task 13, R1/A5): validates the
+/// §16.1 store-side preconditions against DURABLE state and mints the
+/// [`AdmittedSettlement`] the store accepts.
+///
+/// What the AUTHORITY checks (governed reads over durable state):
+///
+/// 1. the run is durable;
+/// 2. §16.1 condition 1: a verification record with `Outcome = Pass` exists
+///    in the run's durable records for the commit's unit, naming the
+///    commit's evidence ref (a FAIL/INCONCLUSIVE record, a foreign unit's
+///    record, or a PASS over different evidence never admits);
+/// 3. the §16.3 idempotence key `(run_id, unit_id, verification_ref)` is
+///    not already a durable settlement row.
+///
+/// What the STORE cross-validates when the minted commit lands (defense in
+/// depth — both must hold, neither substitutes for the other): the
+/// settlement row's offset names the durable settlement event that made it
+/// real, with every field AND the stored event timestamp agreeing
+/// (spec §5.3.6, the A3 seam-closing).
+///
+/// What this authority deliberately does NOT check: §16.1 condition 2's
+/// resolve-and-pin half (the evidence STORE is not in this authority's
+/// hands — the application layer's `settlement_precondition` owns it, where
+/// the chain's own evidence store is in scope) and conditions 3–5
+/// (authority chain, blocking residuals, reference digest — the settlement
+/// service's scope, plan Task 13 B2). Ports cannot reach those; minting
+/// here is the store-side half of the gate, not the whole of §16.1.
+#[derive(Clone)]
+pub struct SettlementCommitAuthority {
+    state: Arc<dyn StateStore>,
+}
+
+impl SettlementCommitAuthority {
+    pub fn new(state: Arc<dyn StateStore>) -> Self {
+        Self { state }
+    }
+
+    /// Validates the commit against durable state and mints the admission
+    /// [`StateStore::commit_settlement`] consumes. Every fact the caller
+    /// supplies (unit, evidence, verification, digest, timestamp) is
+    /// validated against what the store already knows — none is taken on
+    /// the caller's word.
+    pub fn admit(
+        &self,
+        commit: SettlementCommit,
+        deadline: Deadline,
+    ) -> Result<AdmittedSettlement, SettlementAdmissionError> {
+        self.state
+            .load_run(&commit.run_id, deadline)
+            .map_err(SettlementAdmissionError::State)?
+            .ok_or_else(|| SettlementAdmissionError::RunNotDurable {
+                run_id: commit.run_id.clone(),
+            })?;
+        let records = self
+            .state
+            .verification_records(&commit.run_id, deadline)
+            .map_err(SettlementAdmissionError::State)?;
+        let unit_records: Vec<_> = records
+            .iter()
+            .filter(|record| record.unit_id() == &commit.unit_id)
+            .collect();
+        if unit_records.is_empty() {
+            return Err(SettlementAdmissionError::VerificationNotPass {
+                run_id: commit.run_id.clone(),
+                unit_id: commit.unit_id.clone(),
+                detail: format!(
+                    "the run holds no verification record for unit {} at all",
+                    commit.unit_id
+                ),
+            });
+        }
+        let pass_records: Vec<_> = unit_records
+            .iter()
+            .filter(|record| record.outcome() == Outcome::Pass)
+            .collect();
+        if pass_records.is_empty() {
+            let outcomes: Vec<String> = unit_records
+                .iter()
+                .map(|record| record.outcome().to_string())
+                .collect();
+            return Err(SettlementAdmissionError::VerificationNotPass {
+                run_id: commit.run_id.clone(),
+                unit_id: commit.unit_id.clone(),
+                detail: format!(
+                    "the run's records for unit {} hold outcomes {} — none is PASS",
+                    commit.unit_id,
+                    outcomes.join(", ")
+                ),
+            });
+        }
+        if !pass_records
+            .iter()
+            .any(|record| record.evidence() == &commit.evidence)
+        {
+            return Err(SettlementAdmissionError::VerificationNotPass {
+                run_id: commit.run_id.clone(),
+                unit_id: commit.unit_id.clone(),
+                detail: format!(
+                    "the run's PASS records for unit {} name evidence other than {} — the \
+                     committed evidence must be the evidence a durable PASS record verified",
+                    commit.unit_id, commit.evidence
+                ),
+            });
+        }
+        if let Some(existing) = self
+            .state
+            .settlements(&commit.run_id, deadline)
+            .map_err(SettlementAdmissionError::State)?
+            .into_iter()
+            .find(|row| {
+                row.unit_id() == &commit.unit_id && row.verification() == &commit.verification
+            })
+        {
+            return Err(SettlementAdmissionError::AlreadyCommitted {
+                run_id: commit.run_id.clone(),
+                unit_id: commit.unit_id.clone(),
+                verification: commit.verification.clone(),
+                event_log_offset: existing.event_log_offset(),
+            });
+        }
+        Ok(AdmittedSettlement { commit })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Mutex;
@@ -345,7 +601,8 @@ mod tests {
 
     use super::{
         AdmittedEvidenceProduction, AdmittedObservationBinding, EvidenceProductionAuthority,
-        ObservationBindingAuthority, ProducerAuthorityError, evidence_content_digest,
+        ObservationBindingAuthority, ProducerAuthorityError, SettlementCommit,
+        evidence_content_digest,
     };
     use crate::deadline::Deadline;
     use crate::evidence_store::{EvidenceStore, EvidenceStoreError};
@@ -884,6 +1141,294 @@ mod tests {
             ),
             Err(ProducerAuthorityError::BundleInvalid { .. })
         ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Settlement admission (plan Task 13 B1, R1/A5: the settlement write is
+    // the most consequential owner write in the system)
+    // -----------------------------------------------------------------------
+
+    /// The durable substrate the settlement admission validates against:
+    /// the recorded run, its verification records, and its settlement rows.
+    /// Keyed the way the real adapter keys them (the §16.3 replay key).
+    #[derive(Default)]
+    struct SettlementGateState {
+        run: Option<Run>,
+        verifications: Mutex<Vec<crate::verification_record::VerificationRecordDoc>>,
+        settlement_rows: Mutex<Vec<SettlementCommit>>,
+        next_offset: Mutex<u64>,
+    }
+
+    impl SettlementGateState {
+        fn with_run(run: Run) -> Self {
+            Self {
+                run: Some(run),
+                ..Self::default()
+            }
+        }
+    }
+
+    impl StateStore for SettlementGateState {
+        fn append_event(
+            &self,
+            _: RunEvent,
+            _: Deadline,
+        ) -> Result<EventLogOffset, StateStoreError> {
+            let mut next = self.next_offset.lock().expect("not poisoned");
+            *next += 1;
+            Ok(EventLogOffset::new(*next))
+        }
+        fn load_run(
+            &self,
+            run_id: &gauntlet_domain::RunId,
+            _: Deadline,
+        ) -> Result<Option<Run>, StateStoreError> {
+            Ok((self.run.as_ref().is_some_and(|run| run.id() == run_id)).then(fixture_run))
+        }
+        fn checkpoint(&self, _: Checkpoint, _: Deadline) -> Result<(), StateStoreError> {
+            Ok(())
+        }
+        fn resume(
+            &self,
+            _: &gauntlet_domain::RunId,
+            _: Deadline,
+        ) -> Result<Option<Checkpoint>, StateStoreError> {
+            Ok(None)
+        }
+        fn record_verification(
+            &self,
+            record: &crate::verification_record::VerificationRecordDoc,
+            _: Deadline,
+        ) -> Result<(), StateStoreError> {
+            self.verifications
+                .lock()
+                .expect("not poisoned")
+                .push(record.clone());
+            Ok(())
+        }
+        fn verification_records(
+            &self,
+            _: &gauntlet_domain::RunId,
+            _: Deadline,
+        ) -> Result<Vec<crate::verification_record::VerificationRecordDoc>, StateStoreError>
+        {
+            Ok(self.verifications.lock().expect("not poisoned").clone())
+        }
+        fn commit_settlement(
+            &self,
+            admitted: &super::AdmittedSettlement,
+            _: Deadline,
+        ) -> Result<EventLogOffset, StateStoreError> {
+            let commit = admitted.commit().clone();
+            let mut rows = self.settlement_rows.lock().expect("not poisoned");
+            if rows
+                .iter()
+                .any(|row| row.unit_id == commit.unit_id && row.verification == commit.verification)
+            {
+                return Err(StateStoreError::WriteFailed {
+                    detail: "already committed".to_owned(),
+                });
+            }
+            let mut next = self.next_offset.lock().expect("not poisoned");
+            *next += 1;
+            rows.push(commit);
+            Ok(EventLogOffset::new(*next))
+        }
+        fn settlements(
+            &self,
+            run_id: &gauntlet_domain::RunId,
+            _: Deadline,
+        ) -> Result<Vec<gauntlet_domain::SettlementRecord>, StateStoreError> {
+            let mut rows = self.settlement_rows.lock().expect("not poisoned").clone();
+            rows.sort_by(|left, right| {
+                (left.unit_id.as_str(), left.verification.as_str())
+                    .cmp(&(right.unit_id.as_str(), right.verification.as_str()))
+            });
+            Ok(rows
+                .into_iter()
+                .filter(|row| &row.run_id == run_id)
+                .map(|row| {
+                    gauntlet_domain::SettlementRecord::new(
+                        row.run_id,
+                        row.unit_id,
+                        row.evidence,
+                        row.verification,
+                        EventLogOffset::new(1),
+                    )
+                })
+                .collect())
+        }
+        fn export_jsonl(
+            &self,
+            _: &gauntlet_domain::RunId,
+            _: Deadline,
+        ) -> Result<String, StateStoreError> {
+            Ok(String::new())
+        }
+    }
+
+    fn pass_record(
+        unit: &str,
+        evidence: &str,
+        outcome: gauntlet_domain::Outcome,
+    ) -> crate::verification_record::VerificationRecordDoc {
+        crate::verification_record::VerificationRecordDoc::new(
+            crate::verification_record::VerificationContent {
+                run_id: run_id(),
+                iteration_no: IterationNo::new(1).expect("1-based"),
+                unit_id: gauntlet_domain::UnitId::new(unit).expect("valid unit id"),
+                claim: "the unit's claim".to_owned(),
+                requirement: crate::verification_record::RequirementDoc::new(
+                    gauntlet_domain::EvidenceKind::TestReport,
+                    EvidenceLocator::new("report.json").expect("valid locator"),
+                    gauntlet_domain::Producer::Instrument,
+                ),
+                instrument: crate::verification_record::VerifyingInstrument::new(
+                    "settle-authority-test".to_owned(),
+                    "1".to_owned(),
+                    true,
+                ),
+                evidence: EvidenceRef::new(evidence).expect("valid evidence ref"),
+                produced_at: EpochSeconds::new(BASE_INSTANT),
+                outcome,
+                class: None,
+                detail: "the fixture record".to_owned(),
+            },
+        )
+        .expect("fixture content is well formed")
+    }
+
+    fn settlement_commit() -> super::SettlementCommit {
+        super::SettlementCommit {
+            run_id: run_id(),
+            unit_id: gauntlet_domain::UnitId::new("AK-900").expect("valid unit id"),
+            evidence: EvidenceRef::new("evd-000900").expect("valid evidence ref"),
+            verification: gauntlet_domain::VerificationRef::new("vrf-000900")
+                .expect("valid verification ref"),
+            reference_digest: fixture_run().reference_version().digest().clone(),
+            at: EpochSeconds::new(BASE_INSTANT),
+        }
+    }
+
+    fn settlement_authority(
+        state: &std::sync::Arc<SettlementGateState>,
+    ) -> super::SettlementCommitAuthority {
+        super::SettlementCommitAuthority::new(state.clone())
+    }
+
+    #[test]
+    fn a_settlement_admission_requires_a_durable_run() {
+        let state = std::sync::Arc::new(SettlementGateState::default());
+        assert!(matches!(
+            settlement_authority(&state).admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::RunNotDurable { .. })
+        ));
+    }
+
+    #[test]
+    fn a_settlement_admission_requires_a_durable_pass_record_for_the_unit() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        // No record at all.
+        assert!(matches!(
+            settlement_authority(&state).admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::VerificationNotPass { .. })
+        ));
+        // A record for the unit that is not PASS never admits (I8:
+        // INCONCLUSIVE never satisfies a settlement requirement).
+        state
+            .record_verification(
+                &pass_record(
+                    "AK-900",
+                    "evd-000900",
+                    gauntlet_domain::Outcome::Inconclusive,
+                ),
+                bound(),
+            )
+            .expect("the record lands");
+        assert!(matches!(
+            settlement_authority(&state).admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::VerificationNotPass { .. })
+        ));
+        // A PASS record for a DIFFERENT unit never admits this unit.
+        state
+            .record_verification(
+                &pass_record("AK-901", "evd-000900", gauntlet_domain::Outcome::Pass),
+                bound(),
+            )
+            .expect("the record lands");
+        assert!(matches!(
+            settlement_authority(&state).admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::VerificationNotPass { .. })
+        ));
+        // A PASS record for the unit whose evidence ref disagrees with the
+        // commit's — the committed evidence must be the evidence the durable
+        // PASS record verified.
+        state
+            .record_verification(
+                &pass_record("AK-900", "evd-000901", gauntlet_domain::Outcome::Pass),
+                bound(),
+            )
+            .expect("the record lands");
+        assert!(matches!(
+            settlement_authority(&state).admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::VerificationNotPass { .. })
+        ));
+    }
+
+    #[test]
+    fn an_already_committed_settlement_refuses_re_admission() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        state
+            .record_verification(
+                &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+                bound(),
+            )
+            .expect("the record lands");
+        let authority = settlement_authority(&state);
+        let admitted = authority
+            .admit(settlement_commit(), bound())
+            .expect("the honest settlement earns its admission");
+        state
+            .commit_settlement(&admitted, bound())
+            .expect("the store commits the admitted settlement");
+        assert!(matches!(
+            authority.admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::AlreadyCommitted { .. })
+        ));
+    }
+
+    #[test]
+    fn an_earned_admission_commits_through_the_store_and_reads_back() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        state
+            .record_verification(
+                &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+                bound(),
+            )
+            .expect("the record lands");
+        let admitted = settlement_authority(&state)
+            .admit(settlement_commit(), bound())
+            .expect("the honest settlement earns its admission");
+        assert_eq!(admitted.commit(), &settlement_commit());
+        let offset = state
+            .commit_settlement(&admitted, bound())
+            .expect("the minted admission commits");
+        assert!(offset.get() > 0);
+        let rows = state.settlements(&run_id(), bound()).expect("reads back");
+        assert_eq!(rows.len(), 1, "exactly one settlement row");
+        assert_eq!(rows[0].unit_id().as_str(), "AK-900");
+        assert_eq!(rows[0].verification().as_str(), "vrf-000900");
+    }
+
+    /// The structural gate, settlement leg: `AdmittedSettlement` has no
+    /// constructor outside this module, so a caller holding a hand-built
+    /// [`SettlementCommit`] has nothing to pass to any store.
+    #[test]
+    fn the_minted_settlement_admission_has_no_public_constructor() {
+        let admitted = super::AdmittedSettlement {
+            commit: settlement_commit(),
+        };
+        assert_eq!(admitted.commit(), &settlement_commit());
     }
 
     /// The structural gate: the minted types have NO constructor outside

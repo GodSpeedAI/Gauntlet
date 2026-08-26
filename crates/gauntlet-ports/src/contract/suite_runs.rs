@@ -433,6 +433,24 @@ fn state_store_broken_is_caught() {
     );
 }
 
+/// The settlement-surface teeth (plan Task 13): a store that FAKES the
+/// surface — the commit reports success having done nothing, the replay
+/// always claims an empty window — must be caught, and on the settlement
+/// cases, not incidentally elsewhere.
+#[test]
+fn state_store_settlement_lax_is_caught() {
+    assert_caught(
+        "StateStoreSettlementLax",
+        "settlements_are_earned_committed_and_read_back",
+        super::state_store::state_store_suite(&StateStoreSettlementLax),
+    );
+    assert_caught(
+        "StateStoreSettlementLax",
+        "settlement_replay_is_keyed_idempotent_and_anchored",
+        super::state_store::state_store_suite(&StateStoreSettlementLax),
+    );
+}
+
 #[test]
 fn tool_provider_green_is_clean() {
     assert_green(

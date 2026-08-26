@@ -152,7 +152,7 @@ fn a_half_settled_run_completes_exactly_once_on_replay() {
     );
     // §18.3 resume step 1: replay completes it, exactly once.
     let applied = store
-        .complete_pending_settlements(&run_id(), bound())
+        .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
         .expect("replay works");
     assert_eq!(applied, 1, "the first replay applies the settlement");
     let rows = store.settlements(&run_id(), bound()).expect("reads");
@@ -162,7 +162,7 @@ fn a_half_settled_run_completes_exactly_once_on_replay() {
     assert_eq!(rows[0].event_log_offset(), EventLogOffset::new(1));
     // Replaying twice is a no-op (§16.3: keyed idempotency).
     let again = store
-        .complete_pending_settlements(&run_id(), bound())
+        .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
         .expect("replay works");
     assert_eq!(again, 0, "the second replay applies nothing");
     assert_eq!(
@@ -236,7 +236,7 @@ fn an_uninterrupted_settlement_is_complete_without_replay() {
     assert_eq!(store.settlements(&run_id(), bound()).unwrap().len(), 1);
     assert_eq!(
         store
-            .complete_pending_settlements(&run_id(), bound())
+            .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
             .expect("replay works"),
         0,
         "nothing was half-applied, so replay applies nothing"
@@ -292,7 +292,7 @@ fn the_packaged_commit_primitive_settles_completely_when_killed_after() {
     assert_eq!(rows[0].event_log_offset(), EventLogOffset::new(1));
     assert_eq!(
         store
-            .complete_pending_settlements(&run_id(), bound())
+            .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
             .expect("replay works"),
         0,
         "nothing was half-applied, so replay adds nothing"
@@ -323,7 +323,7 @@ fn a_crash_before_the_packaged_commit_leaves_the_unit_retryable() {
     );
     assert_eq!(
         store
-            .complete_pending_settlements(&run_id(), bound())
+            .complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound())
             .expect("replay works"),
         0,
         "nothing durable means nothing to replay"

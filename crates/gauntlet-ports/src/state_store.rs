@@ -13,12 +13,13 @@ use core::fmt;
 use gauntlet_domain::{
     CorrectionSelection, Digest, EpochSeconds, EventLogOffset, EvidenceLocator, EvidenceRef,
     InvocationId, InvocationState, IterationNo, ResultContractPath, RoleInvocation, Run, RunId,
-    Spent, UnitId, UnitStatus, VerificationRef,
+    SettlementRecord, Spent, UnitId, UnitStatus, VerificationRef,
 };
 
 use crate::comparator::AdmittedComparison;
 use crate::deadline::Deadline;
 use crate::observer::InstrumentIdentity;
+use crate::verification_record::VerificationRecordDoc;
 
 /// `StateStore` failures — typed (spec §21.2).
 #[derive(Debug, Clone, PartialEq)]
@@ -266,6 +267,23 @@ impl EvidenceProductionBinding {
     }
 }
 
+/// The §16.3 settlement commit payload: the settlement event's fields
+/// verbatim (`SettlementEvent{unit_id, evidence_ref, verification_ref,
+/// digest, ts}`). `at` is the event CONSTRUCTION timestamp (from the
+/// `Clock` port) — the row's `settled_at` is the DURABLE event's stored
+/// timestamp, never this field (plan Task 13 B1, A3: the durable event is
+/// the authority; the store cross-validates the two and refuses a commit
+/// whose constructed timestamp disagrees with what it stored).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SettlementCommit {
+    pub run_id: RunId,
+    pub unit_id: UnitId,
+    pub evidence: EvidenceRef,
+    pub verification: VerificationRef,
+    pub reference_digest: Digest,
+    pub at: EpochSeconds,
+}
+
 /// The run-state port (spec §6.2). Every method performs durable IO, so
 /// every method carries a deadline (§6 preamble).
 pub trait StateStore {
@@ -491,6 +509,151 @@ pub trait StateStore {
     ) -> Result<(), StateStoreError> {
         Err(StateStoreError::WriteFailed {
             detail: "this state store does not implement mandatory comparison acceptance"
+                .to_owned(),
+        })
+    }
+
+    /// Records one §18.1/§5.3.6 verification decision durably: the typed
+    /// Annex B.5 document, stored under the run it names. This is the
+    /// durable fact every §16.1 condition-1 check reads — a settlement
+    /// admission mints only over a PASS record that is durable HERE first
+    /// (plan Task 13; the store is the single writer surface, the runtime
+    /// its only caller, §16.4).
+    ///
+    /// Append-only per document; the row's `at` is the document's own
+    /// `produced_at` (a provenance fact the record carries, never a value
+    /// minted here).
+    fn record_verification(
+        &self,
+        _record: &VerificationRecordDoc,
+        _deadline: Deadline,
+    ) -> Result<(), StateStoreError> {
+        Err(StateStoreError::WriteFailed {
+            detail: "this state store does not implement durable verification records".to_owned(),
+        })
+    }
+
+    /// The run's durable verification records, in record order (append
+    /// order). Strict decode through the Annex B.5 codec: a stored payload
+    /// that does not decode is `Corrupt`, never a degraded record. A run
+    /// with no records reads as an empty vector, never as an error.
+    fn verification_records(
+        &self,
+        _run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<VerificationRecordDoc>, StateStoreError> {
+        Ok(Vec::new())
+    }
+
+    /// The §16.3 atomic commit sequence, in order, no reordering:
+    ///
+    /// 1. `EventLog.append(SettlementEvent{...})` — durable, fsync-on-append;
+    /// 2. the settlement row — idempotent by `(run_id, unit_id,
+    ///    verification_ref)`.
+    ///
+    /// The argument is an [`AdmittedSettlement`], which has no constructor
+    /// outside the [`crate::producer_authority`] module (plan Task 13, the
+    /// `AdmittedComparison`/owner-write precedent): the settlement is
+    /// earned through
+    /// [`SettlementCommitAuthority::admit`](crate::producer_authority::SettlementCommitAuthority::admit),
+    /// which validates §16.1 condition 1 against DURABLE state — a PASS
+    /// verification record for this (run, unit) whose evidence ref is the
+    /// committed one — and refuses a key that is already committed. A
+    /// caller holding a hand-built [`SettlementCommit`] has nothing to pass
+    /// here.
+    ///
+    /// Division of labor (recorded in the Task-13 report): the AUTHORITY
+    /// checks the durable preconditions above; the STORE cross-validates
+    /// the row against the durable log — the claimed offset must name the
+    /// settlement event that made it real, with every field and the stored
+    /// event timestamp agreeing (spec §5.3.6). Both must hold; neither
+    /// substitutes for the other.
+    fn commit_settlement(
+        &self,
+        _admitted: &crate::producer_authority::AdmittedSettlement,
+        _deadline: Deadline,
+    ) -> Result<EventLogOffset, StateStoreError> {
+        Err(StateStoreError::WriteFailed {
+            detail: "this state store does not implement the 16.3 settlement commit".to_owned(),
+        })
+    }
+
+    /// The run's durable settlement rows, ordered by `(unit_id,
+    /// verification_ref)` — the order the export pins. A run with no
+    /// settlements reads as an empty vector, never as an error.
+    fn settlements(
+        &self,
+        _run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<Vec<SettlementRecord>, StateStoreError> {
+        Ok(Vec::new())
+    }
+
+    /// §18.3 resume step 1: replays the run's settlement events at or after
+    /// `anchor` and completes any half-applied settlement — idempotent by
+    /// `(run_id, unit_id, verification_ref)` (§16.3). Returns how many
+    /// settlement rows this call added; a second call over the same range
+    /// adds none.
+    ///
+    /// `anchor` is the §18.3 replay anchor: the run's latest checkpoint's
+    /// `event_log_offset` (the caller composes `resume` → checkpoint →
+    /// this method). Events BELOW the anchor are the checkpoint's own
+    /// certification — a checkpoint stands at an offset only after
+    /// everything at or below it was applied — and are not re-scanned; a
+    /// run with no checkpoint replays from offset 0 (the whole log). The
+    /// entry AT the anchor itself is re-verified idempotently (completion
+    /// is keyed, so re-application is a no-op).
+    ///
+    /// Fails closed: a store that cannot perform the replay refuses, never
+    /// reports zero half-applied settlements it did not look for.
+    fn complete_pending_settlements(
+        &self,
+        _run_id: &RunId,
+        _anchor: EventLogOffset,
+        _deadline: Deadline,
+    ) -> Result<usize, StateStoreError> {
+        Err(StateStoreError::WriteFailed {
+            detail: "this state store does not implement 18.3 settlement replay completion"
+                .to_owned(),
+        })
+    }
+
+    /// Completes one half-applied evidence production (plan Task 13, A5):
+    /// the durable `EvidenceProduced` event exists at or after `anchor`,
+    /// but the production row was never written (the crash window Task 11's
+    /// error string names).
+    ///
+    /// The `EvidenceProduced` event is deliberately minimal — evidence ref
+    /// and locator; the producer, iteration, and content-digest facts live
+    /// in the ROW, which is the authority — so the row cannot be rebuilt
+    /// from the event alone and no fact is ever fabricated. The missing
+    /// facts arrive as the authority-MINTED [`AdmittedEvidenceProduction`]
+    /// (same mint `record_evidence_production` takes, so a caller supplies
+    /// producer facts and a derived content digest, never a free-form row):
+    ///
+    /// - a row already exists for `(run, evidence)` → `Ok(None)` — already
+    ///   applied, nothing added (idempotent on the production identity);
+    /// - an orphan event exists at or after the anchor whose locator agrees
+    ///   with the minted production → the row is completed BOUND TO THAT
+    ///   EVENT'S OFFSET (no second event appended — the settlement-replay
+    ///   pattern: the row names the durable event that made it real), with
+    ///   `produced_at` taken from the event's own stored timestamp (the
+    ///   A3 discipline, mirrored). A second call finds the row and adds
+    ///   nothing;
+    /// - no orphan event → `Ok(None)`: nothing is pending; the caller
+    ///   records normally through `record_evidence_production`.
+    ///
+    /// Fails closed: a store that cannot replay refuses, never reports
+    /// "nothing pending" without looking.
+    fn complete_pending_evidence_production(
+        &self,
+        _run_id: &RunId,
+        _anchor: EventLogOffset,
+        _production: &crate::producer_authority::AdmittedEvidenceProduction,
+        _deadline: Deadline,
+    ) -> Result<Option<EvidenceProductionBinding>, StateStoreError> {
+        Err(StateStoreError::WriteFailed {
+            detail: "this state store does not implement evidence-production replay completion"
                 .to_owned(),
         })
     }

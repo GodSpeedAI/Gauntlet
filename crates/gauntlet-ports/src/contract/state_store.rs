@@ -21,9 +21,9 @@
 use gauntlet_domain::{
     Budget, CorrectionDescriptor, CorrectionSelection, CorrectionShape, DecisionStep,
     DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind, EvidenceRef,
-    InstrumentName, InvocationId, IterationNo, Limits, MicroUsd, ReferenceId, RejectedAlternative,
-    RejectionClass, RejectionReason, ResultContractPath, Run, RunDefinition, RunError, RunId,
-    SelectionDimension, UnitId, UnitStatus, VerificationRef,
+    InstrumentName, InvocationId, IterationNo, Limits, MicroUsd, Outcome, Producer, ReferenceId,
+    RejectedAlternative, RejectionClass, RejectionReason, ResultContractPath, Run, RunDefinition,
+    RunError, RunId, SelectionDimension, UnitId, UnitStatus, VerificationRef,
 };
 
 use crate::contract::ContractFinding;
@@ -32,8 +32,12 @@ use crate::evidence_store::{EvidenceStore, EvidenceStoreError};
 use crate::observer::InstrumentIdentity;
 use crate::producer_authority::{
     EvidenceProductionAuthority, ObservationBindingAuthority, ProducerAuthorityError,
+    SettlementAdmissionError, SettlementCommitAuthority,
 };
-use crate::state_store::{Checkpoint, RunEvent, RunEventKind, StateStore};
+use crate::state_store::{Checkpoint, RunEvent, RunEventKind, SettlementCommit, StateStore};
+use crate::verification_record::{
+    RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
+};
 
 /// The suite's name in findings.
 pub const SUITE: &str = "state_store";
@@ -787,6 +791,617 @@ pub fn state_store_suite(factory: &dyn StateStoreFactory) -> Vec<ContractFinding
     findings.extend(export_is_byte_identical_and_faithful(factory));
     findings.extend(owner_writes_are_earned_through_the_authorities(factory));
     findings.extend(correction_selections_round_trip(factory));
+    findings.extend(settlements_are_earned_committed_and_read_back(factory));
+    findings.extend(settlement_replay_is_keyed_idempotent_and_anchored(factory));
+    findings.extend(settlement_rows_name_durable_exported_events(factory));
+    findings
+}
+
+// ---------------------------------------------------------------------------
+// Settlement surface (plan Task 13 B1, R2/A2): earned commit, keyed
+// idempotent + anchored replay, and rows that name durable events.
+// ---------------------------------------------------------------------------
+
+/// One verification document for the settlement-admission substrate: a
+/// §14-style record for `unit` over `evidence` with the given outcome.
+fn verification_doc(
+    run_id: &RunId,
+    unit: &str,
+    evidence: &str,
+    outcome: Outcome,
+) -> VerificationRecordDoc {
+    VerificationRecordDoc::new(VerificationContent {
+        run_id: run_id.clone(),
+        iteration_no: IterationNo::new(2).expect("suite iteration is 1-based"),
+        unit_id: UnitId::new(unit).expect("suite unit id"),
+        claim: "the suite unit's claim".to_owned(),
+        requirement: RequirementDoc::new(
+            EvidenceKind::TestReport,
+            gauntlet_domain::EvidenceLocator::new("suite-settlement-report.json")
+                .expect("suite locator"),
+            Producer::Instrument,
+        ),
+        instrument: VerifyingInstrument::new(
+            "suite-settlement-verifier".to_owned(),
+            "1".to_owned(),
+            true,
+        ),
+        evidence: EvidenceRef::new(evidence).expect("suite evidence ref"),
+        produced_at: EpochSeconds::new(BASE_INSTANT + 3),
+        outcome,
+        class: None,
+        detail: "the suite fixture record".to_owned(),
+    })
+    .expect("suite fixture content is well formed")
+}
+
+/// One §16.3 commit payload for the settlement cases.
+fn settlement_commit(run_id: &RunId, unit: &str, evidence: &str) -> SettlementCommit {
+    SettlementCommit {
+        run_id: run_id.clone(),
+        unit_id: UnitId::new(unit).expect("suite unit id"),
+        evidence: EvidenceRef::new(evidence).expect("suite evidence ref"),
+        verification: VerificationRef::new("vrf-000042").expect("suite verification ref"),
+        reference_digest: Digest::new("sha256", "c4d3e2f1a0b1c2d3").expect("suite digest"),
+        at: EpochSeconds::new(BASE_INSTANT + 7),
+    }
+}
+
+/// One raw `SettlementCommitted` event for the replay cases (the durable
+/// half of a half-applied settlement, the shape a crash between §16.3
+/// steps 1 and 2 leaves).
+fn raw_settlement_event(run_id: &RunId, unit: &str, evidence: &str, at: u64) -> RunEvent {
+    RunEvent {
+        run_id: run_id.clone(),
+        kind: RunEventKind::SettlementCommitted {
+            unit_id: UnitId::new(unit).expect("suite unit id"),
+            evidence: EvidenceRef::new(evidence).expect("suite evidence ref"),
+            verification: VerificationRef::new("vrf-000042").expect("suite verification ref"),
+            reference_digest: Digest::new("sha256", "c4d3e2f1a0b1c2d3").expect("suite digest"),
+        },
+        at: EpochSeconds::new(at),
+    }
+}
+
+/// Case: the settlement commit is EARNED through the ports authority (plan
+/// Task 13) — the admission validates against the durable PASS verification
+/// record (no record / not PASS / a foreign unit / a disagreeing evidence
+/// ref all refuse), the minted commit lands and reads back exactly, and the
+/// committed key never re-admits. The commit-requires-admission gate itself
+/// is structural: `commit_settlement` accepts only the minted
+/// `AdmittedSettlement`, which has no constructor outside the minting
+/// module — a hand-built `SettlementCommit` does not type-check anywhere.
+fn settlements_are_earned_committed_and_read_back(
+    factory: &dyn StateStoreFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "settlements_are_earned_committed_and_read_back";
+    const RULE: &str = "spec 16.1 condition 1 via 16.3: the settlement commit is earned against a durable PASS verification record and reads back exactly; the committed key never re-admits";
+    let built = match factory.build() {
+        Ok(store) => store,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the factory could not build a store for the case: {error}"),
+            )];
+        }
+    };
+    let store: std::sync::Arc<dyn StateStore> = built.into();
+    let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("suite run id is a ULID");
+    let Ok(fixture) = run(&run_id) else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the suite run fixture is unusable".to_owned(),
+        )];
+    };
+    let mut findings = Vec::new();
+    if let Err(error) = store.record_run(&fixture, bound()) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the run identity failed: {error}"),
+        )];
+    }
+    // No PASS record yet: the admission must refuse.
+    if let Err(error) = store.record_verification(
+        &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Inconclusive),
+        bound(),
+    ) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the INCONCLUSIVE verification document failed: {error}"),
+        )];
+    }
+    let authority = SettlementCommitAuthority::new(store.clone());
+    let commit = settlement_commit(&run_id, "AK-014", "evd-000042");
+    match authority.admit(commit.clone(), bound()) {
+        Err(SettlementAdmissionError::VerificationNotPass { .. }) => {}
+        Err(other) => {
+            findings.push(finding(
+                CASE,
+                RULE,
+                format!(
+                    "an admission without any PASS record was refused for the wrong reason: {other}"
+                ),
+            ));
+        }
+        Ok(_) => findings.push(finding(
+            CASE,
+            RULE,
+            "an admission with no PASS verification record succeeded — 16.1 condition 1 is \
+             not enforced against durable state"
+                .to_owned(),
+        )),
+    }
+    // A PASS record over DIFFERENT evidence never admits the commit's
+    // evidence.
+    if let Err(error) = store.record_verification(
+        &verification_doc(&run_id, "AK-014", "evd-000043", Outcome::Pass),
+        bound(),
+    ) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the foreign-evidence PASS document failed: {error}"),
+        )];
+    }
+    match authority.admit(commit.clone(), bound()) {
+        Err(SettlementAdmissionError::VerificationNotPass { .. }) => {}
+        Err(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "an admission whose evidence no PASS record names was refused for the wrong \
+                 reason: {other}"
+            ),
+        )),
+        Ok(_) => findings.push(finding(
+            CASE,
+            RULE,
+            "a commit whose evidence ref no durable PASS record names was admitted — the \
+             committed evidence is not the verified evidence"
+                .to_owned(),
+        )),
+    }
+    if !findings.is_empty() {
+        return findings;
+    }
+    // The honest PASS record admits; the minted commit lands and reads back.
+    if let Err(error) = store.record_verification(
+        &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Pass),
+        bound(),
+    ) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the PASS verification document failed: {error}"),
+        )];
+    }
+    let admitted = match authority.admit(commit.clone(), bound()) {
+        Ok(admitted) => admitted,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the honest settlement did not earn its admission: {error}"),
+            )];
+        }
+    };
+    let offset = match store.commit_settlement(&admitted, bound()) {
+        Ok(offset) => offset,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the store refused a minted settlement commit: {error}"),
+            )];
+        }
+    };
+    if offset.get() == 0 {
+        findings.push(finding(
+            CASE,
+            RULE,
+            "the committed settlement carries no durable event offset".to_owned(),
+        ));
+    }
+    let rows = match store.settlements(&run_id, bound()) {
+        Ok(rows) => rows,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("reading the run's settlements back failed: {error}"),
+            )];
+        }
+    };
+    let found = rows.iter().find(|row| row.unit_id().as_str() == "AK-014");
+    match found {
+        Some(row) => {
+            if row.event_log_offset() != offset {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    format!(
+                        "the settlement row names offset {} but the commit returned {}",
+                        row.event_log_offset().get(),
+                        offset.get()
+                    ),
+                ));
+            }
+            if row.verification().as_str() != "vrf-000042"
+                || row.evidence().as_str() != "evd-000042"
+            {
+                findings.push(finding(
+                    CASE,
+                    RULE,
+                    format!(
+                        "the settlement row carries ({}, {}) instead of the committed \
+                         (vrf-000042, evd-000042)",
+                        row.verification(),
+                        row.evidence()
+                    ),
+                ));
+            }
+        }
+        None => findings.push(finding(
+            CASE,
+            RULE,
+            "the committed settlement does not read back — no durable settlement exists".to_owned(),
+        )),
+    }
+    // The committed key never re-admits (re-committing would append a
+    // duplicate settlement event).
+    match authority.admit(commit, bound()) {
+        Err(SettlementAdmissionError::AlreadyCommitted { .. }) => {}
+        Err(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("re-admission of the committed key was refused for the wrong reason: {other}"),
+        )),
+        Ok(_) => findings.push(finding(
+            CASE,
+            RULE,
+            "the already-committed key re-admitted — a duplicate settlement event would follow"
+                .to_owned(),
+        )),
+    }
+    findings
+}
+
+/// Case: §18.3 replay — completion is keyed-idempotent by
+/// `(run_id, unit_id, verification_ref)` and ANCHORED at the replay
+/// anchor: events below the anchor are not re-scanned, the half-applied
+/// window at or after it completes exactly once, a second call adds zero,
+/// and a duplicate event for a committed key never displaces the row.
+fn settlement_replay_is_keyed_idempotent_and_anchored(
+    factory: &dyn StateStoreFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "settlement_replay_is_keyed_idempotent_and_anchored";
+    const RULE: &str = "spec 18.3 step 1 via 16.3: replay from the anchor completes half-applied settlements idempotently by (run_id, unit_id, verification_ref); events below the anchor are not re-scanned";
+    let built = match factory.build() {
+        Ok(store) => store,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the factory could not build a store for the case: {error}"),
+            )];
+        }
+    };
+    let store: std::sync::Arc<dyn StateStore> = built.into();
+    let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("suite run id is a ULID");
+    let Ok(fixture) = run(&run_id) else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the suite run fixture is unusable".to_owned(),
+        )];
+    };
+    if let Err(error) = store.record_run(&fixture, bound()) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the run identity failed: {error}"),
+        )];
+    }
+    let mut findings = Vec::new();
+    // The applied settlement: earned, committed, row present.
+    if let Err(error) = store.record_verification(
+        &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Pass),
+        bound(),
+    ) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the PASS verification document failed: {error}"),
+        )];
+    }
+    let admitted = match SettlementCommitAuthority::new(store.clone())
+        .admit(settlement_commit(&run_id, "AK-014", "evd-000042"), bound())
+    {
+        Ok(admitted) => admitted,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the applied settlement did not earn its admission: {error}"),
+            )];
+        }
+    };
+    if let Err(error) = store.commit_settlement(&admitted, bound()) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("the applied settlement commit failed: {error}"),
+        )];
+    }
+    // Two raw half-applied events: one BELOW the coming anchor, one at it.
+    let below = match store.append_event(
+        raw_settlement_event(&run_id, "AK-015", "evd-000043", BASE_INSTANT + 8),
+        bound(),
+    ) {
+        Ok(offset) => offset,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("appending the below-anchor event failed: {error}"),
+            )];
+        }
+    };
+    let above = match store.append_event(
+        raw_settlement_event(&run_id, "AK-016", "evd-000044", BASE_INSTANT + 9),
+        bound(),
+    ) {
+        Ok(offset) => offset,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("appending the at-anchor event failed: {error}"),
+            )];
+        }
+    };
+    if below.get() >= above.get() {
+        findings.push(finding(
+            CASE,
+            RULE,
+            "the suite fixture's offsets are not ordered — the case cannot discriminate".to_owned(),
+        ));
+        return findings;
+    }
+    // The anchored replay: only the at-or-after-anchor window completes.
+    match store.complete_pending_settlements(&run_id, above, bound()) {
+        Ok(1) => {}
+        Ok(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "the anchored replay added {other} rows — exactly one half-applied settlement \
+                 stands at or after the anchor, and events below it must not be re-scanned"
+            ),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("the anchored replay failed: {error}"),
+        )),
+    }
+    if !findings.is_empty() {
+        return findings;
+    }
+    let units: Vec<String> = store
+        .settlements(&run_id, bound())
+        .map(|rows| {
+            rows.iter()
+                .map(|row| row.unit_id().as_str().to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    if !units.contains(&"AK-014".to_owned()) || !units.contains(&"AK-016".to_owned()) {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "after the anchored replay the durable settlements are {units:?} — the applied \
+                 unit and the at-anchor unit must both stand"
+            ),
+        ));
+    }
+    if units.contains(&"AK-015".to_owned()) {
+        findings.push(finding(
+            CASE,
+            RULE,
+            "the below-anchor settlement was re-scanned and completed — the anchor is the \
+             checkpoint's certification and must be respected"
+                .to_owned(),
+        ));
+    }
+    // Keyed idempotence: the second anchored call adds zero.
+    match store.complete_pending_settlements(&run_id, above, bound()) {
+        Ok(0) => {}
+        Ok(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("a second replay added {other} rows — completion must be idempotent"),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("the second anchored replay failed: {error}"),
+        )),
+    }
+    // A duplicate event for the committed key (raw append) never displaces
+    // the row: replay anchored AT the duplicate adds zero and the original
+    // evidence still stands.
+    let duplicate = match store.append_event(
+        raw_settlement_event(&run_id, "AK-014", "evd-999999", BASE_INSTANT + 10),
+        bound(),
+    ) {
+        Ok(offset) => offset,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("appending the duplicate-key event failed: {error}"),
+            )];
+        }
+    };
+    match store.complete_pending_settlements(&run_id, duplicate, bound()) {
+        Ok(0) => {}
+        Ok(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "replaying a duplicate-key event added {other} rows — the keyed row must stand"
+            ),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("the anchored replay after the duplicate failed: {error}"),
+        )),
+    }
+    if let Ok(rows) = store.settlements(&run_id, bound())
+        && let Some(row) = rows.iter().find(|row| row.unit_id().as_str() == "AK-014")
+        && row.evidence().as_str() != "evd-000042"
+    {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "the committed settlement's evidence moved to {} — a duplicate event \
+                 displaced the durable row",
+                row.evidence()
+            ),
+        ));
+    }
+    findings
+}
+
+/// Case: every settlement row names a DURABLE exported event — the read
+/// side of the store's offset cross-validation (spec §5.3.6: a
+/// `SettlementRecord` "references the event-log offset that made it
+/// durable"). The write-side refusal of a foreign offset is pinned where a
+/// caller-supplied offset still exists — the adapter's own cross-validation
+/// tests — because the trait's commit mints its offset and the replay hands
+/// over the log's own.
+fn settlement_rows_name_durable_exported_events(
+    factory: &dyn StateStoreFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "settlement_rows_name_durable_exported_events";
+    const RULE: &str = "spec 5.3.6: every settlement row references the event-log offset that made it durable — the offset names a real exported event of the run";
+    let built = match factory.build() {
+        Ok(store) => store,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the factory could not build a store for the case: {error}"),
+            )];
+        }
+    };
+    let store: std::sync::Arc<dyn StateStore> = built.into();
+    let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("suite run id is a ULID");
+    let Ok(fixture) = run(&run_id) else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the suite run fixture is unusable".to_owned(),
+        )];
+    };
+    if let Err(error) = store.record_run(&fixture, bound()) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the run identity failed: {error}"),
+        )];
+    }
+    if let Err(error) = store.record_verification(
+        &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Pass),
+        bound(),
+    ) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("recording the PASS verification document failed: {error}"),
+        )];
+    }
+    let mut findings = Vec::new();
+    let admitted = match SettlementCommitAuthority::new(store.clone())
+        .admit(settlement_commit(&run_id, "AK-014", "evd-000042"), bound())
+    {
+        Ok(admitted) => admitted,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("the settlement did not earn its admission: {error}"),
+            )];
+        }
+    };
+    if let Err(error) = store.commit_settlement(&admitted, bound()) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!("the settlement commit failed: {error}"),
+        )];
+    }
+    let rows = match store.settlements(&run_id, bound()) {
+        Ok(rows) => rows,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("reading the settlements back failed: {error}"),
+            )];
+        }
+    };
+    if rows.is_empty() {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the committed settlement does not read back".to_owned(),
+        )];
+    }
+    let export = match store.export_jsonl(&run_id, bound()) {
+        Ok(export) => export,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("exporting the run failed: {error}"),
+            )];
+        }
+    };
+    let mut exported_offsets: Vec<u64> = Vec::new();
+    for line in export.split('\n') {
+        let Ok(parsed) = crate::json::parse(line) else {
+            continue;
+        };
+        if let Some(crate::json::JsonValue::Number(crate::json::JsonNumber::Uint(offset))) =
+            parsed.get("offset")
+        {
+            exported_offsets.push(*offset);
+        }
+    }
+    for row in &rows {
+        if !exported_offsets.contains(&row.event_log_offset().get()) {
+            findings.push(finding(
+                CASE,
+                RULE,
+                format!(
+                    "the settlement row of unit {} names event-log offset {}, which the run's \
+                     own export does not contain — the row does not reference the event that \
+                     made it durable",
+                    row.unit_id(),
+                    row.event_log_offset().get()
+                ),
+            ));
+        }
+    }
     findings
 }
 

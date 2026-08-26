@@ -39,4 +39,4 @@ pub use event_log::SqliteEventLog as EmbeddedEventLog;
 pub use state_store::SqliteStateStore as EmbeddedStateStore;
 
 pub use event_log::SqliteEventLog;
-pub use state_store::{RecordKind, SettlementCommit, SqliteStateStore};
+pub use state_store::{RecordKind, SqliteStateStore};

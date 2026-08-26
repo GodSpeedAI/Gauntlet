@@ -17,6 +17,7 @@ pub mod control;
 pub mod doctor;
 pub mod observation;
 pub mod reference;
+pub mod settle;
 pub mod state;
 pub mod verify;
 

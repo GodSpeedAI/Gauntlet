@@ -1,0 +1,213 @@
+# Task 13 preregistration — research instrumentation, non-normative.
+# Written BEFORE any Task-13 implementation exists. Immutable once frozen.
+# Derived only from: .agents/CURRENT_STATUS.md, .agents/specs/Core-spec.md
+# (§16, §18, §9.4, §10.2, §11.5-§11.6, §14.3, §17.5, §20.2, §21.3, I1/I3/I5/
+# I8/I11, P7, P11, AK-031/AK-040/AK-041/AK-042/AK-043/AK-062),
+# .agents/plans/gauntlet-impl.md (Task 13), the three task-13 recon reports,
+# and the Task-6..12 closure records already in CURRENT_STATUS.
+
+schema_version: 1
+task: 13
+
+frozen_at:
+  git_commit: "f0a9d55f9630e67e8d845a068eeb1dc22be32ec8"
+  timestamp_utc: "2026-08-25T23:45:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-13.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.md"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+  - ".agents/reports/task13/recon-spec.md"
+  - ".agents/reports/task13/recon-answerkey-residuals.md"
+  - ".agents/reports/task13/recon-code.md"
+  - ".agents/reports/task13/residual-adjudication.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task 13 wires the settlement path: the §16.1 five-precondition service,
+      the §16.3 atomic commit order through the production controller, §18.3
+      resume completion, and the single-writer/answer-key confinement surface
+      (AK-040/041/042/043, AK-062 partial, AK-031; P7/P11). Recon says the
+      durable substrate (commit_settlement, keyed replay, offset
+      cross-validation, crash-helper abort points, §18.2 checkpoints) has
+      existed and passed tests since Task 6 — while the production controller
+      settles PURELY in memory (Unit::settle + unit_states.insert, readiness
+      token discarded, zero durable events) and resume never completes
+      half-applied settlements. The likely failure class is therefore not a
+      missing primitive but the composition seam: the durable sequence exists
+      in the adapter, is unreachable from Arc<dyn StateStore>, and the service
+      that reaches it will recreate the caller-supplies-both-sides defect
+      class unless the commit's authority is earned (the exact R1 shape from
+      Tasks 10-12) — notably settled_at is caller-attested today, the event's
+      stored timestamp is never compared, and nothing validates the commit
+      against the durable verification record at the write boundary.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          AK-041's claim is an ORDER claim (event before status write before
+          in-memory advance). A proof that asserts each step happened is
+          vacuous without discrimination between orderings; the teeth must
+          REORDER the steps (or neuter the order guard) and watch the proof
+          fail. The pre-existing Task-6 cross-validation refuses only one
+          reorder shape (row citing an offset with no event); the
+          in-memory-before-durable shape is the one the current controller
+          actually exhibits.
+      - id: D2
+        statement: >
+          P7's "resume completes the settlement exactly once" is a claim about
+          the RESUME path, not the crash helper. Driving crash_helper against
+          a bare store file proves the primitive; P7 additionally requires
+          the composed controller's resume_run to perform (or govern) the
+          completion and to not re-run settled work. A proof that only
+          exercises the helper does not discharge P7.
+      - id: D3
+        statement: >
+          §16.1 condition 3 is an AUTHORITY-CHAIN condition (unit.authority
+          permits closure by the ACTOR closing), distinct from Task-14's
+          scheduler-side dispatch authority gate (L1). The service-side check
+          reads the frozen unit's authority field against the closing actor;
+          a service that checks only Outcome+evidence (conditions 1-2, already
+          in settlement_precondition) is authority-blind — the exact
+          observation L1 recorded against Unit::settle.
+      - id: D4
+        statement: >
+          The settle-time reference re-verify (§9.4 "immediately before
+          settlement") must consult the reference provider's verify_unchanged
+          (file-derived), not compare a digest the controller itself froze
+          earlier in the same process — the D4 tautology distinction from the
+          Task-12 prereg, now at the settle seam.
+      - id: D5
+        statement: >
+          Single-writer (§16.4/AK-043) in THIS tree means: no runtime write
+          path to the answer key exists at all (verified by recon) and Unit
+          status's only writer is the governed settle path. "Confined to one
+          module" is satisfied by construction + pinned by a mechanical
+          arch-suite rule; AK-043's "prevented or detected" legs are
+          placement/containment (outside builder-writable paths) and the
+          digest tripwire. A g10 proof must exercise a builder-context write
+          ATTEMPT against the real confinement, not assert absence of an API.
+
+    known_blindspots:
+      - >
+        The StateStore trait surface growth (settlement commit/replay on the
+        port) ripples through the Task-4 shared contract suite and the arch
+        denylists; Task 12's migration-0008 + record_correction_selection is
+        the precedent, but the settlement write is the single most
+        authority-sensitive write in the system — the gating design
+        (authority-minted admission vs trait-method-with-args) is exactly
+        where R1-class defects have lived.
+      - >
+        Export determinism: settlements rows become non-empty in composed
+        runs for the first time; pinned export content tests may need
+        deliberate re-pinning (the discipline forbids silent golden updates —
+        a re-pin must be evidenced as intended new behavior, not drift).
+      - >
+        A6 (§21.3 disposition re-routing) changes controller error semantics
+        that an existing in-crate test pins as intended crash semantics; the
+        update must preserve the resume-based recovery claim while changing
+        the in-loop disposition — a narrow path with regression risk.
+      - >
+        In-process "crash" simulation (drop + recompose) is the honest
+        restart equivalent for the composed loop, but a real process abort
+        mid-settlement at the composed level may need new test-binary
+        surface; whether that surface is required or the store-level abort +
+        composed resume is sufficient evidence is a judgment the critics
+        should attack.
+
+  predictions:
+    - id: P1
+      prediction: >
+        The composed P7 proof, run against the CURRENT controller (before any
+        Task-13 wiring), fails catastrophically — not subtly: after a
+        mid-settlement kill, resume finds no durable settlement, and settled
+        work re-runs (the §18.3 "re-running settled work is a defect"
+        scenario, live today because settlement is in-memory only).
+      expects: fail_before_fix
+    - id: P2
+      prediction: >
+        At least one R1-class caller-supplies-both-sides seam appears at the
+        new settlement boundary and is caught only by blind critique (not by
+        the green in-crate suite): candidates are the settled_at attestation,
+        commit-vs-durable-verification-record agreement (the commit asserts a
+        verification_ref the writer itself supplies, unchecked against the
+        records table), and the authority-chain check reading a caller-held
+        unit snapshot rather than the frozen projection.
+      expects: fire_during_critique
+    - id: P3
+      prediction: >
+        Moving replay from offset 0 to the checkpoint anchor surfaces at
+        least one composition defect or proves genuinely equivalent (the
+        superset-replay-safety argument holds only if completion is
+        idempotent under replay of already-applied offsets AND the checkpoint
+        offset is itself durable before the events it claims to cover — the
+        C8 ordering); no intermediate outcome is expected.
+      expects: bimodal
+    - id: P4
+      prediction: >
+        §16.1 conditions 3 (authority) and 4 (blocking residual) are
+        initially implemented as read-only checks against in-memory
+        controller state, and the blind adversarial critic demonstrates a
+        divergence scenario where in-memory state and durable/frozen state
+        disagree (stale snapshot at the settle seam), forcing a re-grounding
+        of at least one check against durable state.
+      expects: fire_during_critique
+    - id: P5
+      prediction: >
+        The single-writer arch rule (B3) initially overfits to the literal
+        .wayfinder spelling (masked variants — env-injected paths, symlinked
+        roots, formatted path construction — escape a literal scan), echoing
+        the Task-2/7 boundary-scanner residual class; the adversarial critic
+        finds at least one masked spelling within its declared bounded
+        search.
+      expects: fire_during_critique
+
+  risks:
+    - id: R1
+      description: >
+        Ungated settlement write: adding commit_settlement to the StateStore
+        trait without an earned-admission wrapper makes any in-process store
+        holder a settler — the Task-11 critic-b MAJOR-3 pattern at the most
+        consequential write.
+      mitigation_preregistered:
+        - class: A5
+          action: >
+            authority-minted admission (producer_authority pattern): a
+            settlement authority that validates §16.1 against durable state
+            and mints an unforgeable commit admission consumed by the write.
+    - id: R2
+      description: >
+        Trait/contract-suite ripple stalls the slice: new StateStore methods
+        break the Task-4 shared suite shape for all conforming adapters.
+      mitigation_preregistered:
+        - class: A2
+          action: >
+            extend the shared suite with the settlement surface contract
+            (commit/replay/idempotence) rather than exempting the adapter;
+            one conforming adapter exists (state-sqlite).
+    - id: R3
+      description: >
+        A6 disposition re-routing destabilizes the pinned crash-semantics
+        test and adjacent controller behavior mid-task.
+      mitigation_preregistered:
+        - class: A1
+          action: >
+            if the narrow re-route proves non-local, record evidence and
+            defer A6 with a re-grounded trigger instead of widening — §21.3
+            policy churn is not paid for by any Task-13 claim.
+
+  intervention_classes:
+    - id: A1
+      scope: defer_with_evidence
+    - id: A2
+      scope: extend_shared_contract_suite
+    - id: A3
+      scope: fail_first_evidence
+    - id: A4
+      scope: re_ground_against_tree
+    - id: A5
+      scope: earned_authority_unforgeable_values
+
+post_run: {}

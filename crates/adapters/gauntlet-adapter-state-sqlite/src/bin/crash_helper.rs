@@ -32,11 +32,20 @@
 //! ```
 
 use std::path::Path;
+use std::sync::Arc;
 
-use gauntlet_adapter_state_sqlite::{SettlementCommit, SqliteStateStore};
-use gauntlet_domain::{Digest, EpochSeconds, EvidenceRef, RunId, UnitId, VerificationRef};
+use gauntlet_adapter_state_sqlite::SqliteStateStore;
+use gauntlet_domain::{
+    Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceKind, EvidenceLocator, EvidenceRef,
+    InstrumentName, IterationNo, Limits, MicroUsd, Producer, ReferenceId, ReferenceVersion, Run,
+    RunDefinition, RunId, UnitId, VerificationRef,
+};
 use gauntlet_ports::deadline::Deadline;
-use gauntlet_ports::state_store::{RunEvent, RunEventKind, StateStore};
+use gauntlet_ports::producer_authority::SettlementCommitAuthority;
+use gauntlet_ports::state_store::{RunEvent, RunEventKind, SettlementCommit, StateStore};
+use gauntlet_ports::verification_record::{
+    RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
+};
 
 /// A far-future bound for the helper's own calls; the helper is the
 /// instrument, not the system under observation.
@@ -165,13 +174,26 @@ fn settle(args: &[String]) -> Result<(), String> {
 /// durable steps (correction round: the packaged primitive previously had
 /// zero callers; the crash tests exercised only the two steps issued
 /// separately through `settle`). Abort points sit at the call's edges.
+///
+/// Since plan Task 13 the packaged primitive consumes an EARNED admission
+/// (the ports `SettlementCommitAuthority`): the helper first makes the run
+/// durable and records the PASS verification document the admission
+/// validates against — the same governed path production composes — then
+/// mints and commits.
 fn settle_via_commit(args: &[String]) -> Result<(), String> {
     let [db, run_id, unit_id, abort_point] = args else {
         return Err("usage: settle-via-commit <db> <run-id> <unit-id> <abort-point>".to_owned());
     };
     let run = RunId::new(run_id).map_err(|err| format!("run id: {err}"))?;
     let unit = UnitId::new(unit_id).map_err(|err| format!("unit id: {err}"))?;
-    let store = SqliteStateStore::open(Path::new(db)).map_err(|err| err.to_string())?;
+    let store = Arc::new(SqliteStateStore::open(Path::new(db)).map_err(|err| err.to_string())?);
+    // The durable substrate the admission validates against (plan Task 13).
+    store
+        .record_run(&crash_fixture_run(&run), bound())
+        .map_err(|err| err.to_string())?;
+    store
+        .record_verification(&pass_record(&run, &unit), bound())
+        .map_err(|err| err.to_string())?;
     let commit = SettlementCommit {
         run_id: run.clone(),
         unit_id: unit.clone(),
@@ -182,14 +204,17 @@ fn settle_via_commit(args: &[String]) -> Result<(), String> {
         at: EpochSeconds::new(1_700_000_050),
     };
     if abort_point == "before" {
-        println!("aborting before commit_settlement — nothing durable");
+        println!("aborting before commit_settlement — no settlement is durable");
         std::process::abort();
     }
     if abort_point != "after" && abort_point != "none" {
         return Err(format!("unknown abort point {abort_point:?}"));
     }
+    let admitted = SettlementCommitAuthority::new(store.clone())
+        .admit(commit, bound())
+        .map_err(|err| err.to_string())?;
     let offset = store
-        .commit_settlement(commit, bound())
+        .commit_settlement(&admitted, bound())
         .map_err(|err| err.to_string())?;
     println!("commit_settlement returned offset {}", offset.get());
     if abort_point == "after" {
@@ -234,4 +259,59 @@ fn corrupt_tail(args: &[String]) -> Result<(), String> {
     .map_err(|err| err.to_string())?;
     println!("damaged tail written");
     Ok(())
+}
+
+/// The durable run identity the Task-13 settlement admission opens over:
+/// the frozen digest the settlement commits name (`sha256:c4d3e2f1a0b1c2d3`).
+fn crash_fixture_run(run: &RunId) -> Run {
+    Run::new(RunDefinition {
+        id: run.clone(),
+        created_at: EpochSeconds::new(1_700_000_000),
+        reference_version: ReferenceVersion::new(
+            ReferenceId::new("ref-crash-helper").expect("valid reference id"),
+            1,
+            Digest::new("sha256", "c4d3e2f1a0b1c2d3").expect("valid digest"),
+        ),
+        intent: "crash-injection settlement".to_owned(),
+        config_fingerprint: Digest::new("sha256", "a1b2c3d4e5f6a7b8").expect("valid digest"),
+        environment_fingerprint: Digest::new("sha256", "e5f6a7b8c4d3e2f1").expect("valid digest"),
+        budget: Budget::new(
+            Limits::new(8, 2, 2, 3600, 1000, MicroUsd::new(500)).expect("legal ceilings"),
+            20,
+            DiagnosticAllowance::new(100, MicroUsd::new(50)),
+        )
+        .expect("legal budget"),
+        parent_run: None,
+    })
+    .expect("legal run")
+}
+
+/// The PASS verification document the settlement admission validates
+/// against: this run, this unit, the evidence the commit names.
+fn pass_record(run: &RunId, unit: &UnitId) -> VerificationRecordDoc {
+    VerificationRecordDoc::new(VerificationContent {
+        run_id: run.clone(),
+        iteration_no: IterationNo::new(1).expect("1-based"),
+        unit_id: unit.clone(),
+        claim: "the crash-helper unit's claim".to_owned(),
+        requirement: RequirementDoc::new(
+            EvidenceKind::TestReport,
+            EvidenceLocator::new("crash-helper-report.json").expect("valid locator"),
+            Producer::Instrument,
+        ),
+        instrument: VerifyingInstrument::new(
+            InstrumentName::new("crash-helper-verifier")
+                .expect("valid instrument name")
+                .as_str()
+                .to_owned(),
+            "1".to_owned(),
+            true,
+        ),
+        evidence: EvidenceRef::new("evd-crash-0001").expect("valid evidence ref"),
+        produced_at: EpochSeconds::new(1_700_000_040),
+        outcome: gauntlet_domain::Outcome::Pass,
+        class: None,
+        detail: "the crash helper's fixture PASS record".to_owned(),
+    })
+    .expect("fixture content is well formed")
 }
