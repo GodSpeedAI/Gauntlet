@@ -33,9 +33,9 @@
 			"title": "Escalations",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/escalations.md",
 			"addedAt": "2026-08-15T18:36:04.932Z",
-			"updatedAt": "2026-08-18T21:38:19.466Z",
-			"commitHash": "ff1ad0603581928ee8f5c0bb76432ad1bd8edf73",
-			"contentHashAtCommit": "bd15efe254b5cb26fde24c7e10ad3e4c34fc818d41f01550a080d4795cbaa118"
+			"updatedAt": "2026-08-28T13:23:35.340Z",
+			"commitHash": "1fcfdd0682877eba264592b9feb91971c794eec0",
+			"contentHashAtCommit": "a456629b1ea63cbb447aa0bf421c7289a24ff2882a75473d2ac6a93e20b23472"
 		},
 		"residual-readjudication": {
 			"slug": "residual-readjudication",
@@ -87,18 +87,18 @@
 			"title": "Lesson: checkpoint-as-you-go still loses work — the record lags the tree by one item",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/lessons/unrecorded-landed-work.md",
 			"addedAt": "2026-08-25T14:54:42.087Z",
-			"updatedAt": "2026-08-25T23:07:42.172Z",
-			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
-			"contentHashAtCommit": "b84b6db199de08b063cec1718793b3a0e79ebe95ec60b3cd81e0e08804a58aa6"
+			"updatedAt": "2026-08-28T13:23:35.343Z",
+			"commitHash": "1fcfdd0682877eba264592b9feb91971c794eec0",
+			"contentHashAtCommit": "b94b8b2d443a52b0e9a73e0b36b801eb8e622018f99e72768a831c7ff4ad19eb"
 		},
 		"session-interruption-recovery": {
 			"slug": "session-interruption-recovery",
 			"title": "Lesson: the orchestrating session itself gets interrupted — resume from files, never from memory",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/lessons/session-interruption-recovery.md",
 			"addedAt": "2026-08-25T14:54:42.087Z",
-			"updatedAt": "2026-08-25T23:07:42.183Z",
-			"commitHash": "1a88b39796d95862fc538a409377fdad5ee48015",
-			"contentHashAtCommit": "0572375eb64903ba1b2e8656d660c370c00e060802878d841bee814ea875fff3"
+			"updatedAt": "2026-08-28T13:23:35.346Z",
+			"commitHash": "1fcfdd0682877eba264592b9feb91971c794eec0",
+			"contentHashAtCommit": "205dbe97cebbb34609bfeb6fb0a893f53801fee76abffff0f90c09f63d045321"
 		}
 	}
 }

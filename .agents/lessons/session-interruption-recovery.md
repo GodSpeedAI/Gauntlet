@@ -4,23 +4,23 @@
 orphan (~4.4k lines of uncompiling uncommitted ports work), the Task-5 double suspension
 plus the cancelled M1/M2 agent (code landed, proof missing), and the Task-6 orphan
 (builder round complete per its checkpoints, but final report, gates, teeth, and the
-entire critic loop never ran — CURRENT_STATUS.md still said "brief staged").
+entire critic loop never ran — CURRENT_STATUS.yml still said "brief staged").
 
 **Observed pattern:** the harness suspends or kills the orchestrating session between
 tool calls (or a delegated agent is cancelled mid-slice). Everything the interrupted
 work already wrote to disk persists — code, checkpoint files, partial reports. What goes
 missing is the tail of the loop: the final report, the gate run, teeth, critics,
-correction, confirmation, the status update, the commit. CURRENT_STATUS.md then
+correction, confirmation, the status update, the commit. CURRENT_STATUS.yml then
 **understates** progress ("next: task N") while task N's implementation is already in
 the tree.
 
 ## Detecting it (before assuming anything about task state)
 
-- Run `git status` and reconcile it against CURRENT_STATUS.md **before treating any task
+- Run `git status` and reconcile it against CURRENT_STATUS.yml **before treating any task
   as unstarted** (the Task-4 lesson). Task-scoped untracked/modified files the status
   file does not explain are the signature.
 - A checkpoints file that is complete while the promised final report does not exist.
-- Source mtimes newer than the HEAD commit that CURRENT_STATUS.md points at.
+- Source mtimes newer than the HEAD commit that CURRENT_STATUS.yml points at.
 - **Source mtimes newer than the task's own checkpoint file.** Run
   `./scripts/reconcile-checkpoints.sh <task>`; exit 1 lists every task-surface file
   modified after the record's last write — changes the record cannot be describing.

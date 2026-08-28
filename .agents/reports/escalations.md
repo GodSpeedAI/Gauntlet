@@ -61,7 +61,7 @@ When delegation is available again:
 
 1. Run a blind critic (read-only, non-compiling) over `crates/gauntlet-arch-tests/` and
    `tests/contract/`. Any surviving **critical** finding reopens Task 2.
-2. Then start Task 3 per `.agents/CURRENT_STATUS.md`.
+2. Then start Task 3 per `.agents/CURRENT_STATUS.yml`.
 
 ---
 

@@ -1,0 +1,239 @@
+schema: agent.current_status
+schema_version: "1.0"
+
+metadata:
+  plan_id: gauntlet-impl              # stable slug, matches evidence dir name
+  plan_version: "2.0.0"
+  spec_id: Core-spec                  # usually == plan_id; differs if one spec
+                                      # drives multiple plans
+  spec_version: "2.0.0"
+  initialized: true                   # false only before the very first burst
+  last_updated: "2026-08-27"
+  updated_by: "orchestrator (Task 13 implementation COMPLETE, all gates green, uncommitted; one blind confirmation round + closure remain — clean handoff)"
+
+execution:
+  last_settled_task: task12           # most recent task with a CONFIRM in
+                                      # latest_evidence; null if none yet
+  in_flight_task: task13              # the ONE task currently being worked;
+                                      # null if nothing is in flight.
+                                      # task13's IMPLEMENTATION is complete —
+                                      # it is in flight only for its CLOSURE
+                                      # phase (the task13-closure step in
+                                      # next_action: blind confirmation →
+                                      # settlement mechanics)
+  ready_tasks:                        # tasks whose deps are all settled and
+    - task14                          # which are not yet started. Recompute
+    - task15                          # this every time a task settles. NOTE:
+    - task16                          # dep-satisfied but NOT workable while
+    - task18                          # task13's closure is in flight (one
+                                      # task at a time; task14 is the next
+                                      # work task after task13 settles).
+  blocked_tasks:
+    task17: [task15, task16]          # needs task5 (done) and task15 or task16
+    task19: [task18]                  # needs task18
+    task20: [task13, task14, task17]  # needs tasks 7, 9, 10, 11, 12, 13, 14, 17
+    task21: [task20]
+    task22: [task20]
+    task23: [task22]
+    task24: [task20]
+    task25: [task20]
+    task26: [task25]
+    task27: [task26]
+  plan_blocked: false                 # true only if NOTHING is workable
+                                      # (every ready path is blocked)
+  plan_blocker: null                  # if plan_blocked, name the single thing
+                                      # unblocking it; else null
+
+active:
+  task: task13                        # should match execution.in_flight_task
+  phase: closure                      # implementation COMPLETE; the in-flight
+                                      # work is the confirm-and-close
+                                      # procedure (next_action: task13-closure)
+  blocker: >-
+    What blocks task13's SETTLEMENT (nothing blocks its implementation — that is
+    complete and every gate is green on the uncommitted working tree): the ONE
+    fresh blind confirmation round, then the closure mechanics. Landed and
+    verified: B1 ports settlement surface + earned admissions (committed in
+    62d1a5f); B2 settle:: service (all five 16.1 conditions, 16.3 commit order,
+    18.3 resume completion, 21.3 dispositions, AK-062 no-bypass half); B3
+    single-writer arch rule (boundaries 197→215) + arch-relitigation (all four
+    items HOLD); B4 proofs p7_recovery / p11_critic_is_not_verifier /
+    g10_builder_writes_answer_key (12/12, teeth in teeth-b4.md); early
+    adversarial probe (1C+5M+5m) → correction round 1 (COR-1..7); blind critic
+    round 1 (spec NOT-CONFIRM narrow + falsifier 1C/3M/3m) → correction round
+    2 (COR2-1..6, incl. the F-1 double-settlement closure at both the admission
+    and completion layers). FINAL BATTERY: ports 105/105, app 330/330, sqlite
+    48/48, proofs 12/12, standing battery 33/33, lint 0, boundaries 215/215,
+    deny ok, ruler PASS, prereg-check 13 PASS (frozen d949e1e0). Full
+    slice-by-slice state and every recovery record:
+    .agents/reports/task13/IN-FLIGHT.md (read FIRST) and the task13
+    checkpoints files.
+
+latest_evidence:
+  # One entry per task that has produced evidence, most recent state per
+  # task (not a full history — this file is current-state, not a log).
+  task0:
+    report: ".agents/reports/environment.md"
+    confirmation: "peer CONFIRM"
+    commit: "76e491a"
+  task1:
+    report: ".wayfinder/reference.yaml"
+    confirmation: "peer CONFIRM"
+    commit: "bf09a30"
+  task2:
+    report: ".agents/reports/task2/"
+    confirmation: "adversarial CONFIRM; 7 majors and 13 minors deferred"
+    commit: ["b69c095", "f85c925", "1578dde"]
+  task3:
+    report: ".agents/reports/task3/"
+    confirmation: "peer CONFIRM"
+    commit: "cb2f4ac"
+  task4:
+    report: ".agents/reports/task4/"
+    confirmation: "peer CONFIRM"
+    commit: "b27b152"
+  task5:
+    report: ".agents/reports/task5/"
+    confirmation: "peer REVISE(BOM silent discard, AK-049 probe)->fixed->round2 CONFIRM"
+    commit: "610a615"
+  task6:
+    report: ".agents/reports/task6/"
+    confirmation: "peer CONFIRM"
+    commit: "86d5be0"
+  task7:
+    report: ".agents/reports/task7/"
+    confirmation: "peer REVISE(runaway-memory defect, reachable panic)->fixed->round2 CONFIRM"
+    commit: "ff1ad06"
+  task8:
+    report: ".agents/reports/task8/"
+    confirmation: "peer CONFIRM"
+    commit: "c4e58fa"
+  task9:
+    report: ".agents/reports/task9/"
+    confirmation: "peer CONFIRM"
+    commit: "20d5173"
+  task10:
+    report: ".agents/reports/task10/"
+    confirmation: "adversarial CONFIRM; observation-owner write gate deferred to task12"
+    commit: "1dab05c"
+  task11:
+    report: ".agents/reports/task11/"
+    confirmation: "peer CONFIRM"
+    commit: ["a507d08", "793d115"]
+  task12:
+    report: ".agents/reports/task12/"
+    confirmation: "peer CONFIRM"
+    commit: "1a88b39"
+  task13:
+    report: ".agents/reports/task13/"
+    confirmation: "PENDING — implementation complete (B1..B4 + COR-1..7 + COR2-1..6, final battery green); awaiting the ONE fresh blind confirmation round; NOT SETTLED"
+    commit: "62d1a5f"                 # B1 only; the rest is uncommitted working tree, one-task-one-commit lands at closure
+
+observations:
+  # Facts a resuming agent needs and shouldn't have to re-derive. Keep this
+  # list short and load-bearing — not a running commentary.
+  - status: OBSERVED                 # OBSERVED = directly verified this
+                                      # session/burst, evidence attached
+    statement: "Ruler is frozen with SHA256 digests locked in .gauntlet/reference.lock (answer key sha256:ccc7c99b…, manifest sha256:95331d3e…) and passes `just ruler`."
+    evidence: ".gauntlet/reference.lock"
+  - status: OBSERVED
+    statement: "Tasks 0–12 are closed (their closure-era gates are recorded in .agents/CURRENT_STATUS.md); on the CURRENT tree carrying Task 13, every gate is green with boundaries grown 197→215/215 (the B3 single-writer rule) and the full battery re-run personally 2026-08-27."
+    evidence: ".agents/reports/task13/correction-checkpoints.md"
+  - status: OBSERVED
+    statement: "Task 13 targets AK-040, AK-041, AK-042, AK-043, AK-062 (service-level), AK-031, AK-024 (settle-time half), AK-053; preregistration is frozen at .agents/research/preregistrations/task-13.prereg.yaml (sha256 d949e1e0…)."
+    evidence: ".agents/reports/task13/IN-FLIGHT.md"
+  - status: OBSERVED
+    statement: "Host environment is WSL2 (6 cores, 7.8 GiB RAM, ~1.6 GiB free memory constraint), rustc/cargo 1.98.0, bwrap 0.11.1 only (no docker/podman/qemu/firecracker)."
+    evidence: ".agents/reports/environment.json"
+  - status: OBSERVED
+    statement: "Answer-key unit status: 0 proven settled. 27 provisional through Task 12 (AK-001, AK-002, AK-004, AK-005, AK-015, AK-016, AK-017, AK-018, AK-019, AK-021, AK-022, AK-023, AK-024, AK-025, AK-028, AK-029, AK-030, AK-035, AK-036, AK-037, AK-038, AK-039, AK-049, AK-051, AK-052, AK-054, AK-059). Task 13's confirmation + closure will add its targets to provisional (AK-040, AK-041, AK-042, AK-043, AK-062 service-half, AK-031, AK-053; AK-024's settle-time half upgrades its recorded scope) — the closure record must recompute these counts; do not recompute before the confirmation CONFIRMS. 48 proposed, 0 blocked, 0 unknown."
+    evidence: ".agents/reports/reference-candidates.md"
+  - status: OBSERVED
+    statement: "Sub-agent session interruptions / usage limits have occurred 19 times across tasks 3–13; the tree-outranks-record reconciliation rule must be run before treating any task as unstarted."
+    evidence: ".agents/lessons/session-interruption-recovery.md"
+  - status: OBSERVED
+    statement: "Task 13 final battery on the uncommitted tree (run personally 2026-08-27): ports 105/105, app 330/330, sqlite 48/48, proofs p7/p11/g10 12/12, standing battery p4/p6/p12/p2/p3 33/33, lint 0, boundaries 215/215, deny ok, ruler PASS."
+    evidence: ".agents/reports/task13/correction-checkpoints.md"
+  - status: OBSERVED
+    statement: "The operator's installed role agents (builder, critic, falsifier, finisher, etc.) are NOT invocable from the session's Agent tool ('Agent type not found; available: general-purpose, Explore') — role semantics are carried by the dispatch prompts; re-probe after any client update."
+    evidence: ".agents/reports/task13/IN-FLIGHT.md"
+  - status: UNKNOWN                  # UNKNOWN = known gap, not yet verified
+                                      # either way — do not upgrade to
+                                      # OBSERVED without actually checking
+    statement: "UNK-001: which containment backend cross_cutting runs under in real use beyond this host's bwrap-only environment."
+    evidence: ".wayfinder/reference.yaml"
+  - status: UNKNOWN
+    statement: "UNK-002: whether this repository should carry a LICENSE, and which."
+    evidence: ".wayfinder/reference.yaml"
+  - status: UNKNOWN
+    statement: "UNK-003: which concrete AgentRunner is runners.default in GAUNTLET.md (deferred to Tasks 15–16)."
+    evidence: ".wayfinder/reference.yaml"
+
+next_action:
+  task: task13-closure                # NOT task13 implementation — that is
+                                      # complete; this step is the confirm +
+                                      # close procedure for it
+  action: >-
+    Step 1 — confirm: run `just ruler` and `scripts/reconcile-checkpoints.sh 13`, then dispatch
+    ONE fresh blind confirmation round over the COMPLETE Task-13 surface (two read-only agents —
+    spec critic + falsifier roles; prompt shapes in .agents/reports/task13/critic-round1.md's
+    header; blind = no task13/** reports access). Step 2 — on CONFIRM, close: orchestrator teeth
+    re-verification, paste the ready reference-candidates entries (closure-research drafts + the
+    M-1 minimum_reliability entry from early-probe-adjudication.md), write task-13.outcome.yaml
+    per TEMPLATE (P2/P4 fired ×3 — early probe, critic round 1; record P1/P3/P5 from the
+    checkpoints), write the closure record, then ONE commit with EXPLICIT PATHSPECS (never stage
+    .jolli/, .tmp/, .agents/prompts/, AGENTS.md, or the operator's uncommitted files:
+    .agents/AGENTS.md, .agents/CURRENT_STATUS.yml, .agents/research/AGENT.md,
+    prereg-postrun-schema.md, TEMPLATE.prereg.yaml, escalations.md, lessons files). Then mark
+    task13 settled, recompute the DAG (task14 becomes the next ready task), stop, hand off.
+    On REVISE: correction round 3 per the finding, rerun gates, reconfirm.
+  reason: >-
+    Task 13's implementation, both correction rounds, and every gate are complete and verified;
+    what remains is the settlement procedure itself — independent blind confirmation, then the
+    closure mechanics — all staged in .agents/reports/task13/. After task13 settles, the next
+    work task is task14 (Authority gate, sandbox port, tier policies — P5).
+
+handoff:
+  settled_summary:
+    # One line per settled task or logical group of settled tasks. Prior
+    # groups can be batched ("T00 baseline; T01 X; T02 Y"); the most
+    # recently settled task gets its own line with enough detail that a
+    # resuming agent doesn't need to open its evidence dir just to know
+    # what it did.
+    - "T00 baseline & delegation spike (76e491a); T01 frozen ruler & digest lock (bf09a30); T02 16-crate workspace skeleton, justfile, boundaries suite 183/183 (1578dde)"
+    - "T03 full §5.2/§5.3 domain model, zero dependencies, typed errors (cb2f4ac)"
+    - "T04 17 port traits with typed errors, role_result@v1 envelope, 17 shared contract suites with teeth (b27b152)"
+    - "T05 config resolution (defaults < GAUNTLET.md < env < flags), §8.6 defaults, doctor checks, gauntlet doctor CLI (610a615)"
+    - "T06 rusqlite EventLog + StateStore, content-addressed FsEvidenceStore, state::export canonical service, abort crash helper (86d5be0)"
+    - "T07 ReferenceProvider normalize/digest/freeze/verify, doctor check 2 deep parse, gauntlet reference digest CLI, composed P1 proof (ff1ad06)"
+    - "T08 gauntlet-adapter-agent-mock, DeterministicClock, SeededIdGenerator, 8 required fixtures, AK-059 pin, 9 playback tests (c4e58fa)"
+    - "T09 5 observation facet adapters, facet_evidence@v1 strict codec, gauntlet-app observation::{bundle,digest,input,assembly}, composed proofs p3 and g6 (20d5173)"
+    - "T10 comparator & envelope builder, RunComparisonAuthority durable provenance, AdmittedComparison capability, P2 blindness assertion (1dab05c)"
+    - "T11 Verifier and evidence binding, examined-bytes binding, composition-seal pin, composed p12 proof (a507d08, 793d115)"
+    - "T12 Controller: selection, budget, diagnosis, BudgetMeter/MeteredBudget, ReviewDeps critic-metering, composed proofs p4 and p6, 7 teeth (1a88b39)"
+  unresolved_summary:
+    # Every open thread that isn't captured elsewhere: outstanding
+    # confirmations, deferred scope, stale docs owed a refresh, known
+    # follow-ups tied to a later task ID.
+    - "Task 13 remaining: ONE fresh blind confirmation round + closure mechanics (teeth re-verify, reference-candidates paste, outcome.yaml, closure record, single commit) — resolves in Task 13"
+    - "Task 13 later-scope (adjudicated, triggers recorded): M-1 minimum_reliability run-level conjunct (reference candidate — the frozen ruler's field is §19.2 promotion prose, not machine-countable), M-2/F-2 AK-062 operator-action positive half (Task 21), F-3 admit→commit TOCTOU (Task 15/20 concurrency), F-4 transient non-in-flight edit window, F-7 recovery-time digest (non-content-addressed adapter), m-1/2/4/6/7/8/9/11 minors (critic-round1.md)"
+    - "Task 13 partially-composed inherited residuals: L3 settlement crash-window replay COMPOSED; settlement-side sqlite coercions COMPOSED; L2 resume legs composed, retry-ledger persistence remains ports-revision-bound; §21.3 non-integrity failures composed (answer-key read + poll transport)"
+    - "Task 14 deferrals: L1 authority-gate + tier posture, runner capability-vs-tier dispatch check, mock capability honesty pin"
+    - "Tasks 15-16 deferrals: child env fingerprint vs live process env / tool binding (AK-028), runner resolution in doctor check 3, concrete runners.default"
+    - "Task 17/27 deferrals: produced_at integer vs Annex-B string placeholder in schemas"
+    - "Task 20 deferrals: payment unification (critic costs into run budget_spent), model-rung dispatch unmetered, workspace-root pairing library seam, L4 cohort non-separability fixture, evidence production binding first-facet bytes"
+    - "Task 22/24 deferrals: reference candidate recording / mutation teeth"
+    - "Task 25 deferrals: evidence-fs crash injection E2E"
+    - "Ports revision deferrals: BudgetMeter::mint type-level seal, checkpoint-only run projection enum surface, Option facet fields, ladder rungs 5-9/11, locator contract-defined matching for non-deterministic kinds — plus two opened by Task 13: a typed durable residual-row read (condition 4's durable half currently grounds on the checkpoint projection) and ReferenceVersion.evidence_ref (N1, re-grounded to the first in-type consumer)"
+    - "Arch-suite standing trigger DISCHARGED 2026-08-27 (Task 13 B3 touch): E4/F1/F3, B.5a masked spellings, A5.2 allowlist granularity, B-F16 shapes all re-litigated and HOLD; B-F16's production-instance inventory re-recorded (.agents/reports/task13/arch-relitigation.md). The obligation REBIRTHS at the next arch-suite touch."
+  warnings:
+    # Anything that could cause a resuming agent to do real damage if
+    # missed — wrong resident state, an action explicitly out of scope
+    # until a later task, an irreversible operation to avoid. Only put
+    # things here that are genuinely dangerous to miss, not routine notes.
+    - "Never edit .wayfinder/answer-key.md or reference.lock — ruler is frozen; check with `just ruler` before and after every task."
+    - "Do not implement directly as orchestrator while delegation is available (AGENTS.md rule); maintain strict blind critic separation."
+    - "Only one agent may compile at a time (build-lock discipline); WSL2 host memory is tight (~1.6 GiB free); watch target/ size and keep max_parallel low."
+    - "Never mark a task settled on builder say-so; settlement requires independent blind confirmation (peer/adversarial CONFIRM) and proven teeth."
+    - "Always reconcile `git status` vs CURRENT_STATUS.yml vs IN-FLIGHT.md before treating any slice as unstarted (tree outranks record)."
+    - "One task, one commit discipline: use explicit pathspecs and never stage .jolli/, .tmp/, .agents/prompts/, or operator edits."

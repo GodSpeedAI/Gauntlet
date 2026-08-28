@@ -39,4 +39,4 @@ If implementation exposes an apparent defect in the frozen reference, do not mod
 
 Where a task claims an integrated capability, distinguish mechanism existence from composed reachability: prove the mechanism is reachable through the intended production/composition path rather than relying only on isolated component tests.
 
-Leverage sub-agent driven workflows where work is parrallelizable.
+Leverage sub-agent driven workflows where work is parallelizable. If you can't use the sub agents defined in .agents/agents/ , use the descriptions base your sub-agent instructions on those contents.

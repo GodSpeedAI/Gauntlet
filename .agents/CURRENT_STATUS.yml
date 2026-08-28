@@ -1,0 +1,333 @@
+schema: agent.current_status
+schema_version: "1.0"
+
+metadata:
+  plan_id: gauntlet-impl              # stable slug, matches evidence dir name
+  plan_version: "2.0.0"
+  spec_id: Core-spec                  # usually == plan_id; differs if one spec
+                                       # drives multiple plans
+  spec_version: "2.0.0"
+  initialized: true                   # false only before the very first burst
+  last_updated: "2026-08-28"
+  updated_by: >-
+    orchestrator (Task 13 SETTLED at 1fcfdd0 after fresh blind confirmation
+    round 2 double-CONFIRM + correction round 3; closure records complete;
+    clean handoff — next work task is task14)
+
+# ─────────────────────────────────────────────────────────────────────────
+# EXECUTION STATE
+# ─────────────────────────────────────────────────────────────────────────
+execution:
+  last_settled_task: task13           # most recent task with a CONFIRM in
+                                       # latest_evidence; null if none yet
+  in_flight_task: null                # nothing in flight; task13 closed all
+                                       # loops (implementation, corrections,
+                                       # two blind confirmation rounds,
+                                       # closure, single commit)
+
+  ready_tasks:                        # deps all settled, not yet started.
+                                       # Recompute every time a task settles.
+    - task14                          # NEXT WORK TASK: Authority gate,
+    - task15                          # sandbox port, tier policies (P5,
+    - task16                          # AK-044..AK-050). task14 starts with
+    - task18                          # recon -> prereg freeze -> dispatch.
+
+  blocked_tasks:                      # task -> remaining (unsettled) blockers
+    task17: [task15, task16]          # AMBIGUOUS - see note below
+    task19: [task18]                  # needs task18
+    task20: [task14, task17]          # task13 settled 2026-08-28 (dropped
+                                       # from the array); original full
+                                       # dependency set also included task7,
+                                       # task9, task10, task11, task12 - all
+                                       # settled
+    task21: [task20]                  # needs task20
+    task22: [task20]                  # needs task20
+    task23: [task22]                  # needs task22
+    task24: [task20]                  # needs task20
+    task25: [task20]                  # needs task20
+    task26: [task25]                  # needs task25
+    task27: [task26]                  # needs task26
+    # NOTE on task17 (unresolved - flagged, not silently fixed):
+    # the array [task15, task16] is being read as AND (all listed tasks
+    # must settle). But an earlier comment on this line read "needs task5
+    # (done) and task15 or task16" - i.e. OR. Before task17 comes up for
+    # scheduling: confirm whether it needs task15 AND task16, or task15 OR
+    # task16, and drop task5 from the intent entirely.
+
+  plan_blocked: false                 # true only if NOTHING is workable
+                                       # (every ready path is blocked)
+  plan_blocker: null                  # if plan_blocked, name the single thing
+                                       # unblocking it; else null
+
+# ─────────────────────────────────────────────────────────────────────────
+# ACTIVE TASK
+# ─────────────────────────────────────────────────────────────────────────
+active:
+  task: null                          # nothing in flight
+  phase: idle                         # ready to start task14
+  blocker: >-
+    None. Task 13 is fully settled (implementation + COR-1..7 + COR2-1..6 +
+    COR3 + blind confirmation rounds 1 and 2 + closure + one commit
+    1fcfdd0). The next session starts task14 (plan section: Authority gate,
+    sandbox port, tier policies - proves P5, AK-044..AK-050): recon ->
+    preregistration freeze BEFORE implementation -> builder dispatch under
+    the .agents/agents/ charters -> gates -> blind confirmation. Do not
+    forget the task17 AND/OR ambiguity note above when task17 approaches.
+
+# ─────────────────────────────────────────────────────────────────────────
+# EVIDENCE LOG (current state per task, not a history)
+# ─────────────────────────────────────────────────────────────────────────
+latest_evidence:
+  task0:
+    report: ".agents/reports/environment.md"
+    confirmation: "peer CONFIRM"
+    commit: "76e491a"
+  task1:
+    report: ".wayfinder/reference.yaml"
+    confirmation: "peer CONFIRM"
+    commit: "bf09a30"
+  task2:
+    report: ".agents/reports/task2/"
+    confirmation: "adversarial CONFIRM; 7 majors and 13 minors deferred"
+    commit: ["b69c095", "f85c925", "1578dde"]
+  task3:
+    report: ".agents/reports/task3/"
+    confirmation: "peer CONFIRM"
+    commit: "cb2f4ac"
+  task4:
+    report: ".agents/reports/task4/"
+    confirmation: "peer CONFIRM"
+    commit: "b27b152"
+  task5:
+    report: ".agents/reports/task5/"
+    confirmation: "peer REVISE (BOM silent discard, AK-049 probe) -> fixed -> round2 CONFIRM"
+    commit: "610a615"
+  task6:
+    report: ".agents/reports/task6/"
+    confirmation: "peer CONFIRM"
+    commit: "86d5be0"
+  task7:
+    report: ".agents/reports/task7/"
+    confirmation: "peer REVISE (runaway-memory defect, reachable panic) -> fixed -> round2 CONFIRM"
+    commit: "ff1ad06"
+  task8:
+    report: ".agents/reports/task8/"
+    confirmation: "peer CONFIRM"
+    commit: "c4e58fa"
+  task9:
+    report: ".agents/reports/task9/"
+    confirmation: "peer CONFIRM"
+    commit: "20d5173"
+  task10:
+    report: ".agents/reports/task10/"
+    confirmation: "adversarial CONFIRM; observation-owner write gate deferred to task12"
+    commit: "1dab05c"
+  task11:
+    report: ".agents/reports/task11/"
+    confirmation: "peer CONFIRM"
+    commit: ["a507d08", "793d115"]
+  task12:
+    report: ".agents/reports/task12/"
+    confirmation: "peer CONFIRM"
+    commit: "1a88b39"
+  task13:
+    report: ".agents/reports/task13/"
+    confirmation: >-
+      fresh blind round 1 NOT CONFIRM (falsifier F-1 MAJOR executed: ungated
+      SettlementCommitted append + replay minted settlement with zero
+      conditions) -> COR3 (earned settlement-event kind, both public append
+      surfaces gated, contract suites extended) -> fresh blind round 2
+      DOUBLE CONFIRM (critic 0 blocking/0 major/7 minors; falsifier 0
+      CRITICAL/0 MAJOR/1 minor instrument-route seam, executed) ->
+      SETTLED. Teeth re-verified personally (COR3 gate tooth + B4 tooth 1,
+      RED -> byte-identical restore -> GREEN). Outcome record:
+      task-13.outcome.yaml (P1-P4 supported, P5 falsified-honestly).
+    commit: "1fcfdd0"                 # one task one commit: B1 was committed
+                                       # mid-task by the operator as 62d1a5f
+                                       # after builder deaths (recorded
+                                       # deviation); everything else landed
+                                       # in the single closure commit
+
+# ─────────────────────────────────────────────────────────────────────────
+# OBSERVATIONS - facts a resuming agent needs, not a running commentary.
+# Keep this list short and load-bearing.
+# ─────────────────────────────────────────────────────────────────────────
+observations:
+  # --- OBSERVED: directly verified this session/burst, evidence attached ---
+  - status: OBSERVED
+    statement: >-
+      Ruler is frozen with SHA256 digests locked in .gauntlet/reference.lock
+      (answer key sha256:ccc7c99b..., manifest sha256:95331d3e...) and
+      passes `just ruler` (re-run before and after every phase of the
+      task13 closure, including post-commit).
+    evidence: ".gauntlet/reference.lock"
+  - status: OBSERVED
+    statement: >-
+      Tasks 0-13 are closed. Task 13 final battery on the committed tree
+      (1fcfdd0, run personally 2026-08-28): ports 105/105, app 330/330,
+      sqlite 50/50 (includes the two COR3 settlement-append-gate legs),
+      proofs p7/p11/g10 12/12, standing battery p4/p6/p12/p2/p3 33/33,
+      lint 0, fmt-check clean, boundaries 215/215, deny ok, ruler PASS,
+      prereg-check 13 PASS (frozen d949e1e0).
+    evidence: ".agents/reports/task13/final-confirmation-round2.md"
+  - status: OBSERVED
+    statement: >-
+      The operator's role-agent charters live at .agents/agents/*.agent.md
+      (builder, critic, falsifier, finisher, diagnostician,
+      semantic-verifier, structural-reviewer, contract-guardian). They are
+      STILL NOT invocable as typed sub-agents from the session Agent tool
+      (re-probed twice during task13 closure: "Agent type not found;
+      available: general-purpose, Explore"; this client registers subagent
+      types via Settings -> Subagents or a plugin's agents component, and
+      scans no .agents/agents/ directory). Working pattern, used for all
+      task13 confirmation/correction dispatches: general-purpose transport
+      with the charter file adopted VERBATIM as the first prompt
+      instruction. Re-probe after any client update.
+    evidence: ".agents/reports/task13/final-confirmation-round2.md"
+  - status: OBSERVED
+    statement: >-
+      Sub-agent session interruptions / usage limits have occurred 20
+      times across tasks 3-13 (the 20th killed the COR3 builder mid-edit
+      with its work unrecorded - recovered via the tree-outranks-record
+      reconciliation; the reconcile-checkpoints + checkpoint-as-you-go
+      discipline is what made the recovery cheap). The 5-hour sub-agent
+      usage window can exhaust; main-session tool use is unaffected. When
+      it exhausts: complete personally per the operator's standing
+      heal+continue instruction and record honestly.
+    evidence: ".agents/lessons/session-interruption-recovery.md"
+  - status: OBSERVED
+    statement: >-
+      Host environment is WSL2 (6 cores, 7.8 GiB RAM, ~1.6 GiB free memory
+      constraint), rustc/cargo 1.98.0, bwrap 0.11.1 only (no
+      docker/podman/qemu/firecracker). /tmp (tmpfs 3.9G) runs ~95% full -
+      3.5G is /tmp/opencode (another tool's cache; do not touch); keep
+      probe build targets under ~/.cache/ outside the repo.
+    evidence: ".agents/reports/environment.json"
+  - status: OBSERVED
+    statement: >-
+      Answer-key unit status: 0 proven settled. 34 provisional through
+      Task 13 (the 27 through Task 12 plus AK-040, AK-041, AK-042, AK-043,
+      AK-062 (service-level half only - positive half is Task 21), AK-031,
+      AK-053 (partial: checkpoint-write half; section 18.3 steps 4-5
+      absent by scope); AK-024's settle-time half upgraded its recorded
+      scope, no new entry). 48 proposed, 0 blocked, 0 unknown reference
+      candidates. 9 dated reference-candidates entries pasted at task13
+      closure (AK-031/040/041/042/043/053/062 locator class + AK-024
+      composed-status addendum + the minimum_reliability M-1 entry, a
+      distinct defect class).
+    evidence: ".agents/reports/reference-candidates.md"
+  - status: OBSERVED
+    statement: >-
+      Round-1 vs round-2 lesson recorded in the outcome file: the STATIC
+      spec critic CONFIRMED the same surface the EXECUTING falsifier broke
+      (F-1). Blind confirmation rounds must keep an executing falsifier
+      role; static-only absence findings are weaker evidence.
+    evidence: ".agents/research/preregistrations/task-13.outcome.yaml"
+
+  # --- UNKNOWN: known gap, not yet verified either way. Do not upgrade to
+  #     OBSERVED without actually checking. ---
+  - status: UNKNOWN
+    statement: >-
+      UNK-001: which containment backend cross_cutting runs under in real
+      use, beyond this host's bwrap-only environment (directly relevant to
+      task14's sandbox port step).
+    evidence: ".wayfinder/reference.yaml"
+  - status: UNKNOWN
+    statement: "UNK-002: whether this repository should carry a LICENSE, and which."
+    evidence: ".wayfinder/reference.yaml"
+  - status: UNKNOWN
+    statement: >-
+      UNK-003: which concrete AgentRunner is runners.default in
+      GAUNTLET.md (deferred to Tasks 15-16).
+    evidence: ".wayfinder/reference.yaml"
+
+# ─────────────────────────────────────────────────────────────────────────
+# NEXT ACTION
+# ─────────────────────────────────────────────────────────────────────────
+next_action:
+  task: task14                        # Authority gate, sandbox port, tier
+                                       # policies (phase 4, proves P5,
+                                       # AK-044..AK-050)
+  action: >-
+    Start task14 per .agents/plans/gauntlet-impl.md (its Steps, Gate,
+    Done-when, and the no-real-sandbox-backend redesign trigger - relevant
+    on this bwrap-only host). Procedure, in order:
+
+    1. Recon: read the plan's task14 section, spec sections it cites
+    (authority/containment: the D2 "gate before process start" correction,
+    tier policies, sandbox port), AK-044..AK-050 verbatim in the frozen
+    ruler, and the current tree (govern::, policy provider, runner
+    capabilities surface; the L1 authority-gate deferral note and the
+    task14 deferrals in the handoff list below).
+
+    2. Freeze the task-14 preregistration (just prereg-check 14 after)
+    BEFORE any implementation.
+
+    3. Dispatch builders under the .agents/agents/builder.agent.md charter
+    (verbatim-charter prompts on general-purpose transport; one compiler
+    at a time; checkpoint-as-you-go; result contracts to files). Keep the
+    falsifier-executes rule for the confirmation round.
+
+    4. Gates: the plan's task14 gate (p5_hard_gate + govern:: + just
+    doctor) plus the standing battery, boundaries (expect 215+ with any
+    deliberate growth evidenced), lint, deny, ruler, prereg-check.
+
+    5. One fresh blind confirmation round (critic + falsifier charters);
+    on CONFIRM: teeth re-verify, reference-candidates entries (locator
+    class expected for AK-044..AK-050 locators), task-14.outcome.yaml,
+    closure record, ONE commit with explicit pathspecs (never stage
+    .jolli/, .tmp/, .agents/prompts/, AGENTS.md, .agents/agents/ (the
+    operator's charters), .agents/AGENTS.md, .agents/CURRENT_STATUS*,
+    .agents/research/AGENT.md, prereg-postrun-schema.md,
+    TEMPLATE.prereg.yaml, escalations.md, lessons files).
+  reason: >-
+    Task 13 is settled (double-CONFIRM, commit 1fcfdd0) and the DAG makes
+    task14 the next ready work task. Nothing is in flight; every task13
+    loop is closed and recorded.
+
+# ─────────────────────────────────────────────────────────────────────────
+# HANDOFF
+# ─────────────────────────────────────────────────────────────────────────
+handoff:
+  settled_summary:
+    # One line per settled task or logical group. Prior groups can be
+    # batched; the most recently settled task gets enough detail that a
+    # resuming agent doesn't need to open its evidence dir.
+    - "T00 baseline & delegation spike (76e491a); T01 frozen ruler & digest lock (bf09a30); T02 16-crate workspace skeleton, justfile, boundaries suite 183/183 (1578dde)"
+    - "T03 full §5.2/§5.3 domain model, zero dependencies, typed errors (cb2f4ac)"
+    - "T04 17 port traits with typed errors, role_result@v1 envelope, 17 shared contract suites with teeth (b27b152)"
+    - "T05 config resolution (defaults < GAUNTLET.md < env < flags), §8.6 defaults, doctor checks, gauntlet doctor CLI (610a615)"
+    - "T06 rusqlite EventLog + StateStore, content-addressed FsEvidenceStore, state::export canonical service, abort crash helper (86d5be0)"
+    - "T07 ReferenceProvider normalize/digest/freeze/verify, doctor check 2 deep parse, gauntlet reference digest CLI, composed P1 proof (ff1ad06)"
+    - "T08 gauntlet-adapter-agent-mock, DeterministicClock, SeededIdGenerator, 8 required fixtures, AK-059 pin, 9 playback tests (c4e58fa)"
+    - "T09 5 observation facet adapters, facet_evidence@v1 strict codec, gauntlet-app observation::{bundle,digest,input,assembly}, composed proofs p3 and g6 (20d5173)"
+    - "T10 comparator & envelope builder, RunComparisonAuthority durable provenance, AdmittedComparison capability, P2 blindness assertion (1dab05c)"
+    - "T11 Verifier and evidence binding, examined-bytes binding, composition-seal pin, composed p12 proof (a507d08, 793d115)"
+    - "T12 Controller: selection, budget, diagnosis, BudgetMeter/MeteredBudget, ReviewDeps critic-metering, composed proofs p4 and p6, 7 teeth (1a88b39)"
+    - "T13 Settlement, atomic commit, single-writer: §16.1 five-precondition service, §16.3 keyed atomic commit + crash-window resume, §16.4 single-writer arch rule, proofs p7/p11/g10, corrections COR-1..7 + COR2-1..6 + COR3 (earned settlement-event kind: both public append surfaces refuse SettlementCommitted), blind round 1 NOT CONFIRM -> COR3 -> round 2 double CONFIRM, 9 reference-candidates entries, outcome P1-P4 supported / P5 falsified-honestly (1fcfdd0; B1 pre-committed by operator as 62d1a5f mid-task)"
+
+  unresolved_summary:
+    # Every open thread not captured elsewhere: outstanding confirmations,
+    # deferred scope, stale docs owed a refresh, known follow-ups tied
+    # to a later task ID.
+    - "Task 14 deferrals: L1 authority-gate + tier posture, runner capability-vs-tier dispatch check, mock capability honesty pin (all IN-SCOPE for task14 now)"
+    - "Task 13 later-scope (adjudicated, triggers recorded): M-1 minimum_reliability typed meaning (reference candidate + trigger: reference revision or Task 20), M-2/F-2 AK-062 positive half (Task 21), F-3 lexical containment vs 17.5.2 canonicalization (workspace-provider touch), F-7 recovery-time digest (non-content-addressed evidence adapter), m-1/2/4/6/7/8/9/11 minors (critic-round1.md)"
+    - "Task 13 confirmation-round-2 minors (all trigger-recorded, outcome.yaml): round2-F-1 half-step+second-admission two-row shape on the instrument surface (admission should also see pending settlement events; next state-store/ports touch), FC2-A2 admit digest re-validation, FC2-A3/OBS-1 chain-shaped earning for in-process authorities (ports revision), FC2-A6/F-2 B.6 pin crash window, FC2-A7 p11 comparator-pass instantiation note, RES-A1 p7 intra-iteration reorder granularity, RES-A2 verifier-failure disposition row, RES-A3 digest scope (manifest/comparison contract)"
+    - "Task 13 partially-composed inherited residuals: L3 settlement crash-window replay COMPOSED; settlement-side sqlite coercions COMPOSED; L2 resume legs composed, retry-ledger persistence remains ports-revision-bound; §21.3 non-integrity failures composed (answer-key read + poll transport)"
+    - "Tasks 15-16 deferrals: child env fingerprint vs live process env / tool binding (AK-028), runner resolution in doctor check 3, concrete runners.default"
+    - "Task 17/27 deferrals: produced_at integer vs Annex-B string placeholder in schemas; task17 dependency AND/OR ambiguity UNRESOLVED (see blocked_tasks note)"
+    - "Task 20 deferrals: payment unification (critic costs into run budget_spent), model-rung dispatch unmetered, workspace-root pairing library seam, L4 cohort non-separability fixture, evidence production binding first-facet bytes"
+    - "Task 22/24 deferrals: reference candidate recording / mutation teeth"
+    - "Task 25 deferrals: evidence-fs crash injection E2E"
+    - "Ports revision deferrals: BudgetMeter::mint type-level seal, checkpoint-only run projection enum surface, Option facet fields, ladder rungs 5-9/11, locator contract-defined matching for non-deterministic kinds, factory-level crash-window injector (COR3 coverage-delegation trigger), admission seeing pending settlement events (round2-F-1), chain-shaped in-process authority earning (FC2-A3/OBS-1), admit digest re-validation (FC2-A2), a typed durable residual-row read, ReferenceVersion.evidence_ref - plus the checkpoint() forged-row projection class (planning-layer)"
+    - "Arch-suite standing trigger REBIRTHS at the next arch-suite touch (discharged 2026-08-27 at Task 13 B3): E4/F1/F3, B.5a masked spellings, A5.2 allowlist granularity, B-F16 shapes must be re-litigated and re-recorded when touched again"
+    - "Environment: /tmp ~95% full (/tmp/opencode, 3.5G - another tool's; do not touch); keep probe CARGO_TARGET_DIR under ~/.cache/"
+
+  warnings:
+    # Only things genuinely dangerous to miss, not routine notes.
+    - "Never edit .wayfinder/answer-key.md or reference.lock - ruler is frozen; check with `just ruler` before and after every task."
+    - "Do not implement directly as orchestrator while delegation is available (AGENTS.md rule); the standing heal+continue exception applies only when sub-agent dispatch is unavailable (usage-limit window) - record such completion honestly. Maintain strict blind critic separation; blind confirmation rounds must include an EXECUTING falsifier (task13 round-1 lesson: static-only CONFIRM was wrong)."
+    - "Only one agent may compile at a time (build-lock discipline); WSL2 host memory is tight (~1.6 GiB free); watch target/ size and keep max_parallel low."
+    - "Never mark a task settled on builder say-so; settlement requires independent blind confirmation (peer/adversarial CONFIRM) and proven teeth."
+    - "Always reconcile `git status` vs CURRENT_STATUS.yml vs IN-FLIGHT.md before treating any slice as unstarted (tree outranks record; 20 interruption instances so far)."
+    - "One task, one commit discipline: use explicit pathspecs, never stage .jolli/, .tmp/, .agents/prompts/, .agents/agents/ (operator charters), or operator edits (.agents/AGENTS.md, .agents/CURRENT_STATUS*, .agents/research/AGENT.md, prereg-postrun-schema.md, TEMPLATE.prereg.yaml, escalations.md, lessons files)."

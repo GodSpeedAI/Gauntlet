@@ -1,8 +1,13 @@
 # Template — task preregistration (research instrumentation, non-normative).
-# Copy to task-N.prereg.yaml, fill from repository evidence only, then freeze:
+# Copy to task-N.prereg.yaml, fill pre_run from repository evidence only, then freeze:
 #   sha256sum task-N.prereg.yaml | awk '{print $1}' > task-N.prereg.sha256
-# After implementation begins this file is immutable. Later observations go in
-# task-N.outcome.yaml.
+# The hash covers the file's bytes at freeze time (pre_run only, post_run absent).
+# After freeze, pre_run is immutable — never edited, never re-hashed.
+# post_run is appended to this same file after task closure, by whoever closes
+# the task. Appending does not invalidate task-N.prereg.sha256: that hash
+# attests to the frozen pre_run bytes, not the file as it stands after append.
+# If the check is automated, hash the file up to the post_run: marker, not
+# the whole file.
 
 schema_version: 1
 task: 0
@@ -10,8 +15,8 @@ task: 0
 frozen_at:
   git_commit: "<HEAD at freeze time>"
   timestamp_utc: "<ISO-8601 UTC>"
-  # SHA-256 of this file's exact bytes lives in task-N.prereg.sha256, not here
-  # (a hash cannot contain itself). This field names that file.
+  # SHA-256 of this file's exact bytes at freeze lives in task-N.prereg.sha256,
+  # not here (a hash cannot contain itself). This field names that file.
   prereg_sha256: "see task-N.prereg.sha256"
 
 # The repository documents this preregistration was derived from. Nothing outside
@@ -83,3 +88,75 @@ pre_run:
 
   explicit_nonclaims:
     - "..."
+
+# ---------------------------------------------------------------------------
+# post_run — absent at freeze time. Do not fill any part of this block before
+# closure, and do not edit pre_run to backfill it. Written once, by whoever
+# closes the task, appended below the frozen pre_run content.
+# Schema: prereg-postrun-schema.md. Rates there are computed over
+# `type != vacuous` predictions only — read the scoring rules before setting
+# predictions[].type.
+# ---------------------------------------------------------------------------
+post_run:
+  closed_at:
+    git_commit: "<closure commit>"
+    timestamp_utc: "<ISO-8601 UTC>"
+    rounds:
+      correction: 0
+      confirmation: 0
+      to_first_confirm: 0       # confirmation rounds until first CONFIRM
+
+  predictions:
+    - id: P1                    # must match a pre_run prediction id
+      type: "match | calibration | blindspot | spurious | misattribution | vacuous"
+      prior: 0.0                # 0-1, honest pre-run belief; priors clustered above 0.9 = hindsight leakage
+      informativeness: "baseline | routine | risky"
+      observed: >
+        What actually happened, in one or two sentences. Not a defence of
+        the prediction.
+      divergence: >
+        Present unless type is `match`. States precisely what differed.
+      resolution_evidence: []   # report paths, test names, commits
+      interpretable: true       # false if the outcome could not distinguish
+                                 # hypotheses; uninterpretable outcomes are `vacuous`
+
+  blindspots:
+    - index: 0                  # position in pre_run.known_blindspots
+      materialized: "yes | no | partial"
+      cost_if_materialized: >
+        Rounds, rework, or deferral attributable to it. Empty if `no`.
+      note: >
+        If `no`: did declaring it waste attention, or did declaring it cause
+        the mitigation that prevented it? Not recoverable later — fill it now.
+
+  unforeseen:
+    - id: U1
+      description: >
+        A material defect, seam, or class encountered that no prediction,
+        blind spot, or risk anticipated.
+      class: "existing residual class name, or 'new'"
+      would_a_prior_prereg_have_caught_it: "yes | no"
+      first_seen_task: null
+
+  interventions:
+    - risk_id: R1
+      fired: false
+      class_used: "A1..A5 | unpreregistered"
+      matched_preregistered: false
+      note: >
+        If `unpreregistered`, name the class used and whether it should be
+        added to the standing intervention vocabulary.
+
+  residual_classes_touched:
+    - name: "..."                # e.g. "R1 caller-supplies-both-sides"
+      instance_number: 0
+      predicted_in_advance: false
+
+  method_burden:
+    findings: {critical: 0, major: 0, minor: 0}
+    findings_that_evaded_a_prior_defense: 0
+    toothless_checks_found: 0
+    residuals: {opened: 0, closed: 0, deferred: 0}
+    interruptions: 0
+    green_gate_was_wrong: false
+    operator_adjudication_minutes: null   # null if unrecorded; never backfill by estimate

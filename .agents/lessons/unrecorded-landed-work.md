@@ -2,7 +2,7 @@
 
 **When:** Task 12, 2026-08-25. A correction builder was cancelled by operator
 direction at 10:20. Its checkpoint file's last entry was **C3**. The handoff,
-the IN-FLIGHT ledger, and `CURRENT_STATUS.md` all therefore recorded **C5–C9
+the IN-FLIGHT ledger, and `CURRENT_STATUS.yml` all therefore recorded **C5–C9
 as outstanding**. They were not: the builder had worked ~40 minutes past its
 last checkpoint entry and **all five sub-parts of C5 were already implemented
 and asserted in the proofs** (file mtimes: `correction.rs` 09:57,
