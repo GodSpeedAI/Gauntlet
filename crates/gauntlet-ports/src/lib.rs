@@ -97,8 +97,9 @@ pub use policy_provider::{
 };
 pub use producer_authority::{
     AdmittedEvidenceProduction, AdmittedObservationBinding, AdmittedSettlement,
-    EvidenceProductionAuthority, ObservationBindingAuthority, ProducerAuthorityError,
-    SettlementAdmissionError, SettlementCommitAuthority, evidence_content_digest,
+    AdmittedVerificationRecord, EvidenceProductionAuthority, ObservationBindingAuthority,
+    ProducerAuthorityError, SettlementAdmissionError, SettlementCommitAuthority,
+    VerificationRecordAuthority, evidence_content_digest,
 };
 pub use reference_provider::{ReferenceDraft, ReferenceProvider, ReferenceProviderError};
 pub use role_result::{

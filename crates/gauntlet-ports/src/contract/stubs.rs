@@ -1004,6 +1004,15 @@ impl EventLog for GrowingLog {
         event: RunEvent,
         _deadline: Deadline,
     ) -> Result<EventLogOffset, EventLogError> {
+        // COR3 (confirmation round 1, F-1): the settlement kind is earned
+        // through the store's `commit_settlement`, never appended raw —
+        // the green log stub conforms to the adapters' kind gate.
+        if let crate::state_store::RunEventKind::SettlementCommitted { unit_id, .. } = &event.kind {
+            return Err(EventLogError::SettlementEventNotEarned {
+                run_id: event.run_id.clone(),
+                unit_id: unit_id.clone(),
+            });
+        }
         let offset = self.next_offset.get();
         self.next_offset.set(offset + 1);
         self.entries.borrow_mut().push(LogEntry {
@@ -1965,6 +1974,24 @@ struct DurableStore {
 }
 
 impl DurableStore {
+    /// The earned internal append (COR3): the only route a settlement
+    /// event enters this stub's log — `commit_settlement`'s own writer,
+    /// mirroring the real adapters' internal append behind the public
+    /// kind gate.
+    fn append_event_ungated(&self, event: RunEvent) -> EventLogOffset {
+        let offset = self.next_offset.get();
+        self.next_offset.set(offset + 1);
+        self.events
+            .borrow_mut()
+            .entry(event.run_id.clone())
+            .or_default()
+            .push(LogEntry {
+                offset: EventLogOffset::new(offset),
+                event,
+            });
+        EventLogOffset::new(offset)
+    }
+
     fn reconstruct(&self, run_id: &RunId) -> Option<Run> {
         let checkpoint = self.checkpoints.borrow().get(run_id).cloned()?;
         let budget = Budget::new(
@@ -1999,17 +2026,18 @@ impl StateStore for DurableStore {
         event: RunEvent,
         _deadline: Deadline,
     ) -> Result<EventLogOffset, StateStoreError> {
-        let offset = self.next_offset.get();
-        self.next_offset.set(offset + 1);
-        self.events
-            .borrow_mut()
-            .entry(event.run_id.clone())
-            .or_default()
-            .push(LogEntry {
-                offset: EventLogOffset::new(offset),
-                event,
+        // COR3 (confirmation round 1, F-1): the settlement kind is
+        // authority-minted — earned only through `commit_settlement`
+        // consuming an `AdmittedSettlement`. The green stub conforms to the
+        // same gate the real adapters carry: the generic append refuses the
+        // kind for every caller.
+        if let crate::state_store::RunEventKind::SettlementCommitted { unit_id, .. } = &event.kind {
+            return Err(StateStoreError::SettlementEventNotEarned {
+                run_id: event.run_id.clone(),
+                unit_id: unit_id.clone(),
             });
-        Ok(EventLogOffset::new(offset))
+        }
+        Ok(self.append_event_ungated(event))
     }
 
     fn load_run(
@@ -2202,10 +2230,12 @@ impl StateStore for DurableStore {
     // scans at or after the anchor and completes half-applied keys.
     fn record_verification(
         &self,
-        record: &crate::verification_record::VerificationRecordDoc,
+        record: &crate::producer_authority::AdmittedVerificationRecord,
         _deadline: Deadline,
     ) -> Result<(), StateStoreError> {
-        self.verifications.borrow_mut().push(record.clone());
+        self.verifications
+            .borrow_mut()
+            .push(record.record().clone());
         Ok(())
     }
 
@@ -2226,7 +2256,7 @@ impl StateStore for DurableStore {
     fn commit_settlement(
         &self,
         admitted: &crate::producer_authority::AdmittedSettlement,
-        deadline: Deadline,
+        _deadline: Deadline,
     ) -> Result<EventLogOffset, StateStoreError> {
         let commit = admitted.commit().clone();
         let mut rows = self.settlement_rows.borrow_mut();
@@ -2240,19 +2270,20 @@ impl StateStore for DurableStore {
                 ),
             });
         }
-        let offset = self.append_event(
-            RunEvent {
-                run_id: commit.run_id.clone(),
-                kind: crate::state_store::RunEventKind::SettlementCommitted {
-                    unit_id: commit.unit_id.clone(),
-                    evidence: commit.evidence.clone(),
-                    verification: commit.verification.clone(),
-                    reference_digest: commit.reference_digest.clone(),
-                },
-                at: commit.at,
+        let event = RunEvent {
+            run_id: commit.run_id.clone(),
+            kind: crate::state_store::RunEventKind::SettlementCommitted {
+                unit_id: commit.unit_id.clone(),
+                evidence: commit.evidence.clone(),
+                verification: commit.verification.clone(),
+                reference_digest: commit.reference_digest.clone(),
             },
-            deadline,
-        )?;
+            at: commit.at,
+        };
+        // COR3: the earned internal append — the stub's public
+        // `append_event` refuses the settlement kind like every conforming
+        // adapter.
+        let offset = self.append_event_ungated(event);
         rows.push((commit, offset));
         Ok(offset)
     }
@@ -2314,12 +2345,25 @@ impl StateStore for DurableStore {
             else {
                 continue;
             };
-            let keyed = rows.iter().any(|(row, _)| {
+            if let Some((row, _)) = rows.iter().find(|(row, _)| {
                 row.run_id == entry.event.run_id
                     && row.unit_id == unit_id
                     && row.verification == verification
-            });
-            if keyed {
+            }) {
+                // COR2-5 (green-stub conformance): a same-key event with
+                // DIVERGENT facts is a typed integrity refusal — the
+                // silent skip was the pre-correction shape the shared
+                // suite now refuses.
+                if row.evidence != evidence || row.reference_digest != reference_digest {
+                    return Err(StateStoreError::Corrupt {
+                        detail: format!(
+                            "the settlement key (run {}, unit {}, verification {}) is already \
+                             durable with DIVERGENT facts — stored evidence {}, offered \
+                             evidence {}",
+                            entry.event.run_id, unit_id, verification, row.evidence, evidence
+                        ),
+                    });
+                }
                 continue;
             }
             rows.push((
@@ -2491,7 +2535,7 @@ impl StateStore for SettlementLaxStore {
     }
     fn record_verification(
         &self,
-        record: &crate::verification_record::VerificationRecordDoc,
+        record: &crate::producer_authority::AdmittedVerificationRecord,
         deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         self.inner.record_verification(record, deadline)

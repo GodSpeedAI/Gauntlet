@@ -32,9 +32,11 @@ use crate::evidence_store::{EvidenceStore, EvidenceStoreError};
 use crate::observer::InstrumentIdentity;
 use crate::producer_authority::{
     EvidenceProductionAuthority, ObservationBindingAuthority, ProducerAuthorityError,
-    SettlementAdmissionError, SettlementCommitAuthority,
+    SettlementAdmissionError, SettlementCommitAuthority, VerificationRecordAuthority,
 };
-use crate::state_store::{Checkpoint, RunEvent, RunEventKind, SettlementCommit, StateStore};
+use crate::state_store::{
+    Checkpoint, RunEvent, RunEventKind, SettlementCommit, StateStore, StateStoreError,
+};
 use crate::verification_record::{
     RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
 };
@@ -121,11 +123,12 @@ fn append_events(store: &dyn StateStore, run_id: &RunId, count: usize) -> Vec<Co
                 invocation_id: InvocationId::new("01ARZ3NDEKTSV4RRFFQ69G5FAW")
                     .expect("suite invocation id"),
             },
-            _ => RunEventKind::SettlementCommitted {
-                unit_id: UnitId::new("AK-014").expect("suite unit id"),
-                evidence: EvidenceRef::new("evd-000042").expect("suite evidence ref"),
-                verification: VerificationRef::new("vrf-000042").expect("suite verification ref"),
-                reference_digest: Digest::new("sha256", "c4d3e2f1a0b1c2d3").expect("suite digest"),
+            // COR3: ordinary runtime kinds only — the settlement kind is
+            // earned through `commit_settlement` and refused on this
+            // surface (pinned by the settlement cases below).
+            _ => RunEventKind::CheckpointWritten {
+                iteration_no: IterationNo::new(1).expect("suite iteration is 1-based"),
+                event_log_offset: EventLogOffset::new(sequence as u64),
             },
         };
         let event = RunEvent {
@@ -792,7 +795,9 @@ pub fn state_store_suite(factory: &dyn StateStoreFactory) -> Vec<ContractFinding
     findings.extend(owner_writes_are_earned_through_the_authorities(factory));
     findings.extend(correction_selections_round_trip(factory));
     findings.extend(settlements_are_earned_committed_and_read_back(factory));
-    findings.extend(settlement_replay_is_keyed_idempotent_and_anchored(factory));
+    findings.extend(settlement_events_are_earned_and_replay_never_disturbs_rows(
+        factory,
+    ));
     findings.extend(settlement_rows_name_durable_exported_events(factory));
     findings
 }
@@ -811,8 +816,15 @@ fn verification_doc(
     outcome: Outcome,
 ) -> VerificationRecordDoc {
     VerificationRecordDoc::new(VerificationContent {
+        // The suite fixture's ref — deliberately the commit fixture's own
+        // (COR-3: the admission requires the durable record's ref to equal
+        // the commit's verification ref).
+        verification: VerificationRef::new("vrf-000042").expect("suite verification ref"),
         run_id: run_id.clone(),
-        iteration_no: IterationNo::new(2).expect("suite iteration is 1-based"),
+        // The settlement cases run without a checkpoint, so the run's
+        // durable iteration is the default 1 — the recorded doc must
+        // declare exactly that (the C5 anchor discipline).
+        iteration_no: IterationNo::new(1).expect("suite iteration is 1-based"),
         unit_id: UnitId::new(unit).expect("suite unit id"),
         claim: "the suite unit's claim".to_owned(),
         requirement: RequirementDoc::new(
@@ -847,9 +859,10 @@ fn settlement_commit(run_id: &RunId, unit: &str, evidence: &str) -> SettlementCo
     }
 }
 
-/// One raw `SettlementCommitted` event for the replay cases (the durable
-/// half of a half-applied settlement, the shape a crash between §16.3
-/// steps 1 and 2 leaves).
+/// The FORGED settlement event — the falsifier's F-1 payload shape (COR3):
+/// publicly constructible, invented facts. The generic append surfaces
+/// refuse it with the typed `SettlementEventNotEarned` error; the suite's
+/// refusal assertion drives exactly this shape.
 fn raw_settlement_event(run_id: &RunId, unit: &str, evidence: &str, at: u64) -> RunEvent {
     RunEvent {
         run_id: run_id.clone(),
@@ -904,7 +917,7 @@ fn settlements_are_earned_committed_and_read_back(
         )];
     }
     // No PASS record yet: the admission must refuse.
-    if let Err(error) = store.record_verification(
+    if let Err(error) = VerificationRecordAuthority::new(store.clone()).record(
         &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Inconclusive),
         bound(),
     ) {
@@ -937,7 +950,7 @@ fn settlements_are_earned_committed_and_read_back(
     }
     // A PASS record over DIFFERENT evidence never admits the commit's
     // evidence.
-    if let Err(error) = store.record_verification(
+    if let Err(error) = VerificationRecordAuthority::new(store.clone()).record(
         &verification_doc(&run_id, "AK-014", "evd-000043", Outcome::Pass),
         bound(),
     ) {
@@ -969,7 +982,7 @@ fn settlements_are_earned_committed_and_read_back(
         return findings;
     }
     // The honest PASS record admits; the minted commit lands and reads back.
-    if let Err(error) = store.record_verification(
+    if let Err(error) = VerificationRecordAuthority::new(store.clone()).record(
         &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Pass),
         bound(),
     ) {
@@ -1070,16 +1083,28 @@ fn settlements_are_earned_committed_and_read_back(
     findings
 }
 
-/// Case: §18.3 replay — completion is keyed-idempotent by
-/// `(run_id, unit_id, verification_ref)` and ANCHORED at the replay
-/// anchor: events below the anchor are not re-scanned, the half-applied
-/// window at or after it completes exactly once, a second call adds zero,
-/// and a duplicate event for a committed key never displaces the row.
-fn settlement_replay_is_keyed_idempotent_and_anchored(
+/// Case: COR3 (confirmation round 1, F-1) — the settlement event kind is
+/// EARNED, never appended: the generic `append_event` refuses
+/// `RunEventKind::SettlementCommitted` with the typed
+/// `SettlementEventNotEarned` error and nothing durable changes; and replay
+/// over EARNED, complete commits is the idempotent no-op at any anchor (the
+/// keyed rows stand, nothing is re-scanned into existence).
+///
+/// Coverage note (post-COR3 delegation, an intended reduction): the trait no
+/// longer admits raw settlement events, so the half-applied crash window,
+/// the anchor's below/above discrimination, and the COR2-5
+/// divergent-duplicate refusal are not contractable through this suite.
+/// They are pinned at the adapter level — the conforming state-store
+/// adapter's own replay/crash fixtures through its internal earned append,
+/// `crash_helper`'s real-abort windows, the tamper-evidence COR2-5 tests,
+/// and the composed `p7_recovery` proof. Ports-revision trigger: a
+/// factory-level crash-window injector if trait-level anchoring coverage is
+/// wanted again.
+fn settlement_events_are_earned_and_replay_never_disturbs_rows(
     factory: &dyn StateStoreFactory,
 ) -> Vec<ContractFinding> {
-    const CASE: &str = "settlement_replay_is_keyed_idempotent_and_anchored";
-    const RULE: &str = "spec 18.3 step 1 via 16.3: replay from the anchor completes half-applied settlements idempotently by (run_id, unit_id, verification_ref); events below the anchor are not re-scanned";
+    const CASE: &str = "settlement_events_are_earned_and_replay_never_disturbs_rows";
+    const RULE: &str = "spec 16.3/18.3 via COR3: the settlement kind reaches the log only through the earned commit — the generic append refuses it with SettlementEventNotEarned and writes nothing durable; replay over complete commits adds zero at any anchor";
     let built = match factory.build() {
         Ok(store) => store,
         Err(error) => {
@@ -1107,90 +1132,114 @@ fn settlement_replay_is_keyed_idempotent_and_anchored(
         )];
     }
     let mut findings = Vec::new();
-    // The applied settlement: earned, committed, row present.
-    if let Err(error) = store.record_verification(
-        &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Pass),
-        bound(),
-    ) {
-        return vec![finding(
-            CASE,
-            RULE,
-            format!("recording the PASS verification document failed: {error}"),
-        )];
-    }
-    let admitted = match SettlementCommitAuthority::new(store.clone())
-        .admit(settlement_commit(&run_id, "AK-014", "evd-000042"), bound())
-    {
-        Ok(admitted) => admitted,
-        Err(error) => {
+    // Three EARNED, complete settlements stand — the replay substrate this
+    // case drives.
+    for (unit, evidence) in [
+        ("AK-014", "evd-000042"),
+        ("AK-015", "evd-000043"),
+        ("AK-016", "evd-000044"),
+    ] {
+        if let Err(error) = VerificationRecordAuthority::new(store.clone()).record(
+            &verification_doc(&run_id, unit, evidence, Outcome::Pass),
+            bound(),
+        ) {
             return vec![finding(
                 CASE,
                 RULE,
-                format!("the applied settlement did not earn its admission: {error}"),
+                format!("recording the PASS verification document for {unit} failed: {error}"),
             )];
         }
-    };
-    if let Err(error) = store.commit_settlement(&admitted, bound()) {
-        return vec![finding(
-            CASE,
-            RULE,
-            format!("the applied settlement commit failed: {error}"),
-        )];
-    }
-    // Two raw half-applied events: one BELOW the coming anchor, one at it.
-    let below = match store.append_event(
-        raw_settlement_event(&run_id, "AK-015", "evd-000043", BASE_INSTANT + 8),
-        bound(),
-    ) {
-        Ok(offset) => offset,
-        Err(error) => {
+        let admitted = match SettlementCommitAuthority::new(store.clone())
+            .admit(settlement_commit(&run_id, unit, evidence), bound())
+        {
+            Ok(admitted) => admitted,
+            Err(error) => {
+                return vec![finding(
+                    CASE,
+                    RULE,
+                    format!("the {unit} settlement did not earn its admission: {error}"),
+                )];
+            }
+        };
+        if let Err(error) = store.commit_settlement(&admitted, bound()) {
             return vec![finding(
                 CASE,
                 RULE,
-                format!("appending the below-anchor event failed: {error}"),
+                format!("the {unit} settlement commit failed: {error}"),
             )];
         }
-    };
-    let above = match store.append_event(
-        raw_settlement_event(&run_id, "AK-016", "evd-000044", BASE_INSTANT + 9),
+    }
+    // COR3: the raw settlement append is refused with the typed error and
+    // writes nothing durable (the falsifier's F-1 payload shape).
+    let before = store
+        .settlements(&run_id, bound())
+        .map(|rows| rows.len())
+        .unwrap_or(usize::MAX);
+    match store.append_event(
+        raw_settlement_event(&run_id, "AK-017", "evd-999999", BASE_INSTANT + 10),
         bound(),
     ) {
-        Ok(offset) => offset,
-        Err(error) => {
-            return vec![finding(
-                CASE,
-                RULE,
-                format!("appending the at-anchor event failed: {error}"),
-            )];
-        }
-    };
-    if below.get() >= above.get() {
-        findings.push(finding(
-            CASE,
-            RULE,
-            "the suite fixture's offsets are not ordered — the case cannot discriminate".to_owned(),
-        ));
-        return findings;
-    }
-    // The anchored replay: only the at-or-after-anchor window completes.
-    match store.complete_pending_settlements(&run_id, above, bound()) {
-        Ok(1) => {}
-        Ok(other) => findings.push(finding(
+        Err(StateStoreError::SettlementEventNotEarned { .. }) => {}
+        Err(other) => findings.push(finding(
             CASE,
             RULE,
             format!(
-                "the anchored replay added {other} rows — exactly one half-applied settlement \
-                 stands at or after the anchor, and events below it must not be re-scanned"
+                "the raw settlement append was refused for the wrong reason (want \
+                 SettlementEventNotEarned): {other}"
             ),
         )),
-        Err(error) => findings.push(finding(
+        Ok(offset) => findings.push(finding(
             CASE,
             RULE,
-            format!("the anchored replay failed: {error}"),
+            format!(
+                "a raw settlement event appended at offset {} — the kind is earned-only \
+                 (COR3, F-1)",
+                offset.get()
+            ),
         )),
+    }
+    let after = store
+        .settlements(&run_id, bound())
+        .map(|rows| rows.len())
+        .unwrap_or(0);
+    if after != before {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "the refused append changed the durable settlement count from {before} to \
+                 {after}"
+            ),
+        ));
     }
     if !findings.is_empty() {
         return findings;
+    }
+    // Replay over COMPLETE commits is the idempotent no-op at any anchor:
+    // the keyed rows stand and nothing is re-scanned into existence.
+    // (Anchors at and past the last event — the past-the-end shape — are
+    // the EventLog suite's read semantics, not this case's.)
+    for anchor in [EventLogOffset::new(1), EventLogOffset::new(2)] {
+        match store.complete_pending_settlements(&run_id, anchor, bound()) {
+            Ok(0) => {}
+            Ok(other) => findings.push(finding(
+                CASE,
+                RULE,
+                format!(
+                    "replay at anchor {} added {other} rows — replay over complete commits \
+                     must be the idempotent no-op",
+                    anchor.get()
+                ),
+            )),
+            Err(error) => findings.push(finding(
+                CASE,
+                RULE,
+                format!(
+                    "replay at anchor {} failed over complete commits: {error}",
+                    anchor.get()
+                ),
+            )),
+        }
     }
     let units: Vec<String> = store
         .settlements(&run_id, bound())
@@ -1200,83 +1249,16 @@ fn settlement_replay_is_keyed_idempotent_and_anchored(
                 .collect()
         })
         .unwrap_or_default();
-    if !units.contains(&"AK-014".to_owned()) || !units.contains(&"AK-016".to_owned()) {
-        findings.push(finding(
-            CASE,
-            RULE,
-            format!(
-                "after the anchored replay the durable settlements are {units:?} — the applied \
-                 unit and the at-anchor unit must both stand"
-            ),
-        ));
-    }
-    if units.contains(&"AK-015".to_owned()) {
-        findings.push(finding(
-            CASE,
-            RULE,
-            "the below-anchor settlement was re-scanned and completed — the anchor is the \
-             checkpoint's certification and must be respected"
-                .to_owned(),
-        ));
-    }
-    // Keyed idempotence: the second anchored call adds zero.
-    match store.complete_pending_settlements(&run_id, above, bound()) {
-        Ok(0) => {}
-        Ok(other) => findings.push(finding(
-            CASE,
-            RULE,
-            format!("a second replay added {other} rows — completion must be idempotent"),
-        )),
-        Err(error) => findings.push(finding(
-            CASE,
-            RULE,
-            format!("the second anchored replay failed: {error}"),
-        )),
-    }
-    // A duplicate event for the committed key (raw append) never displaces
-    // the row: replay anchored AT the duplicate adds zero and the original
-    // evidence still stands.
-    let duplicate = match store.append_event(
-        raw_settlement_event(&run_id, "AK-014", "evd-999999", BASE_INSTANT + 10),
-        bound(),
-    ) {
-        Ok(offset) => offset,
-        Err(error) => {
-            return vec![finding(
+    for expected in ["AK-014", "AK-015", "AK-016"] {
+        if !units.contains(&expected.to_owned()) {
+            findings.push(finding(
                 CASE,
                 RULE,
-                format!("appending the duplicate-key event failed: {error}"),
-            )];
+                format!(
+                    "after replay the durable settlements are {units:?} — {expected} must stand"
+                ),
+            ));
         }
-    };
-    match store.complete_pending_settlements(&run_id, duplicate, bound()) {
-        Ok(0) => {}
-        Ok(other) => findings.push(finding(
-            CASE,
-            RULE,
-            format!(
-                "replaying a duplicate-key event added {other} rows — the keyed row must stand"
-            ),
-        )),
-        Err(error) => findings.push(finding(
-            CASE,
-            RULE,
-            format!("the anchored replay after the duplicate failed: {error}"),
-        )),
-    }
-    if let Ok(rows) = store.settlements(&run_id, bound())
-        && let Some(row) = rows.iter().find(|row| row.unit_id().as_str() == "AK-014")
-        && row.evidence().as_str() != "evd-000042"
-    {
-        findings.push(finding(
-            CASE,
-            RULE,
-            format!(
-                "the committed settlement's evidence moved to {} — a duplicate event \
-                 displaced the durable row",
-                row.evidence()
-            ),
-        ));
     }
     findings
 }
@@ -1319,7 +1301,7 @@ fn settlement_rows_name_durable_exported_events(
             format!("recording the run identity failed: {error}"),
         )];
     }
-    if let Err(error) = store.record_verification(
+    if let Err(error) = VerificationRecordAuthority::new(store.clone()).record(
         &verification_doc(&run_id, "AK-014", "evd-000042", Outcome::Pass),
         bound(),
     ) {

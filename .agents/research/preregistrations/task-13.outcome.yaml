@@ -1,0 +1,184 @@
+# Task 13 outcome record (research instrumentation, non-normative).
+# The frozen preregistration (.agents/research/preregistrations/task-13.prereg.yaml,
+# sha256 d949e1e0c14b2cdbadb5bd6d4bd9c207d11ca888667dc511d54ad3421e03d32d)
+# was never edited; this file records what was observed.
+
+schema_version: 1
+task: 13
+
+preregistration:
+  path: ".agents/research/preregistrations/task-13.prereg.yaml"
+  sha256: "d949e1e0c14b2cdbadb5bd6d4bd9c207d11ca888667dc511d54ad3421e03d32d"
+
+observed:
+  task_result: >-
+    SETTLED (CONFIRM). Settlement, atomic commit, and single-writer
+    discipline landed and confirmed through two fresh blind confirmation
+    rounds and three correction rounds: AK-040, AK-041, AK-042, AK-043,
+    AK-062 (service-level half), AK-031 (P11), AK-024 (settle-time half
+    upgraded to composed), AK-053 (checkpoint-write half; §18.3 steps 4-5
+    absent by scope); P7 and P11 proven composed with teeth.
+
+  material_events:
+    - >-
+      Operator committed mid-task B2 state as 62d1a5f after the 16th/17th
+      sub-agent usage-limit deaths; orchestrator heal+complete followed
+      (standing instruction).
+    - >-
+      B4 builder died mid-Item-1 (19th instance) leaving non-compiling
+      work; finisher completed Items 1-3, died in Item 4 (unrecorded
+      14:25-14:27 window); orchestrator completed Item 4 personally.
+    - >-
+      COR3 builder died to the usage limit (20th instance) leaving its
+      gates LANDED BUT UNRECORDED (no checkpoint, no result contract);
+      orchestrator recovered, verified (recovered-honest RED 0/2 ->
+      GREEN 2/2), and completed the contract suites, stubs, fixture
+      conversions, caller audit, and gates personally.
+    - >-
+      Fresh blind confirmation round 1: spec critic CONFIRM (5 minors),
+      falsifier NOT CONFIRM (F-1 MAJOR, executed: ungated
+      SettlementCommitted append + replay minted a durable settlement with
+      zero conditions) -> correction round 3 -> round 2 both CONFIRM.
+    - >-
+      The operator's role-agent charters (.agents/agents/*.agent.md) are
+      not invocable as typed sub-agents from the session Agent tool
+      (re-probed twice this task); roles were carried by verbatim-charter
+      prompts on general-purpose transport.
+    - >-
+      Environment: /tmp (tmpfs 3.9G) filled to ~95% during the round-1
+      falsifier's probe build (3.5G consumed by /tmp/opencode, another
+      tool's cache, not touched); probe CARGO_TARGET_DIR relocated outside
+      the repo; no OOM, no parallelism raised.
+
+  predictions:
+    - prediction_ref: P1
+      # expects: fail_before_fix
+      result: "supported"
+      evidence:
+        - ".agents/reports/task13/recon-code.md (the pre-Task-13 in-memory-only settle)"
+        - ".agents/reports/task13/teeth-b4.md tooth 1"
+        - ".agents/reports/task13/correction-round3.md (closure re-run: commit-neuter -> commit_order 0/1, left 0 vs right 2)"
+      notes: >-
+        The pre-fix shape is re-derived rather than literally replayed
+        (the proof was written after the wiring): with the durable commit
+        neutered to the pre-B2 in-memory-only shape, p7 commit_order fails
+        catastrophically (0 commits observed vs 2 required) - re-run
+        personally by the orchestrator at closure 2026-08-28, and by the
+        B4 finisher before that.
+    - prediction_ref: P2
+      # expects: fire_during_critique
+      result: "supported"
+      evidence:
+        - ".agents/reports/task13/early-probe-adjudication.md (P2/P4 FIRED; COR-1..7)"
+        - ".agents/reports/task13/critic-round1-adjudication.md (P2 fired for the third time; COR2-1..6)"
+        - ".agents/reports/task13/final-confirmation-round1-adjudication.md (P2 fired a fourth time, event layer; COR3)"
+      notes: >-
+        The R1-class caller-supplies-both-sides seam fired in every blind
+        critique that looked: settled_at attestation and commit-vs-record
+        agreement (early probe), the completion-path double settlement
+        (critic round 1 F-1), and the ungated SettlementCommitted append
+        (confirmation round 1 F-1, executed). None were caught by the green
+        in-crate suites first.
+    - prediction_ref: P3
+      # expects: bimodal
+      result: "supported"
+      evidence:
+        - "gauntlet-cli tests/p7_recovery.rs a_settled_run_reresumes_over_anchored_settlements_without_rescanning"
+        - "gauntlet-adapter-state-sqlite state_store::tests anchored_replay_skips_events_below_the_anchor_and_completes_the_rest"
+        - ".agents/reports/task13/builder-b4-checkpoints.md (the anchor-arithmetic bracket defect, found and fixed en route)"
+      notes: >-
+        Resolved to the "genuinely equivalent" pole at the store layer
+        (superset replay safe; idempotent completion; C8 anchor ordering
+        durable before the events it covers), with one composition defect
+        found and fixed on the way (the proof's bracket misclassifying a
+        post-commit checkpoint at anchor == commit offset; replaced by the
+        probe's global write-order stamps) - both poles of the bimodal
+        prediction were touched.
+    - prediction_ref: P4
+      # expects: fire_during_critique
+      result: "supported"
+      evidence:
+        - ".agents/reports/task13/early-probe-adjudication.md (P4 FIRED)"
+        - "gauntlet-app settle::tests a_durably_blocked_projection_wins_over_a_clear_tracked_view"
+        - ".agents/reports/task13/critic-round1.md m-8 and the DurableBlockDiverged re-grounding"
+      notes: >-
+        Condition 4 was re-grounded from tracked/in-memory views to
+        durable-state-wins (typed DurableBlockDiverged refusal); the
+        confirmation rounds additionally grounded the admission chain
+        against durable rows and events (COR2-1, COR3).
+    - prediction_ref: P5
+      # expects: fire_during_critique
+      result: "falsified"
+      evidence:
+        - ".agents/reports/task13/arch-relitigation.md (all four items HOLD)"
+        - ".agents/reports/task13/final-confirmation-b-falsifier.md (round 1: no masked spelling found within bound)"
+        - ".agents/reports/task13/final-confirmation-round2-b-falsifier.md (round 2: OBS-2 lexical containment, runtime class, detection holds)"
+      notes: >-
+        The predicted masked-spelling escape of the B3 single-writer arch
+        rule was NOT found by any adversarial round within its declared
+        bounded search - the prediction's expected observation did not
+        materialize. What fired instead is the adjacent runtime class:
+        contained_locator_path is lexical-only (F-3/OBS-2, MINOR,
+        trigger-recorded at the 17.5.2/workspace touch), while the arch
+        rule itself records its lexical escapes as a declared bound.
+        Absence is bounded to the searched scopes, not universal.
+
+representation_change:
+  occurred: false
+  before: ""
+  after: ""
+  trigger_evidence: []
+
+newly_visible_intervention_classes: []
+
+interventions_taken:
+  - "A1 defer_with_evidence: A6 disposition re-routing landed narrow (21.3 legs composed); L2 retry-ledger halves and slicing unreachability deferred to the ports revision with recorded caveats"
+  - "A2 extend_shared_contract_suite: settlement surface contract incl. the COR3 settlement-kind gate cases (state_store + event_log suites; green stubs conform; coverage delegation note + ports-revision trigger recorded)"
+  - "A3 fail_first_evidence: every correction round (COR-1..7, COR2-1..6, COR3) with observed RED before GREEN, several re-derived recovered-honest after interruptions"
+  - "A4 re_ground_against_tree: COR3 recovery (unrecorded landed work verified against the tree before completion); the reconcile-checkpoints CURRENT_STATUS finding"
+  - "A5 earned_authority_unforgeable_values: capability-gated record_verification, AdmittedSettlement admission, COR2-1 one-per-unit, COR3 settlement-kind append gates on both public surfaces"
+
+transfer_results:
+  replay:
+    result: "not_tested"
+    evidence: []
+  parametric_variation:
+    result: "not_tested"
+    evidence: []
+  structural_transfer:
+    result: "not_tested"
+    evidence: []
+
+alternative_explanations:
+  - >-
+    Round 1's divergence bears noting: the STATIC spec critic CONFIRMed the
+    same surface the EXECUTING falsifier broke (F-1). Absence findings from
+    static-only rounds are weaker evidence than executed probes; the
+    confirmation protocol's falsifier-must-execute requirement is what
+    caught it, not reading.
+
+interpretation:
+  smallest_claim_earned: >-
+    Through the composed production path (controller -> SettlementService
+    -> ports authorities -> sqlite adapter), settlement is earned (all five
+    16.1 conditions against durable/frozen state), ordered (16.3
+    event-before-row-before-memory, observed and cross-validated),
+    crash-safe (all three kill windows complete exactly once through real
+    process aborts), and single-writer-confinable (arch rule + composed
+    prevention/detection legs) - confirmed by two independent blind
+    rounds, the second with an executing falsifier, within their declared
+    bounds.
+  unresolved:
+    - "F-2/FC2-A6: crash window between commit and the B.6 authority-decision pin loses the accompanying record on replay-recovery (trigger: settle/recovery touch or Task 20)"
+    - "F-3/OBS-2: contained_locator_path lexical-only vs 17.5.2 canonicalization (trigger: workspace-provider write-boundary touch)"
+    - "FC2-A2: admit does not validate the commit's reference_digest against the durable run's frozen digest (production derives it from the durable run; trigger: producer_authority/ports revision)"
+    - "FC2-A3/OBS-1: in-process authorities compose chain-free for trusted callers (documented composition-root trust line; trigger: ports revision)"
+    - "Round-2 falsifier F-1: append_settlement_event half-step + a second admission under a different key can mint two rows (instrument surface, not production-reachable; MAJOR-if-relied-on; trigger: next state-store/ports touch - admission should also see pending settlement events)"
+    - "RES-A1: p7 bracket granularity cannot discriminate an intra-iteration in-memory-first reorder (store-side reorder IS discriminated)"
+    - "RES-A2: verifier-side instrument failures unwind as ControlError instead of a 11.5/21.3 disposition row (trigger: controller disposition touch or Task 20)"
+    - "RES-A3: ReferenceVersion digest covers answer-key bytes only, not manifest/comparison-contract (pre-Task-13; trigger: reference revision or Task 20)"
+    - "RES-A4/AK-053: 18.3 steps 4-5 absent (trigger: resume touch or Task 20)"
+    - "AK-062 positive half: Task 21 (plan-scoped)"
+    - "M-1: settlement.minimum_reliability is 19.2 prose, not machine-consumable (reference-candidates entry 2026-08-28; trigger: reference revision or Task 20)"
+    - "checkpoint() forged-row projection class (planning-layer; trigger: state-store/ports revision)"
+    - "m-1/2/4/6/7/8/9/11 minors from critic round 1 (critic-round1-adjudication.md)"

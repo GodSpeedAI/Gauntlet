@@ -32,16 +32,15 @@
 //! ```
 
 use std::path::Path;
-use std::sync::Arc;
 
 use gauntlet_adapter_state_sqlite::SqliteStateStore;
 use gauntlet_domain::{
-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceKind, EvidenceLocator, EvidenceRef,
-    InstrumentName, IterationNo, Limits, MicroUsd, Producer, ReferenceId, ReferenceVersion, Run,
-    RunDefinition, RunId, UnitId, VerificationRef,
+    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind,
+    EvidenceLocator, EvidenceRef, InstrumentName, IterationNo, Limits, MicroUsd, Producer,
+    ReferenceId, ReferenceVersion, Run, RunDefinition, RunId, UnitId, VerificationRef,
 };
 use gauntlet_ports::deadline::Deadline;
-use gauntlet_ports::producer_authority::SettlementCommitAuthority;
+use gauntlet_ports::producer_authority::{SettlementCommitAuthority, VerificationRecordAuthority};
 use gauntlet_ports::state_store::{RunEvent, RunEventKind, SettlementCommit, StateStore};
 use gauntlet_ports::verification_record::{
     RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
@@ -111,13 +110,39 @@ fn append_events(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-fn settle(args: &[String]) -> Result<(), String> {
-    let [db, run_id, unit_id, abort_point] = args else {
-        return Err("usage: settle <db> <run-id> <unit-id> <abort-point>".to_owned());
-    };
-    let run = RunId::new(run_id).map_err(|err| format!("run id: {err}"))?;
-    let unit = UnitId::new(unit_id).map_err(|err| format!("unit id: {err}"))?;
-    let store = SqliteStateStore::open(Path::new(db)).map_err(|err| err.to_string())?;
+/// The earned §16.3 substrate both settle scripts share (COR3,
+/// confirmation round 1 F-1: the settlement event is authority-minted, so
+/// the crash windows are injected the EARNED way): the run is made durable
+/// — REUSING a run the world already recorded (a controller composed over
+/// this database), so a re-record can never disagree with the frozen
+/// identity — the PASS verification document the admission validates
+/// against is recorded through the ports authority at the run's own
+/// durable iteration anchor, and the admission is minted. Nothing here is
+/// settlement-durable: no settlement event, no row.
+fn earn_settlement_admission(
+    store: &std::sync::Arc<SqliteStateStore>,
+    run: &RunId,
+    unit: &UnitId,
+) -> Result<gauntlet_ports::producer_authority::AdmittedSettlement, String> {
+    if store
+        .load_run(run, bound())
+        .map_err(|err| err.to_string())?
+        .is_none()
+    {
+        store
+            .record_run(&crash_fixture_run(run), bound())
+            .map_err(|err| err.to_string())?;
+    }
+    let iteration = store
+        .resume(run, bound())
+        .map_err(|err| err.to_string())?
+        .map_or_else(
+            || IterationNo::new(1).expect("iterations are 1-based"),
+            |checkpoint| checkpoint.iteration_no,
+        );
+    VerificationRecordAuthority::new(store.clone())
+        .record(&pass_record(run, unit, iteration), bound())
+        .map_err(|err| err.to_string())?;
     let commit = SettlementCommit {
         run_id: run.clone(),
         unit_id: unit.clone(),
@@ -127,25 +152,34 @@ fn settle(args: &[String]) -> Result<(), String> {
             .map_err(|err| err.to_string())?,
         at: EpochSeconds::new(1_700_000_050),
     };
+    SettlementCommitAuthority::new(store.clone())
+        .admit(commit, bound())
+        .map_err(|err| err.to_string())
+}
+
+fn settle(args: &[String]) -> Result<(), String> {
+    let [db, run_id, unit_id, abort_point] = args else {
+        return Err("usage: settle <db> <run-id> <unit-id> <abort-point>".to_owned());
+    };
+    let run = RunId::new(run_id).map_err(|err| format!("run id: {err}"))?;
+    let unit = UnitId::new(unit_id).map_err(|err| format!("unit id: {err}"))?;
     if abort_point == "before-append" {
+        // Nothing durable — not even the admission substrate: the unit
+        // must stay retryable.
         println!("aborting before the event append — nothing durable");
         std::process::abort();
     }
-    // §16.3 step 1: the durable event.
+    // The two §16.3 steps as separate durable writes, EARNED (COR3): the
+    // generic append surfaces refuse the settlement kind, so the half
+    // settled window this script injects is created through the earned
+    // half-step — the same governed admission `settle_via_commit` mints,
+    // with the row deliberately left unapplied.
+    let store =
+        std::sync::Arc::new(SqliteStateStore::open(Path::new(db)).map_err(|err| err.to_string())?);
+    let admitted = earn_settlement_admission(&store, &run, &unit)?;
+    // §16.3 step 1: the durable event, earned.
     let offset = store
-        .append_event(
-            RunEvent {
-                run_id: run.clone(),
-                kind: RunEventKind::SettlementCommitted {
-                    unit_id: commit.unit_id.clone(),
-                    evidence: commit.evidence.clone(),
-                    verification: commit.verification.clone(),
-                    reference_digest: commit.reference_digest.clone(),
-                },
-                at: commit.at,
-            },
-            bound(),
-        )
+        .append_settlement_event(&admitted, bound())
         .map_err(|err| err.to_string())?;
     println!(
         "settlement event appended for {unit} at offset {}",
@@ -155,9 +189,13 @@ fn settle(args: &[String]) -> Result<(), String> {
         println!("aborting after the event append — half-settled");
         std::process::abort();
     }
-    // §16.3 step 2: the idempotent keyed row, for the event just appended.
+    // §16.3 step 2: the idempotent keyed row, completed for the event just
+    // appended through the port's §18.3 replay primitive — the recovery
+    // shape itself (the row is rebuilt from the durable event, never from a
+    // caller-attested commit; the raw row-apply primitive is test-gated
+    // since the Task-13 correction round).
     let applied = store
-        .apply_settlement_row(commit, offset, bound())
+        .complete_pending_settlements(&run, EventLogOffset::new(0), bound())
         .map_err(|err| err.to_string())?;
     println!("settlement row applied for {unit} (added {applied})");
     if abort_point == "after-apply" {
@@ -186,23 +224,11 @@ fn settle_via_commit(args: &[String]) -> Result<(), String> {
     };
     let run = RunId::new(run_id).map_err(|err| format!("run id: {err}"))?;
     let unit = UnitId::new(unit_id).map_err(|err| format!("unit id: {err}"))?;
-    let store = Arc::new(SqliteStateStore::open(Path::new(db)).map_err(|err| err.to_string())?);
-    // The durable substrate the admission validates against (plan Task 13).
-    store
-        .record_run(&crash_fixture_run(&run), bound())
-        .map_err(|err| err.to_string())?;
-    store
-        .record_verification(&pass_record(&run, &unit), bound())
-        .map_err(|err| err.to_string())?;
-    let commit = SettlementCommit {
-        run_id: run.clone(),
-        unit_id: unit.clone(),
-        evidence: EvidenceRef::new("evd-crash-0001").map_err(|err| err.to_string())?,
-        verification: VerificationRef::new("vrf-crash-0001").map_err(|err| err.to_string())?,
-        reference_digest: Digest::new("sha256", "c4d3e2f1a0b1c2d3")
-            .map_err(|err| err.to_string())?,
-        at: EpochSeconds::new(1_700_000_050),
-    };
+    let store =
+        std::sync::Arc::new(SqliteStateStore::open(Path::new(db)).map_err(|err| err.to_string())?);
+    // The earned substrate (COR3): durable run, PASS record through the
+    // ports authority, minted admission — no settlement-durable write yet.
+    let admitted = earn_settlement_admission(&store, &run, &unit)?;
     if abort_point == "before" {
         println!("aborting before commit_settlement — no settlement is durable");
         std::process::abort();
@@ -210,9 +236,6 @@ fn settle_via_commit(args: &[String]) -> Result<(), String> {
     if abort_point != "after" && abort_point != "none" {
         return Err(format!("unknown abort point {abort_point:?}"));
     }
-    let admitted = SettlementCommitAuthority::new(store.clone())
-        .admit(commit, bound())
-        .map_err(|err| err.to_string())?;
     let offset = store
         .commit_settlement(&admitted, bound())
         .map_err(|err| err.to_string())?;
@@ -287,11 +310,17 @@ fn crash_fixture_run(run: &RunId) -> Run {
 }
 
 /// The PASS verification document the settlement admission validates
-/// against: this run, this unit, the evidence the commit names.
-fn pass_record(run: &RunId, unit: &UnitId) -> VerificationRecordDoc {
+/// against: this run, this unit, the evidence the commit names — declared
+/// at the run's OWN durable iteration anchor (the authority derives and
+/// enforces it; the helper reads it from the store rather than guessing).
+fn pass_record(run: &RunId, unit: &UnitId, iteration: IterationNo) -> VerificationRecordDoc {
     VerificationRecordDoc::new(VerificationContent {
+        // Deliberately the committed settlement's own ref (COR-3: the
+        // admission requires the durable record's ref to equal the
+        // commit's).
+        verification: gauntlet_domain::VerificationRef::new("vrf-crash-0001").expect("valid ref"),
         run_id: run.clone(),
-        iteration_no: IterationNo::new(1).expect("1-based"),
+        iteration_no: iteration,
         unit_id: unit.clone(),
         claim: "the crash-helper unit's claim".to_owned(),
         requirement: RequirementDoc::new(

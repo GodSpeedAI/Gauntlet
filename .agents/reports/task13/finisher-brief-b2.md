@@ -1,5 +1,45 @@
 # Task 13 / Finisher brief B2-recovery — verify-and-record, then complete B2
 
+> **ADDENDUM 2026-08-26 (second recovery — this is now the operative brief).**
+> A first finisher RAN and completed Phase 1 + Items 2–5 (all DONE entries
+> with fail-first evidence in `builder-b2-checkpoints.md`), then died
+> MID-EDIT at 10:24 beginning a `SettleError::ReferenceMutated` → boxed
+> `ReferenceMutatedRefusal{run_id, unit_id, expected, actual}` refactor; the
+> operator's commit `62d1a5f` captured that non-compiling state. Read
+> "RECOVERED-AND-VERIFIED #2" in the checkpoints FIRST. Your scope is now:
+>
+> **Phase R — complete the interrupted refactor (fail-first n/a: mechanical
+> completion of a recorded design).** Adapt the THREE stale use sites to the
+> boxed variant: controller.rs:2522 (pattern), settle/mod.rs:2269-2270
+> (construction), settle/mod.rs:2490-2492 (test construction). Do not
+> redesign; if a use site reveals the design is wrong, STOP and record.
+> Gate: `cargo check -p gauntlet-app --all-targets` GREEN with ZERO warnings.
+>
+> **Phase G — the final gate battery the dead finisher never ran**
+> (verbatim tails to the checkpoints; every suite the record claims green
+> must be re-proven on the completed tree):
+> ```bash
+> just ruler
+> just check-package gauntlet-app
+> just test-package gauntlet-app          # settle:: 17, control:: incl. the
+>                                        # Item-4 interlock resolution, full package
+> cargo nextest run --test p4_corrective_loop --test p6_budget_control --test p12_missing_is_not_passing --test p2_context_isolation
+> just lint
+> ```
+> `just boundaries` already re-verified GREEN by the orchestrator (197/197).
+>
+> **Phase C — write the result contract** `builder-b2.md` (it does not
+> exist): summarize from the checkpoints (recovered state inherited, Phase 1,
+> Items 2–5, deviations incl. the two assertion re-shapes recorded in-entry),
+> the Phase R completion, Phase G tails, files touched, known gaps. Label
+> everything recovered honestly; the original builders' fail-first evidence
+> for the refactored code is the checkpoints' record, never implied as yours.
+>
+> Checkpoint discipline unchanged: STARTED/DONE per phase, appended to
+> `builder-b2-checkpoints.md`, never batched. All original-brief constraints
+> apply (no sub-agents; no new migration; forbidden paths; no weakened
+> assertions).
+
 You are the B2 FINISHER. The original B2 builder died to a usage limit
 mid-flight (16th interruption instance). The recovered state is recorded in
 `builder-b2-checkpoints.md` under "RECOVERED-AND-VERIFIED (orchestrator)" —

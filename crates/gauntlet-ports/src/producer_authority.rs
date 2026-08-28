@@ -1,23 +1,28 @@
 //! The owner-write minting authorities (plan Task 12; the `AdmittedComparison`
 //! precedent from plan Task 10 / Task 11 C7).
 //!
-//! Three `StateStore` writes are OWNER writes, not caller writes:
+//! Four `StateStore` writes are OWNER writes, not caller writes:
 //! `record_evidence_production` (the evidence owner's durable production
 //! fact, spec §14.3), `bind_observation_bundle` (the observation owner's
 //! binding of one pinned bundle as *this* run's observation at *this*
-//! iteration, spec §5.3.6/§18.1), and — since plan Task 13 —
-//! `commit_settlement` (the §16.3 settlement commit, the most consequential
-//! write in the system). Before Task 12 any holder of an
-//! `Arc<dyn StateStore>` could perform the first two for any
-//! store-resolvable bytes, and the declared iteration was never validated;
-//! before Task 13 the settlement commit was not on the port at all, and the
-//! adapter's inherent surface would take any caller-attested payload.
+//! iteration, spec §5.3.6/§18.1), `commit_settlement` (the §16.3 settlement
+//! commit, the most consequential write in the system), and — since the
+//! Task-13 correction round — `record_verification` (the §5.3.6/§16.1
+//! durable PASS substrate the settlement admission itself validates
+//! against: before the correction any holder of an `Arc<dyn StateStore>`
+//! could build a PASS document with the public `VerificationRecordDoc::new`
+//! and write it raw, forging the very fact §16.1 condition 1 reads). Before
+//! Task 12 any holder of an `Arc<dyn StateStore>` could perform the first
+//! two for any store-resolvable bytes, and the declared iteration was never
+//! validated; before Task 13 the settlement commit was not on the port at
+//! all, and the adapter's inherent surface would take any caller-attested
+//! payload.
 //!
 //! The closure follows the established pattern exactly: the trait methods
 //! now accept only values minted HERE — [`AdmittedEvidenceProduction`],
-//! [`AdmittedObservationBinding`], and [`AdmittedSettlement`] have no
-//! constructor outside this module — and the authorities perform the
-//! governed reads before minting:
+//! [`AdmittedObservationBinding`], [`AdmittedSettlement`], and
+//! [`AdmittedVerificationRecord`] have no constructor outside this module —
+//! and the authorities perform the governed reads before minting:
 //!
 //! 1. the durable run must exist (an undurable run can produce no
 //!    consequential record, §18.1);
@@ -376,6 +381,82 @@ impl ObservationBindingAuthority {
 }
 
 // ---------------------------------------------------------------------------
+// Verification-record admission (Task 13 correction round 1, COR-1; early
+// probe C1) — the durable §16.1-condition-1 substrate is owner-written.
+// ---------------------------------------------------------------------------
+
+/// A verification record the recording authority minted — the only value
+/// [`StateStore::record_verification`] accepts. No constructor exists
+/// outside this module, so a caller that assembled a
+/// [`VerificationRecordDoc`](crate::verification_record::VerificationRecordDoc)
+/// itself (the shape any in-process store holder could write before the
+/// correction) has nothing to pass to any store.
+///
+/// The mint validates the document's OWN grounding facts — the run it names
+/// is durable and the iteration it declares is the run's durable anchor —
+/// because this row is what the settlement admission later reads as "a PASS
+/// verification record exists in this run": a record a caller minted over
+/// an undurable run or a stale/ahead iteration would forge that fact. What
+/// the mint deliberately does NOT re-derive is the verification itself: the
+/// document is the governed verification chain's output (the application
+/// layer's `VerifiedClaim` consumer), and the chain's own §14 binding
+/// checks are what make the record's facts earned, not this authority's.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AdmittedVerificationRecord {
+    record: crate::verification_record::VerificationRecordDoc,
+}
+
+impl AdmittedVerificationRecord {
+    /// The minted document, for the store that records it.
+    pub fn record(&self) -> &crate::verification_record::VerificationRecordDoc {
+        &self.record
+    }
+}
+
+/// The verification-record owner's minting authority (Task 13 correction
+/// round 1, COR-1): performs the governed reads and mints the
+/// [`AdmittedVerificationRecord`] the store accepts. The caller is the
+/// verified chain itself — the application layer's `VerifiedClaim` consumer
+/// path — never an arbitrary store holder.
+#[derive(Clone)]
+pub struct VerificationRecordAuthority {
+    state: Arc<dyn StateStore>,
+}
+
+impl VerificationRecordAuthority {
+    pub fn new(state: Arc<dyn StateStore>) -> Self {
+        Self { state }
+    }
+
+    /// Validates the document's grounding against durable state — the run
+    /// it names is durable, and the iteration it declares is the run's
+    /// durable anchor (the same rule every owner write validates; a stale
+    /// iteration would certify a prior loop pass, an ahead one a pass that
+    /// never happened) — then mints and durably records the document.
+    ///
+    /// The store's own write remains append-only per document; this
+    /// authority adds the earning, it does not relax the store's rules.
+    pub fn record(
+        &self,
+        record: &crate::verification_record::VerificationRecordDoc,
+        deadline: Deadline,
+    ) -> Result<(), ProducerAuthorityError> {
+        governed_run(
+            self.state.as_ref(),
+            record.run_id(),
+            record.iteration_no(),
+            deadline,
+        )?;
+        let admitted = AdmittedVerificationRecord {
+            record: record.clone(),
+        };
+        self.state
+            .record_verification(&admitted, deadline)
+            .map_err(ProducerAuthorityError::State)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Settlement admission (plan Task 13 B1; prereg R1/A5) — the most
 // consequential owner write in the system, earned the same way.
 // ---------------------------------------------------------------------------
@@ -410,6 +491,28 @@ pub enum SettlementAdmissionError {
         verification: gauntlet_domain::VerificationRef,
         event_log_offset: EventLogOffset,
     },
+    /// The §16.3 key is already durable, and the STORED settlement row
+    /// disagrees with the offered commit on a field outside the key (the
+    /// evidence ref — the key fixes run, unit, and verification). The same
+    /// key has already settled DIFFERENT evidence: idempotent re-entry is
+    /// for the SAME settlement, so this is an integrity refusal, never a
+    /// success riding the existing offset (Task 13 correction round 1,
+    /// COR-4; early probe M2). Boxed: the ids plus both evidence refs
+    /// would otherwise inflate every `Result<_, SettlementAdmissionError>`
+    /// return past the lint's large-`Err` bar (the `ReferenceMutated`
+    /// precedent).
+    AlreadyCommittedDivergence(Box<AlreadyCommittedDivergenceRefusal>),
+    /// One settlement per (run, unit) — the unit already holds a durable
+    /// settlement row under a DIFFERENT §16.3 key (a different verification
+    /// ref). A fresh honest PASS mints a fresh key, and before COR2-1(a)
+    /// (critic round 1, F-1) that fresh key admitted: the second commit
+    /// appended a second settlement event and row for work that had already
+    /// settled — AK-042's "no double commit" guarantee broken at substance
+    /// level while every §16.1-condition-1 check held. The same-key shape
+    /// keeps its own idempotent refusal ([`Self::AlreadyCommitted`]) and
+    /// integrity refusal ([`Self::AlreadyCommittedDivergence`]). Boxed per
+    /// the `AlreadyCommittedDivergence` large-`Err` precedent.
+    UnitAlreadySettled(Box<UnitAlreadySettledRefusal>),
     /// A durable read or the store write itself failed.
     State(StateStoreError),
 }
@@ -442,12 +545,74 @@ impl fmt::Display for SettlementAdmissionError {
                  settlement event — the settled work stands (spec 16.3/18.3)",
                 event_log_offset.get()
             ),
+            Self::AlreadyCommittedDivergence(refusal) => {
+                let AlreadyCommittedDivergenceRefusal {
+                    run_id,
+                    unit_id,
+                    verification,
+                    committed_evidence,
+                    offered_evidence,
+                    event_log_offset,
+                } = refusal.as_ref();
+                write!(
+                    f,
+                    "unit {unit_id} of run {run_id} is already settled under verification \
+                     {verification} over evidence {committed_evidence} (event-log offset {}), but \
+                     this commit offers evidence {offered_evidence} — the same key cannot settle \
+                     different evidence; the stored row stands (spec 16.3; COR-4)",
+                    event_log_offset.get()
+                )
+            }
+            Self::UnitAlreadySettled(refusal) => {
+                let UnitAlreadySettledRefusal {
+                    run_id,
+                    unit_id,
+                    settled_verification,
+                    offered_verification,
+                    event_log_offset,
+                } = refusal.as_ref();
+                write!(
+                    f,
+                    "unit {unit_id} of run {run_id} already holds a settlement under verification \
+                     {settled_verification} (event-log offset {}); this commit offers a different \
+                     key ({offered_verification}) — one settlement per unit per run, however \
+                     honest the fresh evidence behind the new key (spec 16.3; COR2-1)",
+                    event_log_offset.get()
+                )
+            }
             Self::State(error) => write!(f, "a durable settlement step failed: {error}"),
         }
     }
 }
 
 impl std::error::Error for SettlementAdmissionError {}
+
+/// The boxed payload of
+/// [`SettlementAdmissionError::AlreadyCommittedDivergence`]: the key plus
+/// the stored row's evidence, the offered commit's evidence, and the
+/// stored row's own event-log offset.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AlreadyCommittedDivergenceRefusal {
+    pub run_id: RunId,
+    pub unit_id: UnitId,
+    pub verification: gauntlet_domain::VerificationRef,
+    pub committed_evidence: EvidenceRef,
+    pub offered_evidence: EvidenceRef,
+    pub event_log_offset: EventLogOffset,
+}
+
+/// The boxed payload of
+/// [`SettlementAdmissionError::UnitAlreadySettled`]: the key's ids, the
+/// STORED settlement's verification ref, the offered commit's ref, and the
+/// stored row's own event-log offset.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnitAlreadySettledRefusal {
+    pub run_id: RunId,
+    pub unit_id: UnitId,
+    pub settled_verification: gauntlet_domain::VerificationRef,
+    pub offered_verification: gauntlet_domain::VerificationRef,
+    pub event_log_offset: EventLogOffset,
+}
 
 /// A settlement commit the settlement authority minted — the only value
 /// [`StateStore::commit_settlement`] accepts. No constructor exists outside
@@ -525,7 +690,13 @@ impl SettlementCommitAuthority {
             .map_err(SettlementAdmissionError::State)?;
         let unit_records: Vec<_> = records
             .iter()
-            .filter(|record| record.unit_id() == &commit.unit_id)
+            // COR-5 (early probe M5): admission does not trust the store's
+            // run scoping — the record's OWN run must be the commit's run.
+            // A conforming-but-sloppy store that feeds foreign-run records
+            // to this filter finds nothing here, never a PASS.
+            .filter(|record| {
+                record.unit_id() == &commit.unit_id && record.run_id() == &commit.run_id
+            })
             .collect();
         if unit_records.is_empty() {
             return Err(SettlementAdmissionError::VerificationNotPass {
@@ -570,21 +741,84 @@ impl SettlementCommitAuthority {
                 ),
             });
         }
-        if let Some(existing) = self
+        // COR-3 (early probe M1): the §16.3 key's third component is
+        // durable-moored — the durable PASS record's verification ref must
+        // EQUAL the commit's. Before the correction the record carried no
+        // verification ref, so one honest PASS admitted N distinct-key
+        // commits under N caller-invented refs, each appending its own
+        // settlement event.
+        if !pass_records
+            .iter()
+            .any(|record| record.verification() == &commit.verification)
+        {
+            let refs: Vec<&str> = pass_records
+                .iter()
+                .map(|record| record.verification().as_str())
+                .collect();
+            return Err(SettlementAdmissionError::VerificationNotPass {
+                run_id: commit.run_id.clone(),
+                unit_id: commit.unit_id.clone(),
+                detail: format!(
+                    "the run's PASS records for unit {} name verification refs [{}] — none is \
+                     the commit's {} — the 16.3 key's verification component is moored in the \
+                     durable record, never invented",
+                    commit.unit_id,
+                    refs.join(", "),
+                    commit.verification
+                ),
+            });
+        }
+        let existing_rows = self
             .state
             .settlements(&commit.run_id, deadline)
-            .map_err(SettlementAdmissionError::State)?
-            .into_iter()
-            .find(|row| {
-                row.unit_id() == &commit.unit_id && row.verification() == &commit.verification
-            })
-        {
+            .map_err(SettlementAdmissionError::State)?;
+        if let Some(existing) = existing_rows.iter().find(|row| {
+            row.unit_id() == &commit.unit_id && row.verification() == &commit.verification
+        }) {
+            // COR-4 (early probe M2): the STORED row is what it is — the
+            // key hit must AGREE on the row's remaining field (the evidence
+            // ref) for re-entry to be idempotent. A divergent evidence ref
+            // over the same key is a typed integrity refusal, never a
+            // success riding the existing offset.
+            if existing.evidence() != &commit.evidence {
+                return Err(SettlementAdmissionError::AlreadyCommittedDivergence(
+                    Box::new(AlreadyCommittedDivergenceRefusal {
+                        run_id: commit.run_id.clone(),
+                        unit_id: commit.unit_id.clone(),
+                        verification: commit.verification.clone(),
+                        committed_evidence: existing.evidence().clone(),
+                        offered_evidence: commit.evidence.clone(),
+                        event_log_offset: existing.event_log_offset(),
+                    }),
+                ));
+            }
             return Err(SettlementAdmissionError::AlreadyCommitted {
                 run_id: commit.run_id.clone(),
                 unit_id: commit.unit_id.clone(),
                 verification: commit.verification.clone(),
                 event_log_offset: existing.event_log_offset(),
             });
+        }
+        // COR2-1(a) (critic round 1, F-1's admission half): the exact key
+        // is not durable, but a DIFFERENT key for the SAME (run, unit) is.
+        // A fresh honest PASS mints a fresh verification ref — every
+        // condition-1 check above holds for it — and before this guard the
+        // fresh key admitted over the already-settled unit, appending a
+        // second settlement event and row. One settlement per unit per
+        // run; re-running settled work is §18.3's defect, not a retry.
+        if let Some(settled) = existing_rows
+            .iter()
+            .find(|row| row.unit_id() == &commit.unit_id)
+        {
+            return Err(SettlementAdmissionError::UnitAlreadySettled(Box::new(
+                UnitAlreadySettledRefusal {
+                    run_id: commit.run_id.clone(),
+                    unit_id: commit.unit_id.clone(),
+                    settled_verification: settled.verification().clone(),
+                    offered_verification: commit.verification.clone(),
+                    event_log_offset: settled.event_log_offset(),
+                },
+            )));
         }
         Ok(AdmittedSettlement { commit })
     }
@@ -1197,13 +1431,13 @@ mod tests {
         }
         fn record_verification(
             &self,
-            record: &crate::verification_record::VerificationRecordDoc,
+            record: &super::AdmittedVerificationRecord,
             _: Deadline,
         ) -> Result<(), StateStoreError> {
             self.verifications
                 .lock()
                 .expect("not poisoned")
-                .push(record.clone());
+                .push(record.record().clone());
             Ok(())
         }
         fn verification_records(
@@ -1267,13 +1501,37 @@ mod tests {
         }
     }
 
+    /// COR2-1a's fixture: the same honest PASS shape under a DIFFERENT
+    /// verification ref (a fresh re-verification of the same unit+evidence
+    /// mints a fresh ref — the falsifier's F-1 second leg).
+    fn pass_record_with_ref(
+        unit: &str,
+        evidence: &str,
+        verification: &str,
+    ) -> crate::verification_record::VerificationRecordDoc {
+        verification_doc(unit, evidence, gauntlet_domain::Outcome::Pass, verification)
+    }
+
     fn pass_record(
         unit: &str,
         evidence: &str,
         outcome: gauntlet_domain::Outcome,
     ) -> crate::verification_record::VerificationRecordDoc {
+        // The default fixture's ref — deliberately the honest commit's own
+        // (COR-3: admit compares the durable record's ref to the commit's).
+        verification_doc(unit, evidence, outcome, "vrf-000900")
+    }
+
+    fn verification_doc(
+        unit: &str,
+        evidence: &str,
+        outcome: gauntlet_domain::Outcome,
+        verification: &str,
+    ) -> crate::verification_record::VerificationRecordDoc {
         crate::verification_record::VerificationRecordDoc::new(
             crate::verification_record::VerificationContent {
+                verification: gauntlet_domain::VerificationRef::new(verification)
+                    .expect("valid verification ref"),
                 run_id: run_id(),
                 iteration_no: IterationNo::new(1).expect("1-based"),
                 unit_id: gauntlet_domain::UnitId::new(unit).expect("valid unit id"),
@@ -1298,6 +1556,24 @@ mod tests {
         .expect("fixture content is well formed")
     }
 
+    /// The fixture record under an explicit verification ref and evidence —
+    /// the fresh-honest-PASS shape the COR2-1(a) sequence mints (a NEW ref
+    /// over NEW evidence: every admission check holds for it, which is
+    /// exactly why the one-settlement-per-unit guard is its own rule).
+    fn pass_record_under(
+        unit: &str,
+        evidence: &str,
+        verification: &str,
+        outcome: gauntlet_domain::Outcome,
+    ) -> crate::verification_record::VerificationRecordDoc {
+        let mut content = pass_record(unit, evidence, gauntlet_domain::Outcome::Pass).content();
+        content.verification =
+            gauntlet_domain::VerificationRef::new(verification).expect("valid verification ref");
+        content.outcome = outcome;
+        crate::verification_record::VerificationRecordDoc::new(content)
+            .expect("fixture content is well formed")
+    }
+
     fn settlement_commit() -> super::SettlementCommit {
         super::SettlementCommit {
             run_id: run_id(),
@@ -1314,6 +1590,16 @@ mod tests {
         state: &std::sync::Arc<SettlementGateState>,
     ) -> super::SettlementCommitAuthority {
         super::SettlementCommitAuthority::new(state.clone())
+    }
+
+    /// Earns a verification record into the gate state through the
+    /// recording authority (COR-1: the raw trait write takes the minted
+    /// type, so even the fixture goes through the earning path).
+    fn earn_record(
+        state: &std::sync::Arc<SettlementGateState>,
+        record: &crate::verification_record::VerificationRecordDoc,
+    ) -> Result<(), super::ProducerAuthorityError> {
+        super::VerificationRecordAuthority::new(state.clone()).record(record, bound())
     }
 
     #[test]
@@ -1335,27 +1621,25 @@ mod tests {
         ));
         // A record for the unit that is not PASS never admits (I8:
         // INCONCLUSIVE never satisfies a settlement requirement).
-        state
-            .record_verification(
-                &pass_record(
-                    "AK-900",
-                    "evd-000900",
-                    gauntlet_domain::Outcome::Inconclusive,
-                ),
-                bound(),
-            )
-            .expect("the record lands");
+        earn_record(
+            &state,
+            &pass_record(
+                "AK-900",
+                "evd-000900",
+                gauntlet_domain::Outcome::Inconclusive,
+            ),
+        )
+        .expect("the record lands");
         assert!(matches!(
             settlement_authority(&state).admit(settlement_commit(), bound()),
             Err(super::SettlementAdmissionError::VerificationNotPass { .. })
         ));
         // A PASS record for a DIFFERENT unit never admits this unit.
-        state
-            .record_verification(
-                &pass_record("AK-901", "evd-000900", gauntlet_domain::Outcome::Pass),
-                bound(),
-            )
-            .expect("the record lands");
+        earn_record(
+            &state,
+            &pass_record("AK-901", "evd-000900", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the record lands");
         assert!(matches!(
             settlement_authority(&state).admit(settlement_commit(), bound()),
             Err(super::SettlementAdmissionError::VerificationNotPass { .. })
@@ -1363,12 +1647,11 @@ mod tests {
         // A PASS record for the unit whose evidence ref disagrees with the
         // commit's — the committed evidence must be the evidence the durable
         // PASS record verified.
-        state
-            .record_verification(
-                &pass_record("AK-900", "evd-000901", gauntlet_domain::Outcome::Pass),
-                bound(),
-            )
-            .expect("the record lands");
+        earn_record(
+            &state,
+            &pass_record("AK-900", "evd-000901", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the record lands");
         assert!(matches!(
             settlement_authority(&state).admit(settlement_commit(), bound()),
             Err(super::SettlementAdmissionError::VerificationNotPass { .. })
@@ -1378,12 +1661,11 @@ mod tests {
     #[test]
     fn an_already_committed_settlement_refuses_re_admission() {
         let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
-        state
-            .record_verification(
-                &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
-                bound(),
-            )
-            .expect("the record lands");
+        earn_record(
+            &state,
+            &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the record lands");
         let authority = settlement_authority(&state);
         let admitted = authority
             .admit(settlement_commit(), bound())
@@ -1397,15 +1679,50 @@ mod tests {
         ));
     }
 
+    /// COR2-1a (critic round 1, F-1): one settlement per (run, unit). A
+    /// fresh honest PASS with a FRESH verification ref is a fresh §16.3
+    /// key — every condition-1 check holds for it — but the unit is
+    /// already durably settled, and re-settling it would append a second
+    /// settlement event and row ("re-running settled work is a defect",
+    /// §18.3).
+    #[test]
+    fn a_fresh_verification_key_cannot_re_settle_a_settled_unit() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        earn_record(
+            &state,
+            &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the first record lands");
+        let authority = settlement_authority(&state);
+        let admitted = authority
+            .admit(settlement_commit(), bound())
+            .expect("the first honest settlement earns its admission");
+        state
+            .commit_settlement(&admitted, bound())
+            .expect("the store commits the first settlement");
+        // The second honest PASS: same unit, same evidence, FRESH ref.
+        earn_record(
+            &state,
+            &pass_record_with_ref("AK-900", "evd-000900", "vrf-000901"),
+        )
+        .expect("the second record lands");
+        let mut second = settlement_commit();
+        second.verification =
+            gauntlet_domain::VerificationRef::new("vrf-000901").expect("valid verification ref");
+        assert!(matches!(
+            authority.admit(second, bound()),
+            Err(super::SettlementAdmissionError::UnitAlreadySettled { .. })
+        ));
+    }
+
     #[test]
     fn an_earned_admission_commits_through_the_store_and_reads_back() {
         let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
-        state
-            .record_verification(
-                &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
-                bound(),
-            )
-            .expect("the record lands");
+        earn_record(
+            &state,
+            &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the record lands");
         let admitted = settlement_authority(&state)
             .admit(settlement_commit(), bound())
             .expect("the honest settlement earns its admission");
@@ -1418,6 +1735,287 @@ mod tests {
         assert_eq!(rows.len(), 1, "exactly one settlement row");
         assert_eq!(rows[0].unit_id().as_str(), "AK-900");
         assert_eq!(rows[0].verification().as_str(), "vrf-000900");
+    }
+
+    /// COR-1 (early probe C1): the C1 attack — hand-built PASS document,
+    /// raw trait write, admit, commit — is closed at the TYPE level: the
+    /// trait's `record_verification` takes the minted
+    /// [`AdmittedVerificationRecord`], so a caller holding a document it
+    /// built itself has nothing to pass to any store (fail-first evidence:
+    /// this test's pre-fix form asserted the raw write must be refused and
+    /// FAILED with "an ungated VerificationRecordDoc write must be refused"
+    /// while the raw write existed). What remains runtime-checkable is the
+    /// authority's own grounding validation, below and in the sibling tests.
+    #[test]
+    fn a_hand_built_pass_document_cannot_become_the_admission_substrate() {
+        let state = std::sync::Arc::new(SettlementGateState::default());
+        // The recording authority refuses the document outright when the run
+        // it names is not durable — the forged substrate never lands, so the
+        // settlement admission that reads it never opens.
+        assert!(matches!(
+            earn_record(
+                &state,
+                &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass)
+            ),
+            Err(super::ProducerAuthorityError::RunNotDurable { .. })
+        ));
+        assert!(
+            state
+                .verification_records(&run_id(), bound())
+                .expect("reads")
+                .is_empty(),
+            "nothing landed"
+        );
+        assert!(matches!(
+            settlement_authority(&state).admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::RunNotDurable { .. })
+        ));
+    }
+
+    /// COR-1: the recording authority validates the document's declared
+    /// iteration against the run's durable anchor — a stale or ahead
+    /// iteration would certify a loop pass that is not the current one.
+    #[test]
+    fn an_unsupported_iteration_refuses_the_verification_record_write() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        let mut stale =
+            pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass).content();
+        stale.iteration_no = IterationNo::new(2).expect("1-based");
+        let doc = crate::verification_record::VerificationRecordDoc::new(stale)
+            .expect("altered content is well formed");
+        assert!(matches!(
+            earn_record(&state, &doc),
+            Err(super::ProducerAuthorityError::IterationUnsupported {
+                requested, durable, ..
+            })
+                if requested.get() == 2 && durable.get() == 1
+        ));
+        assert!(
+            state
+                .verification_records(&run_id(), bound())
+                .expect("reads")
+                .is_empty(),
+            "the stale-iteration document never landed"
+        );
+    }
+
+    /// COR-1: the honest document earns its record through the authority
+    /// and reads back — the earning path the verified chain composes.
+    #[test]
+    fn an_earned_verification_record_reads_back() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        let doc = pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass);
+        earn_record(&state, &doc).expect("the grounded document records");
+        let stored = state
+            .verification_records(&run_id(), bound())
+            .expect("reads");
+        assert_eq!(stored.as_slice(), &[doc]);
+    }
+
+    /// COR-5 fail-first (early probe M5): admission does not trust the
+    /// store's run scoping. `SettlementGateState` is a CONFORMING but
+    /// run-blind store — its `verification_records` returns every record it
+    /// holds — so a durable PASS naming a FOREIGN run reaches the filter.
+    /// Before the correction `admit` never compared `record.run_id()` to
+    /// the commit's run, and the foreign PASS admitted the commit.
+    #[test]
+    fn a_foreign_run_pass_record_never_admits_even_under_a_run_blind_store() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        // The foreign-run PASS: identical to the honest fixture except its
+        // run. It sits in the store directly — the sloppy-store shape; the
+        // recording authority itself would refuse it (COR-1), which is
+        // precisely why admission needs its own defense.
+        let mut foreign =
+            pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass).content();
+        foreign.run_id =
+            gauntlet_domain::RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAB").expect("foreign run id");
+        let foreign =
+            crate::verification_record::VerificationRecordDoc::new(foreign).expect("well formed");
+        state
+            .record_verification(
+                &super::AdmittedVerificationRecord {
+                    record: foreign.clone(),
+                },
+                bound(),
+            )
+            .expect("the run-blind store holds it");
+        // The store hands the foreign record to admission (run-blind).
+        assert!(
+            state
+                .verification_records(&run_id(), bound())
+                .expect("reads")
+                .iter()
+                .any(|record| record == &foreign),
+            "the fixture store is the discriminating run-blind instrument"
+        );
+        let refused = settlement_authority(&state).admit(settlement_commit(), bound());
+        assert!(
+            matches!(
+                refused,
+                Err(super::SettlementAdmissionError::VerificationNotPass { .. })
+            ),
+            "a PASS of another run never admits this run's commit: {refused:?}"
+        );
+    }
+
+    /// COR-4 (early probe M2): a §16.3 key hit must AGREE with the stored
+    /// row — the same key over DIFFERENT evidence is the typed
+    /// `AlreadyCommittedDivergence` integrity refusal, and only an agreeing
+    /// re-entry is the idempotent `AlreadyCommitted` shape.
+    #[test]
+    fn a_key_hit_diverging_on_evidence_is_a_typed_refusal() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        earn_record(
+            &state,
+            &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the record lands");
+        let authority = settlement_authority(&state);
+        let admitted = authority
+            .admit(settlement_commit(), bound())
+            .expect("the honest settlement earns its admission");
+        state
+            .commit_settlement(&admitted, bound())
+            .expect("the store commits the admitted settlement");
+        // A second durable PASS for the SAME ref over DIFFERENT evidence —
+        // the admission's evidence and ref checks both hold for it.
+        let divergent = pass_record("AK-900", "evd-000901", gauntlet_domain::Outcome::Pass);
+        earn_record(&state, &divergent).expect("the divergent PASS lands");
+        let mut offered = settlement_commit();
+        offered.evidence = EvidenceRef::new("evd-000901").expect("valid evidence ref");
+        match authority.admit(offered, bound()) {
+            Err(super::SettlementAdmissionError::AlreadyCommittedDivergence(refusal)) => {
+                assert_eq!(refusal.committed_evidence.as_str(), "evd-000900");
+                assert_eq!(refusal.offered_evidence.as_str(), "evd-000901");
+            }
+            other => panic!("the divergent key hit refuses by type, got {other:?}"),
+        }
+        // The AGREEING re-entry stays the idempotent shape.
+        assert!(matches!(
+            authority.admit(settlement_commit(), bound()),
+            Err(super::SettlementAdmissionError::AlreadyCommitted { .. })
+        ));
+    }
+
+    /// COR-3 fail-first (early probe M1): the N-distinct-refs attack. One
+    /// honest durable PASS record; the first commit settles under the §16.3
+    /// key carrying the record's verification ref. The attack presents
+    /// FURTHER commits over the SAME unit and evidence under DIFFERENT,
+    /// caller-invented verification refs — each a distinct §16.3 key, each
+    /// appending its own durable settlement event. The admission must moor
+    /// key component three in the durable record: a commit whose
+    /// verification ref no durable PASS record names never admits.
+    #[test]
+    fn one_pass_record_cannot_settle_n_distinct_verification_refs() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        earn_record(
+            &state,
+            &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the record lands");
+        let authority = settlement_authority(&state);
+        let admitted = authority
+            .admit(settlement_commit(), bound())
+            .expect("the honest settlement earns its admission");
+        state
+            .commit_settlement(&admitted, bound())
+            .expect("the store commits the admitted settlement");
+        // The attack: two further commits, same unit and evidence,
+        // DIFFERENT invented verification refs.
+        for invented in ["vrf-forged-a", "vrf-forged-b"] {
+            let mut forged = settlement_commit();
+            forged.verification =
+                gauntlet_domain::VerificationRef::new(invented).expect("valid ref shape");
+            let refused = authority.admit(forged, bound());
+            assert!(
+                refused.is_err(),
+                "a commit under invented ref {invented} must not admit over one PASS: \
+                 {refused:?}"
+            );
+            // And therefore no second durable settlement can land.
+            assert_eq!(
+                state.settlements(&run_id(), bound()).expect("reads").len(),
+                1,
+                "exactly one settlement row, however many refs are invented"
+            );
+        }
+    }
+
+    /// COR2-1(a) fail-first (critic round 1, F-1's admission half): the
+    /// falsifier's sequence — a settled unit re-attempted through a FRESH
+    /// honest PASS (a new verification ref over new evidence), which mints a
+    /// fresh §16.3 key. Before the correction `admit` only checked whether
+    /// the OFFERED key was already durable, so the fresh key admitted and
+    /// the commit appended a second settlement event and row for a unit
+    /// that had already settled. After: a typed refusal when ANY settlement
+    /// row exists for the (run, unit) under a different key; the
+    /// same-key-same-fields shape keeps its idempotent `AlreadyCommitted`
+    /// refusal (pinned by the sibling tests).
+    #[test]
+    fn a_settled_unit_re_attempted_under_a_fresh_honest_pass_refuses() {
+        let state = std::sync::Arc::new(SettlementGateState::with_run(fixture_run()));
+        // The honest first settlement: PASS under vrf-000900 over
+        // evd-000900, admitted and committed — one row.
+        earn_record(
+            &state,
+            &pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass),
+        )
+        .expect("the record lands");
+        let authority = settlement_authority(&state);
+        let admitted = authority
+            .admit(settlement_commit(), bound())
+            .expect("the honest settlement earns its admission");
+        state
+            .commit_settlement(&admitted, bound())
+            .expect("the store commits the admitted settlement");
+        assert_eq!(
+            state.settlements(&run_id(), bound()).expect("reads").len(),
+            1
+        );
+        // The fresh honest PASS: a NEW verification ref over NEW evidence —
+        // every §16.1-condition-1 check the admission performs holds for it
+        // (durable PASS, this run, this unit, this evidence, this ref).
+        let fresh = pass_record_under(
+            "AK-900",
+            "evd-000901",
+            "vrf-000901",
+            gauntlet_domain::Outcome::Pass,
+        );
+        earn_record(&state, &fresh).expect("the fresh honest PASS lands");
+        let mut re_attempt = settlement_commit();
+        re_attempt.evidence = EvidenceRef::new("evd-000901").expect("valid evidence ref");
+        re_attempt.verification =
+            gauntlet_domain::VerificationRef::new("vrf-000901").expect("valid ref shape");
+        match authority.admit(re_attempt, bound()) {
+            Err(super::SettlementAdmissionError::UnitAlreadySettled(refusal)) => {
+                let boxed = *refusal;
+                assert_eq!(boxed.settled_verification.as_str(), "vrf-000900");
+                assert_eq!(boxed.offered_verification.as_str(), "vrf-000901");
+            }
+            other => panic!(
+                "a settled unit never admits a second settlement under a fresh key, got {other:?}"
+            ),
+        }
+        // And therefore nothing further can be committed: exactly one row
+        // stands, however honest the re-attempt's own evidence was.
+        assert_eq!(
+            state.settlements(&run_id(), bound()).expect("reads").len(),
+            1,
+            "one settlement per (run, unit), however many fresh PASSes follow"
+        );
+    }
+
+    /// The structural gate, verification-record leg (COR-1):
+    /// `AdmittedVerificationRecord` has no constructor outside this module,
+    /// so a caller holding a hand-built document has nothing to pass to any
+    /// store — the raw trait signature takes the minted type.
+    #[test]
+    fn the_minted_verification_record_has_no_public_constructor() {
+        let doc = pass_record("AK-900", "evd-000900", gauntlet_domain::Outcome::Pass);
+        let admitted = super::AdmittedVerificationRecord {
+            record: doc.clone(),
+        };
+        assert_eq!(admitted.record(), &doc);
     }
 
     /// The structural gate, settlement leg: `AdmittedSettlement` has no

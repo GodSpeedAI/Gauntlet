@@ -499,6 +499,13 @@ impl ScriptedJudgment {
 
     fn document_for(&self, spec: &RoleInvocationSpec) -> String {
         let payload = VerificationRecordDoc::new(VerificationContent {
+            // The payload's own ref is the model's claim; the chain mints
+            // the durable document under the dispatch's ref (COR-3).
+            verification: VerificationRef::new(&format!(
+                "vrf-model-{}",
+                spec.invocation_id.as_str()
+            ))
+            .expect("valid verification ref"),
             run_id: spec.run_id.clone(),
             // The judgment echoes the GOVERNED iteration of its dispatch
             // (C6.3: a result at another iteration is refused by the rung).

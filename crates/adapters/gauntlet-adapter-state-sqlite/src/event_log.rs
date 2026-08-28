@@ -24,7 +24,7 @@ use std::sync::Mutex;
 use gauntlet_domain::{EventLogOffset, RunId};
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::event_log::{EventLog, EventLogError, LogEntry};
-use gauntlet_ports::state_store::RunEvent;
+use gauntlet_ports::state_store::{RunEvent, RunEventKind};
 use rusqlite::Connection;
 
 use crate::encode;
@@ -213,6 +213,19 @@ impl EventLog for SqliteEventLog {
         event: RunEvent,
         _deadline: Deadline,
     ) -> Result<EventLogOffset, EventLogError> {
+        // COR3 (confirmation round 1, F-1): the settlement kind is
+        // authority-minted — it reaches this log only through the
+        // `StateStore`'s earned `commit_settlement` (consuming an
+        // `AdmittedSettlement`). This log is the same durability spine the
+        // §18.3 replay mints settlement rows from, so an ungated append
+        // here forged the durable settlement substrate exactly as the
+        // store's own generic append did.
+        if let RunEventKind::SettlementCommitted { unit_id, .. } = &event.kind {
+            return Err(EventLogError::SettlementEventNotEarned {
+                run_id: event.run_id.clone(),
+                unit_id: unit_id.clone(),
+            });
+        }
         let conn = self
             .conn
             .lock()

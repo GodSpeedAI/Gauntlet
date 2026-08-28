@@ -12,6 +12,7 @@
 //! |---|---|---|
 //! | `tests/contract/architecture_boundaries` | [`check_dependency_direction`], [`check_scope_integrity`] | AK-001 |
 //! | `tests/contract/architecture_boundaries::denylist` | [`check_denylist`] | AK-002 |
+//! | `tests/contract/architecture_boundaries::answer_key_single_writer` | [`check_answer_key_single_writer`] | AK-043 (prevention leg a) |
 //! | `tests/contract/adapter_registry::selection_is_config_driven` | [`check_adapter_selection`] | AK-014 |
 //! | `tests/contract/no_hardcoded_literals` | [`check_no_hardcoded_literals`] | AK-016 |
 //! | `tests/contract/env_example_complete` | [`check_env_example`] | AK-019 |
@@ -31,6 +32,9 @@
 //! - [`literals`] — no environment hardcoded in core sources: paths, URLs,
 //!   model ids, providers, endpoints, ports, commands, timeouts, tier
 //!   policy, tool identity;
+//! - [`single_writer`] — the answer-key surface is single-writer/no-writer
+//!   by construction (§16.4): surface modules pinned, no unguarded write
+//!   at the surface, every core production write inventoried;
 //! - [`envfile`] — `.env.example` diffed against spec Annex E.
 //!
 //! Run with `just boundaries` (`cargo nextest run -p gauntlet-arch-tests`).
@@ -128,6 +132,7 @@ pub mod deps;
 pub mod envfile;
 pub mod escapes;
 pub mod literals;
+pub mod single_writer;
 pub mod text;
 pub mod walk;
 
@@ -700,6 +705,18 @@ pub fn check_defaults_exemption(root: &Path) -> Vec<String> {
         }
     }
     violations
+}
+
+/// Task 13 (AK-043 prevention leg (a), spec §16.4) — the single-writer /
+/// no-writer construction over the answer-key surface: the production
+/// modules that own or derive the answer-key path are pinned, no
+/// unguarded write-API token exists at that surface, and every production
+/// write-API token in the core crates is inventoried with its reason and
+/// containment guard. See [`single_writer`] for the rule's shape, its
+/// masked-spelling residuals, and its fail-closed production-text
+/// derivation.
+pub fn check_answer_key_single_writer(root: &Path) -> Vec<String> {
+    single_writer::check(root)
 }
 
 /// AK-019 — `.env.example` against spec Annex E.

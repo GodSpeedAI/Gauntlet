@@ -387,7 +387,8 @@ impl core::fmt::Display for ControlError {
                  root {} and is refused at the write boundary",
                 root.display()
             ),
-            Self::Settlement(error) => write!(f, "the settlement service refused: {error}"),        }
+            Self::Settlement(error) => write!(f, "the settlement service refused: {error}"),
+        }
     }
 }
 
@@ -1830,17 +1831,15 @@ impl RunController {
                 // 5): preserved through the disposition.
                 self.dispose_timeout(state, &mut flight)?;
             }
-                // Step 3: re-read the answer key (cancels edited attempts).
-                // §21.3 row 1: an unreadable key skips CANCELLATION for
-                // this pass — the drain keeps reconciling; it never errors
-                // the run on a read failure.
-                match self.reread_answer_key(state) {
-                    Ok(_) => {}
-                    Err(ControlError::Reference(ReferenceProviderError::Unavailable {
-                        ..
-                    })) => {}
-                    Err(other) => return Err(other),
-                }
+            // Step 3: re-read the answer key (cancels edited attempts).
+            // §21.3 row 1: an unreadable key skips CANCELLATION for
+            // this pass — the drain keeps reconciling; it never errors
+            // the run on a read failure.
+            match self.reread_answer_key(state) {
+                Ok(_) => {}
+                Err(ControlError::Reference(ReferenceProviderError::Unavailable { .. })) => {}
+                Err(other) => return Err(other),
+            }
         }
         Ok(())
     }
@@ -2355,6 +2354,31 @@ impl RunController {
             Err(other) => return Err(other),
         };
         for unit_id in attempted_units(&flight, &result) {
+            // COR2-1b (critic round 1, F-1's completion half): the
+            // builder's declared attempted list is free text from the
+            // result document — only the flight's OWN dispatched unit may
+            // be verified and settled through this completion. A declared
+            // unit that is not the flight's unit is recorded as pinned
+            // governance evidence and never processed (a builder cannot
+            // reach another unit's locator, verification, or settlement
+            // by naming it).
+            if unit_id != flight.unit {
+                let record = format!(
+                    "{{\"kind\":\"attempted_unit_mismatch\",\"run_id\":\"{}\",\"iteration\":{},\"flight_unit\":\"{}\",\"declared_unit\":\"{}\"}}",
+                    state.run.id(),
+                    state.iteration,
+                    flight.unit,
+                    unit_id
+                );
+                let evidence = self.evidence.put(
+                    record.as_bytes(),
+                    EvidenceKind::Log,
+                    self.operation_bound(),
+                )?;
+                self.evidence
+                    .pin(state.run.id(), &evidence, self.operation_bound())?;
+                continue;
+            }
             let Some(unit) = parsed.iter().find(|unit| *unit.id() == unit_id) else {
                 continue;
             };
@@ -2461,109 +2485,92 @@ impl RunController {
                     self.operation_bound(),
                 )?;
             }
-            match crate::verify::precondition::settlement_precondition(
-                &verified,
-                state.run.id(),
-                self.operation_bound(),
-            ) {
-                Err(failure) => {
-                    let record = format!(
-                        "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"precondition\":\"{failure}\"}}",
-                        state.run.id()
-                    );
-                    let evidence = self.evidence.put(
-                        record.as_bytes(),
-                        EvidenceKind::Log,
-                        self.operation_bound(),
-                    )?;
-                    self.evidence
-                        .pin(state.run.id(), &evidence, self.operation_bound())?;
-                }
-                Ok(readiness) => {
-                    // The tracked residual view the service checks
-                    // condition 4 against: this iteration's comparison
-                    // results, attributed per unit — the BLOCKING subset
-                    // only, which is §16.1 condition 4's own word ("no
-                    // blocking residual references it"). §13.5 forces a
-                    // FAIL comparison verdict alongside a blocking
-                    // residual, so a blocking residual under a PASS
-                    // verification is the §18.4 disagreement shape, and
-                    // settlement refuses there; a minor/major residual
-                    // rides the §11.5 disposition rows instead of the
-                    // settlement gate.
-                    let tracked: Vec<BlockingResidual> = residuals
-                        .iter()
-                        .filter(|residual| residual.residual.is_blocking())
-                        .map(|residual| BlockingResidual {
-                            unit: residual.unit.clone(),
-                            detail: residual.residual.detail().to_owned(),
-                        })
-                        .collect();
-                    match self.settlement.settle(
-                        SettleRequest {
-                            claim: &verified,
-                            readiness,
-                            actor: ClosingActor::Automatic,
-                            tracked_residuals: &tracked,
-                        },
-                        self.operation_bound(),
-                    ) {
-                        Ok(outcome) => {
-                            // C8.1: the settlement append enters the
-                            // water-mark like every append.
-                            state.last_offset = outcome.event_log_offset.get();
-                            state
-                                .unit_states
-                                .insert(unit_id.clone(), UnitStatus::Settled);
-                        }
-                        // The settle-time mutation is §21.3's abort row: the
-                        // service already pinned BOTH digests; the run ends
-                        // `aborted{reference_mutated}` (§9.4).
-                        Err(SettleError::ReferenceMutated { expected, actual, .. }) => {
-                            state.terminal = Some(TerminalState::Aborted);
-                            state.reference_breach =
-                                Some(ReferenceBreach::Mutated { expected, actual });
-                        }
-                        // Environment failures propagate typed, never
-                        // swallowed into a silent non-settlement.
-                        Err(SettleError::State(error)) => {
-                            return Err(ControlError::State(error))
-                        }
-                        Err(SettleError::Evidence(error)) => {
-                            return Err(ControlError::Evidence(error))
-                        }
-                        Err(SettleError::Escalation(error)) => {
-                            return Err(ControlError::Escalation(error))
-                        }
-                        Err(SettleError::Admission(
-                            gauntlet_ports::producer_authority::SettlementAdmissionError::State(
-                                error,
-                            ),
-                        )) => return Err(ControlError::State(error)),
-                        Err(SettleError::Reference(error)) => {
-                            return Err(ControlError::Reference(error))
-                        }
-                        // A §16.1 gate refusal is a fact about THIS unit,
-                        // not a run error: pinned forensic evidence, the
-                        // unit stays open (the service already escalated
-                        // and pinned the authority-gap record where
-                        // §11.5 row 6 applies).
-                        Err(failure) => {
-                            let record = format!(
-                                "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"settlement_refused\":\"{failure}\"}}",
-                                state.run.id()
-                            );
-                            let evidence = self.evidence.put(
-                                record.as_bytes(),
-                                EvidenceKind::Log,
-                                self.operation_bound(),
-                            )?;
-                            self.evidence.pin(
-                                state.run.id(),
-                                &evidence,
-                                self.operation_bound(),
-                            )?;
-                        }
+            // COR-2 (early probe M3): the settlement service re-derives
+            // §16.1 conditions 1–2 at its own entry, over the claim itself
+            // — the controller no longer pre-derives a readiness token, and
+            // the request carries none. A non-PASS claim reaches the
+            // service's entry gate and is refused there (pinned as forensic
+            // evidence by the refusal arm below); a PASS claim's readiness
+            // is earned inside the service from the same durable facts.
+            {
+                // The tracked residual view the service checks
+                // condition 4 against: this iteration's comparison
+                // results, attributed per unit — the BLOCKING subset
+                // only, which is §16.1 condition 4's own word ("no
+                // blocking residual references it"). §13.5 forces a
+                // FAIL comparison verdict alongside a blocking
+                // residual, so a blocking residual under a PASS
+                // verification is the §18.4 disagreement shape, and
+                // settlement refuses there; a minor/major residual
+                // rides the §11.5 disposition rows instead of the
+                // settlement gate.
+                let tracked: Vec<BlockingResidual> = residuals
+                    .iter()
+                    .filter(|residual| residual.residual.is_blocking())
+                    .map(|residual| BlockingResidual {
+                        unit: residual.unit.clone(),
+                        detail: residual.residual.detail().to_owned(),
+                    })
+                    .collect();
+                match self.settlement.settle(
+                    SettleRequest {
+                        claim: &verified,
+                        actor: ClosingActor::Automatic,
+                        tracked_residuals: &tracked,
+                    },
+                    self.operation_bound(),
+                ) {
+                    Ok(outcome) => {
+                        // C8.1: the settlement append enters the
+                        // water-mark like every append.
+                        state.last_offset = outcome.event_log_offset.get();
+                        state
+                            .unit_states
+                            .insert(unit_id.clone(), UnitStatus::Settled);
+                    }
+                    // The settle-time mutation is §21.3's abort row: the
+                    // service already pinned BOTH digests; the run ends
+                    // `aborted{reference_mutated}` (§9.4).
+                    Err(SettleError::ReferenceMutated(refusal)) => {
+                        let crate::settle::ReferenceMutatedRefusal {
+                            expected, actual, ..
+                        } = *refusal;
+                        state.terminal = Some(TerminalState::Aborted);
+                        state.reference_breach =
+                            Some(ReferenceBreach::Mutated { expected, actual });
+                    }
+                    // Environment failures propagate typed, never
+                    // swallowed into a silent non-settlement.
+                    Err(SettleError::State(error)) => return Err(ControlError::State(error)),
+                    Err(SettleError::Evidence(error)) => {
+                        return Err(ControlError::Evidence(error));
+                    }
+                    Err(SettleError::Escalation(error)) => {
+                        return Err(ControlError::Escalation(error));
+                    }
+                    Err(SettleError::Admission(
+                        gauntlet_ports::producer_authority::SettlementAdmissionError::State(error),
+                    )) => return Err(ControlError::State(error)),
+                    Err(SettleError::Reference(error)) => {
+                        return Err(ControlError::Reference(error));
+                    }
+                    // A §16.1 gate refusal is a fact about THIS unit,
+                    // not a run error: pinned forensic evidence, the
+                    // unit stays open (the service already escalated
+                    // and pinned the authority-gap record where
+                    // §11.5 row 6 applies).
+                    Err(failure) => {
+                        let record = format!(
+                            "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"settlement_refused\":\"{failure}\"}}",
+                            state.run.id()
+                        );
+                        let evidence = self.evidence.put(
+                            record.as_bytes(),
+                            EvidenceKind::Log,
+                            self.operation_bound(),
+                        )?;
+                        self.evidence
+                            .pin(state.run.id(), &evidence, self.operation_bound())?;
                     }
                 }
             }
@@ -3707,6 +3714,12 @@ mod tests {
         /// token count (output 0) — the payment-size lever the C9.3
         /// charge-refusal tests ride.
         CompleteWithTokens(u64),
+        /// A well-formed completion whose attempted list declares the
+        /// unit that is NOT the flight's own (AK-9999, absent from the
+        /// ruler) — the COR2-1b lever (the falsifier's F-1 completion
+        /// half: the declared list is free text from the builder, and the
+        /// guard must fire whatever unit the scheduler flew).
+        CompleteDeclaringOther,
         StallForever,
         Fail(InvocationFailure),
         /// The invocation admits, then `poll` hard-errors — the crash
@@ -3763,6 +3776,7 @@ mod tests {
             spec: &RoleInvocationSpec,
             input_tokens: u64,
             output_tokens: u64,
+            attempted: &[&str],
         ) -> String {
             JsonValue::Object(vec![
                 (
@@ -3794,7 +3808,15 @@ mod tests {
                 (
                     "payload".to_owned(),
                     JsonValue::Object(vec![
-                        ("attempted".to_owned(), JsonValue::Array(vec![])),
+                        (
+                            "attempted".to_owned(),
+                            JsonValue::Array(
+                                attempted
+                                    .iter()
+                                    .map(|unit| JsonValue::Str((*unit).to_owned()))
+                                    .collect(),
+                            ),
+                        ),
                         ("changed_paths".to_owned(), JsonValue::Array(vec![])),
                         ("commands_run".to_owned(), JsonValue::Array(vec![])),
                         ("artifacts".to_owned(), JsonValue::Array(vec![])),
@@ -3872,7 +3894,21 @@ mod tests {
             match behavior {
                 Behavior::Complete | Behavior::CompleteWithTokens(_) => {
                     let (input_tokens, output_tokens) = Self::payment_tokens(&behavior);
-                    let document = Self::result_document(&spec, input_tokens, output_tokens);
+                    let document = Self::result_document(&spec, input_tokens, output_tokens, &[]);
+                    gauntlet_ports::role_result::read_result_contract(
+                        &document,
+                        handle.invocation_id(),
+                        spec.context_envelope.digest(),
+                    )
+                    .map(|_| InvocationStatus::Completed {
+                        result_ref: spec.result_contract_path.clone(),
+                    })
+                    .map_err(|error| AgentError::AdmissionRefused {
+                        detail: error.to_string(),
+                    })
+                }
+                Behavior::CompleteDeclaringOther => {
+                    let document = Self::result_document(&spec, 1, 0, &["AK-9999"]);
                     gauntlet_ports::role_result::read_result_contract(
                         &document,
                         handle.invocation_id(),
@@ -3925,9 +3961,13 @@ mod tests {
                 .get(handle.invocation_id())
                 .cloned()
                 .expect("the handle was admitted");
-            let (input_tokens, output_tokens) =
-                Self::payment_tokens(&self.behavior_of(handle.invocation_id()));
-            let document = Self::result_document(&spec, input_tokens, output_tokens);
+            let behavior = self.behavior_of(handle.invocation_id());
+            let attempted: &[&str] = match behavior {
+                Behavior::CompleteDeclaringOther => &["AK-9999"],
+                _ => &[],
+            };
+            let (input_tokens, output_tokens) = Self::payment_tokens(&behavior);
+            let document = Self::result_document(&spec, input_tokens, output_tokens, attempted);
             gauntlet_ports::role_result::read_result_contract(
                 &document,
                 handle.invocation_id(),
@@ -4144,14 +4184,12 @@ mod tests {
         }
         fn record_verification(
             &self,
-            record: &gauntlet_ports::verification_record::VerificationRecordDoc,
+            record: &gauntlet_ports::producer_authority::AdmittedVerificationRecord,
             _: Deadline,
         ) -> Result<(), StateStoreError> {
+            let record = record.record();
             let mut verifications = self.verifications.borrow_mut();
-            if verifications
-                .iter()
-                .any(|stored| stored == record)
-            {
+            if verifications.iter().any(|stored| stored == record) {
                 return Ok(());
             }
             let identity_of =
@@ -5419,8 +5457,10 @@ mod tests {
             .verification_records(&run_id, bound())
             .expect("verification records readable");
         assert!(
-            records.iter().any(|record| record.unit_id().as_str() == "AK-9101"
-                && record.outcome() == gauntlet_domain::Outcome::Pass),
+            records
+                .iter()
+                .any(|record| record.unit_id().as_str() == "AK-9101"
+                    && record.outcome() == gauntlet_domain::Outcome::Pass),
             "the PASS verification document is durable: {records:?}"
         );
         // (4) C8.1: the close-out checkpoint's water-mark covers the
@@ -5437,6 +5477,46 @@ mod tests {
             checkpoint.event_log_offset.get(),
             row_offset
         );
+    }
+
+    /// COR2-1b (critic round 1, F-1's completion half): the builder's
+    /// declared attempted list is free text — a result completing the
+    /// AK-9101 flight while DECLARING AK-9102 must never verify or settle
+    /// the declared unit through this completion; the mismatch is pinned
+    /// governance evidence and the loop re-plans the flight's own unit.
+    #[test]
+    fn a_declared_attempted_other_unit_never_settles_and_is_recorded() {
+        let evidence = FakeEvidence::new();
+        let evidence_view = FakeEvidence(evidence.0.clone());
+        let key = Rc::new(RefCell::new(answer_key(2)));
+        let state = FakeState::new();
+        let runner = ScriptedRunner::new(vec![
+            Behavior::CompleteDeclaringOther,
+            Behavior::Complete,
+            Behavior::Complete,
+        ]);
+        let composed = compose(key, state, evidence, runner, 0, FIXTURE_ROUNDS).expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        // Both units settle — but only through their OWN flights.
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        let units: Vec<&str> = rows.iter().map(|row| row.unit_id().as_str()).collect();
+        assert!(
+            units.contains(&"AK-9101") && units.contains(&"AK-9102"),
+            "both units settle: {units:?}"
+        );
+        assert_eq!(rows.len(), 2, "exactly one settlement per unit: {rows:?}");
+        // The mismatch is PINNED governance evidence, not silence.
+        let records = evidence_view.records_containing("attempted_unit_mismatch");
+        assert!(
+            !records.is_empty(),
+            "the declared-other mismatch is pinned governance evidence"
+        );
+        assert!(records.iter().any(|record| record.contains("AK-9999")));
     }
 
     #[test]
@@ -5662,15 +5742,8 @@ mod tests {
         // The resume runs with ZERO dispatch budget: reconciliation alone
         // must close the unit — any prompt here is a §18.3 violation.
         let resumed = ScriptedRunner::new(Vec::new());
-        let second = compose(
-            key,
-            state.clone(),
-            evidence,
-            resumed,
-            0,
-            FIXTURE_ROUNDS,
-        )
-        .expect("composes");
+        let second =
+            compose(key, state.clone(), evidence, resumed, 0, FIXTURE_ROUNDS).expect("composes");
         let outcome = second
             .controller
             .resume_run(&run_id)
@@ -5750,16 +5823,15 @@ mod tests {
         let key = Rc::new(RefCell::new(answer_key(1)));
         let state = FakeState::new();
         let evidence = FakeEvidence::new();
-        let never_passing = crate::verify::ladder::Ladder::new(vec![
-            crate::verify::ladder::LadderRung::new(
+        let never_passing =
+            crate::verify::ladder::Ladder::new(vec![crate::verify::ladder::LadderRung::new(
                 crate::verify::ladder::RungKind::TestReport,
                 Arc::new(FlakyVerdictVerifier {
                     calls: std::cell::Cell::new(0),
                     pass_from: u32::MAX,
                 }),
-            ),
-        ])
-        .expect("the never-passing ladder composes");
+            )])
+            .expect("the never-passing ladder composes");
         let first_run = ScriptedRunner::new(Vec::new());
         let first = compose_full(
             key.clone(),
@@ -6515,9 +6587,7 @@ mod tests {
             "the §21.3 unavailability window is recorded as pinned evidence"
         );
         assert!(
-            !evidence
-                .records_containing("settlement_refused")
-                .is_empty(),
+            !evidence.records_containing("settlement_refused").is_empty(),
             "the owed unit's settle-time refusals are pinned forensic evidence"
         );
     }
@@ -6979,8 +7049,7 @@ mod tests {
         let flag = Rc::new(Cell::new(false));
         {
             let flag = flag.clone();
-            *state.on_first_settlement.borrow_mut() =
-                Some(Box::new(move || flag.set(true)));
+            *state.on_first_settlement.borrow_mut() = Some(Box::new(move || flag.set(true)));
         }
         let scratch = Scratch::new("unavailable");
         let clock = DeterministicClock::new();

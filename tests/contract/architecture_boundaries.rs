@@ -45,3 +45,18 @@ fn denylist() {
         arch::summarize("denied-identifier", &violations)
     );
 }
+
+/// Task 13 (AK-043 prevention leg a, spec §16.4) — the answer-key surface
+/// is single-writer/no-writer by construction: the core-crate production
+/// modules that name the surface are pinned, no unguarded write-API token
+/// sits at that surface, and every production write-API token in the core
+/// crates is inventoried with its reason and containment guard.
+#[test]
+fn answer_key_single_writer() {
+    let violations = arch::check_answer_key_single_writer(&arch::repo_root());
+    assert!(
+        violations.is_empty(),
+        "{}",
+        arch::summarize("single-writer", &violations)
+    );
+}

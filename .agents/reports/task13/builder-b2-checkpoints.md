@@ -275,3 +275,85 @@ implement.
   assertion-shape corrections during authoring (per-unit detail; uppercase outcome
   tokens) — test-only, no production change. `cargo nextest run -p gauntlet-app
   settle::` 17/17. No CLI surface built (Task 21's).
+
+## RECOVERED-AND-VERIFIED #2 (orchestrator, 2026-08-26 20:1x EDT — 17th interruption instance + operator commit)
+
+The B2-recovery finisher RAN ~08:40–10:24 (its dispatch refusal message was
+the limit death, not an admission refusal), then died mid-edit. The operator
+committed the tree at 17:25 as `62d1a5f` ("Implement settlement admission
+and commit authority"), capturing that mid-edit state.
+
+**Recorded by the finisher (checkpoints current through Item 5 DONE):**
+Phase 1 DONE (fixture honest, settle:: 16/16→GREEN, zero warnings, dead
+helper used; recovered-RED honestly labeled); Item 2 DONE (PASS leg through
+the service, fail-first `the_pass_leg_settles_durably_through_the_service`,
+chain-minted PASS evidence pinned by the loop, durable-first settle-time
+re-verify with dispatch refusal — control:: 75/76 with the named Item-4
+interlock); Item 3 DONE (resume completion + §5.3.3 EVENT-ORDERED projection
+reconciliation, fail-first `a_resume_completes_half_applied_settlements…`,
+package 320/321); Item 4 DONE (both §21.3 legs: read-failure degradation
+fail-first RED `Reference(Unavailable…)` → GREEN BudgetExhausted-with-gaps +
+resume-completes; transient poll errors via §11.5 row 2 `dispose_transient`;
+crash test re-pinned to the disposition, resume assertions verbatim —
+DEVIATION recorded in-entry); Item 5 DONE (AK-062 no-bypass + three-state
+wording + shared-variant mapping, settle:: 17/17). `builder-b2.md` NEVER
+WRITTEN — the checkpoints are the record.
+
+**Landed past the last checkpoint write (10:20:25), UNRECORDED and
+INCOMPLETE — the tree does NOT compile:** the finisher began a refactor of
+`SettleError::ReferenceMutated` into the boxed
+`ReferenceMutatedRefusal{run_id, unit_id, expected, actual}` (new struct at
+settle/mod.rs:517, variant at :350) at 10:21–10:24 and died before adapting
+THREE use sites: controller.rs:2522 (old pattern `{expected, actual, ..}`),
+settle/mod.rs:2269-2270 (old construction), settle/mod.rs:2490-2492 (test
+constructing struct-variant syntax). Errors: E0026 ×2, E0559 ×2 (verified
+personally via `cargo check -p gauntlet-app --all-targets`). No dirty code
+files exist — this IS the committed state.
+
+**Orchestrator verification of the committed tree:** `just ruler` PASS;
+`just boundaries` **197/197 GREEN** (the +1,114-line controller diff and the
+2,879-line settle module introduce no arch violations — the Task-12 F3
+hazard did not materialize); lib build RED as above, so NO test state is
+presently verifiable (the finisher's claimed greens were true before the
+10:21 refactor began and must be re-proven after it completes).
+
+**Verdict:** B2 = DONE-through-Item-5 per the record + a 4-minute mid-edit
+refactor left incomplete. Remaining: complete the ReferenceMutated refactor
+(3 mechanical use-site adaptations), re-run the full B2 gate battery the
+dead finisher never ran, write `builder-b2.md`. Recovery: finisher dispatch
+per the amended `finisher-brief-b2.md` (Phase R). Sub-agent limit refused
+at 18:24 (reset 2026-08-27 01:32:50 EDT); orchestrator does not implement
+(env unset).
+
+## OPERATOR INSTRUCTION (2026-08-26 20:15 EDT, this session)
+
+"i just want you to heal the environment appropriately and continue the
+work" — recorded as operator authorization (the ESC-002 standing pattern)
+for the ORCHESTRATOR to complete the blocked Phase R/G/C directly while
+the sub-agent delegation window is closed (reset 2026-08-27 01:32:50 EDT).
+Everything done under it is labeled orchestrator-run; fail-first evidence
+for the completed refactor is re-derived where applicable, never implied.
+
+## DONE-R / DONE-G (orchestrator-run, 2026-08-26 20:1x–20:3x EDT, per the recorded operator instruction)
+
+- DONE-R: the interrupted `ReferenceMutated` boxing refactor COMPLETED
+  mechanically at the three stale sites (controller.rs PASS-leg pattern →
+  destructure the box; settle/mod.rs mutation-test match → destructure the
+  box; variant_name test construction → `Box::new(ReferenceMutatedRefusal{..})`)
+  + one test-module import (`ReferenceMutatedRefusal` added to the explicit
+  `use super::{..}` list). NO redesign. Four clippy pedantic errors the dead
+  finisher never linted fixed mechanically (`field_reassign_with_default` →
+  struct-update init; collapsible nested if-let → let-chain; redundant field
+  name → shorthand) + `cargo fmt -p gauntlet-app` (touched exactly the two
+  predecessor-edited files: controller.rs, settle/mod.rs).
+  `cargo check -p gauntlet-app --all-targets` GREEN, ZERO warnings.
+- DONE-G (full battery, personally run):
+  - `just ruler` PASS
+  - `just test-package gauntlet-app` **323/323** (settle:: 17/17; the
+    Item-4 interlock resolved — package was 320/321 mid-record)
+  - `cargo nextest run --test p4_corrective_loop --test p6_budget_control
+    --test p12_missing_is_not_passing --test p2_context_isolation`
+    **31/31**
+  - `just lint` **exit 0**
+  - `just boundaries` **197/197** (re-run after the heal edits)
+- The finisher's recorded greens are re-proven on the completed tree.

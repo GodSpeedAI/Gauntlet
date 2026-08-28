@@ -4,11 +4,11 @@
 //! [`SettlementService::settle`] takes what the loop EARNED and grounds
 //! every fact on durable state:
 //!
-//! - the [`VerifiedClaim`] the governed verification chain minted, and its
-//!   [`SettlementReadiness`] (§16.1 conditions 1–2, already computed in the
-//!   loop) — the readiness is CONSUMED by value: it is a token the
-//!   precondition layer minted over the claim, never re-derived here from
-//!   caller-held values;
+//! - the [`VerifiedClaim`] the governed verification chain minted — §16.1
+//!   conditions 1–2 (the [`SettlementReadiness`] facts) are re-derived
+//!   INSIDE [`SettlementService::settle`] over that claim (COR-2, early
+//!   probe M3): the request carries no readiness field, so a token minted
+//!   over one claim cannot travel to another's settlement;
 //! - the FROZEN unit — loaded HERE from the durable run's own frozen
 //!   [`ReferenceVersion`](gauntlet_domain::ReferenceVersion) through the
 //!   port's digest-verifying projection, never an in-memory caller
@@ -108,13 +108,13 @@ use gauntlet_ports::human_escalation::{EscalationItem, HumanEscalation, HumanEsc
 use gauntlet_ports::observer::InstrumentIdentity;
 use gauntlet_ports::producer_authority::{
     EvidenceProductionAuthority, ProducerAuthorityError, SettlementAdmissionError,
-    SettlementCommitAuthority,
+    SettlementCommitAuthority, VerificationRecordAuthority,
 };
 use gauntlet_ports::reference_provider::{ReferenceProvider, ReferenceProviderError};
 use gauntlet_ports::state_store::{SettlementCommit, StateStore, StateStoreError};
 
 use crate::verify::authority::VerifiedClaim;
-use crate::verify::precondition::SettlementReadiness;
+use crate::verify::precondition::PreconditionFailure;
 
 /// The kind of actor closing the unit (the B.6 `exercised_by` vocabulary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -224,13 +224,13 @@ pub struct BlockingResidual {
     pub detail: String,
 }
 
-/// The settlement request: the earned claim, its CONSUMED readiness token,
-/// the closing context, and the tracked blocking residuals.
+/// The settlement request: the earned claim, the closing context, and the
+/// tracked blocking residuals. There is NO readiness parameter (COR-2,
+/// early probe M3): §16.1 conditions 1–2 are re-derived INSIDE
+/// [`SettlementService::settle`] over the claim itself — a readiness token
+/// minted over one claim has no parameter to travel to another's settlement.
 pub struct SettleRequest<'a> {
     pub claim: &'a VerifiedClaim,
-    /// Consumed by value: a readiness token is single-use evidence the
-    /// precondition layer minted, never a value to re-derive or replay.
-    pub readiness: SettlementReadiness,
     pub actor: ClosingActor,
     pub tracked_residuals: &'a [BlockingResidual],
 }
@@ -384,8 +384,20 @@ pub enum SettleError {
     /// (Task 21) re-enters through the governed chain; this service
     /// exposes no side door.
     OperatorActionRequiresEarnedReadiness { run_id: RunId, unit_id: UnitId },
+    /// §16.1 conditions 1–2 re-derived at service ENTRY over the settling
+    /// claim itself (COR-2, early probe M3) and refused: the claim's own
+    /// evidence does not resolve, was never pinned, or the pin state is
+    /// unanswerable. Nothing was written when this returns — the entry
+    /// checks precede every durable write the service performs.
+    ReadinessNotEarned(PreconditionFailure),
     /// Any other admission refusal (store-side, typed).
     Admission(SettlementAdmissionError),
+    /// The ports' verification-record recording authority refused the
+    /// settling claim's document (Task 13 correction round 1, COR-1): its
+    /// run is not durable, or its declared iteration is not the run's
+    /// durable anchor. The document never became the admission's durable
+    /// substrate.
+    VerificationRecording(ProducerAuthorityError),
     /// A durable state operation failed.
     State(StateStoreError),
     /// The evidence store failed.
@@ -496,9 +508,19 @@ impl core::fmt::Display for SettleError {
                  readiness; settlement is earned through the governed verification chain, never \
                  re-derived from an operator's request (spec 16.1, 20.2; AK-062)"
             ),
+            Self::ReadinessNotEarned(failure) => write!(
+                f,
+                "the settling claim did not earn its own readiness — conditions 1-2 re-derived \
+                 at service entry refused it (spec 16.1): {failure}"
+            ),
             Self::Admission(error) => {
                 write!(f, "the settlement admission refused: {error}")
             }
+            Self::VerificationRecording(error) => write!(
+                f,
+                "the verification-record recording authority refused the settling claim's \
+                 document — it never became the durable PASS substrate: {error}"
+            ),
             Self::State(error) => write!(f, "a durable settlement step failed: {error}"),
             Self::Evidence(error) => write!(f, "the evidence store failed: {error}"),
             Self::Escalation(error) => write!(f, "routing an authority gap failed: {error}"),
@@ -574,13 +596,15 @@ pub struct SettlementService {
     clock: Arc<dyn Clock>,
     commit_authority: SettlementCommitAuthority,
     production_authority: EvidenceProductionAuthority,
+    verification_record_authority: VerificationRecordAuthority,
 }
 
 impl SettlementService {
     /// Composes the service over the same ports the controller holds. The
-    /// commit and production authorities are built HERE from the state
-    /// store (the Task-12/13 precedent: the controller never assembles an
-    /// authority itself, it composes the service that owns one).
+    /// commit, production, and verification-record authorities are built
+    /// HERE from the state store (the Task-12/13 precedent: the controller
+    /// never assembles an authority itself, it composes the service that
+    /// owns one).
     pub fn new(
         state: Arc<dyn StateStore>,
         evidence: Arc<dyn EvidenceStore>,
@@ -591,6 +615,7 @@ impl SettlementService {
         Self {
             commit_authority: SettlementCommitAuthority::new(state.clone()),
             production_authority: EvidenceProductionAuthority::new(state.clone(), evidence.clone()),
+            verification_record_authority: VerificationRecordAuthority::new(state.clone()),
             state,
             evidence,
             reference,
@@ -599,8 +624,10 @@ impl SettlementService {
         }
     }
 
-    /// Settles one unit: conditions 3/4/5 in order, then the durable
-    /// §16.3 commit, then (as the return value) the in-memory advance.
+    /// Settles one unit: conditions 1/2 at entry (re-derived over the
+    /// claim itself, COR-2), then conditions 3/4/5 in order, then the
+    /// durable §16.3 commit, then (as the return value) the in-memory
+    /// advance.
     pub fn settle(
         &self,
         request: SettleRequest<'_>,
@@ -609,18 +636,48 @@ impl SettlementService {
         let record = request.claim.record();
         let run_id = record.run_id().clone();
         let unit_id = record.unit_id().clone();
+        // COR-2 (early probe M3): the claim-outcome entry check, before ANY
+        // durable write. Before the correction the service never read the
+        // settling claim's own outcome — a chain-minted FAIL claim paired
+        // with a readiness token minted over an earlier PASS committed
+        // DURABLY (FAIL document recorded, event appended, row written) and
+        // only the post-commit domain transition caught the FAIL. The
+        // outcome is named in the refusal: three states, never collapsed.
+        if record.outcome() != gauntlet_domain::Outcome::Pass {
+            return Err(SettleError::VerificationNotPass {
+                run_id: run_id.clone(),
+                unit_id: unit_id.clone(),
+                detail: format!(
+                    "the settling claim's own outcome is {} — only a PASS claim settles (spec \
+                     16.1 condition 1, checked at service entry)",
+                    record.outcome()
+                ),
+            });
+        }
+        // COR-2: conditions 1–2 re-derived HERE over the claim itself — the
+        // readiness the precondition layer mints is earned at the service
+        // boundary, never accepted from a caller. A token minted over one
+        // claim has no parameter to travel to another's settlement.
+        let readiness =
+            crate::verify::precondition::settlement_precondition(request.claim, &run_id, deadline)
+                .map_err(SettleError::ReadinessNotEarned)?;
         // Durable grounding: the run and its FROZEN unit — never a caller
         // snapshot of either.
-        let run = self
-            .state
-            .load_run(&run_id, deadline)?
-            .ok_or_else(|| SettleError::RunNotDurable {
-                run_id: run_id.clone(),
-            })?;
+        let run =
+            self.state
+                .load_run(&run_id, deadline)?
+                .ok_or_else(|| SettleError::RunNotDurable {
+                    run_id: run_id.clone(),
+                })?;
         let unit = self.frozen_unit(&run, &unit_id, deadline)?;
         // Condition 3 — the authority chain over the frozen unit.
-        let decision =
-            self.check_authority(&run_id, &unit_id, unit.authority(), &request.actor, deadline)?;
+        let decision = self.check_authority(
+            &run_id,
+            &unit_id,
+            unit.authority(),
+            &request.actor,
+            deadline,
+        )?;
         // Condition 4 — blocking residuals (tracked, then durable).
         self.check_blocking_residuals(&run_id, &unit_id, request.tracked_residuals, deadline)?;
         // Condition 5 — the settle-time reference re-verify.
@@ -631,8 +688,8 @@ impl SettlementService {
         let commit = SettlementCommit {
             run_id: run_id.clone(),
             unit_id: unit_id.clone(),
-            evidence: request.readiness.evidence().clone(),
-            verification: request.readiness.verification().clone(),
+            evidence: readiness.evidence().clone(),
+            verification: readiness.verification().clone(),
             reference_digest: run.reference_version().digest().clone(),
             at: self.clock.now(),
         };
@@ -647,7 +704,13 @@ impl SettlementService {
         };
         // The B.6 authority_decision accompanying record (documented
         // mapping: the settlements schema carries no such column).
-        self.record_authority_decision(&run_id, &unit_id, request.readiness.verification(), &decision, deadline)?;
+        self.record_authority_decision(
+            &run_id,
+            &unit_id,
+            readiness.verification(),
+            &decision,
+            deadline,
+        )?;
         // In-memory advance LAST (§16.3 step 3): the domain's own gate over
         // the frozen unit; the caller's projection update follows the
         // return, never precedes the durable commit.
@@ -655,7 +718,7 @@ impl SettlementService {
         settled
             .settle(
                 run_id.clone(),
-                request.readiness.evidence().clone(),
+                readiness.evidence().clone(),
                 request.claim.domain_record(),
             )
             .map_err(SettleError::DomainTransition)?;
@@ -686,9 +749,7 @@ impl SettlementService {
             .ok_or_else(|| SettleError::RunNotDurable {
                 run_id: request.run_id.clone(),
             })?;
-        let records = self
-            .state
-            .verification_records(&request.run_id, deadline)?;
+        let records = self.state.verification_records(&request.run_id, deadline)?;
         let unit_records: Vec<_> = records
             .iter()
             .filter(|record| record.unit_id() == &request.unit_id)
@@ -740,9 +801,12 @@ impl SettlementService {
         anchor: EventLogOffset,
         deadline: Deadline,
     ) -> Result<ResumeCompletion, SettleError> {
-        let mut completion = ResumeCompletion::default();
-        completion.settlements_completed =
-            self.state.complete_pending_settlements(run_id, anchor, deadline)?;
+        let mut completion = ResumeCompletion {
+            settlements_completed: self
+                .state
+                .complete_pending_settlements(run_id, anchor, deadline)?,
+            ..Default::default()
+        };
         // The evidence-production orphans: only the CURRENT durable
         // iteration's writes can sit at/after the anchor (the top-of-k
         // checkpoint is the last event below it), and their facts are
@@ -752,12 +816,12 @@ impl SettlementService {
             || IterationNo::new(1).expect("iterations are 1-based"),
             |checkpoint| checkpoint.iteration_no,
         );
-        let run = self
-            .state
-            .load_run(run_id, deadline)?
-            .ok_or_else(|| SettleError::RunNotDurable {
-                run_id: run_id.clone(),
-            })?;
+        let run =
+            self.state
+                .load_run(run_id, deadline)?
+                .ok_or_else(|| SettleError::RunNotDurable {
+                    run_id: run_id.clone(),
+                })?;
         let Some(binding) = self.state.observation_binding(run_id, durable, deadline)? else {
             return Ok(completion);
         };
@@ -788,8 +852,10 @@ impl SettlementService {
         })?;
         for facet in facets {
             let Ok(evidence_ref) = EvidenceRef::new(facet.evidence_ref()) else {
-                let detail =
-                    format!("the facet's evidence ref {:?} is not a valid ref", facet.evidence_ref());
+                let detail = format!(
+                    "the facet's evidence ref {:?} is not a valid ref",
+                    facet.evidence_ref()
+                );
                 self.pin_limitation(run_id, &detail, deadline)?;
                 completion.limitations.push(detail);
                 continue;
@@ -815,8 +881,11 @@ impl SettlementService {
                 };
                 let instrument =
                     InstrumentIdentity::new(name, facet.instrument_version().to_owned());
-                let produced_at =
-                    EpochSeconds::new(facet.ended_at().unwrap_or_else(|| facet.started_at().unwrap_or(0)));
+                let produced_at = EpochSeconds::new(
+                    facet
+                        .ended_at()
+                        .unwrap_or_else(|| facet.started_at().unwrap_or(0)),
+                );
                 match self.production_authority.mint(
                     run_id,
                     durable,
@@ -827,12 +896,10 @@ impl SettlementService {
                     deadline,
                 ) {
                     Ok(minted) => {
-                        match self.state.complete_pending_evidence_production(
-                            run_id,
-                            anchor,
-                            &minted,
-                            deadline,
-                        ) {
+                        match self
+                            .state
+                            .complete_pending_evidence_production(run_id, anchor, &minted, deadline)
+                        {
                             Ok(Some(binding)) => {
                                 completion.productions_completed.push(binding);
                                 recovered = true;
@@ -895,14 +962,19 @@ impl SettlementService {
 
     /// The frozen unit from the durable run's own reference version — the
     /// condition-3 input (the P4 seam's durable-side grounding).
-    fn frozen_unit(&self, run: &Run, unit_id: &UnitId, deadline: Deadline) -> Result<Unit, SettleError> {
-        let units = self.frozen_units(run, deadline).map_err(|detail| {
-            SettleError::UnitNotFrozen {
-                run_id: run.id().clone(),
-                unit_id: unit_id.clone(),
-                detail,
-            }
-        })?;
+    fn frozen_unit(
+        &self,
+        run: &Run,
+        unit_id: &UnitId,
+        deadline: Deadline,
+    ) -> Result<Unit, SettleError> {
+        let units =
+            self.frozen_units(run, deadline)
+                .map_err(|detail| SettleError::UnitNotFrozen {
+                    run_id: run.id().clone(),
+                    unit_id: unit_id.clone(),
+                    detail,
+                })?;
         units
             .into_iter()
             .find(|unit| unit.id() == unit_id)
@@ -945,7 +1017,13 @@ impl SettlementService {
             (Authority::Critic, _) => true,
             (Authority::LeadAgent, ClosingActor::Automatic)
             | (Authority::Human, ClosingActor::Automatic) => {
-                self.escalate_authority_gap(run_id, unit_id, required, ActorKind::Runtime, deadline)?;
+                self.escalate_authority_gap(
+                    run_id,
+                    unit_id,
+                    required,
+                    ActorKind::Runtime,
+                    deadline,
+                )?;
                 false
             }
             (Authority::LeadAgent, ClosingActor::Orchestrator { .. }) => actor.rationale_present(),
@@ -1037,30 +1115,25 @@ impl SettlementService {
         tracked: &[BlockingResidual],
         deadline: Deadline,
     ) -> Result<(), SettleError> {
-        if let Some(blocking) = tracked
-            .iter()
-            .find(|residual| &residual.unit == unit_id)
-        {
+        if let Some(blocking) = tracked.iter().find(|residual| &residual.unit == unit_id) {
             return Err(SettleError::BlockingResidualOpen {
                 run_id: run_id.clone(),
                 unit_id: unit_id.clone(),
                 detail: blocking.detail.clone(),
             });
         }
-        if let Some(checkpoint) = self.state.resume(run_id, deadline)? {
-            if let Some((_, status)) = checkpoint
+        if let Some(checkpoint) = self.state.resume(run_id, deadline)?
+            && let Some((_, status)) = checkpoint
                 .unit_states
                 .iter()
                 .find(|(unit, _)| unit == unit_id)
-            {
-                if matches!(status, UnitStatus::Blocked) {
-                    return Err(SettleError::DurableBlockDiverged {
-                        run_id: run_id.clone(),
-                        unit_id: unit_id.clone(),
-                        durable_status: *status,
-                    });
-                }
-            }
+            && matches!(status, UnitStatus::Blocked)
+        {
+            return Err(SettleError::DurableBlockDiverged {
+                run_id: run_id.clone(),
+                unit_id: unit_id.clone(),
+                durable_status: *status,
+            });
         }
         Ok(())
     }
@@ -1085,9 +1158,9 @@ impl SettlementService {
                     "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"class\":\"reference_mutated\",\"frozen_digest\":\"{expected}\",\"current_digest\":\"{actual}\"}}",
                     run.id()
                 );
-                let evidence =
-                    self.evidence
-                        .put(record.as_bytes(), EvidenceKind::Log, deadline)?;
+                let evidence = self
+                    .evidence
+                    .put(record.as_bytes(), EvidenceKind::Log, deadline)?;
                 self.evidence.pin(run.id(), &evidence, deadline)?;
                 Err(SettleError::ReferenceMutated(Box::new(
                     ReferenceMutatedRefusal {
@@ -1123,7 +1196,11 @@ impl SettlementService {
             return Ok(());
         }
         let identity_of = |stored: &gauntlet_ports::verification_record::VerificationRecordDoc| {
-            (stored.unit_id().clone(), stored.evidence().clone(), stored.outcome())
+            (
+                stored.unit_id().clone(),
+                stored.evidence().clone(),
+                stored.outcome(),
+            )
         };
         if let Some(stored) = existing
             .iter()
@@ -1139,7 +1216,14 @@ impl SettlementService {
                 ),
             });
         }
-        self.state.record_verification(record, deadline)?;
+        // COR-1 (early probe C1): the durable write is EARNED through the
+        // ports' recording authority — the chain-minted document's run and
+        // declared iteration are validated against durable state, and the
+        // store consumes only the authority-minted value. A raw
+        // caller-built document has no route to the admission's substrate.
+        self.verification_record_authority
+            .record(record, deadline)
+            .map_err(SettleError::VerificationRecording)?;
         Ok(())
     }
 
@@ -1153,10 +1237,19 @@ impl SettlementService {
         decision: &AuthorityDecision,
         deadline: Deadline,
     ) -> Result<(), SettleError> {
+        // COR-6 (early probe m2): the identity is operator-controlled free
+        // text — it is ESCAPED through the shared rule, never interpolated
+        // raw (a crafted identity could otherwise inject members into, or
+        // corrupt, the pinned record; `pin_limitation` already escaped).
         let operator = decision
             .operator_identity
             .as_ref()
-            .map(|identity| format!("\"{}\"", identity.as_str()))
+            .map(|identity| {
+                format!(
+                    "\"{}\"",
+                    crate::control::controller::escape_json_text(identity.as_str())
+                )
+            })
             .unwrap_or_else(|| "null".to_owned());
         let record = format!(
             "{{\"schema\":\"settlement_authority_decision@v1\",\"run\":\"{run_id}\",\"unit\":\"{unit_id}\",\"verification\":\"{verification}\",\"required\":\"{}\",\"exercised_by\":\"{}\",\"operator_identity\":{operator},\"rationale_recorded\":{}}}",
@@ -1220,17 +1313,19 @@ mod tests {
 
     use super::{
         ActorKind, BlockingResidual, ClosingActor, OperatorActionRequest, OperatorIdentity,
-        ResumeCompletion, SettlementService, SettleError, SettleRequest,
+        ReferenceMutatedRefusal, ResumeCompletion, SettleError, SettleRequest, SettlementService,
     };
-    use crate::observation::bundle::{BundleContent, ClaimsFacet, FacetRecord, ObservationBundleDoc};
+    use crate::observation::bundle::{
+        BundleContent, ClaimsFacet, FacetRecord, ObservationBundleDoc,
+    };
     use crate::verify::authority::{VerificationAuthority, VerifiedClaim};
     use crate::verify::ladder::{Ladder, LadderRung, RungKind};
-    use crate::verify::precondition::{SettlementReadiness, settlement_precondition};
+    use crate::verify::precondition::PreconditionFailure;
     use crate::verify::testing::{FakeDeterministicVerifier, PinningEvidence, SeededIds};
     use gauntlet_domain::{
-        Authority, Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceKind, EvidenceLocator,
-        EvidenceRef, InstrumentName, IterationNo, Limits, MicroUsd, Outcome, ReferenceId,
-        ReferenceVersion, Run, RunDefinition, RunId, UnitId, UnitStatus,
+        Authority, Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceKind,
+        EvidenceLocator, EvidenceRef, InstrumentName, IterationNo, Limits, MicroUsd, Outcome,
+        ReferenceId, ReferenceVersion, Run, RunDefinition, RunId, UnitId, UnitStatus,
     };
     use gauntlet_ports::clock::{Clock, ClockError};
     use gauntlet_ports::deadline::Deadline;
@@ -1302,7 +1397,9 @@ mod tests {
                 Self::OperatorActionRequiresEarnedReadiness { .. } => {
                     "OperatorActionRequiresEarnedReadiness"
                 }
+                Self::ReadinessNotEarned(..) => "ReadinessNotEarned",
                 Self::Admission(..) => "Admission",
+                Self::VerificationRecording(..) => "VerificationRecording",
                 Self::State(..) => "State",
                 Self::Evidence(..) => "Evidence",
                 Self::Escalation(..) => "Escalation",
@@ -1350,11 +1447,7 @@ mod tests {
     }
 
     impl ReferenceProvider for ScriptedProvider {
-        fn resolve(
-            &self,
-            _: &str,
-            _: Deadline,
-        ) -> Result<ReferenceDraft, ReferenceProviderError> {
+        fn resolve(&self, _: &str, _: Deadline) -> Result<ReferenceDraft, ReferenceProviderError> {
             Err(ReferenceProviderError::Unavailable {
                 detail: "the settle fixture never resolves".to_owned(),
             })
@@ -1466,10 +1559,8 @@ mod tests {
         fn with_optional_run(run: Option<Run>) -> Self {
             static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
             let seq = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            let workspace = std::env::temp_dir().join(format!(
-                "gauntlet-settle-{}-{seq}",
-                std::process::id()
-            ));
+            let workspace =
+                std::env::temp_dir().join(format!("gauntlet-settle-{}-{seq}", std::process::id()));
             let _ = std::fs::remove_dir_all(&workspace);
             std::fs::create_dir_all(&workspace).expect("the fixture workspace root is creatable");
             Self {
@@ -1538,19 +1629,15 @@ mod tests {
         }
 
         fn hold_binding(&self, iteration: u32, evidence: EvidenceRef, digest: Digest) {
-            *self.binding.borrow_mut() = Some((
-                iteration,
-                ObservationBinding::new(evidence, digest),
-            ));
+            *self.binding.borrow_mut() =
+                Some((iteration, ObservationBinding::new(evidence, digest)));
         }
 
         fn settlement_events(&self) -> usize {
             self.events
                 .borrow()
                 .iter()
-                .filter(|(_, event)| {
-                    matches!(event.kind, RunEventKind::SettlementCommitted { .. })
-                })
+                .filter(|(_, event)| matches!(event.kind, RunEventKind::SettlementCommitted { .. }))
                 .count()
         }
 
@@ -1583,29 +1670,23 @@ mod tests {
             Ok(gauntlet_domain::EventLogOffset::new(offset))
         }
         fn load_run(&self, run_id: &RunId, _: Deadline) -> Result<Option<Run>, StateStoreError> {
-            Ok(self
-                .run
-                .as_ref()
-                .filter(|run| run.id() == run_id)
-                .cloned())
+            Ok(self.run.as_ref().filter(|run| run.id() == run_id).cloned())
         }
         fn checkpoint(&self, checkpoint: Checkpoint, _: Deadline) -> Result<(), StateStoreError> {
             *self.checkpoint.borrow_mut() = Some(checkpoint);
             Ok(())
         }
-        fn resume(
-            &self,
-            _: &RunId,
-            _: Deadline,
-        ) -> Result<Option<Checkpoint>, StateStoreError> {
+        fn resume(&self, _: &RunId, _: Deadline) -> Result<Option<Checkpoint>, StateStoreError> {
             Ok(self.checkpoint.borrow().clone())
         }
         fn record_verification(
             &self,
-            record: &gauntlet_ports::verification_record::VerificationRecordDoc,
+            record: &gauntlet_ports::producer_authority::AdmittedVerificationRecord,
             _: Deadline,
         ) -> Result<(), StateStoreError> {
-            self.verifications.borrow_mut().push(record.clone());
+            self.verifications
+                .borrow_mut()
+                .push(record.record().clone());
             Ok(())
         }
         fn verification_records(
@@ -1734,8 +1815,11 @@ mod tests {
                     at: payload.produced_at(),
                 },
             ));
-            let binding =
-                EvidenceProductionBinding::new(run_id.clone(), payload.clone(), gauntlet_domain::EventLogOffset::new(offset));
+            let binding = EvidenceProductionBinding::new(
+                run_id.clone(),
+                payload.clone(),
+                gauntlet_domain::EventLogOffset::new(offset),
+            );
             self.productions.borrow_mut().push(binding.clone());
             Ok(binding)
         }
@@ -1779,10 +1863,7 @@ mod tests {
             binding: &gauntlet_ports::producer_authority::AdmittedObservationBinding,
             _: Deadline,
         ) -> Result<(), StateStoreError> {
-            *self.binding.borrow_mut() = Some((
-                iteration_no.get(),
-                binding.binding().clone(),
-            ));
+            *self.binding.borrow_mut() = Some((iteration_no.get(), binding.binding().clone()));
             Ok(())
         }
         fn observation_binding(
@@ -1951,14 +2032,20 @@ mod tests {
         }
     }
 
-    /// Earns the claim AND its readiness the honest way: a real production
-    /// row, real store bytes, a real pin, a real checkpoint anchor, the
-    /// governed chain, and the precondition layer.
-    fn earned_claim(f: &Fixture, unit: &str, iteration: u32) -> (VerifiedClaim, SettlementReadiness) {
+    /// Earns the claim the honest way: a real production row, real store
+    /// bytes, a real pin, a real checkpoint anchor, and the governed chain.
+    /// The settlement readiness is NOT part of the fixture — COR-2 moved
+    /// its earning inside the service, over this claim, at settle time.
+    fn earned_claim(f: &Fixture, unit: &str, iteration: u32) -> VerifiedClaim {
         let reference = f
             .evidence
             .insert(&format!("evd-{unit}"), b"the fixture report bytes");
-        f.state.record(reference.as_str(), locator_of(unit), iteration, b"the fixture report bytes");
+        f.state.record(
+            reference.as_str(),
+            locator_of(unit),
+            iteration,
+            b"the fixture report bytes",
+        );
         f.evidence.pin(&run_id(), &reference);
         f.state.checkpoint_at(iteration, Vec::new());
         let governed = VerificationAuthority::new(
@@ -1978,9 +2065,91 @@ mod tests {
             .verify_claim(&unit_request(unit), bound())
             .expect("the chain mints a PASS");
         assert_eq!(claim.record().outcome(), Outcome::Pass);
-        let readiness = settlement_precondition(&claim, &run_id(), bound())
-            .expect("the fixture claim is ready");
-        (claim, readiness)
+        claim
+    }
+
+    /// A rung-sized verifier that always decides FAIL — the re-verified
+    /// unit whose evidence the instrument now refuses (the COR-2 attack's
+    /// second claim).
+    struct FailingVerifier {
+        name: &'static str,
+        kinds: &'static [EvidenceKind],
+    }
+
+    impl gauntlet_ports::verifier::Verifier for FailingVerifier {
+        fn verify(
+            &self,
+            claim: &VerificationRequest,
+            _: Deadline,
+        ) -> Result<gauntlet_domain::VerificationRecord, gauntlet_ports::verifier::VerifierError>
+        {
+            Ok(gauntlet_domain::VerificationRecord::new(
+                claim.id.clone(),
+                claim.run_id.clone(),
+                claim.unit_id.clone(),
+                EvidenceRef::new(claim.evidence.as_str())
+                    .expect("a locator string is a valid ref string"),
+                Outcome::Fail,
+                InstrumentName::new(self.name).expect("plain token"),
+            ))
+        }
+        fn is_deterministic(&self) -> bool {
+            true
+        }
+        fn instrument(&self) -> InstrumentIdentity {
+            InstrumentIdentity::new(
+                InstrumentName::new(self.name).expect("plain token"),
+                "1".to_owned(),
+            )
+        }
+        fn supports(&self, requirement: &gauntlet_domain::EvidenceRequirement) -> bool {
+            self.kinds.contains(&requirement.kind())
+        }
+    }
+
+    fn failing_ladder() -> Ladder {
+        Ladder::new(vec![LadderRung::new(
+            RungKind::TestReport,
+            Arc::new(FailingVerifier {
+                name: "settle-fixture-refuser",
+                kinds: &[EvidenceKind::TestReport],
+            }),
+        )])
+        .expect("the failing ladder composes")
+    }
+
+    /// The same honest earning as `earned_claim`, over a ladder whose
+    /// instrument decides FAIL: a chain-minted FAIL claim for the unit.
+    fn earned_fail_claim(f: &Fixture, unit: &str, iteration: u32) -> VerifiedClaim {
+        let reference = f
+            .evidence
+            .insert(&format!("evd-{unit}"), b"the fixture report bytes");
+        f.state.record(
+            reference.as_str(),
+            locator_of(unit),
+            iteration,
+            b"the fixture report bytes",
+        );
+        f.evidence.pin(&run_id(), &reference);
+        f.state.checkpoint_at(iteration, Vec::new());
+        let governed = VerificationAuthority::new(
+            f.state.clone(),
+            f.evidence.clone(),
+            Arc::new(SeededIds::new()),
+        )
+        .for_run(
+            &run_id(),
+            IterationNo::new(iteration).expect("1-based"),
+            failing_ladder(),
+            f.state.workspace_root().to_owned(),
+            bound(),
+        )
+        .expect("the fixture run opens");
+        let claim = governed
+            .verify_claim(&unit_request(unit), bound())
+            .expect("the chain mints a FAIL");
+        assert_eq!(claim.record().outcome(), Outcome::Fail);
+        claim
     }
 
     /// The pinned records whose text contains `needle` — pin status is
@@ -2001,12 +2170,10 @@ mod tests {
     fn is_pinned_record(evidence: &PinningEvidence, needle: &str) -> bool {
         let objects = evidence.objects.lock().expect("not poisoned");
         let pins = evidence.pins.lock().expect("not poisoned");
-        objects
-            .iter()
-            .any(|(reference, bytes)| {
-                String::from_utf8_lossy(bytes).contains(needle)
-                    && pins.contains(&(run_id(), reference.clone()))
-            })
+        objects.iter().any(|(reference, bytes)| {
+            String::from_utf8_lossy(bytes).contains(needle)
+                && pins.contains(&(run_id(), reference.clone()))
+        })
     }
 
     // ------------------------------------------------------------------
@@ -2016,13 +2183,12 @@ mod tests {
     #[test]
     fn a_critic_unit_settles_durably_under_automatic_closure() {
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         let outcome = f
             .service
             .settle(
                 SettleRequest {
                     claim: &claim,
-                    readiness,
                     actor: ClosingActor::Automatic,
                     tracked_residuals: &[],
                 },
@@ -2043,30 +2209,37 @@ mod tests {
         assert_eq!(outcome.authority_decision.exercised_by, ActorKind::Runtime);
         assert!(outcome.authority_decision.operator_identity.is_none());
         // The verification document is durable (the admission's substrate).
-        assert_eq!(f.state.verification_records(&run_id(), bound()).unwrap().len(), 1);
+        assert_eq!(
+            f.state
+                .verification_records(&run_id(), bound())
+                .unwrap()
+                .len(),
+            1
+        );
         // The B.6 authority_decision accompanying record is PINNED evidence.
-        assert!(is_pinned_record(&f.evidence, "settlement_authority_decision"));
+        assert!(is_pinned_record(
+            &f.evidence,
+            "settlement_authority_decision"
+        ));
     }
 
     #[test]
     fn a_lead_agent_unit_requires_a_recorded_rationale() {
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9502", 1);
+        let claim = earned_claim(&f, "AK-9502", 1);
         let absent = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness: readiness, // consumed? no — clone for the second call is impossible; re-earn below
                 actor: ClosingActor::Orchestrator { rationale: None },
                 tracked_residuals: &[],
             },
             bound(),
         );
         assert!(matches!(absent, Err(SettleError::RationaleRequired { .. })));
-        let (claim, readiness) = earned_claim(&f, "AK-9502", 1);
+        let claim = earned_claim(&f, "AK-9502", 1);
         let blank = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Orchestrator {
                     rationale: Some("   ".to_owned()),
                 },
@@ -2079,13 +2252,12 @@ mod tests {
             "a blank rationale is an absent rationale: {blank:?}"
         );
         assert_eq!(f.state.settlement_events(), 0, "nothing committed");
-        let (claim, readiness) = earned_claim(&f, "AK-9502", 1);
+        let claim = earned_claim(&f, "AK-9502", 1);
         let outcome = f
             .service
             .settle(
                 SettleRequest {
                     claim: &claim,
-                    readiness,
                     actor: ClosingActor::Orchestrator {
                         rationale: Some("the orchestrator's closure rationale".to_owned()),
                     },
@@ -2095,18 +2267,20 @@ mod tests {
             )
             .expect("an orchestrator with a recorded rationale closes lead-agent work");
         assert!(outcome.committed_now);
-        assert_eq!(outcome.authority_decision.exercised_by, ActorKind::Orchestrator);
+        assert_eq!(
+            outcome.authority_decision.exercised_by,
+            ActorKind::Orchestrator
+        );
         assert!(outcome.authority_decision.rationale_recorded);
     }
 
     #[test]
     fn a_human_authority_unit_refuses_automatic_closure_and_escalates() {
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9503", 1);
+        let claim = earned_claim(&f, "AK-9503", 1);
         let refusal = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Automatic,
                 tracked_residuals: &[],
             },
@@ -2130,14 +2304,13 @@ mod tests {
         assert_eq!(f.state.settlement_events(), 0);
         assert!(f.state.settlement_row("AK-9503").is_none());
         // The operator route, with a recorded identity, closes it.
-        let (claim, readiness) = earned_claim(&f, "AK-9503", 1);
+        let claim = earned_claim(&f, "AK-9503", 1);
         let identity = OperatorIdentity::new("operator-one").expect("identity");
         let outcome = f
             .service
             .settle(
                 SettleRequest {
                     claim: &claim,
-                    readiness,
                     actor: ClosingActor::Operator {
                         identity: Some(identity.clone()),
                     },
@@ -2152,17 +2325,19 @@ mod tests {
             Some(&identity)
         );
         // Absent identity on the operator route refuses.
-        let (claim, readiness) = earned_claim(&f, "AK-9503", 1);
+        let claim = earned_claim(&f, "AK-9503", 1);
         let anonymous = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Operator { identity: None },
                 tracked_residuals: &[],
             },
             bound(),
         );
-        assert!(matches!(anonymous, Err(SettleError::OperatorIdentityRequired { .. })));
+        assert!(matches!(
+            anonymous,
+            Err(SettleError::OperatorIdentityRequired { .. })
+        ));
     }
 
     // ------------------------------------------------------------------
@@ -2172,7 +2347,7 @@ mod tests {
     #[test]
     fn a_blocking_residual_referencing_the_unit_refuses_settlement() {
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         let other = BlockingResidual {
             unit: unit_id("AK-9502"),
             detail: "expected: the report; observed: absent".to_owned(),
@@ -2180,7 +2355,6 @@ mod tests {
         let unaffected = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness, // moved below for the blocking leg — rebind
                 actor: ClosingActor::Automatic,
                 tracked_residuals: std::slice::from_ref(&other),
             },
@@ -2190,7 +2364,7 @@ mod tests {
             unaffected.is_ok(),
             "a residual for ANOTHER unit does not block this one: {unaffected:?}"
         );
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 2);
+        let claim = earned_claim(&f, "AK-9501", 2);
         let blocking = BlockingResidual {
             unit: unit_id("AK-9501"),
             detail: "expected: the report; observed: absent".to_owned(),
@@ -2198,7 +2372,6 @@ mod tests {
         let refused = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Automatic,
                 tracked_residuals: std::slice::from_ref(&blocking),
             },
@@ -2223,22 +2396,21 @@ mod tests {
         // diverge — the DURABLE state wins and the divergence itself is the
         // typed refusal cause.
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         f.state
             .checkpoint_at(1, vec![(unit_id("AK-9501"), UnitStatus::Blocked)]);
         let refused = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Automatic,
                 tracked_residuals: &[],
             },
             bound(),
         );
         match refused {
-            Err(SettleError::DurableBlockDiverged {
-                durable_status, ..
-            }) => assert_eq!(durable_status, UnitStatus::Blocked),
+            Err(SettleError::DurableBlockDiverged { durable_status, .. }) => {
+                assert_eq!(durable_status, UnitStatus::Blocked)
+            }
             other => panic!("the durable block diverges loudly, got {other:?}"),
         }
         assert_eq!(f.state.settlement_events(), 0, "nothing committed");
@@ -2251,12 +2423,11 @@ mod tests {
     #[test]
     fn a_settle_time_reference_mutation_aborts_with_both_digests_as_pinned_evidence() {
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         f.provider.mode.set(ProviderMode::Mutated);
         let refusal = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Automatic,
                 tracked_residuals: &[],
             },
@@ -2265,11 +2436,12 @@ mod tests {
         let expected = crate::verify::content_digest(KEY.as_bytes());
         let actual = crate::verify::content_digest(b"the mutated ruler bytes");
         match refusal {
-            Err(SettleError::ReferenceMutated {
-                expected: found_expected,
-                actual: found_actual,
-                ..
-            }) => {
+            Err(SettleError::ReferenceMutated(boxed)) => {
+                let ReferenceMutatedRefusal {
+                    expected: found_expected,
+                    actual: found_actual,
+                    ..
+                } = *boxed;
                 assert_eq!(found_expected, expected);
                 assert_eq!(found_actual, actual);
             }
@@ -2294,12 +2466,11 @@ mod tests {
     #[test]
     fn a_settle_time_unavailability_refuses_without_aborting_or_escalating() {
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         f.provider.mode.set(ProviderMode::Unavailable);
         let refusal = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Automatic,
                 tracked_residuals: &[],
             },
@@ -2320,13 +2491,12 @@ mod tests {
     #[test]
     fn a_re_entry_of_the_same_settlement_key_is_idempotent_success() {
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         let first = f
             .service
             .settle(
                 SettleRequest {
                     claim: &claim,
-                    readiness,
                     actor: ClosingActor::Automatic,
                     tracked_residuals: &[],
                 },
@@ -2337,13 +2507,12 @@ mod tests {
         // freshly earned claim whose verification ref is the SAME §16.3 key
         // (the seeded fixture mints the same ref) — re-entry must be an
         // idempotent SUCCESS carrying the existing durable facts.
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         let second = f
             .service
             .settle(
                 SettleRequest {
                     claim: &claim,
-                    readiness,
                     actor: ClosingActor::Automatic,
                     tracked_residuals: &[],
                 },
@@ -2363,6 +2532,92 @@ mod tests {
         );
     }
 
+    /// COR-4 fail-first (early probe M2): the E2 evidence-divergence shape.
+    /// The §16.3 key `(run, unit, verification)` is durable over evidence
+    /// E1; a later settle of the SAME key over DIFFERENT evidence E2 (a
+    /// second honest PASS at the same locator, same seeded verification
+    /// ref) must be a typed DIVERGENCE refusal — the stored row is what it
+    /// is, and idempotent re-entry is for the SAME settlement, never a
+    /// success riding the old offset while naming different evidence.
+    #[test]
+    fn a_re_entry_diverging_on_evidence_is_a_typed_refusal_not_success() {
+        let f = fixture();
+        let first = f
+            .service
+            .settle(
+                SettleRequest {
+                    claim: &earned_claim(&f, "AK-9501", 1),
+                    actor: ClosingActor::Automatic,
+                    tracked_residuals: &[],
+                },
+                bound(),
+            )
+            .expect("the first settle commits over evidence E1");
+        // E2: a second honest production at the same locator, fresher
+        // anchor — a later PASS the chain can mint over, carrying the SAME
+        // seeded verification ref (a fresh id source mints the same ref).
+        let e2 = f
+            .evidence
+            .insert("evd-AK-9501-b", b"the second report bytes");
+        f.state.record(
+            e2.as_str(),
+            locator_of("AK-9501"),
+            1,
+            b"the second report bytes",
+        );
+        f.evidence.pin(&run_id(), &e2);
+        f.state.checkpoint_at(1, Vec::new());
+        let governed = VerificationAuthority::new(
+            f.state.clone(),
+            f.evidence.clone(),
+            Arc::new(SeededIds::new()),
+        )
+        .for_run(
+            &run_id(),
+            IterationNo::new(1).expect("1-based"),
+            ladder(),
+            f.state.workspace_root().to_owned(),
+            bound(),
+        )
+        .expect("the fixture run opens");
+        let second_claim = governed
+            .verify_claim(&unit_request("AK-9501"), bound())
+            .expect("the chain mints the E2 PASS");
+        assert_eq!(
+            second_claim.record().evidence().as_str(),
+            "evd-AK-9501-b",
+            "the freshest production anchors the E2 claim"
+        );
+        let refused = f.service.settle(
+            SettleRequest {
+                claim: &second_claim,
+                actor: ClosingActor::Automatic,
+                tracked_residuals: &[],
+            },
+            bound(),
+        );
+        match refused {
+            Err(SettleError::Admission(
+                gauntlet_ports::producer_authority::SettlementAdmissionError::AlreadyCommittedDivergence(
+                    refusal,
+                ),
+            )) => {
+                assert_eq!(refusal.committed_evidence.as_str(), "evd-AK-9501");
+                assert_eq!(refusal.offered_evidence.as_str(), "evd-AK-9501-b");
+            }
+            other => panic!("the E2 divergence is a typed refusal, got {other:?}"),
+        }
+        // The durable state still names exactly the FIRST settlement.
+        assert_eq!(f.state.settlement_events(), 1, "no second event");
+        let rows = f.state.settlements(&run_id(), bound()).expect("reads");
+        assert_eq!(rows.len(), 1, "no second row");
+        assert_eq!(rows[0].evidence().as_str(), "evd-AK-9501");
+        assert!(
+            rows[0].event_log_offset() == first.event_log_offset,
+            "the original row stands at its own offset"
+        );
+    }
+
     #[test]
     fn a_disagreeing_durable_record_for_the_same_identity_refuses() {
         let f = fixture();
@@ -2375,14 +2630,13 @@ mod tests {
         altered.detail = "a different judgment".to_owned();
         disagreeing = gauntlet_ports::verification_record::VerificationRecordDoc::new(altered)
             .expect("altered content is well formed");
-        f.state
-            .record_verification(&disagreeing, bound())
+        gauntlet_ports::VerificationRecordAuthority::new(f.state.clone())
+            .record(&disagreeing, bound())
             .expect("the disagreeing record lands");
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         let refused = f.service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Automatic,
                 tracked_residuals: &[],
             },
@@ -2401,6 +2655,10 @@ mod tests {
         let _ = f;
         gauntlet_ports::verification_record::VerificationRecordDoc::new(
             gauntlet_ports::verification_record::VerificationContent {
+                verification: gauntlet_domain::VerificationRef::new(&format!(
+                    "vrf-settle-fixture-{unit}"
+                ))
+                .expect("valid verification ref"),
                 run_id: run_id(),
                 iteration_no: IterationNo::new(1).expect("1-based"),
                 unit_id: unit_id(unit),
@@ -2425,12 +2683,158 @@ mod tests {
         .expect("fixture document is well formed")
     }
 
+    /// COR-2 (early probe M3), the FAIL-claim half of the attack. FAIL-FIRST
+    /// evidence (RED, pre-fix, 2026-08-27): with the readiness as a request
+    /// field, a chain-minted FAIL claim presented with a stale PASS token
+    /// committed DURABLY — the service returned
+    /// `Err(DomainTransition(SettledWithoutPassVerification))` only AFTER the
+    /// FAIL verification document, the settlement event, and the settlement
+    /// row had all landed (the domain transition is deliberately last). The
+    /// fix moves the claim-outcome check to service entry, before ANY
+    /// durable write; the stale-token pairing itself is now unrepresentable
+    /// (the request carries no readiness field at all).
+    #[test]
+    fn a_fail_claim_refuses_at_service_entry_with_zero_durable_writes() {
+        let f = fixture();
+        // The durable substrate holds a PASS record for the unit's evidence
+        // (the honest shape the attack's stale half referred to).
+        gauntlet_ports::VerificationRecordAuthority::new(f.state.clone())
+            .record(&claim_document(&f, "AK-9501"), bound())
+            .expect("the PASS substrate lands");
+        // The re-verification FAILED — the claim the loop actually holds.
+        let fail_claim = earned_fail_claim(&f, "AK-9501", 1);
+        let refused = f.service.settle(
+            SettleRequest {
+                claim: &fail_claim,
+                actor: ClosingActor::Automatic,
+                tracked_residuals: &[],
+            },
+            bound(),
+        );
+        match refused {
+            Err(SettleError::VerificationNotPass { detail, .. }) => assert!(
+                detail.contains("FAIL"),
+                "the refusal names the outcome as itself: {detail}"
+            ),
+            other => panic!("the FAIL claim is refused at entry, got {other:?}"),
+        }
+        assert_eq!(f.state.settlement_events(), 0, "no settlement event");
+        assert!(
+            f.state.settlement_row("AK-9501").is_none(),
+            "no settlement row"
+        );
+        // The FAIL document never became the admission's substrate.
+        let records = f
+            .state
+            .verification_records(&run_id(), bound())
+            .expect("reads");
+        assert_eq!(records.len(), 1, "only the seeded PASS record: {records:?}");
+        assert_eq!(records[0].outcome(), Outcome::Pass);
+    }
+
+    /// COR-2: the entry check names the outcome as itself — an INCONCLUSIVE
+    /// claim is a DISTINCT refusal from a FAIL claim, never collapsed
+    /// (AK-005's three-state rule, held at the service entry).
+    #[test]
+    fn an_inconclusive_claim_is_a_distinct_entry_refusal_from_fail() {
+        let f = fixture();
+        // The honest earning, over a ladder whose instrument cannot find
+        // the evidence: the chain mints INCONCLUSIVE (P12).
+        let inconclusive_ladder = Ladder::new(vec![LadderRung::new(
+            RungKind::TestReport,
+            Arc::new(FakeDeterministicVerifier {
+                name: "settle-fixture-verifier",
+                kinds: &[EvidenceKind::TestReport],
+                passing: vec![],
+            }),
+        )])
+        .expect("the inconclusive ladder composes");
+        let reference = f
+            .evidence
+            .insert("evd-AK-9501", b"the fixture report bytes");
+        f.state.record(
+            reference.as_str(),
+            locator_of("AK-9501"),
+            1,
+            b"the fixture report bytes",
+        );
+        f.state.checkpoint_at(1, Vec::new());
+        let governed = VerificationAuthority::new(
+            f.state.clone(),
+            f.evidence.clone(),
+            Arc::new(SeededIds::new()),
+        )
+        .for_run(
+            &run_id(),
+            IterationNo::new(1).expect("1-based"),
+            inconclusive_ladder,
+            f.state.workspace_root().to_owned(),
+            bound(),
+        )
+        .expect("the fixture run opens");
+        let claim = governed
+            .verify_claim(&unit_request("AK-9501"), bound())
+            .expect("the chain mints INCONCLUSIVE");
+        assert_eq!(claim.record().outcome(), Outcome::Inconclusive);
+        let refused = f.service.settle(
+            SettleRequest {
+                claim: &claim,
+                actor: ClosingActor::Automatic,
+                tracked_residuals: &[],
+            },
+            bound(),
+        );
+        match refused {
+            Err(SettleError::VerificationNotPass { detail, .. }) => assert!(
+                detail.contains("INCONCLUSIVE"),
+                "the refusal names the outcome as itself: {detail}"
+            ),
+            other => panic!("the INCONCLUSIVE claim is refused at entry, got {other:?}"),
+        }
+        assert_eq!(f.state.settlement_events(), 0, "nothing committed");
+    }
+
+    /// COR-2: the readiness is re-derived INSIDE the service over the claim
+    /// itself — a PASS claim whose evidence the run never pinned refuses
+    /// with the precondition layer's own typed failure, before any durable
+    /// write (there is no readiness parameter for a caller to supply).
+    #[test]
+    fn the_service_re_derives_conditions_one_and_two_over_the_claim_itself() {
+        let f = fixture();
+        let claim = earned_claim(&f, "AK-9501", 1);
+        // The run never pinned the evidence (the pin is a durable fact the
+        // loop writes, not the record's say-so — COR-2 re-checks it here).
+        f.evidence.pins.lock().expect("not poisoned").clear();
+        let refused = f.service.settle(
+            SettleRequest {
+                claim: &claim,
+                actor: ClosingActor::Automatic,
+                tracked_residuals: &[],
+            },
+            bound(),
+        );
+        match refused {
+            Err(SettleError::ReadinessNotEarned(PreconditionFailure::EvidenceUnpinned {
+                reference,
+            })) => assert_eq!(reference.as_str(), "evd-AK-9501"),
+            other => panic!("the unpinned PASS claim refuses at entry, got {other:?}"),
+        }
+        assert_eq!(f.state.settlement_events(), 0, "nothing committed");
+        assert!(
+            f.state
+                .verification_records(&run_id(), bound())
+                .expect("reads")
+                .is_empty(),
+            "the document was not recorded either"
+        );
+    }
+
     #[test]
     fn an_undurable_run_refuses_every_settlement() {
         // A claim earned in a durable substrate, settled through a service
         // whose store holds NO run: the durable grounding refuses.
         let f = fixture();
-        let (claim, readiness) = earned_claim(&f, "AK-9501", 1);
+        let claim = earned_claim(&f, "AK-9501", 1);
         let service = SettlementService::new(
             Arc::new(SettleState::empty()),
             f.evidence.clone(),
@@ -2441,7 +2845,6 @@ mod tests {
         let refused = service.settle(
             SettleRequest {
                 claim: &claim,
-                readiness,
                 actor: ClosingActor::Automatic,
                 tracked_residuals: &[],
             },
@@ -2487,12 +2890,12 @@ mod tests {
                 durable_status: UnitStatus::Blocked,
             }
             .variant_name(),
-            SettleError::ReferenceMutated {
+            SettleError::ReferenceMutated(Box::new(ReferenceMutatedRefusal {
                 run_id: run_id(),
                 unit_id: unit_id("AK-9501"),
                 expected: crate::verify::content_digest(b"a"),
                 actual: crate::verify::content_digest(b"b"),
-            }
+            }))
             .variant_name(),
             SettleError::ReferenceUnverifiable {
                 run_id: run_id(),
@@ -2769,8 +3172,8 @@ mod tests {
         // settlement requires the chain-earned readiness, which only the
         // governed verification chain can mint (Task 21 composes that
         // surface; this service exposes no side door).
-        f.state
-            .record_verification(&claim_document(&f, "AK-9501"), bound())
+        gauntlet_ports::VerificationRecordAuthority::new(f.state.clone())
+            .record(&claim_document(&f, "AK-9501"), bound())
             .expect("the PASS record lands");
         let still = f.service.settle_operator_action(
             OperatorActionRequest {
@@ -2804,11 +3207,12 @@ mod tests {
         f.state.checkpoint_at(1, Vec::new());
         // (a) the shared-variant mapping: what the ADMISSION refuses with,
         // the operator path refuses with too — one variant, both callers.
-        let admission = gauntlet_ports::producer_authority::SettlementAdmissionError::VerificationNotPass {
-            run_id: run_id(),
-            unit_id: unit_id("AK-9501"),
-            detail: "the admission's own wording".to_owned(),
-        };
+        let admission =
+            gauntlet_ports::producer_authority::SettlementAdmissionError::VerificationNotPass {
+                run_id: run_id(),
+                unit_id: unit_id("AK-9501"),
+                detail: "the admission's own wording".to_owned(),
+            };
         assert!(matches!(
             SettleError::from(admission),
             SettleError::VerificationNotPass { .. }
@@ -2829,8 +3233,8 @@ mod tests {
             };
             content = gauntlet_ports::verification_record::VerificationRecordDoc::new(altered)
                 .expect("altered content is well formed");
-            f.state
-                .record_verification(&content, bound())
+            gauntlet_ports::VerificationRecordAuthority::new(f.state.clone())
+                .record(&content, bound())
                 .expect("the non-PASS record lands");
         }
         let refusal = f.service.settle_operator_action(
@@ -2863,6 +3267,61 @@ mod tests {
     // ------------------------------------------------------------------
     // Shared plumbing sanity (the fixture itself must be honest)
     // ------------------------------------------------------------------
+
+    /// COR-6 fail-first (early probe m2): the operator identity is
+    /// operator-controlled free text, and the pinned
+    /// `settlement_authority_decision` record built it by RAW string
+    /// interpolation. A crafted identity closes the string early and
+    /// injects members (`a\b","injected":"true`), or eats the closing
+    /// quote and corrupts the whole record (`trailing\`). The escaped
+    /// record must PARSE, carry the identity as ONE string member exactly
+    /// as recorded, and admit no injected member.
+    #[test]
+    fn the_operator_identity_cannot_inject_members_into_the_decision_record() {
+        for crafted in [
+            // Member injection: the raw form closes the string at the
+            // quote and adds an `injected` member (the backslash rides a
+            // JSON escape).
+            "a\\b\",\"injected\":\"true",
+            // Corruption: a trailing backslash escapes the record's own
+            // closing quote — the pinned record is not JSON at all.
+            "trailing\\",
+        ] {
+            let f = fixture();
+            let claim = earned_claim(&f, "AK-9503", 1);
+            let identity = OperatorIdentity::new(crafted).expect("non-blank identity is legal");
+            f.service
+                .settle(
+                    SettleRequest {
+                        claim: &claim,
+                        actor: ClosingActor::Operator {
+                            identity: Some(identity),
+                        },
+                        tracked_residuals: &[],
+                    },
+                    bound(),
+                )
+                .expect("the operator route closes human work");
+            let records = pinned_records_containing(&f.evidence, "settlement_authority_decision");
+            let pinned = records
+                .first()
+                .expect("exactly one decision record is pinned");
+            let parsed = gauntlet_ports::json::parse(pinned).unwrap_or_else(|error| {
+                panic!("the pinned record is valid JSON: {error}: {pinned}")
+            });
+            assert!(
+                !parsed.keys().iter().any(|key| key == "injected"),
+                "a crafted identity injects no member: {pinned}"
+            );
+            match parsed.get("operator_identity") {
+                Some(gauntlet_ports::json::JsonValue::Str(found)) => assert_eq!(
+                    found, crafted,
+                    "the identity round-trips as one string member, exactly as recorded"
+                ),
+                other => panic!("operator_identity is one string member, got {other:?}"),
+            }
+        }
+    }
 
     #[test]
     fn the_fixture_key_parses_into_three_authority_levels() {

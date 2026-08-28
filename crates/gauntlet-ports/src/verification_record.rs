@@ -8,8 +8,20 @@
 //! every nested object, so a settlement-adjacent document can never be
 //! partially parsed into state (spec §10.3 rule 4, §21.2).
 //!
-//! Two fields carry the §14 discipline this record exists to keep:
+//! ## Recorded mapping (Task 13 correction round 1, COR-3): the
+//! `verification_ref` field
 //!
+//! The domain `VerificationRecord` carries its verification id as its first
+//! field; the Annex B.5 sample does not show a verification-ref member, but
+//! samples are illustrative and this codec evolves with the strict
+//! round-trip. Before COR-3 the durable document had NO verification-ref
+//! field, so the §16.3 settlement key's third component was
+//! caller-invented: one honest PASS record could settle N distinct-key
+//! settlements under N invented refs (early probe M1). The field moors that
+//! key component in the durable record — the settlement admission requires
+//! the durable PASS record's ref to EQUAL the commit's verification ref.
+//!
+//! Two fields carry the §14 discipline this record exists to keep:
 //! - `instrument.deterministic` is the model-rung flag carrier (spec §14.2:
 //!   model-backed verification is legitimate only where nothing
 //!   deterministic can decide, "and such a claim SHOULD be re-expressed");
@@ -42,7 +54,7 @@ use core::fmt;
 
 use gauntlet_domain::{
     EpochSeconds, EvidenceKind, EvidenceLocator, EvidenceRef, IterationNo, Outcome, Producer,
-    RunId, UnitId,
+    RunId, UnitId, VerificationRef,
 };
 
 use crate::json::{JsonError, JsonNumber, JsonValue};
@@ -54,6 +66,7 @@ pub const VERIFICATION_RECORD_SCHEMA: &str = "verification_record@v1";
 /// key in a decoded document is rejected as unknown.
 const RECORD_FIELDS: &[&str] = &[
     "schema",
+    "verification_ref",
     "run_id",
     "iteration_no",
     "unit_id",
@@ -348,6 +361,9 @@ impl VerifyingInstrument {
 /// both go through it).
 #[derive(Debug, Clone, PartialEq)]
 pub struct VerificationContent {
+    /// The verification this record IS (the domain record's id, COR-3):
+    /// the durable mooring of the §16.3 settlement key's third component.
+    pub verification: VerificationRef,
     pub run_id: RunId,
     pub iteration_no: IterationNo,
     pub unit_id: UnitId,
@@ -395,6 +411,14 @@ impl VerificationRecordDoc {
 
     pub fn run_id(&self) -> &RunId {
         &self.content.run_id
+    }
+
+    /// The verification this record IS — the id the domain record carries,
+    /// made durable here (COR-3): the settlement admission compares this to
+    /// the commit's verification ref, so the §16.3 key's third component is
+    /// moored in durable state, never caller-invented.
+    pub fn verification(&self) -> &VerificationRef {
+        &self.content.verification
     }
 
     pub fn iteration_no(&self) -> IterationNo {
@@ -486,6 +510,8 @@ impl VerificationRecordDoc {
     }
 
     fn content_from_object(document: &JsonValue) -> Result<Self, VerificationDocError> {
+        let verification = VerificationRef::new(string_field(document, "verification_ref")?)
+            .map_err(|source| value_invalid("verification_ref", source.to_string()))?;
         let run_id = RunId::new(string_field(document, "run_id")?)
             .map_err(|source| value_invalid("run_id", source.to_string()))?;
         let iteration_no = match document.get("iteration_no") {
@@ -555,6 +581,7 @@ impl VerificationRecordDoc {
         };
         let detail = string_field(document, "detail")?.to_owned();
         Self::new(VerificationContent {
+            verification,
             run_id,
             iteration_no,
             unit_id,
@@ -571,6 +598,10 @@ impl VerificationRecordDoc {
 
     fn fields(&self) -> JsonValue {
         JsonValue::Object(vec![
+            (
+                "verification_ref".to_owned(),
+                JsonValue::Str(self.content.verification.as_str().to_owned()),
+            ),
             (
                 "run_id".to_owned(),
                 JsonValue::Str(self.content.run_id.as_str().to_owned()),
@@ -688,6 +719,8 @@ mod tests {
 
     fn sample(outcome: Outcome, class: Option<BindingClass>) -> VerificationRecordDoc {
         VerificationRecordDoc::new(VerificationContent {
+            verification: gauntlet_domain::VerificationRef::new("vrf-suite-0001")
+                .expect("valid verification ref"),
             run_id: RunId::new(ULID).expect("valid run id"),
             iteration_no: IterationNo::new(2).expect("iterations are 1-based"),
             unit_id: UnitId::new("AK-0005").expect("valid unit id"),
@@ -720,6 +753,10 @@ mod tests {
         assert_eq!(back, doc);
         assert_eq!(back.to_json(), text, "canonical bytes are a fixed function");
         assert_eq!(back.class(), Some(BindingClass::EvidenceStale));
+        // COR-3: the verification-ref member round-trips — the durable
+        // mooring of the §16.3 key's third component.
+        assert_eq!(back.verification().as_str(), "vrf-suite-0001");
+        assert!(text.contains("\"verification_ref\":\"vrf-suite-0001\""));
         assert_eq!(
             back.instrument().name(),
             "gauntlet-verifier-fixture",
@@ -830,6 +867,34 @@ mod tests {
             VerificationRecordDoc::decode(&truncated),
             Err(VerificationDocError::MissingField {
                 field: "produced_at"
+            })
+        ));
+    }
+
+    /// COR-3: the verification-ref member is REQUIRED (strict decode — a
+    /// pre-COR-3 document shape does not partially parse into state) and its
+    /// value must be a valid verification ref.
+    #[test]
+    fn the_verification_ref_member_is_required_and_valid() {
+        let doc = sample(Outcome::Pass, None);
+        let without_ref = doc
+            .to_json()
+            .replace("\"verification_ref\":\"vrf-suite-0001\",", "");
+        assert!(matches!(
+            VerificationRecordDoc::decode(&without_ref),
+            Err(VerificationDocError::MissingField {
+                field: "verification_ref"
+            })
+        ));
+        let bad_ref = doc.to_json().replace(
+            "\"verification_ref\":\"vrf-suite-0001\"",
+            "\"verification_ref\":\"\"",
+        );
+        assert!(matches!(
+            VerificationRecordDoc::decode(&bad_ref),
+            Err(VerificationDocError::ValueInvalid {
+                field: "verification_ref",
+                ..
             })
         ));
     }

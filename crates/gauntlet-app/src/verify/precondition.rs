@@ -1,8 +1,10 @@
-//! The settlement-precondition layer (plan Task 11 step 4, bounded; spec
-//! §16.1 conditions 1–2 only).
+//! The settlement-precondition layer (plan Task 11 step 4; spec §16.1
+//! conditions 1–2 only).
 //!
-//! Settlement itself is Task 13. What this layer proves NOW, at the layer
-//! Task 11 owns, is the P12 half of §16.1: **a Unit whose verification is
+//! Since Task 13, settlement is LANDED — the `settle` service consumes
+//! this layer's `SettlementReadiness` token and adds conditions 3–5 plus
+//! the §16.3 commit. What this layer proves, at the boundary Task 11
+//! owns, is the P12 half of §16.1: **a Unit whose verification is
 //! not a PASS record meeting the evidence conditions cannot even approach
 //! settlement.**
 //!
@@ -482,6 +484,11 @@ mod tests {
         fn document_for(&self, spec: &gauntlet_ports::agent_runner::RoleInvocationSpec) -> String {
             let payload = gauntlet_ports::verification_record::VerificationRecordDoc::new(
                 gauntlet_ports::verification_record::VerificationContent {
+                    verification: gauntlet_domain::VerificationRef::new(&format!(
+                        "vrf-model-{}",
+                        spec.invocation_id.as_str()
+                    ))
+                    .expect("valid verification ref"),
                     run_id: spec.run_id.clone(),
                     iteration_no: gauntlet_domain::IterationNo::new(1).expect("1-based"),
                     unit_id: UnitId::new("AK-9001").expect("unit"),

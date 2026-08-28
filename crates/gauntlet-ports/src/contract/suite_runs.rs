@@ -446,7 +446,7 @@ fn state_store_settlement_lax_is_caught() {
     );
     assert_caught(
         "StateStoreSettlementLax",
-        "settlement_replay_is_keyed_idempotent_and_anchored",
+        "settlement_events_are_earned_and_replay_never_disturbs_rows",
         super::state_store::state_store_suite(&StateStoreSettlementLax),
     );
 }

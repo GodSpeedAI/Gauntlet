@@ -120,6 +120,10 @@ fn commit() -> SettlementCommit {
 fn pass_record() -> gauntlet_ports::verification_record::VerificationRecordDoc {
     gauntlet_ports::verification_record::VerificationRecordDoc::new(
         gauntlet_ports::verification_record::VerificationContent {
+            // Deliberately the committed settlement's own ref (COR-3: the
+            // admission requires the durable record's ref to equal the
+            // commit's).
+            verification: VerificationRef::new("vrf-000900").expect("valid ref"),
             run_id: run_id(),
             iteration_no: IterationNo::new(1).expect("1-based"),
             unit_id: UnitId::new(UNIT).expect("valid unit id"),
@@ -151,8 +155,8 @@ fn earn_settlement(
     commit: SettlementCommit,
 ) -> gauntlet_ports::producer_authority::AdmittedSettlement {
     store.record_run(&run(), bound()).expect("the run records");
-    store
-        .record_verification(&pass_record(), bound())
+    gauntlet_ports::VerificationRecordAuthority::new(store.clone())
+        .record(&pass_record(), bound())
         .expect("the PASS record lands");
     SettlementCommitAuthority::new(store.clone())
         .admit(commit, bound())
@@ -165,19 +169,6 @@ fn admitted_event(at: u64) -> RunEvent {
         kind: RunEventKind::InvocationAdmitted {
             invocation_id: gauntlet_domain::InvocationId::new("01ARZ3NDEKTSV4RRFFQ69G5FAW")
                 .expect("valid invocation id"),
-        },
-        at: EpochSeconds::new(at),
-    }
-}
-
-fn settlement_event(at: u64) -> RunEvent {
-    RunEvent {
-        run_id: run_id(),
-        kind: RunEventKind::SettlementCommitted {
-            unit_id: UnitId::new(UNIT).expect("valid unit id"),
-            evidence: gauntlet_domain::EvidenceRef::new("evd-000900").expect("valid ref"),
-            verification: VerificationRef::new("vrf-000900").expect("valid ref"),
-            reference_digest: digest(),
         },
         at: EpochSeconds::new(at),
     }
@@ -343,80 +334,12 @@ fn a_negative_record_timestamp_is_corrupt_naming_the_row() {
 // Item 3 — settlement-row offsets are cross-validated against the log
 // ---------------------------------------------------------------------------
 
-/// `apply_settlement_row` with an offset that holds a DIFFERENT event is a
-/// typed refusal naming what was claimed and what is there; a settlement
-/// row must name its own durable settlement event (spec §5.3.6).
-#[test]
-fn a_settlement_row_pointing_at_a_foreign_event_is_refused() {
-    let scratch = Scratch::new("foreign-offset");
-    let db = scratch.db();
-    let store = SqliteStateStore::open(&db).expect("the store opens");
-    let offset = store
-        .append_event(admitted_event(1_700_000_000), bound())
-        .expect("the admitted event appends at offset 1");
-    assert_eq!(offset.get(), 1);
-    match store.apply_settlement_row(commit(), offset, bound()) {
-        Err(StateStoreError::WriteFailed { detail }) => {
-            assert!(
-                detail.contains("offset 1") && detail.contains(ADMITTED_KIND),
-                "the refusal names the claimed offset and the event actually there: {detail}"
-            );
-        }
-        other => panic!("a foreign offset must be a typed refusal, got {other:?}"),
-    }
-    // Nothing landed: the row does not exist.
-    assert!(
-        store
-            .settlements(&run_id(), bound())
-            .expect("reads")
-            .is_empty(),
-        "the refused settlement row must not exist"
-    );
-}
-
-/// `apply_settlement_row` with an offset BEYOND the log is a typed refusal
-/// naming the missing row.
-#[test]
-fn a_settlement_row_pointing_past_the_log_is_refused() {
-    let scratch = Scratch::new("past-log");
-    let db = scratch.db();
-    let store = SqliteStateStore::open(&db).expect("the store opens");
-    match store.apply_settlement_row(commit(), EventLogOffset::new(99), bound()) {
-        Err(StateStoreError::WriteFailed { detail }) => {
-            assert!(
-                detail.contains("99") && detail.contains("no row"),
-                "the refusal names the missing offset: {detail}"
-            );
-        }
-        other => panic!("a missing offset must be a typed refusal, got {other:?}"),
-    }
-    assert!(
-        store
-            .settlements(&run_id(), bound())
-            .expect("reads")
-            .is_empty(),
-        "the refused settlement row must not exist"
-    );
-}
-
-/// The happy path still works: applying a row at the offset of ITS OWN
-/// settlement event lands exactly once.
-#[test]
-fn a_settlement_row_at_its_own_event_offset_lands() {
-    let scratch = Scratch::new("own-offset");
-    let db = scratch.db();
-    let store = SqliteStateStore::open(&db).expect("the store opens");
-    let offset = store
-        .append_event(settlement_event(1_700_000_101), bound())
-        .expect("the settlement event appends");
-    let added = store
-        .apply_settlement_row(commit(), offset, bound())
-        .expect("the row applies at its own event's offset");
-    assert_eq!(added, 1);
-    let rows = store.settlements(&run_id(), bound()).expect("reads");
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].event_log_offset(), offset);
-}
+// The three `apply_settlement_row` cross-validation legs (foreign offset /
+// past-log offset / own-offset happy path) moved IN-CRATE (state_store.rs
+// tests) with the Task-13 correction round: the raw row-apply primitive is
+// `#[cfg(test)]` since COR-1 closed the early probe's C1 aggravator, and
+// out-of-crate integration tests cannot see cfg(test) items. Assertions
+// are verbatim in the new home.
 
 // ---------------------------------------------------------------------------
 // Item 4 — the half-settled error names the durable state
@@ -502,13 +425,21 @@ fn a_half_settled_failure_names_the_durable_offset_and_the_recovery() {
 fn a_tampered_settlement_offset_is_corrupt_never_a_silent_zero() {
     let scratch = Scratch::new("negative-settlement-offset");
     let db = scratch.db();
-    let store = SqliteStateStore::open(&db).expect("the store opens");
-    let offset = store
-        .append_event(settlement_event(1_700_000_101), bound())
-        .expect("the settlement event appends");
+    // The settlement substrate lands the EARNED way (COR3: the generic
+    // append surfaces refuse the settlement kind); the tamper below then
+    // corrupts the row out-of-band — this suite's own damage model.
+    let store = std::sync::Arc::new(SqliteStateStore::open(&db).expect("the store opens"));
+    let admitted = earn_settlement(&store, commit());
     store
-        .apply_settlement_row(commit(), offset, bound())
-        .expect("the settlement row applies");
+        .commit_settlement(&admitted, bound())
+        .expect("the honest settlement commits");
+    assert_eq!(
+        store
+            .settlements(&run_id(), bound())
+            .expect("the row lands")
+            .len(),
+        1
+    );
     drop(store);
     raw(&db)
         .execute("UPDATE settlements SET event_log_offset = -1", [])
@@ -668,5 +599,92 @@ fn record_run_refuses_a_changed_intent_on_the_same_digest() {
             );
         }
         other => panic!("an identity disagreement must be a typed refusal, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// COR2-5 — a same-key settlement event with DIVERGENT facts is loud on
+// replay, never a silently ignored INSERT (critic round 1, F-6)
+// ---------------------------------------------------------------------------
+
+/// The durable row for (run, unit, verification) holds evidence evd-000900;
+/// the log is then handed a second, well-formed settlement event for the
+/// SAME key whose evidence is evd-000901. Replay must surface a typed
+/// integrity refusal naming both sides — before the correction the keyed
+/// INSERT OR IGNORE swallowed the divergence and reported Ok(0).
+#[test]
+fn a_same_key_divergent_event_is_loud_on_replay() {
+    let scratch = Scratch::new("cor25-divergent-replay");
+    let db = scratch.db();
+    let store = std::sync::Arc::new(SqliteStateStore::open(&db).expect("the store opens"));
+    let admitted = earn_settlement(&store, commit());
+    store
+        .commit_settlement(&admitted, bound())
+        .expect("the honest settlement commits");
+    drop(store);
+    let divergent_payload = format!(
+        "{{\"kind\":\"settlement_committed\",\"unit_id\":\"{UNIT}\",\"evidence\":\"evd-000901\",\
+         \"verification\":\"vrf-000900\",\"reference_digest\":\"sha256:{DIGEST_HEX}\"}}"
+    );
+    raw(&db)
+        .execute(
+            "INSERT INTO event_log (run_id, kind, payload, at) VALUES (?1, ?2, ?3, ?4)",
+            (
+                RUN,
+                "settlement_committed",
+                divergent_payload.as_str(),
+                1_700_000_200_i64,
+            ),
+        )
+        .expect("the divergent duplicate event lands");
+    let store = SqliteStateStore::open(&db).expect("the store reopens");
+    match store.complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound()) {
+        Err(StateStoreError::Corrupt { detail }) => {
+            assert!(
+                detail.contains("DIVERGENT")
+                    && detail.contains("evd-000900")
+                    && detail.contains("evd-000901"),
+                "the refusal names both sides of the divergence: {detail}"
+            );
+        }
+        other => panic!(
+            "a same-key divergent settlement event must be a typed integrity refusal on \
+             replay, got {other:?}"
+        ),
+    }
+}
+
+/// The same-facts duplicate stays the idempotent no-op it always was
+/// (the mirror leg of the divergence test, on its own fixture - a divergent
+/// event anywhere in the log correctly fails every replay over it).
+#[test]
+fn a_same_facts_duplicate_event_stays_the_idempotent_no_op() {
+    let scratch = Scratch::new("cor25-same-facts");
+    let db = scratch.db();
+    let store = std::sync::Arc::new(SqliteStateStore::open(&db).expect("the store opens"));
+    let admitted = earn_settlement(&store, commit());
+    store
+        .commit_settlement(&admitted, bound())
+        .expect("the honest settlement commits");
+    drop(store);
+    let same_facts_payload = format!(
+        "{{\"kind\":\"settlement_committed\",\"unit_id\":\"{UNIT}\",\"evidence\":\
+         \"evd-000900\",\"verification\":\"vrf-000900\",\"reference_digest\":\"sha256:{DIGEST_HEX}\"}}"
+    );
+    raw(&db)
+        .execute(
+            "INSERT INTO event_log (run_id, kind, payload, at) VALUES (?1, ?2, ?3, ?4)",
+            (
+                RUN,
+                "settlement_committed",
+                same_facts_payload.as_str(),
+                1_700_000_300_i64,
+            ),
+        )
+        .expect("the same-facts duplicate event lands");
+    let store = SqliteStateStore::open(&db).expect("the store reopens");
+    match store.complete_pending_settlements(&run_id(), EventLogOffset::new(0), bound()) {
+        Ok(0) => {}
+        other => panic!("a same-facts duplicate stays the idempotent no-op, got {other:?}"),
     }
 }

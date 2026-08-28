@@ -546,6 +546,7 @@ impl GovernedVerification {
                         &evidence_ref,
                         &production,
                         instrument,
+                        record.id(),
                         record.outcome(),
                         None,
                         detail,
@@ -579,6 +580,7 @@ impl GovernedVerification {
                         &evidence_ref,
                         &production,
                         instrument,
+                        &dispatched.id,
                         Outcome::Inconclusive,
                         Some(BindingClass::EvidenceUnresolvable),
                         detail,
@@ -820,6 +822,9 @@ impl GovernedVerification {
             IterationNo::new(1).expect("iterations are 1-based"),
             EpochSeconds::new(0),
         );
+        // ONE ref for both records: the durable document names the
+        // verification the domain record IS (COR-3).
+        let verification = self.mint_verification_ref();
         VerifiedClaim {
             document: self.mint(
                 unit,
@@ -827,12 +832,13 @@ impl GovernedVerification {
                 evidence,
                 &placeholder,
                 instrument,
+                &verification,
                 Outcome::Inconclusive,
                 Some(class),
                 detail,
             ),
             domain_record: VerificationRecord::new(
-                self.mint_verification_ref(),
+                verification,
                 self.run.id().clone(),
                 unit.id().clone(),
                 evidence.clone(),
@@ -851,11 +857,17 @@ impl GovernedVerification {
         evidence: &EvidenceRef,
         production: &EvidenceProduction,
         instrument: VerifyingInstrument,
+        verification: &gauntlet_domain::VerificationRef,
         outcome: Outcome,
         class: Option<BindingClass>,
         detail: String,
     ) -> VerificationRecordDoc {
         VerificationRecordDoc::new(VerificationContent {
+            // COR-3: the durable document names the verification it IS —
+            // the same ref the domain record carries, so the §16.3 key's
+            // third component is moored in the durable record the
+            // settlement admission reads.
+            verification: verification.clone(),
             run_id: self.run.id().clone(),
             iteration_no: self.iteration_no,
             unit_id: unit.id().clone(),

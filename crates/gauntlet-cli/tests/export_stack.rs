@@ -134,6 +134,11 @@ fn checkpoint(iteration: u32, offset: u64, status: UnitStatus) -> Checkpoint {
 /// `verification_record` line — an intended, evidenced golden change).
 fn pass_record() -> VerificationRecordDoc {
     VerificationRecordDoc::new(VerificationContent {
+        // Deliberately the committed settlement's own ref (COR-3: the
+        // admission requires the durable record's ref to equal the
+        // commit's) — the exported record line carries it as the durable
+        // mooring of the 16.3 key's third component.
+        verification: VerificationRef::new("vrf-000900").expect("valid ref"),
         run_id: run_id(),
         iteration_no: IterationNo::new(1).expect("1-based"),
         unit_id: UnitId::new("AK-900").expect("valid unit id"),
@@ -209,8 +214,8 @@ fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
     // durable PASS verification record lands first, the ports authority
     // validates it and mints the admission, and the store commits the
     // minted payload — the same governed path the runtime composes.
-    store
-        .record_verification(&pass_record(), bound())
+    gauntlet_ports::VerificationRecordAuthority::new(store.clone())
+        .record(&pass_record(), bound())
         .expect("the PASS verification record lands");
     let admitted = SettlementCommitAuthority::new(store.clone())
         .admit(

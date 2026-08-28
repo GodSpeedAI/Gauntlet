@@ -856,6 +856,62 @@ mod tests {
         assert!(!report.exit_ok());
     }
 
+    /// The OTHER half of check 7's placement clause (Task 13 B3, N4): the
+    /// answer key that is lexically OUTSIDE the workspace but canonically
+    /// INSIDE it — an alias symlink pointing into the workspace root. A
+    /// lexical-only implementation of `check_answer_key_outside` passes
+    /// this configuration; the canonicalized half is what refuses it.
+    /// Pins existing behavior; no doctor change.
+    #[test]
+    fn an_answer_key_inside_the_workspace_only_canonically_still_fails_check_seven() {
+        #[cfg(unix)]
+        {
+            let scratch = Scratch::new();
+            // `real-ws/` is the workspace; `alias` is a symlink to it, so
+            // `alias/answer-key.md` is lexically outside `real-ws` but
+            // canonicalizes inside it. The key bytes are the scratch key,
+            // so the lock's digest still matches wherever the clause reads.
+            let real_ws = scratch.root.join("real-ws");
+            std::fs::create_dir_all(&real_ws).expect("workspace dir");
+            std::fs::copy(
+                scratch.root.join("answer-key.md"),
+                real_ws.join("answer-key.md"),
+            )
+            .expect("key copied behind the alias");
+            std::os::unix::fs::symlink("real-ws", scratch.root.join("alias"))
+                .expect("alias symlink");
+            let doc = "---\nreference:\n  answer_key: alias/answer-key.md\n  manifest: \
+                       reference.yaml\nsandbox:\n  policy_dir: policies\nworkspace:\n  root: \
+                       real-ws\n---\n";
+            let report = run_doctor(&scratch.input(Some(doc)));
+            assert_eq!(
+                status_of(&report, 7),
+                &CheckStatus::Fail,
+                "the canonicalized half must refuse the aliased placement: {}",
+                report.human_summary()
+            );
+            assert!(!report.exit_ok());
+            let placement = &report.checks[id_to_index(7)]
+                .sub
+                .iter()
+                .find(|clause| clause.name == "answer key placement")
+                .expect("placement clause");
+            assert_eq!(placement.status, CheckStatus::Fail);
+            assert!(
+                placement
+                    .evidence
+                    .iter()
+                    .any(|line| line.contains("inside")),
+                "the refusal names the inside-workspace finding: {placement:?}"
+            );
+        }
+        #[cfg(not(unix))]
+        {
+            // The alias channel is a filesystem symlink; the lexical leg
+            // is pinned by the test above on every platform.
+        }
+    }
+
     #[test]
     fn a_wrong_unit_count_fails_check_two() {
         let scratch = Scratch::new();

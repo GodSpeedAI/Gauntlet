@@ -1080,6 +1080,14 @@ mod tests {
             let instrument =
                 VerifyingInstrument::new(super::MODEL_RUNG_NAME.to_owned(), "1".to_owned(), false);
             let payload = VerificationRecordDoc::new(VerificationContent {
+                // The payload's own ref is the model's claim; the chain
+                // mints the durable document under the dispatch's ref
+                // (COR-3), so any valid ref decodes here.
+                verification: gauntlet_domain::VerificationRef::new(&format!(
+                    "vrf-model-{}",
+                    spec.invocation_id.as_str()
+                ))
+                .expect("valid verification ref"),
                 run_id: spec.run_id.clone(),
                 // The judgment's own record echoes the dispatch's governed
                 // iteration (C6.3: adopt_model_decision binds it).

@@ -34,6 +34,19 @@ pub enum StateStoreError {
     /// rehydrate it. Callers must migrate or recover it; no binding is
     /// fabricated from a placeholder.
     Unavailable { detail: String },
+    /// The append refused the authority-minted settlement event kind: it is
+    /// earned only through [`StateStore::commit_settlement`], which consumes
+    /// an [`crate::producer_authority::AdmittedSettlement`] minted by
+    /// [`SettlementCommitAuthority::admit`](crate::producer_authority::SettlementCommitAuthority::admit)
+    /// after the §16.1 conditions are validated against durable state. The
+    /// generic event append (and the `EventLog` port over the same
+    /// substrate) never mint it — a caller-built
+    /// [`RunEventKind::SettlementCommitted`] names invented facts no
+    /// admission ever earned (Task 13 COR3, confirmation round 1 F-1: the
+    /// §18.3 replay mints a durable settlement row from the event alone, so
+    /// an ungated append forged the exact record every settlement consumer
+    /// reads).
+    SettlementEventNotEarned { run_id: RunId, unit_id: UnitId },
 }
 
 impl fmt::Display for StateStoreError {
@@ -47,6 +60,13 @@ impl fmt::Display for StateStoreError {
             Self::Unavailable { detail } => {
                 write!(f, "stored state is unavailable: {detail}")
             }
+            Self::SettlementEventNotEarned { run_id, unit_id } => write!(
+                f,
+                "the SettlementCommitted event for unit {unit_id} of run {run_id} is earned only \
+                 through StateStore::commit_settlement, which consumes an AdmittedSettlement \
+                 minted by SettlementCommitAuthority::admit — the generic event append refuses \
+                 the settlement kind for every caller (COR3, F-1); nothing was recorded"
+            ),
         }
     }
 }
@@ -287,7 +307,21 @@ pub struct SettlementCommit {
 /// The run-state port (spec §6.2). Every method performs durable IO, so
 /// every method carries a deadline (§6 preamble).
 pub trait StateStore {
-    /// Appends one run event durably.
+    /// Appends one run event durably — the ORDINARY runtime kinds only
+    /// (invocation lifecycle, checkpoints, evidence production).
+    ///
+    /// [`RunEventKind::SettlementCommitted`] is REFUSED here for every
+    /// caller with the typed
+    /// [`StateStoreError::SettlementEventNotEarned`](Self::SettlementEventNotEarned):
+    /// the settlement event is authority-minted, and its only producer is
+    /// [`Self::commit_settlement`], which consumes an
+    /// [`crate::producer_authority::AdmittedSettlement`]. A caller-built
+    /// settlement event names invented facts; the §18.3 replay would mint a
+    /// durable settlement row from it with no §16.1 condition ever holding
+    /// (Task 13 COR3, confirmation round 1 F-1 — the same owner-write
+    /// forgery the verification-record mint (COR-1) and the generic record
+    /// append's kind gate (COR2-4) close on the sibling surfaces). The
+    /// `EventLog` port's append refuses the kind for the same reason.
     fn append_event(
         &self,
         event: RunEvent,
@@ -520,12 +554,25 @@ pub trait StateStore {
     /// (plan Task 13; the store is the single writer surface, the runtime
     /// its only caller, §16.4).
     ///
+    /// The argument is an [`AdmittedVerificationRecord`], which has no
+    /// constructor outside the [`crate::producer_authority`] module (Task 13
+    /// correction round 1, closing the early probe's C1: before the gate,
+    /// any in-process store holder could build a PASS document with the
+    /// public `VerificationRecordDoc::new` and write it raw — forging the
+    /// exact fact the settlement admission validates against, with
+    /// `SettlementCommitAuthority::admit` + `commit_settlement` then
+    /// completing the bypass). The recording is earned through
+    /// [`VerificationRecordAuthority::record`](crate::producer_authority::VerificationRecordAuthority::record),
+    /// which validates that the document's run is durable and its declared
+    /// iteration is the run's durable anchor. A caller holding a hand-built
+    /// document has nothing to pass here.
+    ///
     /// Append-only per document; the row's `at` is the document's own
     /// `produced_at` (a provenance fact the record carries, never a value
     /// minted here).
     fn record_verification(
         &self,
-        _record: &VerificationRecordDoc,
+        _record: &crate::producer_authority::AdmittedVerificationRecord,
         _deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         Err(StateStoreError::WriteFailed {
@@ -537,12 +584,19 @@ pub trait StateStore {
     /// order). Strict decode through the Annex B.5 codec: a stored payload
     /// that does not decode is `Corrupt`, never a degraded record. A run
     /// with no records reads as an empty vector, never as an error.
+    ///
+    /// Fails closed (COR-7, early probe m1): a store that does not
+    /// implement this read refuses with the typed not-implemented error —
+    /// never a silent empty that would under-inform the settlement
+    /// admission and the re-entry disagreement checks.
     fn verification_records(
         &self,
         _run_id: &RunId,
         _deadline: Deadline,
     ) -> Result<Vec<VerificationRecordDoc>, StateStoreError> {
-        Ok(Vec::new())
+        Err(StateStoreError::ReadFailed {
+            detail: "this state store does not implement durable verification records".to_owned(),
+        })
     }
 
     /// The §16.3 atomic commit sequence, in order, no reordering:
@@ -581,12 +635,19 @@ pub trait StateStore {
     /// The run's durable settlement rows, ordered by `(unit_id,
     /// verification_ref)` — the order the export pins. A run with no
     /// settlements reads as an empty vector, never as an error.
+    ///
+    /// Fails closed (COR-7, early probe m1): a store that does not
+    /// implement this read refuses with the typed not-implemented error —
+    /// never a silent empty that would under-inform the §18.3 re-entry
+    /// reconciliation and the admission's key check.
     fn settlements(
         &self,
         _run_id: &RunId,
         _deadline: Deadline,
     ) -> Result<Vec<SettlementRecord>, StateStoreError> {
-        Ok(Vec::new())
+        Err(StateStoreError::ReadFailed {
+            detail: "this state store does not implement durable settlement rows".to_owned(),
+        })
     }
 
     /// §18.3 resume step 1: replays the run's settlement events at or after
@@ -661,4 +722,89 @@ pub trait StateStore {
     /// Deterministic JSONL export of one run (spec §6.2: "Export is
     /// deterministic" — same run, byte-identical output).
     fn export_jsonl(&self, run_id: &RunId, deadline: Deadline) -> Result<String, StateStoreError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use gauntlet_domain::RunId;
+
+    use super::{StateStore, StateStoreError};
+    use crate::deadline::Deadline;
+    use gauntlet_domain::EpochSeconds;
+
+    const BASE_INSTANT: u64 = 1_700_000_000;
+    /// The suite's bound span, on its own line (numeric literals never share
+    /// a line with a duration-shaped identifier).
+    const BOUND_SPAN: u64 = 60;
+
+    fn bound() -> Deadline {
+        Deadline::at_epoch(EpochSeconds::new(BASE_INSTANT + BOUND_SPAN))
+    }
+
+    fn run_id() -> RunId {
+        RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("valid run id")
+    }
+
+    /// A stub implementing ONLY the trait's required methods — every
+    /// defaulted method, read or write, is the default. The write defaults
+    /// already fail closed; COR-7 (early probe m1) makes the two
+    /// settlement-surface READ defaults fail closed too, so a store that
+    /// implements writes but not reads surfaces LOUD, never a silent
+    /// empty that under-informs re-entry and the disagreement checks.
+    struct WriteOnlyStub;
+
+    impl StateStore for WriteOnlyStub {
+        fn append_event(
+            &self,
+            _: super::RunEvent,
+            _: Deadline,
+        ) -> Result<gauntlet_domain::EventLogOffset, StateStoreError> {
+            Err(StateStoreError::WriteFailed {
+                detail: "the stub never appends".to_owned(),
+            })
+        }
+        fn load_run(
+            &self,
+            _: &RunId,
+            _: Deadline,
+        ) -> Result<Option<gauntlet_domain::Run>, StateStoreError> {
+            Ok(None)
+        }
+        fn checkpoint(&self, _: super::Checkpoint, _: Deadline) -> Result<(), StateStoreError> {
+            Err(StateStoreError::WriteFailed {
+                detail: "the stub never checkpoints".to_owned(),
+            })
+        }
+        fn resume(
+            &self,
+            _: &RunId,
+            _: Deadline,
+        ) -> Result<Option<super::Checkpoint>, StateStoreError> {
+            Ok(None)
+        }
+        fn export_jsonl(&self, _: &RunId, _: Deadline) -> Result<String, StateStoreError> {
+            Ok(String::new())
+        }
+    }
+
+    /// COR-7 fail-first: a write-only stub's settlement-surface reads must
+    /// be the typed not-implemented refusal, never a silent empty.
+    #[test]
+    fn settlement_surface_read_defaults_fail_closed() {
+        let store: &dyn StateStore = &WriteOnlyStub;
+        match store.settlements(&run_id(), bound()) {
+            Err(StateStoreError::ReadFailed { detail }) => assert!(
+                detail.contains("does not implement"),
+                "the refusal names its locus: {detail}"
+            ),
+            other => panic!("settlements fails closed, got {other:?}"),
+        }
+        match store.verification_records(&run_id(), bound()) {
+            Err(StateStoreError::ReadFailed { detail }) => assert!(
+                detail.contains("does not implement"),
+                "the refusal names its locus: {detail}"
+            ),
+            other => panic!("verification_records fails closed, got {other:?}"),
+        }
+    }
 }

@@ -454,7 +454,7 @@ impl StateStore for CountingState {
     // skipped them would fabricate a refusal the inner store never made.
     fn record_verification(
         &self,
-        record: &gauntlet_ports::verification_record::VerificationRecordDoc,
+        record: &gauntlet_ports::producer_authority::AdmittedVerificationRecord,
         deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         self.inner.record_verification(record, deadline)
@@ -1273,8 +1273,8 @@ fn an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction() {
     assert!(
         records
             .iter()
-            .any(|record| record.contains("the verification outcome is FAIL")),
-        "iteration 1's FAILING verification is pinned evidence"
+            .any(|record| record.contains("the settling claim's own outcome is FAIL")),
+        "iteration 1's FAILING verification is pinned evidence — since COR-2          the pinned refusal is the settlement service's own entry gate          (the controller no longer pre-derives the precondition)"
     );
     assert!(
         !records.is_empty(),

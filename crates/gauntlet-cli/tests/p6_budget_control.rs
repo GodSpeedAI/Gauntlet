@@ -1027,9 +1027,10 @@ fn a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact() {
     assert!(
         records
             .iter()
-            .any(|record| record.contains("the verification outcome is FAIL")),
+            .any(|record| record.contains("the settling claim's own outcome is FAIL")),
         "the FAILING verification's settlement refusal is pinned evidence \
-         (one deduplicated object for five byte-identical records)"
+         (one deduplicated object for five byte-identical records) — since \
+         COR-2 the refusal is the settlement service's own entry gate"
     );
     assert_ne!(
         checkpoint
