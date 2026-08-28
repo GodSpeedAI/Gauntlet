@@ -32,7 +32,10 @@ pub use report::{CheckOutcome, CheckStatus, DoctorReport, SubResult};
 /// One doctor invocation's inputs. The two vocabularies (Annex E
 /// environment names, §8.4 capability names) are supplied by the
 /// composition root — see `config::env_layer`'s header for why the
-/// application layer does not spell them.
+/// application layer does not spell them. The backend measurement hook
+/// (plan Task 14) is supplied the same way: the composition root owns the
+/// adapters, so only it can MEASURE the configured sandbox backend's
+/// achieved isolation rung.
 #[derive(Debug, Clone)]
 pub struct DoctorInput {
     /// `--config <path>`.
@@ -46,6 +49,13 @@ pub struct DoctorInput {
     /// Test injection for the dotenv text; `None` reads the file at the
     /// project root.
     pub dotenv_text: Option<String>,
+    /// Measures the configured backend token (§8.5 check 4, plan Task 14):
+    /// given the resolved `sandbox.backend` token, `Some(descriptor)` is a
+    /// measurement, `None` means no adapter fronts that token on this
+    /// composition. Consulted only when a real backend is configured —
+    /// under the §8.6 conservative default the tier posture needs no
+    /// measurement.
+    pub backend_measure: Option<fn(&str) -> Option<checks::BackendDescriptor>>,
 }
 
 impl DoctorInput {
@@ -59,6 +69,7 @@ impl DoctorInput {
             capabilities,
             env_pairs: None,
             dotenv_text: None,
+            backend_measure: None,
         }
     }
 }
@@ -212,7 +223,18 @@ fn assemble(input: &DoctorInput) -> DoctorRun {
             let raw = raw_tokens(&effective);
             all_checks.push(checks::check_reference(resolved));
             all_checks.push(checks::check_runners(resolved));
-            all_checks.push(checks::check_capabilities(resolved));
+            // §8.5 check 4 (plan Task 14): the backend measurement is
+            // consulted only when a real backend is configured — the
+            // conservative default needs none.
+            let backend_live = resolved.sandbox_backend.trim() != defaults::SANDBOX_BACKEND;
+            let descriptor = if backend_live {
+                input
+                    .backend_measure
+                    .and_then(|measure| measure(&resolved.sandbox_backend))
+            } else {
+                None
+            };
+            all_checks.push(checks::check_capabilities(resolved, descriptor.as_ref()));
             all_checks.push(checks::check_policies(
                 resolved,
                 &effective.sandbox_policy_dir,
@@ -1296,5 +1318,181 @@ mod tests {
         let text = report.config_fingerprint.to_string();
         assert!(text.starts_with("sha256:"));
         assert_eq!(text.len(), "sha256:".len() + 64);
+    }
+    // ------------------------------------------------------------------
+    // Check 4 (plan Task 14): capability-vs-tier, measured by the
+    // composition root when a real backend is configured.
+    // ------------------------------------------------------------------
+
+    /// A measured process-rung descriptor for whatever token is asked.
+    fn measured_process(token: &str) -> Option<checks::BackendDescriptor> {
+        Some(checks::BackendDescriptor {
+            token: token.to_owned(),
+            isolation: gauntlet_ports::agent_runner::Isolation::Process,
+            measured: true,
+            note: None,
+        })
+    }
+
+    /// Writes the three dispatchable tier policy artifacts into the
+    /// scratch (check 5 requires them once a backend is configured).
+    fn tier_policy_artifacts(scratch: &Scratch) {
+        for tier in ["contained", "local", "cross_cutting"] {
+            std::fs::write(
+                scratch.root.join("policies").join(format!("{tier}.json")),
+                "{\"reference\":\"tier-{tier}-v1\",\"tier\":\"{tier}\",\"backend\":\"test-rung\",\"network\":\"deny_by_default\",\"writable_roots\":[\"$WORKSPACE_ROOT\"],\"denied_paths\":[]}",
+            )
+            .expect("tier policy artifact");
+        }
+    }
+
+    #[test]
+    fn check_four_passes_the_conservative_posture_and_names_the_dispatch_note() {
+        let scratch = Scratch::new();
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        // The runner half is honestly unavailable (Tasks 15-16), so the
+        // check's own status is the unavailable convention check 3 uses;
+        // the TIER-RUNG half is the Task-14 fact under test and it passes.
+        assert!(matches!(
+            status_of(&report, 4),
+            CheckStatus::Unavailable { .. }
+        ));
+        let check = &report.checks[3];
+        let tier_rungs = check
+            .sub
+            .iter()
+            .find(|sub| sub.name == "tier rungs")
+            .expect("the tier-rung subresult exists");
+        assert_eq!(tier_rungs.status, CheckStatus::Pass);
+        let joined = tier_rungs.evidence.join(" ");
+        assert!(
+            joined.contains("only the contained tier is dispatchable"),
+            "{joined}"
+        );
+        assert!(
+            joined.contains("refuse dispatch at the governance gate"),
+            "{joined}"
+        );
+        assert!(report.exit_ok(), "{}", report.human_summary());
+    }
+
+    #[test]
+    fn check_four_fails_a_configured_backend_no_adapter_fronts() {
+        let scratch = Scratch::new();
+        tier_policy_artifacts(&scratch);
+        let mut input = scratch.input(Some(&healthy_doc()));
+        input.env_pairs = Some(vec![
+            (
+                "GAUNTLET_PROJECT_ROOT".to_owned(),
+                scratch.root.to_string_lossy().into_owned(),
+            ),
+            (
+                "GAUNTLET_SANDBOX_BACKEND".to_owned(),
+                "unfronted-rung".to_owned(),
+            ),
+        ]);
+        input.backend_measure = Some(|_| None);
+        let report = run_doctor(&input);
+        assert_eq!(status_of(&report, 4), &CheckStatus::Fail);
+        let failed = report.required_failure().expect("non-zero exit");
+        assert_eq!(failed.id, 4);
+        let text = report.human_summary();
+        assert!(text.contains("sandbox_capability_mismatch"), "{text}");
+    }
+
+    #[test]
+    fn check_four_fails_an_unmeasured_or_mistokened_descriptor() {
+        let scratch = Scratch::new();
+        tier_policy_artifacts(&scratch);
+        // Unmeasured: the probe failed — an unusable backend covers no
+        // tier.
+        let mut input = scratch.input(Some(&healthy_doc()));
+        input.env_pairs = Some(vec![
+            (
+                "GAUNTLET_PROJECT_ROOT".to_owned(),
+                scratch.root.to_string_lossy().into_owned(),
+            ),
+            (
+                "GAUNTLET_SANDBOX_BACKEND".to_owned(),
+                "probe-broken-rung".to_owned(),
+            ),
+        ]);
+        input.backend_measure = Some(|token| {
+            Some(checks::BackendDescriptor {
+                token: token.to_owned(),
+                isolation: gauntlet_ports::agent_runner::Isolation::None,
+                measured: false,
+                note: Some("the probe could not run the backend".to_owned()),
+            })
+        });
+        let report = run_doctor(&input);
+        assert_eq!(status_of(&report, 4), &CheckStatus::Fail);
+        assert!(report.human_summary().contains("could not be measured"));
+        // A descriptor naming a DIFFERENT backend than the configuration.
+        let mut input = scratch.input(Some(&healthy_doc()));
+        input.env_pairs = Some(vec![
+            (
+                "GAUNTLET_PROJECT_ROOT".to_owned(),
+                scratch.root.to_string_lossy().into_owned(),
+            ),
+            (
+                "GAUNTLET_SANDBOX_BACKEND".to_owned(),
+                "configured-rung".to_owned(),
+            ),
+        ]);
+        input.backend_measure = Some(|_| {
+            Some(checks::BackendDescriptor {
+                token: "a-different-rung".to_owned(),
+                isolation: gauntlet_ports::agent_runner::Isolation::Vm,
+                measured: true,
+                note: None,
+            })
+        });
+        let report = run_doctor(&input);
+        assert_eq!(status_of(&report, 4), &CheckStatus::Fail);
+        assert!(report.human_summary().contains("describes a"));
+    }
+
+    #[test]
+    fn check_four_covers_the_dispatchable_tiers_with_the_measured_rung() {
+        let scratch = Scratch::new();
+        tier_policy_artifacts(&scratch);
+        let mut input = scratch.input(Some(&healthy_doc()));
+        input.env_pairs = Some(vec![
+            (
+                "GAUNTLET_PROJECT_ROOT".to_owned(),
+                scratch.root.to_string_lossy().into_owned(),
+            ),
+            (
+                "GAUNTLET_SANDBOX_BACKEND".to_owned(),
+                "measured-rung".to_owned(),
+            ),
+        ]);
+        input.backend_measure = Some(measured_process);
+        let report = run_doctor(&input);
+        let check = &report.checks[3];
+        let tier_rungs = check
+            .sub
+            .iter()
+            .find(|sub| sub.name == "tier rungs")
+            .expect("the tier-rung subresult exists");
+        assert_eq!(tier_rungs.status, CheckStatus::Pass);
+        let joined = tier_rungs.evidence.join(" ");
+        for tier in ["contained", "local", "cross_cutting"] {
+            assert!(joined.contains(tier), "{joined}");
+        }
+        assert!(joined.contains("process"), "{joined}");
+        // A measured NONE rung cannot cover the above-contained tiers.
+        input.backend_measure = Some(|token| {
+            Some(checks::BackendDescriptor {
+                token: token.to_owned(),
+                isolation: gauntlet_ports::agent_runner::Isolation::None,
+                measured: true,
+                note: None,
+            })
+        });
+        let report = run_doctor(&input);
+        assert_eq!(status_of(&report, 4), &CheckStatus::Fail);
+        assert!(report.human_summary().contains("below the"));
     }
 }

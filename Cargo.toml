@@ -29,6 +29,9 @@ members = [
     "crates/adapters/gauntlet-adapter-observe-command",
     "crates/adapters/gauntlet-adapter-compare-diff",
     "crates/adapters/gauntlet-adapter-compare-model",
+    "crates/adapters/gauntlet-adapter-policy-fs",
+    "crates/adapters/gauntlet-adapter-sandbox-bwrap",
+    "crates/adapters/gauntlet-adapter-sandbox-none",
     "crates/adapters/gauntlet-adapter-verify-command-exit-code",
     "crates/adapters/gauntlet-adapter-verify-test-report",
     "crates/adapters/gauntlet-adapter-verify-file-digest",
@@ -66,6 +69,9 @@ gauntlet-adapter-verify-test-report = { path = "crates/adapters/gauntlet-adapter
 gauntlet-adapter-verify-file-digest = { path = "crates/adapters/gauntlet-adapter-verify-file-digest" }
 gauntlet-adapter-verify-schema-check = { path = "crates/adapters/gauntlet-adapter-verify-schema-check" }
 gauntlet-adapter-compare-model = { path = "crates/adapters/gauntlet-adapter-compare-model" }
+gauntlet-adapter-policy-fs = { path = "crates/adapters/gauntlet-adapter-policy-fs" }
+gauntlet-adapter-sandbox-bwrap = { path = "crates/adapters/gauntlet-adapter-sandbox-bwrap" }
+gauntlet-adapter-sandbox-none = { path = "crates/adapters/gauntlet-adapter-sandbox-none" }
 # The one external dependency permitted by plan Task 2: manifest parsing for
 # the architecture boundary tests. gauntlet-arch-tests is NOT listed above as
 # anything's dependency — it is test-only.

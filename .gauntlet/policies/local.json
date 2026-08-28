@@ -1,0 +1,13 @@
+{
+  "reference": "tier-local-v1",
+  "tier": "local",
+  "backend": "bwrap",
+  "network": "deny_by_default",
+  "writable_roots": ["$WORKSPACE_ROOT"],
+  "denied_paths": [
+    "$PROJECT_ROOT/.git",
+    "$HOME/.ssh",
+    "$HOME/.aws",
+    "$HOME/.gnupg"
+  ]
+}

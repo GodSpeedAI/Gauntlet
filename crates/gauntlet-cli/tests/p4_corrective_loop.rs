@@ -189,8 +189,16 @@ const SELECTION_RUN_ULID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
 /// The scratch answer key: one Unit whose evidence requirement is decidable
 /// by the composed focused-test rung over the workspace.
+///
+/// Task-14 fixture posture note: this proof's subject (an injected defect
+/// exposed, compared, and closed by a routed correction) is tier-agnostic;
+/// the unit sits at the contained tier because the mock runner honestly
+/// reports isolation none (spec §22.2) and the Task-14 gate correctly
+/// refuses a none-isolation runner for any tier above contained (spec
+/// §17.3, AK-050). The above-contained posture itself is proven by
+/// p5_hard_gate against the real backend.
 const ANSWER_KEY: &str = "## AK-9201\nclaim: the checked artifact passes its focused re-run \
-     check\nverify_by: test\nblast_radius: local\nauthority: critic\nevidence_required: {kind: \
+     check\nverify_by: test\nblast_radius: contained\nauthority: critic\nevidence_required: {kind: \
      test_report, locator: p4-report.json, producer: instrument}\n\n";
 
 /// The inline minimal manifest (the shared-suite shape).
@@ -1115,6 +1123,11 @@ impl Fixture {
             policy: policy(),
             workspace_root: workspace_root.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            // The §8.6 conservative posture (plan Task 14): contained
+            // critic-tier dispatches run ungated by containment; the mock
+            // runner's honest none isolation makes above-contained refusal
+            // the correct posture here.
+            govern: gauntlet_app::govern::GovernDeps::none_workspace(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "p4 corrective loop proof".to_owned(),
         };

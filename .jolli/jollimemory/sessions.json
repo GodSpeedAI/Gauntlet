@@ -1,10 +1,10 @@
 {
 	"version": 1,
 	"sessions": {
-		"d26ee729-003f-4ebc-933e-b4c217702dfc": {
-			"sessionId": "d26ee729-003f-4ebc-933e-b4c217702dfc",
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d26ee729-003f-4ebc-933e-b4c217702dfc.jsonl",
-			"updatedAt": "2026-08-25T15:32:16.208Z",
+		"d3dc32a6-efe6-4611-98f6-5dfdd90f932c": {
+			"sessionId": "d3dc32a6-efe6-4611-98f6-5dfdd90f932c",
+			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl",
+			"updatedAt": "2026-08-28T19:42:56.051Z",
 			"source": "claude"
 		}
 	}

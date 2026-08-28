@@ -1175,6 +1175,11 @@ impl World {
             policy: policy(),
             workspace_root: self.workspace_root.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            // The §8.6 conservative posture (plan Task 14): contained
+            // critic-tier dispatches run ungated by containment; the mock
+            // runner's honest none isolation makes above-contained refusal
+            // the correct posture here.
+            govern: gauntlet_app::govern::GovernDeps::none_workspace(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "p7 recovery proof".to_owned(),
         };

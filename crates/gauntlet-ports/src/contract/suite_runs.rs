@@ -416,6 +416,61 @@ fn sandbox_broken_is_caught() {
     );
 }
 
+/// The no-unsandboxed-fallback teeth (plan Task 14, AK-047): a sandbox
+/// whose `wrap` accepts a findings-carrying validation — laundering a
+/// failed validation into an executed command — is caught, and on the
+/// fallback case specifically.
+#[test]
+fn sandbox_fallback_broken_is_caught() {
+    assert_caught(
+        "SandboxBrokenFallback",
+        "no_unsandboxed_fallback",
+        super::sandbox::sandbox_suite(&SandboxBrokenFallback),
+    );
+}
+
+/// The process-start teeth (plan Task 14, AK-048): a sandbox that CLAIMS
+/// the process rung but performs an identity wrap — the bare probe would
+/// be the first process — is caught, and on the process-start case
+/// specifically.
+#[test]
+fn sandbox_process_start_broken_is_caught() {
+    assert_caught(
+        "SandboxBrokenProcessStart",
+        "wraps_from_process_start",
+        super::sandbox::sandbox_suite(&SandboxBrokenProcessStart),
+    );
+}
+
+/// The policy-interpolation teeth (plan Task 14, AK-047): a sandbox that
+/// splices a policy's writable roots and denied paths RAW into the command
+/// it renders — so a path carrying a flag after a space smuggles that flag
+/// into the backend's own argument list, and an honest path containing a
+/// space arrives split — is caught, and on the interpolation case
+/// specifically.
+#[test]
+fn sandbox_shell_words_broken_is_caught() {
+    assert_caught(
+        "SandboxBrokenShellWords",
+        "policy_paths_are_not_shell_words",
+        super::sandbox::sandbox_suite(&SandboxBrokenShellWords),
+    );
+}
+
+/// The nested-denial teeth (plan Task 14, AK-047): a sandbox that quotes
+/// every interpolated path correctly but emits its denied-path masks
+/// BEFORE the binds granting its writable roots — so a later bind of an
+/// enclosing root re-exposes the denied subtree — is caught, and on the
+/// nested-denial case specifically.
+#[test]
+fn sandbox_mask_order_broken_is_caught() {
+    assert_caught(
+        "SandboxBrokenMaskOrder",
+        "a_nested_denial_survives_the_writable_bind",
+        super::sandbox::sandbox_suite(&SandboxBrokenMaskOrder),
+    );
+}
+
 #[test]
 fn state_store_green_is_clean() {
     assert_green(

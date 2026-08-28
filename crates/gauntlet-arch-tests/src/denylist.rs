@@ -90,7 +90,20 @@ use crate::deps::Member;
 /// first segments (`agent`, `state`, `observe`, `compare`, `evidence`)
 /// already are. Pinned by test: growth is a deliberate edit that updates
 /// the pin.
-pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model", "digest", "check"];
+pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model", "digest", "check", "none"];
+
+// Plan Task 14 extended the same non-distinguishing ruling to `none` (last
+// segment of `gauntlet-adapter-sandbox-none`): `none` is the spec's own
+// vocabulary three times over — §6.1's `isolation: none` wire token (the
+// `Isolation::None` parse arm), §8.2's `sandbox.backend` enum, and §8.6's
+// declared default value (the closed Task-5 defaults table spells it
+// literally). It cannot SELECT an adapter on its own any more than `model`
+// can: the distinguishing spellings `sandbox-none`, `none-sandbox`, and
+// the full crate name ARE still derived and denied, and no configuration
+// resolves a backend by the bare word (the backend token selects, and the
+// token IS `none` — which is exactly why the word is field vocabulary:
+// §8.2's enum, not a product name). Deriving the bare segment would make
+// the AK-014 class a false-positive factory on the spec's own default.
 
 // Plan Task 11 extended the same non-distinguishing ruling to two more
 // LAST segments, by the same argument the Round-3 V7 note makes for
@@ -1061,18 +1074,27 @@ pub fn runner_for(role: &str) -> &'static str {
             dir: "crates/adapters/gauntlet-adapter-verify-schema-check".to_string(),
             name: "gauntlet-adapter-verify-schema-check".to_string(),
         });
+        members.push(Member {
+            dir: "crates/adapters/gauntlet-adapter-sandbox-none".to_string(),
+            name: "gauntlet-adapter-sandbox-none".to_string(),
+        });
         let deny = Denylist::derive(&members);
         // Plan Task 11 extended the list (see the const's doc): `digest` is
         // the §5.2 Digest field vocabulary, `check` is §14.2's own rung
         // name — both landed as last segments of the Task-11 verifier
         // adapters while closed earlier tasks already spelled those words
-        // as ordinary domain literals.
-        assert_eq!(SPEC_VOCABULARY_SEGMENTS, &["model", "digest", "check"]);
+        // as ordinary domain literals. Plan Task 14 added `none` (§6.1
+        // isolation token, §8.2 backend enum, §8.6 default) for
+        // `gauntlet-adapter-sandbox-none`.
+        assert_eq!(
+            SPEC_VOCABULARY_SEGMENTS,
+            &["model", "digest", "check", "none"]
+        );
         assert!(
             !deny
                 .adapter_segments
                 .iter()
-                .any(|s| s == "model" || s == "digest" || s == "check"),
+                .any(|s| s == "model" || s == "digest" || s == "check" || s == "none"),
             "spec field vocabulary must not be a segment term"
         );
         for spelling in [
@@ -1091,6 +1113,11 @@ pub fn runner_for(role: &str) -> &'static str {
             "verify_schema_check",
             "check-schema-verify",
             "check_schema_verify",
+            "gauntlet-adapter-sandbox-none",
+            "sandbox-none",
+            "sandbox_none",
+            "none-sandbox",
+            "none_sandbox",
         ] {
             let fixture = format!("const PICK: &str = {spelling:?};\n");
             let violations = scan_source(
@@ -1107,7 +1134,7 @@ pub fn runner_for(role: &str) -> &'static str {
             );
         }
         // And the bare words stay legal inner-layer vocabulary.
-        for word in ["model", "digest", "check"] {
+        for word in ["model", "digest", "check", "none"] {
             let clean = scan_source(
                 "crates/gauntlet-app/src/lib.rs",
                 &format!("let word = {word:?};\n"),

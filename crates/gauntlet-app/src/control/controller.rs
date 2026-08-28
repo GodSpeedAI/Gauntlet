@@ -241,6 +241,12 @@ pub struct ControllerDeps {
     /// The ONE canonical workspace root (task11 NOTE-2). Every derived
     /// consumer flows from this field.
     pub workspace_root: PathBuf,
+    /// The §17 governance posture (plan Task 14): the authority gate and
+    /// containment conjuncts every dispatch passes BEFORE the runner is
+    /// invoked. `GovernDeps::none_backend` is the §8.6 conservative
+    /// posture; a real-backend posture REQUIRES the sandbox and policy
+    /// instances (construction refuses the inconsistent shapes).
+    pub govern: crate::govern::GovernDeps,
     pub config_fingerprint: Digest,
     pub environment_fingerprint: Digest,
     pub intent: String,
@@ -495,7 +501,7 @@ pub struct RunOutcome {
 /// "was the fan-out truncated here" — an over-capacity refusal is neither
 /// an admission nor a run error, so neither `()` nor `Result` can carry
 /// it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum DispatchAdmission {
     /// The invocation started and holds its reservation.
     Admitted,
@@ -506,6 +512,13 @@ enum DispatchAdmission {
     /// A planned dispatch with no members — a scheduler contract
     /// violation, skipped rather than guessed at.
     EmptySlice,
+    /// The §17 governance gate refused the dispatch (plan Task 14): the
+    /// refusal was pinned as evidence and (on the unit's first refusal)
+    /// escalated; NO invocation exists. The unit stays open; when nothing
+    /// else can proceed the run's terminal is `blocked` with the ticket
+    /// (§11.6), never `budget_exhausted` — a governance fact is not a
+    /// budget fact.
+    GovernanceRefused { unit: UnitId },
 }
 
 /// One in-flight invocation the loop owns.
@@ -585,6 +598,11 @@ struct LoopState {
     /// cannot change mid-run, so this is a constant of the run, not a
     /// per-tick fact).
     frozen_membership: BTreeSet<UnitId>,
+    /// First governance-gate refusal per unit (plan Task 14): the summary
+    /// recorded + escalated. Presence is the ticket dedup — later
+    /// iterations re-refuse the same unit (honestly, as pinned evidence)
+    /// without opening a second ticket for the same fact.
+    governance_refused: BTreeMap<UnitId, String>,
 }
 
 impl LoopState {
@@ -621,6 +639,10 @@ pub struct RunController {
     comparison_authority: ComparisonAuthority,
     verification_authority: VerificationAuthority,
     settlement: SettlementService,
+    /// The §17.1 authority gate + containment conjuncts (plan Task 14),
+    /// consulted at dispatch time before `runner.invoke`.
+    govern: crate::govern::GovernDeps,
+    gate: crate::govern::AuthorityGate,
 }
 
 impl RunController {
@@ -754,6 +776,8 @@ impl RunController {
             comparison_authority,
             verification_authority,
             settlement,
+            govern: deps.govern,
+            gate: crate::govern::AuthorityGate::new(),
         })
     }
 
@@ -824,6 +848,7 @@ impl RunController {
             escalation_summary: None,
             last_offset: 0,
             frozen_membership,
+            governance_refused: BTreeMap::new(),
         };
         self.seed_unit_states(&mut state)?;
         self.drive(state)
@@ -933,6 +958,7 @@ impl RunController {
             escalation_summary: None,
             last_offset: checkpoint.event_log_offset.get(),
             frozen_membership,
+            governance_refused: BTreeMap::new(),
         };
         self.seed_unit_states(&mut state)?;
         // §18.3/C8.3 (correction): per-unit attempts are reconstructed
@@ -1369,7 +1395,20 @@ impl RunController {
                 budget_refused = true;
                 break;
             }
-            match self.dispatch(state, planned)? {
+            // The gate's lattice conjunct compares the DISPATCH facts with
+            // the answer-key facts as last parsed (this iteration's own
+            // re-read): in the composed happy path they coincide by
+            // construction; the conjunct guards drift and forgery between
+            // plan assembly and dispatch (AK-046's dispatch-time defense).
+            let dispatch_unit = planned.units.first().cloned();
+            let recorded = dispatch_unit.and_then(|unit| {
+                input
+                    .units
+                    .iter()
+                    .find(|candidate| candidate.id() == &unit)
+                    .map(|candidate| (candidate.blast_radius(), candidate.authority()))
+            });
+            match self.dispatch(state, planned, recorded)? {
                 DispatchAdmission::Admitted => admitted = true,
                 DispatchAdmission::TruncatedAtCapacity => {
                     // §10.4: the fan-out is TRUNCATED here, in the plan's
@@ -1383,6 +1422,13 @@ impl RunController {
                     break;
                 }
                 DispatchAdmission::EmptySlice => {}
+                // The governance gate refused: the event is recorded, the
+                // ticket exists (first refusal), and NO invocation was
+                // created. The plan's dimension-priority order keeps
+                // dispatching the REST of the plan — one blocked unit
+                // does not stop its neighbors; the terminal decision
+                // below owns the run-level truth.
+                DispatchAdmission::GovernanceRefused { .. } => {}
             }
         }
         if !admitted && state.in_flight.is_empty() {
@@ -1432,6 +1478,33 @@ impl RunController {
         if let Some(reason) = owed.iter().find(|reason| reason.is_governance_block()) {
             let unit = reason.unit().clone();
             self.submit_ticket(state, &unit, format!("run blocked: {reason}"))?;
+            state.terminal = Some(TerminalState::Blocked);
+            return Ok(());
+        }
+        // The dispatch-time gate's own governance facts (plan Task 14): a
+        // run that admitted nothing because the GATE refused everything —
+        // capability mismatch, no backend for the tier, authority above
+        // the ceiling, an escalated validation — is `blocked`, with the
+        // ticket the first refusal already opened. This is the same §11.6
+        // truth the scheduler reasons carry, decided from the gate's own
+        // ledger rather than the scheduler's.
+        if let Some((unit, summary)) = state.governance_refused.iter().next() {
+            let summary = summary.clone();
+            let unit = unit.clone();
+            // The ticket already exists for a first refusal; this is the
+            // run-level terminal record naming the blocking fact.
+            let record = format!(
+                "{{\"run\":\"{}\",\"class\":\"run_blocked_by_gate\",\"unit\":\"{}\",\"summary\":\"{}\"}}",
+                state.run.id(),
+                unit,
+                escape_json_text(&summary),
+            );
+            let evidence =
+                self.evidence
+                    .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())?;
+            self.evidence
+                .pin(state.run.id(), &evidence, self.operation_bound())?;
+            state.escalation_summary = Some(summary);
             state.terminal = Some(TerminalState::Blocked);
         }
         Ok(())
@@ -1528,21 +1601,54 @@ impl RunController {
         Ok(units)
     }
 
-    /// §17.4 dispatch of one planned slice: reserve, build the
-    /// `RoleInvocationSpec` (whole-budget `budget_slice` per the Task-4
-    /// adjudication; a Clock-derived deadline; a result-contract path),
-    /// and invoke — admission returns immediately; completion is a
-    /// result-contract fact, never awaited here.
+    /// §17.4 dispatch of one planned slice: pass the §17 governance gate
+    /// (plan Task 14 — BEFORE the reservation, so a refusal consumes no
+    /// budget and precedes every other dispatch effect), reserve, build
+    /// the `RoleInvocationSpec` (whole-budget `budget_slice` per the
+    /// Task-4 adjudication; a Clock-derived deadline; a result-contract
+    /// path; the admitted tier policy on `sandbox_policy`), and invoke —
+    /// admission returns immediately; completion is a result-contract
+    /// fact, never awaited here.
     fn dispatch(
         &self,
         state: &mut LoopState,
         planned: PlannedDispatch,
+        recorded: Option<(gauntlet_domain::BlastRadius, gauntlet_domain::Authority)>,
     ) -> Result<DispatchAdmission, ControlError> {
         let Some(unit) = dispatchable_member(&planned)? else {
             // A planned dispatch with no members is a scheduler contract
             // violation, not an invented unit; skip rather than guess.
             return Ok(DispatchAdmission::EmptySlice);
         };
+        // The §17 governance gate: authority decides WHETHER, containment
+        // decides HOW CONTAINED, and both are decided here — before the
+        // spec, before the runner is invoked (D2's correction: a check
+        // that runs after the builder's turn is an audit, not a gate). A
+        // refusal is a GOVERNANCE EVENT: pinned evidence, an escalation
+        // ticket on the unit's first refusal, and no invocation — never a
+        // silent skip, never an unsandboxed dispatch.
+        let facts = crate::govern::GateFacts {
+            unit: unit.clone(),
+            tier: planned.blast_radius,
+            authority: planned.authority,
+            runner_isolation: self.runner.capabilities().isolation,
+        };
+        let admission =
+            match self
+                .gate
+                .admit(&self.govern, &facts, recorded, self.operation_bound())
+            {
+                Ok(admission) => admission,
+                Err(refusal) => {
+                    self.record_gate_refusal(state, &unit, &refusal)?;
+                    return Ok(DispatchAdmission::GovernanceRefused { unit });
+                }
+            };
+        // The admission is durably recorded BEFORE the invocation exists:
+        // AK-048's "no builder command executes before the authority and
+        // containment checks" is provable from the evidence ORDER — the
+        // admission record precedes the invocation record.
+        self.record_gate_admission(state, &admission)?;
         let reservation = match state.meter.reserve(planned.estimated_slice) {
             Ok(reservation) => reservation,
             Err(BudgetMeterError::Reserve {
@@ -1630,7 +1736,11 @@ impl RunController {
             result_contract_path,
             deadline,
             model_hint: None,
-            sandbox_policy: None,
+            // The gate-admitted tier policy (plan Task 14): `None` is the
+            // §5.3.5-legal shape ONLY for a contained-tier dispatch under
+            // the conservative no-backend posture — the gate guarantees
+            // exactly that, or a resolved-and-validated policy.
+            sandbox_policy: admission.policy_ref(),
             // Whole-budget slice (Task-4 adjudication): the runner's
             // spend bound is the reservation, not the slice it is told
             // about.
@@ -1650,6 +1760,87 @@ impl RunController {
             reminders_used,
         });
         Ok(DispatchAdmission::Admitted)
+    }
+
+    /// The durable ADMISSION record (plan Task 14, AK-048): pinned BEFORE
+    /// the invocation exists, so the evidence order itself proves that the
+    /// authority and containment checks preceded the builder's first
+    /// token. The record names the tier, the resolved policy (or the
+    /// §5.3.5-legal none shape), and the validation's achieved rung.
+    fn record_gate_admission(
+        &self,
+        state: &LoopState,
+        admission: &crate::govern::GateAdmission,
+    ) -> Result<(), ControlError> {
+        let record = match (admission.policy(), admission.validation()) {
+            (Some(policy), Some(validation)) => format!(
+                "{{\"run\":\"{}\",\"iteration\":{},\"class\":\"gate_admission\",\"unit\":\"{}\",\"tier\":\"{}\",\"policy\":\"{}\",\"validation_rung\":\"{}\"}}",
+                state.run.id(),
+                state.iteration,
+                admission.unit(),
+                admission.tier(),
+                policy.reference,
+                validation.isolation,
+            ),
+            (None, None) => format!(
+                "{{\"run\":\"{}\",\"iteration\":{},\"class\":\"gate_admission\",\"unit\":\"{}\",\"tier\":\"{}\",\"policy\":null,\"note\":\"contained under the conservative no-backend posture (spec 5.3.5 legal shape)\"}}",
+                state.run.id(),
+                state.iteration,
+                admission.unit(),
+                admission.tier(),
+            ),
+            // The gate's `Containment` enum makes the mixed shape
+            // UNREPRESENTABLE (Task-14 correction round 1, COR-3); the arm
+            // is kept total so no future edit passes silently.
+            _ => unreachable!("an admission carries policy and validation together or neither"),
+        };
+        let evidence =
+            self.evidence
+                .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())?;
+        self.evidence
+            .pin(state.run.id(), &evidence, self.operation_bound())?;
+        Ok(())
+    }
+
+    /// The durable GOVERNANCE-EVENT record for a gate refusal (plan Task
+    /// 14; AK-046's "recorded as a governance event", AK-047's
+    /// escalation-not-fallback): pinned evidence for EVERY refusal, and an
+    /// escalation ticket on the unit's FIRST refusal (later iterations
+    /// re-refuse honestly without duplicating the ticket — the dedup map
+    /// is the loop's own ledger).
+    fn record_gate_refusal(
+        &self,
+        state: &mut LoopState,
+        unit: &UnitId,
+        refusal: &crate::govern::GateRefusal,
+    ) -> Result<(), ControlError> {
+        let record = format!(
+            "{{\"run\":\"{}\",\"iteration\":{},\"class\":\"gate_refusal\",\"unit\":\"{}\",\"kind\":\"{}\",\"summary\":\"{}\"}}",
+            state.run.id(),
+            state.iteration,
+            unit,
+            refusal_kind(refusal),
+            escape_json_text(&refusal.summary()),
+        );
+        let evidence =
+            self.evidence
+                .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())?;
+        self.evidence
+            .pin(state.run.id(), &evidence, self.operation_bound())?;
+        if !state.governance_refused.contains_key(unit) {
+            state
+                .governance_refused
+                .insert(unit.clone(), refusal.summary());
+            self.submit_ticket(
+                state,
+                unit,
+                format!(
+                    "dispatch refused by the governance gate: {}",
+                    refusal.summary()
+                ),
+            )?;
+        }
+        Ok(())
     }
 
     /// §10.4's record for a fan-out truncated at the dispatch-scope
@@ -2936,9 +3127,11 @@ impl RunController {
             run_id: state.run.id().clone(),
             iteration_no,
             meter: state.meter.as_ref(),
-            // §17.1's real auto-dispatch ceiling today (L1: Task 14's
-            // authority gate raises it).
-            exercisable_authority: gauntlet_domain::Authority::Critic,
+            // §17.1's auto-dispatch ceiling — ONE source since plan Task
+            // 14: the governance posture the controller was composed with
+            // (critic for unattended runs), the same fact the dispatch
+            // gate enforces (the L1 deferral is closed).
+            exercisable_authority: self.govern.exercisable_authority(),
             dispatchable_tiers: dispatchable_tier_capacity(self.budget_shape.limits)
                 .into_iter()
                 .map(|(tier, _)| tier)
@@ -3366,6 +3559,22 @@ fn dispatch_prompt(
 fn run_workspace_ref(run_id: &RunId) -> gauntlet_domain::WorkspaceRef {
     gauntlet_domain::WorkspaceRef::new(&run_id.to_string())
         .expect("a run id is a valid workspace ref")
+}
+
+/// The stable kind token for a gate refusal's durable record — one per
+/// [`crate::govern::GateRefusal`] arm, so evidence consumers can group by
+/// governance class without parsing prose.
+fn refusal_kind(refusal: &crate::govern::GateRefusal) -> &'static str {
+    match refusal {
+        crate::govern::GateRefusal::Irreversible { .. } => "irreversible",
+        crate::govern::GateRefusal::AuthorityAboveCeiling { .. } => "authority_above_ceiling",
+        crate::govern::GateRefusal::LatticeMovementRefused { .. } => "lattice_movement_refused",
+        crate::govern::GateRefusal::CapabilityMismatch { .. } => "capability_mismatch",
+        crate::govern::GateRefusal::NoBackendForTier { .. } => "no_backend_for_tier",
+        crate::govern::GateRefusal::PolicyUnresolved { .. } => "policy_unresolved",
+        crate::govern::GateRefusal::ValidationEscalated { .. } => "validation_escalated",
+        crate::govern::GateRefusal::BackendUnusable { .. } => "backend_unusable",
+    }
 }
 
 /// The §17.4 payment of a completed invocation: the result's own reported
@@ -5241,6 +5450,9 @@ mod tests {
 
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            govern: crate::govern::GovernDeps::none_backend(
+                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
+            ),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -6058,6 +6270,9 @@ mod tests {
             policy: policy(),
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            govern: crate::govern::GovernDeps::none_backend(
+                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
+            ),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -6157,6 +6372,9 @@ mod tests {
             policy: policy(),
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            govern: crate::govern::GovernDeps::none_backend(
+                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
+            ),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -7092,6 +7310,9 @@ mod tests {
             policy: policy(),
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            govern: crate::govern::GovernDeps::none_backend(
+                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
+            ),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -7175,6 +7396,9 @@ mod tests {
             policy: policy(),
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            govern: crate::govern::GovernDeps::none_backend(
+                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
+            ),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -7246,6 +7470,9 @@ mod tests {
             policy: policy(),
             workspace_root: second_scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            govern: crate::govern::GovernDeps::none_backend(
+                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
+            ),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };

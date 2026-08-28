@@ -868,3 +868,372 @@ through the normal spec process, never a builder's direct edit.
   closure-research verifier session; the orchestrator's post-land gate run
   is the confirming evidence). Settlement of this candidate belongs to the
   ruler's owner, not the task.
+
+## 2026-08-28 — AK-044 evidence locator names an unmaterializable test target (Task 14 closure)
+
+- **Unit:** AK-044 (`.wayfinder/answer-key.md` lines 306–311).
+- **Claim under review (unchanged):** "A unit tagged irreversible is never an
+  automatic dispatch candidate at the scheduler level."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/proofs/p5_hard_gate::irreversible_never_dispatched`; `tests/proofs/`
+  holds only `.gitkeep` (verified on the tree), and no core crate may declare
+  a repo-root test target under the architecture boundary suite's
+  cargo-target-path rule (`gauntlet-arch-tests` `escapes.rs`
+  `scan_cargo_target_paths` at line 456; exemption list
+  `TARGET_PATH_EXEMPT_CRATES` at line 91, exactly
+  `["crates/gauntlet-arch-tests"]`, pinned by its own test at line 924).
+  This is an **additional instance of the existing locator-materialization
+  class (first recorded 2026-08-17, AK-049)** — not a new defect class, and
+  emphatically NOT an unsupported claim: the claim is materialized, only the
+  locator's spelling cannot be.
+- **Proposed correction:** re-declare the locator to the composition-root
+  proof whose cargo test-target NAME is already exactly `p5_hard_gate` and
+  whose test function name is already exactly the locator's suffix, so the
+  plan's focused gate (`cargo nextest run --test p5_hard_gate
+  irreversible_never_dispatched`) runs verbatim:
+  - `crates/gauntlet-cli/tests/p5_hard_gate.rs::irreversible_never_dispatched`
+    (line 815; the file's header comment at lines 9–17 records the locator
+    divergence in-tree): the run composes and plans over the REAL controller
+    and REAL durable stores, reaches `TerminalState::Blocked` at the first
+    iteration, the delegating store's DURABLE role-invocation count is ZERO
+    (nothing ever reached the runner), and the escalation ticket names the
+    §17.1 first line ("irreversible" + "never an automatic dispatch");
+  - the dispatch-time second line at unit level:
+    `crates/gauntlet-app/src/govern/gate.rs::irreversible_is_refused_before_every_other_conjunct`
+    (line 742) — the conjunct is evaluated FIRST, so a forged or drifted plan
+    input cannot smuggle the tier past a later conjunct's refusal;
+  - the tier-posture table that makes `irreversible` total and monotone
+    rather than unrepresented:
+    `crates/gauntlet-app/src/govern/posture.rs::the_rung_table_is_the_spec_posture_and_monotone_with_blast_rank`
+    (line 137), over `required_isolation` (line 31).
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock. Verification here is read-level only — this session ran under the
+  host's single-compiler build lock, so no `cargo`/`just ruler` run backs it;
+  the orchestrator's post-land gate run is the confirming instrument.
+  Settlement of this candidate belongs to the ruler's owner, not the task.
+
+## 2026-08-28 — AK-045 evidence locator names an unmaterializable test target (Task 14 closure)
+
+- **Unit:** AK-045 (`.wayfinder/answer-key.md` lines 313–318).
+- **Claim under review (unchanged):** "A high-quality result that violates one
+  hard requirement is rejected rather than averaged into a pass."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/proofs/p5_hard_gate`; `tests/proofs/` holds only `.gitkeep`, and no
+  repo-root target can exist under the same cargo-target-path rule as the
+  AK-044 entry above. This is an **additional instance of the existing
+  locator-materialization class (first recorded 2026-08-17, AK-049)** — not a
+  new defect class, and not an unsupported claim.
+- **Proposed correction:** re-declare the locator to the composition-root
+  integration test whose cargo test-target name is already exactly
+  `p5_hard_gate`, and specifically to the merit-vs-conjunct leg:
+  - `crates/gauntlet-cli/tests/p5_hard_gate.rs::a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_averaged`
+    (line 845): a dispatch maximal on EVERY other dimension — open status, no
+    dependencies, free slots, affordable budget, a live validated backend, a
+    resolvable policy — is refused outright because exactly one hard conjunct
+    fails (the runner's honest §22.2 `isolation: none` below the local tier's
+    §17.3 process rung). The refusal lands as `TerminalState::Blocked` with
+    zero durable invocations, and the governance event names both the fact
+    ("isolation none") and the rule (AK-050 / spec 17.3). The test carries its
+    own CONTROL: the same runner and same unit subject at the contained tier
+    (required rung `none`) DISPATCHES — so the refusal is attributable to the
+    violated conjunct, never to a broken fixture;
+  - the conjunctive-not-scored property at unit level:
+    `crates/gauntlet-app/src/govern/gate.rs` — the gate's admission is a
+    conjunction of six ordered conjuncts (header lines 41–44), each with its
+    own refusal test:
+    `irreversible_is_refused_before_every_other_conjunct` (742),
+    `authority_above_the_ceiling_escalates_before_any_transform` (764),
+    `a_dispatch_fact_below_the_recorded_facts_is_refused_as_lattice_movement`
+    (839), `a_none_isolation_runner_is_refused_for_any_tier_above_contained`
+    (793), `the_conservative_posture_admits_contained_critic_and_refuses_every_above_contained_tier`
+    (703), and `a_validation_failure_escalates_and_never_falls_back` (874) —
+    plus the admitting control
+    `a_real_backend_posture_admits_above_contained_with_the_validated_policy_carried`
+    (910).
+- **Scope honesty:** the live leg is environment-conditional — when the
+  process-isolation backend is absent from the host the test prints
+  "the process-isolation backend is absent — the live leg is skipped" and
+  returns green without exercising the refusal. The gate-level conjunct tests
+  above are unconditional, so the claim keeps unconditional support; the
+  COMPOSED spelling of it is host-dependent. Worth the ruler owner's notice
+  when deciding what the locator must guarantee.
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock. Verification here is read-level only — this session ran under the
+  host's single-compiler build lock, so no `cargo`/`just ruler` run backs it;
+  the orchestrator's post-land gate run is the confirming instrument.
+  Settlement of this candidate belongs to the ruler's owner, not the task.
+
+## 2026-08-28 — AK-046 evidence locator names an unmaterializable test target (Task 14 closure)
+
+- **Unit:** AK-046 (`.wayfinder/answer-key.md` lines 320–325).
+- **Claim under review (unchanged):** "An agent role cannot lower a Unit's
+  blast radius or authority; only an operator can raise it."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/antigaming/g7_tier_downgrade`; `tests/antigaming/` holds only
+  `.gitkeep` (verified on the tree), and no repo-root target can exist under
+  the same cargo-target-path rule as the AK-044 entry above. This is an
+  **additional instance of the existing locator-materialization class (first
+  recorded 2026-08-17, AK-049)** — not a new defect class.
+- **Proposed correction:** re-declare the locator to the composition-root
+  anti-gaming proof whose cargo test-target NAME is already exactly
+  `g7_tier_downgrade` (`cargo nextest run --test g7_tier_downgrade` runs
+  verbatim; the file's header at lines 29–33 records the divergence
+  in-tree) — `crates/gauntlet-cli/tests/g7_tier_downgrade.rs`, three legs, one
+  per surface of the claim:
+  - `an_agent_role_cannot_move_a_units_lattice_in_any_direction` (line 561):
+    the LATTICE review — an agent-originated movement is refused in every
+    direction (a raise is operator-only too, the claim's second clause read
+    strictly), an operator may raise and may not lower, and the refusal
+    CARRIES the recorded-and-proposed values so the governance event is
+    reconstructable from the refusal alone;
+  - `a_dispatch_fact_below_the_recorded_facts_is_refused_as_a_downgrade`
+    (line 651): the DISPATCH gate — plan facts ranking below the recorded
+    answer-key facts (the forged/drifted-projection shape) are refused before
+    any containment or policy conjunct is consulted, with the AK-046 rule in
+    the recorded summary;
+  - `a_mid_run_tier_downgrade_attempt_never_dispatches_at_the_lowered_tier`
+    (line 712): the FROZEN-RULER defense, composed — a queued local-tier unit
+    refuses dispatch under the honest none-isolation runner, an attacker then
+    rewrites `blast_radius: local` to `contained` in the answer key between
+    runs, and resume re-freeze-verifies FIRST (§18.3 step 2): the run ends
+    `TerminalState::Aborted` with `ReferenceBreach::Mutated`, durable
+    invocation count still zero, and the lowered tier never dispatches.
+  - the pure rule the legs sit on:
+    `crates/gauntlet-app/src/govern/posture.rs::review_lattice_movement`
+    (line 88), with `an_agent_cannot_move_a_unit_in_any_direction` (line 164)
+    and `an_operator_may_raise_and_may_not_lower` (line 202).
+- **Runtime-vs-ruler note (not a defect, recorded for the owner):** the
+  implementation reads the claim's second clause strictly — through the
+  RUNTIME no decrease is honored from anyone, and an operator's path to
+  raising a tier is editing the ruler they own, not a runtime API
+  (`posture.rs` header lines 14–23). The ruler's phrasing "only an operator
+  can raise it" is satisfied by that reading; a future revision may wish to
+  say which surface the operator raises it through.
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock. Verification here is read-level only — this session ran under the
+  host's single-compiler build lock, so no `cargo`/`just ruler` run backs it;
+  the orchestrator's post-land gate run is the confirming instrument.
+  Settlement of this candidate belongs to the ruler's owner, not the task.
+
+## 2026-08-28 — AK-047 evidence locator names an unmaterializable test target (Task 14 closure)
+
+- **Unit:** AK-047 (`.wayfinder/answer-key.md` lines 327–332).
+- **Claim under review (unchanged):** "Sandbox policy validation precedes
+  execution, and a validation failure escalates without falling back to
+  unsandboxed execution."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/contract/sandbox::no_unsandboxed_fallback`; `tests/contract/` holds
+  only the four boundary-suite stubs owned by `gauntlet-arch-tests`
+  (`adapter_registry.rs`, `architecture_boundaries.rs`,
+  `env_example_complete.rs`, `no_hardcoded_literals.rs`), no `sandbox.rs`
+  among them, and no core crate may declare a repo-root test target under the
+  same cargo-target-path rule as the AK-044 entry above. This is an
+  **additional instance of the existing locator-materialization class (first
+  recorded 2026-08-17, AK-049)** — not a new defect class. The case NAME the
+  locator spells does exist verbatim; only its repo-root path cannot.
+- **Proposed correction:** re-declare the locator to the shared contract
+  suite's own case, which is named exactly `no_unsandboxed_fallback`, plus its
+  meta-test and its composed leg:
+  - the case:
+    `crates/gauntlet-ports/src/contract/sandbox.rs::no_unsandboxed_fallback`
+    (line 273; `const CASE` at 274-adjacent, dispatched from `sandbox_suite`
+    at line 539). Pinned semantics (module header lines 4–11): a
+    findings-carrying or rung-downgraded validation authorizes nothing, and
+    `wrap` structurally requires the `PolicyValidation` that `validate`
+    produced for the SAME policy — there is no path from a failed validation
+    to an executed command to fall back on;
+  - the suite's TEETH (proof the case can fail):
+    `crates/gauntlet-ports/src/contract/suite_runs.rs::sandbox_fallback_broken_is_caught`
+    (line 424) asserts the `SandboxBrokenFallback` stub
+    (`crates/gauntlet-ports/src/contract/stubs.rs` line 2050) — a sandbox
+    whose `wrap` accepts a findings-carrying validation, laundering a failed
+    validation into an executed command — is caught, and on THIS case
+    specifically; `sandbox_green_is_clean` (line 406) is the control;
+  - conformance of the real adapters:
+    `crates/adapters/gauntlet-adapter-sandbox-bwrap/src/lib.rs::the_shared_contract_suite_is_clean`
+    (line 826) and
+    `crates/adapters/gauntlet-adapter-sandbox-none/src/lib.rs::the_shared_contract_suite_is_clean`
+    (line 401);
+  - the composed escalation half of the claim:
+    `crates/gauntlet-cli/tests/p5_hard_gate.rs::a_sandbox_validation_failure_escalates_without_falling_back`
+    (line 929) — a policy that DECODES but fails the backend's own validation
+    escalates carrying the findings, with no admission and no wrapped
+    command; the §8.6 conservative-posture leg rides beside it (above
+    contained without a backend refuses dispatch with an escalation ticket and
+    zero invocations). Unit-level corroboration:
+    `crates/gauntlet-app/src/govern/gate.rs::a_validation_failure_escalates_and_never_falls_back`
+    (line 874).
+- **Scope honesty:** the bwrap adapter's suite run and the p5 composed leg are
+  environment-conditional (they skip with a printed note when the backend
+  binary is absent from the host). The none-backend adapter's suite run, the
+  suite-run meta-tests, and the gate-level test are unconditional, so the
+  claim keeps unconditional support on every host.
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock. Verification here is read-level only — this session ran under the
+  host's single-compiler build lock, so no `cargo`/`just ruler` run backs it;
+  the orchestrator's post-land gate run is the confirming instrument.
+  Settlement of this candidate belongs to the ruler's owner, not the task.
+
+## 2026-08-28 — AK-048 evidence locator names an unmaterializable test target (Task 14 closure)
+
+- **Unit:** AK-048 (`.wayfinder/answer-key.md` lines 334–339).
+- **Claim under review (unchanged):** "Containment wraps the builder session
+  from process start; no builder command executes before the authority and
+  containment checks."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/contract/sandbox::wraps_from_process_start`; `tests/contract/` holds
+  only the four boundary-suite stubs owned by `gauntlet-arch-tests`, and no
+  repo-root target can exist under the same cargo-target-path rule as the
+  AK-044 entry above. This is an **additional instance of the existing
+  locator-materialization class (first recorded 2026-08-17, AK-049)** — not a
+  new defect class; the case name exists verbatim, its repo-root path cannot.
+- **Proposed correction:** re-declare the locator to the shared contract
+  suite's case of exactly that name, its meta-test, and the executed
+  composed leg:
+  - the case:
+    `crates/gauntlet-ports/src/contract/sandbox.rs::wraps_from_process_start`
+    (line 360) — above the `none` rung the FIRST process of the wrapped
+    command is the sandbox, never the bare probe (§17.5.4); the case's helper
+    `first_word_names_backend` (line 112) is what makes "from process start"
+    an observed property of the rendered command rather than a declared one;
+  - the TEETH:
+    `crates/gauntlet-ports/src/contract/suite_runs.rs::sandbox_process_start_broken_is_caught`
+    (line 437) asserts the `SandboxBrokenProcessStart` stub
+    (`stubs.rs` line 2139) — a sandbox that CLAIMS the process rung but
+    performs an identity wrap, so the bare probe would be the first process —
+    is caught, and on THIS case specifically;
+  - adapter conformance: the two `the_shared_contract_suite_is_clean` tests
+    cited in the AK-047 entry above
+    (`gauntlet-adapter-sandbox-bwrap/src/lib.rs` line 826;
+    `gauntlet-adapter-sandbox-none/src/lib.rs` line 401);
+  - the composed and EXECUTED leg:
+    `crates/gauntlet-cli/tests/p5_hard_gate.rs::containment_wraps_from_process_start_and_confines_the_session`
+    (line 1022) — the gate's admission carries the resolved policy and its
+    CLEAN validation (`validation.is_clean()`, `isolation == Process`), the
+    wrapped command's first process is the backend, and RUNNING the wrapped
+    command under the real backend confines the session: a write inside the
+    writable root succeeds, a write outside fails on the read-only root, and
+    the denied path is unreadable. This leg composes the repository's own
+    SHIPPED policy artifacts (`.gauntlet/policies/contained.json`,
+    `local.json`, `cross_cutting.json` — new in Task 14), which is the
+    difference between mechanism existence and composed reachability.
+- **Scope honesty:** the executed p5 leg and the bwrap suite run are
+  environment-conditional (skipped with a printed note when the backend binary
+  is absent). The contract case, its broken-stub meta-test, and the
+  none-backend adapter's suite run are unconditional. The "no builder command
+  executes before the checks" half is structural — `wrap` cannot be reached
+  without the `PolicyValidation` that `validate` minted for the same policy —
+  and the gate runs at DISPATCH time before the `RoleInvocationSpec` is built
+  (`crates/gauntlet-app/src/govern/gate.rs` header lines 6–12; defect D2's
+  correction that a post-turn check is an audit, not a gate).
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock. Verification here is read-level only — this session ran under the
+  host's single-compiler build lock, so no `cargo`/`just ruler` run backs it;
+  the orchestrator's post-land gate run is the confirming instrument.
+  Settlement of this candidate belongs to the ruler's owner, not the task.
+
+## 2026-08-28 — AK-050 evidence locator names an unmaterializable test target (Task 14 closure)
+
+- **Unit:** AK-050 (`.wayfinder/answer-key.md` lines 348–353).
+- **Claim under review (unchanged):** "A runner reporting isolation none is
+  refused for any tier above contained."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/contract/sandbox::capability_mismatch`; `tests/contract/` holds only
+  the four boundary-suite stubs owned by `gauntlet-arch-tests`, and no
+  repo-root target can exist under the same cargo-target-path rule as the
+  AK-044 entry above. This is an **additional instance of the existing
+  locator-materialization class (first recorded 2026-08-17, AK-049)** — not a
+  new defect class; the case name exists verbatim, its repo-root path cannot.
+- **Proposed correction:** re-declare the locator to the three surfaces that
+  materialize the claim, all verified on the tree:
+  - the sandbox-side case of exactly that name:
+    `crates/gauntlet-ports/src/contract/sandbox.rs::capability_mismatch`
+    (line 473, `const CASE: &str = "capability_mismatch"` at line 474) — a
+    backend achieving the `none` rung validates no tier above contained, and
+    the irreversible tier has no policy at all, the sandbox being the last
+    line after the provider's structural refusal (§17.3);
+  - the RUNNER-side conjunct, which is where the claim's own wording lives
+    (the runner's REPORT is what is refused, and §22.2's honesty rule is what
+    makes the mock's `none` refusable):
+    `crates/gauntlet-app/src/govern/gate.rs::a_none_isolation_runner_is_refused_for_any_tier_above_contained`
+    (line 793), over `posture::required_isolation`
+    (`crates/gauntlet-app/src/govern/posture.rs` line 31) and its table test
+    at line 137; the refusal surfaces on the composed path as the
+    `capability_mismatch` summary token
+    (`crates/gauntlet-app/src/control/controller.rs` line 3572);
+  - the composed spellings:
+    `crates/gauntlet-cli/tests/p5_hard_gate.rs::a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_averaged`
+    (line 845; the governance event names "isolation none" and cites AK-050 or
+    spec 17.3, with the contained-tier control dispatching) and
+    `crates/gauntlet-cli/tests/g7_tier_downgrade.rs::a_mid_run_tier_downgrade_attempt_never_dispatches_at_the_lowered_tier`
+    (line 712, iteration one: the local-tier unit refuses dispatch under the
+    honest none-isolation runner);
+  - the operator-facing preflight of the same rule: doctor check 4,
+    `crates/gauntlet-app/src/doctor/checks.rs::check_capabilities` (line 756;
+    rewritten in Task 14 from its "lands with plan Task 14" placeholder),
+    emitting `sandbox_capability_mismatch` when the measured backend rung sits
+    below a dispatchable tier's required rung (lines 787–826), asserted at
+    `crates/gauntlet-app/src/doctor/mod.rs` line 1400.
+- **Scope honesty (a real gap in the suite's teeth, not in the claim):** the
+  sandbox suite's meta-test file carries broken-stub negatives for three of
+  its five cases only — `sandbox_broken_is_caught`
+  (`wrap_demands_its_own_validation`, line 411),
+  `sandbox_fallback_broken_is_caught` (line 424) and
+  `sandbox_process_start_broken_is_caught` (line 437) — and `stubs.rs`
+  declares `SandboxGreen`, `SandboxBroken`, `SandboxBrokenFallback` and
+  `SandboxBrokenProcessStart` but NO capability-mismatch breaker. So the
+  `capability_mismatch` case is run (green stub, both real adapters) but is
+  not itself proven able to fail, unlike its two siblings. The CLAIM is
+  independently supported by the gate conjunct, the two composed legs, and
+  doctor check 4 — this is a suite-teeth observation for the owner and for a
+  future task, not a reason to doubt AK-050.
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock. Verification here is read-level only — this session ran under the
+  host's single-compiler build lock, so no `cargo`/`just ruler` run backs it;
+  the orchestrator's post-land gate run is the confirming instrument.
+  Settlement of this candidate belongs to the ruler's owner, not the task.
+
+## 2026-08-28 — AK-049 addendum: Task 14 did NOT change doctor check 5; the locator entry of 2026-08-17 stands unamended
+
+- **Unit:** AK-049 (`.wayfinder/answer-key.md` lines 341–346); addendum to the
+  2026-08-17 entry at the head of this file, whose proposed locators stand
+  unchanged.
+- **Why an addendum at all:** Task 14 is the sandbox/tier-policy task, so a
+  reader would reasonably expect it to have moved AK-049. It did not, and
+  saying so plainly is the point of this entry. AK-049's claim has been
+  satisfied since Task 5 by doctor check 5 (the forbidden-tier scan), and the
+  three tests the 2026-08-17 entry proposes as its locators are unchanged by
+  Task 14.
+- **What was verified (read-level, on the landed tree):** the check-5
+  implementation `check_policies`
+  (`crates/gauntlet-app/src/doctor/checks.rs` line 881, with the AK-049 scan
+  and its any-casing/any-extension/broken-symlink stem rule at lines 1005–1034)
+  falls entirely OUTSIDE Task 14's diff to that file — the working-tree diff
+  hunks land at the module head and at lines 716–872 (`check_runners` and the
+  `check_capabilities` rewrite, i.e. check 4), not in the check-5 region. The
+  three proposed locators still exist under their 2026-08-17 names in
+  `crates/gauntlet-app/src/doctor/mod.rs`:
+  `a_present_top_tier_policy_fails_check_five_and_the_run` (line 518, still
+  asserting `AK-049` in both the text and the JSON report),
+  `forbidden_tier_policies_under_any_spelling_or_link_fail_check_five`
+  (line 688), and `an_unreadable_policy_dir_fails_check_five_and_recovers_when_readable`
+  (line 718).
+- **The one operational change worth recording (no locator change):** Task 14
+  ships real tier-policy artifacts into the default policy dir —
+  `.gauntlet/policies/contained.json`, `local.json`, `cross_cutting.json`
+  (verified present; each names its tier, backend, network posture, writable
+  roots and denied paths). Check 5's negative clause therefore now runs
+  against a POPULATED policy dir rather than an empty one: the dir holds three
+  dispatchable-tier files and still no file whose stem is `irreversible` in
+  any casing, which is exactly the state check 5 requires. This strengthens
+  the claim's operational bite (the check now discriminates rather than
+  scanning an empty dir); it does not alter the check, its tests, or the
+  locator correction proposed on 2026-08-17.
+- **Not a new candidate:** no new divergence is recorded here, and the
+  2026-08-17 entry is neither superseded nor edited.
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock. Verification here is read-level only — this
+  session ran under the host's single-compiler build lock, so no
+  `cargo`/`just ruler`/`just doctor` run backs it; the orchestrator's
+  post-land gate run is the confirming instrument. Settlement of the
+  2026-08-17 candidate remains with the ruler's owner.

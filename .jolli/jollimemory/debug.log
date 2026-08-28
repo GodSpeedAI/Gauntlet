@@ -2090,3 +2090,129 @@
 [2026-08-28T13:23:35.412Z] INFO  [GitOps] [trace=c847a55bee6f88c0e20f29c5914f7c12] Commit 1fcfdd06: task 13: settlement, atomic commit, single-writer (AK-040/04
 [2026-08-28T13:23:35.456Z] INFO  [StorageFactory] [trace=c847a55bee6f88c0e20f29c5914f7c12] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
 [2026-08-28T13:23:35.490Z] INFO  [QueueWorker] [trace=c847a55bee6f88c0e20f29c5914f7c12] === Queue worker finished ===
+[2026-08-28T13:43:17.197Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-28T13:43:17.221Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-28T13:43:17.640Z] INFO  [PostCommitHook] [trace=2f299b082b25530d668edf03593b638d] Detected operation: commit
+[2026-08-28T13:43:17.645Z] INFO  [PostCommitHook] [trace=2f299b082b25530d668edf03593b638d] Enqueued: type=commit hash=207520f2
+[2026-08-28T13:43:17.645Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Launching background worker
+[2026-08-28T13:43:17.647Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Background worker spawned (PID: 52095)
+[2026-08-28T13:43:17.847Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-28T13:43:17.853Z] INFO  [StorageFactory] [trace=2f299b082b25530d668edf03593b638d] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T13:43:17.901Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Processing queue entry: type=commit hash=207520f2
+[2026-08-28T13:43:17.906Z] INFO  [GitOps] [trace=2f299b082b25530d668edf03593b638d] Commit 207520f2: Update ingest cooldown and runs timestamps; modify plans and
+[2026-08-28T13:43:17.907Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Commit: 207520f2 - Update ingest cooldown and runs timestamps; modify plans and agent documentation (4ms)
+[2026-08-28T13:43:17.909Z] INFO  [SessionTracker] [trace=2f299b082b25530d668edf03593b638d] Pruning stale session d26ee729-003f-4ebc-933e-b4c217702dfc (age: 70h)
+[2026-08-28T13:43:17.969Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] No active sessions found — will infer topics from diff if available
+[2026-08-28T13:43:18.000Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Git diff: 29 files changed, +1600 -53 (30ms)
+[2026-08-28T13:43:18.024Z] WARN  [GitOps] [trace=2f299b082b25530d668edf03593b638d] Diff exceeds 60000-char budget (135166 chars) — prepending --stat file list and truncating body
+[2026-08-28T13:43:18.031Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-28T13:43:18.031Z] INFO  [Summarizer] [trace=2f299b082b25530d668edf03593b638d] Generating summary for commit 207520f2
+[2026-08-28T13:43:18.031Z] INFO  [Summarizer] [trace=2f299b082b25530d668edf03593b638d] Context: transcript=0, files=29, lines=1600+53
+[2026-08-28T13:43:18.031Z] WARN  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-28T13:43:20.034Z] INFO  [Summarizer] [trace=2f299b082b25530d668edf03593b638d] Generating summary for commit 207520f2
+[2026-08-28T13:43:20.034Z] INFO  [Summarizer] [trace=2f299b082b25530d668edf03593b638d] Context: transcript=0, files=29, lines=1600+53
+[2026-08-28T13:43:20.034Z] ERROR [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-28T13:43:20.034Z] WARN  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Saving summary with empty topics + llm-failed marker for commit 207520f2
+[2026-08-28T13:43:20.034Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] API summary generated (2.0s)
+[2026-08-28T13:43:20.040Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-28T13:43:20.040Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-28T13:43:20.040Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-28T13:43:20.040Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Note association: detected 0 note(s): []
+[2026-08-28T13:43:20.041Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Reference association: detected 0 ref(s) for branch main
+[2026-08-28T13:43:20.043Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Summary built for 207520f2: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-28T13:43:20.110Z] INFO  [MetadataManager] [trace=2f299b082b25530d668edf03593b638d] Manifest updated: main/update-ingest-cooldown-and-runs-timestamps-modify-207520f2.md (commit)
+[2026-08-28T13:43:20.110Z] INFO  [FolderStorage] [trace=2f299b082b25530d668edf03593b638d] Markdown generated: main/update-ingest-cooldown-and-runs-timestamps-modify-207520f2.md
+[2026-08-28T13:43:20.111Z] INFO  [FolderStorage] [trace=2f299b082b25530d668edf03593b638d] Wrote 3 files, deleted 0 (Add summary for 207520f2: Update ingest cooldown and runs timestamps; modify)
+[2026-08-28T13:43:20.111Z] INFO  [SummaryStore] [trace=2f299b082b25530d668edf03593b638d] Summary stored successfully for commit 207520f2
+[2026-08-28T13:43:20.112Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Summary stored successfully for commit 207520f2 (69ms, 0 plans, 0 notes, 0 references)
+[2026-08-28T13:43:20.112Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] === Pipeline completed in 2.2s ===
+[2026-08-28T13:43:20.112Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] === Summary content (0 topics) ===
+[2026-08-28T13:43:20.117Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Processed 1 queue entries
+[2026-08-28T13:43:20.120Z] INFO  [SessionTracker] [trace=2f299b082b25530d668edf03593b638d] Enqueued queue operation: type=ingest tag=ingest file=1787924600120-00000001-c19bbda3-ingest.json
+[2026-08-28T13:43:20.122Z] INFO  [PushExecutor] [trace=2f299b082b25530d668edf03593b638d] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-28T13:43:20.149Z] INFO  [GitOps] [trace=2f299b082b25530d668edf03593b638d] Commit 207520f2: Update ingest cooldown and runs timestamps; modify plans and
+[2026-08-28T13:43:20.182Z] INFO  [StatsWriter] [trace=2f299b082b25530d668edf03593b638d] pruned 2 projected events older than 2026-08-14
+[2026-08-28T13:43:20.192Z] INFO  [StorageFactory] [trace=2f299b082b25530d668edf03593b638d] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T13:43:20.231Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] === Queue worker finished ===
+[2026-08-28T13:43:20.235Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-28T13:43:20.239Z] INFO  [QueueWorker] [trace=2f299b082b25530d668edf03593b638d] No API key configured — skipping ingest (post-commit)
+[2026-08-28T16:55:48.875Z] INFO  [SessionStartHook] SessionStartHook invoked (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-28T16:55:48.954Z] INFO  [SessionStartHook] No briefing or reminder generated (skipped or timed out)
+[2026-08-28T16:55:51.296Z] INFO  [StorageFactory] [trace=12c37cc96d83f61449c3bd1f063b96b6] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T16:55:51.344Z] INFO  [McpServer] [trace=12c37cc96d83f61449c3bd1f063b96b6] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-28T17:08:54.923Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:08:54.936Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:08:54.942Z] INFO  [SessionTracker] Pruning stale session d26ee729-003f-4ebc-933e-b4c217702dfc (age: 74h)
+[2026-08-28T17:08:54.952Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:09:55.287Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:09:55.292Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:09:55.297Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:11:25.625Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:11:25.631Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:11:25.636Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:12:34.880Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:12:34.885Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:12:34.889Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:14:48.586Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:14:48.594Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:14:48.599Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:16:58.375Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:16:58.380Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:16:58.386Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:17:13.811Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:17:13.817Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:17:13.823Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:19:10.386Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:19:10.391Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:19:10.396Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:19:21.293Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:19:21.298Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:19:21.303Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:24:26.637Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:24:26.669Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:24:26.700Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:24:40.988Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:24:40.994Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:24:40.999Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:27:11.077Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:27:11.083Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:27:11.089Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:27:24.500Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:27:24.510Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:27:24.516Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:28:41.126Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:28:41.131Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:28:41.134Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:28:50.029Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:28:50.035Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:28:50.041Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T17:43:00.610Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T17:43:00.617Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T17:43:00.624Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T18:44:49.837Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T18:44:49.846Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T18:44:49.853Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T18:59:56.517Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T18:59:56.522Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T18:59:56.526Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T19:05:18.979Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T19:05:18.984Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T19:05:18.988Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T19:20:21.836Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T19:20:21.842Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T19:20:21.846Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T19:26:27.921Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T19:26:27.926Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T19:26:27.930Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T19:31:20.458Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T19:31:20.463Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T19:31:20.467Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T19:37:09.997Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T19:37:10.002Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T19:37:10.006Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T19:40:40.089Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T19:40:40.094Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T19:40:40.098Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T19:42:56.046Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T19:42:56.051Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T19:42:56.055Z] INFO  [StopHook] Session saved successfully

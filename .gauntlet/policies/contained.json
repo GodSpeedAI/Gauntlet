@@ -1,0 +1,8 @@
+{
+  "reference": "tier-contained-v1",
+  "tier": "contained",
+  "backend": "bwrap",
+  "network": "deny_by_default",
+  "writable_roots": ["$WORKSPACE_ROOT"],
+  "denied_paths": []
+}

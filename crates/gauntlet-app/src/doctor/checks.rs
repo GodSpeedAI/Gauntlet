@@ -14,7 +14,9 @@
 
 use std::path::Path;
 
+use gauntlet_domain::BlastRadius;
 use gauntlet_domain::Digest;
+use gauntlet_ports::agent_runner::Isolation;
 use gauntlet_ports::json::{self, JsonValue};
 
 use crate::config::defaults;
@@ -711,18 +713,163 @@ pub fn check_runners(resolved: &ResolvedConfig) -> CheckOutcome {
 // Check 4 — runner capabilities satisfy configured tiers (§8.5 check 4)
 // ---------------------------------------------------------------------------
 
-pub fn check_capabilities(resolved: &ResolvedConfig) -> CheckOutcome {
-    let _ = resolved;
-    let reason = "capability-vs-tier dispatch check lands with plan Task 14; Isolation ladder exists in \
-         ports";
+/// A composition-root MEASUREMENT of the configured sandbox backend (plan
+/// Task 14): the achieved isolation rung, and whether it was actually
+/// measured (an adapter fronting the backend validated a policy and
+/// reported the rung) rather than declared. The app layer cannot map
+/// backend tokens to rungs itself — vendor tokens are adapter knowledge
+/// (§24.3) — so the measurement arrives from the composition root, which
+/// owns the adapters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackendDescriptor {
+    /// The backend token the descriptor measured (must equal the resolved
+    /// `sandbox.backend`, or the descriptor describes a different backend).
+    pub token: String,
+    /// The isolation rung the backend actually achieved under validation.
+    pub isolation: Isolation,
+    /// Whether the rung was MEASURED: a backend whose probe failed is a
+    /// capability mismatch in its own right (§8.5 check 4's failure
+    /// class), not an unavailable check.
+    pub measured: bool,
+    /// Why measurement failed, when it did.
+    pub note: Option<String>,
+}
+
+/// The tier set a configuration can dispatch, and the rung each tier
+/// requires (§17.3/§8.6): under the conservative no-backend posture only
+/// `contained` dispatches ("any higher tier without a backend refuses to
+/// dispatch"); under a real backend all three dispatchable tiers do.
+fn tier_posture(backend_live: bool) -> &'static [(BlastRadius, Isolation)] {
+    const NONE_POSTURE: [(BlastRadius, Isolation); 1] = [(BlastRadius::Contained, Isolation::None)];
+    const LIVE_POSTURE: [(BlastRadius, Isolation); 3] = [
+        (BlastRadius::Contained, Isolation::None),
+        (BlastRadius::Local, Isolation::Process),
+        (BlastRadius::CrossCutting, Isolation::Process),
+    ];
+    if backend_live {
+        &LIVE_POSTURE
+    } else {
+        &NONE_POSTURE
+    }
+}
+
+pub fn check_capabilities(
+    resolved: &ResolvedConfig,
+    descriptor: Option<&BackendDescriptor>,
+) -> CheckOutcome {
+    let backend_live = resolved.sandbox_backend.trim() != defaults::SANDBOX_BACKEND;
+    let tiers = tier_posture(backend_live);
+    // Subresult 1 — the tier rungs the configuration implies vs the
+    // backend's measured capability. Under the conservative posture the
+    // required rungs are trivially satisfied (contained requires none) and
+    // the honest evidence names the posture: above-contained dispatch
+    // refuses at the governance gate with an escalation, which is the
+    // §8.6-specified behavior, not a doctor failure.
+    let (rung_status, rung_evidence) = if !backend_live {
+        (
+            CheckStatus::Pass,
+            vec![
+                format!(
+                    "sandbox backend resolves to '{}' (the 8.6 conservative default): only the \
+                     contained tier is dispatchable",
+                    resolved.sandbox_backend
+                ),
+                "above-contained units refuse dispatch at the governance gate with an escalation \
+                 ticket (spec 8.6; plan Task 14) — runtime governance, not a config error"
+                    .to_owned(),
+            ],
+        )
+    } else {
+        match descriptor {
+            None => (
+                CheckStatus::Fail,
+                vec![format!(
+                    "sandbox_capability_mismatch: backend '{}' is configured but the composition \
+                     root measured no descriptor for it — a backend nothing provides cannot \
+                     cover the {} dispatchable tier(s) (spec 8.5 check 4)",
+                    resolved.sandbox_backend,
+                    tiers.len()
+                )],
+            ),
+            Some(descriptor) if descriptor.token != resolved.sandbox_backend => (
+                CheckStatus::Fail,
+                vec![format!(
+                    "sandbox_capability_mismatch: the measured descriptor names backend '{}' \
+                     while the configuration resolves '{}' — the measurement describes a \
+                     different backend",
+                    descriptor.token, resolved.sandbox_backend
+                )],
+            ),
+            Some(descriptor) if !descriptor.measured => (
+                CheckStatus::Fail,
+                vec![format!(
+                    "sandbox_capability_mismatch: backend '{}' could not be measured{} — an \
+                     unusable backend covers no tier (spec 8.5 check 4, 21.3)",
+                    resolved.sandbox_backend,
+                    descriptor
+                        .note
+                        .as_ref()
+                        .map(|note| format!(": {note}"))
+                        .unwrap_or_default()
+                )],
+            ),
+            Some(descriptor) => {
+                let mut evidence = Vec::new();
+                let mut ok = true;
+                for (tier, required) in tiers {
+                    if descriptor.isolation < *required {
+                        ok = false;
+                        evidence.push(format!(
+                            "sandbox_capability_mismatch: backend '{}' achieves isolation {}, \
+                             below the {} tier's required rung {} (spec 17.3)",
+                            resolved.sandbox_backend, descriptor.isolation, tier, required
+                        ));
+                    } else {
+                        evidence.push(format!(
+                            "tier {tier} requires rung {required}; backend achieves {}",
+                            descriptor.isolation
+                        ));
+                    }
+                }
+                (
+                    if ok {
+                        CheckStatus::Pass
+                    } else {
+                        CheckStatus::Fail
+                    },
+                    evidence,
+                )
+            }
+        }
+    };
+    // Subresult 2 — the RUNNER half of §8.5 check 4: a runner's reported
+    // isolation vs the tiers. Runners resolve through the registry that
+    // lands with plan Tasks 15-16 (the same reason check 3's resolution
+    // subresult is unavailable today); the gate at dispatch enforces the
+    // fact per invocation in the meantime.
+    let runner_reason = "runner capabilities resolve with plan Tasks 15-16; the dispatch gate \
+         enforces per-invocation isolation in the meantime";
     CheckOutcome::combine(
         4,
         "capabilities",
-        CheckStatus::Unavailable {
-            reason: reason.to_owned(),
-        },
+        CheckStatus::Pass,
+        vec![
+            SubResult {
+                name: "tier rungs".to_owned(),
+                status: rung_status,
+                evidence: rung_evidence,
+            },
+            SubResult {
+                name: "runner capabilities".to_owned(),
+                status: CheckStatus::Unavailable {
+                    reason: runner_reason.to_owned(),
+                },
+                evidence: vec![format!(
+                    "runtime runner-capability resolution is unavailable: {runner_reason}"
+                )],
+            },
+        ],
         Vec::new(),
-        vec![reason.to_owned()],
     )
 }
 

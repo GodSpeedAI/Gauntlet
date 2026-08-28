@@ -201,6 +201,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-policy-fs"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
+name = "gauntlet-adapter-sandbox-bwrap"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
+name = "gauntlet-adapter-sandbox-none"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-adapter-state-sqlite"
 version = "0.1.0"
 dependencies = [
@@ -272,6 +296,8 @@ dependencies = [
  "gauntlet-adapter-observe-filesystem",
  "gauntlet-adapter-observe-git",
  "gauntlet-adapter-observe-test",
+ "gauntlet-adapter-policy-fs",
+ "gauntlet-adapter-sandbox-bwrap",
  "gauntlet-adapter-state-sqlite",
  "gauntlet-adapter-verify-command-exit-code",
  "gauntlet-adapter-verify-file-digest",

@@ -107,27 +107,42 @@
       ]
     },
     {
-      "evidence": [
-        "capability-vs-tier dispatch check lands with plan Task 14; Isolation ladder exists in ports"
-      ],
+      "evidence": [],
       "id": 4,
       "name": "capabilities",
       "reason": "a sub-check's machinery lands with a later plan task",
       "status": "unavailable",
-      "sub": []
+      "sub": [
+        {
+          "evidence": [
+            "sandbox backend resolves to 'none' (the 8.6 conservative default): only the contained tier is dispatchable",
+            "above-contained units refuse dispatch at the governance gate with an escalation ticket (spec 8.6; plan Task 14) — runtime governance, not a config error"
+          ],
+          "name": "tier rungs",
+          "status": "pass"
+        },
+        {
+          "evidence": [
+            "runtime runner-capability resolution is unavailable: runner capabilities resolve with plan Tasks 15-16; the dispatch gate enforces per-invocation isolation in the meantime"
+          ],
+          "name": "runner capabilities",
+          "reason": "runner capabilities resolve with plan Tasks 15-16; the dispatch gate enforces per-invocation isolation in the meantime",
+          "status": "unavailable"
+        }
+      ]
     },
     {
       "evidence": [],
       "id": 5,
       "name": "sandbox policies",
-      "status": "pass",
+      "status": "fail",
       "sub": [
         {
           "evidence": [
-            "no policy file for the top tier in policy dir '.gauntlet/policies' (AK-049)"
+            "a policy file exists for the top tier ('irreversible.json' in policy dir '.gauntlet/policies') — its presence is a configuration error (AK-049, spec 17.3)"
           ],
           "name": "no top-tier policy",
-          "status": "pass"
+          "status": "fail"
         },
         {
           "evidence": [
@@ -217,6 +232,6 @@
   ],
   "config_fingerprint": "sha256:7acfc25f7eda51ae4d708c5e352461a7bfd99ed43e22a3da1a1de1d749c918e7",
   "config_origin": "/home/sprime01/projects/gauntlet/GAUNTLET.md",
-  "exit_code": 0,
-  "generated_at": 1787698940
+  "exit_code": 1,
+  "generated_at": 1787947034
 }

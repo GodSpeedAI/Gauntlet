@@ -1,12 +1,12 @@
 {
 	"version": 1,
 	"cursors": {
-		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d26ee729-003f-4ebc-933e-b4c217702dfc.jsonl": {
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d26ee729-003f-4ebc-933e-b4c217702dfc.jsonl",
-			"lineNumber": 513,
-			"updatedAt": "2026-08-25T15:32:18.007Z",
+		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl": {
+			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl",
+			"lineNumber": 693,
+			"updatedAt": "2026-08-28T19:42:56.140Z",
 			"extractors": {
-				"skills": 513
+				"skills": 693
 			}
 		}
 	}

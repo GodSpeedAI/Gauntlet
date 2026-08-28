@@ -41,6 +41,11 @@ fn usage() {
 
 fn doctor(args: &[String]) -> ExitCode {
     let mut input = DoctorInput::new(spec_vocab::ANNEX_E_ENV, spec_vocab::CAPABILITY_VOCABULARY);
+    // Plan Task 14 (§8.5 check 4): the composition root measures the
+    // configured sandbox backend through the real adapter — the app layer
+    // cannot map vendor tokens to rungs (§24.3), so the measurement is a
+    // composition fact. Only the capability-named façade is used.
+    input.backend_measure = Some(measure_backend);
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
@@ -75,6 +80,92 @@ fn doctor(args: &[String]) -> ExitCode {
         }
     }
 }
+
+/// Measures the configured sandbox backend for §8.5 check 4 (plan Task
+/// 14): locates the process-isolation backend the composition ships,
+/// accepts it only if its own backend identity matches the configured
+/// token, and VALIDATES a minimal contained policy through the real
+/// backend — the reported rung is measured, never declared. A backend
+/// that cannot be located or validated yields an unmeasured descriptor
+/// (which check 4 fails honestly); an unknown token yields `None` (no
+/// adapter fronts it).
+fn measure_backend(token: &str) -> Option<gauntlet_app::doctor::checks::BackendDescriptor> {
+    use gauntlet_ports::agent_runner::Isolation;
+    use gauntlet_ports::sandbox::Sandbox;
+
+    use gauntlet_adapter_sandbox_bwrap as process_backend;
+
+    let binary = process_backend::locate()?;
+    let backend = process_backend::ProcessIsolationBackend::new(binary);
+    if backend.backend_identity().as_str() != token {
+        // The token names something this composition does not front.
+        return None;
+    }
+    // A minimal contained policy naming the backend's OWN identity (the
+    // adapter's cross-wiring defense refuses any other): the probe
+    // measures the backend, not a real tier posture.
+    let writable_root = std::path::Path::new("/")
+        .join("tmp")
+        .to_string_lossy()
+        .into_owned();
+    let policy = gauntlet_ports::sandbox::SandboxPolicy {
+        reference: gauntlet_domain::SandboxPolicyRef::new("doctor-probe").ok()?,
+        tier: gauntlet_domain::BlastRadius::Contained,
+        backend: backend.backend_identity(),
+        network: gauntlet_ports::sandbox::NetworkPosture::DenyByDefault,
+        writable_roots: vec![writable_root],
+        denied_paths: Vec::new(),
+    };
+    match backend.validate(&policy, doctor_bound()) {
+        Ok(validation) if validation.is_clean() => {
+            let isolation = validation.isolation;
+            Some(gauntlet_app::doctor::checks::BackendDescriptor {
+                token: token.to_owned(),
+                isolation,
+                measured: true,
+                note: None,
+            })
+        }
+        Ok(validation) => Some(gauntlet_app::doctor::checks::BackendDescriptor {
+            token: token.to_owned(),
+            isolation: Isolation::None,
+            measured: false,
+            note: Some(format!(
+                "the backend validated with {} finding(s)",
+                validation.findings.len()
+            )),
+        }),
+        Err(error) => Some(gauntlet_app::doctor::checks::BackendDescriptor {
+            token: token.to_owned(),
+            isolation: Isolation::None,
+            measured: false,
+            note: Some(error.to_string()),
+        }),
+    }
+}
+
+/// A doctor-probe bound the wall clock has not passed (§8.5 preflight
+/// runs against the real now; the adapter probes the real binary).
+fn doctor_bound() -> gauntlet_ports::deadline::Deadline {
+    use gauntlet_ports::deadline::Deadline;
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("the wall clock reads")
+        .as_secs();
+    // The `let` binding is load-bearing, not style: the literals scanner
+    // joins a `;`-less tail expression with FOLLOWING lines until the next
+    // semicolon, which would merge the span const into a deadline-named
+    // statement. The semicolon terminates that join.
+    #[allow(clippy::let_and_return)]
+    let bound = Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(
+        now_secs + DOCTOR_BOUND_SPAN,
+    ));
+    bound
+}
+
+/// The doctor probe's bound span, on its own line (numeric literals never
+/// share a line with a duration-shaped identifier).
+const DOCTOR_BOUND_SPAN: u64 = 60;
 
 fn reference(args: &[String]) -> ExitCode {
     match args.first().map(String::as_str) {

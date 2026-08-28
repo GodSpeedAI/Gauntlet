@@ -1854,6 +1854,13 @@ impl ReferenceProviderFactory for ReferenceProviderBroken {
 // sandbox
 // ---------------------------------------------------------------------------
 
+/// The green sandbox stub is an honest NONE-rung backend: it validates only
+/// the contained tier clean ("backend `none`, tier `contained` only" —
+/// spec §8.6/§17.3; AK-050), refuses every policy above contained, and
+/// wraps a clean validation verbatim (the identity wrap, legal only at
+/// contained). Its `wrap` refuses a foreign validation, a
+/// findings-carrying validation, and a validation claiming a rung it never
+/// achieved here (AK-047; the cross-wiring defense).
 struct LocalSandbox;
 
 impl Sandbox for LocalSandbox {
@@ -1862,10 +1869,20 @@ impl Sandbox for LocalSandbox {
         policy: &SandboxPolicy,
         _deadline: Deadline,
     ) -> Result<PolicyValidation, SandboxError> {
+        if policy.tier != BlastRadius::Contained {
+            return Err(SandboxError::ValidationFailed {
+                policy: policy.reference.clone(),
+                findings: vec![format!(
+                    "a none-rung backend may not serve the {tier} tier — an identity wrap is \
+                     legal only at contained (spec 17.3)",
+                    tier = policy.tier
+                )],
+            });
+        }
         Ok(PolicyValidation {
             policy: policy.reference.clone(),
             backend: policy.backend.clone(),
-            isolation: Isolation::Process,
+            isolation: Isolation::None,
             findings: Vec::new(),
         })
     }
@@ -1883,6 +1900,25 @@ impl Sandbox for LocalSandbox {
                     "validation {} does not cover policy {}",
                     validation.policy.as_str(),
                     policy.reference.as_str()
+                ),
+            });
+        }
+        if !validation.is_clean() {
+            return Err(SandboxError::WrapFailed {
+                detail: format!(
+                    "validation {} carries {} finding(s) — a failed validation authorizes \
+                     nothing (spec 21.3)",
+                    validation.policy.as_str(),
+                    validation.findings.len()
+                ),
+            });
+        }
+        if validation.isolation != Isolation::None {
+            return Err(SandboxError::WrapFailed {
+                detail: format!(
+                    "validation claims the {} rung; this backend achieves none — a foreign \
+                     validation is a cross-wiring",
+                    validation.isolation.token()
                 ),
             });
         }
@@ -1954,6 +1990,300 @@ impl SandboxFactory for SandboxBroken {
 
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(LaxSandbox))
+    }
+}
+
+/// The no-unsandboxed-fallback FAKE (AK-047 teeth): validates exactly like
+/// the green stub, but its `wrap` IGNORES whether the validation carries
+/// findings — a failure-shaped validation authorizes execution anyway. One
+/// defect; everything else behaves like the green stub, so the suite
+/// catches it precisely on the fallback case.
+struct FallbackSandbox;
+
+impl Sandbox for FallbackSandbox {
+    fn validate(
+        &self,
+        policy: &SandboxPolicy,
+        deadline: Deadline,
+    ) -> Result<PolicyValidation, SandboxError> {
+        LocalSandbox.validate(policy, deadline)
+    }
+
+    fn wrap(
+        &self,
+        command: &str,
+        policy: &SandboxPolicy,
+        validation: &PolicyValidation,
+        _deadline: Deadline,
+    ) -> Result<SandboxedCommand, SandboxError> {
+        if validation.policy != policy.reference {
+            return Err(SandboxError::WrapFailed {
+                detail: format!(
+                    "validation {} does not cover policy {}",
+                    validation.policy.as_str(),
+                    policy.reference.as_str()
+                ),
+            });
+        }
+        // THE DEFECT: no is_clean gate — a findings-carrying validation
+        // wraps anyway.
+        if validation.isolation != Isolation::None {
+            return Err(SandboxError::WrapFailed {
+                detail: format!(
+                    "validation claims the {} rung; this backend achieves none",
+                    validation.isolation.token()
+                ),
+            });
+        }
+        Ok(SandboxedCommand {
+            command: command.to_owned(),
+            policy: policy.reference.clone(),
+            validation: validation.clone(),
+        })
+    }
+
+    fn backend_identity(&self) -> SandboxBackendRef {
+        SandboxBackendRef::new("local-rung").expect("stub backend ref")
+    }
+}
+
+pub struct SandboxBrokenFallback;
+
+impl SandboxFactory for SandboxBrokenFallback {
+    fn label(&self) -> &'static str {
+        "broken-fallback-sandbox"
+    }
+
+    fn build(&self) -> Result<Box<dyn Sandbox>, String> {
+        Ok(Box::new(FallbackSandbox))
+    }
+}
+
+/// The process-start FAKE (AK-048 teeth): every validation claims the
+/// PROCESS rung, but `wrap` performs an identity wrap — the returned
+/// command IS the bare probe, so the probe would be the first process, not
+/// the sandbox. One defect; its tier posture and validation gating behave
+/// like a conforming backend, so the suite catches it on the
+/// process-start case.
+struct VerbatimProcessSandbox;
+
+impl Sandbox for VerbatimProcessSandbox {
+    fn validate(
+        &self,
+        policy: &SandboxPolicy,
+        _deadline: Deadline,
+    ) -> Result<PolicyValidation, SandboxError> {
+        if policy.tier != BlastRadius::Contained {
+            return Err(SandboxError::ValidationFailed {
+                policy: policy.reference.clone(),
+                findings: vec![format!(
+                    "this backend refuses the {tier} tier (spec 17.3)",
+                    tier = policy.tier
+                )],
+            });
+        }
+        Ok(PolicyValidation {
+            policy: policy.reference.clone(),
+            backend: policy.backend.clone(),
+            isolation: Isolation::Process,
+            findings: Vec::new(),
+        })
+    }
+
+    fn wrap(
+        &self,
+        command: &str,
+        policy: &SandboxPolicy,
+        validation: &PolicyValidation,
+        _deadline: Deadline,
+    ) -> Result<SandboxedCommand, SandboxError> {
+        if validation.policy != policy.reference {
+            return Err(SandboxError::WrapFailed {
+                detail: format!(
+                    "validation {} does not cover policy {}",
+                    validation.policy.as_str(),
+                    policy.reference.as_str()
+                ),
+            });
+        }
+        if !validation.is_clean() {
+            return Err(SandboxError::WrapFailed {
+                detail: format!(
+                    "validation {} carries {} finding(s) (spec 21.3)",
+                    validation.policy.as_str(),
+                    validation.findings.len()
+                ),
+            });
+        }
+        if validation.isolation != Isolation::Process {
+            return Err(SandboxError::WrapFailed {
+                detail: format!(
+                    "validation claims the {} rung; this backend reports process",
+                    validation.isolation.token()
+                ),
+            });
+        }
+        // THE DEFECT: claims process isolation but returns the bare probe.
+        Ok(SandboxedCommand {
+            command: command.to_owned(),
+            policy: policy.reference.clone(),
+            validation: validation.clone(),
+        })
+    }
+
+    fn backend_identity(&self) -> SandboxBackendRef {
+        SandboxBackendRef::new("local-rung").expect("stub backend ref")
+    }
+}
+
+pub struct SandboxBrokenProcessStart;
+
+impl SandboxFactory for SandboxBrokenProcessStart {
+    fn label(&self) -> &'static str {
+        "broken-verbatim-process-sandbox"
+    }
+
+    fn build(&self) -> Result<Box<dyn Sandbox>, String> {
+        Ok(Box::new(VerbatimProcessSandbox))
+    }
+}
+
+/// The shell-word FAKE (the policy-interpolation teeth): a process-rung
+/// backend that renders a real containment invocation — it starts with its
+/// own identity, carries the payload quoted, and is strictly longer than
+/// the probe — but interpolates the policy's writable roots and denied
+/// paths RAW into that command. One defect: policy text becomes command
+/// structure, so a path carrying a flag after a space contributes a word
+/// of its own, and an honest path containing a space arrives split. Its
+/// validation gating and tier posture behave like a conforming backend, so
+/// the suite catches it precisely on the interpolation case.
+struct RawInterpolationSandbox;
+
+impl RawInterpolationSandbox {
+    /// THE DEFECT lives here: every word is joined with a space and no
+    /// word carrying whitespace is quoted.
+    fn render(&self, command: &str, policy: &SandboxPolicy) -> String {
+        let mut words = vec![self.backend_identity().as_str().to_owned()];
+        for denied in &policy.denied_paths {
+            words.push("--mask".to_owned());
+            words.push(denied.clone());
+        }
+        for root in &policy.writable_roots {
+            words.push("--bind".to_owned());
+            words.push(root.clone());
+        }
+        words.push("--".to_owned());
+        words.push(format!("'{command}'"));
+        words.join(" ")
+    }
+}
+
+impl Sandbox for RawInterpolationSandbox {
+    fn validate(
+        &self,
+        policy: &SandboxPolicy,
+        deadline: Deadline,
+    ) -> Result<PolicyValidation, SandboxError> {
+        VerbatimProcessSandbox.validate(policy, deadline)
+    }
+
+    fn wrap(
+        &self,
+        command: &str,
+        policy: &SandboxPolicy,
+        validation: &PolicyValidation,
+        deadline: Deadline,
+    ) -> Result<SandboxedCommand, SandboxError> {
+        let gated = VerbatimProcessSandbox.wrap(command, policy, validation, deadline)?;
+        Ok(SandboxedCommand {
+            command: self.render(command, policy),
+            ..gated
+        })
+    }
+
+    fn backend_identity(&self) -> SandboxBackendRef {
+        SandboxBackendRef::new("local-rung").expect("stub backend ref")
+    }
+}
+
+pub struct SandboxBrokenShellWords;
+
+impl SandboxFactory for SandboxBrokenShellWords {
+    fn label(&self) -> &'static str {
+        "broken-raw-interpolation-sandbox"
+    }
+
+    fn build(&self) -> Result<Box<dyn Sandbox>, String> {
+        Ok(Box::new(RawInterpolationSandbox))
+    }
+}
+
+/// The mount-ORDER FAKE (the nested-denial teeth): a process-rung backend
+/// that quotes every interpolated path correctly — so policy text never
+/// becomes command structure — but emits its denied-path masks BEFORE the
+/// binds that grant its writable roots. Mount operations apply in the
+/// order they are given, so the later bind of an enclosing writable root
+/// re-exposes exactly the subtree the mask covered. One defect: the order,
+/// and it is invisible to every case that reads only WHICH words appear.
+struct MaskBeforeBindSandbox;
+
+impl MaskBeforeBindSandbox {
+    /// THE DEFECT lives here: masks are emitted before binds, so a bind of
+    /// an enclosing root undoes the mask underneath it.
+    fn render(&self, command: &str, policy: &SandboxPolicy) -> String {
+        let quoted = |word: &str| format!("'{}'", word.replace('\'', "'\\''"));
+        let mut words = vec![self.backend_identity().as_str().to_owned()];
+        for denied in &policy.denied_paths {
+            words.push("--mask".to_owned());
+            words.push(quoted(denied));
+        }
+        for root in &policy.writable_roots {
+            words.push("--bind".to_owned());
+            words.push(quoted(root));
+        }
+        words.push("--".to_owned());
+        words.push(quoted(command));
+        words.join(" ")
+    }
+}
+
+impl Sandbox for MaskBeforeBindSandbox {
+    fn validate(
+        &self,
+        policy: &SandboxPolicy,
+        deadline: Deadline,
+    ) -> Result<PolicyValidation, SandboxError> {
+        VerbatimProcessSandbox.validate(policy, deadline)
+    }
+
+    fn wrap(
+        &self,
+        command: &str,
+        policy: &SandboxPolicy,
+        validation: &PolicyValidation,
+        deadline: Deadline,
+    ) -> Result<SandboxedCommand, SandboxError> {
+        let gated = VerbatimProcessSandbox.wrap(command, policy, validation, deadline)?;
+        Ok(SandboxedCommand {
+            command: self.render(command, policy),
+            ..gated
+        })
+    }
+
+    fn backend_identity(&self) -> SandboxBackendRef {
+        SandboxBackendRef::new("local-rung").expect("stub backend ref")
+    }
+}
+
+pub struct SandboxBrokenMaskOrder;
+
+impl SandboxFactory for SandboxBrokenMaskOrder {
+    fn label(&self) -> &'static str {
+        "broken-mask-before-bind-sandbox"
+    }
+
+    fn build(&self) -> Result<Box<dyn Sandbox>, String> {
+        Ok(Box::new(MaskBeforeBindSandbox))
     }
 }
 

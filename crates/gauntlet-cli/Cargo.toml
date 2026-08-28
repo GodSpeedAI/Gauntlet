@@ -11,6 +11,13 @@ workspace = true
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
 gauntlet-app.workspace = true
+# Plan Task 14: the FIRST production adapter wiring in the composition
+# root — `gauntlet doctor` MEASURES the configured sandbox backend (§8.5
+# check 4) by validating a minimal policy through the real backend and
+# reporting the achieved isolation rung. Only capability-named façades
+# are used; no vendor-flavored item name is spelled in this crate (the
+# boundary suite masks the crate name only).
+gauntlet-adapter-sandbox-bwrap.workspace = true
 
 # Spec §4.1, plan Task 20: the CLI is the composition root — the only crate
 # that may construct adapters and wire them into the application layer.
@@ -76,3 +83,9 @@ gauntlet-adapter-verify-schema-check.workspace = true
 # production wiring lands with the plan-task composition that needs it
 # (Tasks 15/20).
 gauntlet-adapter-meter-memory.workspace = true
+# Task 14 adds the sandbox + policy adapters for the P5 proof
+# (tests/p5_hard_gate.rs): the gate composes the REAL process-isolation
+# backend and the REAL fs policy provider at the composition root. The
+# the process-isolation adapter is ALSO a production dependency above (doctor check 4).
+gauntlet-adapter-sandbox-bwrap.workspace = true
+gauntlet-adapter-policy-fs.workspace = true

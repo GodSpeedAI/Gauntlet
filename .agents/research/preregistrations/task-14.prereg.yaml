@@ -1,0 +1,254 @@
+# Task 14 preregistration — research instrumentation, non-normative.
+# Written BEFORE any Task-14 implementation exists. Immutable once frozen.
+# Derived only from: .agents/CURRENT_STATUS.md, .agents/specs/Core-spec.md
+# (§6.1, §6.2, §8.2, §8.5, §8.6, §11.2, §17, §21.3, §22.2, §25, Annex F,
+# I9, P5, AK-044..AK-050), .agents/plans/gauntlet-impl.md (Task 14),
+# .agents/reports/task14/recon.md, .agents/reports/environment.md, and the
+# Task-4..13 closure records already in CURRENT_STATUS.
+
+schema_version: 1
+task: 14
+
+frozen_at:
+  git_commit: "207520f2d147963f51bdee493b7f96bb5f57a80c"
+  timestamp_utc: "2026-08-28T13:53:51Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-14.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.md"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+  - ".agents/reports/task14/recon.md"
+  - ".agents/reports/environment.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task 14 closes the D2 correction end to end: authority decides WHETHER
+      (the §17.1 gate, before dispatch), containment decides HOW CONTAINED (the
+      §17.3 tier posture wrapping the builder session from process start), both
+      before the builder's first token, with no unsandboxed fallback and no
+      irreversible policy (P5, AK-044..AK-050). Recon says the PORT layer is
+      complete and validation-gated (Sandbox/PolicyProvider traits, shared
+      contract suite with green/broken teeth, §5.3.5 tier half in the domain),
+      the scheduler already refuses irreversible (§11.2 conjunct 3), and doctor
+      check 5 (AK-049) is done since Task 5 — while NO adapter, NO tier policy
+      artifact, NO govern module, and NO dispatch-time gate exist: the
+      production controller passes sandbox_policy: None unconditionally, never
+      consults RunnerCapabilities, and pins exercisable authority to critic
+      under the recorded L1 deferral. The likely failure class is therefore not
+      missing primitives but three seams: (a) the composition seam — the gate
+      must fire inside controller.rs::dispatch BEFORE runner.invoke, where a
+      refusal must become a durable governance event (escalation), never a
+      silent skip, an in-memory-only fact, or a run-fatal error; (b) the
+      honesty seam — a none-isolation runner (the mock) must become REFUSABLE
+      for above-contained tiers, which changes behavior three standing composed
+      proofs (p4/p6/p12, all local-tier fixtures) currently rely on, forcing a
+      deliberate fixture change that must not weaken what those proofs claim;
+      (c) the backend seam — bwrap validate/wrap must be real (probe the
+      binary, render a confinement argv) without the port learning a vendor
+      spelling and without faking allowlist-network or container/VM rungs it
+      cannot deliver.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          AK-044's "never an automatic dispatch candidate" is a SCHEDULER-level
+          claim and AK-048's "before the authority and containment checks" is a
+          DISPATCH-level claim; the gate at dispatch is not redundant with
+          scheduler conjunct 3 — a forged/stale plan input bypassing the
+          scheduler must still be refused at the gate, and the p5 proof must
+          exercise the composed loop, not only the pure scheduler (which
+          already has its own tests).
+      - id: D2
+        statement: >
+          Authority gates WHETHER (§17.1: irreversible never dispatches;
+          beyond-exercisable-authority escalates BEFORE any transform);
+          containment gates HOW CONTAINED (§17.3 tier posture, §17.5.4 wrap
+          from process start). Neither substitutes for the other: a perfectly
+          validated sandbox policy does not admit a beyond-critic unit, and
+          critic authority does not admit a local tier without containment.
+          Both conjuncts must be independently teeth-testable.
+      - id: D3
+        statement: >
+          AK-046 is about agent-originated MOVEMENT on a Unit's recorded
+          tier/authority lattice positions (lower = refused + governance
+          event), not about file integrity of the answer key (that is g10/p1
+          territory). The composed defense is the dispatch gate comparing the
+          dispatch's unit facts against the answer-key parse plus the typed
+          downgrade-review function; a proof that only asserts file-immutability
+          does not discharge AK-046.
+      - id: D4
+        statement: >
+          AK-047's "escalates without falling back" is a control-flow claim
+          with TWO distinct surfaces: the port (wrap structurally requires its
+          own clean validation — exists since Task 4) and the COMPOSITION (a
+          validation failure at dispatch must produce an escalation event and
+          NO invocation, not an unsandboxed invocation with a warning). The
+          new evidence is the composition surface.
+      - id: D5
+        statement: >
+          AK-045 ("high-quality result violating one hard requirement is
+          rejected rather than averaged") is about CONJUNCTIVE refusal at a
+          hard gate, not about quality scoring: every other merit dimension
+          being perfect must not rescue a dispatch whose one hard requirement
+          fails. A test that only shows a BAD result being rejected proves
+          nothing about averaging; the merit dimensions must be maximized
+          while exactly one hard conjunct fails.
+      - id: D6
+        statement: >
+          Doctor check 4's tier set under the conservative backend is the
+          DISPATCHABLE set (contained only when sandbox.backend == none,
+          because §8.6 refuses above-contained dispatch without a backend),
+          not the set of policy files present — otherwise shipping the
+          in-repo tier policies under the default backend would fail doctor
+          and the standing default-posture gate would break. Policy-file
+          EXISTENCE above contained is only required when a backend is
+          configured (§8.5 check 5, already implemented).
+
+    known_blindspots:
+      - >
+        The controller is 7.3k lines with dense in-crate tests pinning dispatch
+        semantics; inserting the gate before runner.invoke may shift
+        dispatch-admission shapes those tests assert (attempts, escalation
+        counts, terminal classification of governance-blocked runs). The
+        §11.6 terminal-truth rules already know is_governance_block; whether
+        gate refusals must terminate `blocked` vs keep the loop alive with
+        escalation tickets needs care — the wrong choice either spins the loop
+        (unit never dispatchable, rounds exhaust → mislabeled
+        budget_exhausted) or misreports governance as budget.
+      - >
+        Three standing proofs (p4/p6/p12) dispatch local-tier units through the
+        none-isolation mock; the fixture change to contained is justified by
+        tier-agnosticism of those proofs' subjects, but the falsifier must
+        attack whether any of them implicitly relied on local-tier dispatch
+        paths (e.g. dispatchable_tiers lists, tier-keyed concurrency).
+      - >
+        bwrap argv rendering from a String command (the port's wrap signature)
+        involves shell quoting; a hand-rolled quote escape is a classic
+        injection seam. The alternative (documented token-vector contract) is
+        a port-shape question the frozen ruler does not settle — the choice
+        must be recorded, not made silently.
+      - >
+        The $-style anchoring of policy-file paths (writable_roots/denied_paths
+        made absolute against workspace/project/home) parallels the config
+        layer's indirection discipline, but the frozen ruler does not spell the
+        policy-file schema; the shipped schema must stay minimal and be
+        recorded as a deliberate representation, with any felt need to invent
+        beyond it (e.g. permissions_for artifacts — unspecified by the ruler)
+        routed to fog/reference-candidates instead of silent invention.
+      - >
+        Whether check 4 should probe the bwrap binary by executing it (real
+        evidence) or only map declared rungs: executing makes doctor
+        environment-honest but couples a preflight check to a backend binary
+        the config layer does not own; the boundary denylist (sandbox
+        identifiers outside adapters/config) constrains where the token-rung
+        vocabulary may live in core crates.
+
+  predictions:
+    - id: P1
+      prediction: >
+        The composed p5 proof, run against the CURRENT controller (before any
+        Task-14 wiring), dispatches an above-contained unit with
+        sandbox_policy: None and no capability consultation — i.e. the hard
+        gate does not exist at dispatch today, only at scheduler eligibility
+        for the irreversible tier.
+      expects: fail_before_fix
+    - id: P2
+      prediction: >
+        Wiring the gate changes the terminal classification of runs whose
+        every open unit is above the none-backend ceiling: at least one
+        existing controller behavior or in-crate test asserts a shape
+        (dispatch admission, escalation count, or terminal) that must be
+        re-derived, and at least one of p4/p6/p12 requires the fixture tier
+        move to contained to stay a valid proof of its own subject.
+      expects: fire_during_implementation
+    - id: P3
+      prediction: >
+        The blind executing falsifier finds at least one governance-event
+        surface that records nothing durable (or records only in memory) on a
+        gate refusal — the same class as Task-12/13 escalation-recording
+        residuals — most plausibly on the capability-mismatch refusal path or
+        the tier-downgrade rejection, where the pure gate function makes the
+        right decision but the controller seam drops the event.
+      expects: fire_during_critique
+    - id: P4
+      prediction: >
+        At least one masked-spelling escape appears in either the bwrap argv
+        rendering (quoting) or the policy-file path anchoring (relative paths,
+        symlinked roots, empty tokens) that static cases miss and an executing
+        probe catches, echoing the Task-13 round-1 lesson (static-only
+        confirmation was wrong; the falsifier must EXECUTE).
+      expects: fire_during_critique
+    - id: P5
+      prediction: >
+        The ruler's tier table leaves at least one representational gap the
+        implementation trips on — candidates: no specified policy-file schema,
+        no permissions_for artifact, the String-command wrap signature, and
+        the unspecified doctor semantics for declared-but-unadapted backend
+        tokens (seatbelt/mxc/microvm on this host). Each gap is expected to
+        surface as a reference-candidate or fog entry, not a silent local
+        invention.
+      expects: representation_inadequacy
+
+  risks:
+    - id: R1
+      description: >
+        Unsandboxed fallback by configuration: making the sandbox/policy deps
+        optional in ControllerDeps would let a composition silently run
+        ungated — the exact AK-047 violation wearing a type-system costume.
+      mitigation_preregistered:
+        - class: A3
+          action: >
+            compose-time consistency: backend token none ⟺ no sandbox/policy
+            instances, any other combination is a typed ControlError; the gate
+            itself is always constructed.
+    - id: R2
+      description: >
+        Standing-battery regression: p4/p6/p12 fixture moves plus gate wiring
+        break the standing battery mid-task and the pressure is to weaken the
+        gate instead of fixing the fixtures.
+      mitigation_preregistered:
+        - class: A5
+          action: >
+            fixtures change only with an inline recorded reason (tier not the
+            subject of the proof); any gate weakening to keep a proof green is
+            a defect, recorded as such, never a fix.
+    - id: R3
+      description: >
+        bwrap honesty gap: claiming Allowlist network or container/VM rungs the
+        backend cannot deliver (Annex F typical vs available), or a quoting
+        bug that lets the wrapped command escape its confinement.
+      mitigation_preregistered:
+        - class: A2
+          action: >
+            validate reports only the achieved rung (Process) and treats
+            unachievable postures as findings; wrap rendering is pinned by
+            round-trip and adversarial-quoting tests plus a live confinement
+            execution probe (write inside writable root succeeds, outside
+            fails).
+    - id: R4
+      description: >
+        Governance-event loss at the controller seam (P3): the pure gate
+        decides correctly but the dispatch path drops, defers, or only logs
+        the refusal.
+      mitigation_preregistered:
+        - class: A4
+          action: >
+            every gate refusal routes through the same durable escalation
+            recording the §15.1 governance-block path already uses, and the
+            p5/g7 proofs assert the durable record exists after the refusal.
+
+  intervention_classes:
+    - id: A1
+      scope: defer_with_evidence
+    - id: A2
+      scope: adversarial_probe_first
+    - id: A3
+      scope: typed_construction_invariants
+    - id: A4
+      scope: re_ground_against_tree
+    - id: A5
+      scope: fail_first_evidence
+
+post_run: {}
