@@ -42,6 +42,55 @@ pub trait SandboxFactory {
     fn label(&self) -> &'static str;
 
     fn build(&self) -> Result<Box<dyn Sandbox>, String>;
+
+    /// Materializes one absolute directory the suite may name in a policy,
+    /// and returns it. The suite decides the LAYOUT — which segments exist
+    /// and how they nest — and the factory decides WHERE, and does the
+    /// creating.
+    ///
+    /// The paths must be real. Spec §6.2 calls `validate` a dry run, and a
+    /// backend that honours that cannot grant a writable root which does
+    /// not exist — it is RIGHT to refuse one. A suite built on invented
+    /// absolute paths could therefore be passed only by a backend that
+    /// never exercises the policy it is judging, which is the very defect
+    /// the suite exists to catch.
+    ///
+    /// The creating lives here, on the factory, and not in the suite body,
+    /// because `gauntlet-ports` is a pure contract crate that writes
+    /// nothing — the same division [`WorkspaceProviderFactory::root`] draws.
+    /// Implementations return a process-scoped scratch directory.
+    ///
+    /// [`WorkspaceProviderFactory::root`]: crate::contract::workspace_provider::WorkspaceProviderFactory::root
+    fn fixture_dir(&self, segment: &str) -> std::path::PathBuf;
+
+    /// Runs one command this backend RENDERED — a [`SandboxedCommand`] is
+    /// ONE shell-invocable string, which is what makes this well-defined
+    /// for every backend — and returns what the payload printed on
+    /// standard output.
+    ///
+    /// Process-space confinement is the one guarantee in this suite that
+    /// CANNOT be read off the rendered string.
+    /// [`a_nested_denial_survives_the_writable_bind`] and
+    /// [`a_relocatable_nested_denial_is_refused`] can be stated over shell
+    /// WORDS because the policy's own paths are words the suite supplied.
+    /// A process namespace has no such word: the flag that unshares it is
+    /// backend vocabulary the port must not know (spec §24.3), and its
+    /// ABSENCE looks exactly like a backend that confines the process
+    /// space by some other means. The only honest observation is
+    /// behavioural — run the wrapped command and ask the payload what it
+    /// could reach.
+    ///
+    /// The RUNNING lives here, on the factory, for the same reason the
+    /// creating does: `gauntlet-ports` is a pure contract crate that
+    /// spawns nothing.
+    ///
+    /// `Err` is for the factory's OWN failure to run the command at all.
+    /// The payload's exit status is never an error: a payload that ran and
+    /// printed is a successful observation whatever it exited with, and
+    /// the case reads its verdict off the markers, not off the status.
+    ///
+    /// [`SandboxedCommand`]: crate::sandbox::SandboxedCommand
+    fn run_rendered(&self, command: &str) -> Result<String, String>;
 }
 
 fn finding(case: &'static str, rule: &'static str, detail: String) -> ContractFinding {
@@ -71,11 +120,11 @@ fn bound() -> Deadline {
 /// A well-formed policy for a tier under the factory's own backend. The
 /// writable/denied fixtures are ABSOLUTE paths: a process-rung backend
 /// refuses relative roots, and the suite must not fail an honest adapter
-/// on a fixture shape the adapter is right to refuse. They are built by
-/// joining named segments onto the lone root separator — the literals
-/// discipline (spec §8.1) flags any string literal rooted at `/`, and the
-/// same construction `contract::stubs` uses for workspace roots keeps the
-/// fixture honest without an exemption.
+/// on a fixture shape the adapter is right to refuse. They name SEGMENTS
+/// only, which [`SandboxFactory::fixture_dir`] materializes under a root of
+/// its own choosing — the suite therefore contains no string literal rooted
+/// at `/` (the literals discipline, spec §8.1) and no invented absolute
+/// path a dry-running backend would be right to reject.
 const SUITE_WRITABLE_SEGMENT: &str = "suite-writable-root";
 const SUITE_DENIED_SEGMENT: &str = "suite-denied-path";
 
@@ -86,17 +135,38 @@ const SUITE_DENIED_SEGMENT: &str = "suite-denied-path";
 /// out; only the nested one tests the denial itself.
 const SUITE_NESTED_DENIED_SEGMENT: &str = "suite-nested-denied-path";
 
-fn suite_absolute(segment: &str) -> String {
-    Path::new("/").join(segment).to_string_lossy().into_owned()
+/// The segment naming an INTERVENING directory between a writable root and
+/// a denied path. It is an ordinary directory inside a root the policy
+/// declares writable, so RENAMING it is a write the policy explicitly
+/// permits — and a denial expressed as a path mask over its child moves
+/// with it. This segment is what makes a nested denial RELOCATABLE.
+const SUITE_RELOCATABLE_PARENT_SEGMENT: &str = "suite-relocatable-parent";
+
+/// The markers the process-space probe prints. They are read off the
+/// payload's STDOUT, never off the rendered command (which necessarily
+/// contains both), so a backend cannot satisfy the case by echoing.
+const SUITE_HOST_REACHED_MARKER: &str = "gauntlet-suite-host-process-reached";
+const SUITE_HOST_REFUSED_MARKER: &str = "gauntlet-suite-host-process-refused";
+
+/// One absolute fixture path, materialized by the factory (see
+/// [`SandboxFactory::fixture_dir`] for why it must be real, and why the
+/// creating belongs there rather than here).
+fn suite_absolute(factory: &dyn SandboxFactory, segment: &str) -> String {
+    factory.fixture_dir(segment).to_string_lossy().into_owned()
 }
 
-fn policy(reference: &str, backend: &SandboxBackendRef) -> SandboxPolicy {
-    policy_for_tier(reference, BlastRadius::Contained, backend)
+fn policy(
+    factory: &dyn SandboxFactory,
+    reference: &str,
+    backend: &SandboxBackendRef,
+) -> SandboxPolicy {
+    policy_for_tier(factory, reference, BlastRadius::Contained, backend)
 }
 
 /// A well-formed policy naming an explicit tier and the factory's own
 /// backend.
 fn policy_for_tier(
+    factory: &dyn SandboxFactory,
     reference: &str,
     tier: BlastRadius,
     backend: &SandboxBackendRef,
@@ -104,8 +174,8 @@ fn policy_for_tier(
     let mut policy = policy_with_paths(
         reference,
         backend,
-        vec![suite_absolute(SUITE_WRITABLE_SEGMENT)],
-        vec![suite_absolute(SUITE_DENIED_SEGMENT)],
+        vec![suite_absolute(factory, SUITE_WRITABLE_SEGMENT)],
+        vec![suite_absolute(factory, SUITE_DENIED_SEGMENT)],
     );
     policy.tier = tier;
     policy
@@ -244,7 +314,7 @@ fn validation_precedes_every_use(factory: &dyn SandboxFactory) -> Vec<ContractFi
         )];
     };
     let backend = sandbox.backend_identity();
-    let policy = policy("policy-contained-01", &backend);
+    let policy = policy(factory, "policy-contained-01", &backend);
     let validation = match sandbox.validate(&policy, bound()) {
         Ok(validation) => validation,
         Err(error) => {
@@ -332,8 +402,8 @@ fn wrap_demands_its_own_validation(factory: &dyn SandboxFactory) -> Vec<Contract
         )];
     };
     let backend = sandbox.backend_identity();
-    let one = policy("policy-contained-01", &backend);
-    let two = policy("policy-contained-02", &backend);
+    let one = policy(factory, "policy-contained-01", &backend);
+    let two = policy(factory, "policy-contained-02", &backend);
     let validation = match sandbox.validate(&one, bound()) {
         Ok(validation) => validation,
         Err(error) => {
@@ -387,7 +457,7 @@ fn no_unsandboxed_fallback(factory: &dyn SandboxFactory) -> Vec<ContractFinding>
         )];
     };
     let backend = sandbox.backend_identity();
-    let policy = policy("policy-contained-01", &backend);
+    let policy = policy(factory, "policy-contained-01", &backend);
     let validation = match sandbox.validate(&policy, bound()) {
         Ok(validation) => validation,
         Err(error) => {
@@ -474,7 +544,7 @@ fn wraps_from_process_start(factory: &dyn SandboxFactory) -> Vec<ContractFinding
         )];
     };
     let backend = sandbox.backend_identity();
-    let policy = policy("policy-contained-01", &backend);
+    let policy = policy(factory, "policy-contained-01", &backend);
     let validation = match sandbox.validate(&policy, bound()) {
         Ok(validation) => validation,
         Err(error) => {
@@ -549,7 +619,7 @@ fn wraps_from_process_start(factory: &dyn SandboxFactory) -> Vec<ContractFinding
         // wrap is legal only because no above-contained policy can earn a
         // clean validation at this backend.
         for tier in [BlastRadius::Local, BlastRadius::CrossCutting] {
-            let above = policy_for_tier("policy-above-contained", tier, &backend);
+            let above = policy_for_tier(factory, "policy-above-contained", tier, &backend);
             if let Ok(above_validation) = sandbox.validate(&above, bound())
                 && above_validation.is_clean()
             {
@@ -587,7 +657,12 @@ fn capability_mismatch(factory: &dyn SandboxFactory) -> Vec<ContractFinding> {
         )];
     };
     let backend = sandbox.backend_identity();
-    let contained = policy_for_tier("policy-contained-01", BlastRadius::Contained, &backend);
+    let contained = policy_for_tier(
+        factory,
+        "policy-contained-01",
+        BlastRadius::Contained,
+        &backend,
+    );
     let achieved = match sandbox.validate(&contained, bound()) {
         Ok(validation) if validation.is_clean() => validation.isolation,
         Ok(validation) => {
@@ -611,7 +686,7 @@ fn capability_mismatch(factory: &dyn SandboxFactory) -> Vec<ContractFinding> {
     let mut findings = Vec::new();
     if achieved == Isolation::None {
         for tier in [BlastRadius::Local, BlastRadius::CrossCutting] {
-            let above = policy_for_tier("policy-above-contained", tier, &backend);
+            let above = policy_for_tier(factory, "policy-above-contained", tier, &backend);
             if let Ok(above_validation) = sandbox.validate(&above, bound())
                 && above_validation.is_clean()
             {
@@ -626,7 +701,12 @@ fn capability_mismatch(factory: &dyn SandboxFactory) -> Vec<ContractFinding> {
             }
         }
     }
-    let irreversible = policy_for_tier("policy-irreversible", BlastRadius::Irreversible, &backend);
+    let irreversible = policy_for_tier(
+        factory,
+        "policy-irreversible",
+        BlastRadius::Irreversible,
+        &backend,
+    );
     if let Ok(validation) = sandbox.validate(&irreversible, bound()) {
         findings.push(finding(
             CASE,
@@ -684,12 +764,14 @@ fn policy_paths_are_not_shell_words(factory: &dyn SandboxFactory) -> Vec<Contrac
     let hostile = policy_with_paths(
         "policy-contained-smuggle",
         &backend,
-        vec![suite_absolute(&format!(
-            "{SUITE_WRITABLE_SEGMENT} {SUITE_SMUGGLED_FLAG}"
-        ))],
-        vec![suite_absolute(&format!(
-            "{SUITE_DENIED_SEGMENT} {SUITE_SMUGGLED_FLAG}"
-        ))],
+        vec![suite_absolute(
+            factory,
+            &format!("{SUITE_WRITABLE_SEGMENT} {SUITE_SMUGGLED_FLAG}"),
+        )],
+        vec![suite_absolute(
+            factory,
+            &format!("{SUITE_DENIED_SEGMENT} {SUITE_SMUGGLED_FLAG}"),
+        )],
     );
     if let Ok(validation) = sandbox.validate(&hostile, bound())
         && validation.is_clean()
@@ -723,8 +805,14 @@ fn policy_paths_are_not_shell_words(factory: &dyn SandboxFactory) -> Vec<Contrac
     }
 
     // (b) The legitimate path containing a space.
-    let spaced_writable = suite_absolute(&format!("{SUITE_WRITABLE_SEGMENT} {SUITE_SPACED_TAIL}"));
-    let spaced_denied = suite_absolute(&format!("{SUITE_DENIED_SEGMENT} {SUITE_SPACED_TAIL}"));
+    let spaced_writable = suite_absolute(
+        factory,
+        &format!("{SUITE_WRITABLE_SEGMENT} {SUITE_SPACED_TAIL}"),
+    );
+    let spaced_denied = suite_absolute(
+        factory,
+        &format!("{SUITE_DENIED_SEGMENT} {SUITE_SPACED_TAIL}"),
+    );
     let spaced = policy_with_paths(
         "policy-contained-spaced",
         &backend,
@@ -831,7 +919,7 @@ fn a_nested_denial_survives_the_writable_bind(
     let probe = "run the probe inside the workspace";
     let mut findings = Vec::new();
 
-    let writable = suite_absolute(SUITE_WRITABLE_SEGMENT);
+    let writable = suite_absolute(factory, SUITE_WRITABLE_SEGMENT);
     let nested = Path::new(&writable)
         .join(SUITE_NESTED_DENIED_SEGMENT)
         .to_string_lossy()
@@ -930,6 +1018,239 @@ fn a_nested_denial_survives_the_writable_bind(
     findings
 }
 
+/// Case (spec §6.2, §17.3; AK-047): "denied even if otherwise writable" is
+/// a guarantee about CONTENT, and a mask expressed as a PATH cannot deliver
+/// it once the contained process can move the content out from under the
+/// mask.
+///
+/// The shape: writable root `R`, denied path `R/intervening/denied`. The
+/// intervening directory is an ordinary directory inside `R`, so renaming
+/// it is a write the policy EXPLICITLY PERMITS. Session one performs that
+/// permitted write. Session two re-validates the IDENTICAL policy: the
+/// mask target no longer exists, but it sits inside a writable root, so a
+/// backend that creates missing mount points there masks the VACATED path,
+/// starts the sandbox, and hands the contained process the payload at its
+/// new location — readable and writable, under a validation that reported
+/// clean. The failure is OPEN, and it is exactly the case in which the
+/// guarantee has content.
+///
+/// So the contract is stated on the DECISION, not on a mechanism: a
+/// backend must not validate such a policy clean and then serve it with a
+/// bare path mask. It may hold the denial by some anchor of its own, or it
+/// may refuse the policy — a refusal executes nothing and is the honest
+/// report of a guarantee this backend cannot deliver. What it may not do is
+/// report clean and degrade silently.
+///
+/// The suite reads that decision off the rendered command's shell WORDS: a
+/// backend that validated clean, wrapped, and named BOTH the writable root
+/// and the relocatable denied path as words of its own is masking by path
+/// and nothing else. A backend that interpolates neither (the identity wrap
+/// at the none rung, which contains nothing and whose tier posture is
+/// pinned by [`capability_mismatch`]) is vacuously outside this case.
+///
+/// This case does NOT relax [`a_nested_denial_survives_the_writable_bind`]:
+/// a denied path DIRECTLY under a writable root remains a legitimate policy
+/// every backend must serve. Only the relocatable shape — one with a
+/// renameable directory between the root and the denial — is in scope here.
+fn a_relocatable_nested_denial_is_refused(factory: &dyn SandboxFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "a_relocatable_nested_denial_is_refused";
+    const RULE: &str = "spec 6.2 + 17.3/AK-047: a denied path reachable through a directory the contained process is permitted to rename cannot be held by a path mask — the backend refuses the policy rather than validating it clean and degrading silently";
+    let Ok(sandbox) = factory.build() else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the factory could not build a sandbox for the case".to_owned(),
+        )];
+    };
+    let backend = sandbox.backend_identity();
+    let probe = "run the probe inside the workspace";
+
+    let writable = suite_absolute(factory, SUITE_WRITABLE_SEGMENT);
+    let intervening = Path::new(&writable).join(SUITE_RELOCATABLE_PARENT_SEGMENT);
+    let relocatable = intervening
+        .join(SUITE_NESTED_DENIED_SEGMENT)
+        .to_string_lossy()
+        .into_owned();
+    let policy = policy_with_paths(
+        "policy-contained-relocatable-denial",
+        &backend,
+        vec![writable.clone()],
+        vec![relocatable.clone()],
+    );
+
+    // An honest refusal — at validate, as findings, or at wrap — delivers
+    // the guarantee by declining to pretend. Each is a clean pass here.
+    let validation = match sandbox.validate(&policy, bound()) {
+        Err(_) => return Vec::new(),
+        Ok(validation) if !validation.is_clean() => return Vec::new(),
+        Ok(validation) => validation,
+    };
+    let Ok(wrapped) = sandbox.wrap(probe, &policy, &validation, bound()) else {
+        return Vec::new();
+    };
+
+    let words = match shell_words(&wrapped.command) {
+        Err(reason) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!(
+                    "the wrapped command is not a parsable shell command ({reason}): {:?}",
+                    wrapped.command
+                ),
+            )];
+        }
+        Ok(words) => words,
+    };
+    let names = |needle: &str| words.iter().any(|word| word.as_str() == needle);
+    if names(&writable) && names(&relocatable) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!(
+                "the policy denying {relocatable:?} inside writable root {writable:?} \
+                 validated CLEAN and wrapped into a command naming the root as a writable \
+                 bind and the denied path as a bare path mask. The contained process may \
+                 rename {:?} — a write inside a declared writable root, which the policy \
+                 permits — and the denied content survives at its new location; the next \
+                 wrap of the IDENTICAL policy then masks only the vacated path, the \
+                 sandbox STARTS, and the denial is defeated: {:?}",
+                intervening.display(),
+                wrapped.command
+            ),
+        )];
+    }
+    Vec::new()
+}
+
+/// Case (spec §17.3, §17.5.1; AK-050): a backend whose clean validation
+/// claims `Isolation::Process` or above confines the PROCESS space, not
+/// only the filesystem and the network.
+///
+/// §17.3 requires an above-contained runner to report `isolation ≥
+/// process` and names its failure mode as "host-mutating fallbacks
+/// explicitly refused rather than left at the backend's default consent";
+/// §17.5.1 confines a unit to "their assigned workspace path". A backend
+/// that unshares the network and binds the filesystem read-only but
+/// leaves the payload in the HOST process space has not delivered a
+/// process rung: the contained process can still enumerate host
+/// processes, read what they were invoked with, and signal them —
+/// `SIGTERM` kills, `SIGSTOP` suspends. Neither the read-only root nor
+/// the network namespace stands in the way, because neither is the
+/// process space. Such a backend must either confine the process space or
+/// stop claiming the rung; this case pins the first, and
+/// [`capability_mismatch`] pins what the rung then authorizes.
+///
+/// The observation is BEHAVIOURAL — see [`SandboxFactory::run_rendered`]
+/// for why no reading of the rendered string can stand in for it. The
+/// "process outside the sandbox" is the SUITE'S OWN process, so the case
+/// needs no victim of its own and can never touch a process it did not
+/// create. The probe is `kill -0`, which delivers no signal at all: it
+/// performs exactly the permission-and-existence check every real signal
+/// performs and then stops, so a successful probe proves `SIGTERM` would
+/// have landed without ever sending one.
+///
+/// A backend below the process rung is vacuously outside this case — the
+/// none rung promises no confinement, and that it may not then serve an
+/// above-contained tier is [`capability_mismatch`]'s clause.
+fn the_process_space_is_confined(factory: &dyn SandboxFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "the_process_space_is_confined";
+    const RULE: &str = "spec 17.3 + 17.5.1/AK-050: a backend claiming isolation >= process confines the PROCESS space — a contained payload cannot reach a process outside the sandbox";
+    let Ok(sandbox) = factory.build() else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the factory could not build a sandbox for the case".to_owned(),
+        )];
+    };
+    let backend = sandbox.backend_identity();
+    let policy = policy(factory, "policy-contained-process-space", &backend);
+    let validation = match sandbox.validate(&policy, bound()) {
+        Ok(validation) => validation,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("validating a well-formed contained policy failed: {error}"),
+            )];
+        }
+    };
+    if !validation.is_clean() {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!(
+                "the validation of a well-formed contained policy carries {} finding(s)",
+                validation.findings.len()
+            ),
+        )];
+    }
+    if validation.isolation < Isolation::Process {
+        // Below the process rung nothing is claimed, so nothing is owed.
+        return Vec::new();
+    }
+
+    // The suite's own process is the host process the payload tries to
+    // reach. `kill -0` sends nothing.
+    let host = std::process::id();
+    let probe = format!(
+        "kill -0 {host} && echo {SUITE_HOST_REACHED_MARKER} || echo {SUITE_HOST_REFUSED_MARKER}"
+    );
+    let wrapped = match sandbox.wrap(&probe, &policy, &validation, bound()) {
+        Ok(wrapped) => wrapped,
+        Err(error) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!("wrapping under a clean validation failed: {error}"),
+            )];
+        }
+    };
+    let stdout = match factory.run_rendered(&wrapped.command) {
+        Ok(stdout) => stdout,
+        Err(reason) => {
+            return vec![finding(
+                CASE,
+                RULE,
+                format!(
+                    "the wrapped command could not be run ({reason}) — a SandboxedCommand is \
+                     one shell-invocable string: {:?}",
+                    wrapped.command
+                ),
+            )];
+        }
+    };
+    if stdout.contains(SUITE_HOST_REACHED_MARKER) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!(
+                "the payload of a wrap whose validation claims the {} rung reached process \
+                 {host} — a process OUTSIDE the sandbox, and the very process that built it. \
+                 The permission check every signal performs succeeded, so SIGTERM would have \
+                 killed it and SIGSTOP suspended it. A backend that confines the filesystem \
+                 and the network but leaves the payload in the host process space is not \
+                 delivering a process rung (spec 17.3): {:?}",
+                validation.isolation.token(),
+                wrapped.command
+            ),
+        )];
+    }
+    if !stdout.contains(SUITE_HOST_REFUSED_MARKER) {
+        return vec![finding(
+            CASE,
+            RULE,
+            format!(
+                "the wrapped command ran but printed neither probe marker (stdout {stdout:?}) — \
+                 the payload of a process-rung wrap must actually execute inside the sandbox \
+                 (spec 17.5.4), otherwise the confinement it reports is unobserved: {:?}",
+                wrapped.command
+            ),
+        )];
+    }
+    Vec::new()
+}
+
 /// Runs the full `Sandbox` contract suite against one factory.
 pub fn sandbox_suite(factory: &dyn SandboxFactory) -> Vec<ContractFinding> {
     let mut findings = Vec::new();
@@ -940,6 +1261,8 @@ pub fn sandbox_suite(factory: &dyn SandboxFactory) -> Vec<ContractFinding> {
     findings.extend(capability_mismatch(factory));
     findings.extend(policy_paths_are_not_shell_words(factory));
     findings.extend(a_nested_denial_survives_the_writable_bind(factory));
+    findings.extend(a_relocatable_nested_denial_is_refused(factory));
+    findings.extend(the_process_space_is_confined(factory));
     findings
 }
 

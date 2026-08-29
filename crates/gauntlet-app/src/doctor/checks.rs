@@ -14,7 +14,6 @@
 
 use std::path::Path;
 
-use gauntlet_domain::BlastRadius;
 use gauntlet_domain::Digest;
 use gauntlet_ports::agent_runner::Isolation;
 use gauntlet_ports::json::{self, JsonValue};
@@ -24,6 +23,7 @@ use crate::config::env_layer::UnknownEnv;
 use crate::config::error::ConfigError;
 use crate::config::resolve::{ResolvedConfig, UnknownKey};
 use crate::doctor::report::{CheckOutcome, CheckStatus, SubResult};
+use crate::govern::posture::dispatchable_posture;
 use crate::reference::manifest::parse_manifest;
 use crate::reference::normalize::digest_of;
 use crate::reference::parse::parse_answer_key;
@@ -735,30 +735,17 @@ pub struct BackendDescriptor {
     pub note: Option<String>,
 }
 
-/// The tier set a configuration can dispatch, and the rung each tier
-/// requires (§17.3/§8.6): under the conservative no-backend posture only
-/// `contained` dispatches ("any higher tier without a backend refuses to
-/// dispatch"); under a real backend all three dispatchable tiers do.
-fn tier_posture(backend_live: bool) -> &'static [(BlastRadius, Isolation)] {
-    const NONE_POSTURE: [(BlastRadius, Isolation); 1] = [(BlastRadius::Contained, Isolation::None)];
-    const LIVE_POSTURE: [(BlastRadius, Isolation); 3] = [
-        (BlastRadius::Contained, Isolation::None),
-        (BlastRadius::Local, Isolation::Process),
-        (BlastRadius::CrossCutting, Isolation::Process),
-    ];
-    if backend_live {
-        &LIVE_POSTURE
-    } else {
-        &NONE_POSTURE
-    }
-}
-
 pub fn check_capabilities(
     resolved: &ResolvedConfig,
     descriptor: Option<&BackendDescriptor>,
 ) -> CheckOutcome {
     let backend_live = resolved.sandbox_backend.trim() != defaults::SANDBOX_BACKEND;
-    let tiers = tier_posture(backend_live);
+    // The §17.3 tier→rung table is the GATE's, read through
+    // govern::posture. The doctor previously wrote its own copy, so the two
+    // could drift: mutating the gate's table left every doctor test green,
+    // and the doctor would then report a posture the gate does not enforce.
+    // There is one table now, and this is a read of it.
+    let tiers = dispatchable_posture(backend_live);
     // Subresult 1 — the tier rungs the configuration implies vs the
     // backend's measured capability. Under the conservative posture the
     // required rungs are trivially satisfied (contained requires none) and
@@ -816,7 +803,7 @@ pub fn check_capabilities(
             Some(descriptor) => {
                 let mut evidence = Vec::new();
                 let mut ok = true;
-                for (tier, required) in tiers {
+                for (tier, required) in &tiers {
                     if descriptor.isolation < *required {
                         ok = false;
                         evidence.push(format!(

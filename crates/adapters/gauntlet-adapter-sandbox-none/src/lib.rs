@@ -171,6 +171,36 @@ impl SandboxFactory for NoneSandboxFactory {
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(NoneSandbox::new()))
     }
+
+    /// This backend binds and masks nothing, so it reads no fixture path —
+    /// but the suite's contract is that the paths it names are real, and a
+    /// backend does not get to weaken a shared fixture just because it
+    /// happens not to look.
+    fn fixture_dir(&self, segment: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir()
+            .join(format!(
+                "gauntlet-adapter-sandbox-none-suite-{}",
+                std::process::id()
+            ))
+            .join(segment);
+        let _ = std::fs::create_dir_all(&path);
+        path
+    }
+
+    /// Runs a command this backend rendered. This backend performs the
+    /// identity wrap, so what runs is the caller's own command under a
+    /// shell — which is precisely the none rung's honest report. The
+    /// process-space case reads no verdict off a none-rung backend; the
+    /// method is implemented because the trait is a contract about what the
+    /// SUITE may rely on, not a menu.
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        let output = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(command)
+            .output()
+            .map_err(|err| format!("spawning a shell for the rendered command failed: {err}"))?;
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
 }
 
 #[cfg(test)]

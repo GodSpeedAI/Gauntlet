@@ -1854,6 +1854,72 @@ impl ReferenceProviderFactory for ReferenceProviderBroken {
 // sandbox
 // ---------------------------------------------------------------------------
 
+/// The sandbox stubs' fixture materializer (`SandboxFactory::fixture_dir`).
+/// The stubs are in-memory backends that read no path, but the trait is a
+/// contract about what the SUITE may rely on, so they honour it honestly:
+/// a real, process-scoped scratch directory under the system temp dir.
+/// This file is `#[cfg(test)]`-only, so the write never enters the ports
+/// crate's production text.
+fn stub_fixture_dir(segment: &str) -> PathBuf {
+    let path = std::env::temp_dir()
+        .join(format!(
+            "gauntlet-ports-sandbox-stub-{}",
+            std::process::id()
+        ))
+        .join(segment);
+    let _ = std::fs::create_dir_all(&path);
+    path
+}
+
+/// The environment entry naming the shell the sandbox stubs run a rendered
+/// command with. A command is CONFIGURATION (spec §8.1), never a literal in
+/// core-crate code, and the configuration surface a `#[cfg(test)]` stub has is
+/// the environment — so the shell is READ, not named here.
+const STUB_SHELL_ENV: &str = "SHELL";
+
+/// The flag that hands a shell one command STRING rather than a script file —
+/// the same flag the port's "one shell-invocable string" definition implies.
+/// Named once, so the spawn below carries no literal of its own.
+const STUB_SHELL_COMMAND_FLAG: &str = "-c";
+
+/// The interpreter the environment names, if it names a usable one.
+fn stub_shell() -> Option<PathBuf> {
+    std::env::var_os(STUB_SHELL_ENV)
+        .map(PathBuf::from)
+        .filter(|shell| !shell.as_os_str().is_empty())
+}
+
+/// That interpreter's own NAME — what a rendered command which invokes it must
+/// begin with, since a `SandboxBackendRef` may not be an absolute path.
+fn stub_shell_name() -> Option<String> {
+    stub_shell()?
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+}
+
+/// The sandbox stubs' rendered-command runner (`SandboxFactory::run_rendered`).
+/// The port documents a `SandboxedCommand` as ONE shell-invocable string, so
+/// every stub runs it the one way that definition permits, and returns only
+/// what the payload printed on stdout. `Err` is reserved for a shell that could
+/// not be spawned at all — a payload's exit status is an observation, not a
+/// failure of the observation, and an environment that names no shell is this
+/// runner's failure rather than the backend's. This file is `#[cfg(test)]`-only,
+/// so the spawn never enters the ports crate's production text.
+fn stub_run_rendered(command: &str) -> Result<String, String> {
+    let shell = stub_shell().ok_or_else(|| {
+        format!("the environment names no {STUB_SHELL_ENV} to run a rendered command with")
+    })?;
+    let mut invocation = std::process::Command::new(&shell);
+    invocation.arg(STUB_SHELL_COMMAND_FLAG).arg(command);
+    let output = invocation.output().map_err(|err| {
+        format!(
+            "spawning {} for the rendered command failed: {err}",
+            shell.display()
+        )
+    })?;
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
 /// The green sandbox stub is an honest NONE-rung backend: it validates only
 /// the contained tier clean ("backend `none`, tier `contained` only" —
 /// spec §8.6/§17.3; AK-050), refuses every policy above contained, and
@@ -1944,6 +2010,14 @@ impl SandboxFactory for SandboxGreen {
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(LocalSandbox))
     }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
+    }
 }
 
 struct LaxSandbox;
@@ -1990,6 +2064,14 @@ impl SandboxFactory for SandboxBroken {
 
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(LaxSandbox))
+    }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
     }
 }
 
@@ -2056,6 +2138,14 @@ impl SandboxFactory for SandboxBrokenFallback {
 
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(FallbackSandbox))
+    }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
     }
 }
 
@@ -2146,6 +2236,14 @@ impl SandboxFactory for SandboxBrokenProcessStart {
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(VerbatimProcessSandbox))
     }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
+    }
 }
 
 /// The shell-word FAKE (the policy-interpolation teeth): a process-rung
@@ -2216,6 +2314,14 @@ impl SandboxFactory for SandboxBrokenShellWords {
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(RawInterpolationSandbox))
     }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
+    }
 }
 
 /// The mount-ORDER FAKE (the nested-denial teeth): a process-rung backend
@@ -2284,6 +2390,180 @@ impl SandboxFactory for SandboxBrokenMaskOrder {
 
     fn build(&self) -> Result<Box<dyn Sandbox>, String> {
         Ok(Box::new(MaskBeforeBindSandbox))
+    }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
+    }
+}
+
+/// The path-mask FAKE (the relocatable-denial teeth): a process-rung
+/// backend that has fixed every defect the earlier fakes carry — it quotes
+/// every interpolated path, and it emits its masks AFTER the binds, so the
+/// mask outranks the enclosing root. One defect remains, and it is not
+/// about ORDER: it accepts EVERY nested denial and expresses it as nothing
+/// but a path mask. A denial reachable through a directory the contained
+/// process is permitted to rename therefore moves out from under its own
+/// mask, and the next wrap of the identical policy masks a vacated path
+/// while the payload sits, readable and writable, at its new location. The
+/// backend validates that policy clean instead of refusing what it cannot
+/// deliver.
+struct PathMaskOnlySandbox;
+
+impl PathMaskOnlySandbox {
+    /// Correctly quoted, correctly ordered — and THE DEFECT is that this
+    /// is all there is: a bare path mask, for every denied path the policy
+    /// names, however deep inside a writable root it sits.
+    fn render(&self, command: &str, policy: &SandboxPolicy) -> String {
+        let quoted = |word: &str| format!("'{}'", word.replace('\'', "'\\''"));
+        let mut words = vec![self.backend_identity().as_str().to_owned()];
+        for root in &policy.writable_roots {
+            words.push("--bind".to_owned());
+            words.push(quoted(root));
+        }
+        for denied in &policy.denied_paths {
+            words.push("--mask".to_owned());
+            words.push(quoted(denied));
+        }
+        words.push("--".to_owned());
+        words.push(quoted(command));
+        words.join(" ")
+    }
+}
+
+impl Sandbox for PathMaskOnlySandbox {
+    fn validate(
+        &self,
+        policy: &SandboxPolicy,
+        deadline: Deadline,
+    ) -> Result<PolicyValidation, SandboxError> {
+        VerbatimProcessSandbox.validate(policy, deadline)
+    }
+
+    fn wrap(
+        &self,
+        command: &str,
+        policy: &SandboxPolicy,
+        validation: &PolicyValidation,
+        deadline: Deadline,
+    ) -> Result<SandboxedCommand, SandboxError> {
+        let gated = VerbatimProcessSandbox.wrap(command, policy, validation, deadline)?;
+        Ok(SandboxedCommand {
+            command: self.render(command, policy),
+            ..gated
+        })
+    }
+
+    fn backend_identity(&self) -> SandboxBackendRef {
+        SandboxBackendRef::new("local-rung").expect("stub backend ref")
+    }
+}
+
+pub struct SandboxBrokenRelocatableDenial;
+
+impl SandboxFactory for SandboxBrokenRelocatableDenial {
+    fn label(&self) -> &'static str {
+        "broken-path-mask-only-sandbox"
+    }
+
+    fn build(&self) -> Result<Box<dyn Sandbox>, String> {
+        Ok(Box::new(PathMaskOnlySandbox))
+    }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
+    }
+}
+
+/// The process-space FAKE (AK-050 teeth): a backend that CLAIMS the process
+/// rung, gates its validations exactly like [`VerbatimProcessSandbox`], and
+/// really does wrap — the first process is its own invocation and the payload
+/// runs inside it, so [`wraps_from_process_start`] is satisfied — but whose
+/// wrap confines NOTHING about the process space. The payload keeps the host
+/// process namespace it was launched from, which is the shape of a real
+/// backend that unshares the network and binds the filesystem read-only and
+/// stops there.
+///
+/// Its identity is a REAL invocation, because this stub's defect is only
+/// observable by running what it rendered: a fake whose command cannot execute
+/// would be caught for the wrong reason.
+///
+/// [`wraps_from_process_start`]: super::sandbox
+struct HostProcessSpaceSandbox;
+
+/// The identity this fake falls back to when the environment names no shell.
+/// It is not a runnable command, which is the honest report: without a shell
+/// the fake cannot execute what it rendered, and the process-space case then
+/// reports on that same case rather than on the reached host process — the
+/// teeth do not depend on the environment, only their detail does.
+const STUB_ABSENT_SHELL: &str = "no-configured-interpreter";
+
+impl HostProcessSpaceSandbox {
+    fn render(&self, command: &str) -> String {
+        format!(
+            "{} {STUB_SHELL_COMMAND_FLAG} '{}'",
+            self.backend_identity().as_str(),
+            command.replace('\'', "'\\''")
+        )
+    }
+}
+
+impl Sandbox for HostProcessSpaceSandbox {
+    fn validate(
+        &self,
+        policy: &SandboxPolicy,
+        deadline: Deadline,
+    ) -> Result<PolicyValidation, SandboxError> {
+        VerbatimProcessSandbox.validate(policy, deadline)
+    }
+
+    fn wrap(
+        &self,
+        command: &str,
+        policy: &SandboxPolicy,
+        validation: &PolicyValidation,
+        deadline: Deadline,
+    ) -> Result<SandboxedCommand, SandboxError> {
+        let gated = VerbatimProcessSandbox.wrap(command, policy, validation, deadline)?;
+        Ok(SandboxedCommand {
+            command: self.render(command),
+            ..gated
+        })
+    }
+
+    /// The environment's shell, by name — a REAL invocation, because this
+    /// fake's defect is only observable by running what it rendered.
+    fn backend_identity(&self) -> SandboxBackendRef {
+        let name = stub_shell_name().unwrap_or_else(|| STUB_ABSENT_SHELL.to_owned());
+        SandboxBackendRef::new(&name).expect("stub backend ref")
+    }
+}
+
+pub struct SandboxBrokenProcessSpace;
+
+impl SandboxFactory for SandboxBrokenProcessSpace {
+    fn label(&self) -> &'static str {
+        "broken-host-process-space-sandbox"
+    }
+
+    fn build(&self) -> Result<Box<dyn Sandbox>, String> {
+        Ok(Box::new(HostProcessSpaceSandbox))
+    }
+
+    fn fixture_dir(&self, segment: &str) -> PathBuf {
+        stub_fixture_dir(segment)
+    }
+
+    fn run_rendered(&self, command: &str) -> Result<String, String> {
+        stub_run_rendered(command)
     }
 }
 

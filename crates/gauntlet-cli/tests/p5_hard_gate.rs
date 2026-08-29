@@ -1187,6 +1187,9 @@ fn containment_wraps_from_process_start_and_confines_the_session() {
         },
     );
     let ws = gauntlet_domain::WorkspaceRef::new("p5-shipped").expect("valid workspace ref");
+    let backend = ProcessIsolationBackend::new(
+        gauntlet_adapter_sandbox_bwrap::locate().expect("located above"),
+    );
     for tier in [
         BlastRadius::Contained,
         BlastRadius::Local,
@@ -1196,6 +1199,22 @@ fn containment_wraps_from_process_start_and_confines_the_session() {
             .policy_for(tier, &ws, live_bound())
             .unwrap_or_else(|error| panic!("the shipped {tier} artifact resolves: {error}"));
         assert_eq!(resolved.tier, tier);
+        // Resolving is not enough: `validate` is a DRY RUN of the policy
+        // (spec §6.2), so each SHIPPED artifact must actually START this
+        // host's real backend under this host's real anchors. A shipped
+        // policy that resolves but cannot be dry-run is a policy that would
+        // abort at spawn after the gate had already admitted the dispatch.
+        let validation = backend
+            .validate(&resolved, live_bound())
+            .unwrap_or_else(|error| {
+                panic!("the shipped {tier} artifact dry-runs clean on this host: {error}")
+            });
+        assert!(
+            validation.is_clean(),
+            "the shipped {tier} artifact validates without findings: {:?}",
+            validation.findings
+        );
+        assert_eq!(validation.isolation, Isolation::Process);
     }
     assert!(
         matches!(

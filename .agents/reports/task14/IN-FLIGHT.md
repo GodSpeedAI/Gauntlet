@@ -132,3 +132,87 @@ COR-3 = F4 (`GateAdmission` unforgeable + malformed admission is a typed error, 
 F3/F5/F6/F7-F11 explicitly OUT of correction scope — orchestrator dispositions them as
 recorded residuals with triggers. Round 2 is a FRESH BLIND executing falsifier that may
 not read round 1's report or the builder's correction account.
+
+## Update 2026-08-28 — correction rounds 1 and 2 landed; round 3 dispatched
+
+**Correction round 1 (COR-1..COR-3), `correction-round1.md` — all FIXED.**
+Verified battery: workspace 1065/1065, ports sandbox 6/6, three adapters
+12+13+16, app govern::/doctor:: 44/44, p5+g7 7/7, lint 0, fmt clean,
+boundaries 215/215, ruler PASS.
+- COR-1 quotes every rendered word at the END of assembly (a future `push`
+  cannot forget the quoting because no push does the quoting); conservative
+  allowlist; `policy_findings()` deliberately unchanged so spaced paths stay
+  legal. Regression in the SHARED port contract suite + broken stub.
+- COR-2 implements §17.5.2 in order: lexical normalization -> component-wise
+  containment (`/ws-evil` is not inside `/ws`) -> canonicalized re-check for
+  symlink escape, with `existing_canonical()` canonicalizing the deepest
+  EXISTING ancestor so a not-yet-existing path neither falsely refuses nor
+  bypasses the symlink check.
+- COR-3 made the malformed shape UNREPRESENTABLE (private `Containment` enum)
+  rather than merely rejected, and changed the return type to
+  `Result<BuilderCommand, WrapRefusal>` so `if let Some(c) = wrap(..) { run(c) }
+  else { run(raw) }` no longer type-checks. Follows the Task-13
+  `AdmittedSettlement` earned-capability precedent.
+
+**Blind round 2 (`final-confirmation-round2-falsifier.md`): NOT CONFIRM.**
+It independently re-attacked the corrections and BROKE NEITHER — 10 quoting
+payloads and 8 anchor-escape shapes all refused. But it found a MAJOR round 1
+had missed:
+- round2-F1 MAJOR: a `denied_paths` entry NESTED inside a `writable_roots`
+  entry was silently re-exposed read AND write; executed end-to-end through
+  real PolicyFs + gate + bubblewrap with the host file overwritten ("PWNED").
+  `render` emitted masks BEFORE the writable binds and bubblewrap applies
+  mounts in argument order. The adapter's own doc comment stated the correct
+  rule and the code implemented its inverse. Missed by every prior test
+  because every denied path in the suite is a SIBLING of the writable root —
+  nested is the only case where "denied even if otherwise writable" has content.
+- round2-F2 MINOR-but-real: an UNANCHORED absolute path was carried verbatim
+  and bounded by nothing; `writable_roots: ["/"]` validated CLEAN and rendered
+  `--bind / /`.
+- round2-F3 MINOR: AK-044's frozen locator had teeth only on the SCHEDULER
+  conjunct, not the gate's own conjunct 1 (round 1 found this independently
+  as its F7 — two blind rounds converging).
+
+**Correction round 2 (COR-4..COR-6), `correction-round2.md` — all FIXED.**
+Battery: ports 110/110, three adapters 45/45 (both live bwrap confinement legs),
+govern::/doctor:: 44/44, p5+g7 7/7, boundaries 215/215, lint PASS (recorded
+honestly: the FIRST lint invocation failed on FORMATTING ONLY, zero clippy
+findings; `cargo fmt --all` then PASS), ruler PASS.
+- COR-4 emits writable binds BEFORE masks so masks outrank the binds enclosing
+  them; both inverted doc comments corrected; live bwrap legs prove the nested
+  denial is neither readable nor writable and the host original survives.
+- COR-5 removed the unanchored-absolute passthrough entirely (every entry must
+  be anchored) AND added a second line of defense in bwrap `policy_findings`
+  (`names_filesystem_root`, deliberately lexical so a nonexistent path cannot
+  dodge the bound). Shipped artifacts VERIFIED to still resolve, not assumed.
+- COR-6 added coverage only, keeping the scheduler leg byte for byte, and
+  asserts the refusal VARIANT is `GateRefusal::Irreversible`. Acceptance
+  demonstration: disabling the GATE conjunct alone now FAILS the frozen locator;
+  CONTROL: disabling the SCHEDULER conjunct alone also fails it, on the
+  pre-existing assertion — proving the added coverage did not displace the old.
+
+**Orchestrator dispositions (not delegated):**
+- round2-F4 (earned-type discipline stops at the PORT boundary:
+  `SandboxedCommand`/`PolicyValidation` public fields, `BuilderCommand::Unwrapped`
+  public variant) DEFERRED to the ports revision, trigger Tasks 15/16. Rationale:
+  a port-contract change rippling through every sandbox adapter and the shared
+  suite, with no composed consumer today (round2-F6). Recorded, not silently dropped.
+- round1-F5 (the `contained` tier binds host root read-only with `denied_paths: []`,
+  so a contained builder can READ `~/.ssh/id_ed25519` and `.wayfinder/answer-key.md`)
+  is literally spec-conformant (§17.3 puts credential denial at `local` and above;
+  §17.5.5 constrains only WRITABLE paths) — so NOT a Task-14 defect, and NOT patched
+  mid-correction. Recorded as a residual plus a CandidateRevision candidate against
+  the spec, because a builder able to read the frozen ruler can target its assertions
+  without ever modifying it. Escalated to the operator.
+- F11/denylist `none` addition: reviewed personally. Justified, precedented
+  (Task 11 did the same for `digest`/`check`), pinned by `assert_eq!`, and the
+  distinguishing spellings stay denied. NOT a gate weakened to land the task.
+
+**Interruption instances 24 and 25:** the first COR-1..3 dispatch timed out after
+38 tool uses (tree verified byte-identical, nothing lost); the first round-3
+falsifier died to the usage window after mapping the surface only (stub had no
+findings). Both reconciled against an orchestrator-held sha256 baseline before
+re-dispatch. Baseline re-cut after each correction round.
+
+NEXT: blind round 3 in flight. On CONFIRM -> orchestrator personally re-verifies
+teeth + full battery, then outcome.yaml, closure record, CURRENT_STATUS, ONE commit.

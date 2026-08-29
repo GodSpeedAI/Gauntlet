@@ -471,6 +471,35 @@ fn sandbox_mask_order_broken_is_caught() {
     );
 }
 
+/// The relocatable-denial teeth (plan Task 14, AK-047): a sandbox that
+/// quotes every interpolated path AND orders its masks after its binds —
+/// clean on every earlier case — but expresses a nested denial as nothing
+/// but a path mask, so a denial reachable through a directory the contained
+/// process is permitted to rename moves out from under its own mask, is
+/// caught, and on the relocatable-denial case specifically.
+#[test]
+fn sandbox_relocatable_denial_broken_is_caught() {
+    assert_caught(
+        "SandboxBrokenRelocatableDenial",
+        "a_relocatable_nested_denial_is_refused",
+        super::sandbox::sandbox_suite(&SandboxBrokenRelocatableDenial),
+    );
+}
+
+/// The process-space teeth (plan Task 14, AK-050): a sandbox that claims the
+/// process rung and really wraps — its own invocation is the first process,
+/// with the payload inside it — but confines nothing about the PROCESS space,
+/// so the contained payload can still reach a process outside the sandbox, is
+/// caught, and on the process-space case specifically.
+#[test]
+fn sandbox_process_space_broken_is_caught() {
+    assert_caught(
+        "SandboxBrokenProcessSpace",
+        "the_process_space_is_confined",
+        super::sandbox::sandbox_suite(&SandboxBrokenProcessSpace),
+    );
+}
+
 #[test]
 fn state_store_green_is_clean() {
     assert_green(

@@ -1,0 +1,304 @@
+# Task 14 outcome record (research instrumentation, non-normative).
+# The frozen preregistration (.agents/research/preregistrations/task-14.prereg.yaml,
+# sha256 0ba5ce792343d06d291b6e83f2d721d8d67d509860a2b21576aba1b1d4b2a6a1)
+# was never edited; `just prereg-check 14` PASS on the final tree. This file
+# records what was observed, including where a prediction did not hold.
+
+schema_version: 1
+task: 14
+
+preregistration:
+  path: ".agents/research/preregistrations/task-14.prereg.yaml"
+  sha256: "0ba5ce792343d06d291b6e83f2d721d8d67d509860a2b21576aba1b1d4b2a6a1"
+
+observed:
+  task_result: >-
+    SETTLED (CONFIRM). The authority gate, the sandbox port's two adapters,
+    the fs policy provider, and the in-repo tier policies landed and were
+    confirmed through SIX blind confirmation tracks (one spec critic, five
+    executing falsifier rounds) and FOUR correction rounds (COR-1..COR-10):
+    AK-044, AK-045, AK-046, AK-047, AK-048 (bounded — see the AK-048 note
+    under `unresolved`), AK-049 (re-verified; delivered since Task 5),
+    AK-050; P5 proven composed with teeth, and the plan's own Done-when
+    teeth condition re-verified personally by the orchestrator. The fifth
+    blind round found no BLOCKING and no MAJOR against AK-044..AK-050 or P5
+    and returned CONFIRM, carrying ten MINOR/INFORMATIONAL residuals.
+
+  material_events:
+    - >-
+      Five blind confirmation rounds and four correction rounds were needed.
+      The preregistration contains no prediction bounding the number of
+      critique rounds or defects — P3 and P4 each say only "at least one".
+      That is an instrument gap: the prereg could not be graded on the single
+      most striking fact of the task, which is that FOUR consecutive
+      EXECUTING falsifier rounds each broke a tree that had just passed a
+      full green battery, in four different dimensions (round 1: shell-word
+      quoting + anchor escape; round 2: mount ordering / nested-mask
+      re-exposure; round 3: rename-defeats-nested-mask + a committed stray
+      probe file; round 4: process/IPC namespace escape).
+    - >-
+      Round 1 reproduced the Task-13 lesson exactly and in the same order:
+      the STATIC spec critic ran ten gates and four mutation-teeth legs and
+      returned CONFIRM; the EXECUTING falsifier then broke the same tree in
+      two places. By round 5 the tree had contained three separate MAJOR
+      containment defects (nested-mask re-exposure, rename bypass, process
+      namespace) that the spec critic's CONFIRM had passed over.
+    - >-
+      Two blind rounds independently converged on AK-044's frozen locator
+      having teeth only on the SCHEDULER conjunct and not on the gate's own
+      conjunct 1 (round1-F7 and round2-F3); three independent rounds
+      (3/4/5) rediscovered AK-049's unmaterializable locator; four rounds
+      (1/2/3/4/5) independently recorded that `wrap_builder_command` has no
+      production caller. Convergence across blind rounds is itself evidence
+      that the surface is legible; it is not evidence that it is exhausted.
+    - >-
+      The operator committed in-flight Task-14 work mid-task as `967731d`
+      ("first push") and `d05bc2e`, so the one-task-one-commit discipline was
+      overtaken by events — the same class of deviation Task 13 recorded for
+      `62d1a5f`. That commit also captured a falsifier's transient probe file
+      `.gauntlet/policies/irreversible.json` into history, which made
+      `just doctor` exit 1 on `main`. Blind rounds 3 and 4 each independently
+      raised it as BLOCKING (round3-F1, round4-F1) reading only the tree and
+      `git ls-tree HEAD`. The orchestrator deleted the file and staged the
+      deletion.
+    - >-
+      Sub-agent interruption instances 21-25 landed inside this task (usage
+      window deaths and one timeout). B1, B2 and B3 were each recovered under
+      the standing heal+continue instruction with the orchestrator verifying
+      and completing from the tree; B2 and B3 were implemented by the
+      orchestrator personally. The orchestrator held an independent sha256
+      baseline of all 181 `crates/**/*.rs` files plus the three policy
+      artifacts and root `Cargo.toml`, so every falsifier's teeth-mutation
+      restoration was verified by the orchestrator rather than on the
+      falsifier's say-so.
+    - >-
+      The `.agents/agents/*.agent.md` role charters are still not invocable
+      as typed sub-agents (re-probed this task, as in Task 13); every role
+      was carried by a verbatim-charter prompt on general-purpose transport.
+
+  predictions:
+    - prediction_ref: P1
+      # expects: fail_before_fix
+      result: "supported"
+      evidence:
+        - ".agents/reports/task14/recon.md (pre-Task-14 tree: `controller.rs::dispatch` passes `sandbox_policy: None` unconditionally, never consults `RunnerCapabilities`; no `govern` module — `cargo nextest run -p gauntlet-app govern::` selected nothing; `.gauntlet/policies/` empty; no Sandbox or PolicyProvider adapter)"
+        - ".agents/reports/task14/final-confirmation-round5-falsifier.md T3 (capability conjunct `govern/gate.rs:573` neutered -> `p5_hard_gate::a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_averaged` RED)"
+        - "orchestrator's own re-run of the plan's Done-when teeth condition on the final tree, 2026-08-29 (`if false && facts.runner_isolation < required` -> RED; restored byte-identically, sha256 9c986d1f… before and after; 7/7 GREEN)"
+      notes: >-
+        The pre-fix shape is RE-DERIVED, not literally replayed — the p5
+        proof did not exist before the wiring, exactly as in Task 13's P1.
+        What is directly observed is the recon reading of the pre-task tree
+        (no gate at dispatch, no capability consultation) and the teeth
+        mutation that restores that shape and makes the composed proof fail.
+        Both halves of the prediction hold: `sandbox_policy` was
+        unconditionally `None` and `RunnerCapabilities` was never read.
+    - prediction_ref: P2
+      # expects: fire_during_implementation
+      result: "supported"
+      evidence:
+        - ".agents/reports/task14/builder-b2.md (`classify_no_admission` extended so an all-gate-refused run ends `blocked` with the ticket rather than mislabeled `budget_exhausted`; `DispatchAdmission::GovernanceRefused` added; 6 app + 6 cli `ControllerDeps` construction sites rewired)"
+        - "crates/gauntlet-cli/tests/p4_corrective_loop.rs:201 and p6_budget_control.rs:218 (fixture `blast_radius: contained`, moved from `local` with inline recorded reasons)"
+        - ".agents/reports/task14/final-confirmation-a-spec.md section 'Fixture-tier moves in p4/p6' (independently adjudicated: justified, not a weakening)"
+      notes: >-
+        Both clauses fired. The terminal-classification concern named in the
+        prereg's first known blindspot fired precisely: without the
+        `classify_no_admission` extension an all-gate-refused run would have
+        exhausted rounds and been mislabeled `budget_exhausted`.
+        ONE CORRECTION TO THE PREREG'S OWN ENUMERATION, recorded rather than
+        smoothed over: the prereg (and recon) named p4, p6 AND p12 as needing
+        the fixture move. p12 did NOT need it and was not touched — it is a
+        verification-ladder proof that never composes the dispatch loop
+        (`grep -c 'RunController' p12_missing_is_not_passing.rs` = 0), so its
+        `local` fixtures never reach the gate. The prediction's "at least one
+        of p4/p6/p12" is satisfied by two of three; the blindspot's
+        enumeration was over-broad by one file.
+    - prediction_ref: P3
+      # expects: fire_during_critique
+      result: "falsified"
+      evidence:
+        - ".agents/reports/task14/final-confirmation-b-falsifier.md residual table F1-F11 (no governance-event-recording finding)"
+        - ".agents/reports/task14/final-confirmation-round2-falsifier.md F1-F7; round3 F1-F8; round4 F1-F8; round5 F1-F10 (across all five blind rounds and 40+ ranked findings, none names a dropped, deferred, or memory-only gate-refusal event)"
+        - ".agents/reports/task14/final-confirmation-a-spec.md AK-046 paragraph (the spec critic affirmatively verified the recording: `gate_refusal` pinned evidence + escalation ticket + terminal record)"
+        - ".agents/reports/task14/builder-b2.md (`record_gate_refusal` pinned every time, ticket on first refusal per unit, dedup ledger in `LoopState`)"
+      notes: >-
+        The predicted defect class did NOT materialize. Five independent blind
+        rounds — four of them executing, one of them attacking admission
+        forgery and replay directly (round5 A9) — looked at the controller
+        seam and none found a governance event that was recorded only in
+        memory or not at all. The honest explanation is that the prereg's own
+        mitigation R4/A4 was implemented UP FRONT by B2 rather than after a
+        critique caught the loss, which makes the prediction about what the
+        critique would find wrong even though the risk it named was real.
+        A preregistration that names a risk and then has that risk mitigated
+        before the critique is a prediction that must be scored FALSIFIED,
+        not quietly reworded into "the mitigation worked".
+        Absence is bounded to the five rounds' declared search bounds — no
+        round claims to have enumerated every event surface in the controller.
+    - prediction_ref: P4
+      # expects: fire_during_critique
+      result: "supported"
+      evidence:
+        - ".agents/reports/task14/final-confirmation-b-falsifier.md attack 3b / F1 MAJOR (EXECUTED: a policy `writable_roots` string `/real/path --share-net` becomes a real bwrap flag after `--unshare-net`; last-flag-wins silently defeats the declared deny-by-default network posture while `validate()` reports CLEAN; proven end-to-end through the real `PolicyFs` — clean policy: sandbox sees only `lo`; hostile policy: sandbox sees the HOST namespace)"
+        - ".agents/reports/task14/final-confirmation-b-falsifier.md attack 3e / F2 MAJOR (EXECUTED: `$WORKSPACE_ROOT/../outside` escapes its anchor; `resolve_anchored_path` did token substitution + `is_absolute()` and nothing else, falsifying the module's OWN documented invariant)"
+        - ".agents/reports/task14/correction-round1.md COR-1 and COR-2"
+      notes: >-
+        The strongest-confirmed prediction of the set, and it named BOTH loci
+        correctly — the prereg's third known blindspot ("a hand-rolled quote
+        escape is a classic injection seam") and its fourth ("the $-style
+        anchoring … the frozen ruler does not spell the policy-file schema").
+        The Task-13 lesson it cites reproduced exactly: the static spec critic
+        had already returned CONFIRM on this same tree after reading every
+        `validate`/`wrap`/`admit` implementation for a fallback path.
+        Non-adversarial trigger worth recording: the quoting defect fires for
+        any operator whose `$HOME` or workspace root contains a space, which
+        would mis-split the SHIPPED `local.json`/`cross_cutting.json` masks.
+    - prediction_ref: P5
+      # expects: representation_inadequacy
+      result: "weakened"
+      evidence:
+        - ".agents/reports/task14/builder-b1.md (minimal policy-file schema shipped as a deliberate representation; `permissions_for` returns an honest `Unavailable` — no artifact invented)"
+        - ".agents/reports/task14/final-confirmation-round5-falsifier.md F1 (the consequence of the `permissions_for` gap: §17.2 `PermissionSet.credential_scope` has no consumer at its top enforcement rung, and `SandboxPolicy` has no environment field at all)"
+        - ".agents/reports/task14/correction-round1.md COR-1 (the String-command wrap signature gap was not merely representational — it was EXPLOITED as round1-F1)"
+        - ".agents/reports/reference-candidates.md (AK-044..AK-050 locator-materialization entries appended by the round-1 semantic-verifier)"
+        - ".agents/reports/task14/structural-review-unk001.md (the declared-but-unadapted backend-token question routed to `docs/CONFORMANCE.md` at Task 27, not invented locally)"
+      notes: >-
+        The GAP half is supported: all four candidate gaps the prereg named
+        materialized, and the fourth (the String-command wrap signature)
+        materialized as a live MAJOR rather than as a mere representational
+        awkwardness. The ROUTING half is only partly discharged, and that is
+        why this is `weakened` rather than `supported`. The locator class was
+        routed to `reference-candidates.md` and the backend-token question to
+        the Task-27 `docs/CONFORMANCE.md` disposition; but the policy-file
+        schema and the missing `permissions_for` / environment representation
+        were recorded ONLY in builder and confirmation reports and in this
+        closure, not as reference-candidate or fog entries. Nothing was
+        silently invented — the schema is documented and `permissions_for` is
+        honestly unavailable — but "each gap surfaces as a reference-candidate
+        or fog entry" is not true of two of the four.
+
+representation_change:
+  occurred: true
+  before: >-
+    A denied path is a MASK RENDERED INTO AN ARGV. Containment is whatever
+    string the adapter emits, and `validate` is a probe of the BACKEND (does
+    `bwrap` start at all) plus a lint of the policy's fields.
+  after: >-
+    A mask is trustworthy exactly when it is a MOUNT POINT sitting directly
+    inside a bound root — the kernel refuses to rename, remove, or clobber a
+    mount point — and any other nesting is refused as a typed validation
+    finding rather than served and silently degraded. Ordering is only half
+    the guarantee; anchoring is the other half. `validate` is a real dry run
+    OF THE POLICY (its own binds and masks), so a policy that would abort
+    bubblewrap at process start escalates as `ValidationEscalated` instead of
+    surfacing later as a spawn error.
+  trigger_evidence:
+    - ".agents/reports/task14/final-confirmation-round2-falsifier.md F1 MAJOR (nested `denied_paths` silently re-exposed read AND write; host file overwritten with `PWNED` end-to-end through real PolicyFs + gate + bubblewrap; the adapter's own doc comment stated the correct rule and the code implemented its inverse)"
+    - ".agents/reports/task14/final-confirmation-round3-falsifier.md F2 MAJOR (the COR-4 ordering fix was itself defeated by a rename: `mv W/a W/b` using only policy-permitted writes, after which the next wrap under the IDENTICAL policy validated CLEAN, bubblewrap created the vacated path, the sandbox STARTED, and the payload was read and overwritten at its new location)"
+    - ".agents/reports/task14/correction-round2.md COR-4; .agents/reports/task14/correction-round3.md COR-7, COR-8"
+
+# Intervention classes that only became visible after the representation changed.
+newly_visible_intervention_classes:
+  - >-
+    refuse_rather_than_serve_and_degrade: a policy shape the backend cannot
+    actually enforce becomes a typed validation FINDING, never a best-effort
+    render. Visible only once "a mask is a mount point" replaced "a mask is a
+    rendered flag" — before that change there was no principled line between
+    an enforceable and an unenforceable mask. Applied to relocatable nested
+    denials (COR-7) and, by the same reasoning already present in B1, to
+    allowlist network postures the backend cannot deliver.
+  - >-
+    one_table_not_two: a spec table (§17.3's tier -> isolation rung) is made
+    IMPOSSIBLE to duplicate rather than cross-checked between copies. Round-4
+    F4 showed the duplicate was undetectable — mutating the gate's table left
+    all 32 doctor tests green — and COR-10 made `doctor::checks` read through
+    `posture::dispatchable_posture` so a single mutation now fails a test.
+
+interventions_taken:
+  - "A2 adversarial_probe_first: every bwrap flag in the COR-9 confinement set verified by EXECUTION on this host before being written (correction-round4.md §1/§3); live confinement legs (in-root write succeeds, out-of-root denied, denied path masked, host originals untouched) landed as standing tests, not one-off probes"
+  - "A3 typed_construction_invariants: `GovernDeps::with_backend` refuses an inconsistent posture (`none` token with instances, or a real token without them) — the prereg's R1 mitigation, landed before any critique; COR-3 made the malformed admission UNREPRESENTABLE (private `Containment` enum, private fields) and changed the return type to `Result<BuilderCommand, WrapRefusal>` so `if let Some(c) = wrap(..) { run(c) } else { run(raw) }` no longer type-checks — the Task-13 `AdmittedSettlement` earned-capability precedent"
+  - "A5 fail_first_evidence: every correction (COR-1..COR-10) recorded RED for the right reason before GREEN, several with the regression home written FIRST in the SHARED port contract suite plus a broken stub so the case itself is failable"
+  - "A4 re_ground_against_tree: orchestrator-held sha256 baseline of 185 files re-cut after every correction round, so each falsifier's restoration was verified independently; B1/B2/B3 heal+continue recoveries verified landed work from the tree before completing it (tree outranks record)"
+  - "A1 defer_with_evidence: port-level forgeability of `PolicyValidation`/`SandboxedCommand`/`SandboxPolicy`, AK-048's composed half, and round5-F3's discarded `workspace` argument all deferred with named triggers rather than patched mid-correction or quietly dropped"
+
+transfer_results:
+  replay:
+    result: "not_tested"
+    evidence: []
+  parametric_variation:
+    result: "not_tested"
+    evidence: []
+  structural_transfer:
+    result: "not_tested"
+    evidence: []
+
+alternative_explanations:
+  - >-
+    The round-1 divergence of Task 13 did not merely repeat — it compounded.
+    A spec critic that independently re-ran ten gates and mutation-verified
+    four teeth legs returned CONFIRM on a tree that four subsequent executing
+    rounds showed contained three MAJOR containment defects. The plausible
+    alternative reading — "the executing rounds were lucky" — is weakened by
+    the fact that each round broke the surface in a dimension the previous
+    rounds had not examined at all, and by round 5's own conclusion: "this
+    surface still yields to fresh attack angles, not that it is now
+    exhausted." The evidential asymmetry to carry forward is that a
+    reading-only CONFIRM is weak evidence about containment specifically,
+    because containment claims are claims about kernel behaviour and reading
+    an argv cannot observe kernel behaviour.
+  - >-
+    Every behavioural containment result rests on ONE host: WSL2, kernel
+    6.18.35.2-microsoft, bubblewrap 0.11.1, unprivileged uid 1000. Namespace
+    results are host facts, not portable guarantees. Round 5 explicitly notes
+    that the `--unshare-cgroup` strictness would make the backend PROBE fail
+    (honestly) on a host without cgroup namespaces, and that such a host was
+    not tested.
+  - >-
+    The green standing battery is not independent evidence about containment.
+    Every MAJOR found in rounds 1-4 was in code that had just passed a full
+    green workspace battery, and round2-F1 was missed by every prior test for
+    a structural reason worth keeping: every denied path in the suite was a
+    SIBLING of the writable root, and nested is the only case in which
+    "denied even if otherwise writable" has content.
+
+interpretation:
+  smallest_claim_earned: >-
+    On this host, through the composed dispatch path (controller ->
+    AuthorityGate -> fs policy provider -> bubblewrap adapter), authority
+    decides WHETHER and containment decides HOW CONTAINED, both strictly
+    before the runner is invoked and in that order: the gate's six conjuncts
+    are strictly conjunctive with no scoring or averaging path, an
+    irreversible unit is refused at six independent non-overlapping points,
+    an agent-originated lattice movement is refused in every direction, a
+    validation failure escalates through a typed refusal with no arm
+    convertible to unwrapped execution, a none-isolation runner is refused
+    for every tier above contained, a present irreversible policy file fails
+    doctor and the run, and a wrapped command's first process is the backend
+    with live confinement demonstrated (process, IPC, uts, cgroup, user and
+    network namespaces; no host process signallable; no daemon survives the
+    wrap). Each of those is teeth-verified by a minimal inverting mutation
+    that turns a NAMED test RED and is restored byte-identically.
+    NOT claimed: that a composed production run wraps a builder (no
+    production caller of `wrap_builder_command` exists — AK-048's composed
+    half lands with Tasks 15/16); that the surface is free of further
+    defects (four consecutive executing rounds each found what the previous
+    missed); or that any of this holds on a host other than the one measured.
+  unresolved:
+    - "AK-048 composed half: `wrap_builder_command` and `GovernDeps::with_backend` have no production caller; AK-048 is delivered at gate and adapter level with LIVE bwrap confinement executed, but NOT through the composed loop. This is a BOUNDED CLAIM, never composed enforcement (trigger: Tasks 15/16 process runners, and Task 20's `run` command)"
+    - "round5-F3, HARD TRIGGER: `PolicyProvider::policy_for` discards its `workspace` argument (`adapter-policy-fs/src/lib.rs:392` binds it `_workspace`; verified at closure), so with the shipped artifacts every builder gets read-write over the SHARED workspaces root — every other run's and every other unit's workspace. MINOR against this ruler (no AK line names workspace scoping); the falsifier records it as MAJOR under §17.5.1 invariant 1. (trigger: Tasks 15/16, BEFORE any real runner executes a builder — this must not be quietly forgotten)"
+    - "Port-level forgeability of `PolicyValidation` / `SandboxedCommand` / `SandboxPolicy` (public fields, no earned constructor; `BuilderCommand::Unwrapped` a public variant). Fail-closed today because both adapters re-derive full policy eligibility at `wrap` and nothing consumes a `SandboxedCommand` in production (trigger: the ports revision at Tasks 15/16, before any real runner consumes a wrapped command)"
+    - "round5-F1: the parent environment is inherited wholesale into the sandbox — no `--clearenv`, and `SandboxPolicy` has no environment field, so a policy author cannot express an environment restriction. §17.3's credential-path denial is nominal for any credential living in an environment variable, and §17.2's `credential_scope` has no consumer at its top enforcement rung (trigger: the ports revision at Tasks 15/16, or any sandbox-policy schema touch)"
+    - "round1-F5 / round5-F7: the whole host filesystem is readable inside the sandbox via `--ro-bind / /`, including credential files and `.wayfinder/answer-key.md`. Literally spec-conformant — §17.3 places credential denial at `local` and above and §17.5.5 bounds only WRITABLE paths — so NOT a Task-14 defect and deliberately not patched mid-correction. Carried as a residual AND as a candidate spec CandidateRevision: a builder that can READ the frozen ruler can target its assertions without ever modifying it (trigger: escalated to the operator; spec revision process)"
+    - "round5-F2: a repo-owned policy artifact can widen the `contained` tier past its workspace (`writable_roots: [\"$HOME\"]` resolves, validates clean, wraps, and writes outside the workspace). No `writable_roots ⊆ workspace` rule exists at either layer; the shipped artifacts all name `$WORKSPACE_ROOT`. Operator-authoring hazard, not an agent escalation path (trigger: the same policy-schema touch as round5-F3)"
+    - "round5-F4: `gauntlet doctor` ignores every Annex E environment variable when `GAUNTLET.md` is absent — `doctor/mod.rs::assemble`'s `(None, None)` arm returns `EffectiveConfig::from_defaults()` without calling `resolve()`, so `apply_env_layer` never runs. Fail-CLOSED direction; AK-049's clause is unconditional and unaffected. Ownership ambiguous between the config task and this one (trigger: next doctor or config-resolution touch)"
+    - "AK-049 frozen locator `tests/e2e/doctor::irreversible_policy_is_error` matches no file and no function (verified: zero hits across `crates/**`); the mechanism is carried by three in-crate tests in `crates/gauntlet-app/src/doctor/mod.rs`. Already covered by the existing 2026-08-17 reference-candidates entry, which names those exact three tests — no new entry owed (trigger: settlement by the ruler's owner)"
+    - "round5-F6: no rlimit or cgroup budget inside the sandbox (cpu/address space unlimited, 31724 processes, 1048576 fds). No §17.3/§17.5 line requires rlimits; §17.4's budget governs the orchestrator, not the contained process. Not executed — the exploitability claim is an inference from `/proc/self/limits`, not a demonstration (trigger: any §17 containment-hardening revision)"
+    - "round5-F10: a `GateAdmission` is not bound to the command it authorizes and is `Clone`, so an in-process caller could wrap unit B's command under unit A's admission. Unreachable today — the only caller is the p5 proof (trigger: the task that composes builder execution, Tasks 15/16)"
+    - "round5-F9 / round2-F5 / round4-F8: the doctor's forbidden-tier scan is stem-exact and non-recursive, missing `sub/irreversible.json` and `irreversible.json.bak`. Not a bypass — `PolicyFs` resolves only `<dir>/<tier>.json` (trigger: next doctor touch)"
+    - "round2-F7 / round4-F7: the gate never cross-checks `deps.backend_token()` against `sandbox.backend_identity()`, and the `none` adapter's token collides with the conservative sentinel so `NoneSandbox` can never be composed into a `GovernDeps`. The dangerous shape is closed by `NoneBackendWithInstances` (trigger: the ports revision at Tasks 15/16)"
+    - "round1-F8: an ungated `RoleId::Verifier` runner invocation exists at the composition root (`verify/ladder.rs:490-511`) — outside Task 14's gate, read not executed (trigger: verification-ladder or Task 20 touch)"
+    - "UNK-001 (which containment backend `cross_cutting` runs under in production): PARTIALLY RESOLVED, not closed — mechanism half established, production half open on three residues (no production target named; the Annex-F weakening unstated; no composed dispatch path). Terminal disposition belongs to `docs/CONFORMANCE.md` (trigger: Task 27)"
+    - "`docs/CONFORMANCE.md` is NOT owed by Task 14 — the plan's redesign trigger did not fire (bwrap exists and is wired) (trigger: Task 27 owns the file)"
+    - "OBS-2 (spec critic): with a live backend, the controller's deterministic clock makes the wall-clock-reading policy resolution refuse on deadline, so above-contained admission through the LOOP with a live backend is not exercisable yet (trigger: Tasks 15/16 wire process runners)"
+    - "OBS-1 (spec critic): doctor check 4's overall status stays `unavailable` because the runner-resolution half lands with Tasks 15/16; the Task-14 tier-rung half is measured and discriminating (trigger: Tasks 15/16)"
+    - "Prereg instrument gap: no prediction bounded the number of critique rounds or defects, so the task's most striking observation — four consecutive executing rounds each finding what the previous missed — could not be graded against anything (trigger: the next preregistration should predict a round/defect count, or state explicitly that it declines to)"
+    - "P5's routing half: the policy-file schema gap and the missing `permissions_for` / environment representation were recorded in reports and this closure but never filed as reference-candidate or fog entries (trigger: the ports revision at Tasks 15/16)"

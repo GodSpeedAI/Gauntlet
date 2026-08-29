@@ -38,6 +38,42 @@ pub fn required_isolation(tier: BlastRadius) -> Isolation {
     }
 }
 
+/// The DISPATCHABLE tiers, lowest first. `irreversible` is absent by §17.1
+/// line 1 — it is never dispatched, so it is not a tier a configuration can
+/// be asked to cover. [`required_isolation`] still answers for it (the
+/// function is total); this list is about dispatch, not about the table.
+const DISPATCHABLE_TIERS: [BlastRadius; 3] = [
+    BlastRadius::Contained,
+    BlastRadius::Local,
+    BlastRadius::CrossCutting,
+];
+
+/// The tiers a configuration can dispatch under a backend posture, each
+/// paired with the rung it requires — the §17.3 mapping read from
+/// [`required_isolation`] and from nowhere else.
+///
+/// Under the §8.6 conservative no-backend posture only `contained`
+/// dispatches ("any higher tier without a backend refuses to dispatch");
+/// under a real backend every dispatchable tier does. That posture is
+/// DERIVED here rather than listed: the tiers a no-backend configuration
+/// can serve are exactly the tiers whose required rung is
+/// [`Isolation::None`], which is what §8.6 says in the vocabulary of §17.3
+/// rather than a second statement of it.
+///
+/// The DOCTOR reports this posture (§8.5 check 4) and the GATE enforces it,
+/// and they must not be able to disagree — a doctor reporting a posture the
+/// gate would not enforce is a green preflight for a dispatch that refuses.
+/// Both read this function, so there is one table and no cross-check to
+/// forget: a change to [`required_isolation`] moves the doctor's report and
+/// the gate's enforcement together, or it moves neither.
+pub fn dispatchable_posture(backend_live: bool) -> Vec<(BlastRadius, Isolation)> {
+    DISPATCHABLE_TIERS
+        .into_iter()
+        .filter(|tier| backend_live || required_isolation(*tier) == Isolation::None)
+        .map(|tier| (tier, required_isolation(tier)))
+        .collect()
+}
+
 /// Who is proposing a lattice movement on a Unit's recorded facts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChangeOrigin {
