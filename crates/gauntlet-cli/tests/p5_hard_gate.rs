@@ -104,6 +104,20 @@ const NONCONVERGENCE_N: u32 = 9;
 const IDS_SEED: &str = "p5-proof-identity";
 const SCENARIO_NAME: &str = "lying-builder";
 
+/// The single `WorkspaceRef` [`live_govern`]'s `GovernDeps` carries for its
+/// whole lifetime (R-1b: out of this fix's scope — see the module note
+/// above `live_govern`). Named once so the fixture's own directory setup
+/// (R-1's Step 5) and the `GovernDeps` construction can never drift apart.
+const GATE_WORKSPACE_REF: &str = "p5-gate-workspace";
+
+/// The `WorkspaceRef` the "shipped repository policy artifacts" leg of
+/// `containment_wraps_from_process_start_and_confines_the_session` resolves
+/// against — distinct from [`GATE_WORKSPACE_REF`] so the two `$WORKSPACE_ROOT`
+/// scopings exercised in that one test body stay visibly disjoint (R-1's
+/// own regression property, `two_different_workspaces_resolve_to_disjoint_writable_roots`,
+/// exercised here at the composition-root level too).
+const SHIPPED_WORKSPACE_REF: &str = "p5-shipped";
+
 /// The one-line scratch answer keys, one per posture under proof. The
 /// evidence locator matches the fixture's declared check vocabulary.
 const IRREVERSIBLE_KEY: &str = "## AK-9301\nclaim: the irreversible unit claims a destructive change.\nverify_by: static_check\nblast_radius: irreversible\nauthority: human\nevidence_required: {kind: test_report, locator: p5-irreversible.json, producer: instrument}\n\n";
@@ -774,6 +788,17 @@ fn live_govern(
         )
         .expect("the scratch policy artifact is written");
     }
+    // R-1: `PolicyFs::policy_for` scopes `$WORKSPACE_ROOT` to THIS call's
+    // own workspace (`workspace_root.join(<workspace ref>)`), never the
+    // bare shared parent — so the subdirectory this fixture's own
+    // `GovernDeps` workspace ref names must exist before a REAL dry-run
+    // `validate()` (or a real wrapped execution) reaches it. Creating it
+    // here mirrors what a real `WorkspaceProvider::create()` would
+    // already have done in production by the time `policy_for` runs
+    // (`PolicyFs` itself must never create it — that boundary belongs to
+    // `WorkspaceProvider`, a port with no production adapter yet).
+    std::fs::create_dir_all(workspace.join(GATE_WORKSPACE_REF))
+        .expect("the fixture's own effective workspace subdirectory is creatable");
     #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
     let deps = GovernDeps::with_backend(
         &backend_token,
@@ -787,7 +812,7 @@ fn live_govern(
             },
         ))),
         Authority::Critic,
-        gauntlet_domain::WorkspaceRef::new("p5-gate-workspace").expect("valid workspace ref"),
+        gauntlet_domain::WorkspaceRef::new(GATE_WORKSPACE_REF).expect("valid workspace ref"),
     )
     .expect("the live governance posture composes");
     Some((deps, scratch))
@@ -1105,8 +1130,19 @@ fn containment_wraps_from_process_start_and_confines_the_session() {
     assert!(validation.is_clean());
     assert_eq!(validation.isolation, Isolation::Process);
 
+    // R-1: the REAL writable root the admitted policy grants is THIS
+    // call's own workspace subdirectory (`workspace.join(GATE_WORKSPACE_REF)`,
+    // which `live_govern` already created), not bare `workspace` — bare
+    // `workspace` is now only read-only-visible under the real backend's
+    // own default containment posture, so the in-root write below must
+    // target the subdirectory the fix actually grants.
+    let effective_workspace = workspace.join(GATE_WORKSPACE_REF);
+
     // A write INSIDE the writable root succeeds under the wrapped command.
-    let inside = format!("echo confined > {}/inside.txt", workspace.display());
+    let inside = format!(
+        "echo confined > {}/inside.txt",
+        effective_workspace.display()
+    );
     let BuilderCommand::Sandboxed(wrapped) = gate
         .wrap_builder_command(&govern, &admission, &inside, live_bound())
         .expect("the wrap renders")
@@ -1123,7 +1159,7 @@ fn containment_wraps_from_process_start_and_confines_the_session() {
         "the in-root write succeeds inside the sandbox: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(workspace.join("inside.txt").is_file());
+    assert!(effective_workspace.join("inside.txt").is_file());
 
     // A write OUTSIDE the writable roots fails on the read-only root.
     let outside_sibling = scratch.child("sibling");
@@ -1186,7 +1222,18 @@ fn containment_wraps_from_process_start_and_confines_the_session() {
             home: home.clone(),
         },
     );
-    let ws = gauntlet_domain::WorkspaceRef::new("p5-shipped").expect("valid workspace ref");
+    let ws =
+        gauntlet_domain::WorkspaceRef::new(SHIPPED_WORKSPACE_REF).expect("valid workspace ref");
+    // R-1: `$WORKSPACE_ROOT` in the shipped artifacts now resolves to
+    // `workspace.join(SHIPPED_WORKSPACE_REF)` — a subdirectory that does
+    // not exist on disk yet. `validate` below is a REAL dry run of the
+    // policy's own binds (COR-8), so a `--bind` of a nonexistent source
+    // fails it; creating the directory here mirrors what a real
+    // `WorkspaceProvider::create()` would already have done in production
+    // by the time `policy_for` runs (`PolicyFs` itself must never create
+    // it — see the note above `live_govern`).
+    std::fs::create_dir_all(workspace.join(SHIPPED_WORKSPACE_REF))
+        .expect("the fixture's own shipped-leg workspace subdirectory is creatable");
     let backend = ProcessIsolationBackend::new(
         gauntlet_adapter_sandbox_bwrap::locate().expect("located above"),
     );

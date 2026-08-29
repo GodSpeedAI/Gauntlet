@@ -23,6 +23,19 @@
 //! absolute entry is both that hardcoding and an unbounded one — nothing
 //! constrains how far it reaches, so `writable_roots: ["/"]` would ask a
 //! backend to bind the whole host read-write.
+//!
+//! `$WORKSPACE_ROOT` is the one token that is NOT the bare anchor root
+//! injected at construction: [`AnchorRoots::workspace_root`] names the
+//! PARENT under which every run's and every unit's workspace lives, so
+//! resolving `$WORKSPACE_ROOT` to that bare path verbatim would grant
+//! EVERY caller read-write over EVERY OTHER caller's workspace too (the
+//! defect this module closes, R-1). `policy_for` instead scopes
+//! `$WORKSPACE_ROOT`, per call, to `workspace_root.join(<this call's own,
+//! validated workspace ref>)` — the caller's own workspace subdirectory,
+//! never a sibling's and never the shared parent itself. `$PROJECT_ROOT`
+//! and `$HOME` are unaffected: they name one repository and one operator
+//! home, not a per-caller subdirectory, so they resolve to the bare
+//! anchor as injected.
 
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
@@ -38,7 +51,15 @@ use gauntlet_ports::sandbox::{NetworkPosture, SandboxBackendRef, SandboxPolicy};
 /// policy files themselves (an artifact cannot widen its own anchor).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnchorRoots {
-    /// `$WORKSPACE_ROOT` — the root under which run workspaces live.
+    /// The PARENT root under which every run's and every unit's workspace
+    /// lives — injected once at construction and shared across every
+    /// `policy_for` call this provider ever answers. This is NOT what
+    /// `$WORKSPACE_ROOT` resolves to in a policy entry: `policy_for`
+    /// scopes it, per call, to `workspace_root.join(<that call's own
+    /// workspace ref>)` — the caller's own workspace subdirectory under
+    /// this parent, never a sibling's and never this bare parent path
+    /// itself (R-1: resolving the bare parent verbatim would grant every
+    /// caller read-write over every other caller's workspace).
     pub workspace_root: PathBuf,
     /// `$PROJECT_ROOT` — the repository root (whose `.git` the `local`
     /// tier denies, spec §17.3).
@@ -201,6 +222,44 @@ impl PolicyFs {
     }
 }
 
+/// Validates a `WorkspaceRef`'s string as a safe path segment BEFORE it is
+/// joined onto [`AnchorRoots::workspace_root`] to scope `$WORKSPACE_ROOT`
+/// to this call (R-1). `WorkspaceRef::new`'s own validation
+/// (`gauntlet-domain`'s `validate_plain_ref`: non-empty, ≤1024 bytes, does
+/// not start with `/`, no whitespace) does NOT reject `..`, a lone `.`, or
+/// embedded `/` — joining such a value verbatim would let the per-call
+/// anchor escape its own parent, exactly the anchor-escape class COR-2
+/// already closed for policy-entry paths, reopened one level up. The
+/// sanctioned class mirrors the one [`gauntlet_ports::workspace_provider`]
+/// documents for a `Workspace`'s own sanitized key (spec §17.5.3):
+/// `[A-Za-z0-9._-]`, and never exactly `.` or `..`. Anything else is a
+/// typed `Invalid` naming the offending workspace ref — fail closed on a
+/// malformed ref, matching this adapter's existing discipline of naming
+/// the offense (here: no file exists yet to name, so the ref is named
+/// instead).
+fn validated_workspace_segment(workspace: &WorkspaceRef) -> Result<&str, PolicyProviderError> {
+    let raw = workspace.as_str();
+    let sanitized = !raw.is_empty()
+        && raw
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-')
+        && raw != "."
+        && raw != "..";
+    if sanitized {
+        Ok(raw)
+    } else {
+        Err(PolicyProviderError::Invalid {
+            detail: format!(
+                "workspace ref {raw:?} is not a safe path segment for anchoring \
+                 $WORKSPACE_ROOT — it must be non-empty, every byte restricted to \
+                 [A-Za-z0-9._-], and never exactly \".\" or \"..\" (the same sanitization class \
+                 spec 17.5.3 requires of a Workspace's own key); an unsanitized workspace ref \
+                 must not be joined onto the workspace anchor root"
+            ),
+        })
+    }
+}
+
 /// Resolves one path entry against the anchor roots: EVERY entry names a
 /// token (`$WORKSPACE_ROOT`, `$PROJECT_ROOT`, `$HOME`) at the PREFIX
 /// position. A bare relative path, a bare ABSOLUTE path, and an unknown
@@ -213,6 +272,15 @@ impl PolicyFs {
 /// still be inside the anchor it named (spec §17.5.2), so an artifact
 /// cannot widen its own anchor — the invariant [`AnchorRoots`] documents.
 /// See [`contain_within_anchor`] for how containment is decided.
+///
+/// This function treats `anchors` as given — it does not know or care
+/// whether the caller passed the bare, construction-time roots or a
+/// narrower per-call scoping. `policy_for` passes an `anchors` whose
+/// `workspace_root` is already scoped to the current call's own
+/// workspace (`workspace_root.join(<validated workspace ref>)`), so
+/// `$WORKSPACE_ROOT` here resolves to — and is contained within — THAT
+/// caller's own workspace subdirectory, never the shared parent every
+/// other caller's workspace also lives under.
 fn resolve_anchored_path(
     entry: &str,
     anchors: &AnchorRoots,
@@ -389,7 +457,7 @@ impl PolicyProvider for PolicyFs {
     fn policy_for(
         &self,
         tier: BlastRadius,
-        _workspace: &WorkspaceRef,
+        workspace: &WorkspaceRef,
         deadline: Deadline,
     ) -> Result<SandboxPolicy, PolicyProviderError> {
         if tier == BlastRadius::Irreversible {
@@ -398,6 +466,20 @@ impl PolicyProvider for PolicyFs {
             // (mistakenly or maliciously) present.
             return Err(PolicyProviderError::NoPolicyForTier { tier });
         }
+        // `$WORKSPACE_ROOT` in a policy entry must mean THIS call's own
+        // workspace, never the shared parent every other caller's
+        // workspace also lives under (R-1). Validate the ref as a safe
+        // path segment BEFORE using it as one — `WorkspaceRef::new`'s own
+        // validation does not reject `..`, a lone `.`, or embedded `/`,
+        // so a naive join would let the scoped anchor escape its own
+        // parent, reopening the anchor-escape class COR-2 already closed
+        // for policy-entry paths.
+        let segment = validated_workspace_segment(workspace)?;
+        let effective_anchors = AnchorRoots {
+            workspace_root: self.anchors.workspace_root.join(segment),
+            project_root: self.anchors.project_root.clone(),
+            home: self.anchors.home.clone(),
+        };
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|err| PolicyProviderError::Unavailable {
@@ -433,7 +515,7 @@ impl PolicyProvider for PolicyFs {
         let doc = json::parse(&text).map_err(|err| PolicyProviderError::Invalid {
             detail: format!("{} does not decode as strict JSON: {err}", file.display()),
         })?;
-        Self::decode(tier, &file, &doc, &self.anchors)
+        Self::decode(tier, &file, &doc, &effective_anchors)
     }
 
     /// Deliberately out of scope, recorded honestly: the frozen ruler
@@ -565,7 +647,12 @@ mod tests {
         assert_eq!(contained.tier, BlastRadius::Contained);
         assert_eq!(contained.backend.as_str(), "bwrap");
         assert_eq!(contained.network, NetworkPosture::DenyByDefault);
-        assert_eq!(contained.writable_roots, vec!["/run/workspaces".to_owned()]);
+        // `$WORKSPACE_ROOT` resolves to THIS call's own workspace under
+        // the shared parent (R-1) — not the bare shared parent itself.
+        assert_eq!(
+            contained.writable_roots,
+            vec!["/run/workspaces/ws-policy-fs-test".to_owned()]
+        );
         assert!(contained.denied_paths.is_empty());
 
         let local = provider
@@ -585,7 +672,7 @@ mod tests {
         assert_eq!(
             cross.writable_roots,
             vec![
-                "/run/workspaces".to_owned(),
+                "/run/workspaces/ws-policy-fs-test".to_owned(),
                 "/home/operator/cache".to_owned(),
             ]
         );
@@ -906,12 +993,16 @@ mod tests {
         assert_eq!(contained.tier, BlastRadius::Contained);
         assert_eq!(contained.backend.as_str(), "bwrap");
         assert_eq!(contained.network, NetworkPosture::DenyByDefault);
+        // `$WORKSPACE_ROOT` resolves to THIS call's own workspace under
+        // the shared `target/workspaces` parent (R-1), not that bare
+        // parent itself.
         assert_eq!(
             contained.writable_roots,
             vec![
                 repo_root
                     .join("target")
                     .join("workspaces")
+                    .join("ws-policy-fs-test")
                     .display()
                     .to_string()
             ]
@@ -1053,7 +1144,7 @@ mod tests {
             .expect("a path that stays inside its anchor resolves");
         assert_eq!(
             policy.writable_roots,
-            vec!["/run/workspaces/b/c".to_owned()]
+            vec!["/run/workspaces/ws-policy-fs-test/b/c".to_owned()]
         );
     }
 
@@ -1068,7 +1159,7 @@ mod tests {
             .expect("a not-yet-created path inside the anchor resolves");
         assert_eq!(
             policy.writable_roots,
-            vec!["/run/workspaces/not/created/yet".to_owned()]
+            vec!["/run/workspaces/ws-policy-fs-test/not/created/yet".to_owned()]
         );
     }
 
@@ -1081,9 +1172,15 @@ mod tests {
         let scratch = Scratch::new("anchor-symlink");
         let workspace_root = scratch.path.join("ws");
         let outside = scratch.path.join("outside");
-        std::fs::create_dir_all(&workspace_root).expect("the anchor dir is creatable");
+        // `policy_for` scopes $WORKSPACE_ROOT to
+        // `workspace_root.join(<this call's workspace ref>)` (R-1); this
+        // fixture's ref is `workspace_ref()` ("ws-policy-fs-test"), so the
+        // effective anchor — and the symlink under test — live one level
+        // deeper than the bare `workspace_root` passed into `AnchorRoots`.
+        let effective_workspace = workspace_root.join(workspace_ref().as_str());
+        std::fs::create_dir_all(&effective_workspace).expect("the anchor dir is creatable");
         std::fs::create_dir_all(&outside).expect("the outside dir is creatable");
-        std::os::unix::fs::symlink(&outside, workspace_root.join("escape"))
+        std::os::unix::fs::symlink(&outside, effective_workspace.join("escape"))
             .expect("the symlink is creatable");
         let anchors = AnchorRoots {
             workspace_root: workspace_root.clone(),
@@ -1099,12 +1196,127 @@ mod tests {
             other => panic!("a symlink out of the anchor must be Invalid, got {other:?}"),
         }
         // A real directory inside the anchor still resolves.
-        std::fs::create_dir_all(workspace_root.join("real")).expect("the dir is creatable");
+        std::fs::create_dir_all(effective_workspace.join("real")).expect("the dir is creatable");
         let policy = resolve_root_with(&scratch, "$WORKSPACE_ROOT/real", anchors)
             .expect("a real path inside the anchor resolves");
         assert_eq!(
             policy.writable_roots,
-            vec![workspace_root.join("real").display().to_string()]
+            vec![effective_workspace.join("real").display().to_string()]
         );
+    }
+
+    // -----------------------------------------------------------------
+    // R-1 regression tests: $WORKSPACE_ROOT is scoped to THIS call's own
+    // workspace, never the shared parent every other caller's workspace
+    // also lives under.
+    // -----------------------------------------------------------------
+
+    /// The test that would have caught R-1 directly: the SAME provider,
+    /// over the SAME `$WORKSPACE_ROOT`-anchored policy, called with two
+    /// DIFFERENT `WorkspaceRef`s, must resolve to two DIFFERENT writable
+    /// roots — and NEITHER may be the bare shared parent
+    /// (`anchors().workspace_root`) itself, which is exactly what the
+    /// pre-fix code handed to every caller regardless of which workspace
+    /// it claimed to be resolving for.
+    #[test]
+    fn two_different_workspaces_resolve_to_disjoint_writable_roots() {
+        let scratch = Scratch::new("two-workspaces");
+        scratch.write("contained.json", CONTAINED_BODY);
+        let provider = PolicyFs::new(scratch.path.clone(), anchors());
+        let workspace_a = WorkspaceRef::new("unit-a-workspace").expect("test workspace ref a");
+        let workspace_b = WorkspaceRef::new("unit-b-workspace").expect("test workspace ref b");
+        let policy_a = provider
+            .policy_for(BlastRadius::Contained, &workspace_a, bound())
+            .expect("workspace a's policy resolves");
+        let policy_b = provider
+            .policy_for(BlastRadius::Contained, &workspace_b, bound())
+            .expect("workspace b's policy resolves");
+        assert_ne!(
+            policy_a.writable_roots, policy_b.writable_roots,
+            "two different callers' workspaces must not resolve to the same writable root — \
+             the pre-fix code handed BOTH the identical bare shared parent"
+        );
+        let shared_parent = anchors().workspace_root.display().to_string();
+        for (label, policy) in [("a", &policy_a), ("b", &policy_b)] {
+            for root in &policy.writable_roots {
+                assert_ne!(
+                    root, &shared_parent,
+                    "workspace {label}'s writable root must not be the bare shared parent \
+                     itself — that would grant it (and every other caller resolved against \
+                     this same provider) read-write over every OTHER caller's workspace too: \
+                     {root}"
+                );
+                assert!(
+                    !Path::new(&shared_parent).starts_with(root),
+                    "the shared parent must not be reachable AS or THROUGH workspace {label}'s \
+                     writable root {root} — that would still let it widen back out to every \
+                     sibling workspace"
+                );
+            }
+        }
+    }
+
+    /// `WorkspaceRef::new`'s own validation does not reject `..`, a lone
+    /// `.`, or embedded `/` — each of these slips past it and must
+    /// instead be refused by `policy_for` itself, BEFORE it is joined
+    /// onto the workspace anchor root as a path segment (R-1's Step 1).
+    #[test]
+    fn an_unsanitized_workspace_ref_is_refused() {
+        let scratch = Scratch::new("unsanitized-workspace");
+        scratch.write("contained.json", CONTAINED_BODY);
+        let provider = PolicyFs::new(scratch.path.clone(), anchors());
+        for raw in ["..", ".", "a/../../etc", "has/slash"] {
+            let workspace = WorkspaceRef::new(raw).unwrap_or_else(|error| {
+                panic!(
+                    "{raw:?} is expected to pass WorkspaceRef::new's own (weaker) validation \
+                     for this case to prove anything about policy_for's own guard: {error:?}"
+                )
+            });
+            match provider.policy_for(BlastRadius::Contained, &workspace, bound()) {
+                Err(PolicyProviderError::Invalid { detail }) => {
+                    assert!(
+                        detail.contains(raw),
+                        "the refusal names the offending workspace ref: {detail}"
+                    );
+                }
+                other => {
+                    panic!("an unsanitized workspace ref {raw:?} must be Invalid, got {other:?}")
+                }
+            }
+        }
+    }
+
+    /// Spec §17.5.2's containment check (COR-2/COR-5, unchanged by this
+    /// fix) now runs against the NARROWER per-call anchor: an entry that
+    /// steps one level up from `$WORKSPACE_ROOT` and back down into a
+    /// same-named sibling resolves to a location a bare, unscoped
+    /// `$WORKSPACE_ROOT` grant would have silently included (it sits
+    /// directly under the shared parent, exactly like the bare-token
+    /// grant `two_different_workspaces_resolve_to_disjoint_writable_roots`
+    /// pins) — and the fixed code refuses it as an escape of THIS call's
+    /// own, narrower anchor.
+    #[test]
+    fn a_relative_escape_through_the_workspace_segment_is_refused() {
+        let scratch = Scratch::new("workspace-segment-escape");
+        match resolve_root(&scratch, "$WORKSPACE_ROOT/../sibling-workspace") {
+            Err(PolicyProviderError::Invalid { detail }) => {
+                assert!(
+                    detail.contains("contained.json"),
+                    "the finding names the file: {detail}"
+                );
+                assert!(
+                    detail.contains("$WORKSPACE_ROOT/../sibling-workspace"),
+                    "the finding names the offending entry: {detail}"
+                );
+                assert!(
+                    detail.contains("escapes"),
+                    "the finding names the offense: {detail}"
+                );
+            }
+            other => panic!(
+                "a step out of THIS call's own workspace and into a sibling's must be Invalid, \
+                 got {other:?}"
+            ),
+        }
     }
 }
