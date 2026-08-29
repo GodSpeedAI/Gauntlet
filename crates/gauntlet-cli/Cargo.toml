@@ -18,6 +18,13 @@ gauntlet-app.workspace = true
 # are used; no vendor-flavored item name is spelled in this crate (the
 # boundary suite masks the crate name only).
 gauntlet-adapter-sandbox-bwrap.workspace = true
+# Plan Task 15: `gauntlet doctor` MEASURES the configured default runner
+# (§8.5 check 3) by probing the real delegation harness through the
+# runner adapter's typed version probe (the supported range comes from
+# the app defaults module). Only the adapter crate name and its
+# capability-named surface are spelled here; the boundary suite masks
+# the crate name only.
+gauntlet-adapter-agent-prime.workspace = true
 
 # Spec §4.1, plan Task 20: the CLI is the composition root — the only crate
 # that may construct adapters and wire them into the application layer.

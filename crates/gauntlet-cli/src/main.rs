@@ -46,6 +46,12 @@ fn doctor(args: &[String]) -> ExitCode {
     // cannot map vendor tokens to rungs (§24.3), so the measurement is a
     // composition fact. Only the capability-named façade is used.
     input.backend_measure = Some(measure_backend);
+    // Plan Task 15 (§8.5 check 3): the composition root measures the
+    // configured default runner through the real adapter's typed version
+    // probe — the supported range comes from the app defaults module
+    // (correction RES-D8), so the adapter never owns its compatibility
+    // ruler. A probe mismatch fails doctor as a configuration failure.
+    input.runner_measure = Some(measure_runner);
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
@@ -78,6 +84,40 @@ fn doctor(args: &[String]) -> ExitCode {
             eprintln!("gauntlet doctor: could not write the machine report: {err}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// Measures the configured default runner for §8.5 check 3 (plan Task
+/// 15): fronts the real delegation-harness runner adapter, probes its
+/// binary through the adapter's typed probe (the supported-version range
+/// is injected from the app defaults module), and reports the
+/// measurement. `None` when the token names a runner this composition
+/// does not front. The only item names used are the adapter's
+/// capability-named surface and its runner token constant — the crate
+/// name is the composition root's to spell (§4.1).
+fn measure_runner(token: &str) -> Option<gauntlet_app::doctor::checks::RunnerDescriptor> {
+    use gauntlet_adapter_agent_prime as recursive_runner;
+
+    if token != recursive_runner::RUNNER_TOKEN {
+        // The token names a runner this composition does not front.
+        return None;
+    }
+    let config = recursive_runner::PrimeAdapterConfig::default();
+    let range = recursive_runner::VersionRange {
+        min: gauntlet_app::config::defaults::HARNESS_VERSION_MIN,
+        limit: gauntlet_app::config::defaults::HARNESS_VERSION_LIMIT,
+    };
+    match recursive_runner::probe(&config.binary, &range, doctor_bound()) {
+        Ok(_) => Some(gauntlet_app::doctor::checks::RunnerDescriptor {
+            token: token.to_owned(),
+            measured: true,
+            note: None,
+        }),
+        Err(error) => Some(gauntlet_app::doctor::checks::RunnerDescriptor {
+            token: token.to_owned(),
+            measured: false,
+            note: Some(error.to_string()),
+        }),
     }
 }
 

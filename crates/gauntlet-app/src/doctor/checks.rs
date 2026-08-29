@@ -632,7 +632,29 @@ fn read_reference_lock(lock_path: &Path) -> Result<FrozenLock, String> {
 // Check 3 — a runner resolves for every dispatchable role (§8.5 check 3)
 // ---------------------------------------------------------------------------
 
-pub fn check_runners(resolved: &ResolvedConfig) -> CheckOutcome {
+/// A composition-root MEASUREMENT of the configured default runner (plan
+/// Task 15, §8.5 check 3; correction RES-D7): the mirror of
+/// [`BackendDescriptor`]. The app layer cannot probe a harness binary
+/// itself — the adapter lives under `crates/adapters/**` (§24.3) — so the
+/// measurement arrives from the composition root, which owns the
+/// adapters. What was MEASURED is the harness API-surface version
+/// compatibility only; the evidence text says so and nothing more.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunnerDescriptor {
+    /// The runner token the descriptor measured (must equal the resolved
+    /// `runners.default`, or the descriptor describes a different runner).
+    pub token: String,
+    /// Whether the probe RESOLVED: the binary was found, its version
+    /// parsed, and the version sits inside the supported range (the range
+    /// is [`crate::config::defaults::HARNESS_VERSION_MIN`] ..
+    /// [`crate::config::defaults::HARNESS_VERSION_LIMIT`], injected by
+    /// the composition root).
+    pub measured: bool,
+    /// Why measurement failed, when it did — the probe's typed locus.
+    pub note: Option<String>,
+}
+
+pub fn check_runners(resolved: &ResolvedConfig, runner: Option<&RunnerDescriptor>) -> CheckOutcome {
     let has_default = resolved
         .runners_default
         .as_deref()
@@ -683,7 +705,77 @@ pub fn check_runners(resolved: &ResolvedConfig) -> CheckOutcome {
             evidence,
         )
     };
-    let resolution_reason = "runner adapters land with plan Tasks 15–16";
+    // The resolution half (plan Task 15, correction RES-D7): when the
+    // configuration names a default runner AND the composition root
+    // measured it, the check reports the MEASURED probe result — resolved
+    // or failed with its locus — instead of the blanket unavailability.
+    // A failed measurement is a configuration failure (non-zero exit
+    // class), never an unavailable-inside-pass. With no measurement (no
+    // hook, no adapter fronting the token, or no runner configured), the
+    // honest unavailability stands.
+    let has_named_runner = has_default;
+    let resolution = match (has_named_runner, runner) {
+        (true, Some(descriptor))
+            if descriptor.token != resolved.runners_default.as_deref().unwrap_or("") =>
+        {
+            (
+                CheckStatus::Fail,
+                vec![format!(
+                    "runner_resolution_mismatch: the measured descriptor names runner '{}' \
+                     while the configuration resolves '{}' — the measurement describes a \
+                     different runner",
+                    descriptor.token,
+                    resolved.runners_default.as_deref().unwrap_or("")
+                )],
+            )
+        }
+        (true, Some(descriptor)) if !descriptor.measured => (
+            CheckStatus::Fail,
+            vec![format!(
+                "runner_probe_failed: runner '{}' could not be probed{} — a harness whose \
+                 API-surface version does not resolve is a configuration failure (spec 8.5 \
+                 check 3, 21.1)",
+                resolved.runners_default.as_deref().unwrap_or(""),
+                descriptor
+                    .note
+                    .as_ref()
+                    .map(|note| format!(": {note}"))
+                    .unwrap_or_default()
+            )],
+        ),
+        (true, Some(descriptor)) => (
+            CheckStatus::Pass,
+            vec![format!(
+                "runner '{}' resolves: the harness API-surface version probe measured clean \
+                 (version compatibility only — isolation is declared per invocation at dispatch)",
+                descriptor.token
+            )],
+        ),
+        (true, None) => {
+            let reason = "runner adapters land with plan Tasks 15–16";
+            (
+                CheckStatus::Unavailable {
+                    reason: reason.to_owned(),
+                },
+                vec![format!(
+                    "runtime resolution against a runner registry is unavailable: \
+                     {reason} — the composition root measured no descriptor for the \
+                     configured runner"
+                )],
+            )
+        }
+        (false, _) => {
+            let reason = "no runner configured (UNK-003)";
+            (
+                CheckStatus::Unavailable {
+                    reason: reason.to_owned(),
+                },
+                vec![format!(
+                    "runtime resolution against a runner registry is unavailable: {reason}"
+                )],
+            )
+        }
+    };
     CheckOutcome::combine(
         3,
         "runners",
@@ -696,13 +788,8 @@ pub fn check_runners(resolved: &ResolvedConfig) -> CheckOutcome {
             },
             SubResult {
                 name: "resolution".to_owned(),
-                status: CheckStatus::Unavailable {
-                    reason: resolution_reason.to_owned(),
-                },
-                evidence: vec![format!(
-                    "runtime resolution against a runner registry is unavailable: \
-                     {resolution_reason}"
-                )],
+                status: resolution.0,
+                evidence: resolution.1,
             },
         ],
         Vec::new(),
@@ -738,6 +825,7 @@ pub struct BackendDescriptor {
 pub fn check_capabilities(
     resolved: &ResolvedConfig,
     descriptor: Option<&BackendDescriptor>,
+    runner: Option<&RunnerDescriptor>,
 ) -> CheckOutcome {
     let backend_live = resolved.sandbox_backend.trim() != defaults::SANDBOX_BACKEND;
     // The §17.3 tier→rung table is the GATE's, read through
@@ -829,13 +917,73 @@ pub fn check_capabilities(
             }
         }
     };
-    // Subresult 2 — the RUNNER half of §8.5 check 4: a runner's reported
-    // isolation vs the tiers. Runners resolve through the registry that
-    // lands with plan Tasks 15-16 (the same reason check 3's resolution
-    // subresult is unavailable today); the gate at dispatch enforces the
-    // fact per invocation in the meantime.
-    let runner_reason = "runner capabilities resolve with plan Tasks 15-16; the dispatch gate \
-         enforces per-invocation isolation in the meantime";
+    // Subresult 2 — the RUNNER half of §8.5 check 4: fed from the same
+    // measured descriptor as check 3's resolution half (plan Task 15,
+    // RES-D7). A measured-but-failed probe is a FAIL here too — never an
+    // unavailable-inside-pass. What was measured is the harness
+    // API-surface version compatibility ONLY; the per-invocation
+    // isolation-vs-tier enforcement remains the dispatch gate's (§17.3),
+    // and the evidence says exactly that.
+    let (runner_status, runner_evidence) = match runner {
+        Some(descriptor)
+            if resolved
+                .runners_default
+                .as_deref()
+                .is_some_and(|name| !name.trim().is_empty()) =>
+        {
+            if descriptor.token != resolved.runners_default.as_deref().unwrap_or("") {
+                (
+                    CheckStatus::Fail,
+                    vec![format!(
+                        "runner_resolution_mismatch: the measured descriptor names runner '{}' \
+                         while the configuration resolves '{}'",
+                        descriptor.token,
+                        resolved.runners_default.as_deref().unwrap_or("")
+                    )],
+                )
+            } else if !descriptor.measured {
+                (
+                    CheckStatus::Fail,
+                    vec![format!(
+                        "runner_probe_failed: runner '{}' could not be probed{} — a runner \
+                         nothing can probe covers no dispatchable role (spec 8.5 check 4)",
+                        descriptor.token,
+                        descriptor
+                            .note
+                            .as_ref()
+                            .map(|note| format!(": {note}"))
+                            .unwrap_or_default()
+                    )],
+                )
+            } else {
+                (
+                    CheckStatus::Pass,
+                    vec![
+                        format!(
+                            "runner '{}' probed: harness API-surface version compatibility \
+                             measured (that dimension only)",
+                            descriptor.token
+                        ),
+                        "runner isolation-vs-tier enforcement happens per invocation at the \
+                         dispatch gate (spec 17.3); the doctor measures no rung for runners"
+                            .to_owned(),
+                    ],
+                )
+            }
+        }
+        _ => {
+            let runner_reason = "runner capabilities resolve with plan Tasks 15-16; the dispatch \
+                 gate enforces per-invocation isolation in the meantime";
+            (
+                CheckStatus::Unavailable {
+                    reason: runner_reason.to_owned(),
+                },
+                vec![format!(
+                    "runtime runner-capability resolution is unavailable: {runner_reason}"
+                )],
+            )
+        }
+    };
     CheckOutcome::combine(
         4,
         "capabilities",
@@ -848,12 +996,8 @@ pub fn check_capabilities(
             },
             SubResult {
                 name: "runner capabilities".to_owned(),
-                status: CheckStatus::Unavailable {
-                    reason: runner_reason.to_owned(),
-                },
-                evidence: vec![format!(
-                    "runtime runner-capability resolution is unavailable: {runner_reason}"
-                )],
+                status: runner_status,
+                evidence: runner_evidence,
             },
         ],
         Vec::new(),

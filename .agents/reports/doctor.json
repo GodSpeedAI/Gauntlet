@@ -98,10 +98,10 @@
         },
         {
           "evidence": [
-            "runtime resolution against a runner registry is unavailable: runner adapters land with plan Tasks 15–16"
+            "runtime resolution against a runner registry is unavailable: no runner configured (UNK-003)"
           ],
           "name": "resolution",
-          "reason": "runner adapters land with plan Tasks 15–16",
+          "reason": "no runner configured (UNK-003)",
           "status": "unavailable"
         }
       ]
@@ -233,5 +233,5 @@
   "config_fingerprint": "sha256:7acfc25f7eda51ae4d708c5e352461a7bfd99ed43e22a3da1a1de1d749c918e7",
   "config_origin": "/home/sprime01/projects/gauntlet/GAUNTLET.md",
   "exit_code": 0,
-  "generated_at": 1788007127
+  "generated_at": 1788043637
 }

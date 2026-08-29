@@ -287,6 +287,7 @@ name = "gauntlet-cli"
 version = "0.1.0"
 dependencies = [
  "gauntlet-adapter-agent-mock",
+ "gauntlet-adapter-agent-prime",
  "gauntlet-adapter-compare-diff",
  "gauntlet-adapter-compare-model",
  "gauntlet-adapter-evidence-fs",

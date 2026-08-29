@@ -1,0 +1,286 @@
+# Task 15 outcome record (research instrumentation, non-normative).
+# The frozen preregistration (.agents/research/preregistrations/task-15.prereg.yaml,
+# sha256 61a0841d3e49a73915d5c7ec4477df6203c7e7ab96c5cf3673b7fa0e981a0915)
+# was never edited; `just prereg-check 15` PASS on the final tree. This file
+# records what was observed, including where a prediction did not hold.
+
+schema_version: 1
+task: 15
+
+preregistration:
+  path: ".agents/research/preregistrations/task-15.prereg.yaml"
+  sha256: "61a0841d3e49a73915d5c7ec4477df6203c7e7ab96c5cf3673b7fa0e981a0915"
+
+observed:
+  task_result: >-
+    SETTLED (CONFIRM). The first real (non-mock) AgentRunner landed: a
+    prime-agent-harness adapter (kernel-transport + harness-control seams,
+    Annex C.1 renderer, contract-file-only poll state machine, honest
+    capabilities, injected-range version probe surfaced through doctor's
+    measured-descriptor pattern), passing the UNMODIFIED shared contract
+    suite over doubles and a REAL live admission twice (orchestrator 35.4 s,
+    falsifier 40.4 s) with the D1-split forensics asserted. One
+    pre-implementation blind design review (NOT_CONFIRM: 1 blocking / 5
+    major / 6 minor — all corrected mid-flight before B1 completed) and one
+    fresh blind EXECUTING falsifier round (CONFIRM: 0 blocking; 2 major
+    missing-teeth findings corrected by COR-D3 with teeth re-verified
+    personally; 1 minor). Three gate-phase correction rounds (COR-D1..D3),
+    every one triggered by an honest live failure, none by a fake green.
+
+  material_events:
+    - >-
+      The design critic's blocking find (RES-D1) was the prereg's own P1/R1
+      shape present in the DESIGN DOCUMENT itself: the recon's invoke waited
+      on the parent print-run's lifetime, which would have collapsed
+      admission into child completion on a rambling/waiting parent — and
+      the contract suite could never have caught it, because the doubles
+      resolve instantly. Routing the correction mid-flight (before B1
+      completed) cost one message; landing it post-implementation would
+      have cost a builder round plus a re-review. The parallel critic
+      dispatch paid for itself.
+    - >-
+      Four harness-surface divergences were found by EXECUTION, none by
+      reading: `--version` on stderr (live probe round 1 failed honestly at
+      the first step); `RLMSpawnHandle.session_dir` is a PosixPath so the
+      renderer's json.dumps threw after a SUCCESSFUL admission (round 2);
+      `list --json` wraps its array in a `{"sessions": ...}` object (round
+      2's orphan sweep); and the load-bearing one — a print-mode parent's
+      child materializes ONLY while the parent lives past admission
+      (isolated by 6 bounded probes + 1 real child; the linger+reaper shape
+      is evidence-calibrated, default 30 s). P3 predicted the class; the
+      specific shapes were unforeseeable from the upstream docs, whose own
+      examples conceal them.
+    - >-
+      The falsifier's verdict was CONFIRM with zero blocking, and its two
+      MAJORS were both MISSING TEETH, not broken mechanisms: mutating the
+      strict handle decode (to accept an answer-shaped unknown field) and
+      the cancel no-op (to re-issue the harness stop) each passed the
+      ENTIRE default battery. 13/13 executable attacks were repelled by
+      the mechanisms as built. COR-D3 added the three teeth groups as
+      tests only; the orchestrator re-applied M2 and M7 by hand — RED,
+      byte-identical restore (sha256), GREEN.
+    - >-
+      Zero sub-agent interruptions this task (vs 25+ across tasks 3-14).
+      One compiler at a time was held throughout; the critic round ran
+      static-only precisely so it could overlap the builder without
+      contending for the build lock.
+
+  rounds:
+    correction: 3            # COR-D1, COR-D2, COR-D3 (gate phase); the
+                             # 12 design-review corrections were routed
+                             # pre-implementation and are not counted here
+    confirmation: 2          # design critic (NOT_CONFIRM) + executing
+                             # falsifier round 1 (CONFIRM)
+    to_first_confirm: 2      # counting the design review as round 1
+
+post_run:
+  closed_at:
+    git_commit: "see .agents/CURRENT_STATUS.yml evidence entry (written
+      after the closure commit by the established two-commit pattern)"
+    timestamp_utc: "2026-08-29T23:30:00Z"
+    rounds:
+      correction: 3
+      confirmation: 2
+      to_first_confirm: 2
+
+  predictions:
+    - id: P1
+      type: match
+      prior: 0.55
+      informativeness: routine
+      observed: >
+        Fired AT DESIGN LEVEL, before code: the recon's invoke shape waited
+        on the parent print-run (the critic's blocking RES-D1), and the
+        prereg's own D1 second-end language is what made it nameable. The
+        builder then implemented the corrected handle-watch shape without
+        reintroducing the await.
+      divergence: >
+        Predicted "a first implementation will be tempted"; it was the
+        design (the recon) that carried the flaw. Stage differs; shape is
+        the predicted one.
+      resolution_evidence:
+        - ".agents/reports/task15/critic-design.md (RES-D1)"
+        - ".agents/reports/task15/design-adjudication.md"
+        - ".agents/reports/task15/falsifier-round1.md (live probe D1 forensics)"
+      interpretable: true
+    - id: P2
+      type: spurious
+      prior: 0.5
+      informativeness: routine
+      observed: >
+        The executing falsifier found NO classification or deadline defect:
+        all 13 attacks (mailbox-ignored, liveness-ignored, deadline
+        ownership, late-writer, classification whole-document) were
+        repelled. Its two majors were missing TEETH for guarantees that
+        held — a different axis (coverage), not the predicted one.
+      divergence: >
+        The predicted defect class did not exist; the critique phase fired
+        on test-coverage instead of mechanism.
+      resolution_evidence:
+        - ".agents/reports/task15/falsifier-round1.md (§2 all REPELLED, §6 F1/F2)"
+      interpretable: true
+    - id: P3
+      type: match
+      prior: 0.6
+      informativeness: risky
+      observed: >
+        Four divergences, each forcing a recorded correction (COR-D1,
+        COR-D2a-c): version-on-stderr, PosixPath handle fields,
+        {"sessions": ...} wrapper, and the parent-linger child-creation
+        dependency. No carve-out was needed — every divergence was fixed
+        rather than carved out, and both live-probe runs completed.
+      divergence: >
+        None of substance; the prediction named "probe-range correction or
+        honest carve-out" and the outcome was a third path (four renderer/
+        transport corrections). The prediction's core — divergence found by
+        live execution, recorded, never faked — held exactly.
+      resolution_evidence:
+        - ".agents/reports/task15/design-adjudication.md (addenda 1-2)"
+        - ".agents/reports/task15/b1-progress.md (COR-D1/COR-D2 entries)"
+      interpretable: true
+    - id: P4
+      type: spurious
+      prior: 0.55
+      informativeness: routine
+      observed: >
+        The doctor extension was purely additive: 4 new tests; all 350
+        pre-existing app tests kept their expectations; the
+        blanket-unavailable path is retained verbatim for unfronted tokens.
+        No existing test needed re-derivation.
+      divergence: >
+        Predicted at least one existing expectation would change; none did.
+      resolution_evidence:
+        - ".agents/reports/task15/builder-b1.md (B2 section)"
+        - "just test-package gauntlet-app = 350/350 on the final tree"
+      interpretable: true
+    - id: P5
+      type: match
+      prior: 0.5
+      informativeness: routine
+      observed: >
+        Both named candidates surfaced and were recorded as decisions, not
+        local inventions: the supported-range constant's home (RES-D8 —
+        typed VersionRange injected from the app defaults module; the
+        package-marker probe dropped as non-durable) and the
+        ResultContractPath resolution rule (RES-D3 — invocation dir pinned,
+        token = literal leaf, workspace stays injected/R-1b's territory).
+      divergence: >
+        None.
+      resolution_evidence:
+        - ".agents/reports/task15/design-adjudication.md (RES-D3, RES-D8 rows)"
+      interpretable: true
+
+  blindspots:
+    - index: 0
+      materialized: partial
+      cost_if_materialized: >
+        Two live-probe rounds failed honestly before round 3 passed; each
+        failure converted into a bounded correction the same session. The
+        latency/refusal characterization gap itself never bit (admission
+        was fast when the shape was right); what bit was the unmodeled
+        child-lifecycle dependency (filed as unforeseen U1).
+      note: >
+        Declaring the model-backed parent as a blindspot is what justified
+        the env-gated, bounded, once-per-round live probe — the instrument
+        that caught everything.
+    - index: 1
+      materialized: no
+      cost_if_materialized: ""
+      note: >
+        The daemon works on this host (24 h uptime, list/status functional;
+        children spawn). Declaring it cost one `status --json` probe during
+        diagnosis; the mitigation (record, never fake) was free.
+    - index: 2
+      materialized: no
+      cost_if_materialized: ""
+      note: >
+        The child wrote a conforming role_result@v1 on the first live try
+        (round 3) once the handle-path divergence was fixed; the mock's
+        byte reference carried over unchanged.
+
+  unforeseen:
+    - id: U1
+      description: >
+        The parent-linger requirement: a print-mode parent's delegated
+        child materializes only while the parent session stays alive past
+        admission. No prediction, blindspot, or upstream doc line
+        anticipated it; the upstream flow diagram shows child creation
+        AFTER the admission response, which is only legible as a lifecycle
+        constraint in retrospect.
+      class: new
+      would_a_prior_prereg_have_caught_it: no
+      first_seen_task: 15
+    - id: U2
+      description: >
+        The falsifier's finding class skew: CONFIRM with zero blocking,
+        yet two guarantees with zero in-tree teeth (mutations passed the
+        whole battery). The round structure expected mechanism defects or
+        nothing; "repelled mechanism, unprotected guarantee" is a third
+        outcome the severity vocabulary only partly captures (it landed as
+        major findings, which fits, but no prediction named it).
+      class: "existing residual class name: missing-teeth (task14's M-series)"
+      would_a_prior_prereg_have_caught_it: "partial — the transfer_tests L3
+        commitment pointed at teeth, not at this exact shape"
+      first_seen_task: 15
+
+  interventions:
+    - risk_id: R1
+      fired: true
+      class_used: A5
+      matched_preregistered: true
+      note: >
+        Fired at design level (RES-D1); the A5 fail-first machinery (arch
+        await-ban scan with negative controls) was built and the falsifier
+        mutation-tested it (M5: a REAL violation planted in transport.rs
+        fired the scan with the exact locator).
+    - risk_id: R2
+      fired: false
+      class_used: A4
+      matched_preregistered: true
+      note: >
+        No fake-success pressure materialized; both live failures were
+        recorded honestly and converted into corrections. A4's env-gating
+        kept the default battery deterministic and free.
+    - risk_id: R3
+      fired: false
+      class_used: A5
+      matched_preregistered: true
+      note: >
+        Check 5 untouched; all pre-existing doctor tests green throughout;
+        the falsifier's M6 confirmed the failed-probe ⇒ Fail leg has teeth.
+    - risk_id: R4
+      fired: false
+      class_used: A4
+      matched_preregistered: true
+      note: >
+        Dispatch path untouched; R-1b/R-2/R-3 restated open with their
+        triggers; no composition desire was implemented.
+
+  residual_classes_touched:
+    - name: untrusted-model-written-document strict decode (handle document)
+      instance_number: 1
+      predicted_in_advance: true
+    - name: harness-surface-divergence-discovered-by-execution
+      instance_number: 1
+      predicted_in_advance: true
+    - name: missing-teeth (guarantee without a committed test that fails when broken)
+      instance_number: 2
+      predicted_in_advance: false
+
+  method_burden:
+    findings: {critical: 1, major: 7, minor: 7}   # design round: 1 blocking
+                                                  # + 5 major + 6 minor;
+                                                  # falsifier: 2 major + 1 minor
+    findings_that_evaded_a_prior_defense: 2       # F1, F2 — evaded the full
+                                                  # green battery AND the
+                                                  # design review
+    toothless_checks_found: 2                     # fixed by COR-D3
+    residuals: {opened: 5, closed: 0, deferred: 10}  # T15-R1..R5 opened;
+                                                  # R-1b/R-2/R-3 + 5 more
+                                                  # restated/deferred
+    interruptions: 0
+    green_gate_was_wrong: false                   # the battery was green and
+                                                  # no gate asserted a falsehood;
+                                                  # two guarantees were simply
+                                                  # uncovered (now covered)
+    operator_adjudication_minutes: null

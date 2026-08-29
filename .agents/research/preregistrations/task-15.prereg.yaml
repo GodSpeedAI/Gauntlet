@@ -1,0 +1,324 @@
+# Task 15 preregistration — research instrumentation, non-normative.
+# Written BEFORE any Task-15 implementation exists. Immutable once frozen.
+# Derived only from: .agents/CURRENT_STATUS.md, .agents/specs/Core-spec.md
+# (§6.1, §6.3, §8.5, §10.3, §10.5, §10.7, §21.2, Annex B.1-B.2, Annex C,
+# I4, I11, AK-008..AK-012), .agents/plans/gauntlet-impl.md (Task 15,
+# Task 16 context), .agents/reports/task15/recon.md,
+# .agents/reports/task14/closure.md (residuals R-1b/R-2/R-3 and their
+# triggers), .agents/reports/environment.md, .agents/reports/delegation-spike.md,
+# and the Task-4..14 closure records already in CURRENT_STATUS.
+
+schema_version: 1
+task: 15
+
+frozen_at:
+  git_commit: "6f133a8214deb095806e5ffac7c7b898498a50e0"
+  timestamp_utc: "2026-08-29T20:44:24Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-15.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+  - ".agents/reports/task15/recon.md"
+  - ".agents/reports/task14/closure.md"
+  - ".agents/reports/environment.md"
+  - ".agents/reports/delegation-spike.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task 15 delivers the FIRST real (non-mock) AgentRunner: an adapter that
+      delegates through the prime-agent harness's native recursive sub-agent
+      mechanism and fans results in through the result contract. Recon says
+      the PORT layer is complete and contract-tested (AgentRunner trait, ten
+      shared suite cases with broken-stub teeth, strict role_result@v1 codec),
+      the harness is PRESENT on this host (prime-agent 0.8.0, live PROBE_OK
+      round-trip, upstream rlm docs in-tree matching Annex C verbatim:
+      admission handles never carrying answers, mailbox-as-signal,
+      list_subagents as liveness only, kernel-is-not-a-sandbox), and the
+      crate exists as a doc-comment-only stub from Task 2 — while NO runner
+      code, NO version probe, and NO doctor runner-resolution half exist.
+      The plan's redesign trigger ("harness unavailable") does NOT fire, so
+      the adapter must be delivered as a real runner, with the suite passing
+      UNMODIFIED. The likely failure classes are seams, not missing
+      primitives: (a) the AWAIT seam — the one banned shape (any code path
+      that awaits/derives a result from the delegation call) is attractive
+      precisely because the parent print-run finishes before the child does;
+      the adapter must treat the parent's completion as ADMISSION evidence
+      only and the mailbox as a signal, never a completion source;
+      (b) the CLASSIFICATION seam — poll must map result-contract facts to
+      exactly the §10.3 states (Running / Completed / TimedOut /
+      Failed{malformed_result} / Failed{contract_mismatch}) with the deadline
+      owned by the spec, and must NOT conclude failure from a missing live
+      process while the contract is pending inside the deadline (Annex C.4);
+      (c) the PROBE seam — the version probe must be a typed
+      configuration-class failure surfaced by doctor (measured-descriptor
+      pattern), not a runtime panic and not a silent degrade.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          "Invoke returns promptly after admission" has TWO ends: the parent
+          kernel cell must return at admission (never await the child), AND
+          the adapter's invoke must return once the HANDLE exists (never wait
+          for the parent print-run to outlive admission, and never wait on
+          the child at all). A test that only checks the child side proves
+          nothing about the parent side; the suite's
+          admission_returns_before_completion case pins the composed
+          observable, not the internal split.
+      - id: D2
+        statement: >
+          AK-008..AK-012 are re-evidenced here, not re-proven from scratch:
+          their frozen locators are the SHARED suite cases, already green
+          against the mock since Task 8. Task 15's new evidence is that the
+          SAME unmodified cases pass against a REAL adapter driven through
+          harness-shaped behavior — the claim "the contract travels across
+          adapters" (AK-013's prerequisite half) is what gains support. No
+          new suite case is owed by this task; adding cases to make the
+          adapter pass would be the ruler-moving failure mode.
+      - id: D3
+        statement: >
+          The R-1b hard trigger (per-unit workspace resolution in
+          GovernDeps) bounds BUILDER EXECUTION, not RUNNER DELIVERY. Task 15
+          ships the runner; it executes NO builder: the suite runs over
+          transport doubles, and the env-gated live probe spawns a trivial
+          child that writes a file, dispatched for no Unit, through no gate.
+          Widening this task to discharge R-1b would be scope invention; the
+          trigger stays bound to the first composed builder execution
+          (Task 16 p8 with a real process adapter, or Task 20 run).
+      - id: D4
+        statement: >
+          The version probe guards the HARNESS API SURFACE, not the network:
+          its failure class is configuration (doctor-visible, run-blocking
+          before any dispatch), not transport. A probe that passes cannot
+          promise a live model provider — provider reachability is outside
+          this task's probe; recording provider-level failure as a probe
+          mismatch would misreport the locus.
+      - id: D5
+        statement: >
+          Honest capabilities is a claim about the ADAPTER's delivery, not
+          the harness's ceiling: the daemon may stream events, but THIS
+          adapter's surface (print-mode parent admission + result-file
+          fan-in) delivers none, so supports_streaming_events must be false
+          even though the product can. The isolation rung is None because
+          the kernel runs with worker OS permissions (Annex C.2) — external
+          wrapping is the Sandbox port's job and is not this adapter's to
+          claim.
+
+    known_blindspots:
+      - >
+        The parent print-run is model-backed: the adapter depends on a model
+        actually choosing to execute the rendered cell. Latency and refusal
+        modes are uncharacterized on this host; the live probe may be slower
+        or flakier than any in-repo budget anticipates. Mitigation: the live
+        probe is env-gated, explicitly bounded, and its failure is recorded
+        as an honest probe outcome, never retried into green.
+      - >
+        Daemon/socket behavior of prime-agent under WSL2 was NOT probed
+        during recon (no `prime-agent status` was run). If the daemon cannot
+        run here, child survival after parent exit fails and the live
+        admission half degrades to exactly the plan's "configured but
+        untested" carve-out for that half — recorded, never faked.
+      - >
+        The exact bytes a real child writes for role_result@v1 under kernel
+        program instruction are unverified until the live probe runs; a
+        schema-relevant instruction gap would surface as malformed_result in
+        the live leg. The mock's fixture writer is the byte reference.
+
+  visible_intervention_classes:
+    - id: A1
+      class: >
+        Seam extraction with double-backed verification: parameterize the
+        adapter over kernel-transport and harness-control seams; production
+        impl shells to the configured binary; suite factory binds
+        script-following in-memory doubles.
+      why_visible_now: >
+        The shared suite requires child behaviors (RunnerScript) a model
+        child cannot deliver deterministically; the suite's own doc says a
+        real adapter maps scripts to probe children — the seam is the
+        adapter-shaped reading of that instruction.
+    - id: A2
+      class: >
+        Strict-admission of harness output: the handle JSON read from
+        HANDLE_PATH is untrusted external input — parse, validate, admit;
+        every classification in poll resolves from the result contract and
+        the spec deadline only.
+      why_visible_now: >
+        §10.3 rules 3-6 and §21.2 make classification the port's pinned
+        semantics; the mock already encodes the state machine to mirror.
+    - id: A3
+      class: >
+        Measured-descriptor doctor surfacing: the composition root measures
+        the probe and passes a typed descriptor into doctor, mirroring
+        Task-14's BackendDescriptor pattern for check 4.
+      why_visible_now: >
+        Doctor check 3's own unavailable-reason names Tasks 15-16; the
+        layering forbids app from constructing adapters.
+    - id: A4
+      class: >
+        Env-gated live verification: a trivial-child live probe
+        (GAUNTLET_PRIME_LIVE_PROBE=1) verifying admission, contract write,
+        and cancel against the real binary once, bounded, never retried
+        into green.
+      why_visible_now: >
+        The harness IS present, so the redesign trigger does not fire; the
+        plan demands no fake success and the standing battery must stay
+        deterministic and free.
+    - id: A5
+      class: >
+        Fail-first evidence: assert the arch-level await-ban grep and the
+        suite-over-doubles integration exist and fail on a deliberately
+        broken shape before relying on them.
+      why_visible_now: >
+        The done-when names a grep-asserted await ban; a grep with no
+        negative control is a toothless check by Task-14's standard.
+
+  predictions:
+    - id: P1
+      prediction: >
+        A first implementation of invoke will be tempted to (or actually
+        will) block inside invoke until the parent print-run AND something
+        child-shaped resolve, or will treat the parent run's exit status as
+        evidence about the child — surfacing as a suite
+        admission_returns_before_completion finding or an await-ban grep
+        hit before the gate run.
+      expects: fire_during_implementation
+    - id: P2
+      prediction: >
+        The blind executing falsifier finds at least one classification or
+        deadline defect the static suite misses — most plausibly: poll
+        concluding a terminal state from something other than the contract
+        (mailbox, liveness, parent exit), a deadline owned by the adapter
+        instead of the spec, cancel that loses session_ref, or an
+        Annex-C.4 violation (no-process misread as failure inside the
+        deadline).
+      expects: fire_during_critique
+    - id: P3
+      prediction: >
+        The live probe against the real binary reveals at least one
+        harness-surface divergence from the adapter's assumptions (daemon
+        unavailability under WSL2, admission-handle field absence,
+        kernel-python bootstrap latency, child argument/name constraints),
+        forcing either a probe-range correction or an honest
+        configured-but-untested carve-out for one live half — never a fake
+        green.
+      expects: fire_during_gate
+    - id: P4
+      prediction: >
+        Wiring doctor check 3's resolution half changes at least one
+        existing doctor test's expectations (the unavailable-reason text or
+        status), and the change must be an honest re-derivation of the
+        check's contract, not a weakening of what check 3 claims.
+      expects: fire_during_implementation
+    - id: P5
+      prediction: >
+        At least one representational gap in the ruler/plan surfaces around
+        the probe's supported-range constant (where the range lives without
+        becoming a hardcoded literal outside the defaults module) or around
+        ResultContractPath's relationship to a REAL filesystem path (the
+        port type is opaque; the adapter must resolve it without inventing
+        configuration) — each surfacing as a recorded decision, not a
+        silent local invention.
+      expects: representation_inadequacy
+
+  risks:
+    - id: R1
+      description: >
+        Await-shaped contamination: the delegation call's convenience tempts
+        a code path where the result is read from the delegation outcome
+        (parent exit status, parent stdout tail, mailbox), making the
+        contract file decorative — the exact D1/§10.5 violation this task
+        exists to make impossible.
+      mitigation_preregistered:
+        - class: A5
+          action: >
+            arch-level grep assertion with a negative control (a planted
+            await-shaped line must fail it), plus the suite case pinning
+            first-poll non-terminality; both must be shown RED on a broken
+            shape before GREEN on the adapter.
+    - id: R2
+      description: >
+        Fake-success pressure on the live half: if the live probe is slow or
+        fails, the temptation is to stub the transport to simulate the
+        harness and call the adapter live-verified.
+      mitigation_preregistered:
+        - class: A4
+          action: >
+            the live probe is env-gated, real-binary-only, bounded, and its
+            outcome (pass, fail, or carve-out) is recorded verbatim in the
+            closure record; doubles are confined to the shared-suite
+            factory, which is the suite's own documented design.
+    - id: R3
+      description: >
+        Doctor-surface regression: extending check 3 could silently weaken
+        AK-049's unconditional clause or check 4's measured tier-rung half.
+      mitigation_preregistered:
+        - class: A5
+          action: >
+            the standing doctor battery (32 tests) plus check-5 live teeth
+            re-run at the gate; any check-3 edit that touches the no-policy
+            clause path is a defect.
+    - id: R4
+      description: >
+        Scope creep toward R-1b/R-2/R-3: pressure to "finish the story" by
+        wiring the runner into the controller's dispatch or a
+        WorkspaceProvider mid-task.
+      mitigation_preregistered:
+        - class: A4
+          action: >
+            the dispatch path stays mock-fed; R-1b/R-2/R-3 keep their
+            recorded triggers; any composition desire is recorded as fog or
+            residual, never implemented here.
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: >
+        The Task-8 mock suite legs (malformed, timeout, mismatch scenarios)
+        still pass unchanged after Task 15 lands.
+      preregistered_expectation: >
+        `just test` shows the mock crate's suite and scenario tests green
+        with zero edits to mock code or fixtures.
+    parametric_variation:
+      level: L2
+      description: >
+        The prime adapter passes the SAME unmodified suite cases for every
+        RunnerScript variant (immediate, delayed, never, malformed, unknown
+        field, nested field, foreign id, foreign digest).
+      preregistered_expectation: >
+        agent_runner_suite over the prime factory returns empty findings
+        with the in-repo instant probe budget; no case was edited or added.
+    structural_transfer:
+      level: L3
+      description: >
+        A NEW bypass shape not in the suite — e.g. a child that writes the
+        contract AFTER the deadline, or a handle whose session_dir is used
+        as control state — is rejected by the adapter's existing logic
+        without adding a special-case rule for that exact bypass.
+      preregistered_expectation: >
+        The falsifier's novel attack is refused by already-present
+        deadline/contract/session_ref logic; the finding (if any) records a
+        class fix, not a payload blocklist.
+
+  explicit_nonclaims:
+    - >
+      This task does NOT discharge R-1b, R-2, or R-3; all three keep their
+      recorded triggers, and no composition of runner.invoke into the
+      gated dispatch path happens here (D3, R4).
+    - >
+      This task does NOT prove AK-013 (two real adapters / P8) — that is
+      Task 16 with the substitution proof.
+    - >
+      A passing version probe does NOT promise provider reachability, model
+      quality, or child correctness; it names the harness API surface only
+      (D4).
+    - >
+      The suite-over-doubles run is NOT evidence that a live model child
+      writes conforming contracts; that is the env-gated live probe's
+      separate, bounded evidence (or its honest carve-out).
+    - >
+      Nothing here claims containment: the adapter reports isolation none
+      and stays behind the Sandbox port boundary (D5).
+
+post_run: {}

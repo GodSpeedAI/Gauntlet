@@ -172,6 +172,20 @@ const TICK_WINDOW: u64 = TICK_SPAN as u64 * MILLIS_PER_UNIT;
 /// algorithm.
 pub const DIGEST_ALGO: &str = "sha256";
 
+/// The supported delegation-harness version range (plan Task 15, spec
+/// §8.5 check 3/§10.5; correction RES-D8): the composition root injects
+/// this typed range into the runner adapter's version probe — the probe
+/// mismatch is a `configuration` failure surfaced by doctor, never a
+/// runtime surprise. The minimum is INCLUSIVE; the limit is the EXCLUSIVE
+/// upper bound, because pre-1.0 minors may break the harness's
+/// delegation surface without notice: moving either bound is a
+/// deliberate, recorded re-verification edited HERE, where defaults
+/// live — never in an adapter, which must not own its own compatibility
+/// ruler.
+pub const HARNESS_VERSION_MIN: (u64, u64, u64) = (0, 8, 0);
+/// See [`HARNESS_VERSION_MIN`] — the exclusive upper bound.
+pub const HARNESS_VERSION_LIMIT: (u64, u64, u64) = (1, 0, 0);
+
 // ---------------------------------------------------------------------------
 // Repository-layout name vocabulary (§25 layout, §8.2 example values, AGENTS
 // project structure). Single-segment names only: the boundary suite denies

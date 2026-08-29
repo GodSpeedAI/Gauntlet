@@ -56,6 +56,12 @@ pub struct DoctorInput {
     /// under the §8.6 conservative default the tier posture needs no
     /// measurement.
     pub backend_measure: Option<fn(&str) -> Option<checks::BackendDescriptor>>,
+    /// Measures the configured DEFAULT runner (§8.5 check 3, plan Task
+    /// 15): given the resolved `runners.default` token, `Some(descriptor)`
+    /// is a measurement (harness API-surface version compatibility),
+    /// `None` means no adapter fronts that token on this composition.
+    /// The composition root owns the adapters, so only it can measure.
+    pub runner_measure: Option<fn(&str) -> Option<checks::RunnerDescriptor>>,
 }
 
 impl DoctorInput {
@@ -70,6 +76,7 @@ impl DoctorInput {
             env_pairs: None,
             dotenv_text: None,
             backend_measure: None,
+            runner_measure: None,
         }
     }
 }
@@ -222,7 +229,18 @@ fn assemble(input: &DoctorInput) -> DoctorRun {
         Some(resolved) => {
             let raw = raw_tokens(&effective);
             all_checks.push(checks::check_reference(resolved));
-            all_checks.push(checks::check_runners(resolved));
+            // §8.5 check 3 (plan Task 15): the runner measurement is
+            // consulted only when a default runner is actually named —
+            // with none configured the honest unavailability stands.
+            let named_runner = resolved
+                .runners_default
+                .as_deref()
+                .filter(|name| !name.trim().is_empty());
+            let runner_descriptor = named_runner.and_then(|token| {
+                let measure = input.runner_measure.as_ref()?;
+                measure(token)
+            });
+            all_checks.push(checks::check_runners(resolved, runner_descriptor.as_ref()));
             // §8.5 check 4 (plan Task 14): the backend measurement is
             // consulted only when a real backend is configured — the
             // conservative default needs none.
@@ -234,7 +252,11 @@ fn assemble(input: &DoctorInput) -> DoctorRun {
             } else {
                 None
             };
-            all_checks.push(checks::check_capabilities(resolved, descriptor.as_ref()));
+            all_checks.push(checks::check_capabilities(
+                resolved,
+                descriptor.as_ref(),
+                runner_descriptor.as_ref(),
+            ));
             all_checks.push(checks::check_policies(
                 resolved,
                 &effective.sandbox_policy_dir,
@@ -1494,5 +1516,137 @@ mod tests {
         let report = run_doctor(&input);
         assert_eq!(status_of(&report, 4), &CheckStatus::Fail);
         assert!(report.human_summary().contains("below the"));
+    }
+
+    // ------------------------------------------------------------------
+    // Check 3 resolution (plan Task 15, correction RES-D7): the
+    // measured-descriptor pattern for the configured default runner.
+    // ------------------------------------------------------------------
+
+    /// A healthy doc that also names a default runner. The token is an
+    /// opaque name: this layer cannot spell an adapter identifier (the
+    /// denylist), and the check is token-agnostic — the descriptor
+    /// echoes whatever token the hook is asked about.
+    fn runner_doc() -> String {
+        let mut doc = String::from("---\nreference:\n");
+        doc.push_str("  answer_key: answer-key.md\n");
+        doc.push_str("  manifest: reference.yaml\n");
+        doc.push_str("sandbox:\n  policy_dir: policies\n");
+        doc.push_str("runners:\n  default: probed-runner\n");
+        doc.push_str("---\n");
+        doc
+    }
+
+    /// A measured-clean descriptor for whatever token is asked.
+    fn measured_runner(token: &str) -> Option<checks::RunnerDescriptor> {
+        Some(checks::RunnerDescriptor {
+            token: token.to_owned(),
+            measured: true,
+            note: None,
+        })
+    }
+
+    #[test]
+    fn check_three_reports_a_measured_runner_instead_of_the_blanket_unavailable() {
+        let scratch = Scratch::new();
+        let mut input = scratch.input(Some(&runner_doc()));
+        input.runner_measure = Some(measured_runner);
+        let report = run_doctor(&input);
+        // The resolution half is now MEASURED: the check rolls up to a
+        // full pass, not an unavailable.
+        assert_eq!(status_of(&report, 3), &CheckStatus::Pass);
+        let check = &report.checks[2];
+        let resolution = check
+            .sub
+            .iter()
+            .find(|sub| sub.name == "resolution")
+            .expect("the resolution subresult exists");
+        assert_eq!(resolution.status, CheckStatus::Pass);
+        let joined = resolution.evidence.join(" ");
+        assert!(joined.contains("probed-runner"), "{joined}");
+        assert!(joined.contains("version compatibility"), "{joined}");
+        assert!(report.exit_ok(), "{}", report.human_summary());
+        // Check 4's runner half is fed from the same measurement: pass,
+        // with the measured dimension named and no rung claimed.
+        let check_four = &report.checks[3];
+        let runner_half = check_four
+            .sub
+            .iter()
+            .find(|sub| sub.name == "runner capabilities")
+            .expect("the runner subresult exists");
+        assert_eq!(runner_half.status, CheckStatus::Pass);
+        let joined = runner_half.evidence.join(" ");
+        assert!(joined.contains("version compatibility"), "{joined}");
+        assert!(joined.contains("dispatch gate"), "{joined}");
+    }
+
+    #[test]
+    fn check_three_fails_a_failed_measured_probe_and_so_does_check_four() {
+        let scratch = Scratch::new();
+        let mut input = scratch.input(Some(&runner_doc()));
+        input.runner_measure = Some(|token| {
+            Some(checks::RunnerDescriptor {
+                token: token.to_owned(),
+                measured: false,
+                note: Some("runner binary not found at no-such-binary".to_owned()),
+            })
+        });
+        let report = run_doctor(&input);
+        // Check 3: a failed measurement is a configuration failure with
+        // the probe's locus — never an unavailable-inside-pass.
+        assert_eq!(status_of(&report, 3), &CheckStatus::Fail);
+        let failed = report.required_failure().expect("non-zero exit");
+        assert_eq!(failed.id, 3);
+        let text = report.human_summary();
+        assert!(text.contains("runner_probe_failed"), "{text}");
+        assert!(text.contains("not found"), "{text}");
+        // Check 4's runner half fails on the same measurement.
+        assert_eq!(status_of(&report, 4), &CheckStatus::Fail);
+        assert!(report.human_summary().contains("runner_probe_failed"));
+    }
+
+    #[test]
+    fn check_three_fails_a_mistokened_descriptor() {
+        let scratch = Scratch::new();
+        let mut input = scratch.input(Some(&runner_doc()));
+        input.runner_measure = Some(|_| {
+            Some(checks::RunnerDescriptor {
+                token: "a-different-runner".to_owned(),
+                measured: true,
+                note: None,
+            })
+        });
+        let report = run_doctor(&input);
+        assert_eq!(status_of(&report, 3), &CheckStatus::Fail);
+        let text = report.human_summary();
+        assert!(text.contains("runner_resolution_mismatch"), "{text}");
+        assert!(text.contains("different runner"), "{text}");
+    }
+
+    #[test]
+    fn check_three_stays_unavailable_without_a_measurement_hook() {
+        let scratch = Scratch::new();
+        // A runner is named, but the composition supplies no measurement
+        // hook: the honest unavailability stands (nothing was measured).
+        let report = run_doctor(&scratch.input(Some(&runner_doc())));
+        assert!(matches!(
+            status_of(&report, 3),
+            CheckStatus::Unavailable { .. }
+        ));
+        let check = &report.checks[2];
+        let resolution = check
+            .sub
+            .iter()
+            .find(|sub| sub.name == "resolution")
+            .expect("the resolution subresult exists");
+        let joined = resolution.evidence.join(" ");
+        assert!(joined.contains("measured no descriptor"), "{joined}");
+        // And with no runner configured at all, the historical reason
+        // stands.
+        let report = run_doctor(&scratch.input(Some(&healthy_doc())));
+        assert!(matches!(
+            status_of(&report, 3),
+            CheckStatus::Unavailable { .. }
+        ));
     }
 }

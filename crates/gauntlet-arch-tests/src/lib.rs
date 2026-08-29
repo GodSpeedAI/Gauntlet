@@ -127,6 +127,7 @@
 //! recorded beside the class it belongs to in [`literals`], [`denylist`] and
 //! [`envfile`].
 
+pub mod delegation;
 pub mod denylist;
 pub mod deps;
 pub mod envfile;
