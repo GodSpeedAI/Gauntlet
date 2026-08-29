@@ -72,13 +72,25 @@ active:
     across four correction rounds + five blind confirmation rounds, the
     fifth CONFIRM with 0 BLOCKING / 0 MAJOR + closure records + commit).
     Next session starts task15, task16, or task18 (18 is parallel-safe).
-    READ FIRST, before any runner work: residual R-1 in
-    .agents/reports/task14/closure.md - PolicyProvider::policy_for discards
-    its `workspace` argument, so with the shipped artifacts every builder
-    would get read-write over the SHARED workspaces root. MINOR against the
-    task14 ruler, MAJOR under spec 17.5.1 invariant 1. HARD TRIGGER: fix it
-    BEFORE any real runner executes a builder. Do not forget the task17
-    AND/OR ambiguity note above when task17 approaches.
+    R-1 is now SPLIT and PARTIALLY closed (post-closure fix, orchestrator-
+    verified, see .agents/reports/task14/r1-fix.md): R-1a (the adapter
+    discarding its `workspace` argument) is FIXED -
+    `PolicyFs::policy_for` now scopes every `$WORKSPACE_ROOT` resolution to
+    `workspace_root.join(<validated per-call workspace ref>)`, with a new
+    sanitization guard closing the anchor-escape class a naive join would
+    have reopened, 3 new regression tests, teeth re-verified personally by
+    the orchestrator (independent mutation, byte-identical restore),
+    1080/1080 workspace tests, all closure gates green. R-1b REMAINS and is
+    STILL the hard trigger: `GovernDeps` (crates/gauntlet-app/src/govern/
+    gate.rs) holds ONE `WorkspaceRef` for its whole lifetime and reuses it
+    for EVERY unit `AuthorityGate::admit` dispatches through that instance
+    - so even with R-1a fixed, every unit sharing one `GovernDeps` still
+    resolves to the SAME scoped subdirectory, not one per unit. Closing
+    R-1b requires a production `WorkspaceProvider` adapter (none exists yet
+    - only test stubs) threading a fresh per-unit workspace into the gate.
+    HARD TRIGGER UNCHANGED: close R-1b before any real runner executes a
+    builder (task15/16). Do not forget the task17 AND/OR ambiguity note
+    above when task17 approaches.
 
 # ─────────────────────────────────────────────────────────────────────────
 # EVIDENCE LOG (current state per task, not a history)
@@ -306,15 +318,19 @@ next_action:
     BLIND confirmation round that INCLUDES AN EXECUTING FALSIFIER.
 
     MANDATORY BEFORE ANY RUNNER EXECUTES A BUILDER (task15/16): discharge
-    residual R-1 - PolicyProvider::policy_for discards its `workspace`
-    argument (adapter-policy-fs/src/lib.rs binds `_workspace`), so with the
-    shipped artifacts every builder gets read-write over the SHARED
-    workspaces root, i.e. every other run's workspace. MINOR against the
-    task14 ruler, MAJOR under spec 17.5.1 invariant 1. Also due at the same
-    boundary: R-2 (port-level forgeability of PolicyValidation /
-    SandboxedCommand / SandboxPolicy - no earned constructor) and R-3
-    (wrap_builder_command has no production caller, so AK-048's composed
-    half is undemonstrated). Full list with triggers:
+    residual R-1b - R-1a (PolicyFs::policy_for discarding its `workspace`
+    argument) was FIXED post-closure and orchestrator-verified
+    (.agents/reports/task14/r1-fix.md; 1080/1080, teeth re-verified
+    personally). R-1b remains: `GovernDeps` holds ONE `WorkspaceRef` for
+    its whole lifetime and `AuthorityGate::admit` reuses it for every unit
+    dispatched through that instance, so even with R-1a fixed every unit
+    sharing one `GovernDeps` still resolves to the SAME workspace-scoped
+    directory, not one per unit - requires a production `WorkspaceProvider`
+    adapter (none exists yet) threading a fresh per-unit workspace into
+    the gate. Also due at the same boundary: R-2 (port-level forgeability
+    of PolicyValidation / SandboxedCommand / SandboxPolicy - no earned
+    constructor) and R-3 (wrap_builder_command has no production caller,
+    so AK-048's composed half is undemonstrated). Full list with triggers:
     .agents/reports/task14/closure.md.
   reason: >-
     Task 14 settled 2026-08-29 (round 5 CONFIRM, 0 BLOCKING / 0 MAJOR) and
