@@ -10,51 +10,54 @@ metadata:
   initialized: true                   # false only before the very first burst
   last_updated: "2026-08-29"
   updated_by: >-
-    orchestrator (Task 14 SETTLED 2026-08-29 after FIVE blind confirmation
-    rounds and FOUR correction rounds, COR-1..COR-10; round 5 CONFIRM with
-    0 BLOCKING / 0 MAJOR against AK-044..AK-050 and P5; full battery and the
-    plan's own Done-when teeth re-verified personally by the orchestrator)
+    orchestrator (Task 15 SETTLED 2026-08-29: first real AgentRunner — the
+    prime-agent adapter — after one pre-implementation blind design review
+    (NOT_CONFIRM, 12 findings all corrected mid-flight) and one fresh blind
+    EXECUTING falsifier round (CONFIRM, 0 blocking; COR-D1..D3 executed at
+    gate phase against the REAL harness, including two honest live-probe
+    failures diagnosed by executing probes); full battery and the falsifier's
+    teeth mutations (M2/M7 RED -> byte-identical restore -> GREEN) re-verified
+    personally by the orchestrator)
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
 # ─────────────────────────────────────────────────────────────────────────
 execution:
-  last_settled_task: task14           # most recent task with a CONFIRM in
+  last_settled_task: task15           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: null                # nothing in flight; task14 closed all
-                                       # loops (implementation, COR-1..COR-10,
-                                       # five blind confirmation rounds,
-                                       # closure records, commit)
+  in_flight_task: null                # nothing in flight; task15 closed all
+                                       # loops (design review, B1+B2, COR-D1..D3,
+                                       # falsifier round 1 CONFIRM, closure
+                                       # records, commit a869556)
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
-    - task15                          # NEXT WORK TASK candidates. task14
-    - task16                          # settled 2026-08-29 (dropped here).
-    - task18                          # 15/16 = runner adapters; 18 = the
-                                       # wayfinder-gauntlet formation skill
-                                       # (parallel-safe).
+    - task16                          # NEXT WORK TASK candidates. task15
+    - task18                          # settled 2026-08-29 (dropped here).
+                                      # 16 = generic CLI adapter + P8; 18 =
+                                      # the wayfinder-gauntlet formation
+                                      # skill (parallel-safe).
 
   blocked_tasks:                      # task -> remaining (unsettled) blockers
     task17: [task15, task16]          # AMBIGUOUS - see note below
     task19: [task18]                  # needs task18
-    task20: [task17]                  # task14 settled 2026-08-29 (dropped
-                                       # from the array); task13 dropped
-                                       # 2026-08-28; original full dependency
-                                       # set also included task7, task9,
-                                       # task10, task11, task12 - all settled
+    task20: [task17]                  # task15 settled 2026-08-29 (dropped
+                                      # from the array); task14 settled
+                                      # 2026-08-29; task13 dropped 2026-08-28;
+                                      # task7/9/10/11/12 all settled
     task21: [task20]                  # needs task20
     task22: [task20]                  # needs task20
     task23: [task22]                  # needs task22
     task24: [task20]                  # needs task20
     task25: [task20]                  # needs task20
-    task26: [task25]                  # needs task25
+    task26: [task25]                  # needs task26
     task27: [task26]                  # needs task26
     # NOTE on task17 (unresolved - flagged, not silently fixed):
     # the array [task15, task16] is being read as AND (all listed tasks
     # must settle). But an earlier comment on this line read "needs task5
-    # (done) and task15 or task16" - i.e. OR. Before task17 comes up for
-    # scheduling: confirm whether it needs task15 AND task16, or task15 OR
-    # task16, and drop task5 from the intent entirely.
+    # (done) and task15 or task16" - i.e. OR. TASK15 IS NOW SETTLED, so the
+    # reading MATTERS: under OR, task17 is READY NOW; under AND it still
+    # needs task16. Resolve before scheduling task17.
 
   plan_blocked: false                 # true only if NOTHING is workable
                                        # (every ready path is blocked)
@@ -66,31 +69,24 @@ execution:
 # ─────────────────────────────────────────────────────────────────────────
 active:
   task: null                          # nothing in flight
-  phase: idle                         # ready to start task15/16/18
+  phase: idle                         # ready to start task16 or task18
   blocker: >-
-    None. Task 14 is fully settled (B1-B3 implementation + COR-1..COR-10
-    across four correction rounds + five blind confirmation rounds, the
-    fifth CONFIRM with 0 BLOCKING / 0 MAJOR + closure records + commit).
-    Next session starts task15, task16, or task18 (18 is parallel-safe).
-    R-1 is now SPLIT and PARTIALLY closed (post-closure fix, orchestrator-
-    verified, see .agents/reports/task14/r1-fix.md): R-1a (the adapter
-    discarding its `workspace` argument) is FIXED -
-    `PolicyFs::policy_for` now scopes every `$WORKSPACE_ROOT` resolution to
-    `workspace_root.join(<validated per-call workspace ref>)`, with a new
-    sanitization guard closing the anchor-escape class a naive join would
-    have reopened, 3 new regression tests, teeth re-verified personally by
-    the orchestrator (independent mutation, byte-identical restore),
-    1080/1080 workspace tests, all closure gates green. R-1b REMAINS and is
-    STILL the hard trigger: `GovernDeps` (crates/gauntlet-app/src/govern/
-    gate.rs) holds ONE `WorkspaceRef` for its whole lifetime and reuses it
-    for EVERY unit `AuthorityGate::admit` dispatches through that instance
-    - so even with R-1a fixed, every unit sharing one `GovernDeps` still
-    resolves to the SAME scoped subdirectory, not one per unit. Closing
-    R-1b requires a production `WorkspaceProvider` adapter (none exists yet
-    - only test stubs) threading a fresh per-unit workspace into the gate.
-    HARD TRIGGER UNCHANGED: close R-1b before any real runner executes a
-    builder (task15/16). Do not forget the task17 AND/OR ambiguity note
-    above when task17 approaches.
+    None. Task 15 is fully settled (B1+B2 + the design-review corrections +
+    COR-D1..D3 + falsifier round 1 CONFIRM; commit a869556). Next session
+    starts task16 (generic CLI adapter + P8 substitution proof) or task18
+    (wayfinder-gauntlet skill; parallel-safe).
+
+    R-1 status after task15: R-1a was FIXED post-task14 (see
+    .agents/reports/task14/r1-fix.md). R-1b REMAINS OPEN and is STILL the
+    hard trigger: task15 shipped the runner but executed NO builder (suite
+    over transport doubles; the env-gated live probe's children are trivial,
+    dispatched for no Unit, through no gate) — so the trigger now binds the
+    FIRST REAL BUILDER EXECUTION wherever it happens (task16's real-process
+    legs, task20's run, or task25). R-2 (port-level forgeability) is now due
+    at the ports revision / task16; R-3 (wrap_builder_command composed half)
+    at task20. Task15's own residuals T15-R1..R5 are recorded in
+    .agents/reports/task15/closure.md §4. Do not forget the task17 AND/OR
+    ambiguity note above before scheduling task17.
 
 # ─────────────────────────────────────────────────────────────────────────
 # EVIDENCE LOG (current state per task, not a history)
@@ -195,6 +191,30 @@ latest_evidence:
                                        # closure records, and the staged
                                        # deletion of the stray
                                        # .gauntlet/policies/irreversible.json
+  task15:
+    report: ".agents/reports/task15/"
+    confirmation: >-
+      Pre-implementation blind design critic NOT_CONFIRM (1 BLOCKING: the
+      recon's invoke waited on the parent print-run, collapsing admission
+      into child completion on a rambling parent, invisible to the suite;
+      5 major, 6 minor) -> all 12 findings accepted and routed to the
+      builder MID-FLIGHT -> blind EXECUTING falsifier round 1 CONFIRM
+      (0 blocking; 13/13 executable attacks repelled; 7 hand-targeted
+      teeth mutations reverted byte-identically; its 2 MAJORs were missing
+      in-tree teeth, fixed by COR-D3 tests-only, teeth re-verified
+      personally: M2/M7 RED -> byte-identical restore -> GREEN). Gate phase
+      executed THREE corrections against the REAL harness, every one
+      triggered by an honest live failure: COR-D1 (--version prints to
+      stderr), COR-D2 (RLMSpawnHandle.session_dir is a PosixPath - renderer
+      json.dumps threw after a SUCCESSFUL admission; a print-mode parent's
+      child materializes ONLY while the parent lives past admission ->
+      in-cell 30s linger + detached reaper, invoke still returns at handle
+      parse; list --json returns {"sessions":[...]}), COR-D3 (teeth tests).
+      Live probe: real admission + D1-split forensics PASSED twice
+      (orchestrator 35.4s, falsifier 40.4s). Outcome record:
+      task-15.outcome.yaml (P1/P3/P5 match, P2/P4 spurious; U1 unforeseen:
+      the parent-linger child-creation dependency).
+    commit: "a869556"
 
 # ─────────────────────────────────────────────────────────────────────────
 # OBSERVATIONS - facts a resuming agent needs, not a running commentary.
@@ -202,6 +222,30 @@ latest_evidence:
 # ─────────────────────────────────────────────────────────────────────────
 observations:
   # --- OBSERVED: directly verified this session/burst, evidence attached ---
+  - status: OBSERVED
+    statement: >-
+      The prime-agent harness (v0.8.0) is installed, live, and integrable on
+      this host: task15's adapter performed REAL admissions through it twice
+      (orchestrator 35.4s; falsifier 40.4s) with contract-file fan-in, and
+      executing diagnosis established four surface divergences no doc
+      reading had caught: --version prints to stderr;
+      RLMSpawnHandle.session_dir is a PosixPath; list --json wraps its
+      array as {"sessions": [...]}; and a print-mode parent's delegated
+      child materializes ONLY while the parent lives past admission (the
+      adapter renders a 30s in-cell linger + detached reaper). Evidence:
+      .agents/reports/task15/{closure.md,design-adjudication.md,falsifier-round1.md}.
+    evidence: ".agents/reports/task15/closure.md"
+  - status: OBSERVED
+    statement: >-
+      Task 15 ran with ZERO sub-agent interruptions (vs 25+ across tasks
+      3-14). The working pattern: one builder holding the compile lock;
+      a static-only blind critic overlapped it (no cargo) for a
+      pre-implementation design review whose blocking find (invoke's return
+      point) was routed mid-flight — catching a design defect before the
+      code existed cost one message instead of a builder round plus
+      re-review. Live probes are env-gated (GAUNTLET_PRIME_LIVE_PROBE=1),
+      bounded, one real admission each, and authorized per round.
+    evidence: ".agents/reports/task15/IN-FLIGHT.md"
   - status: OBSERVED
     statement: >-
       Ruler is frozen with SHA256 digests locked in .gauntlet/reference.lock
@@ -298,44 +342,46 @@ observations:
   - status: UNKNOWN
     statement: >-
       UNK-003: which concrete AgentRunner is runners.default in
-      GAUNTLET.md (deferred to Tasks 15-16).
-    evidence: ".wayfinder/reference.yaml"
+      GAUNTLET.md (deferred to Tasks 15-16). NARROWED by task 15, NOT
+      closed: a real second adapter now exists and doctor check 3 resolves
+      named runners against a measured probe (the prime adapter probes
+      clean on this host), but the shipped GAUNTLET.md still names no
+      runner; selection lands with Task 16 (P8) or the operator.
+    evidence: ".agents/reports/task15/closure.md"
 
 # ─────────────────────────────────────────────────────────────────────────
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task15                        # or task16 / task18 (18 parallel-safe)
+  task: task16                        # or task18 (18 parallel-safe)
   action: >-
-    Start task15 (Prime-Agent adapter), task16 (generic CLI agent adapter,
-    proves P8), or task18 (derive wayfinder-gauntlet; parallel-safe) per
+    Start task16 (generic CLI agent adapter, proves P8/AK-013) or task18
+    (derive wayfinder-gauntlet; parallel-safe) per
     .agents/plans/gauntlet-impl.md. Standard procedure: recon ->
     preregistration freeze BEFORE implementation (just prereg-check N) ->
     builder dispatch under the .agents/agents/ charters (verbatim-charter
     prompts on general-purpose transport; one compiler at a time;
-    checkpoint-as-you-go; result contracts to files) -> task gate + standing
-    battery + lint/deny/boundaries/doctor/ruler/prereg -> at least one FRESH
-    BLIND confirmation round that INCLUDES AN EXECUTING FALSIFIER.
+    checkpoint-as-you-go; result contracts to files; consider the task15
+    pattern: a static-only blind critic can overlap the builder for a
+    pre-implementation design review) -> task gate + standing battery +
+    lint/deny/boundaries/doctor/ruler/prereg -> at least one FRESH BLIND
+    confirmation round that INCLUDES AN EXECUTING FALSIFIER.
 
-    MANDATORY BEFORE ANY RUNNER EXECUTES A BUILDER (task15/16): discharge
-    residual R-1b - R-1a (PolicyFs::policy_for discarding its `workspace`
-    argument) was FIXED post-closure and orchestrator-verified
-    (.agents/reports/task14/r1-fix.md; 1080/1080, teeth re-verified
-    personally). R-1b remains: `GovernDeps` holds ONE `WorkspaceRef` for
-    its whole lifetime and `AuthorityGate::admit` reuses it for every unit
-    dispatched through that instance, so even with R-1a fixed every unit
-    sharing one `GovernDeps` still resolves to the SAME workspace-scoped
-    directory, not one per unit - requires a production `WorkspaceProvider`
-    adapter (none exists yet) threading a fresh per-unit workspace into
-    the gate. Also due at the same boundary: R-2 (port-level forgeability
-    of PolicyValidation / SandboxedCommand / SandboxPolicy - no earned
-    constructor) and R-3 (wrap_builder_command has no production caller,
-    so AK-048's composed half is undemonstrated). Full list with triggers:
-    .agents/reports/task14/closure.md.
+    MANDATORY BEFORE ANY REAL BUILDER EXECUTION (R-1b, unchanged): a real
+    runner must not execute a builder until R-1b is discharged - a
+    production WorkspaceProvider threading a fresh per-unit workspace into
+    GovernDeps (.agents/reports/task14/r1-fix.md, closure.md §4). Task15
+    shipped the runner WITHOUT executing a builder; task16's p8 legs use a
+    command-template adapter and must likewise avoid real builder
+    dispatch. R-2 (port-level forgeability) is DUE at task16's ports
+    revision. Task15 residuals T15-R1..R5 (linger recalibration, hinted
+    live dispatch, concurrency, transport races, mtime) trigger at task16/20
+    touches: .agents/reports/task15/closure.md §4.
   reason: >-
-    Task 14 settled 2026-08-29 (round 5 CONFIRM, 0 BLOCKING / 0 MAJOR) and
-    the DAG makes task15, task16 and task18 the ready set. Nothing is in
-    flight; every task14 loop is closed and recorded.
+    Task 15 settled 2026-08-29 (falsifier round 1 CONFIRM with 0 BLOCKING;
+    corrections all executed and re-verified) and the DAG makes task16 and
+    task18 the ready set. Nothing is in flight; every task15 loop is
+    closed and recorded.
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -359,21 +405,24 @@ handoff:
     - "T12 Controller: selection, budget, diagnosis, BudgetMeter/MeteredBudget, ReviewDeps critic-metering, composed proofs p4 and p6, 7 teeth (1a88b39)"
     - "T13 Settlement, atomic commit, single-writer: §16.1 five-precondition service, §16.3 keyed atomic commit + crash-window resume, §16.4 single-writer arch rule, proofs p7/p11/g10, corrections COR-1..7 + COR2-1..6 + COR3 (earned settlement-event kind: both public append surfaces refuse SettlementCommitted), blind round 1 NOT CONFIRM -> COR3 -> round 2 double CONFIRM, 9 reference-candidates entries, outcome P1-P4 supported / P5 falsified-honestly (1fcfdd0; B1 pre-committed by operator as 62d1a5f mid-task)"
     - "T14 Authority gate, sandbox port, tier policies (AK-044..AK-050, P5): govern::{gate,posture} + controller dispatch wiring + doctor check 4; three adapter crates (sandbox-none, sandbox-bwrap, policy-fs); three in-repo tier policies with irreversible absent by design; shared Sandbox contract suite grown to 5 Task-14 cases each with a broken stub; proofs p5_hard_gate + g7_tier_downgrade. TEN corrections across FOUR rounds: COR-1 shell-word quoting, COR-2 §17.5.2 anchor containment, COR-3 unforgeable GateAdmission (malformed shape made unrepresentable), COR-4 mask/bind ordering, COR-5 anchored-path bounding, COR-6 AK-044 frozen-locator teeth, COR-7 relocatable-nested-denial refusal, COR-8 validate() as a real policy dry run, COR-9 process/IPC/uts/cgroup/user namespace confinement + --new-session, COR-10 single source of truth for the §17.3 rung table. FIVE blind confirmation rounds (1-4 NOT CONFIRM, 5 CONFIRM)."
+    - "T15 Prime-Agent adapter, the first real AgentRunner (AK-008..AK-012 re-evidenced on a second adapter): agent-prime crate over KernelTransport/HarnessControl seams; Annex C.1 renderer (byte-pinned; str()-coerced handle fields; in-cell 30s admission linger); invoke returns at handle-parse under a bounded watch with a detached reaper (never the parent-run lifetime); contract-file-only poll (post-terminal pinning, spec-deadline TimedOut+cancel preserving session_ref; mailbox/liveness never consulted); orphan sweep on admission failure; honest capabilities (isolation none); injected-range version probe; arch await-ban scan with negative controls; doctor check-3/4 runner half via measured RunnerDescriptor; env-gated live probe against the REAL harness (PASSED twice). Blind design critic NOT_CONFIRM (12 findings all corrected pre-implementation; blocking: invoke's return point) -> falsifier round 1 CONFIRM (13/13 attacks repelled; 2 majors were MISSING TEETH -> COR-D3 tests-only; teeth re-verified personally). COR-D1 (stderr version), COR-D2 (PosixPath handle fields + parent-linger child-creation + {sessions} wrapper), COR-D3. 1123/1123 on the final tree; zero sub-agent interruptions."
 
   unresolved_summary:
     # Every open thread not captured elsewhere: outstanding confirmations,
     # deferred scope, stale docs owed a refresh, known follow-ups tied
     # to a later task ID.
+    - "Task 15 residuals with triggers (closure.md §4): T15-R1 linger recalibration (30s default calibrated on ONE host observation; re-measure at first production dispatch), T15-R2 model-hint forwarding never exercised live (supports_model_selection is code+suite evidence only), T15-R3 concurrency posture asserted not proven (max_parallel>1 wiring), T15-R4 ProcessKernelTransport race windows (partial handle writes, reaper vs natural exit) attacked only once each, T15-R5 last_event_at mtime path unexercised"
+    - "Task 15 falsifier not-attacked list (next round's benefit): recovery/resume + orphaned_by_restart (task16+), workspace resolution (R-1b), AK-013/P8 (task16), BudgetMeter side, observer/comparator paths, thread-safety proof, full cargo-mutants (task24)"
     - "Task 14 deferrals: L1 authority-gate + tier posture, runner capability-vs-tier dispatch check, mock capability honesty pin (all IN-SCOPE for task14 now)"
     - "Task 13 later-scope (adjudicated, triggers recorded): M-1 minimum_reliability typed meaning (reference candidate + trigger: reference revision or Task 20), M-2/F-2 AK-062 positive half (Task 21), F-3 lexical containment vs 17.5.2 canonicalization (workspace-provider touch), F-7 recovery-time digest (non-content-addressed evidence adapter), m-1/2/4/6/7/8/9/11 minors (critic-round1.md)"
     - "Task 13 confirmation-round-2 minors (all trigger-recorded, outcome.yaml): round2-F-1 half-step+second-admission two-row shape on the instrument surface (admission should also see pending settlement events; next state-store/ports touch), FC2-A2 admit digest re-validation, FC2-A3/OBS-1 chain-shaped earning for in-process authorities (ports revision), FC2-A6/F-2 B.6 pin crash window, FC2-A7 p11 comparator-pass instantiation note, RES-A1 p7 intra-iteration reorder granularity, RES-A2 verifier-failure disposition row, RES-A3 digest scope (manifest/comparison contract)"
     - "Task 13 partially-composed inherited residuals: L3 settlement crash-window replay COMPOSED; settlement-side sqlite coercions COMPOSED; L2 resume legs composed, retry-ledger persistence remains ports-revision-bound; §21.3 non-integrity failures composed (answer-key read + poll transport)"
-    - "Task 14 HARD-TRIGGER residual R-1 (do BEFORE any real runner executes a builder, tasks 15/16): PolicyProvider::policy_for discards its `workspace` argument, so with the shipped artifacts every builder gets read-write over the SHARED workspaces root - MINOR against the task14 ruler, MAJOR under spec 17.5.1 invariant 1"
-    - "Task 14 residuals due at the ports revision / tasks 15-16: R-2 port-level forgeability (PolicyValidation, SandboxedCommand, SandboxPolicy have public fields and no earned constructor; BuilderCommand::Unwrapped is a public variant) - fail-closed today only because both adapters re-derive eligibility at wrap and nothing consumes a SandboxedCommand; R-3 AK-048's composed half (wrap_builder_command has no production caller; delivered at gate/adapter level with LIVE bwrap confinement executed, never through the loop); round5-F1 wholesale environment inheritance (no --clearenv, SandboxPolicy has no environment field) making 17.3 credential-path denial nominal for env-borne secrets; round5-F10 a GateAdmission is not bound to the command it authorizes and is Clone; round2-F7/round4-F7 the gate never cross-checks backend_token vs backend_identity"
+    - "Task 14 HARD-TRIGGER residual R-1, now R-1a+R-1b (do BEFORE any real builder EXECUTES - task15 shipped the runner without executing one): R-1a (PolicyProvider::policy_for discarding its `workspace` argument) was FIXED post-task14 (r1-fix.md); R-1b (GovernDeps holds ONE WorkspaceRef for its whole lifetime, so every unit through one GovernDeps resolves to the SAME workspace-scoped directory) REMAINS and requires a production WorkspaceProvider adapter threading a fresh per-unit workspace into the gate - MINOR against the task14 ruler, MAJOR under spec 17.5.1 invariant 1"
+    - "Task 14 residuals due at the ports revision / task16 (R-2), task20 (R-3): R-2 port-level forgeability (PolicyValidation, SandboxedCommand, SandboxPolicy have public fields and no earned constructor; BuilderCommand::Unwrapped is a public variant) - fail-closed today only because both adapters re-derive eligibility at wrap and nothing consumes a SandboxedCommand; R-3 AK-048's composed half (wrap_builder_command has no production caller; delivered at gate/adapter level with LIVE bwrap confinement executed, never through the loop); round5-F1 wholesale environment inheritance (no --clearenv, SandboxPolicy has no environment field) making 17.3 credential-path denial nominal for env-borne secrets; round5-F10 a GateAdmission is not bound to the command it authorizes and is Clone; round2-F7/round4-F7 the gate never cross-checks backend_token vs backend_identity"
     - "Task 14 ESCALATED to the operator (R-4, spec CandidateRevision candidate, NOT a task14 defect): the whole host filesystem is READABLE inside the sandbox via --ro-bind / /, including credential files and .wayfinder/answer-key.md. Literally spec-conformant - 17.3 puts credential denial at `local` and above and 17.5.5 / 8.5 check 7 bound only WRITABLE paths - but a builder that can READ the frozen ruler can target its assertions without ever modifying it"
     - "Task 14 smaller residuals with triggers: round5-F2 (an artifact may declare writable_roots [$HOME] at the contained tier; no writable_roots ⊆ workspace rule at either layer - operator-authoring hazard); round5-F4 (doctor ignores every Annex E env var when GAUNTLET.md is absent - fail-closed direction); round5-F6 (no rlimit/cgroup budget inside the sandbox - host DoS channel, inferred not executed); round5-F9 (forbidden-tier scan stem-exact and non-recursive - not a bypass); round1-F8 (an ungated RoleId::Verifier invocation at the composition root, verify/ladder.rs); critic-A OBS-1/OBS-2 (doctor check 4 stays `unavailable` pending the runner half; the deterministic clock makes above-contained LOOP admission with a live backend unexercisable until tasks 15/16)"
     - "Task 14 ruler divergence: AK-049's frozen locator tests/e2e/doctor::irreversible_policy_is_error matches no file and no function; the existing 2026-08-17 reference-candidates entry already names the three real doctor/mod.rs tests, so no new entry was owed. Settlement belongs to the ruler's owner"
-    - "Tasks 15-16 deferrals: child env fingerprint vs live process env / tool binding (AK-028), runner resolution in doctor check 3, concrete runners.default"
+    - "Tasks 15-16 deferrals: child env fingerprint vs live process env / tool binding (AK-028), concrete runners.default (UNK-003, narrowed: doctor check 3 now resolves named runners against a measured probe - task15). DONE by task15: the doctor check-3 runner-resolution half"
     - "Task 17/27 deferrals: produced_at integer vs Annex-B string placeholder in schemas; task17 dependency AND/OR ambiguity UNRESOLVED (see blocked_tasks note)"
     - "Task 20 deferrals: payment unification (critic costs into run budget_spent), model-rung dispatch unmetered, workspace-root pairing library seam, L4 cohort non-separability fixture, evidence production binding first-facet bytes"
     - "Task 22/24 deferrals: reference candidate recording / mutation teeth"
