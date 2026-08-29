@@ -135,14 +135,14 @@
       "evidence": [],
       "id": 5,
       "name": "sandbox policies",
-      "status": "fail",
+      "status": "pass",
       "sub": [
         {
           "evidence": [
-            "a policy file exists for the top tier ('irreversible.json' in policy dir '.gauntlet/policies') — its presence is a configuration error (AK-049, spec 17.3)"
+            "no policy file for the top tier in policy dir '.gauntlet/policies' (AK-049)"
           ],
           "name": "no top-tier policy",
-          "status": "fail"
+          "status": "pass"
         },
         {
           "evidence": [
@@ -232,6 +232,6 @@
   ],
   "config_fingerprint": "sha256:7acfc25f7eda51ae4d708c5e352461a7bfd99ed43e22a3da1a1de1d749c918e7",
   "config_origin": "/home/sprime01/projects/gauntlet/GAUNTLET.md",
-  "exit_code": 1,
-  "generated_at": 1787947034
+  "exit_code": 0,
+  "generated_at": 1787978760
 }
