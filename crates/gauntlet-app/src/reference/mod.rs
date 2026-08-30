@@ -16,3 +16,4 @@ pub mod manifest;
 pub mod normalize;
 pub mod parse;
 pub mod provider;
+pub mod validate;

@@ -15,6 +15,7 @@ pub mod compare;
 pub mod config;
 pub mod control;
 pub mod doctor;
+pub mod formation;
 pub mod govern;
 pub mod observation;
 pub mod reference;

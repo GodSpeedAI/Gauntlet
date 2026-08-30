@@ -38,6 +38,7 @@ fn usage() {
     println!("gauntlet <version> — see spec 20.1 for the full surface");
     println!("usage: gauntlet doctor [--config <path>]");
     println!("       gauntlet reference digest --path <path>");
+    println!("       gauntlet reference validate --path <path>");
     println!("       gauntlet roles install --harness <id>");
     println!("       gauntlet roles verify");
 }
@@ -254,13 +255,16 @@ const DOCTOR_BOUND_SPAN: u64 = 60;
 fn reference(args: &[String]) -> ExitCode {
     match args.first().map(String::as_str) {
         Some("digest") => reference_digest(&args[1..]),
+        Some("validate") => reference_validate(&args[1..]),
         Some(other) => {
             eprintln!("gauntlet reference: unknown subcommand '{other}'");
             println!("usage: gauntlet reference digest --path <path>");
+            println!("       gauntlet reference validate --path <path>");
             ExitCode::from(2)
         }
         None => {
             println!("usage: gauntlet reference digest --path <path>");
+            println!("       gauntlet reference validate --path <path>");
             ExitCode::from(2)
         }
     }
@@ -552,6 +556,65 @@ fn reference_digest(args: &[String]) -> ExitCode {
                 "gauntlet reference digest: {} does not digest: {err}",
                 path.display()
             );
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `gauntlet reference validate --path <path>` (plan Task 18 step 4): reads
+/// the file and runs it through the shared answer-key validator
+/// (`gauntlet_app::reference::validate::validate_answer_key`, the Task 7
+/// strict parser reused, not reimplemented) — the formation skill's own
+/// closing gate, so a non-conforming key is rejected before it is treated
+/// as frozen. On success prints `OK: <n> units` and
+/// exits 0; on failure prints the block failure's `Display` to stderr and
+/// exits non-zero. Mirrors `reference_digest`'s `--path` arg-parsing style
+/// exactly.
+fn reference_validate(args: &[String]) -> ExitCode {
+    let mut path: Option<std::path::PathBuf> = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--path" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("gauntlet reference validate: --path requires a path");
+                    return ExitCode::from(2);
+                };
+                if path.replace(std::path::PathBuf::from(value)).is_some() {
+                    eprintln!("gauntlet reference validate: --path given twice");
+                    return ExitCode::from(2);
+                }
+                index += 2;
+            }
+            other => {
+                eprintln!("gauntlet reference validate: unknown argument '{other}'");
+                println!("usage: gauntlet reference validate --path <path>");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    let Some(path) = path else {
+        eprintln!("gauntlet reference validate: --path is required");
+        println!("usage: gauntlet reference validate --path <path>");
+        return ExitCode::from(2);
+    };
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) => {
+            eprintln!(
+                "gauntlet reference validate: reading {} failed: {err}",
+                path.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    match gauntlet_app::reference::validate::validate_answer_key(&text) {
+        Ok(units) => {
+            println!("OK: {} units", units.len());
+            ExitCode::SUCCESS
+        }
+        Err(failure) => {
+            eprintln!("gauntlet reference validate: {failure}");
             ExitCode::FAILURE
         }
     }
