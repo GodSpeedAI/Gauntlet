@@ -122,3 +122,20 @@
   against this file and `b1-progress.md` before re-dispatching (tree
   outranks record). One compiler at a time; package-scoped checks first;
   WSL2 memory is tight (~1.6 GiB free).
+- **Falsifier round 2 DISPATCHED 2026-08-29T21:5x EDT** (fresh blind
+  executing, charter verbatim on general-purpose transport; window-reset
+  timestamps were timezone-ambiguous so the dispatch was attempted — a
+  dead window costs a fast failure only). Brief: attack the corrected
+  tree (HEAD a1c15a2+) with fresh eyes; warm start = round-1
+  NOT-ATTACKED list pasted verbatim into the brief (the falsifier is
+  NOT given F1..F4, the corrections, or any builder/critic/orchestrator
+  report; prereg firewalled). Constraints: holds the compile lock;
+  live-probe legs authorized (`GAUNTLET_CLI_AGENT_LIVE_PROBE=1`,
+  bounded, trivial probe children only); R-1b fence (no real builder
+  execution, no Unit through a gate); byte-identical mutation
+  discipline (sha256-verified restore); checkpoint the report AS IT
+  GOES to `falsifier-round2.md` (result contract: that file exists with
+  verdict + executed attacks + findings + teeth + not-attacked +
+  hygiene). If the agent dies on the usage window again: recover its
+  checkpoint, adjudicate honestly, and record degraded blindness — do
+  NOT silently re-run the round personally without recording it.

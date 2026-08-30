@@ -1,0 +1,319 @@
+# Task 16 outcome record (research instrumentation, non-normative).
+# The frozen preregistration (.agents/research/preregistrations/task-16.prereg.yaml,
+# sha256 f522dbd3be06695d685da426c5b1072303c6ae4dbba478cfe00acb6132bd878c)
+# was never edited; `just prereg-check 16` PASS on the final tree. This file
+# records what was observed, including where a prediction did not hold.
+
+schema_version: 1
+task: 16
+
+preregistration:
+  path: ".agents/research/preregistrations/task-16.prereg.yaml"
+  sha256: "f522dbd3be06695d685da426c5b1072303c6ae4dbba478cfe00acb6132bd878c"
+
+observed:
+  task_result: >-
+    SETTLED (CONFIRM). The second real (non-mock) AgentRunner landed: a
+    generic command-template adapter (shell-word argv grammar, process
+    transport seam with bounded SIGTERM/SIGKILL escalation and dedicated
+    reap grace, §10.3 classification total order with the NEW shape-2 rule
+    — exited without a valid result is Failed{missing_result} before any
+    deadline — terminal pins that retire the child, honest capabilities),
+    plus the P8/AK-013 substitution proof: the FULL shared suite over mock
+    + cli factories in one loop body, fail-closed env selection, and a
+    doctor that MEASURES the cli runner through a parse-AND-render probe.
+    One pre-implementation blind design review (NOT_CONFIRM: 1 blocking /
+    5 major / 6 minor; all corrected mid-flight — the blocking find
+    reshaped the shape-2 case into a sibling suite), one executing
+    falsifier round NOT_CONFIRM (F1..F4; orchestrator-completed after the
+    dispatched agent died on the usage window — degraded blindness
+    recorded), fresh blind falsifier round 2 CONFIRM (0 blocking / 0
+    in-mechanism major; 2 teeth-debt findings corrected tests-only with
+    teeth re-verified personally), 2 minors trigger-recorded.
+
+  material_events:
+    - >-
+      The design critic's blocking find (RES-D1) again fired before code
+      existed: the shared-suite shape-2 case as briefed (a member of
+      agent_runner_suite) could never have passed on the settled prime
+      adapter (one-input poll, no process to exit) — "prime stays green"
+      was unimplementable as written. The case landed as a separate
+      exported sibling suite (exit_without_result_suite) that mock and cli
+      satisfy by design. One message at design time instead of a builder
+      round plus re-review.
+    - >-
+      Falsifier round 1 found three defects the green battery and the
+      design review both missed (F1 cancel-reap grace collapse, F2
+      comment-only template parsed clean making doctor lie, F4 terminal
+      pin leaving a live child) — then the falsifier AGENT itself died on
+      the sub-agent 5-hour usage window at ~17 minutes. Its blind-composed
+      attack files were recovered from the tree, repaired, executed, and
+      RETAINED as regression teeth; the orchestrator completed the round
+      under the standing heal+continue rule with degraded blindness
+      recorded. The discipline requires a fresh blind round anyway, so
+      round 2 was dispatched on window reset — it independently re-proved
+      the corrections and found the mechanism clean.
+    - >-
+      Round 2's verdict was CONFIRM whose two structural findings were
+      AGAIN missing-teeth (task15's U2 class, second occurrence):
+      mutation-proving that gutting the doctor's parse-and-render probe
+      (probe_template) left every shipped suite green, and that decode-locus
+      exclusivity was unenforced for the cli crate. Both corrected
+      tests-only (COR-R2-1/R2-2); the orchestrator re-applied all four
+      mutations by hand — RED, byte-identical restore (sha256), GREEN.
+    - >-
+      The falsifier's fresh-eyes attacks found a class nobody predicted:
+      a hostile child can poison its own contract path (a directory at
+      GAUNTLET_RESULT_PATH) and stay alive, making the TimedOut verdict
+      unreachable forever — the typed-error-forever posture is deliberate
+      (uncertainty never becomes success) but means the runner never
+      self-stops a wedged invocation (R16-F2, minor, trigger-recorded).
+
+  rounds:
+    correction: 2            # COR-F1..F4 (round 1) + COR-R2-1/R2-2 (teeth,
+                             # tests-only); the 12 RES-D design corrections
+                             # were routed pre-implementation
+    confirmation: 3          # design critic (NOT_CONFIRM) + falsifier r1
+                             # (NOT_CONFIRM) + falsifier r2 (CONFIRM)
+    to_first_confirm: 3
+
+post_run:
+  closed_at:
+    git_commit: "see .agents/CURRENT_STATUS.yml evidence entry (written
+      after the closure commit by the established two-commit pattern)"
+    timestamp_utc: "2026-08-30T03:10:00Z"
+    rounds:
+      correction: 2
+      confirmation: 3
+      to_first_confirm: 3
+
+  predictions:
+    - id: P1
+      type: spurious
+      prior: 0.6
+      informativeness: routine
+      observed: >
+        Did NOT fire. The template grammar parses operator configuration
+        into argv words with placeholders bound as single verbatim words;
+        13 round-1 template attacks (unknown/fused/quoted placeholders,
+        shell grammar, hostile values) and round-2's quote-mode binding
+        proofs were all repelled. The design brief took the task14 COR-1
+        class seriously enough that the failure class never existed in
+        code.
+      divergence: >
+        Predicted the first renderer would leak grammar; the built grammar
+        is total over its inputs (every word parses to a typed class or a
+        typed refusal).
+      resolution_evidence:
+        - ".agents/reports/task16/falsifier-round1.md (A1-A13 all REPELLED)"
+        - ".agents/reports/task16/falsifier-round2.md (L3a/L3b)"
+      interpretable: true
+    - id: P2
+      type: spurious
+      prior: 0.65
+      informativeness: routine
+      observed: >
+        Did NOT fire as a mechanism defect: B1 implemented shape 2
+        correctly from the start (the design round made the distinction
+        explicit via RES-D1 before implementation). Proven in the opposite
+        direction: deliberately removing the shape-2 pin (mutation M2) is
+        caught instantly by the shared suite case — a coverage win, not a
+        breakage.
+      divergence: >
+        The predicted wrong-first-implementation never existed; the
+        suite-extension mechanism caught the deliberate break instead.
+      resolution_evidence:
+        - ".agents/reports/task16/correction-round2.md (tooth 2)"
+        - ".agents/reports/task16/falsifier-round2.md (L11b)"
+      interpretable: true
+    - id: P3
+      type: match
+      prior: 0.6
+      informativeness: risky
+      observed: >
+        MATCHED twice. Round-1 F1: cancel escalation consumed the whole
+        caller bound, reporting CancelFailed for a landed SIGKILL with a
+        pending reap — a deliberate Cancelled was at risk of
+        re-classification to a retryable agent failure. Round-1 F4: a
+        terminal pin left the child ALIVE forever with cancel unreachable
+        (an invocation outliving its verdict with authority). Both are the
+        predicted cancel/reap/lifecycle family, both invisible to the
+        green battery; both corrected (COR-F1/COR-F4) and re-attacked clean
+        by round 2.
+      divergence: >
+        None of substance — the prediction named this exact family.
+      resolution_evidence:
+        - ".agents/reports/task16/falsifier-round1.md (C-sig, C-hang; F1, F4)"
+        - ".agents/reports/task16/correction-round1.md"
+      interpretable: true
+    - id: P4
+      type: match
+      prior: 0.55
+      informativeness: risky
+      observed: >
+        MATCHED, in sharper form and EARLIER than predicted: the blind
+        design critic's blocking RES-D1 showed the shared-suite shape-2
+        case as briefed could never pass on the settled prime adapter
+        (one-input poll has no process exit to observe) — the extension
+        WAS a multi-adapter change, discovered at design time. Landed as a
+        sibling suite the two designed satisfiers pass; the "existing run
+        goes RED" half never fired because the case never entered the
+        universal suite.
+      divergence: >
+        Stage shifted left (design review, not implementation); the core
+        prediction — the suite change is not one-adapter-local — held.
+      resolution_evidence:
+        - ".agents/reports/task16/critic-design.md (C1/RES-D1)"
+        - ".agents/reports/task16/design-adjudication.md"
+      interpretable: true
+    - id: P5
+      type: match
+      prior: 0.5
+      informativeness: routine
+      observed: >
+        Both named candidates surfaced and were recorded as decisions:
+        selection is GAUNTLET_P8_ADAPTER (env, fail-closed unknown) because
+        the plan's literal --adapter flag does not fit nextest arg-passing
+        (D-dev-1), and the p8 factory template is a constructor-injected
+        test literal, never the operator's environment (RES-D10/C10). The
+        prompt-file location (invocation dir under the runner's configured
+        scratch root) was pinned by the design round without controversy.
+      divergence: >
+        None.
+      resolution_evidence:
+        - ".agents/reports/task16/b1-builder.md (D-dev-1)"
+        - ".agents/reports/task16/design-adjudication.md (RES-D10)"
+      interpretable: true
+
+  blindspots:
+    - index: 0
+      materialized: no
+      cost_if_materialized: ""
+      note: >
+        The trivial probe child parsed the real prompt format on the first
+        live try (live probe PASS 0.255 s through the REAL spawn path);
+        the format stayed machine-parseable (explicit field markers), as
+        the mitigation required.
+    - index: 1
+      materialized: no
+      cost_if_materialized: ""
+      note: >
+        The explicit nonclaim stands unchanged — the mechanism travels;
+        no vendor CLI was exercised. Recorded in the closure nonclaims.
+    - index: 2
+      materialized: partial
+      cost_if_materialized: >
+        Signal-escalation timing bit once (round-1 C-sig, a SIGTERM-
+        ignoring child consumed the graceful bound — COR-F1) and
+        hang-after-write retirement bit once (C-hang — COR-F4). The
+        exotic shapes (daemonized grandchildren, process groups) were
+        never attacked (round-2 not-attacked list) — recorded, not hidden.
+      note: >
+        The blindspot declaration justified the bounded live-probe legs
+        and the C-leg children; both defects it anticipated were caught
+        by the executing falsifier, not by the suite.
+
+  unforeseen:
+    - id: U1
+      description: >
+        Missing-teeth recurrence (task15's U2 class, second occurrence,
+        two more instances): the doctor's parse-and-render honesty probe
+        (probe_template) and the cli decode-locus exclusivity were correct
+        mechanisms with ZERO in-tree coverage — round-2 mutation M1 left
+        58 adapter + 62 cli tests green against a gutted probe. The
+        confirmation structure (fresh blind rounds) is what surfaced both;
+        no single shipped suite could have.
+      class: "existing residual class name: missing-teeth (task14 M-series,
+        task15 U2)"
+      would_a_prior_prereg_have_caught_it: "no — the transfer_tests pointed
+        at teeth for NEW rules, not at coverage audits of correct
+        mechanisms"
+      first_seen_task: 15
+    - id: U2
+      description: >
+        The contract-path-poisoning liveness class: a hostile child can
+        make the deadline verdict unreachable (typed Transport error
+        forever on poll) and the runner never self-stops it. The
+        deliberate uncertainty-never-success posture produced an
+        unbounded-liveness cost nobody predicted; recorded as R16-F2 with
+        a task25 trigger.
+      class: new
+      would_a_prior_prereg_have_caught_it: no
+      first_seen_task: 16
+
+  interventions:
+    - risk_id: R1
+      fired: false
+      class_used: A3
+      matched_preregistered: true
+      note: >
+        Shell-word contamination never landed (P1 spurious); the
+        preregistered mitigation ran anyway — quoting/metacharacter
+        payloads through template AND values in both falsifier rounds,
+        and the render-level teeth (a4b leg, COR-R2-1) were shown RED
+        before being relied on GREEN.
+    - risk_id: R2
+      fired: false
+      class_used: A4
+      matched_preregistered: true
+      note: >
+        No fake-success pressure: the live leg passed first try (0.255 s)
+        and its outcome is recorded verbatim; P8's closure claim states
+        which legs were live (probe child) and which were doubles.
+    - risk_id: R3
+      fired: false
+      class_used: A5
+      matched_preregistered: true
+      note: >
+        The shape-2 rule landed ONLY in the shared suite (ports); the
+        AK-013 locator divergence went to reference-candidates, never the
+        ruler; just ruler PASS before and after every phase including the
+        closure battery.
+    - risk_id: R4
+      fired: false
+      class_used: A5
+      matched_preregistered: true
+      note: >
+        Touch surface held to the enumerated list; R-1b/R-2/R-3 and
+        T15-R1..R5 restated open with triggers; no composition wiring
+        (controller still feeds mock runners; task20 hard-triggers R-1b).
+
+  residual_classes_touched:
+    - name: missing-teeth (guarantee without a committed test that fails
+        when broken)
+      instance_number: 2
+      predicted_in_advance: false
+    - name: process-lifecycle-defect-invisible-to-green-battery
+      instance_number: 2
+      predicted_in_advance: true
+    - name: deliberate-posture-liveness-cost (typed-error-forever)
+      instance_number: 1
+      predicted_in_advance: false
+
+  method_burden:
+    findings: {critical: 0, major: 8, minor: 11}   # design 1 blocking + 5
+                                                   # major + 6 minor; r1: 3
+                                                   # major + 1 minor; r2: 2
+                                                   # major(-with-COR) + 2 minor
+    findings_that_evaded_a_prior_defense: 3        # r1 F1/F2/F4 evaded the
+                                                   # green battery AND the
+                                                   # design review
+    toothless_checks_found: 2                      # probe_template coverage,
+                                                   # cli decode-locus scan
+                                                   # (fixed COR-R2-1/R2-2)
+    residuals: {opened: 4, closed: 0, deferred: 12}  # R16-F2/F3 + 2 notes
+                                                     # opened; R-1b/R-2/R-3,
+                                                     # T15-R1..R5, UNK-003,
+                                                     # + earlier lists restated
+    interruptions: 1                               # r1 falsifier died on the
+                                                   # usage window (~17 min);
+                                                   # round completed by the
+                                                   # orchestrator, degraded
+                                                   # blindness recorded; +2
+                                                   # pre-launch dispatch
+                                                   # network failures (B2)
+    green_gate_was_wrong: false                    # the battery was green
+                                                   # and honest; the defects
+                                                   # lived in lifecycle corners
+                                                   # and uncovered guarantees
+    operator_adjudication_minutes: null

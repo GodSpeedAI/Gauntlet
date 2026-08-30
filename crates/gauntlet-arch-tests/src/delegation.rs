@@ -51,6 +51,22 @@
 //! and assert the scan REPORTS each one. The fixtures live only here —
 //! the real adapter sources carry none of them, which the repo test
 //! asserts in the same run.
+//!
+//! # The cli sibling (COR-R2-2)
+//!
+//! The generic CLI adapter (`crates/adapters/gauntlet-adapter-agent-cli`)
+//! gets the same decode-locus exclusivity as a delegation seam: rules A
+//! and B over [`CLI_ADAPTER_SRC`] via [`scan_cli_delegation_ban`], same
+//! mechanics, same failure style (COR-R2-2, round-2 finding F4 — the cli
+//! crate had the vendor-term scan but no decode-locus scan; its one decode
+//! locus, `runner.rs` `classify_contract`, was correct by inspection
+//! only). One documented difference: the cli runner decodes inside
+//! `classify_contract`, the private classifier whose ONLY callers are
+//! `poll`'s initial read and its exit-triggered final re-read — so the
+//! cli scan's decoding-fn set is `poll`, `collect`, `classify_contract`
+//! ([`CLI_DECODING_FNS`]); a decode call in any other fn (`invoke`,
+//! `cancel`, `stop_child`, …) fails rule B, and a decode call in any file
+//! other than `runner.rs` fails rule A.
 
 use std::collections::BTreeMap;
 
@@ -178,6 +194,77 @@ fn fn_header(line: &str) -> Option<&str> {
     well_formed.then_some(name)
 }
 
+/// The generic CLI adapter crate the sibling scan polices (COR-R2-2).
+pub const CLI_ADAPTER_SRC: &str = "crates/adapters/gauntlet-adapter-agent-cli/src";
+
+/// The fns that may decode the result contract in the CLI adapter: the
+/// `AgentRunner` trait's `poll`/`collect`, plus `classify_contract` — the
+/// runner's ONE contract classifier, whose only callers are `poll`'s
+/// initial read and its exit-triggered final re-read. A decode call in
+/// any other fn fails rule B.
+const CLI_DECODING_FNS: &[&str] = &["poll", "collect", "classify_contract"];
+
+/// Scans the generic CLI adapter's source files (repo-relative path →
+/// text) for result-decoding calls outside the runner's poll path (the
+/// COR-R2-2 sibling of [`scan_delegation_ban`]; same rules A/B, same
+/// failure style). Every violation names its rule, file, and line.
+pub fn scan_cli_delegation_ban(files: &BTreeMap<String, String>) -> Vec<String> {
+    let mut violations = Vec::new();
+    let runner_present = files.keys().any(|p| p.ends_with(RUNNER_FILE));
+    if files.is_empty() || !runner_present {
+        violations.push(format!(
+            "delegation-ban: {CLI_ADAPTER_SRC}: the adapter crate's runner source is missing — \
+             the scan has nothing to police and must not pass silently"
+        ));
+        return violations;
+    }
+    for (path, text) in files {
+        let is_runner = path.ends_with(RUNNER_FILE);
+        // Rule A: decoding calls exist ONLY in runner.rs.
+        if !is_runner {
+            for token in DECODE_CALLS {
+                for (index, line) in text.lines().enumerate() {
+                    if line.contains(token) {
+                        violations.push(format!(
+                            "delegation-ban (rule A): {path}:{}: result-decoding call {token:?} \
+                             outside {RUNNER_FILE} — only the runner's poll path may derive a \
+                             result from the contract (COR-R2-2, spec 10.5)",
+                            index + 1
+                        ));
+                    }
+                }
+            }
+        }
+        // Rule B: within runner.rs, decoding calls live only in the poll
+        // path's fn bodies.
+        if is_runner {
+            let mut current_fn = "<top>";
+            for (index, line) in text.lines().enumerate() {
+                if let Some(name) = fn_header(line) {
+                    current_fn = name;
+                }
+                if CLI_DECODING_FNS.contains(&current_fn) {
+                    continue;
+                }
+                for token in DECODE_CALLS {
+                    if line.contains(token) {
+                        violations.push(format!(
+                            "delegation-ban (rule B): {path}:{}: result-decoding call {token:?} \
+                             inside fn {current_fn} — the contract is decoded ONLY in fn poll \
+                             (through its classifier fn classify_contract) and fn collect \
+                             (COR-R2-2, spec 10.3/10.5)",
+                            index + 1
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    violations.sort();
+    violations.dedup();
+    violations
+}
+
 #[cfg(test)]
 mod delegation_tests {
     use std::path::Path;
@@ -215,6 +302,16 @@ mod delegation_tests {
         }
     }
 
+    /// Loads the real generic CLI adapter sources for the repo scan
+    /// (COR-R2-2).
+    fn real_cli_adapter_sources() -> BTreeMap<String, String> {
+        let root = crate::walk::repo_root();
+        let src = root.join(CLI_ADAPTER_SRC);
+        let mut files = BTreeMap::new();
+        collect_rs(&src, &root, &mut files);
+        files
+    }
+
     /// The repo scan: the real prime-agent adapter carries NO banned shape.
     #[test]
     fn the_prime_adapter_derives_no_result_from_the_delegation_call() {
@@ -228,6 +325,25 @@ mod delegation_tests {
         assert!(
             violations.is_empty(),
             "the prime-agent adapter must never derive a result from the delegation call:\n{}",
+            violations.join("\n")
+        );
+    }
+
+    /// The repo scan: the real generic CLI adapter decodes the result
+    /// contract ONLY inside `runner.rs`'s poll path (COR-R2-2).
+    #[test]
+    fn the_generic_cli_adapter_derives_no_result_outside_the_poll_path() {
+        let files = real_cli_adapter_sources();
+        assert!(
+            files.len() >= 6,
+            "the cli adapter crate's sources must be loadable: {:?}",
+            files.keys()
+        );
+        let violations = scan_cli_delegation_ban(&files);
+        assert!(
+            violations.is_empty(),
+            "the generic CLI adapter must never derive a result outside the runner's poll \
+             path:\n{}",
             violations.join("\n")
         );
     }
@@ -365,6 +481,111 @@ mod delegation_tests {
         assert!(
             violations.iter().any(|v| v.contains("missing")),
             "an empty source set must be a violation, not a pass: {violations:?}"
+        );
+    }
+
+    // ---------------------------------------------------------------------------
+    // COR-R2-2 negative control: the cli sibling scan must REPORT each banned
+    // shape. The fixtures are planted here only — asserted and never committed
+    // to the adapter.
+    // ---------------------------------------------------------------------------
+
+    /// A fake non-runner module in the cli crate that decodes a result from
+    /// what it observed — cli rule A must fire.
+    const CLI_VIOLATING_TEMPLATE: &str = "\
+    use gauntlet_ports::role_result::read_result_contract;
+    pub fn sneak(source: &str) -> Option<RoleResult> {
+        let decoded = read_result_contract(source, &todo!(), &todo!());
+        decoded.ok()
+    }
+    ";
+
+    /// A fake cli runner whose `invoke` (not the poll path) decodes the
+    /// contract — cli rule B must fire on `invoke` while the poll path's
+    /// `poll`/`collect`/`classify_contract` exemption holds.
+    const CLI_VIOLATING_RUNNER: &str = "\
+    use gauntlet_ports::role_result::read_result_contract;
+    pub struct Runner;
+    impl Runner {
+        pub fn invoke(&self, spec: &str) -> u32 {
+            let _stolen = read_result_contract(spec, &todo!(), &todo!());
+            0
+        }
+        fn classify_contract(entry: &str) -> u32 {
+            let _allowed = read_result_contract(entry, &todo!(), &todo!());
+            3
+        }
+        pub fn poll(&self, handle: &str) -> u32 {
+            let _allowed = read_result_contract(handle, &todo!(), &todo!());
+            1
+        }
+        pub fn collect(&self, handle: &str) -> u32 {
+            let _allowed = read_result_contract(handle, &todo!(), &todo!());
+            2
+        }
+    }
+    ";
+
+    #[test]
+    fn the_control_proves_the_cli_rule_a_has_teeth() {
+        let files = fixture_map(&[
+            (
+                "crates/adapters/gauntlet-adapter-agent-cli/src/template.rs",
+                CLI_VIOLATING_TEMPLATE,
+            ),
+            (
+                "crates/adapters/gauntlet-adapter-agent-cli/src/runner.rs",
+                "pub struct Runner;\n",
+            ),
+        ]);
+        let violations = scan_cli_delegation_ban(&files);
+        assert!(
+            violations.iter().any(|v| v.contains("rule A")
+                && v.contains("template.rs")
+                && v.contains("read_result_contract")),
+            "a decoding call in the cli crate's template module must be REPORTED: {violations:?}"
+        );
+    }
+
+    #[test]
+    fn the_control_proves_the_cli_rule_b_has_teeth() {
+        let files = fixture_map(&[
+            (
+                "crates/adapters/gauntlet-adapter-agent-cli/src/template.rs",
+                "pub fn render() {}\n",
+            ),
+            (
+                "crates/adapters/gauntlet-adapter-agent-cli/src/runner.rs",
+                CLI_VIOLATING_RUNNER,
+            ),
+        ]);
+        let violations = scan_cli_delegation_ban(&files);
+        let invoke_hit = violations
+            .iter()
+            .any(|v| v.contains("rule B") && v.contains("inside fn invoke"));
+        let poll_path_clean = !violations.iter().any(|v| {
+            v.contains("rule B")
+                && (v.contains("inside fn poll")
+                    || v.contains("inside fn collect")
+                    || v.contains("inside fn classify_contract"))
+        });
+        assert!(
+            invoke_hit,
+            "a decoding call inside fn invoke must be REPORTED: {violations:?}"
+        );
+        assert!(
+            poll_path_clean,
+            "the cli poll-path exemption (poll/collect/classify_contract) must hold: \
+             {violations:?}"
+        );
+    }
+
+    #[test]
+    fn the_control_proves_a_missing_cli_crate_cannot_pass_silently() {
+        let violations = scan_cli_delegation_ban(&BTreeMap::new());
+        assert!(
+            violations.iter().any(|v| v.contains("missing")),
+            "an empty cli source set must be a violation, not a pass: {violations:?}"
         );
     }
 }
