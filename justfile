@@ -54,9 +54,11 @@ schemas:
     @echo "schemas: not implemented — lands with a later task (spec Annex B schema export)" >&2; exit 2
 
 # roles-verify — re-read installed harness role state and report drift
-# (spec §10.1). Lands in plan Task 17; must fail loudly until then.
+# (spec 10.1, plan Task 17): out-of-band edits, source edits since install,
+# missing or extra artifacts, or a hand-edited/re-forged roles.lock are a
+# typed failure and a non-zero exit.
 roles-verify:
-    @echo "roles-verify: not implemented — lands in plan Task 17 (role drift detection)" >&2; exit 2
+    cargo run -q -p gauntlet-cli -- roles verify
 
 # prereg-check — research instrumentation ONLY (`.agents/research/preregistrations/`).
 # Verifies a task's frozen preregistration is byte-identical to its recorded SHA-256.

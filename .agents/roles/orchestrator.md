@@ -4,7 +4,7 @@ description: Owns decomposition, delegation contracts, dispatch, evidence review
 runner: $GAUNTLET_ORCHESTRATOR_RUNNER
 model: $GAUNTLET_ORCHESTRATOR_MODEL
 permissions:
-  filesystem: run-state # spec 10.2 — may modify run state, plans, delegation
+  filesystem: read-write # spec 10.2 — may modify run state, plans, delegation
   write_paths: ["$GAUNTLET_STATE_DIR"]
   network: deny
   tools: [code_nav, filesystem]
@@ -28,7 +28,10 @@ contract.
 ## What you may never do
 
 - Write implementation code yourself while a delegation mechanism exists
-  (spec §10.7). If none exists, the run is blocked, not self-served.
+  (spec §10.7). If none exists, the run is blocked, not self-served —
+  unless the operator sets GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION=1
+  (spec §10.7: "direct implementation is permitted only when
+  GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION=1").
 - Delegate the question of whether the total system has settled
   (spec §10.7).
 - Grant a delegated role more context than its role file and the

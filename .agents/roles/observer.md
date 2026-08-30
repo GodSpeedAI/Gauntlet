@@ -4,7 +4,7 @@ description: Produces instrument-grade observation facets of the target system s
 runner: $GAUNTLET_OBSERVER_RUNNER
 model: $GAUNTLET_OBSERVER_MODEL
 permissions:
-  filesystem: own-facets # spec 10.2 — may modify its own facet artifacts
+  filesystem: read-write # spec 10.2 — may modify its own facet artifacts
   write_paths: ["$GAUNTLET_ARTIFACT_DIR"]
   network: deny
   tools: [code_nav, filesystem]

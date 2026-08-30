@@ -32,6 +32,31 @@ const ROLE_TICKS: u64 = 900;
 /// rendering.
 const CANARY: &str = "credential-canary-9f3a1c";
 
+/// The §8.4 semantic-capability vocabulary the fixture tree validates
+/// against (COR-D06). §8.4's full list carries seventeen tokens; three of
+/// them are whole-literal adapter segments the boundary suite denies in
+/// inner crates — which is why the application layer receives the real
+/// list from the composition root (`spec_vocab::CAPABILITY_VOCABULARY`)
+/// and this in-crate fixture carries the fourteen collision-free tokens.
+/// The repository's own artifacts use only `code_nav` and `filesystem`,
+/// both present here.
+const TOOL_VOCAB: &[&str] = &[
+    "code_nav",
+    "filesystem",
+    "versioning",
+    "browser",
+    "visual",
+    "web",
+    "research",
+    "security",
+    "sandbox",
+    "evidence",
+    "domain",
+    "policy",
+    "benchmark",
+    "schema",
+];
+
 /// The environment every fixture role file's indirections resolve
 /// against.
 fn env_pairs() -> Vec<(String, String)> {
@@ -169,6 +194,7 @@ fn install_and_verify() {
         harness: "writable-harness",
         registry: &registry,
         env: &env,
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install succeeds");
     assert_eq!(report.enforcement, Enforcement::Writable);
@@ -183,6 +209,8 @@ fn install_and_verify() {
     let seen = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect("verify is green right after install");
     assert_eq!(seen.harness, "writable-harness");
@@ -213,6 +241,7 @@ fn reinstall_of_unchanged_tree_is_byte_identical_lock() {
         harness: "writable-harness",
         registry: &registry,
         env: &env,
+        tool_vocabulary: TOOL_VOCAB,
     };
     let first = install(&input).expect("first install");
     let first_bytes = lock_bytes(&root);
@@ -245,6 +274,7 @@ fn out_of_band_installed_edit_is_drift() {
         harness: "writable-harness",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install");
     let target = installed_path(&state, "writable-harness", "builder");
@@ -254,6 +284,8 @@ fn out_of_band_installed_edit_is_drift() {
     let error = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect_err("an out-of-band installed edit is drift");
     let RolesError::Drift { entries } = error else {
@@ -278,6 +310,7 @@ fn source_edit_after_install_is_drift() {
         harness: "writable-harness",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install");
     let target = roles.join("critic.md");
@@ -287,6 +320,8 @@ fn source_edit_after_install_is_drift() {
     let error = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect_err("a source edit since install is drift");
     let RolesError::Drift { entries } = error else {
@@ -311,6 +346,7 @@ fn missing_installed_file_is_drift() {
         harness: "writable-harness",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install");
     fs::remove_file(installed_path(&state, "writable-harness", "critic"))
@@ -318,6 +354,8 @@ fn missing_installed_file_is_drift() {
     let error = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect_err("a missing installed artifact is drift");
     let RolesError::Drift { entries } = error else {
@@ -346,6 +384,7 @@ fn hand_edited_lock_is_a_typed_tamper_failure() {
         harness: "writable-harness",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install");
     let lock_path = root.join(".gauntlet").join("roles.lock");
@@ -360,6 +399,8 @@ fn hand_edited_lock_is_a_typed_tamper_failure() {
     let error = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect_err("a hand-edited lock is tamper");
     assert!(
@@ -380,6 +421,7 @@ fn full_lock_reforge_cannot_bless_installed_drift() {
         harness: "writable-harness",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install");
 
@@ -421,6 +463,8 @@ fn full_lock_reforge_cannot_bless_installed_drift() {
     let error = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect_err("even a fully re-forged lock cannot bless drift");
     let RolesError::Drift { entries } = error else {
@@ -477,6 +521,7 @@ fn noncanonical_lock_with_recomputed_digest_is_tamper() {
         harness: "writable-harness",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install");
     let original = String::from_utf8(lock_bytes(&root)).expect("the lock is text");
@@ -501,6 +546,8 @@ fn noncanonical_lock_with_recomputed_digest_is_tamper() {
     let error = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect_err("a parse-transparent non-canonical lock is tamper");
     assert!(
@@ -516,7 +563,8 @@ fn noncanonical_lock_with_recomputed_digest_is_tamper() {
 #[test]
 fn allow_naming_an_envelope_denied_category_is_refused() {
     let text = role_document("builder", "BUILDER", "reference, builder_trajectory", "");
-    let error = RoleDefinition::load("builder", &text, &env_layer()).expect_err("over-grant");
+    let error =
+        RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB).expect_err("over-grant");
     assert!(
         matches!(error, RoleError::OverGrant { .. }),
         "over-grant is the failure class, got {error:?}"
@@ -535,7 +583,8 @@ fn unknown_front_matter_key_is_refused() {
         "result_contract:",
         "governance: self-service\nresult_contract:",
     );
-    let error = RoleDefinition::load("builder", &text, &env_layer()).expect_err("unknown key");
+    let error =
+        RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB).expect_err("unknown key");
     assert!(
         matches!(&error, RoleError::UnknownField { field, .. } if field == "governance"),
         "the unknown key is named, got {error:?}"
@@ -550,7 +599,7 @@ fn deny_shadowing_allow_is_refused() {
         "reference, open_residuals",
         "reference",
     );
-    let error = RoleDefinition::load("builder", &text, &env_layer())
+    let error = RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB)
         .expect_err("a deny that shadows its own allow");
     assert!(
         matches!(error, RoleError::DenyShadowsAllow { category, .. } if category == ContextCategory::Reference),
@@ -566,7 +615,7 @@ fn unknown_context_category_is_refused() {
         "reference, buildr_intent",
         "builder_trajectory",
     );
-    let error = RoleDefinition::load("builder", &text, &env_layer()).expect_err("typo");
+    let error = RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB).expect_err("typo");
     assert!(
         matches!(&error, RoleError::UnknownContextCategory { token, .. } if token == "buildr_intent"),
         "the typo is named, got {error:?}"
@@ -581,7 +630,8 @@ fn unknown_context_category_is_refused() {
 fn missing_indirection_is_a_typed_error_naming_the_variable() {
     let text = role_document("critic", "CRITIC", "reference", "builder_trajectory");
     let env = env_layer_without("GAUNTLET_CRITIC_MODEL");
-    let error = RoleDefinition::load("critic", &text, &env).expect_err("missing variable");
+    let error =
+        RoleDefinition::load("critic", &text, &env, TOOL_VOCAB).expect_err("missing variable");
     let RoleError::Indirection { source, .. } = &error else {
         panic!("indirection is the failure class, got {error:?}");
     };
@@ -620,6 +670,7 @@ fn resolved_secrets_never_reach_the_lock_or_bytes_or_debug() {
         "builder",
         &fs::read_to_string(roles.join("builder.md")).expect("fixture reads"),
         &env,
+        TOOL_VOCAB,
     )
     .expect("the definition loads with the secret resolved");
     assert!(
@@ -634,6 +685,7 @@ fn resolved_secrets_never_reach_the_lock_or_bytes_or_debug() {
         harness: "writable-harness",
         registry: &registry,
         env: &env,
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("install succeeds with the secret present");
     let lock = String::from_utf8(lock_bytes(&root)).expect("the lock is text");
@@ -679,6 +731,7 @@ fn write_path_resolving_outside_the_roots_is_refused() {
         harness: "writable-harness",
         registry: &registry,
         env: &env,
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect_err("an escaping write path is refused");
     assert!(
@@ -703,6 +756,7 @@ fn advisory_harness_records_advisory_and_materializes_injectable_artifacts() {
         harness: "advisory-harness",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     })
     .expect("the fallback install succeeds");
     assert_eq!(report.enforcement, Enforcement::Advisory);
@@ -720,6 +774,8 @@ fn advisory_harness_records_advisory_and_materializes_injectable_artifacts() {
     let seen = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect("verify is green right after the advisory install");
     assert_eq!(seen.enforcement, Enforcement::Advisory);
@@ -740,11 +796,14 @@ fn every_registered_harness_installs_and_verifies() {
             harness: id,
             registry: &registry,
             env: &env_layer(),
+            tool_vocabulary: TOOL_VOCAB,
         })
         .unwrap_or_else(|error| panic!("install over {id} succeeds: {error:?}"));
         verify(&VerifyInput {
             project_root: &root,
             state_dir: &state,
+            roles_dir: &roles,
+            registry: &registry,
         })
         .unwrap_or_else(|error| panic!("verify over {id} is green: {error:?}"));
     }
@@ -766,6 +825,7 @@ fn unknown_or_missing_harness_fails_closed() {
         harness: "",
         registry: &registry,
         env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
     };
     let error = install(&input).expect_err("an empty harness id fails closed");
     assert!(
@@ -787,9 +847,12 @@ fn unknown_or_missing_harness_fails_closed() {
 fn verify_without_install_is_a_configuration_failure() {
     let (root, roles, state) = fixture_project("verify-without-install");
     write_fixture_tree(&roles);
+    let registry = registry();
     let error = verify(&VerifyInput {
         project_root: &root,
         state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
     })
     .expect_err("verify without install has nothing to check");
     assert!(
@@ -810,7 +873,8 @@ fn deny_set_and_envelope_grant_are_consumable_data() {
         "reference, open_residuals",
         "comparison_contract, builder_trajectory",
     );
-    let definition = RoleDefinition::load("builder", &text, &env_layer()).expect("loads");
+    let definition =
+        RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB).expect("loads");
     assert_eq!(
         definition.envelope_grant(),
         vec![ContextCategory::Reference, ContextCategory::OpenResiduals],
@@ -844,19 +908,20 @@ fn critic_dimension_files_load_uniformly_and_mismatches_are_refused() {
         "reference, observation_bundle",
         "builder_trajectory",
     );
-    let definition =
-        RoleDefinition::load("critic-security", &text, &env_layer()).expect("dimension loads");
+    let definition = RoleDefinition::load("critic-security", &text, &env_layer(), TOOL_VOCAB)
+        .expect("dimension loads");
     assert_eq!(definition.dimension(), Some("security"));
     assert_eq!(definition.role(), &gauntlet_domain::RoleId::Critic);
     let error = RoleDefinition::load(
         "critic-security",
         &text.replace("role: critic", "role: builder"),
         &env_layer(),
+        TOOL_VOCAB,
     )
     .expect_err("a dimension stem must declare the critic role");
     assert!(matches!(error, RoleError::RoleDimensionMismatch { .. }));
     let plain = role_document("builder", "BUILDER", "reference", "builder_trajectory");
-    let error = RoleDefinition::load("worker", &plain, &env_layer())
+    let error = RoleDefinition::load("worker", &plain, &env_layer(), TOOL_VOCAB)
         .expect_err("a plain stem must name its role");
     assert!(matches!(error, RoleError::RoleDimensionMismatch { .. }));
 }
@@ -864,6 +929,585 @@ fn critic_dimension_files_load_uniformly_and_mismatches_are_refused() {
 // ---------------------------------------------------------------------------
 // The repository's own role artifacts load (they are install inputs)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// COR-D01: a forged EMPTY lock is tamper, never a green verify
+// ---------------------------------------------------------------------------
+
+/// Re-forges the project's lock with `mutate` applied to its canonical body,
+/// recomputing the self-digest by the lock's own documented rule (the body
+/// joined with its trailing newline) — the committed attacker's shape: every
+/// self-consistency check the lock can make passes.
+fn reforge_lock(root: &std::path::Path, mutate: impl FnOnce(&mut String)) {
+    let original = String::from_utf8(lock_bytes(root)).expect("the lock is text");
+    let (body, _) = original
+        .rsplit_once("\nlock_digest: ")
+        .expect("the lock carries its self-digest line");
+    let mut body = format!("{body}\n");
+    mutate(&mut body);
+    let self_digest = sha256_hex_of(body.as_bytes());
+    let forged = format!("{body}lock_digest: sha256:{self_digest}\n");
+    fs::write(root.join(".gauntlet").join("roles.lock"), forged).expect("the re-forge applies");
+}
+
+/// COR-D01: install can never write an empty-entries lock (`EmptyRoleSet`
+/// refuses an empty roles dir), so a canonical, self-digest-consistent lock
+/// with zero entries is by construction hand-forged — precisely the shape the
+/// tamper story exists to catch. It must be `LockTampered`, never
+/// `Ok(roles: 0)`.
+#[test]
+fn forged_empty_lock_with_recomputed_digest_is_tamper() {
+    let (root, roles, state) = fixture_project("empty-lock-forgery");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    let body = "schema: gauntlet-roles-lock@v1\nharness: writable-harness\n\
+                enforcement: writable\nentries:\n";
+    let self_digest = sha256_hex_of(body.as_bytes());
+    let forged = format!("{body}lock_digest: sha256:{self_digest}\n");
+    fs::write(root.join(".gauntlet").join("roles.lock"), forged).expect("the empty lock is forged");
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("an empty-entries lock is hand-forged, never runtime-written");
+    assert!(
+        matches!(error, RolesError::LockTampered { .. }),
+        "tamper is the failure class, got {error:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// COR-D04: set-membership drift — out-of-band ADDITIONS on either side
+// ---------------------------------------------------------------------------
+
+/// COR-D04(a): a `.md` file dropped into the installed surface out-of-band —
+/// the Annex C.4 harness-mutation case — is drift by name, not invisible.
+#[test]
+fn out_of_band_installed_addition_is_drift() {
+    let (root, roles, state) = fixture_project("installed-addition");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    let dir = installed_path(&state, "writable-harness", "builder")
+        .parent()
+        .expect("the installed dir exists")
+        .to_path_buf();
+    fs::write(dir.join("evil.md"), "# out-of-band harness mutation\n")
+        .expect("the out-of-band addition applies");
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("an installed file the lock does not record is drift");
+    let RolesError::Drift { entries } = error else {
+        panic!("drift is the failure class, got {error:?}");
+    };
+    assert!(
+        entries.iter().any(|record| record.role == "evil"
+            && record.kind == gauntlet_app::roles::DriftKind::InstalledExtra),
+        "the out-of-band addition is named: {entries:?}"
+    );
+}
+
+/// COR-D04(b): a new role file added to the source tree after install — the
+/// stale-install case — is drift by name. The extra file is REPORTED, never
+/// loaded (a drifted tree is not parsed as configuration).
+#[test]
+fn source_addition_after_install_is_drift() {
+    let (root, roles, state) = fixture_project("source-addition");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    fs::write(
+        roles.join("observer.md"),
+        role_document(
+            "observer",
+            "OBSERVER",
+            "reference, target_state",
+            "operator_chat",
+        ),
+    )
+    .expect("the source addition applies");
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("a source file the lock does not record is drift");
+    let RolesError::Drift { entries } = error else {
+        panic!("drift is the failure class, got {error:?}");
+    };
+    assert!(
+        entries.iter().any(|record| record.role == "observer"
+            && record.kind == gauntlet_app::roles::DriftKind::SourceExtra),
+        "the stale install is named: {entries:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// COR-D13: teeth for the load-bearing guards
+// ---------------------------------------------------------------------------
+
+/// COR-D13(a): `contained_join`'s refusal is the only thing standing between
+/// a forged lock and arbitrary host paths — a lock recording a TRAVERSING
+/// source (with a correctly recomputed self-digest, so every self-check
+/// passes) must fail `LockTampered`.
+#[test]
+fn forged_traversal_source_in_lock_is_tamper() {
+    let (root, roles, state) = fixture_project("traversal-source-forgery");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    reforge_lock(&root, |body| {
+        *body = body.replacen(
+            "    source: .agents/roles/builder.md",
+            "    source: ../escape.md",
+            1,
+        );
+    });
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("a recorded traversal path is tamper");
+    assert!(
+        matches!(error, RolesError::LockTampered { .. }),
+        "the escape refusal fires, got {error:?}"
+    );
+}
+
+/// COR-D13(a), absolute shape: a lock recording an ABSOLUTE source path —
+/// again with a recomputed self-digest — must fail `LockTampered`.
+#[test]
+fn forged_absolute_source_in_lock_is_tamper() {
+    let (root, roles, state) = fixture_project("absolute-source-forgery");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    // The forged absolute record targets a host file OUTSIDE the project
+    // fixture — built from the temp dir, never spelled as a literal (a
+    // path literal is environment coupling, spec 8.1).
+    let absolute_target = std::env::temp_dir()
+        .join("gauntlet-t17-forged-absolute.md")
+        .to_string_lossy()
+        .into_owned();
+    reforge_lock(&root, |body| {
+        *body = body.replacen(
+            "    source: .agents/roles/builder.md",
+            &format!("    source: {absolute_target}"),
+            1,
+        );
+    });
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("a recorded absolute path is tamper");
+    assert!(
+        matches!(error, RolesError::LockTampered { .. }),
+        "the escape refusal fires, got {error:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// COR-R1-1: lock-recorded paths are DERIVED from the configured surface,
+// never trusted from the lock's own records
+// ---------------------------------------------------------------------------
+
+/// The falsifier's A-3 as a refusal: the attacker drifts the installed
+/// artifact out-of-band, parks the drifted bytes at an in-project file the
+/// lock is re-forged to name as the source (self-digest recomputed, no
+/// escape, digests all consistent). Verify must refuse: each entry's source
+/// record must equal the path DERIVED from the configured roles dir and the
+/// stem — a digest-valid but shape-invalid lock is a tamper refusal, never a
+/// drift verdict and never a green verify.
+#[test]
+fn full_lock_source_redirect_reforge_cannot_bless_drift() {
+    let (root, roles, state) = fixture_project("source-redirect-reforge");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    // Out-of-band drift of the installed artifact.
+    let target = installed_path(&state, "writable-harness", "builder");
+    let mut drifted = fs::read(&target).expect("installed artifact reads");
+    drifted.push(b'#');
+    fs::write(&target, &drifted).expect("out-of-band edit applies");
+    // Park the drifted bytes at an in-project rogue path, redirect the
+    // lock's source record at it, and re-record the drifted digest — a FULL
+    // reforge: escape-free, digest-consistent, canonical. Before COR-R1-1
+    // this forgery verified GREEN; the derived-shape check is what refuses
+    // it.
+    let drifted_digest = sha256_hex_of(&drifted);
+    fs::create_dir_all(root.join("rogue-src")).expect("the rogue dir creates");
+    fs::write(root.join("rogue-src").join("builder.md"), &drifted).expect("the rogue source parks");
+    reforge_lock(&root, |body| {
+        *body = body.replacen(
+            "    source: .agents/roles/builder.md",
+            "    source: rogue-src/builder.md",
+            1,
+        );
+        let start = body
+            .find("    digest: sha256:")
+            .expect("the builder digest exists");
+        let end = body[start..].find('\n').expect("the digest line ends");
+        *body = format!(
+            "{}    digest: sha256:{drifted_digest}{}",
+            &body[..start],
+            &body[start + end..]
+        );
+    });
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("a source-redirected reforge cannot bless installed drift");
+    assert!(
+        matches!(error, RolesError::LockTampered { .. }),
+        "the redirect is tamper, not a drift verdict and not a green verify, got {error:?}"
+    );
+    let message = error.to_string();
+    assert!(
+        message.contains("builder"),
+        "the tamper refusal names the affected entry: {message}"
+    );
+}
+
+/// The falsifier's A-1 as a refusal: the lock is relabeled across harnesses
+/// and the installed records relocated to the other harness's surface dir.
+/// Two shapes are refused, both naming the locus: a harness label that is
+/// NOT a registered harness id fails closed, and a label whose registered
+/// surface disagrees with the lock's recorded enforcement level (with paths
+/// relocated to match the label rather than the recorded enforcement) is a
+/// hand-forged record, never runtime-written.
+#[test]
+fn cross_harness_relabeled_relocated_lock_is_tamper() {
+    let (root, roles, state) = fixture_project("cross-harness-relocation");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    // (a) Relabel to an id no registry carries, self-digest recomputed.
+    reforge_lock(&root, |body| {
+        *body = body.replacen("harness: writable-harness", "harness: ghost-harness", 1);
+    });
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("an unregistered harness label fails closed");
+    assert!(
+        matches!(error, RolesError::LockTampered { .. }),
+        "the unregistered label is tamper, got {error:?}"
+    );
+    assert!(
+        error.to_string().contains("ghost-harness"),
+        "the refusal names the label: {error}"
+    );
+    // (b) Relabel to a REGISTERED harness and relocate the installed records
+    // to that harness's surface dir, while the lock still records the
+    // writable enforcement the original surface had — a record install would
+    // never have written for the relabeled harness.
+    reforge_lock(&root, |body| {
+        *body = body
+            .replacen("harness: ghost-harness", "harness: advisory-harness", 1)
+            .replace(
+                "    installed: roles/installed/writable-harness/",
+                "    installed: roles/injectable/advisory-harness/",
+            );
+    });
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("a cross-harness relabeled relocated lock is hand-forged");
+    assert!(
+        matches!(error, RolesError::LockTampered { .. }),
+        "the relocation is tamper, not a drift verdict, got {error:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// COR-R1-3: a duplicate-entry lock is a shape install would never write
+// ---------------------------------------------------------------------------
+
+/// COR-D01's logic one shape further: install writes one entry per role stem
+/// (the roles tree is keyed by stem, sorted, unique), so a canonical,
+/// self-digest-consistent lock recording the same stem twice is by
+/// construction hand-forged — refused, naming the stem.
+#[test]
+fn duplicate_entry_lock_is_tamper() {
+    let (root, roles, state) = fixture_project("duplicate-entry-forgery");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    // Duplicate the builder entry verbatim: the lock stays canonical and
+    // self-digest-consistent — precisely the forged shape.
+    reforge_lock(&root, |body| {
+        let start = body
+            .find("  - role: builder")
+            .expect("the builder entry exists");
+        let critic = body[start..]
+            .find("  - role: critic")
+            .expect("the critic entry follows");
+        let entry = body[start..start + critic].to_owned();
+        body.insert_str(start + critic, &entry);
+    });
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("a duplicate-entry lock is hand-forged, never runtime-written");
+    assert!(
+        matches!(error, RolesError::LockTampered { .. }),
+        "tamper is the failure class, got {error:?}"
+    );
+    assert!(
+        error.to_string().contains("builder"),
+        "the refusal names the duplicated stem: {error}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// COR-R1-4: the repair flag is drift-relative, never lock-relative
+// ---------------------------------------------------------------------------
+
+/// A reinstall over out-of-band installed drift actually rewrites installed
+/// bytes, and the report says so — even though the lock bytes after the
+/// reinstall are identical to the lock bytes before it. The flag neither
+/// over-reports (unchanged tree) nor under-reports (real repair).
+#[test]
+fn reinstall_over_out_of_band_installed_drift_reports_the_repair() {
+    let (root, roles, state) = fixture_project("reinstall-repairs-drift");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    let input = InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    };
+    install(&input).expect("install");
+    let target = installed_path(&state, "writable-harness", "builder");
+    let mut tampered = fs::read(&target).expect("installed artifact reads");
+    tampered.push(b'#');
+    fs::write(&target, &tampered).expect("out-of-band edit applies");
+    let report = install(&input).expect("the reinstall");
+    assert!(
+        report.repaired,
+        "the reinstall rewrote drifted installed bytes and reports the repair"
+    );
+    verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect("verify is green again after the repair");
+}
+
+// ---------------------------------------------------------------------------
+// COR-R1-2: a resolved $VAR indirection VALUE never reaches error text
+// ---------------------------------------------------------------------------
+
+/// A resolved filesystem mode token outside the closed vocabulary is refused,
+/// and the refusal names the VARIABLE the file references — never the value
+/// the environment carried (spec §8.1: secrets by indirection only). The
+/// canary must appear NOWHERE in the error Display.
+#[test]
+fn resolved_indirection_value_never_echoes_into_error_text_mode_refusal() {
+    let var = "GAUNTLET_T17_FS_MODE";
+    let text = role_document("builder", "BUILDER", "reference", "builder_trajectory")
+        .replace("filesystem: read-only", &format!("filesystem: ${var}"));
+    let mut pairs = env_pairs();
+    pairs.push((var.to_owned(), CANARY.to_owned()));
+    let env = EnvLayer::from_parts("", &pairs, &[]);
+    let error = RoleDefinition::load("builder", &text, &env, TOOL_VOCAB)
+        .expect_err("a resolved mode outside the spec vocabulary is refused");
+    let message = error.to_string();
+    assert!(
+        !message.contains(CANARY),
+        "the resolved value never echoes into error text: {message}"
+    );
+    assert!(
+        message.contains(var),
+        "the error names the variable, not the value: {message}"
+    );
+}
+
+/// The same invariant at the installer's path refusals: a write_paths entry
+/// resolved through an indirection to a path outside the roots is refused by
+/// SHAPE, and the refusal carries the unresolved token — never the resolved
+/// path. The canary must appear NOWHERE in the error Display.
+#[test]
+fn resolved_indirection_value_never_echoes_into_error_text_write_path_escape() {
+    let var = "GAUNTLET_T17_SECRET_DIR";
+    let escape_target = std::env::temp_dir()
+        .join(CANARY)
+        .join("private")
+        .to_string_lossy()
+        .into_owned();
+    let mut pairs = env_pairs();
+    pairs.push((var.to_owned(), escape_target));
+    let env = EnvLayer::from_parts("", &pairs, &[]);
+    let text = role_document("builder", "BUILDER", "reference", "builder_trajectory").replace(
+        "write_paths: [$RESULT_CONTRACT_DIR]",
+        &format!("write_paths: [${var}]"),
+    );
+    let (root, roles, state) = fixture_project("secret-write-path-escape");
+    fs::write(roles.join("builder.md"), text).expect("fixture role file writes");
+    let registry = registry();
+    let error = install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env,
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect_err("an escaping write path is refused");
+    assert!(
+        matches!(error, RolesError::WritePathEscape { .. }),
+        "the escape is a typed refusal, got {error:?}"
+    );
+    let message = error.to_string();
+    assert!(
+        !message.contains(CANARY),
+        "the resolved path never echoes into error text: {message}"
+    );
+    assert!(
+        message.contains(var),
+        "the refusal names the variable and the shape, not the resolved value: {message}"
+    );
+}
+
+/// COR-D13(b): deleting a recorded source file post-install is the
+/// `SourceMissing` drift kind — previously one of four kinds with zero
+/// coverage.
+#[test]
+fn deleted_source_file_is_source_missing_drift() {
+    let (root, roles, state) = fixture_project("source-missing");
+    write_fixture_tree(&roles);
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .expect("install");
+    fs::remove_file(roles.join("critic.md")).expect("the source file is deleted");
+    let error = verify(&VerifyInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        registry: &registry,
+    })
+    .expect_err("a deleted source file is drift");
+    let RolesError::Drift { entries } = error else {
+        panic!("drift is the failure class, got {error:?}");
+    };
+    assert!(
+        entries.iter().any(|record| record.role == "critic"
+            && record.kind == gauntlet_app::roles::DriftKind::SourceMissing),
+        "the missing source is named: {entries:?}"
+    );
+}
 
 #[test]
 fn repository_role_artifacts_load() {
@@ -887,7 +1531,7 @@ fn repository_role_artifacts_load() {
             .expect("a stem")
             .to_owned();
         let text = fs::read_to_string(&path).expect("role file reads");
-        let definition = RoleDefinition::load(&stem, &text, &env)
+        let definition = RoleDefinition::load(&stem, &text, &env, TOOL_VOCAB)
             .unwrap_or_else(|error| panic!("repository role {stem} loads: {error:?}"));
         role_names.push(definition.role().name().to_owned());
         stems.push(stem);
@@ -914,5 +1558,144 @@ fn repository_role_artifacts_load() {
             .iter()
             .any(|stem| stem == "critic-evidence-completeness"),
         "the evidence-completeness dimension is an artifact"
+    );
+}
+// ---------------------------------------------------------------------------
+// COR-D03: protected-path refusal for write_paths (spec 17.5.5)
+// ---------------------------------------------------------------------------
+
+/// One role file with a custom write_paths entry, installed.
+fn install_with_write_path(case: &str, write_path: &str) -> Result<(), RolesError> {
+    let (root, roles, state) = fixture_project(case);
+    let text = role_document("builder", "BUILDER", "reference", "builder_trajectory").replace(
+        "write_paths: [$RESULT_CONTRACT_DIR]",
+        &format!("write_paths: [{write_path}]"),
+    );
+    fs::write(roles.join("builder.md"), text).expect("fixture role file writes");
+    let registry = registry();
+    install(&InstallInput {
+        project_root: &root,
+        state_dir: &state,
+        roles_dir: &roles,
+        harness: "writable-harness",
+        registry: &registry,
+        env: &env_layer(),
+        tool_vocabulary: TOOL_VOCAB,
+    })
+    .map(|_| ())
+}
+
+/// An absolute path INSIDE the project root that lands on the answer key
+/// is refused — being inside the root was never the whole rule (§17.5.5:
+/// the answer key is outside every builder-writable path).
+#[test]
+fn write_path_over_the_answer_key_is_refused() {
+    let (root, _roles, _state) = fixture_project("write-path-answer-key");
+    let answer_key = root.join(".wayfinder").join("answer-key.md");
+    let error = install_with_write_path("write-path-answer-key", &answer_key.to_string_lossy())
+        .expect_err("a write path onto the ruler is refused");
+    let RolesError::WritePathProtected {
+        role, protected, ..
+    } = error
+    else {
+        panic!("the protected refusal is its own class, got {error:?}");
+    };
+    assert_eq!(role, "builder");
+    assert_eq!(protected, ".wayfinder");
+}
+
+/// The runtime directory itself COVERS the lock — declaring it is
+/// declaring the lock.
+#[test]
+fn write_path_of_the_runtime_dir_is_refused() {
+    let (root, _roles, _state) = fixture_project("write-path-runtime-dir");
+    let error = install_with_write_path(
+        "write-path-runtime-dir",
+        &root.join(".gauntlet").to_string_lossy(),
+    )
+    .expect_err("a write path covering the lock is refused");
+    assert!(
+        matches!(
+            &error,
+            RolesError::WritePathProtected { protected, .. }
+                if protected.starts_with(".gauntlet/")
+        ),
+        "a covered runtime anchor is named, got {error:?}"
+    );
+}
+
+/// The project root covers every protected anchor — the widest possible
+/// over-grant, refused.
+#[test]
+fn write_path_of_the_project_root_is_refused() {
+    let (root, _roles, _state) = fixture_project("write-path-root");
+    let error = install_with_write_path("write-path-root", &root.to_string_lossy())
+        .expect_err("a write path of the whole project root is refused");
+    assert!(
+        matches!(error, RolesError::WritePathProtected { .. }),
+        "the protected refusal is its own class, got {error:?}"
+    );
+}
+
+/// A legitimate workspace-relative entry passes: the anchored validation
+/// refuses the ruler, not honest relative scope.
+#[test]
+fn legitimate_workspace_relative_write_path_passes() {
+    install_with_write_path("write-path-legitimate", "workspaces")
+        .expect("a workspace-relative write path is legitimate scope");
+}
+
+// ---------------------------------------------------------------------------
+// COR-D06: permission VALUE vocabularies are closed
+// ---------------------------------------------------------------------------
+
+/// An unknown tool token is refused at construction — these declarations
+/// are what a future PolicyProvider lowers into sandbox posture.
+#[test]
+fn unknown_tool_token_is_refused() {
+    let text = role_document("builder", "BUILDER", "reference", "builder_trajectory")
+        .replace("tools: [code_nav]", "tools: [not_a_capability]");
+    let error = RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB)
+        .expect_err("a token outside the 8.4 vocabulary is refused");
+    assert!(
+        matches!(&error, RoleError::UnknownToolToken { token, .. } if token == "not_a_capability"),
+        "the bad token is named, got {error:?}"
+    );
+}
+
+/// A filesystem mode outside the spec's own read-only / read-write pair is
+/// refused — a made-up mode word must never silently weaken or widen the
+/// declared posture.
+#[test]
+fn unknown_filesystem_mode_is_refused() {
+    let text = role_document("builder", "BUILDER", "reference", "builder_trajectory")
+        .replace("filesystem: read-only", "filesystem: run-state");
+    let error = RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB)
+        .expect_err("a mode outside the spec vocabulary is refused");
+    assert!(
+        matches!(&error, RoleError::UnknownFilesystemMode { token, .. } if token == "run-state"),
+        "the bad mode is named, got {error:?}"
+    );
+    // The spec's own mode pair parses into the typed values.
+    let read_write = role_document("builder", "BUILDER", "reference", "builder_trajectory")
+        .replace("filesystem: read-only", "filesystem: read-write");
+    let definition = RoleDefinition::load("builder", &read_write, &env_layer(), TOOL_VOCAB)
+        .expect("read-write is the spec's own mode spelling");
+    assert_eq!(
+        definition.permissions().filesystem,
+        gauntlet_app::roles::FilesystemMode::ReadWrite
+    );
+}
+
+/// A network mode outside the §10.1 deny/allow pair is refused.
+#[test]
+fn unknown_network_mode_is_refused() {
+    let text = role_document("builder", "BUILDER", "reference", "builder_trajectory")
+        .replace("network: deny", "network: sometimes");
+    let error = RoleDefinition::load("builder", &text, &env_layer(), TOOL_VOCAB)
+        .expect_err("a network word outside deny/allow is refused");
+    assert!(
+        matches!(&error, RoleError::UnknownNetworkMode { token, .. } if token == "sometimes"),
+        "the bad network word is named, got {error:?}"
     );
 }

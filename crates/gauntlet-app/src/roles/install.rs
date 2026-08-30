@@ -17,10 +17,15 @@
 //! Every installed path is checked lexically against its root before
 //! any byte is written: the roles source must live inside the project
 //! root (roles are repository artifacts, spec §10.1), installed state
-//! must live inside the state root, and a `permissions.write_paths`
-//! entry that resolves to an ABSOLUTE path outside the project or state
-//! roots is a typed refusal — a role file cannot point its own writes
-//! at the operator's machine.
+//! must live inside the state root, and every `permissions.write_paths`
+//! entry is validated in RESOLVED form — absolute entries as-is,
+//! relative entries anchored at the project root (conservative; the
+//! installer cannot see the dispatch-time workspace anchor) — against
+//! both the outside-the-roots escape refusal and §17.5.5's in-project
+//! protected set (the ruler directory as the defaults layer resolves
+//! it, the frozen reference lock, the comparison contract, the tier
+//! policies, and this module's own lock): a role file cannot point its
+//! own writes at the operator's machine, nor at the ruler.
 //!
 //! # The lock, and its honest tamper story
 //!
@@ -43,7 +48,15 @@
 //! no longer agrees with the forged record — the only way to hide that
 //! drift is to edit the reviewed source file itself, which the
 //! repository's own review surface sees. The cryptographic anchor is
-//! the source tree, not the lock's opinion of itself.
+//! the source tree, not the lock's opinion of itself. That story is
+//! STRUCTURAL (COR-R1-1): every lock-recorded path is DERIVED at verify
+//! time from the values verify already trusts — the configured roles
+//! dir, the configured state root, the registered harness surface, the
+//! enforcement level, and the stem — so a lock naming any other
+//! in-project source, a fabricated harness directory, or an
+//! unregistered label is a tamper refusal before any digest is even
+//! compared. A redirect or relocation cannot bless drift; only the
+//! reviewed source file can agree with the record.
 //!
 //! Verify without a prior install is a typed configuration failure:
 //! missing evidence is not passing evidence.
@@ -273,9 +286,40 @@ impl RolesLock {
         if lock.serialize_body() != join_lines(body) {
             return Err(RolesError::LockTampered {
                 detail: "the lock is not in its canonical form — locks are runtime-written \
-                 documents, never hand-edited ones"
+                         documents, never hand-edited ones"
                     .to_owned(),
             });
+        }
+        // COR-D01: install can never write an empty-entries lock —
+        // `EmptyRoleSet` refuses an empty roles directory before any lock
+        // byte exists — so a canonical, self-digest-consistent lock with
+        // zero entries is by construction hand-forged. Missing evidence is
+        // not passing evidence, and an empty record is no record at all.
+        if lock.entries.is_empty() {
+            return Err(RolesError::LockTampered {
+                detail: "the lock records no roles — install refuses an empty roles set \
+                         (EmptyRoleSet), so an empty-entries lock is by construction \
+                         hand-forged, never runtime-written"
+                    .to_owned(),
+            });
+        }
+        // COR-R1-3: install writes one entry per role stem (the roles tree
+        // is keyed by stem, sorted, unique), so a repeated stem is a shape
+        // install would never write — a canonical, self-digest-consistent
+        // duplicate-entry lock is by construction hand-forged. Refused,
+        // naming the stem.
+        let mut seen = std::collections::BTreeSet::new();
+        for entry in &lock.entries {
+            if !seen.insert(entry.role.as_str()) {
+                return Err(RolesError::LockTampered {
+                    detail: format!(
+                        "the lock records role '{}' more than once — install writes one entry \
+                         per role stem, so a duplicate entry is hand-forged, never \
+                         runtime-written",
+                        entry.role
+                    ),
+                });
+            }
         }
         Ok(lock)
     }
@@ -290,8 +334,8 @@ fn join_lines(lines: &[&str]) -> String {
 }
 
 /// Role installer and verifier failures — typed, carrying the locus.
-/// Paths are operator-visible configuration, not secrets; no resolved
-/// indirection VALUE is ever carried.
+/// Refusals carry the UNRESOLVED token or a shape description — a resolved
+/// $VAR indirection VALUE never reaches error text (COR-R1-2, spec §8.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RolesError {
     /// The harness id is missing or empty. Fail closed: no runner is
@@ -318,10 +362,22 @@ pub enum RolesError {
     /// The roles source directory is outside the project root — roles
     /// are repository artifacts (spec §10.1), not host files.
     SourceOutsideProject { path: String },
-    /// A write_paths entry resolves to an absolute path outside the
-    /// project and state roots — a role file steering its own writes at
-    /// the operator's machine is refused.
+    /// A write_paths entry whose RESOLVED value is an absolute path outside
+    /// the project and state roots — a role file steering its own writes at
+    /// the operator's machine is refused. The refusal carries the RAW
+    /// declared token, never the resolved value (COR-R1-2, spec §8.1).
     WritePathEscape { role: String, path: String },
+    /// A write_paths entry whose RESOLVED value sits on the in-project
+    /// protected set — inside a protected path, or covering one (a lexical
+    /// prefix of it, e.g. the project root or the runtime dir). Spec
+    /// §17.5.5: "The evidence store, state store, frozen reference, and
+    /// answer key are outside every builder-writable path." The refusal
+    /// carries the RAW declared token, never the resolved value (COR-R1-2).
+    WritePathProtected {
+        role: String,
+        path: String,
+        protected: String,
+    },
     /// Verify ran where nothing was installed. Missing evidence is not
     /// passing evidence.
     LockMissing { path: String },
@@ -356,6 +412,12 @@ pub enum DriftKind {
     /// The installed artifact no longer matches the record — out-of-band
     /// harness-side mutation (Annex C.4: harness state is agent-mutable).
     InstalledModified,
+    /// An installed `.md` artifact the lock records nothing about — an
+    /// out-of-band ADDITION to the harness surface (Annex C.4).
+    InstalledExtra,
+    /// A source role file the lock records nothing about — the install is
+    /// stale; reinstall to record it.
+    SourceExtra,
 }
 
 impl core::fmt::Display for DriftKind {
@@ -365,6 +427,12 @@ impl core::fmt::Display for DriftKind {
             Self::SourceModified => f.write_str("source file modified since install"),
             Self::InstalledMissing => f.write_str("installed artifact missing"),
             Self::InstalledModified => f.write_str("installed artifact modified out-of-band"),
+            Self::InstalledExtra => f.write_str(
+                "installed artifact absent from the lock — out-of-band harness addition",
+            ),
+            Self::SourceExtra => {
+                f.write_str("source role file absent from the lock — stale install")
+            }
         }
     }
 }
@@ -405,9 +473,22 @@ impl core::fmt::Display for RolesError {
             ),
             Self::WritePathEscape { role, path } => write!(
                 f,
-                "roles: role '{role}' declares a write path resolving to '{path}', outside \
-                 the project and state roots — a role file cannot aim its own writes at the \
-                 operator's machine"
+                "roles: role '{role}' declares write path '{path}', which escapes the project \
+                 and state roots — a role file cannot aim its own writes at the operator's \
+                 machine (the path is named as the file spells it; a resolved indirection \
+                 value is never echoed, spec 8.1)"
+            ),
+            Self::WritePathProtected {
+                role,
+                path,
+                protected,
+            } => write!(
+                f,
+                "roles: role '{role}' declares write path '{path}', which resolves inside or \
+                 covers the protected path '{protected}' — the frozen reference, answer key, \
+                 comparison contract, tier policies, and roles lock are outside every \
+                 builder-writable path (spec 17.5.5; the path is named as the file spells it; \
+                 a resolved indirection value is never echoed, spec 8.1)"
             ),
             Self::LockMissing { path } => write!(
                 f,
@@ -440,9 +521,12 @@ impl core::fmt::Display for RolesError {
 
 impl std::error::Error for RolesError {}
 
-/// Install inputs: the resolved roots, the explicit harness id, and the
+/// Install inputs: the resolved roots, the explicit harness id, the
 /// registry (built by the composition root — a data map, never role
-/// logic spread across match arms).
+/// logic spread across match arms), and the §8.4 semantic-capability
+/// vocabulary the role files' `permissions.tools` values are validated
+/// against (supplied by the composition root for the same boundary-suite
+/// reason doctor's capability list is — see `RolePermissions`'s doc).
 pub struct InstallInput<'a> {
     pub project_root: &'a Path,
     pub state_dir: &'a Path,
@@ -450,6 +534,7 @@ pub struct InstallInput<'a> {
     pub harness: &'a str,
     pub registry: &'a HarnessRegistry,
     pub env: &'a EnvLayer,
+    pub tool_vocabulary: &'static [&'static str],
 }
 
 /// What one install did.
@@ -459,15 +544,26 @@ pub struct InstallReport {
     pub enforcement: Enforcement,
     pub lock_path: PathBuf,
     pub roles: usize,
-    /// True when a previous lock existed and differed — this install
-    /// was an explicit REPAIR, recorded as such rather than silent.
+    /// True when an EXISTING installed artifact's bytes were actually
+    /// rewritten during this install — compared before/after per role
+    /// (COR-R1-4: drift-relative, never merely lock-relative). Materializing
+    /// a new artifact is publishing, not repair, so a first install is not a
+    /// repair; the CLI message stays honest in both directions.
     pub repaired: bool,
 }
 
-/// Verifier inputs: the roots the lock's relative paths hang from.
+/// Verifier inputs: the roots the lock's relative paths hang from, plus the
+/// configured roles dir and the harness registry (COR-R1-1: the expected
+/// paths are DERIVED from the configured surface — the roles dir, the state
+/// root, the registered harness, the enforcement level, the stem — never
+/// trusted from the lock's own records).
 pub struct VerifyInput<'a> {
     pub project_root: &'a Path,
     pub state_dir: &'a Path,
+    /// The configured roles dir (the same anchored resolution install used).
+    pub roles_dir: &'a Path,
+    /// The harness registry the lock's label must be registered in.
+    pub registry: &'a HarnessRegistry,
 }
 
 /// What one verify found when everything held.
@@ -484,6 +580,7 @@ fn load_role_tree(
     roles_dir: &Path,
     project_root: &Path,
     env: &EnvLayer,
+    tool_vocabulary: &'static [&'static str],
 ) -> Result<Vec<(String, Vec<u8>, RoleDefinition)>, RolesError> {
     if !ensure_within_root(roles_dir, project_root) {
         return Err(RolesError::SourceOutsideProject {
@@ -537,9 +634,11 @@ fn load_role_tree(
             path: path.to_string_lossy().into_owned(),
         })?;
         let definition =
-            RoleDefinition::load(&stem, &text, env).map_err(|source| RolesError::Role {
-                role: stem.clone(),
-                source,
+            RoleDefinition::load(&stem, &text, env, tool_vocabulary).map_err(|source| {
+                RolesError::Role {
+                    role: stem.clone(),
+                    source,
+                }
             })?;
         loaded.push((stem, bytes, definition));
     }
@@ -559,7 +658,12 @@ pub fn install(input: &InstallInput<'_>) -> Result<InstallReport, RolesError> {
             id: input.harness.to_owned(),
         });
     };
-    let tree = load_role_tree(input.roles_dir, input.project_root, input.env)?;
+    let tree = load_role_tree(
+        input.roles_dir,
+        input.project_root,
+        input.env,
+        input.tool_vocabulary,
+    )?;
 
     // Containment BEFORE any byte is written: every write target derives
     // from validated roots, and the role files' own write_paths may not
@@ -578,14 +682,38 @@ pub fn install(input: &InstallInput<'_>) -> Result<InstallReport, RolesError> {
     }
     for (_, _, definition) in &tree {
         for entry in &definition.permissions().write_paths {
-            let path = Path::new(entry);
-            if path.is_absolute()
-                && !ensure_within_root(path, input.project_root)
-                && !ensure_within_root(path, input.state_dir)
+            // COR-D03: validate the RESOLVED shape of every declared write
+            // path. Absolute entries resolve to themselves; RELATIVE entries
+            // anchor at the project root for validation — conservative, the
+            // installer cannot see the dispatch-time workspace anchor a
+            // relative entry will truly ride. Anchoring also closes the
+            // relative-traversal hole: `../sibling` resolves outside the
+            // roots and is refused as an escape like any absolute one. The
+            // refusal echoes the RAW token; the resolved value never reaches
+            // error text (COR-R1-2, spec §8.1).
+            let resolved = if Path::new(entry.resolved()).is_absolute() {
+                PathBuf::from(entry.resolved())
+            } else {
+                input.project_root.join(entry.resolved())
+            };
+            if !ensure_within_root(&resolved, input.project_root)
+                && !ensure_within_root(&resolved, input.state_dir)
             {
                 return Err(RolesError::WritePathEscape {
                     role: definition.stem().to_owned(),
-                    path: entry.clone(),
+                    path: entry.raw().to_owned(),
+                });
+            }
+            // §17.5.5's posture for the in-project protected set: the
+            // ruler surfaces sit outside every builder-writable path, so a
+            // write path INSIDE a protected anchor or COVERING one (a
+            // lexical prefix of it — the project root, the runtime dir)
+            // is a typed refusal naming the anchor.
+            if let Some(protected) = protected_path_covered(&resolved, input.project_root) {
+                return Err(RolesError::WritePathProtected {
+                    role: definition.stem().to_owned(),
+                    path: entry.raw().to_owned(),
+                    protected,
                 });
             }
         }
@@ -597,10 +725,25 @@ pub fn install(input: &InstallInput<'_>) -> Result<InstallReport, RolesError> {
         kind: error.kind(),
     })?;
     let mut entries = Vec::new();
+    // COR-R1-4: the repair flag is drift-relative — it reports TRUE when an
+    // EXISTING installed artifact's bytes were actually rewritten during
+    // this install (compared before/after per role), never merely because
+    // lock bytes differ. Materializing a NEW artifact is publishing, not
+    // repair: a first install repairs nothing and says so. A reinstall over
+    // out-of-band installed drift reports the repair it performed; a
+    // byte-identical reinstall repairs nothing and says so.
+    let mut repaired = false;
     for (stem, bytes, definition) in &tree {
         let file_name = format!("{stem}.md");
         let target = installed_dir.join(&file_name);
+        let before = std::fs::read(&target).ok();
         write_atomic(&target, bytes)?;
+        if before
+            .as_deref()
+            .is_some_and(|previous| previous != bytes.as_slice())
+        {
+            repaired = true;
+        }
         let source_rel = rel_to(input.project_root, &input.roles_dir.join(&file_name));
         let installed_rel = rel_to(
             input.state_dir,
@@ -637,10 +780,6 @@ pub fn install(input: &InstallInput<'_>) -> Result<InstallReport, RolesError> {
         kind: error.kind(),
     })?;
     let serialized = lock.serialize();
-    let previous = std::fs::read(&lock_path).ok();
-    let repaired = previous
-        .as_ref()
-        .is_some_and(|old| old.as_slice() != serialized.as_bytes());
     write_atomic(&lock_path, serialized.as_bytes())?;
     Ok(InstallReport {
         harness: input.harness.to_owned(),
@@ -675,6 +814,62 @@ pub fn verify(input: &VerifyInput<'_>) -> Result<VerifyReport, RolesError> {
         path: lock_path.to_string_lossy().into_owned(),
     })?;
     let lock = RolesLock::parse(&text)?;
+
+    // COR-R1-1: the lock's recorded paths are DERIVED, never trusted. Verify
+    // rebuilds each entry's expected source and installed paths from the
+    // values it already trusts — the configured roles dir, the configured
+    // state root, the registered harness surface, the enforcement level, and
+    // the role stem — and refuses any divergence BEFORE any digest
+    // comparison: a digest-valid but shape-invalid lock is a tamper refusal,
+    // never a drift verdict. The cryptographic anchor is the reviewed source
+    // tree; the lock's own path opinions are claims, not anchors.
+    let Some(surface) = input.registry.surface(&lock.harness) else {
+        return Err(RolesError::LockTampered {
+            detail: format!(
+                "the lock names harness '{}' which is not registered — install only writes \
+                 registered ids, so the label is hand-forged, never runtime-written",
+                lock.harness
+            ),
+        });
+    };
+    if Enforcement::from_surface(surface) != lock.enforcement {
+        return Err(RolesError::LockTampered {
+            detail: format!(
+                "the lock records enforcement '{}' but harness '{}' is registered with the \
+                 '{}' surface — a cross-harness relabeled record is hand-forged, never \
+                 runtime-written",
+                lock.enforcement.token(),
+                lock.harness,
+                Enforcement::from_surface(surface).token()
+            ),
+        });
+    }
+    let harness_dir = Path::new(STATE_TREE_NAME)
+        .join(surface.dir_name())
+        .join(&lock.harness);
+    for entry in &lock.entries {
+        let file_name = format!("{}.md", entry.role);
+        let expected_source = rel_to(input.project_root, &input.roles_dir.join(&file_name));
+        if entry.source != expected_source {
+            return Err(RolesError::LockTampered {
+                detail: format!(
+                    "entry '{}' records source '{}' but the configured roles dir derives \
+                     '{} — lock-recorded paths are derived, never trusted",
+                    entry.role, entry.source, expected_source
+                ),
+            });
+        }
+        let expected_installed = rel_to(input.state_dir, &harness_dir.join(&file_name));
+        if entry.installed != expected_installed {
+            return Err(RolesError::LockTampered {
+                detail: format!(
+                    "entry '{}' records installed '{}' but the state root and the registered \
+                     surface derive '{} — lock-recorded paths are derived, never trusted",
+                    entry.role, entry.installed, expected_installed
+                ),
+            });
+        }
+    }
 
     let mut drifts = Vec::new();
     for entry in &lock.entries {
@@ -741,6 +936,57 @@ pub fn verify(input: &VerifyInput<'_>) -> Result<VerifyReport, RolesError> {
             }
         }
     }
+
+    // Set-membership drift (COR-D04): the lock's entry list is the complete
+    // record of BOTH directories. An out-of-band ADDITION — a `.md` dropped
+    // into the installed surface (Annex C.4: harness role state is
+    // agent-mutable) or a new source file after install (stale install) —
+    // is invisible to the per-entry digest loop above, so both directories
+    // are listed and any `.md` the lock records nothing about is drift BY
+    // NAME. Extra files are reported, never loaded: a drifted tree is not
+    // parsed as configuration. Both directory roots are DERIVED surface
+    // roots — the entry records were already checked (COR-R1-1) to equal
+    // the paths the configured surface derives, so the record is a verified
+    // mirror of the roots, not an independent anchor — and an unreadable
+    // directory needs no separate report — the per-entry reads above have
+    // already surfaced it as missing files or a typed io failure.
+    let recorded: Vec<&str> = lock.entries.iter().map(|e| e.role.as_str()).collect();
+    let parent_of = |relative: &str| -> Option<String> {
+        Path::new(relative)
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(|parent| {
+                parent
+                    .to_string_lossy()
+                    .replace(std::path::MAIN_SEPARATOR, "/")
+            })
+    };
+    if let Some(installed_dir_rel) = lock.entries.first().and_then(|e| parent_of(&e.installed)) {
+        let installed_dir = contained_join(input.state_dir, &installed_dir_rel)?;
+        for stem in md_stems(&installed_dir)? {
+            if !recorded.contains(&stem.as_str()) {
+                drifts.push(DriftRecord {
+                    role: stem,
+                    kind: DriftKind::InstalledExtra,
+                    expected: "no lock record".to_owned(),
+                    actual: Some("present on the installed surface".to_owned()),
+                });
+            }
+        }
+    }
+    if let Some(source_dir_rel) = lock.entries.first().and_then(|e| parent_of(&e.source)) {
+        let source_dir = contained_join(input.project_root, &source_dir_rel)?;
+        for stem in md_stems(&source_dir)? {
+            if !recorded.contains(&stem.as_str()) {
+                drifts.push(DriftRecord {
+                    role: stem,
+                    kind: DriftKind::SourceExtra,
+                    expected: "no lock record".to_owned(),
+                    actual: Some("present in the roles source".to_owned()),
+                });
+            }
+        }
+    }
     if !drifts.is_empty() {
         return Err(RolesError::Drift { entries: drifts });
     }
@@ -767,6 +1013,42 @@ fn contained_join(root: &Path, relative: &str) -> Result<PathBuf, RolesError> {
     Ok(root.join(relative_path))
 }
 
+/// The `.md` file stems a directory carries, sorted — the set-membership
+/// half of verify (COR-D04). `Ok(vec![])` when the directory is gone: the
+/// per-entry reads have already reported the missing files, so the
+/// membership scan has nothing separate to say. Any other read failure is
+/// the caller's typed io error, never silently skipped.
+fn md_stems(dir: &Path) -> Result<Vec<String>, RolesError> {
+    let read = match std::fs::read_dir(dir) {
+        Ok(read) => read,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => {
+            return Err(RolesError::Io {
+                locus: "listing a roles directory for set-membership drift",
+                path: dir.to_string_lossy().into_owned(),
+                kind: error.kind(),
+            });
+        }
+    };
+    let mut stems = Vec::new();
+    for item in read {
+        let item = item.map_err(|error| RolesError::Io {
+            locus: "reading a roles directory entry",
+            path: dir.to_string_lossy().into_owned(),
+            kind: error.kind(),
+        })?;
+        let path = item.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+            continue;
+        }
+        if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
+            stems.push(stem.to_owned());
+        }
+    }
+    stems.sort();
+    Ok(stems)
+}
+
 /// Lexical containment: the child sits under the root, with no
 /// traversal segment anywhere. Lexical on purpose — the installed tree
 /// may not exist yet, and a resolved symlink check is the sandbox's
@@ -783,6 +1065,53 @@ fn ensure_within_root(child: &Path, root: &Path) -> bool {
         return false;
     }
     child.starts_with(root)
+}
+
+/// The in-project protected set (COR-D03; spec §17.5.5: "The evidence
+/// store, state store, frozen reference, and answer key are outside every
+/// builder-writable path", with §10.2's Never column naming the comparison
+/// contract and the roles lock the runtime's own record). Every anchor is
+/// DERIVED, never spelled: the ruler directory is the answer key's own
+/// parent as the defaults layer resolves it, and the runtime-dir anchors
+/// are built from the same single-segment constants the defaults module
+/// owns — so the protected set cannot drift from the configured surface,
+/// and no joined path literal exists here (spec §8.1). The ruler dir and
+/// the policies dir are DIRECTORY anchors — covering them or anything
+/// under them is the same refusal as covering a file anchor.
+fn protected_anchors(project_root: &Path) -> Vec<(String, PathBuf)> {
+    let runtime = project_root.join(defaults::RUNTIME_DIR_NAME);
+    let leaf = |name: &str| {
+        (
+            format!("{}/{name}", defaults::RUNTIME_DIR_NAME),
+            runtime.join(name),
+        )
+    };
+    let mut anchors = vec![
+        leaf(defaults::REFERENCE_LOCK_NAME),
+        leaf(defaults::COMPARISON_CONTRACT_NAME),
+        leaf(defaults::POLICIES_DIR_NAME),
+        leaf(ROLES_LOCK_NAME),
+    ];
+    if let Some(ruler_dir) = defaults::answer_key_at(project_root).parent() {
+        anchors.insert(
+            0,
+            (rel_to(project_root, ruler_dir), ruler_dir.to_path_buf()),
+        );
+    }
+    anchors
+}
+
+/// The protected anchor a resolved write path sits inside or covers (a
+/// lexical prefix of), if any. "Covers" is the load-bearing direction: the
+/// project root and the runtime dir are not themselves spelled in any
+/// write_paths entry, but they cover every protected anchor, so declaring
+/// either is declaring the ruler.
+fn protected_path_covered(resolved: &Path, project_root: &Path) -> Option<String> {
+    protected_anchors(project_root)
+        .into_iter()
+        .find_map(|(label, protected)| {
+            (resolved.starts_with(&protected) || protected.starts_with(resolved)).then_some(label)
+        })
 }
 
 /// Renders a path relative to its (pre-validated) root with forward
@@ -805,9 +1134,13 @@ fn sha256_hex(bytes: &[u8]) -> String {
     hex
 }
 
-/// Atomic file write (write beside, rename over): a reader never sees a
-/// torn artifact — the §10.3 result-document discipline applied to the
-/// installer's own outputs.
+/// Atomic file write (write beside, fsync, rename over): a reader never
+/// sees a torn artifact, and the staged bytes are flushed to the file
+/// before the rename commits them — the §10.3 result-document discipline
+/// applied to the installer's own outputs. Scope note (COR-D05): the FILE
+/// is fsynced; the parent DIRECTORY is not, so the lock's directory entry
+/// is not crash-durable — recorded residual R17-note-1, deliberately out
+/// of scope here.
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), RolesError> {
     let staging = path.with_extension("staging");
     std::fs::write(&staging, bytes).map_err(|error| RolesError::Io {
@@ -815,6 +1148,17 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), RolesError> {
         path: staging.to_string_lossy().into_owned(),
         kind: error.kind(),
     })?;
+    // File durability half (COR-D05): fsync the staged bytes through a
+    // fresh handle BEFORE the rename, so a crash right after the commit
+    // leaves the target carrying its full contents. A read-only handle is
+    // sufficient — fsync flushes the file, not the fd's write permission.
+    std::fs::File::open(&staging)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| RolesError::Io {
+            locus: "fsyncing a staged role artifact",
+            path: staging.to_string_lossy().into_owned(),
+            kind: error.kind(),
+        })?;
     std::fs::rename(&staging, path).map_err(|error| RolesError::Io {
         locus: "committing a role artifact",
         path: path.to_string_lossy().into_owned(),

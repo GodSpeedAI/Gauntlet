@@ -1273,3 +1273,48 @@ through the normal spec process, never a builder's direct edit.
 - **Not changed by this entry:** the answer key, the spec, the frozen
   reference, and the frozen lock (`just ruler` PASS before and after the
   task's phases, most recently on the corrected tree).
+
+## 2026-08-30 — AK-063 evidence locator names a repo-root test path that cannot host the mechanism test without violating the dependency architecture (Task 17, prereg D5)
+
+- **Unit:** AK-063 (`.wayfinder/answer-key.md` lines 439–444).
+- **Claim under review (unchanged, delivered this task):** "Role definitions are
+  repository files installed into the configured harness, and roles verify
+  reports drift between the file and installed harness state."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/contract/roles::install_and_verify`. The repository's repo-root
+  `tests/contract/<name>.rs` files are `[[test]]` cargo targets of
+  `gauntlet-arch-tests` (its Cargo.toml registers `architecture_boundaries`,
+  `adapter_registry`, `no_hardcoded_literals`, `env_example_complete` with
+  repo-root paths, per the frozen answer key's address convention for the
+  architecture-boundary work). That crate is test-only and depends on **no
+  internal crate** — a rule the dependency-direction suite (`just boundaries`)
+  enforces. A roles test needs `gauntlet_app`'s public API, so materializing
+  `tests/contract/roles.rs` as spelled would require `gauntlet-arch-tests →
+  gauntlet-app`, violating the declared layering. The delivered evidence is
+  `crates/gauntlet-app/tests/roles.rs::roles::install_and_verify` — the crate
+  that owns the mechanism, the repository's established crate-scoped layout
+  for mechanism tests (AK-013's 2026-08-29 entry is the nearest precedent).
+  This is an **additional instance of the existing locator-materialization
+  class (first recorded 2026-08-17, AK-049)** — not a new defect class — with
+  the additional architectural reason the spelled path cannot host this test
+  at all (not merely an empty directory).
+- **Delivered surface (wider than the locator's single test):** the same file
+  pins the full Task-17 tooth families — over-grant/deny-shadow refusals,
+  unknown-key and permission-vocabulary refusals, $VAR indirection classes,
+  install idempotence (byte-identical lock), drift in all three directions
+  (installed/source/extra), naive hand-edit tamper, full lock re-forgery with
+  recomputed digests, canonical-closure trap, advisory fallback honesty,
+  fail-closed harness ids, and verify-green-immediately-after-install. The
+  blind executing falsifier round 1 executes further attacks against the same
+  surface (its report is the round's evidence).
+- **Proposed resolution (ruler's owner):** re-point AK-063's locator to
+  `crates/gauntlet-app/tests/roles` (test id `roles::install_and_verify`), or
+  declare the repo-root `tests/contract/` convention authoritative and
+  relocate the test — noting relocation requires a dependency-direction
+  exception for `gauntlet-arch-tests`, which is a spec-level change, not a
+  test move.
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock (`just ruler` PASS at round start; the
+  post-settlement gate run is the confirming evidence). Settlement of this
+  candidate belongs to the ruler's owner, not the task.
+

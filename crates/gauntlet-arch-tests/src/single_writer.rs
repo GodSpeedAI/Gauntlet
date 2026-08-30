@@ -259,28 +259,39 @@ pub const WRITE_API_INVENTORY: &[WriteSite] = &[
     // Plan Task 17 — the roles installer (the runtime's own operator
     // action, never a graded-role capability): installs write ONLY
     // verbatim role bytes under the pre-validated state root, and the
-    // lock beside the project — every site behind the lexical containment
-    // guard that refuses traversal and out-of-root targets
-    // (`ensure_within_root`), pinned behaviorally by the roles tests'
-    // write-path-escape refusal.
+    // lock beside the project. Warrant differs by site family (COR-D11):
+    // the installed-directory create_dir_all IS behind the lexical
+    // containment call (`ensure_within_root` runs on the assembled path
+    // before any byte is written, pinned behaviorally by the roles tests'
+    // write-path-escape refusal); the lock-path sites — the lock-dir
+    // create_dir_all, the staging fs::write, and the committing rename —
+    // are safe by FIXED-LEAF construction: every one of them targets
+    // `project_root/.gauntlet/roles.lock` or `<validated-stem>.staging`
+    // beside a target already derived from validated roots, so no
+    // unvalidated component can enter the path. The guard needle below
+    // stays pinned on all three entries so the containment surface cannot
+    // silently disappear from this file.
     WriteSite {
         file: "crates/gauntlet-app/src/roles/install.rs",
         token: "fs::create_dir_all",
-        reason: "roles install: the installed directory under the state root",
+        reason: "roles install: the installed directory under the state root — this \
+                 create_dir_all sits behind the ensure_within_root containment call",
         guard: Some("fn ensure_within_root"),
     },
     WriteSite {
         file: "crates/gauntlet-app/src/roles/install.rs",
         token: "fs::write",
-        reason: "roles install: atomic-write staging file (verbatim bytes; renamed over the \
-                 target in the same commit step)",
+        reason: "roles install: atomic-write staging file — fixed-leaf target beside a \
+                 validated destination (the lock's `.gauntlet` leaf or an installed \
+                 `<validated-stem>.md`), so no unvalidated component enters the path",
         guard: Some("fn ensure_within_root"),
     },
     WriteSite {
         file: "crates/gauntlet-app/src/roles/install.rs",
         token: "fs::rename",
-        reason: "roles install: atomic-write commit over the target inside the state root / \
-                 the runtime lock dir",
+        reason: "roles install: atomic-write commit over the target — fixed-leaf \
+                 construction (the runtime lock leaf `project_root/.gauntlet/roles.lock` \
+                 or a validated `<stem>.md` under the pre-validated installed dir)",
         guard: Some("fn ensure_within_root"),
     },
 ];

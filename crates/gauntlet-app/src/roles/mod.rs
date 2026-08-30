@@ -40,7 +40,7 @@ pub mod harness;
 pub mod install;
 
 pub use category::{CategoryClass, ContextCategory, ContextDenySet};
-pub use definition::{RoleDefinition, RoleError, RolePermissions};
+pub use definition::{FilesystemMode, NetworkMode, RoleDefinition, RoleError, RolePermissions};
 pub use harness::{HarnessRegistry, RegistryError, RoleSurface};
 pub use install::{
     DriftKind, DriftRecord, Enforcement, InstallInput, InstallReport, LockEntry, RolesError,

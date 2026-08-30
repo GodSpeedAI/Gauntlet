@@ -4,7 +4,7 @@ description: Decides whether a specific claim's declared evidence satisfies its 
 runner: $GAUNTLET_VERIFIER_RUNNER
 model: $GAUNTLET_VERIFIER_MODEL
 permissions:
-  filesystem: own-evidence # spec 10.2 — may modify its own evidence artifacts
+  filesystem: read-write # spec 10.2 — may modify its own evidence artifacts
   write_paths: ["$GAUNTLET_ARTIFACT_DIR"]
   network: deny
   tools: [code_nav, filesystem]

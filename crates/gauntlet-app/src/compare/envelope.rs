@@ -75,6 +75,11 @@ pub enum EnvelopeError {
     /// The opaque port dispatch context rejected a mismatch between the
     /// verified frozen projection and the serializable envelope.
     TrustedDispatchRefused { detail: String },
+    /// The role invocation's `context.deny` names a category the input set
+    /// carries — a denied category must never enter the envelope (§10.1:
+    /// "The `context.deny` list is enforced by the runtime when it builds
+    /// the envelope (§13.2)").
+    DeniedContextPresent { category: &'static str },
 }
 
 impl core::fmt::Display for EnvelopeError {
@@ -120,6 +125,11 @@ impl core::fmt::Display for EnvelopeError {
             Self::TrustedDispatchRefused { detail } => {
                 write!(f, "trusted comparison dispatch refused: {detail}")
             }
+            Self::DeniedContextPresent { category } => write!(
+                f,
+                "the role's context.deny names '{category}' and the input set carries it — a \
+                 denied category must not enter the envelope (spec 10.1, 13.2)"
+            ),
         }
     }
 }
@@ -231,6 +241,57 @@ pub(crate) fn build_envelope(inputs: EnvelopeInputs<'_>) -> Result<BuiltEnvelope
         trusted,
         canonical_bytes,
     })
+}
+
+/// The consume-side seam for a role's typed `context.deny` set (plan Task 17
+/// COR-D07; spec §10.1: "The `context.deny` list is enforced by the runtime
+/// when it builds the envelope (§13.2). It is a structural allowlist, not an
+/// instruction to the model.").
+///
+/// REFUSES an input set carrying a category the invocation's role denies.
+/// The five §13.2 envelope-permitted categories map one-to-one onto the
+/// five context-bearing [`EnvelopeInputs`] members — `reference` →
+/// `frozen_reference`, `observation_bundle` → `bundle`, `comparison_contract`
+/// → `contract`, `applicable_constraints` → `constraints`, `open_residuals`
+/// → `open_residuals`. Reference-shaped members are carried by construction
+/// (the envelope cannot exist without them); vector members count only when
+/// non-empty. `authority`, `evidence`, and `deadline` are provenance, not
+/// context categories, and are not consulted.
+///
+/// ADDITIVE AND DELIBERATELY UNWIRED: this function changes ZERO existing
+/// call sites. Composed dispatch (plan Task 20) is its consumer — the
+/// composer calls it with the invocation's role deny-set before
+/// [`build_envelope`] and treats a refusal as a configuration failure, never
+/// a silent narrowing to "what the builder permits anyway". Until that
+/// composition lands, this seam is the typed obligation that compels the
+/// wiring to exist.
+#[allow(dead_code)]
+pub fn assert_within_role_deny_set(
+    inputs: &EnvelopeInputs<'_>,
+    denies: &crate::roles::ContextDenySet,
+) -> Result<(), EnvelopeError> {
+    use crate::roles::ContextCategory;
+    let carried = [
+        (ContextCategory::Reference, true),
+        (ContextCategory::ObservationBundle, true),
+        (ContextCategory::ComparisonContract, true),
+        (
+            ContextCategory::ApplicableConstraints,
+            !inputs.constraints.is_empty(),
+        ),
+        (
+            ContextCategory::OpenResiduals,
+            !inputs.open_residuals.is_empty(),
+        ),
+    ];
+    for (category, present) in carried {
+        if present && denies.denies(category) {
+            return Err(EnvelopeError::DeniedContextPresent {
+                category: category.token(),
+            });
+        }
+    }
+    Ok(())
 }
 
 #[allow(dead_code)]
@@ -534,5 +595,46 @@ residual_definition:
         )
         .expect("no residuals, no contradiction");
         assert_eq!(record.envelope_digest(), built.envelope_digest());
+    }
+
+    #[test]
+    fn a_role_deny_set_naming_a_carried_category_refuses_the_input_set() {
+        // COR-D07 teeth: spec §10.1 — "The `context.deny` list is enforced
+        // by the runtime when it builds the envelope (§13.2)." An input set
+        // carrying a category the invocation's role denies is REFUSED; an
+        // unrelated deny-set (categories the envelope cannot carry anyway)
+        // refuses nothing.
+        use crate::roles::{ContextCategory, ContextDenySet};
+        let bundle = bundle();
+        let contract = contract();
+        let governed = governed(&bundle);
+        let set = inputs(&governed, &bundle, &contract);
+        let deny = ContextDenySet::new(vec![ContextCategory::Reference]);
+        let refusal = super::assert_within_role_deny_set(&set, &deny)
+            .expect_err("a denied category must not ride the input set");
+        assert!(
+            matches!(
+                &refusal,
+                EnvelopeError::DeniedContextPresent { category } if *category == "reference"
+            ),
+            "the denied category is named, got {refusal:?}"
+        );
+        // Vector members count only when non-empty: this input set carries
+        // no constraints but does carry an open residual.
+        let empty_ok = ContextDenySet::new(vec![ContextCategory::ApplicableConstraints]);
+        assert!(
+            super::assert_within_role_deny_set(&set, &empty_ok).is_ok(),
+            "denying an absent member refuses nothing"
+        );
+        let residual_denied = ContextDenySet::new(vec![ContextCategory::OpenResiduals]);
+        assert!(
+            super::assert_within_role_deny_set(&set, &residual_denied).is_err(),
+            "denying a present member refuses"
+        );
+        let unrelated = ContextDenySet::new(vec![ContextCategory::BuilderTrajectory]);
+        assert!(
+            super::assert_within_role_deny_set(&set, &unrelated).is_ok(),
+            "blindness categories the envelope cannot carry refuse nothing"
+        );
     }
 }

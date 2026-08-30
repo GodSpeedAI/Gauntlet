@@ -291,9 +291,14 @@ fn roles(args: &[String]) -> ExitCode {
 }
 
 /// The roots and the environment every roles command resolves against —
-/// the same discovery doctor performs, without the report products.
+/// the same discovery doctor performs, without the report products. The
+/// ROLES DIR comes from the same four-layer merge (GAUNTLET.md
+/// `roles.dir` + `GAUNTLET_ROLES_DIR` + anchoring, spec §8.2), so an
+/// operator override reaches the installer the same way it reaches every
+/// other surface (COR-D02).
 fn roles_context() -> Result<
     (
+        std::path::PathBuf,
         std::path::PathBuf,
         std::path::PathBuf,
         gauntlet_app::config::EnvLayer,
@@ -333,7 +338,17 @@ fn roles_context() -> Result<
         flags: resolve::FlagOverrides::default(),
     })
     .map_err(|error| error.to_string())?;
-    Ok((project_root, resolved.effective.state_dir.into(), env))
+    // The anchored products (COR-D02): `resolve` hands back the raw merged
+    // layer, whose dir strings may be relative; install's own containment
+    // requires absolute roots, so the same indirection-resolution pass the
+    // resolved config owns anchors both dirs at the project root. The
+    // roles dir therefore honors `roles.dir` / `GAUNTLET_ROLES_DIR` through
+    // the identical four-layer merge every other surface uses.
+    let anchored = resolved
+        .effective
+        .resolve_against(&env, &project_root)
+        .map_err(|error| error.to_string())?;
+    Ok((project_root, anchored.state_dir, anchored.roles_dir, env))
 }
 
 /// The harness registry this composition fronts (plan Task 17 D4): keyed
@@ -393,17 +408,18 @@ fn roles_install(args: &[String]) -> ExitCode {
         println!("usage: gauntlet roles install --harness <id>");
         return ExitCode::from(2);
     };
-    let Ok((project_root, state_dir, env)) = roles_context() else {
+    let Ok((project_root, state_dir, roles_dir, env)) = roles_context() else {
         return report_roles_context_failure();
     };
     let registry = roles_registry();
     match gauntlet_app::roles::install(&gauntlet_app::roles::InstallInput {
         project_root: &project_root,
         state_dir: &state_dir,
-        roles_dir: &gauntlet_app::config::defaults::roles_dir_at(&project_root),
+        roles_dir: &roles_dir,
         harness: &harness,
         registry: &registry,
         env: &env,
+        tool_vocabulary: spec_vocab::CAPABILITY_VOCABULARY,
     }) {
         Ok(report) => {
             let enforcement = match report.enforcement {
@@ -435,16 +451,26 @@ fn roles_install(args: &[String]) -> ExitCode {
 
 /// `gauntlet roles verify`: re-reads the installed state and the
 /// repository sources, comparing content digests against the lock. Any
-/// drift — out-of-band edit, source edit since install, a missing
-/// artifact, or a hand-edited or re-forged lock — is a typed failure
-/// and a non-zero exit.
-fn roles_verify(_args: &[String]) -> ExitCode {
-    let Ok((project_root, state_dir, _env)) = roles_context() else {
+/// drift — out-of-band edit, source edit since install, a missing or
+/// extra artifact, or a hand-edited or re-forged lock — is a typed
+/// failure and a non-zero exit. The command takes NO arguments (COR-D12):
+/// every surface in this CLI refuses unknown arguments with exit 2, so a
+/// mistyped flag (`--harness X`) is a usage error, never a silent no-op.
+fn roles_verify(args: &[String]) -> ExitCode {
+    if let Some(other) = args.first() {
+        eprintln!("gauntlet roles verify: unknown argument '{other}'");
+        println!("usage: gauntlet roles verify");
+        return ExitCode::from(2);
+    }
+    let Ok((project_root, state_dir, roles_dir, _env)) = roles_context() else {
         return report_roles_context_failure();
     };
+    let registry = roles_registry();
     match gauntlet_app::roles::verify(&gauntlet_app::roles::VerifyInput {
         project_root: &project_root,
         state_dir: &state_dir,
+        roles_dir: &roles_dir,
+        registry: &registry,
     }) {
         Ok(report) => {
             let enforcement = match report.enforcement {

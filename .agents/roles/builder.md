@@ -4,7 +4,7 @@ description: Implements one bounded transformation against the frozen reference 
 runner: $GAUNTLET_BUILDER_RUNNER
 model: $GAUNTLET_BUILDER_MODEL
 permissions:
-  filesystem: workspace # spec 10.2 — may modify target implementation, its own tests, its workspace
+  filesystem: read-write # spec 10.2 — may modify target implementation, its own tests, its workspace
   write_paths: [workspaces]
   network: deny
   tools: [code_nav, filesystem]
@@ -29,7 +29,7 @@ invariant I2); instruments, not your assertions, settle behavior.
   (spec §10.2, Never column). A test or reference that looks wrong is
   demonstrated wrong through the runtime's channels, never edited into
   passing.
-- Lower your unit's blast radius or authority (spec §12.2).
+- Lower your unit's blast radius or authority (spec §17.1).
 - Read other roles' context: comparison contracts, prior verdicts,
   operator chat, or another builder's trajectory (spec §10.1 context
   grammar; §13.2 not-received list).

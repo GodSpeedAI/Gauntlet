@@ -42,18 +42,131 @@ use crate::config::resolve::expand_indirections;
 
 use super::category::{ContextCategory, ContextDenySet};
 
+/// The `permissions.filesystem` access mode — a CLOSED vocabulary over the
+/// spec's own mode words (COR-D06). Spec §10.1's grammar spells
+/// `filesystem: read-only`; §10.2's role table and §17.3's tier prose
+/// ("read-write limited to the workspace") spell the mode pair
+/// read-write/read-only. Exactly those two tokens parse; anything else is a
+/// typed refusal naming the token and its locus — a made-up mode word must
+/// never silently weaken (or widen) the declared filesystem posture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FilesystemMode {
+    /// §10.1's own spelling: the role reads, it does not write.
+    ReadOnly,
+    /// §17.3's tier posture spelling: writes limited to the declared
+    /// `write_paths` (which carry the specifics).
+    ReadWrite,
+}
+
+impl FilesystemMode {
+    /// The canonical role-file token.
+    pub fn token(self) -> &'static str {
+        match self {
+            Self::ReadOnly => "read-only",
+            Self::ReadWrite => "read-write",
+        }
+    }
+
+    /// Parses one role-file token; `None` for anything outside the closed
+    /// vocabulary.
+    pub fn parse(token: &str) -> Option<Self> {
+        match token {
+            "read-only" => Some(Self::ReadOnly),
+            "read-write" => Some(Self::ReadWrite),
+            _ => None,
+        }
+    }
+}
+
+/// The `permissions.network` access mode — a CLOSED vocabulary (COR-D06).
+/// Spec §10.1's grammar spells `network: deny`; its `context.allow`/
+/// `context.deny` grammar establishes the deny/allow word pair the
+/// permission block reuses. Exactly those two tokens parse. Consistency
+/// note: the ports sandbox names its runtime posture `NetworkPosture`
+/// (`DenyByDefault` / `Allowlist { hosts }`) — a FINER runtime concept.
+/// The role-file `allow` token is the coarser grant; at composition (plan
+/// Task 20) it must lower into an allowlist requiring hosts, never a
+/// blanket-open posture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NetworkMode {
+    /// §10.1's own spelling: no network.
+    Deny,
+    /// The grant word of the §10.1 pair; scope is composition's to lower.
+    Allow,
+}
+
+impl NetworkMode {
+    /// The canonical role-file token.
+    pub fn token(self) -> &'static str {
+        match self {
+            Self::Deny => "deny",
+            Self::Allow => "allow",
+        }
+    }
+
+    /// Parses one role-file token; `None` for anything outside the closed
+    /// vocabulary.
+    pub fn parse(token: &str) -> Option<Self> {
+        match token {
+            "deny" => Some(Self::Deny),
+            "allow" => Some(Self::Allow),
+            _ => None,
+        }
+    }
+}
+
+/// One declared `permissions.write_paths` entry (COR-R1-2): the RAW token as
+/// the role file spells it — an unresolved literal or a `$VAR` reference,
+/// neither of which is a secret, so a refusal may echo it — and the RESOLVED
+/// value, which validation consumes but no Display, log, or derived
+/// rendering ever carries (spec §8.1: the value is never echoed).
+#[derive(Clone, PartialEq, Eq)]
+pub struct DeclaredPath {
+    raw: String,
+    resolved: String,
+}
+
+impl DeclaredPath {
+    /// The token as the role file spells it — never a resolved value.
+    pub fn raw(&self) -> &str {
+        &self.raw
+    }
+
+    /// The resolved value — for validation only, never for display.
+    pub fn resolved(&self) -> &str {
+        &self.resolved
+    }
+}
+
+impl core::fmt::Debug for DeclaredPath {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // A resolved indirection VALUE may be a credential (spec §8.1), so
+        // the derived rendering carries the raw token only.
+        f.debug_struct("DeclaredPath")
+            .field("raw", &self.raw)
+            .finish()
+    }
+}
+
 /// The permission block of a role file (spec §10.1 `permissions:`).
 /// Keys are the four §10.1 spellings, all REQUIRED — a missing key must
-/// not fall through to a grant-by-default reading. Values are typed
-/// shapes (a filesystem and network access token, path and tool lists);
-/// the token TEXT is the role's declared contract, with `write_paths`
-/// entries carried through indirection expansion and containment-checked
-/// by the installer against the workspace and state roots.
+/// not fall through to a grant-by-default reading. The `filesystem` and
+/// `network` values are typed over the spec's own closed mode vocabularies
+/// (see [`FilesystemMode`] / [`NetworkMode`]); `tools` entries are
+/// validated against the §8.4 semantic-capability vocabulary supplied by
+/// the composition root (`crates/gauntlet-cli/src/spec_vocab.rs` — three
+/// of §8.4's own tokens collide with derived adapter identifiers, so the
+/// boundary suite's designated place for the list is the composition root
+/// and the application layer consumes it as data, exactly as doctor does);
+/// `write_paths` entries are carried through indirection expansion as
+/// [`DeclaredPath`]s and containment-checked by the installer against the
+/// workspace, state, and protected roots — the RESOLVED value validating,
+/// the RAW token naming any refusal (COR-R1-2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RolePermissions {
-    pub filesystem: String,
-    pub write_paths: Vec<String>,
-    pub network: String,
+    pub filesystem: FilesystemMode,
+    pub write_paths: Vec<DeclaredPath>,
+    pub network: NetworkMode,
     pub tools: Vec<String>,
 }
 
@@ -167,6 +280,30 @@ pub enum RoleError {
     /// indirection). The wrapped config error names the VARIABLE and the
     /// locus, never the value (spec §8.1).
     Indirection { role: String, source: ConfigError },
+    /// A `permissions.filesystem` token outside the spec's own mode
+    /// vocabulary (§10.1 grammar, §10.2 table, §17.3 tier prose:
+    /// read-only / read-write). A made-up mode word must never silently
+    /// weaken or widen the declared posture.
+    UnknownFilesystemMode {
+        role: String,
+        token: String,
+        line: usize,
+    },
+    /// A `permissions.network` token outside the §10.1 deny/allow pair.
+    UnknownNetworkMode {
+        role: String,
+        token: String,
+        line: usize,
+    },
+    /// A `permissions.tools` entry outside the §8.4 semantic-capability
+    /// vocabulary. These declarations are what a future PolicyProvider
+    /// lowers into sandbox posture — a typo'd or widened token is a live
+    /// grant question, refused at construction.
+    UnknownToolToken {
+        role: String,
+        token: String,
+        line: usize,
+    },
     /// `deadline_seconds` is not a positive whole number.
     DeadlineSeconds { role: String, found: &'static str },
 }
@@ -255,6 +392,25 @@ impl core::fmt::Display for RoleError {
                 f,
                 "role '{role}': deadline_seconds expects a positive whole number but carries \
                  {found} (spec 10.1)"
+            ),
+            Self::UnknownFilesystemMode { role, token, line } => write!(
+                f,
+                "role '{role}' line {line}: permissions.filesystem names '{token}', outside the \
+                 spec's own mode vocabulary of read-only and read-write (the spec 10.1 grammar; \
+                 the spec 10.2 role table; the spec 17.3 tier prose); a made-up mode word must \
+                 never silently weaken or widen the declared posture"
+            ),
+            Self::UnknownNetworkMode { role, token, line } => write!(
+                f,
+                "role '{role}' line {line}: permissions.network names '{token}', outside the \
+                 spec's own deny / allow pair (the spec 10.1 grammar); an unknown network word \
+                 must never silently become a grant"
+            ),
+            Self::UnknownToolToken { role, token, line } => write!(
+                f,
+                "role '{role}' line {line}: permissions.tools names '{token}', outside the 8.4 \
+                 semantic-capability vocabulary — tools bind by capability, never by product, \
+                 and a token outside the closed list has no binding"
             ),
         }
     }
@@ -357,8 +513,17 @@ impl RoleDefinition {
 
     /// The validating constructor: parses, resolves, validates, and
     /// compiles the context data. See the module documentation for the
-    /// four construction obligations.
-    pub fn load(stem: &str, text: &str, env: &EnvLayer) -> Result<Self, RoleError> {
+    /// four construction obligations. `tool_vocabulary` is the §8.4
+    /// semantic-capability list the `permissions.tools` values are
+    /// validated against — supplied by the composition root (see
+    /// [`RolePermissions`]'s doc note for why the list cannot live in
+    /// this crate).
+    pub fn load(
+        stem: &str,
+        text: &str,
+        env: &EnvLayer,
+        tool_vocabulary: &[&str],
+    ) -> Result<Self, RoleError> {
         let role_of = stem.to_owned();
         if !is_valid_stem(stem) {
             return Err(RoleError::InvalidDimension {
@@ -376,7 +541,7 @@ impl RoleDefinition {
         let body = split_document(text);
         let mut fields = FieldWalk::default();
         for entry in &front.entries {
-            walk_field(&role_of, entry, env, &mut fields)?;
+            walk_field(&role_of, entry, env, tool_vocabulary, &mut fields)?;
         }
         let mut definition = fields.finish(&role_of, stem)?;
         definition.body = body;
@@ -409,18 +574,6 @@ impl FieldWalk {
         let role_id = self.role.ok_or_else(|| missing("role"))?;
         let description = owned_non_empty(role, self.description, "description")?;
         let permissions = self.permissions.ok_or_else(|| missing("permissions"))?;
-        if permissions.filesystem.trim().is_empty() {
-            return Err(RoleError::EmptyValue {
-                role: role.to_owned(),
-                field: "permissions.filesystem",
-            });
-        }
-        if permissions.network.trim().is_empty() {
-            return Err(RoleError::EmptyValue {
-                role: role.to_owned(),
-                field: "permissions.network",
-            });
-        }
         let allow = self.allow.ok_or_else(|| missing("context.allow"))?;
         let deny_list = self.deny.ok_or_else(|| missing("context.deny"))?;
         if allow.is_empty() {
@@ -512,6 +665,7 @@ fn walk_field(
     role: &str,
     entry: &FmEntry,
     env: &EnvLayer,
+    tool_vocabulary: &[&str],
     fields: &mut FieldWalk,
 ) -> Result<(), RoleError> {
     match entry.key.as_str() {
@@ -541,7 +695,7 @@ fn walk_field(
             fields.model = Some(text);
             Ok(())
         }
-        "permissions" => walk_permissions(role, entry, env, fields),
+        "permissions" => walk_permissions(role, entry, env, tool_vocabulary, fields),
         "context" => walk_context(role, entry, fields),
         "result_contract" => {
             let text = expect_resolved_text(role, entry, "result_contract", env)?;
@@ -575,11 +729,16 @@ fn walk_field(
     }
 }
 
-/// Walks the `permissions` block: the four §10.1 keys, all required.
+/// Walks the `permissions` block: the four §10.1 keys, all required, with
+/// the `filesystem` / `network` VALUES parsed through their closed mode
+/// vocabularies and every `tools` entry validated against the §8.4
+/// capability list (COR-D06 — presence/kind/emptiness alone let a hostile
+/// file widen past construction).
 fn walk_permissions(
     role: &str,
     entry: &FmEntry,
     env: &EnvLayer,
+    tool_vocabulary: &[&str],
     fields: &mut FieldWalk,
 ) -> Result<(), RoleError> {
     let Some(entries) = entry.value.as_map() else {
@@ -590,37 +749,64 @@ fn walk_permissions(
             found: kind_word(&entry.value),
         });
     };
-    let mut filesystem: Option<String> = None;
-    let mut write_paths: Option<Vec<String>> = None;
-    let mut network: Option<String> = None;
+    let mut filesystem: Option<FilesystemMode> = None;
+    let mut write_paths: Option<Vec<DeclaredPath>> = None;
+    let mut network: Option<NetworkMode> = None;
     let mut tools: Option<Vec<String>> = None;
     for leaf in entries {
         match leaf.key.as_str() {
             "filesystem" => {
-                filesystem = Some(expect_resolved_text(
-                    role,
-                    leaf,
-                    "permissions.filesystem",
-                    env,
-                )?)
+                let (raw, resolved) =
+                    expect_resolved_pair(role, leaf, "permissions.filesystem", env)?;
+                let Some(mode) = FilesystemMode::parse(&resolved) else {
+                    // COR-R1-2: the refusal names the UNRESOLVED token; a
+                    // resolved $VAR value never reaches error text (spec §8.1).
+                    return Err(RoleError::UnknownFilesystemMode {
+                        role: role.to_owned(),
+                        token: raw,
+                        line: leaf.line,
+                    });
+                };
+                filesystem = Some(mode);
             }
             "write_paths" => {
-                write_paths = Some(expect_string_list(
-                    role,
-                    leaf,
-                    "permissions.write_paths",
-                    env,
-                )?)
+                write_paths = Some(
+                    expect_resolved_string_list(role, leaf, "permissions.write_paths", env)?
+                        .into_iter()
+                        .map(|(raw, resolved)| DeclaredPath { raw, resolved })
+                        .collect(),
+                )
             }
             "network" => {
-                network = Some(expect_resolved_text(
-                    role,
-                    leaf,
-                    "permissions.network",
-                    env,
-                )?)
+                let (raw, resolved) = expect_resolved_pair(role, leaf, "permissions.network", env)?;
+                let Some(mode) = NetworkMode::parse(&resolved) else {
+                    // COR-R1-2: the refusal names the UNRESOLVED token (spec §8.1).
+                    return Err(RoleError::UnknownNetworkMode {
+                        role: role.to_owned(),
+                        token: raw,
+                        line: leaf.line,
+                    });
+                };
+                network = Some(mode);
             }
-            "tools" => tools = Some(expect_string_list(role, leaf, "permissions.tools", env)?),
+            "tools" => {
+                let list = expect_resolved_string_list(role, leaf, "permissions.tools", env)?;
+                let mut resolved_tools = Vec::with_capacity(list.len());
+                for (raw, resolved) in list {
+                    if !tool_vocabulary.contains(&resolved.as_str()) {
+                        // COR-R1-2: the refusal names the UNRESOLVED token
+                        // (spec §8.1); the resolved value validated against
+                        // the vocabulary and is dropped here.
+                        return Err(RoleError::UnknownToolToken {
+                            role: role.to_owned(),
+                            token: raw,
+                            line: leaf.line,
+                        });
+                    }
+                    resolved_tools.push(resolved);
+                }
+                tools = Some(resolved_tools);
+            }
             other => {
                 return Err(RoleError::UnknownField {
                     role: role.to_owned(),
@@ -739,22 +925,39 @@ fn expect_resolved_text(
     field: &str,
     env: &EnvLayer,
 ) -> Result<String, RoleError> {
-    let raw = expect_text(role, entry, field)?;
-    let locus = format!("roles.{role}.{field}");
-    expand_indirections(&raw, env, &locus, &mut Vec::new()).map_err(|source| {
-        RoleError::Indirection {
-            role: role.to_owned(),
-            source,
-        }
-    })
+    expect_resolved_pair(role, entry, field, env).map(|(_, resolved)| resolved)
 }
 
-fn expect_string_list(
+/// Resolves one text field, returning `(raw, resolved)`: the RAW token is
+/// what a refusal may echo (COR-R1-2 — an unresolved literal or `$VAR`
+/// reference is not a secret), the RESOLVED value is what validation
+/// consumes and what must never reach error text (spec §8.1).
+fn expect_resolved_pair(
     role: &str,
     entry: &FmEntry,
     field: &str,
     env: &EnvLayer,
-) -> Result<Vec<String>, RoleError> {
+) -> Result<(String, String), RoleError> {
+    let raw = expect_text(role, entry, field)?;
+    let locus = format!("roles.{role}.{field}");
+    let resolved = expand_indirections(&raw, env, &locus, &mut Vec::new()).map_err(|source| {
+        RoleError::Indirection {
+            role: role.to_owned(),
+            source,
+        }
+    })?;
+    Ok((raw, resolved))
+}
+
+/// A string list whose items resolve now, as `(raw, resolved)` pairs —
+/// validation consumes the resolved item, a refusal echoes the raw token
+/// (COR-R1-2: the resolved value never reaches error text).
+fn expect_resolved_string_list(
+    role: &str,
+    entry: &FmEntry,
+    field: &str,
+    env: &EnvLayer,
+) -> Result<Vec<(String, String)>, RoleError> {
     let FmValue::Seq(items) = &entry.value else {
         return Err(RoleError::KindMismatch {
             role: role.to_owned(),
@@ -767,12 +970,15 @@ fn expect_string_list(
         .iter()
         .map(|item| {
             let locus = format!("roles.{role}.{field}");
-            expand_indirections(&item.raw(), env, &locus, &mut Vec::new()).map_err(|source| {
-                RoleError::Indirection {
-                    role: role.to_owned(),
-                    source,
-                }
-            })
+            let raw = item.raw();
+            let resolved =
+                expand_indirections(&raw, env, &locus, &mut Vec::new()).map_err(|source| {
+                    RoleError::Indirection {
+                        role: role.to_owned(),
+                        source,
+                    }
+                })?;
+            Ok((raw, resolved))
         })
         .collect()
 }
