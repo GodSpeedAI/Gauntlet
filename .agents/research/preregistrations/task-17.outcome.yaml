@@ -1,0 +1,266 @@
+# Task 17 outcome record (research instrumentation, non-normative).
+# The frozen preregistration (.agents/research/preregistrations/task-17.prereg.yaml,
+# sha256 b3616216df3763407b58c624fb2f46b45f3cbe70771ed6cb7b7ede698bfd571a)
+# was never edited; `just prereg-check 17` PASS on the final tree. This file
+# records what was observed, including where a prediction did not hold.
+
+schema_version: 1
+task: 17
+
+preregistration:
+  path: ".agents/research/preregistrations/task-17.prereg.yaml"
+  sha256: "b3616216df3763407b58c624fb2f46b45f3cbe70771ed6cb7b7ede698bfd571a"
+
+observed:
+  task_result: >-
+    SETTLED (CONFIRM). Roles are repository role artifacts with a typed
+    loader (intersection semantics), a semantic harness registry
+    (prime-agent writable / generic-cli advisory with enforcement:
+    advisory), verbatim install into the repo-configured state root
+    (never operator dirs) with content-digest RolesLock
+    (canonical re-serialization + self-digest lock_digest) and drift
+    detection that is content-digest, tamper-evident, and set-membership
+    complete; CLI `gauntlet roles install/verify`, arch pins
+    (single_writer lock ownership + no-hardcoded-literals), 392-test
+    suite with 22 teeth all RED→GREEN, live binary verification,
+    battery 392/392, boundaries 228/228. Rounds: build (orchestrator-
+    completed after builder window death, 6 fixes + COR-O1) → design-
+    as-built critic NOT_CONFIRM (14 residuals; 4 majors? 1 blocking?
+    2 info — all adjudicated) → B2 landed COR-D01..D14 →
+    blind falsifier round1 NOT_CONFIRM (2 major / 3 minor) → B3 landed
+    COR-R1-1..4 (6 teeth) → fresh blind falsifier round2 CONFIRM
+    (0 blocking / 0 major). AK-063 locator divergence recorded, never
+    the ruler.
+
+  material_events:
+    - >-
+      The compensation debt was structural: the pre-implementation design
+      critic died pre-launch on a transient network error and the builder
+      died mid-slice on the 5-hour usage window. The orchestrator
+      completed the slice personally per heal+continue (degraded
+      independence recorded) and dispatched both compensation rounds on
+      window reset — a static design-as-built critic over the committed
+      tree plus a blind executing falsifier. The discipline's cost was
+      one extra message at design time vs a builder round plus re-review.
+    - >-
+      Design-as-built critic found the seam that the build's own tests
+      had left load-bearing but uncovered: RES-D13 contained_join
+      refusal and SourceMissing were untested; RES-D07 deny-set typed
+      but unwired; RES-D06 vocab widening past construction; RES-D01
+      empty lock green. All 14 routed to B2 and landed as typed guards
+      (DeclaredPath raw/resolved split, FilesystemMode/NetworkMode
+      vocabularies, context.deny typed set, write_paths anchored at
+      project_root, contained_join, EmptyRoleSet).
+    - >-
+      Falsifier round1 found the two majors the green battery and the
+      design review both missed: derived-shape lock forgery (whoever can
+      write .gauntlet/roles.lock could bless arbitrary bytes as the
+      reviewed source) and resolved $VAR value leakage into typed errors.
+      Both required installer-level fixes (COR-R1-1 derived paths
+      rebuild + COR-R1-2 DeclaredPath raw-only Display). Round2 re-
+      attacked the corrected class and found only the intentionally
+      lexical symlink seam (sandbox's job) and the write_atomic
+      directory-entry fsync (trigger-recorded).
+    - >-
+      The reference-candidates locator class grew by one more honest
+      instance: AK-063's `tests/contract/roles::install_and_verify`
+      cannot host the mechanism test without violating the
+      gauntlet-arch-tests dependency isolation (the architecture is
+      working as designed). The delivered test lives in
+      `crates/gauntlet-app/tests/roles.rs` — the crate that owns the
+      mechanism — exactly as AK-013 at task16.
+
+  rounds:
+    correction: 3            # B2 (COR-D) + B3 (COR-R1) + COR-O fixes in milestone
+    confirmation: 3          # design-as-built critic + falsifier r1 + falsifier r2
+    to_first_confirm: 3      # confirm arrived at r2
+
+post_run:
+  closed_at:
+    git_commit: "see .agents/CURRENT_STATUS.yml evidence entry (written after the closure commit by the established two-commit pattern)"
+    timestamp_utc: "2026-08-31T00:00:00Z"
+    rounds:
+      correction: 3
+      confirmation: 3
+      to_first_confirm: 3
+
+  predictions:
+    - id: P1
+      type: supported
+      prior: 0.6
+      informativeness: routine
+      observed: >
+        FIRED as predicted, at critique. The design-as-built critic's
+        RES-D07: the typed deny-set existed but had NO production consumer
+        — the plan's invariant "the file cannot grant more context than the
+        builder permits" was parsed but unconsumed. B2 landed the typed
+        seam (envelope.rs:269 assert_within_role_deny_set) and the
+        consumer is now typed and tested; composition wiring stays at
+        task20 with R-1b hard-trigger (honestly scoped).
+      divergence: >
+        Predicted union-vs-intersection; the sharper form was
+        parsed-but-unconsumed — same family, different mechanism — fixed
+        without a live dispatch.
+      resolution_evidence:
+        - ".agents/reports/task17/critic-design.md (RES-D07)"
+        - ".agents/reports/task17/b2-builder.md (COR-D07)"
+        - "crates/gauntlet-app/src/compare/envelope.rs:269"
+      interpretable: true
+    - id: P2
+      type: falsified
+      prior: 0.5
+      informativeness: routine
+      observed: >
+        DID NOT FIRE. Install is byte-identical on unchanged tree
+        (reinstall_of_unchanged_tree_is_byte_identical_lock PASS) and
+        reinstall-over-drift correctly reports repaired via installed-bytes
+        delta (COR-R1-4). No map-ordering, timestamp, or identifier churn.
+      divergence: >
+        Predicted idempotence corner; the lock's canonical serialization
+        and self-digest make the property structural.
+      resolution_evidence:
+        - "crates/gauntlet-app/tests/roles.rs::reinstall_of_unchanged_tree_is_byte_identical_lock"
+        - "crates/gauntlet-app/tests/roles.rs::reinstall_over_out_of_band_installed_drift_reports_the_repair"
+      interpretable: true
+    - id: P3
+      type: supported
+      prior: 0.7
+      informativeness: high
+      observed: >
+        FIRED as predicted, at falsifier round1. Derived-shape lock
+        forgery (FIND-1 major) and resolved $VAR canary leakage (FIND-2
+        major) plus duplicate-entry and repair-flag minors — all content-
+        digest gaps, not mtime/existence. B3 closed them with derived-
+        shape tamper checks and DeclaredPath raw-only Display.
+      divergence: >
+        Predicted drift would be mtime/existence or lock malleability;
+        the sharper form was path-derived-ness and secret echo — same
+        seam, more precise — and the self-digest canonical closure (COR-O1)
+        was required to catch the non-canonical reforge.
+      resolution_evidence:
+        - ".agents/reports/task17/falsifier-round1.md (FIND-1..5)"
+        - ".agents/reports/task17/b3-builder.md (COR-R1-1..4)"
+        - ".agents/reports/task17/falsifier-round2.md (F-1..F-5 all repelled)"
+      interpretable: true
+    - id: P4
+      type: supported
+      prior: 0.55
+      informativeness: routine
+      observed: >
+        FIRED in sharper form: the loader reused task5's machinery
+        (A1) and was correct, but the VALUES leaked through refusals —
+        FIND-2's canary in UnknownFilesystemMode and WritePathEscape
+        Displays — a fork temptation of a second kind (refusal text). Fixed
+        by DeclaredPath (raw, resolved) and error audit (raw token only,
+        spec §8.1), proven by the canary pair.
+      divergence: >
+        Predicted a parse divergence (unknown var / missing env); the
+        sharper form was error-text divergence — same reuse discipline,
+        different surface.
+      resolution_evidence:
+        - ".agents/reports/task17/falsifier-round1.md (FIND-2)"
+        - "crates/gauntlet-app/tests/roles.rs::resolved_indirection_value_never_echoes_into_error_text_* (2)"
+      interpretable: true
+    - id: P5
+      type: supported
+      prior: 0.45
+      informativeness: routine
+      observed: >
+        FIRED as predicted, as a recorded decision. Harness ids form a
+        semantic capability map (prime-agent writable / generic-cli
+        advisory), enforcement: advisory recorded on the lock for the
+        fallback, fail-closed on unset/unregistered ids, state lives
+        under the repo-configured root. Each resolved as D3/D4 in
+        design-adjudication.md, never a silent invention.
+      divergence: >
+        No divergence; the plan's redesign trigger was exercised verbatim.
+      resolution_evidence:
+        - ".agents/reports/task17/design-adjudication.md (D3/D4)"
+        - "crates/gauntlet-app/tests/roles.rs::advisory_harness_records_advisory_and_materializes_injectable_artifacts"
+        - "crates/gauntlet-app/tests/roles.rs::unknown_or_missing_harness_fails_closed"
+      interpretable: true
+
+  risks:
+    - id: R1
+      occurred: false
+      note: >
+        Scope stayed fenced: envelope builder gained only the consume-side
+        typed deny-set hook; no controller dispatch wiring, no harness
+        writes outside the repo root (anchored paths, WritePathEscape).
+    - id: R2
+      occurred: false
+      note: >
+        Installer writes under the repo-configured state root only;
+        WritePathEscape + SourceOutsideProject cover the anchored-path
+        class (task14 COR-2 family). Falsifier's traversal/absolute
+        legs executed and repelled.
+    - id: R3
+      occurred: true
+      note: >
+        Locator divergence did tempt — AK-063 spells tests/contract/roles
+        which cannot host the mechanism test without violating the
+        gauntlet-arch-tests isolation; recorded honestly via
+        reference-candidates (D5), never an answer-key edit; ruler PASS
+        before and after every phase.
+    - id: R4
+      occurred: false
+      note: >
+        Role bodies stayed contract-descriptive (who decides what, what
+        the role may never do, spec citations); no settlement/authority/
+        budget prose; design critic checked bodies against §10.1.
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: >
+        Task5's front-matter and $VAR machinery was REUSED, not forked.
+      preregistered_expectation: >
+        just test-package gauntlet-app stays green; the roles module
+        imports config::gauntlet_md/env_layer; no duplicated grammar.
+      observed: >
+        SUPPORTED — 392/392 green throughout; single parse site (config
+        crate); the canary proof is that a forked grammar would have
+        diverged on secret handling (it did, then was fixed by reuse).
+    parametric_variation:
+      level: L2
+      description: >
+        install + verify run over every registered harness id with the
+        same code path and per-harness recorded enforcement.
+      preregistered_expectation: >
+        Same loop body for writable and advisory; advisory records its
+        weakness.
+      observed: >
+        SUPPORTED — every_registered_harness_installs_and_verifies PASS
+        (2 ids); advisory_harness_records_advisory_and_materializes_
+        injectable_artifacts PASS (enforcement: advisory in lock).
+    structural_transfer:
+      level: L3
+      description: >
+        A new over-grant shape (unknown key, denied category, shadowed
+        allow, $VAR outside workspace) is refused at construction.
+      preregistered_expectation: >
+        Falsifier's novel shape refused with typed error naming the locus.
+      observed: >
+        SUPPORTED — unknown_front_matter_key_is_refused,
+        allow_naming_an_envelope_denied_category_is_refused,
+        deny_shadowing_allow_is_refused,
+        write_path_resolving_outside_the_roots_is_refused all PASS;
+        falsifier-round2 B-4/B-6 legs repelled without a payload list.
+
+  explicit_nonclaims:
+    - >
+      No composed role dispatch happens in this task: no role invocation
+      flows through envelope → AgentRunner; R-1b stays hard-triggered at
+      the first real builder execution (task20).
+    - >
+      No operator harness surface is written on this host; installed state
+      lives under the repo-configured state root, advisory records its
+      weakness.
+    - >
+      Nothing here selects runners.default or resolves UNK-003.
+    - >
+      Role bodies carry no governance logic; they cite the frozen spec.
+    - >
+      The task does NOT prove an installed role changes sub-agent
+      behavior in a live run; the claim is installed-and-verified with
+      drift detection (AK-063).
