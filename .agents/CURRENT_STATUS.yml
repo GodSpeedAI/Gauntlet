@@ -10,14 +10,10 @@ metadata:
   initialized: true                   # false only before the very first burst
   last_updated: "2026-08-29"
   updated_by: >-
-    orchestrator (Task 15 SETTLED 2026-08-29: first real AgentRunner — the
-    prime-agent adapter — after one pre-implementation blind design review
-    (NOT_CONFIRM, 12 findings all corrected mid-flight) and one fresh blind
-    EXECUTING falsifier round (CONFIRM, 0 blocking; COR-D1..D3 executed at
-    gate phase against the REAL harness, including two honest live-probe
-    failures diagnosed by executing probes); full battery and the falsifier's
-    teeth mutations (M2/M7 RED -> byte-identical restore -> GREEN) re-verified
-    personally by the orchestrator)
+    orchestrator (Task 16 IN FLIGHT at milestone commit a1c15a2: CLI
+    adapter + P8 delivered; falsifier round 1 NOT_CONFIRM -> COR-F1..F4
+    landed; settlement WAITS for fresh blind round 2 — sub-agent window
+    resets 2026-08-30T12:39)
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
@@ -25,10 +21,16 @@ metadata:
 execution:
   last_settled_task: task15           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: null                # nothing in flight; task15 closed all
-                                       # loops (design review, B1+B2, COR-D1..D3,
-                                       # falsifier round 1 CONFIRM, closure
-                                       # records, commit a869556)
+  in_flight_task: task16              # milestone a1c15a2; design review
+                                       # NOT_CONFIRM (12 accepted, RES-D1..D12
+                                       # routed mid-flight), builder B1 done,
+                                       # falsifier round 1 NOT_CONFIRM (the
+                                       # falsifier agent died on the usage
+                                       # window; its blind-composed attacks
+                                       # executed + completed by the
+                                       # orchestrator), COR-F1..F4 landed,
+                                       # battery green (1182/1182, 224/224,
+                                       # doctor OK, ruler/prereg PASS)
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
@@ -68,25 +70,37 @@ execution:
 # ACTIVE TASK
 # ─────────────────────────────────────────────────────────────────────────
 active:
-  task: null                          # nothing in flight
-  phase: idle                         # ready to start task16 or task18
+  task: task16
+  phase: confirmation round 2 pending  # all loops closed except the fresh
+                                       # blind round the discipline requires
   blocker: >-
-    None. Task 15 is fully settled (B1+B2 + the design-review corrections +
-    COR-D1..D3 + falsifier round 1 CONFIRM; commit a869556). Next session
-    starts task16 (generic CLI adapter + P8 substitution proof) or task18
-    (wayfinder-gauntlet skill; parallel-safe).
+    Settlement of task16 WAITS for a FRESH BLIND confirmation round
+    (executing falsifier, round 2) against the corrected tree. Round 1
+    returned NOT_CONFIRM (F1 cancel-vs-reap, F2 doctor comment-template
+    honesty, F3 lib.rs doc, F4 terminal child leak); all four were
+    corrected tests-first (correction-round1.md) and the full battery is
+    green. The round-1 falsifier AGENT died on the sub-agent 5-hour usage
+    window; its blind-composed attack files were recovered, completed, and
+    RETAINED in-tree as regression teeth
+    (crates/adapters/gauntlet-adapter-agent-cli/tests/
+    falsifier_round1_{template,live}_attacks.rs). Sub-agent dispatch is
+    unavailable until 2026-08-30T12:39 (window reset) — main-session work
+    is unaffected.
 
-    R-1 status after task15: R-1a was FIXED post-task14 (see
-    .agents/reports/task14/r1-fix.md). R-1b REMAINS OPEN and is STILL the
-    hard trigger: task15 shipped the runner but executed NO builder (suite
-    over transport doubles; the env-gated live probe's children are trivial,
-    dispatched for no Unit, through no gate) — so the trigger now binds the
-    FIRST REAL BUILDER EXECUTION wherever it happens (task16's real-process
-    legs, task20's run, or task25). R-2 (port-level forgeability) is now due
-    at the ports revision / task16; R-3 (wrap_builder_command composed half)
-    at task20. Task15's own residuals T15-R1..R5 are recorded in
-    .agents/reports/task15/closure.md §4. Do not forget the task17 AND/OR
-    ambiguity note above before scheduling task17.
+    ON RESUME: dispatch round 2 (fresh context, charter verbatim,
+    firewalled from builder/critic/orchestrator reports; the round-1
+    NOT-ATTACKED list is its warm start) -> on CONFIRM: closure.md,
+    prereg post_run append, reference-candidates already recorded
+    (AK-013 locator), latest_evidence update, settle.
+
+    Scope notes now settled: R-2 did NOT fire at task16 (fog decision D3
+    in the frozen prereg: the CLI adapter consumes a command TEMPLATE,
+    never a wrapped SandboxedCommand; R-2 stays bound to the first
+    wrap-consuming composition, task20 — re-recorded in the candidates/
+    IN-FLIGHT records for the operator to re-adjudicate). R-1b REMAINS
+    the hard trigger (no real builder executed here; live legs are
+    trivial probe children through no gate). T15-R1..R5 untouched (prime
+    was tests-only).
 
 # ─────────────────────────────────────────────────────────────────────────
 # EVIDENCE LOG (current state per task, not a history)
@@ -353,35 +367,31 @@ observations:
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task16                        # or task18 (18 parallel-safe)
+  task: task16                        # finish it: round 2 -> closure
   action: >-
-    Start task16 (generic CLI agent adapter, proves P8/AK-013) or task18
-    (derive wayfinder-gauntlet; parallel-safe) per
-    .agents/plans/gauntlet-impl.md. Standard procedure: recon ->
-    preregistration freeze BEFORE implementation (just prereg-check N) ->
-    builder dispatch under the .agents/agents/ charters (verbatim-charter
-    prompts on general-purpose transport; one compiler at a time;
-    checkpoint-as-you-go; result contracts to files; consider the task15
-    pattern: a static-only blind critic can overlap the builder for a
-    pre-implementation design review) -> task gate + standing battery +
-    lint/deny/boundaries/doctor/ruler/prereg -> at least one FRESH BLIND
-    confirmation round that INCLUDES AN EXECUTING FALSIFIER.
-
-    MANDATORY BEFORE ANY REAL BUILDER EXECUTION (R-1b, unchanged): a real
-    runner must not execute a builder until R-1b is discharged - a
-    production WorkspaceProvider threading a fresh per-unit workspace into
-    GovernDeps (.agents/reports/task14/r1-fix.md, closure.md §4). Task15
-    shipped the runner WITHOUT executing a builder; task16's p8 legs use a
-    command-template adapter and must likewise avoid real builder
-    dispatch. R-2 (port-level forgeability) is DUE at task16's ports
-    revision. Task15 residuals T15-R1..R5 (linger recalibration, hinted
-    live dispatch, concurrency, transport races, mtime) trigger at task16/20
-    touches: .agents/reports/task15/closure.md §4.
+    Dispatch the fresh blind executing falsifier (round 2) against the
+    corrected task16 tree (HEAD a1c15a2 or later). Constraints: charter
+    verbatim on general-purpose transport; firewalled from
+    .agents/reports/task16/{b1-builder,b1-progress,critic-design,
+    design-adjudication,IN-FLIGHT}.md and the prereg; cargo allowed
+    (it holds the compile lock); live-probe legs authorized and bounded;
+    R-1b fence (no real builder execution); byte-identical mutation
+    discipline; report to .agents/reports/task16/falsifier-round2.md.
+    On CONFIRM: write closure.md (adjudicating prereg P1..P5 and
+    blindspots honestly — note P1/P2 did NOT fire as predicted; P3
+    materialized as F1/F4; P4 in sharper form via RES-D1; P5 materialized
+    via the selection mechanism + C10), append the prereg post_run,
+    update latest_evidence + handoff, commit the closure, settle task16,
+    recompute the ready set (task18, task17-under-OR).
   reason: >-
-    Task 15 settled 2026-08-29 (falsifier round 1 CONFIRM with 0 BLOCKING;
-    corrections all executed and re-verified) and the DAG makes task16 and
-    task18 the ready set. Nothing is in flight; every task15 loop is
-    closed and recorded.
+    Everything else in task16 is done and verified: adapter, ports
+    revision, sibling suite, P8 proof (fail-closed selection proven),
+    doctor Configuration honesty, arch teeth, live probe PASS, design
+    round NOT_CONFIRM -> RES-D1..D12, builder B1 + personal battery,
+    falsifier round 1 NOT_CONFIRM -> COR-F1..F4 -> full battery green.
+    The only missing gate is the fresh blind round the settlement
+    discipline requires, and sub-agent dispatch was unavailable at
+    2026-08-29T23:59 (usage window; resets 2026-08-30T12:39).
 
 
 # ─────────────────────────────────────────────────────────────────────────
