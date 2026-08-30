@@ -10,56 +10,51 @@ metadata:
   initialized: true                   # false only before the very first burst
   last_updated: "2026-08-29"
   updated_by: >-
-    orchestrator (Task 16 IN FLIGHT at milestone commit a1c15a2: CLI
-    adapter + P8 delivered; falsifier round 1 NOT_CONFIRM -> COR-F1..F4
-    landed; settlement WAITS for fresh blind round 2 — sub-agent window
-    resets 2026-08-30T12:39)
+    orchestrator (Task 16 SETTLED: falsifier round 2 CONFIRM on the
+    corrected tree -> COR-R2-1/R2-2 teeth landed tests-only -> full
+    battery green 1189/1189, boundaries 228/228, four teeth re-verified
+    personally; ready set recomputed to task17 + task18)
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
 # ─────────────────────────────────────────────────────────────────────────
 execution:
-  last_settled_task: task15           # most recent task with a CONFIRM in
+  last_settled_task: task16           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: task16              # milestone a1c15a2; design review
-                                       # NOT_CONFIRM (12 accepted, RES-D1..D12
-                                       # routed mid-flight), builder B1 done,
-                                       # falsifier round 1 NOT_CONFIRM (the
-                                       # falsifier agent died on the usage
-                                       # window; its blind-composed attacks
-                                       # executed + completed by the
-                                       # orchestrator), COR-F1..F4 landed,
-                                       # battery green (1182/1182, 224/224,
-                                       # doctor OK, ruler/prereg PASS)
+  in_flight_task: null                # task16 settled 2026-08-29 (round 2
+                                      # CONFIRM + teeth corrections + full
+                                      # battery; closure in latest_evidence)
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
-    - task16                          # NEXT WORK TASK candidates. task15
-    - task18                          # settled 2026-08-29 (dropped here).
-                                      # 16 = generic CLI adapter + P8; 18 =
-                                      # the wayfinder-gauntlet formation
-                                      # skill (parallel-safe).
+    - task17                          # NEXT: role artifacts + harness
+                                      # installer. The dependency AND/OR
+                                      # ambiguity is now MOOT: task15 AND
+                                      # task16 are both settled, so both
+                                      # readings agree task17 is ready
+                                      # (plan graph line reads "needs 5,
+                                      # 15 or 16").
+    - task18                          # wayfinder-gauntlet formation skill
+                                      # (parallel-safe — separate worktree
+                                      # only if run concurrently with 17;
+                                      # sequential is fine and keeps the
+                                      # single compile lock honest).
 
   blocked_tasks:                      # task -> remaining (unsettled) blockers
-    task17: [task15, task16]          # AMBIGUOUS - see note below
     task19: [task18]                  # needs task18
-    task20: [task17]                  # task15 settled 2026-08-29 (dropped
-                                      # from the array); task14 settled
-                                      # 2026-08-29; task13 dropped 2026-08-28;
-                                      # task7/9/10/11/12 all settled
-    task21: [task20]                  # needs task20
-    task22: [task20]                  # needs task20
-    task23: [task22]                  # needs task22
-    task24: [task20]                  # needs task20
-    task25: [task20]                  # needs task20
-    task26: [task25]                  # needs task26
-    task27: [task26]                  # needs task26
-    # NOTE on task17 (unresolved - flagged, not silently fixed):
-    # the array [task15, task16] is being read as AND (all listed tasks
-    # must settle). But an earlier comment on this line read "needs task5
-    # (done) and task15 or task16" - i.e. OR. TASK15 IS NOW SETTLED, so the
-    # reading MATTERS: under OR, task17 is READY NOW; under AND it still
-    # needs task16. Resolve before scheduling task17.
+    task20: [task17]                  # needs task17 (everything else settled:
+                                      # 7/9/10/11/12/13/14/15/16)
+    task21: [task20]
+    task22: [task20]
+    task23: [task22]
+    task24: [task20]
+    task25: [task20]
+    task26: [task25]
+    task27: [task26]
+    # NOTE on task17: RESOLVED 2026-08-29. The old note flagged the array
+    # [task15, task16] as ambiguous between AND and OR. With task16
+    # settled, both readings are satisfied; the plan's own graph text
+    # ("needs 5, 15 or 16") records the OR reading for posterity.
 
   plan_blocked: false                 # true only if NOTHING is workable
                                        # (every ready path is blocked)
@@ -70,37 +65,25 @@ execution:
 # ACTIVE TASK
 # ─────────────────────────────────────────────────────────────────────────
 active:
-  task: task16
-  phase: confirmation round 2 pending  # all loops closed except the fresh
-                                       # blind round the discipline requires
-  blocker: >-
-    Settlement of task16 WAITS for a FRESH BLIND confirmation round
-    (executing falsifier, round 2) against the corrected tree. Round 1
-    returned NOT_CONFIRM (F1 cancel-vs-reap, F2 doctor comment-template
-    honesty, F3 lib.rs doc, F4 terminal child leak); all four were
-    corrected tests-first (correction-round1.md) and the full battery is
-    green. The round-1 falsifier AGENT died on the sub-agent 5-hour usage
-    window; its blind-composed attack files were recovered, completed, and
-    RETAINED in-tree as regression teeth
-    (crates/adapters/gauntlet-adapter-agent-cli/tests/
-    falsifier_round1_{template,live}_attacks.rs). Sub-agent dispatch is
-    unavailable until 2026-08-30T12:39 (window reset) — main-session work
-    is unaffected.
+  task: task17
+  phase: not started                   # ready set recomputed after task16
+                                       # settled; nothing dispatched yet
+  blocker: null
 
-    ON RESUME: dispatch round 2 (fresh context, charter verbatim,
-    firewalled from builder/critic/orchestrator reports; the round-1
-    NOT-ATTACKED list is its warm start) -> on CONFIRM: closure.md,
-    prereg post_run append, reference-candidates already recorded
-    (AK-013 locator), latest_evidence update, settle.
-
-    Scope notes now settled: R-2 did NOT fire at task16 (fog decision D3
-    in the frozen prereg: the CLI adapter consumes a command TEMPLATE,
-    never a wrapped SandboxedCommand; R-2 stays bound to the first
-    wrap-consuming composition, task20 — re-recorded in the candidates/
-    IN-FLIGHT records for the operator to re-adjudicate). R-1b REMAINS
-    the hard trigger (no real builder executed here; live legs are
-    trivial probe children through no gate). T15-R1..R5 untouched (prime
-    was tests-only).
+    # NEXT when dispatching task17 (roles + harness installer, plan Task 17):
+    # pre-implementation blind design critic (static-only, may overlap the
+    # builder; no cargo) + ONE builder per the task15/16 pattern. Scope:
+    # .agents/roles/{orchestrator,builder,critic,verifier,observer,
+    # optimizer}.md with spec §10.1 front matter (context.allow/deny,
+    # permissions); typed RoleDefinition loader validating front matter and
+    # resolving $VARs; context.deny feeds the envelope builder's allowlist
+    # (the file cannot grant more context than the builder permits);
+    # `gauntlet roles install --harness <id>` writing .gauntlet/roles.lock;
+    # `gauntlet roles verify` drift detection (teeth: out-of-band edit ⇒
+    # non-zero). Fallback per plan: harness with no writable role surface ⇒
+    # inject role body per-invocation with enforcement: advisory recorded.
+    # NOT in scope: critic role bodies per dimension may land in-task (plan
+    # step 5) but nothing beyond it; no composition wiring (task20).
 
 # ─────────────────────────────────────────────────────────────────────────
 # EVIDENCE LOG (current state per task, not a history)
@@ -229,6 +212,39 @@ latest_evidence:
       task-15.outcome.yaml (P1/P3/P5 match, P2/P4 spurious; U1 unforeseen:
       the parent-linger child-creation dependency).
     commit: "a869556"
+  task16:
+    report: ".agents/reports/task16/"
+    confirmation: >-
+      Blind design critic NOT_CONFIRM (1 blocking / 5 major / 6 minor —
+      blocking: the shared-suite shape-2 case could never pass on the
+      settled prime adapter; ALL 12 corrected pre-implementation as
+      RES-D1..D12) -> blind EXECUTING falsifier round 1 NOT_CONFIRM
+      (F1 cancel-reap grace collapse major, F2 comment-only-template
+      doctor honesty major, F3 lib.rs doc minor, F4 terminal pin left a
+      live child major; the falsifier AGENT died on the sub-agent usage
+      window at ~17 min — its blind-composed attacks were recovered,
+      executed, retained in-tree as regression teeth, round completed by
+      the orchestrator with degraded blindness recorded) -> COR-F1..F4
+      -> FRESH BLIND falsifier round 2 CONFIRM (0 blocking / 0
+      in-mechanism major; every executed attack repelled incl.
+      post-terminal valid-impostor tamper and SIGKILL death; two
+      missing-teeth findings: probe_template had zero coverage —
+      mutation survived every shipped suite — and cli decode-locus
+      exclusivity unenforced; two minors trigger-recorded R16-F2/F3) ->
+      COR-R2-1 + COR-R2-2 landed tests-only by builder B2 with RED->GREEN
+      proven -> four teeth re-verified personally (vendor plant, M2
+      shape-2, M1 probe, decode plant: RED -> byte-identical restore
+      sha256 -> GREEN) -> full battery 1189/1189, boundaries 228/228,
+      lint/deny/doctor/p8/ruler/prereg PASS. P8/AK-013 proven (full
+      shared suite over mock+cli, zero test-body changes, fail-closed
+      selection); AK-014 second real adapter; AK-013 locator divergence
+      recorded in reference-candidates (never the ruler). Outcome:
+      task-16.outcome.yaml (P3/P4/P5 matched — P4 sharper via RES-D1;
+      P1/P2 spurious; U1 missing-teeth recurrence, U2 contract-path
+      poisoning liveness class).
+    commit: "a1c15a2"                 # milestone commit carries B1 + round-1
+                                      # corrections; the closure commit
+                                      # carries COR-R2 teeth + records
 
 # ─────────────────────────────────────────────────────────────────────────
 # OBSERVATIONS - facts a resuming agent needs, not a running commentary.
@@ -236,6 +252,32 @@ latest_evidence:
 # ─────────────────────────────────────────────────────────────────────────
 observations:
   # --- OBSERVED: directly verified this session/burst, evidence attached ---
+  - status: OBSERVED
+    statement: >-
+      Task 16 settled on a fresh blind executing falsifier round 2
+      (CONFIRM: 0 blocking / 0 in-mechanism major) whose two structural
+      findings were BOTH the task15 missing-teeth class: the doctor's
+      parse-AND-render probe (probe_template) had zero in-tree coverage
+      (mutation M1 survived every shipped suite) and cli decode-locus
+      exclusivity was unenforced. Both corrected tests-only (COR-R2-1/
+      R2-2); four teeth re-verified personally RED -> byte-identical
+      restore -> GREEN. New residual class recorded: a hostile child can
+      poison its own contract path and make the TimedOut verdict
+      unreachable forever (deliberate typed-error-never-success posture;
+      cancel bounds the harm) — R16-F2, trigger: task25 or next transport
+      touch. Operational lesson: the recorded usage-window reset
+      timestamp was timezone-ambiguous; attempting the dispatch was
+      correct — a dead window fails fast, and this window had reset.
+    evidence: ".agents/reports/task16/closure.md"
+  - status: OBSERVED
+    statement: >-
+      Two transient Agent-dispatch INTERNAL NETWORK failures occurred
+      before builder B2 launched (error ids 2026-08-30T10:24Z/10:31Z-
+      class); a third attempt seconds later succeeded. Both failures
+      were pre-launch (no b2 files, no tree changes — checked before
+      retrying), so no double-builder risk materialized. Rule applied:
+      after a dispatch failure, verify no artifacts exist, then retry;
+      do not assume the usage window without a window-specific error.
   - status: OBSERVED
     statement: >-
       The prime-agent harness (v0.8.0) is installed, live, and integrable on
@@ -292,14 +334,17 @@ observations:
     evidence: ".agents/reports/task13/final-confirmation-round2.md"
   - status: OBSERVED
     statement: >-
-      Sub-agent session interruptions / usage limits have occurred 20
-      times across tasks 3-13 (the 20th killed the COR3 builder mid-edit
-      with its work unrecorded - recovered via the tree-outranks-record
-      reconciliation; the reconcile-checkpoints + checkpoint-as-you-go
-      discipline is what made the recovery cheap). The 5-hour sub-agent
-      usage window can exhaust; main-session tool use is unaffected. When
-      it exhausts: complete personally per the operator's standing
-      heal+continue instruction and record honestly.
+      Sub-agent session interruptions / usage limits have occurred 21
+      times across tasks 3-16 (task15: zero; task16: one — the round-1
+      falsifier died on the 5-hour usage window ~17 min in; its
+      blind-composed attack files were recovered from the untracked
+      tests/ dir, executed, and retained as regression teeth; the
+      checkpoint-as-you-go discipline is what made the round completable).
+      The 21st was recovered via the tree-outranks-record reconciliation.
+      The 5-hour sub-agent usage window can exhaust; main-session tool
+      use is unaffected. When it exhausts: complete personally per the
+      operator's standing heal+continue instruction, record the degraded
+      blindness, and still dispatch a FRESH blind round before settlement.
     evidence: ".agents/lessons/session-interruption-recovery.md"
   - status: OBSERVED
     statement: >-
@@ -311,16 +356,18 @@ observations:
     evidence: ".agents/reports/environment.json"
   - status: OBSERVED
     statement: >-
-      Answer-key unit status: 0 proven settled. 40 provisional through Task
-      14 (the 34 through Task 13 plus AK-044, AK-045, AK-046, AK-047,
-      AK-048, AK-050; AK-049 was already provisional since Task 5 and its
-      recorded scope is unchanged). 42 proposed, 0 blocked. AK-048 is
-      provisional with an explicit BOUNDED CLAIM: delivered at gate and
-      adapter level with LIVE bwrap confinement executed, NOT through the
-      composed loop (wrap_builder_command still has no production caller) -
-      see residual R-3. Task-14 locator-class reference-candidate entries
-      appended 2026-08-28; AK-049's existing 2026-08-17 entry already covers
-      the round-5 sharpening, so no new entry was owed there.
+      Answer-key unit status: 0 proven settled. 42 provisional through Task
+      16 (the 40 through Task 14 plus AK-013, AK-014 — first evidence via
+      the P8 substitution proof and the second real adapter; AK-013's
+      frozen locator divergence is recorded in reference-candidates,
+      2026-08-29 entry, never the ruler). 40 proposed, 0 blocked. AK-048
+      keeps its explicit BOUNDED CLAIM: delivered at gate and adapter level
+      with LIVE bwrap confinement executed, NOT through the composed loop
+      (wrap_builder_command still has no production caller — residual R-3,
+      trigger task20). UNK-003 further narrowed: doctor now MEASURES the
+      cli runner (parse-AND-render probe, honest RunnerDescriptor), but
+      runners.default is still selected by nobody — the operator's call at
+      composition time (task20 pressure).
     evidence: ".agents/reports/reference-candidates.md"
   - status: OBSERVED
     statement: >-
@@ -356,42 +403,44 @@ observations:
   - status: UNKNOWN
     statement: >-
       UNK-003: which concrete AgentRunner is runners.default in
-      GAUNTLET.md (deferred to Tasks 15-16). NARROWED by task 15, NOT
-      closed: a real second adapter now exists and doctor check 3 resolves
-      named runners against a measured probe (the prime adapter probes
-      clean on this host), but the shipped GAUNTLET.md still names no
-      runner; selection lands with Task 16 (P8) or the operator.
-    evidence: ".agents/reports/task15/closure.md"
+      GAUNTLET.md (deferred to Tasks 15-16). NARROWED by tasks 15-16, NOT
+      closed: real second adapters exist and doctor check 3 now MEASURES
+      any named runner against an honest probe (prime: version probe;
+      cli: parse-AND-render template probe), but no runner is selected
+      anywhere and the shipped GAUNTLET.md still names none. The decision
+      is explicitly the operator's at composition time (task20 will force
+      the question: its run must configure a runner).
+    evidence: ".agents/reports/task16/closure.md"
 
 # ─────────────────────────────────────────────────────────────────────────
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task16                        # finish it: round 2 -> closure
+  task: task17                        # role artifacts + harness installer
   action: >-
-    Dispatch the fresh blind executing falsifier (round 2) against the
-    corrected task16 tree (HEAD a1c15a2 or later). Constraints: charter
-    verbatim on general-purpose transport; firewalled from
-    .agents/reports/task16/{b1-builder,b1-progress,critic-design,
-    design-adjudication,IN-FLIGHT}.md and the prereg; cargo allowed
-    (it holds the compile lock); live-probe legs authorized and bounded;
-    R-1b fence (no real builder execution); byte-identical mutation
-    discipline; report to .agents/reports/task16/falsifier-round2.md.
-    On CONFIRM: write closure.md (adjudicating prereg P1..P5 and
-    blindspots honestly — note P1/P2 did NOT fire as predicted; P3
-    materialized as F1/F4; P4 in sharper form via RES-D1; P5 materialized
-    via the selection mechanism + C10), append the prereg post_run,
-    update latest_evidence + handoff, commit the closure, settle task16,
-    recompute the ready set (task18, task17-under-OR).
+    Dispatch task17 per the task15/16 working pattern: pre-implementation
+    blind design critic (static-only, no cargo — may overlap the builder)
+    + ONE builder. Scope (plan Task 17): .agents/roles/
+    {orchestrator,builder,critic,verifier,observer,optimizer}.md with the
+    spec §10.1 front matter (per-role context.allow / context.deny,
+    permissions); a typed loader that validates front matter, resolves
+    $VARs, and produces RoleDefinition — context.deny feeds the envelope
+    builder's allowlist so a role file cannot grant more context than the
+    builder permits; `gauntlet roles install --harness <id>` writing the
+    harness's role surface + .gauntlet/roles.lock; `gauntlet roles verify`
+    reporting drift as a configuration failure. Done-when: install
+    idempotent; verify exits 0 right after install and non-zero after an
+    out-of-band edit (teeth; AK-063); harness with no writable role
+    surface falls back to per-invocation injection with enforcement:
+    advisory recorded. Then blind executing falsifier round (fresh
+    context, charter verbatim, warm start = its not-attacked list),
+    closure, settle, recompute (task18 then task20's run unblocks).
   reason: >-
-    Everything else in task16 is done and verified: adapter, ports
-    revision, sibling suite, P8 proof (fail-closed selection proven),
-    doctor Configuration honesty, arch teeth, live probe PASS, design
-    round NOT_CONFIRM -> RES-D1..D12, builder B1 + personal battery,
-    falsifier round 1 NOT_CONFIRM -> COR-F1..F4 -> full battery green.
-    The only missing gate is the fresh blind round the settlement
-    discipline requires, and sub-agent dispatch was unavailable at
-    2026-08-29T23:59 (usage window; resets 2026-08-30T12:39).
+    Task16 settled (round 2 CONFIRM, teeth verified, battery green).
+    task17 + task18 are the ready set; task17 is on the critical path
+    (task20 needs it; task20 is the self-hosting milestone). task18 is
+    parallel-safe but sequential execution keeps the single compile lock
+    and the WSL2 memory budget honest.
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -416,23 +465,26 @@ handoff:
     - "T13 Settlement, atomic commit, single-writer: §16.1 five-precondition service, §16.3 keyed atomic commit + crash-window resume, §16.4 single-writer arch rule, proofs p7/p11/g10, corrections COR-1..7 + COR2-1..6 + COR3 (earned settlement-event kind: both public append surfaces refuse SettlementCommitted), blind round 1 NOT CONFIRM -> COR3 -> round 2 double CONFIRM, 9 reference-candidates entries, outcome P1-P4 supported / P5 falsified-honestly (1fcfdd0; B1 pre-committed by operator as 62d1a5f mid-task)"
     - "T14 Authority gate, sandbox port, tier policies (AK-044..AK-050, P5): govern::{gate,posture} + controller dispatch wiring + doctor check 4; three adapter crates (sandbox-none, sandbox-bwrap, policy-fs); three in-repo tier policies with irreversible absent by design; shared Sandbox contract suite grown to 5 Task-14 cases each with a broken stub; proofs p5_hard_gate + g7_tier_downgrade. TEN corrections across FOUR rounds: COR-1 shell-word quoting, COR-2 §17.5.2 anchor containment, COR-3 unforgeable GateAdmission (malformed shape made unrepresentable), COR-4 mask/bind ordering, COR-5 anchored-path bounding, COR-6 AK-044 frozen-locator teeth, COR-7 relocatable-nested-denial refusal, COR-8 validate() as a real policy dry run, COR-9 process/IPC/uts/cgroup/user namespace confinement + --new-session, COR-10 single source of truth for the §17.3 rung table. FIVE blind confirmation rounds (1-4 NOT CONFIRM, 5 CONFIRM)."
     - "T15 Prime-Agent adapter, the first real AgentRunner (AK-008..AK-012 re-evidenced on a second adapter): agent-prime crate over KernelTransport/HarnessControl seams; Annex C.1 renderer (byte-pinned; str()-coerced handle fields; in-cell 30s admission linger); invoke returns at handle-parse under a bounded watch with a detached reaper (never the parent-run lifetime); contract-file-only poll (post-terminal pinning, spec-deadline TimedOut+cancel preserving session_ref; mailbox/liveness never consulted); orphan sweep on admission failure; honest capabilities (isolation none); injected-range version probe; arch await-ban scan with negative controls; doctor check-3/4 runner half via measured RunnerDescriptor; env-gated live probe against the REAL harness (PASSED twice). Blind design critic NOT_CONFIRM (12 findings all corrected pre-implementation; blocking: invoke's return point) -> falsifier round 1 CONFIRM (13/13 attacks repelled; 2 majors were MISSING TEETH -> COR-D3 tests-only; teeth re-verified personally). COR-D1 (stderr version), COR-D2 (PosixPath handle fields + parent-linger child-creation + {sessions} wrapper), COR-D3. 1123/1123 on the final tree; zero sub-agent interruptions."
+    - "T16 Generic CLI agent adapter + P8 substitution proof (AK-013, AK-014 first evidence — both provisional): gauntlet-adapter-agent-cli — command template parsed to shell-word argv (never shell grammar; placeholders bind as single verbatim words), ProcessChildTransport seam (SIGTERM -> bounded grace -> SIGKILL + dedicated reap grace), §10.3 classification total order with the NEW shape-2 rule (exited without valid result ⇒ Failed{missing_result} BEFORE the deadline; contract wins over exit status; TimedOut stops the child), terminal pins retire the child, honest capabilities, GAUNTLET_RESULT_PATH + prompt RESULT-PATH + envelope-body-sibling channels; ports revision InvocationFailure::MissingResult + exit_without_result_suite (sibling suite per RES-D1 — prime's one-input poll can never pass a universal process-exit case); p8 proof: FULL shared suite over mock+cli in one loop body, GAUNTLET_P8_ADAPTER=mock|cli|both fail-closed; doctor MEASURES the cli runner via probe_template (parse AND render). THREE confirmation rounds: design critic NOT_CONFIRM (12 findings, blocking RES-D1, all corrected pre-code) -> falsifier r1 NOT_CONFIRM (F1 cancel-reap grace, F2 comment-only template, F3 doc, F4 terminal child leak — agent died on the usage window, round completed by orchestrator, degraded blindness recorded, attacks retained in-tree) -> COR-F1..F4 -> fresh falsifier r2 CONFIRM (0 blocking/0 in-mechanism major; 2 missing-teeth -> COR-R2-1 probe_template honesty tests + COR-R2-2 cli decode-locus arch scan, teeth re-verified personally ×4). Residuals R16-F2 (contract-path poisoning makes TimedOut unreachable; never self-stops), R16-F3 (char-index-as-byte label), +2 transport notes. 1189/1189 on the closure tree; R-1b/R-2/R-3 restated for task20."
 
   unresolved_summary:
     # Every open thread not captured elsewhere: outstanding confirmations,
     # deferred scope, stale docs owed a refresh, known follow-ups tied
     # to a later task ID.
     - "Task 15 residuals with triggers (closure.md §4): T15-R1 linger recalibration (30s default calibrated on ONE host observation; re-measure at first production dispatch), T15-R2 model-hint forwarding never exercised live (supports_model_selection is code+suite evidence only), T15-R3 concurrency posture asserted not proven (max_parallel>1 wiring), T15-R4 ProcessKernelTransport race windows (partial handle writes, reaper vs natural exit) attacked only once each, T15-R5 last_event_at mtime path unexercised"
-    - "Task 15 falsifier not-attacked list (next round's benefit): recovery/resume + orphaned_by_restart (task16+), workspace resolution (R-1b), AK-013/P8 (task16), BudgetMeter side, observer/comparator paths, thread-safety proof, full cargo-mutants (task24)"
+    - "Task 16 residuals with triggers (closure.md §4): R16-F2 contract-path poisoning (hostile child plants a directory at its own GAUNTLET_RESULT_PATH and lives — poll errors typed forever, TimedOut unreachable, runner never self-stops; cancel bounds it; trigger: next transport/lifecycle touch or task25 recovery E2E), R16-F3 UnterminatedQuote char-index-labeled-as-byte (template.rs:88 vs 219/251; trigger: next template.rs touch), R16-note-1 SIGKILL-unreapable Ok(None) grace-expiry path pinned only by code reading (trigger: next transport touch), R16-note-2 OS pid reuse vs pid-keyed child map (trigger: next transport touch)"
+    - "Task 15 falsifier not-attacked list, mostly still open (next round's benefit): recovery/resume + orphaned_by_restart (task16+ — still open), workspace resolution (R-1b), BudgetMeter side, observer/comparator paths, thread-safety proof, full cargo-mutants (task24). DISCHARGED by task16: the AK-013/P8 leg (now proven with real teeth)"
+    - "Task 16 falsifier round-2 not-attacked list (next round's benefit): full mutation suite (task24), daemonized grandchildren/process groups, real agent binary or model (explicit nonclaim), dispatch-gate composition (R-1b), BudgetMeter/observer/comparator surfaces, concurrency >2 invocations"
     - "Task 14 deferrals: L1 authority-gate + tier posture, runner capability-vs-tier dispatch check, mock capability honesty pin (all IN-SCOPE for task14 now)"
     - "Task 13 later-scope (adjudicated, triggers recorded): M-1 minimum_reliability typed meaning (reference candidate + trigger: reference revision or Task 20), M-2/F-2 AK-062 positive half (Task 21), F-3 lexical containment vs 17.5.2 canonicalization (workspace-provider touch), F-7 recovery-time digest (non-content-addressed evidence adapter), m-1/2/4/6/7/8/9/11 minors (critic-round1.md)"
     - "Task 13 confirmation-round-2 minors (all trigger-recorded, outcome.yaml): round2-F-1 half-step+second-admission two-row shape on the instrument surface (admission should also see pending settlement events; next state-store/ports touch), FC2-A2 admit digest re-validation, FC2-A3/OBS-1 chain-shaped earning for in-process authorities (ports revision), FC2-A6/F-2 B.6 pin crash window, FC2-A7 p11 comparator-pass instantiation note, RES-A1 p7 intra-iteration reorder granularity, RES-A2 verifier-failure disposition row, RES-A3 digest scope (manifest/comparison contract)"
     - "Task 13 partially-composed inherited residuals: L3 settlement crash-window replay COMPOSED; settlement-side sqlite coercions COMPOSED; L2 resume legs composed, retry-ledger persistence remains ports-revision-bound; §21.3 non-integrity failures composed (answer-key read + poll transport)"
     - "Task 14 HARD-TRIGGER residual R-1, now R-1a+R-1b (do BEFORE any real builder EXECUTES - task15 shipped the runner without executing one): R-1a (PolicyProvider::policy_for discarding its `workspace` argument) was FIXED post-task14 (r1-fix.md); R-1b (GovernDeps holds ONE WorkspaceRef for its whole lifetime, so every unit through one GovernDeps resolves to the SAME workspace-scoped directory) REMAINS and requires a production WorkspaceProvider adapter threading a fresh per-unit workspace into the gate - MINOR against the task14 ruler, MAJOR under spec 17.5.1 invariant 1"
-    - "Task 14 residuals due at the ports revision / task16 (R-2), task20 (R-3): R-2 port-level forgeability (PolicyValidation, SandboxedCommand, SandboxPolicy have public fields and no earned constructor; BuilderCommand::Unwrapped is a public variant) - fail-closed today only because both adapters re-derive eligibility at wrap and nothing consumes a SandboxedCommand; R-3 AK-048's composed half (wrap_builder_command has no production caller; delivered at gate/adapter level with LIVE bwrap confinement executed, never through the loop); round5-F1 wholesale environment inheritance (no --clearenv, SandboxPolicy has no environment field) making 17.3 credential-path denial nominal for env-borne secrets; round5-F10 a GateAdmission is not bound to the command it authorizes and is Clone; round2-F7/round4-F7 the gate never cross-checks backend_token vs backend_identity"
+    - "Task 14 residuals — R-2 port-level forgeability (PolicyValidation, SandboxedCommand, SandboxPolicy have public fields and no earned constructor; BuilderCommand::Unwrapped is a public variant; fail-closed today only because both adapters re-derive eligibility at wrap and nothing consumes a SandboxedCommand) ADJUDICATED NOT FIRED at task16 (fog decision D3 in the frozen prereg, recorded for operator re-adjudication: the CLI adapter consumes a command TEMPLATE from configuration, never a wrapped SandboxedCommand; nothing in its path touches wrap_builder_command), trigger RE-BOUND to the first wrap-consuming composition (task20); R-3 AK-048's composed half (wrap_builder_command has no production caller; delivered at gate/adapter level with LIVE bwrap confinement executed, never through the loop), trigger task20; round5-F1 wholesale environment inheritance (no --clearenv, SandboxPolicy has no environment field) making 17.3 credential-path denial nominal for env-borne secrets; round5-F10 a GateAdmission is not bound to the command it authorizes and is Clone; round2-F7/round4-F7 the gate never cross-checks backend_token vs backend_identity"
     - "Task 14 ESCALATED to the operator (R-4, spec CandidateRevision candidate, NOT a task14 defect): the whole host filesystem is READABLE inside the sandbox via --ro-bind / /, including credential files and .wayfinder/answer-key.md. Literally spec-conformant - 17.3 puts credential denial at `local` and above and 17.5.5 / 8.5 check 7 bound only WRITABLE paths - but a builder that can READ the frozen ruler can target its assertions without ever modifying it"
     - "Task 14 smaller residuals with triggers: round5-F2 (an artifact may declare writable_roots [$HOME] at the contained tier; no writable_roots ⊆ workspace rule at either layer - operator-authoring hazard); round5-F4 (doctor ignores every Annex E env var when GAUNTLET.md is absent - fail-closed direction); round5-F6 (no rlimit/cgroup budget inside the sandbox - host DoS channel, inferred not executed); round5-F9 (forbidden-tier scan stem-exact and non-recursive - not a bypass); round1-F8 (an ungated RoleId::Verifier invocation at the composition root, verify/ladder.rs); critic-A OBS-1/OBS-2 (doctor check 4 stays `unavailable` pending the runner half; the deterministic clock makes above-contained LOOP admission with a live backend unexercisable until tasks 15/16)"
     - "Task 14 ruler divergence: AK-049's frozen locator tests/e2e/doctor::irreversible_policy_is_error matches no file and no function; the existing 2026-08-17 reference-candidates entry already names the three real doctor/mod.rs tests, so no new entry was owed. Settlement belongs to the ruler's owner"
-    - "Tasks 15-16 deferrals: child env fingerprint vs live process env / tool binding (AK-028), concrete runners.default (UNK-003, narrowed: doctor check 3 now resolves named runners against a measured probe - task15). DONE by task15: the doctor check-3 runner-resolution half"
+    - "Tasks 15-17 deferrals: child env fingerprint vs live process env / tool binding (AK-028), concrete runners.default (UNK-003 — narrowed by task16: doctor MEASURES both real runners, prime via version probe, cli via parse-and-render template probe; the selection remains explicitly the operator's, task20 forces the question). DONE by task15: the doctor check-3 runner-resolution half for prime. DONE by task16: the cli runner's measured-descriptor leg + P8/AK-013 substitution proof + AK-014"
     - "Task 17/27 deferrals: produced_at integer vs Annex-B string placeholder in schemas; task17 dependency AND/OR ambiguity UNRESOLVED (see blocked_tasks note)"
     - "Task 20 deferrals: payment unification (critic costs into run budget_spent), model-rung dispatch unmetered, workspace-root pairing library seam, L4 cohort non-separability fixture, evidence production binding first-facet bytes"
     - "Task 22/24 deferrals: reference candidate recording / mutation teeth"
