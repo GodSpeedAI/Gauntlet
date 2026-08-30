@@ -8,12 +8,15 @@ metadata:
                                        # drives multiple plans
   spec_version: "2.0.0"
   initialized: true                   # false only before the very first burst
-  last_updated: "2026-08-29"
+  last_updated: "2026-08-30"
   updated_by: >-
-    orchestrator (Task 16 SETTLED: falsifier round 2 CONFIRM on the
-    corrected tree -> COR-R2-1/R2-2 teeth landed tests-only -> full
-    battery green 1189/1189, boundaries 228/228, four teeth re-verified
-    personally; ready set recomputed to task17 + task18)
+    orchestrator (Task 17 IN FLIGHT at milestone commit: builder died on
+    the usage window AFTER landing the roles module + artifacts;
+    orchestrator completed the slice per heal+continue — 6 latent fixes,
+    COR-O1 canonical-closure tooth, CLI wiring, arch pins, battery
+    1211/1211; settlement WAITS for two compensation rounds — design-
+    as-built critic + blind falsifier — dispatchable when the sub-agent
+    window resets ~2026-08-30T14:06)
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
@@ -21,24 +24,18 @@ metadata:
 execution:
   last_settled_task: task16           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: null                # task16 settled 2026-08-29 (round 2
-                                      # CONFIRM + teeth corrections + full
-                                      # battery; closure in latest_evidence)
+  in_flight_task: task17              # milestone committed; the builder
+                                      # died on the usage window mid-slice
+                                      # (22nd interruption), orchestrator
+                                      # completed per heal+continue;
+                                      # settlement waits for the two
+                                      # compensation rounds
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
-    - task17                          # NEXT: role artifacts + harness
-                                      # installer. The dependency AND/OR
-                                      # ambiguity is now MOOT: task15 AND
-                                      # task16 are both settled, so both
-                                      # readings agree task17 is ready
-                                      # (plan graph line reads "needs 5,
-                                      # 15 or 16").
     - task18                          # wayfinder-gauntlet formation skill
-                                      # (parallel-safe — separate worktree
-                                      # only if run concurrently with 17;
-                                      # sequential is fine and keeps the
-                                      # single compile lock honest).
+                                      # (parallel-safe; sequential keeps
+                                      # the compile lock honest)
 
   blocked_tasks:                      # task -> remaining (unsettled) blockers
     task19: [task18]                  # needs task18
@@ -51,10 +48,6 @@ execution:
     task25: [task20]
     task26: [task25]
     task27: [task26]
-    # NOTE on task17: RESOLVED 2026-08-29. The old note flagged the array
-    # [task15, task16] as ambiguous between AND and OR. With task16
-    # settled, both readings are satisfied; the plan's own graph text
-    # ("needs 5, 15 or 16") records the OR reading for posterity.
 
   plan_blocked: false                 # true only if NOTHING is workable
                                        # (every ready path is blocked)
@@ -66,24 +59,28 @@ execution:
 # ─────────────────────────────────────────────────────────────────────────
 active:
   task: task17
-  phase: not started                   # ready set recomputed after task16
-                                       # settled; nothing dispatched yet
-  blocker: null
+  phase: compensation rounds pending   # build + personal battery done and
+                                       # committed; settlement requires the
+                                       # two rounds the interrupted
+                                       # dispatch pattern owes
+  blocker: >-
+    The pre-implementation design critic dispatch died pre-launch
+    (transient network error) and the builder died mid-slice on the
+    sub-agent usage window (reset ~2026-08-30T14:06, timezone ambiguous —
+    PROBE, a dead window fails fast). The orchestrator completed the
+    build personally per the standing heal+continue rule (degraded
+    independence recorded; correction-orchestrator.md carries the 6
+    latent fixes + COR-O1 teeth addition + arch pins).
 
-    # NEXT when dispatching task17 (roles + harness installer, plan Task 17):
-    # pre-implementation blind design critic (static-only, may overlap the
-    # builder; no cargo) + ONE builder per the task15/16 pattern. Scope:
-    # .agents/roles/{orchestrator,builder,critic,verifier,observer,
-    # optimizer}.md with spec §10.1 front matter (context.allow/deny,
-    # permissions); typed RoleDefinition loader validating front matter and
-    # resolving $VARs; context.deny feeds the envelope builder's allowlist
-    # (the file cannot grant more context than the builder permits);
-    # `gauntlet roles install --harness <id>` writing .gauntlet/roles.lock;
-    # `gauntlet roles verify` drift detection (teeth: out-of-band edit ⇒
-    # non-zero). Fallback per plan: harness with no writable role surface ⇒
-    # inject role body per-invocation with enforcement: advisory recorded.
-    # NOT in scope: critic role bodies per dimension may land in-task (plan
-    # step 5) but nothing beyond it; no composition wiring (task20).
+    ON WINDOW RESET: dispatch (1) a fresh-context STATIC design-as-built
+    critic (envelope: the TREE + frozen prereg + spec §10.1/§13.2 + plan
+    Task 17 — never the orchestrator's completion narrative), then (2)
+    the blind EXECUTING falsifier (charter verbatim; live legs
+    authorized: real install/verify invocations against temp roots;
+    byte-identical mutation discipline). Adjudicate both; corrections;
+    then closure (closure.md, task-17.outcome.yaml, AK-063 locator
+    reference-candidates entry, CURRENT_STATUS, settle; recompute ready
+    set — task18 next, task20 unblocks).
 
 # ─────────────────────────────────────────────────────────────────────────
 # EVIDENCE LOG (current state per task, not a history)
@@ -416,31 +413,31 @@ observations:
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task17                        # role artifacts + harness installer
+  task: task17                        # compensation rounds -> closure
   action: >-
-    Dispatch task17 per the task15/16 working pattern: pre-implementation
-    blind design critic (static-only, no cargo — may overlap the builder)
-    + ONE builder. Scope (plan Task 17): .agents/roles/
-    {orchestrator,builder,critic,verifier,observer,optimizer}.md with the
-    spec §10.1 front matter (per-role context.allow / context.deny,
-    permissions); a typed loader that validates front matter, resolves
-    $VARs, and produces RoleDefinition — context.deny feeds the envelope
-    builder's allowlist so a role file cannot grant more context than the
-    builder permits; `gauntlet roles install --harness <id>` writing the
-    harness's role surface + .gauntlet/roles.lock; `gauntlet roles verify`
-    reporting drift as a configuration failure. Done-when: install
-    idempotent; verify exits 0 right after install and non-zero after an
-    out-of-band edit (teeth; AK-063); harness with no writable role
-    surface falls back to per-invocation injection with enforcement:
-    advisory recorded. Then blind executing falsifier round (fresh
-    context, charter verbatim, warm start = its not-attacked list),
-    closure, settle, recompute (task18 then task20's run unblocks).
+    PROBE the sub-agent window (reset ~2026-08-30T14:06, timezone
+    ambiguous; a dead window fails fast and costs nothing — attempt,
+    wait, re-attempt). When alive: dispatch (1) fresh-context static
+    design-as-built critic over the committed task17 tree (envelope =
+    tree + frozen prereg b3616216 + spec §10.1/§13.2/§8.5 + plan Task
+    17; firewalled from correction-orchestrator.md and IN-FLIGHT.md),
+    report to .agents/reports/task17/critic-design.md; adjudicate. Then
+    (2) blind EXECUTING falsifier (charter verbatim on general-purpose
+    transport; may run cargo — holds the compile lock; live legs
+    authorized: real `gauntlet roles install/verify` against temp
+    roots only; byte-identical mutation discipline with sha256 proof;
+    report to falsifier-round1.md). On CONFIRM: closure.md,
+    task-17.outcome.yaml, AK-063 locator reference-candidates entry,
+    latest_evidence, settle, recompute (task18; task20 unblocks).
   reason: >-
-    Task16 settled (round 2 CONFIRM, teeth verified, battery green).
-    task17 + task18 are the ready set; task17 is on the critical path
-    (task20 needs it; task20 is the self-hosting milestone). task18 is
-    parallel-safe but sequential execution keeps the single compile lock
-    and the WSL2 memory budget honest.
+    Everything else is done and committed: role artifacts (10), typed
+    loader with intersection semantics, verbatim install + content-
+    digest drift verify + tamper-evident canonical lock, CLI surface,
+    arch pins, 22-test suite with all four teeth RED-proven, live
+    binary verification, battery 1211/1211 + boundaries 228/228 +
+    ruler/prereg PASS. The build was orchestrator-completed (builder
+    died on the window) — the two compensation rounds are what buy back
+    independent eyes before settlement.
 
 
 # ─────────────────────────────────────────────────────────────────────────
