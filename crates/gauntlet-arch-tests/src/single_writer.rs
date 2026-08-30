@@ -256,6 +256,33 @@ pub const WRITE_API_INVENTORY: &[WriteSite] = &[
         reason: "§8.5 check-7 writable-probe scratch removal",
         guard: Some("fn probe_writable"),
     },
+    // Plan Task 17 — the roles installer (the runtime's own operator
+    // action, never a graded-role capability): installs write ONLY
+    // verbatim role bytes under the pre-validated state root, and the
+    // lock beside the project — every site behind the lexical containment
+    // guard that refuses traversal and out-of-root targets
+    // (`ensure_within_root`), pinned behaviorally by the roles tests'
+    // write-path-escape refusal.
+    WriteSite {
+        file: "crates/gauntlet-app/src/roles/install.rs",
+        token: "fs::create_dir_all",
+        reason: "roles install: the installed directory under the state root",
+        guard: Some("fn ensure_within_root"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-app/src/roles/install.rs",
+        token: "fs::write",
+        reason: "roles install: atomic-write staging file (verbatim bytes; renamed over the \
+                 target in the same commit step)",
+        guard: Some("fn ensure_within_root"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-app/src/roles/install.rs",
+        token: "fs::rename",
+        reason: "roles install: atomic-write commit over the target inside the state root / \
+                 the runtime lock dir",
+        guard: Some("fn ensure_within_root"),
+    },
 ];
 
 /// The check body, called by [`crate::check_answer_key_single_writer`].
@@ -850,6 +877,21 @@ mod tests {
                     "fs::remove_file",
                     Some("fn probe_writable"),
                 ),
+                (
+                    "crates/gauntlet-app/src/roles/install.rs",
+                    "fs::create_dir_all",
+                    Some("fn ensure_within_root"),
+                ),
+                (
+                    "crates/gauntlet-app/src/roles/install.rs",
+                    "fs::write",
+                    Some("fn ensure_within_root"),
+                ),
+                (
+                    "crates/gauntlet-app/src/roles/install.rs",
+                    "fs::rename",
+                    Some("fn ensure_within_root"),
+                ),
             ]
         );
     }
@@ -1028,6 +1070,14 @@ mod tests {
                 "fn probe_writable(dir: &std::path::Path) {\n    std::fs::create_dir_all(dir);\n    \
                  let scratch = dir.join(\"probe\");\n    std::fs::write(scratch, \
                  b\"probe\");\n    std::fs::remove_file(scratch);\n}\n",
+            );
+            repo.write(
+                "crates/gauntlet-app/src/roles/install.rs",
+                "fn ensure_within_root(child: &std::path::Path, root: &std::path::Path) -> bool \
+                 {\n    child.starts_with(root)\n}\npub fn install(root: &std::path::Path) {\n    \
+                 if ensure_within_root(root, root) {\n        std::fs::create_dir_all(root);\n    \
+                 \n        std::fs::write(root.join(\"role.md\"), b\"bytes\");\n        \
+                 std::fs::rename(root.join(\"staging\"), root.join(\"role.md\"));\n    }\n}\n",
             );
             repo.write(
                 "crates/gauntlet-app/src/reference/mod.rs",

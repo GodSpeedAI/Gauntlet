@@ -1475,7 +1475,12 @@ fn parse_dollars(raw: &str) -> Result<MicroUsd, ConfigError> {
 
 /// Expands `$VAR` and `${VAR}` tokens. Presence-validated; values are used
 /// and never recorded beyond the product itself.
-fn expand_indirections(
+///
+/// `pub(crate)` (plan Task 17, builder B1): the roles loader reuses this
+/// ONE expansion implementation for role-file indirections instead of
+/// forking the grammar — same tokens, same presence rule, the same
+/// never-print-the-value error. Same crate, additive visibility only.
+pub(crate) fn expand_indirections(
     raw: &str,
     env: &EnvLayer,
     key: &str,

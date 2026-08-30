@@ -19,3 +19,9 @@ Cargo.lock.bak
 # defaults.
 
 .tmp/
+
+# Task 17: the roles lock is RUNTIME-OWNED host state written by
+# `gauntlet roles install` (per-harness, per-host digests) — never a
+# committed artifact; `just doctor` and tests create their own under
+# temp roots.
+.gauntlet/roles.lock

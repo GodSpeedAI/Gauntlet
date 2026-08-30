@@ -21,6 +21,7 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         Some("doctor") => doctor(&args[1..]),
         Some("reference") => reference(&args[1..]),
+        Some("roles") => roles(&args[1..]),
         Some(other) => {
             eprintln!("gauntlet: unknown command '{other}'");
             usage();
@@ -37,6 +38,8 @@ fn usage() {
     println!("gauntlet <version> — see spec 20.1 for the full surface");
     println!("usage: gauntlet doctor [--config <path>]");
     println!("       gauntlet reference digest --path <path>");
+    println!("       gauntlet roles install --harness <id>");
+    println!("       gauntlet roles verify");
 }
 
 fn doctor(args: &[String]) -> ExitCode {
@@ -261,6 +264,212 @@ fn reference(args: &[String]) -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+/// `gauntlet roles …` (plan Task 17, AK-063): installs the repository's
+/// role artifacts into the named harness's role surface, or re-reads the
+/// installed state and reports drift. Both commands resolve their roots
+/// exactly the way doctor does — project root discovery, the project's
+/// dotenv, then the four-layer config merge — so the state dir they use
+/// is the same dir every other surface uses.
+fn roles(args: &[String]) -> ExitCode {
+    match args.first().map(String::as_str) {
+        Some("install") => roles_install(&args[1..]),
+        Some("verify") => roles_verify(&args[1..]),
+        Some(other) => {
+            eprintln!("gauntlet roles: unknown subcommand '{other}'");
+            println!("usage: gauntlet roles install --harness <id>");
+            println!("       gauntlet roles verify");
+            ExitCode::from(2)
+        }
+        None => {
+            println!("usage: gauntlet roles install --harness <id>");
+            println!("       gauntlet roles verify");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// The roots and the environment every roles command resolves against —
+/// the same discovery doctor performs, without the report products.
+fn roles_context() -> Result<
+    (
+        std::path::PathBuf,
+        std::path::PathBuf,
+        gauntlet_app::config::EnvLayer,
+    ),
+    String,
+> {
+    use gauntlet_app::config::{EnvLayer, defaults, resolve};
+
+    let host = || -> Vec<(String, String)> {
+        std::env::vars_os()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.to_string_lossy().into_owned(),
+                )
+            })
+            .collect()
+    };
+    let env_for_root = EnvLayer::from_parts("", &host(), spec_vocab::ANNEX_E_ENV);
+    let project_root = resolve::discover_project_root(&env_for_root);
+    let dotenv =
+        std::fs::read_to_string(project_root.join(defaults::ENV_FILE_NAME)).unwrap_or_default();
+    let env = EnvLayer::from_parts(&dotenv, &host(), spec_vocab::ANNEX_E_ENV);
+    let config_path = resolve::discover_config_path(&project_root, None, &env);
+    let front_matter = match std::fs::read_to_string(&config_path) {
+        Ok(text) => match gauntlet_app::config::gauntlet_md::parse(&text) {
+            Ok(parsed) => Some(parsed),
+            Err(error) => return Err(error.to_string()),
+        },
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+        Err(err) => return Err(format!("reading {}: {err}", config_path.display())),
+    };
+    let resolved = resolve::resolve(&resolve::ResolveInput {
+        project_root: project_root.clone(),
+        front_matter,
+        env: &env,
+        flags: resolve::FlagOverrides::default(),
+    })
+    .map_err(|error| error.to_string())?;
+    Ok((project_root, resolved.effective.state_dir.into(), env))
+}
+
+/// The harness registry this composition fronts (plan Task 17 D4): keyed
+/// by the runner adapters' exported token constants — the only place a
+/// harness id spelling belongs. The recursive harness offers a writable
+/// role surface (its subagent-spec surface, Annex C.4); the generic CLI
+/// runner has no writable surface, so its roles are per-invocation
+/// prompt-side injections with enforcement recorded as advisory.
+fn roles_registry() -> gauntlet_app::roles::HarnessRegistry {
+    use gauntlet_adapter_agent_cli as generic_cli_runner;
+    use gauntlet_adapter_agent_prime as recursive_runner;
+    use gauntlet_app::roles::{HarnessRegistry, RoleSurface};
+
+    let mut registry = HarnessRegistry::new();
+    registry
+        .insert(recursive_runner::RUNNER_TOKEN, RoleSurface::WritableRoleDir)
+        .expect("the recursive runner token is a valid registry id");
+    registry
+        .insert(
+            generic_cli_runner::RUNNER_TOKEN,
+            RoleSurface::AdvisoryPromptArtifacts,
+        )
+        .expect("the generic CLI runner token is a valid registry id");
+    registry
+}
+
+/// `gauntlet roles install --harness <id>`: materializes the role files
+/// verbatim under the state root and writes `.gauntlet/roles.lock`.
+/// Re-installing an unchanged tree is a byte-identical lock; an
+/// unregistered or missing harness id fails closed (no runner is
+/// selected by default — that is the operator's call).
+fn roles_install(args: &[String]) -> ExitCode {
+    let mut harness: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--harness" => {
+                let Some(value) = args.get(index + 1) else {
+                    eprintln!("gauntlet roles install: --harness requires an id");
+                    return ExitCode::from(2);
+                };
+                if harness.replace(value.clone()).is_some() {
+                    eprintln!("gauntlet roles install: --harness given twice");
+                    return ExitCode::from(2);
+                }
+                index += 2;
+            }
+            other => {
+                eprintln!("gauntlet roles install: unknown argument '{other}'");
+                println!("usage: gauntlet roles install --harness <id>");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    let Some(harness) = harness else {
+        eprintln!("gauntlet roles install: --harness is required");
+        println!("usage: gauntlet roles install --harness <id>");
+        return ExitCode::from(2);
+    };
+    let Ok((project_root, state_dir, env)) = roles_context() else {
+        return report_roles_context_failure();
+    };
+    let registry = roles_registry();
+    match gauntlet_app::roles::install(&gauntlet_app::roles::InstallInput {
+        project_root: &project_root,
+        state_dir: &state_dir,
+        roles_dir: &gauntlet_app::config::defaults::roles_dir_at(&project_root),
+        harness: &harness,
+        registry: &registry,
+        env: &env,
+    }) {
+        Ok(report) => {
+            let enforcement = match report.enforcement {
+                gauntlet_app::roles::Enforcement::Writable => "writable",
+                gauntlet_app::roles::Enforcement::Advisory => "advisory",
+            };
+            println!(
+                "roles: installed {} role(s) for harness '{}' (enforcement: {enforcement})",
+                report.roles, report.harness
+            );
+            if report.repaired {
+                println!("roles: this install repaired drifted state");
+            }
+            println!("roles: lock: {}", report.lock_path.display());
+            if report.enforcement == gauntlet_app::roles::Enforcement::Advisory {
+                println!(
+                    "roles: advisory — this harness has no writable role surface; role bodies \
+                     are injected per invocation and enforcement is recorded as advisory"
+                );
+            }
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("gauntlet roles install: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `gauntlet roles verify`: re-reads the installed state and the
+/// repository sources, comparing content digests against the lock. Any
+/// drift — out-of-band edit, source edit since install, a missing
+/// artifact, or a hand-edited or re-forged lock — is a typed failure
+/// and a non-zero exit.
+fn roles_verify(_args: &[String]) -> ExitCode {
+    let Ok((project_root, state_dir, _env)) = roles_context() else {
+        return report_roles_context_failure();
+    };
+    match gauntlet_app::roles::verify(&gauntlet_app::roles::VerifyInput {
+        project_root: &project_root,
+        state_dir: &state_dir,
+    }) {
+        Ok(report) => {
+            let enforcement = match report.enforcement {
+                gauntlet_app::roles::Enforcement::Writable => "writable",
+                gauntlet_app::roles::Enforcement::Advisory => "advisory",
+            };
+            println!(
+                "roles: verified {} role(s) for harness '{}' (enforcement: {enforcement}) — no \
+                 drift",
+                report.roles, report.harness
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("gauntlet roles verify: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Reports a roles-context resolution failure (config unreadable or the
+/// merge refused) without echoing any environment value.
+fn report_roles_context_failure() -> ExitCode {
+    eprintln!("gauntlet roles: the configuration did not resolve (see gauntlet doctor)");
+    ExitCode::FAILURE
 }
 
 /// `gauntlet reference digest --path <path>` (plan Task 7): reads the file,

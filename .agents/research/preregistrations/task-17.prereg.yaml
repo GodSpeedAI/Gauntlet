@@ -1,0 +1,314 @@
+# Task 17 preregistration — research instrumentation, non-normative.
+# Written BEFORE any Task-17 implementation exists. Immutable once frozen.
+# Derived only from: .agents/CURRENT_STATUS.yml, .agents/specs/Core-spec.md
+# (§10.1 role front matter, §13.2 envelope allowlist, §8.5 doctor, §24.2),
+# .agents/plans/gauntlet-impl.md (Task 17), .agents/reports/task16/closure.md,
+# .agents/reports/task15/closure.md, .wayfinder/answer-key.md (AK-063), and
+# the standing battery as recorded in CURRENT_STATUS.
+
+schema_version: 1
+task: 17
+
+frozen_at:
+  git_commit: "f8d4f3f"
+  timestamp_utc: "2026-08-30T03:30:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-17.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+  - ".agents/reports/task16/closure.md"
+  - ".agents/reports/task15/closure.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task 17 makes ROLES repository artifacts with a typed loader, an
+      installer that writes them into a configured harness's role surface,
+      and drift detection (`gauntlet roles verify`). The port/app layer is
+      complete through task16; the envelope builder (task10) already
+      constructs §13.2 allowlist envelopes, and the config layer (task5)
+      already owns front-matter parsing and $VAR indirection with
+      presence-validated, never-printed secrets. The likely failure
+      classes are seams again: (a) the LOADER seam — a role file is
+      untrusted configuration that must never be able to GRANT more
+      context than the envelope builder permits (the plan's exact words);
+      an allow-list that unions instead of intersecting, or a deny that is
+      parsed but never consumed, is the R-1a failure family
+      (PolicyProvider discarding its workspace argument); (b) the INSTALL
+      seam — writing into a harness's role surface is environment-coupled
+      (Annex C.4: harness state is session-local and agent-mutable), so
+      the installer needs an honest target story and the fallback
+      (no writable surface) must record enforcement: advisory rather than
+      fake success; (c) the DRIFT seam — verify must compare content
+      digests, not existence or mtimes, and roles.lock itself must be
+      tamper-evident enough that hand-editing it to match drift is not
+      silently accepted.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          .agents/roles/ (runtime-owned, staged in the task commit) and
+          .agents/agents/ (the OPERATOR's role charters, never staged,
+          never modified, never read for enforcement) are TWO DIFFERENT
+          SURFACES. The runtime's role files are inputs to install; the
+          operator's charters are how THIS build effort happens to run its
+          own sub-agents. No merging, no cross-reads, no syncing.
+      - id: D2
+        statement: >
+          .gauntlet/roles.lock is RUNTIME-OWNED state (like the state
+          store), not a frozen reference — it must not trip doctor check
+          2 (deep parse of GAUNTLET.md), the reference lock, or the
+          boundaries suite; and it is NOT writable by roles that produce
+          work graded against it (one ruler, one writer applies to the
+          lock's role: install/verify is an operator/composition-root
+          action, not a builder capability).
+      - id: D3
+        statement: >
+          The gate line `roles install --harness $GAUNTLET_AGENT_RUNNER`
+          collides with UNK-003 (no runner is selected on this host —
+          deliberately the operator's call). The CLI must fail CLOSED on
+          an unset/unregistered harness id with a typed message, and the
+          gate evidence must run with an explicitly registered id in the
+          test harness. This is a recorded deviation-from-literal-gate
+          class (task16 D-dev-1 precedent), not a silent workaround.
+      - id: D4
+        statement: >
+          Harness ids form a small registry (prime-agent; generic-cli has
+          NO writable role surface). For generic-cli the plan's redesign
+          trigger prescribes the fallback: inject the role body into each
+          invocation's prompt and record `enforcement: advisory` on the
+          invocation — visible weakness beats invisible weakness. The
+          registry is a semantic capability map, NOT a vendor list (arch
+          denylist applies).
+      - id: D5
+        statement: >
+          AK-063's frozen locator names `tests/contract/roles::
+          install_and_verify`; the repository's established test location
+          is crate-scoped (`crates/gauntlet-app/tests/` or package
+          tests). Handle exactly like AK-013 at task16 (D5 there): deliver
+          the real test in the crate layout, record the locator-class
+          divergence via a reference-candidates entry, never edit the
+          ruler.
+      - id: D6
+        statement: >
+          context.deny enforcement is IN-TASK at the TYPE level (the
+          loader produces a typed deny-set that the envelope builder MUST
+          consume — a compile-shaped obligation), but the COMPOSED
+          dispatch wiring (an actual role invocation flowing through
+          envelope → runner) stays task20 with R-1b hard-triggering. Task
+          17 proves the intersection semantics with tests, not with a
+          live dispatch.
+
+    known_blindspots:
+      - >
+        Real harness role surfaces differ in format and mutability
+        (session-local, agent-mutable per Annex C.4); the installer's
+        model of "installed state" is proven against the repo-configured
+        state root and the advisory fallback, NOT against every harness's
+        native surface. Recorded, not hidden.
+      - >
+        Role BODY content is prose; nothing in this task can prove an
+        installed role changes sub-agent behavior in a composed run —
+        that is task20+ and R-1b. The claim is "installed and verified",
+        never "enforced in a live dispatch" (except the advisory-fallback
+        prompt injection, which is also not composed yet).
+      - >
+        Drift detection on session-mutable harness state may flake if the
+        harness itself rewrites its files between install and verify; the
+        design must keep verify's subject well-defined (what exactly is
+        compared) or the teeth will be noise.
+
+  visible_intervention_classes:
+    - id: A1
+      class: >
+        Reuse-not-refork: the loader reuses task5's front-matter parser
+        and $VAR indirection machinery (config::gauntlet_md, env_layer)
+        rather than a second implementation of the same rule class; the
+        installer is a thin app-layer service over a semantic
+        RoleSurface seam, production impl in the cli composition root.
+      why_visible_now: >
+        Two rule implementations that must agree was already the task7
+        pattern (two digesters); a forked parser here would drift exactly
+        the way the double-digest proof exists to prevent.
+    - id: A2
+      class: >
+        Typed construction at the loader boundary: RoleDefinition is built
+        only through a constructor that validates front matter, resolves
+        $VARs, and computes the deny-set as data the envelope builder
+        consumes; invalid or over-granting files are typed errors at
+        construction, never silently narrowed.
+      why_visible_now: >
+        The plan's invariant ("the file cannot grant a role more context
+        than the builder permits") is a construction-time property; P1
+        tests it before any dispatch exists.
+    - id: A3
+      class: >
+        Fail-first teeth: install idempotence (second install = byte-
+        identical roles.lock), verify drift (out-of-band edit ⇒ non-zero),
+        lock tamper (hand-edited lock to match drift ⇒ non-zero), and
+        over-grant refusal (a role file granting outside the permitted
+        set ⇒ typed error) must each be shown RED on a deliberately
+        broken shape before GREEN.
+      why_visible_now: >
+        The done-when names the drift teeth explicitly; a verify that
+        cannot fail is decoration (task14-16 standard).
+    - id: A4
+      class: >
+        Scope fencing: no composed dispatch, no envelope-builder rewiring
+        beyond consuming the typed deny-set, no operator-harness writes
+        outside the repo-configured state root; UNK-003 untouched.
+      why_visible_now: >
+        Task17 sits adjacent to the envelope builder and the runner
+        adapters; the temptation to "finish the composition" is
+        structural (R4 recurrence).
+
+  predictions:
+    - id: P1
+      prediction: >
+        The first loader will implement context.deny as parsed-but-
+        unconsumed data, or allow/deny will union instead of intersect —
+        i.e., a role file CAN grant more context than the envelope builder
+        permits, violating the plan's invariant. Surfaced by the design
+        critic or by the over-grant teeth test.
+      expects: fire_during_critique
+    - id: P2
+      prediction: >
+        Install will be non-idempotent in a corner: a second install
+        changes roles.lock (map ordering, timestamps, or regenerated
+        identifiers), or install-after-drift silently repairs instead of
+        leaving repair to an explicit re-install with the drift recorded.
+      expects: fire_during_implementation
+    - id: P3
+      prediction: >
+        The blind executing falsifier finds a drift-detection gap: verify
+        compares existence or mtime rather than content digest, a
+        semantic-but-different edit (valid front matter, different deny)
+        passes, or roles.lock itself can be hand-edited to re-match
+        drifted state because the lock carries no self-authenticating
+        digest.
+      expects: fire_during_critique
+    - id: P4
+      prediction: >
+        The $VAR resolution will initially diverge from task5's semantics
+        in at least one class (unknown var, missing env var, secret never
+        printed into roles.lock or logs) — a fork temptation the loader
+        must resist by reuse (A1); caught in design or implementation.
+      expects: fire_during_implementation
+    - id: P5
+      prediction: >
+        At least one representational gap surfaces around the harness
+        registry (ids, capability map shape) or where installed state
+        lives for a harness with no native surface — resolved as a
+        recorded decision (D3/D4), never a silent local invention.
+      expects: representation_inadequacy
+
+  risks:
+    - id: R1
+      description: >
+        Scope creep into composition: rewiring the envelope builder's
+        call sites, wiring roles into the controller's dispatch, or
+        "temporarily" running a role invocation end-to-end to prove the
+        wiring (R-1b hard-triggers at the first real builder execution).
+      mitigation_preregistered:
+        - class: A4
+          action: >
+            The builder brief enumerates the touch surface (roles module
+            in app, roles CLI commands in the composition root, six role
+            files, roles.lock writer, tests); the envelope builder gains
+            at most a consume-side hook for the typed deny-set; anything
+            else is recorded, not implemented.
+    - id: R2
+      description: >
+        The installer writing OUTSIDE the repository (operator harness
+        config dirs, home dotfiles) — environment-coupled writes that
+        make the gate host-dependent and the doctor story dishonest.
+      mitigation_preregistered:
+        - class: A4
+          action: >
+            Installed state lives under the repo-configured state root;
+            no path escapes the workspace/state root; the falsifier's
+            anchored-path attacks (task14 COR-2 class) apply.
+    - id: R3
+      description: >
+        Ruler-adjacent drift: a new .gauntlet/roles.lock confusing doctor
+        checks, the boundaries suite, or prereg tooling; or AK-063's
+        locator divergence tempting an answer-key edit.
+      mitigation_preregistered:
+        - class: A3
+          action: >
+            just ruler + just doctor + just boundaries green before and
+            after every phase; the locator divergence goes to
+            reference-candidates (D5); the answer key is never opened for
+            edit.
+    - id: R4
+      description: >
+        Role-body content inventing governance: prose that implements
+        settlement/authority/budget decisions in text (the skill-lint
+        violation class) or that contradicts the frozen spec's role
+        definitions.
+      mitigation_preregistered:
+        - class: A2
+          action: >
+            Role bodies describe the contract (who decides what, what the
+            role may never do) and cite the spec; no control logic, no
+            thresholds, no budgets in prose; the design critic reviews
+            bodies against spec §10.1 and the skill-lint rule.
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: >
+        Task5's front-matter and $VAR machinery is REUSED, not forked;
+        all existing config/doctor tests stay green with zero assertion
+        changes.
+      preregistered_expectation: >
+        just test-package gauntlet-app stays green throughout; the roles
+        module imports the existing config machinery; no duplicated
+        front-matter grammar exists (grep-able claim: one parse site).
+    parametric_variation:
+      level: L2
+      description: >
+        install + verify run over EVERY registered harness id, including
+        the advisory-fallback harness, with the same code path and
+        per-harness recorded enforcement level.
+      preregistered_expectation: >
+        The registry is data (a map), not a match-statement per harness
+        spreading role logic; the advisory fallback records enforcement:
+        advisory and verify still detects drift on injected artifacts.
+    structural_transfer:
+      level: L3
+      description: >
+        A NEW over-grant shape not in the suite — a role file with an
+        unknown front-matter key, a context.allow naming a category the
+        envelope builder never permits, a deny that shadows allow, a
+        $VAR resolving to a path outside the workspace — is rejected by
+        the typed construction without a payload blocklist.
+      preregistered_expectation: >
+        The falsifier's novel shape is refused at construction with a
+        typed error naming the locus; any fix records a class, never a
+        payload denylist.
+
+  explicit_nonclaims:
+    - >
+      No composed role dispatch happens in this task: no role invocation
+      flows through envelope → AgentRunner; R-1b stays hard-triggered at
+      the first real builder execution (task20).
+    - >
+      No operator harness surface is written on this host; installed
+      state lives under the repo-configured state root, and the
+      advisory fallback records its own weakness.
+    - >
+      Nothing here selects runners.default or resolves UNK-003; the
+      registry maps harness ids to role-surface capabilities, nothing
+      more.
+    - >
+      Role bodies carry no governance logic (no settlement, authority,
+      or budget decisions in prose); they cite the frozen spec.
+    - >
+      The task does NOT prove an installed role changes sub-agent
+      behavior in a live run; the claim is installed-and-verified with
+      drift detection (AK-063's scope).
+
+post_run: {}

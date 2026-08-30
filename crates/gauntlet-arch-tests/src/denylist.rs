@@ -91,7 +91,7 @@ use crate::deps::Member;
 /// first segments (`agent`, `state`, `observe`, `compare`, `evidence`)
 /// already are. Pinned by test: growth is a deliberate edit that updates
 /// the pin.
-pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model", "digest", "check", "none"];
+pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model", "digest", "check", "none", "filesystem"];
 
 // Plan Task 14 extended the same non-distinguishing ruling to `none` (last
 // segment of `gauntlet-adapter-sandbox-none`): `none` is the spec's own
@@ -123,6 +123,19 @@ pub const SPEC_VOCABULARY_SEGMENTS: &[&str] = &["model", "digest", "check", "non
 // contains no derived term and passes, which is why the PIN test asserts the
 // full derived spellings), so deriving the bare segment would only make the
 // AK-014 class a false-positive factory on spec vocabulary.
+
+// Plan Task 17 extended the same non-distinguishing ruling to
+// `filesystem` (last segment of `gauntlet-adapter-observe-filesystem`):
+// the word is spec §10.1's own FIELD vocabulary — the mandatory
+// `permissions.filesystem` role-file key the roles loader validates
+// (an access-mode VALUE, not an adapter token). It cannot SELECT an
+// adapter on its own any more than `model` can: the distinguishing
+// spellings `observe-filesystem`, `filesystem-observe`, and the full
+// crate name ARE still derived and denied, and no configuration
+// resolves an observer by the bare word (the facet NAME selects, and
+// the facet vocabulary is the spec's, §12). Deriving the bare segment
+// would make the AK-014 class a false-positive factory on the spec's
+// own permissions grammar.
 
 /// Identifiers that name products rather than capabilities. In every scanned
 /// text the match is a case-insensitive substring (compound identifiers
@@ -1233,6 +1246,10 @@ pub fn runner_for(role: &str) -> &'static str {
             dir: "crates/adapters/gauntlet-adapter-sandbox-none".to_string(),
             name: "gauntlet-adapter-sandbox-none".to_string(),
         });
+        members.push(Member {
+            dir: "crates/adapters/gauntlet-adapter-observe-filesystem".to_string(),
+            name: "gauntlet-adapter-observe-filesystem".to_string(),
+        });
         let deny = Denylist::derive(&members);
         // Plan Task 11 extended the list (see the const's doc): `digest` is
         // the §5.2 Digest field vocabulary, `check` is §14.2's own rung
@@ -1240,16 +1257,19 @@ pub fn runner_for(role: &str) -> &'static str {
         // adapters while closed earlier tasks already spelled those words
         // as ordinary domain literals. Plan Task 14 added `none` (§6.1
         // isolation token, §8.2 backend enum, §8.6 default) for
-        // `gauntlet-adapter-sandbox-none`.
+        // `gauntlet-adapter-sandbox-none`. Plan Task 17 added `filesystem`
+        // (§10.1's mandatory `permissions.filesystem` role-file key) for
+        // `gauntlet-adapter-observe-filesystem`.
         assert_eq!(
             SPEC_VOCABULARY_SEGMENTS,
-            &["model", "digest", "check", "none"]
+            &["model", "digest", "check", "none", "filesystem"]
         );
         assert!(
-            !deny
-                .adapter_segments
-                .iter()
-                .any(|s| s == "model" || s == "digest" || s == "check" || s == "none"),
+            !deny.adapter_segments.iter().any(|s| s == "model"
+                || s == "digest"
+                || s == "check"
+                || s == "none"
+                || s == "filesystem"),
             "spec field vocabulary must not be a segment term"
         );
         for spelling in [
@@ -1273,6 +1293,11 @@ pub fn runner_for(role: &str) -> &'static str {
             "sandbox_none",
             "none-sandbox",
             "none_sandbox",
+            "gauntlet-adapter-observe-filesystem",
+            "observe-filesystem",
+            "observe_filesystem",
+            "filesystem-observe",
+            "filesystem_observe",
         ] {
             let fixture = format!("const PICK: &str = {spelling:?};\n");
             let violations = scan_source(

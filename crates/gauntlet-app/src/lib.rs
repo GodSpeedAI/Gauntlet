@@ -18,6 +18,7 @@ pub mod doctor;
 pub mod govern;
 pub mod observation;
 pub mod reference;
+pub mod roles;
 pub mod settle;
 pub mod state;
 pub mod verify;
