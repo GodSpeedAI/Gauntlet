@@ -8,39 +8,31 @@ metadata:
                                        # drives multiple plans
   spec_version: "2.0.0"
   initialized: true                   # false only before the very first burst
-  last_updated: "2026-08-30"
+  last_updated: "2026-08-31"
   updated_by: >-
-    orchestrator (Task 17 IN FLIGHT at milestone commit: builder died on
-    the usage window AFTER landing the roles module + artifacts;
-    orchestrator completed the slice per heal+continue — 6 latent fixes,
-    COR-O1 canonical-closure tooth, CLI wiring, arch pins, battery
-    1211/1211; settlement WAITS for two compensation rounds — design-
-    as-built critic + blind falsifier — dispatchable when the sub-agent
-    window resets ~2026-08-30T14:06)
+    orchestrator (Task 17 SETTLED 05e35b6 — role artifacts + harness
+    installer: design-as-built critic NOT_CONFIRM→B2 COR-D01..D14,
+    falsifier round1 NOT_CONFIRM→B3 COR-R1-1..4, fresh falsifier round2
+    CONFIRM; AK-063 recorded; 43 units provisional through Task 17)
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
 # ─────────────────────────────────────────────────────────────────────────
 execution:
-  last_settled_task: task16           # most recent task with a CONFIRM in
+  last_settled_task: task17           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: task17              # milestone committed; the builder
-                                      # died on the usage window mid-slice
-                                      # (22nd interruption), orchestrator
-                                      # completed per heal+continue;
-                                      # settlement waits for the two
-                                      # compensation rounds
+  in_flight_task: null                # no task in flight; task17 settled 05e35b6
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
     - task18                          # wayfinder-gauntlet formation skill
-                                      # (parallel-safe; sequential keeps
-                                      # the compile lock honest)
+                                       # (parallel-safe; sequential keeps
+                                       # the compile lock honest)
+    - task20                          # CLI surface + E2E on mock (needs 17; now ready:
+                                       # 7/9/10/11/12/13/14/15/16/17 all settled)
 
   blocked_tasks:                      # task -> remaining (unsettled) blockers
     task19: [task18]                  # needs task18
-    task20: [task17]                  # needs task17 (everything else settled:
-                                      # 7/9/10/11/12/13/14/15/16)
     task21: [task20]
     task22: [task20]
     task23: [task22]
@@ -58,29 +50,9 @@ execution:
 # ACTIVE TASK
 # ─────────────────────────────────────────────────────────────────────────
 active:
-  task: task17
-  phase: compensation rounds pending   # build + personal battery done and
-                                       # committed; settlement requires the
-                                       # two rounds the interrupted
-                                       # dispatch pattern owes
-  blocker: >-
-    The pre-implementation design critic dispatch died pre-launch
-    (transient network error) and the builder died mid-slice on the
-    sub-agent usage window (reset ~2026-08-30T14:06, timezone ambiguous —
-    PROBE, a dead window fails fast). The orchestrator completed the
-    build personally per the standing heal+continue rule (degraded
-    independence recorded; correction-orchestrator.md carries the 6
-    latent fixes + COR-O1 teeth addition + arch pins).
-
-    ON WINDOW RESET: dispatch (1) a fresh-context STATIC design-as-built
-    critic (envelope: the TREE + frozen prereg + spec §10.1/§13.2 + plan
-    Task 17 — never the orchestrator's completion narrative), then (2)
-    the blind EXECUTING falsifier (charter verbatim; live legs
-    authorized: real install/verify invocations against temp roots;
-    byte-identical mutation discipline). Adjudicate both; corrections;
-    then closure (closure.md, task-17.outcome.yaml, AK-063 locator
-    reference-candidates entry, CURRENT_STATUS, settle; recompute ready
-    set — task18 next, task20 unblocks).
+  task: null
+  phase: idle                        # task17 settled; next dispatch is task18 or task20
+  blocker: null
 
 # ─────────────────────────────────────────────────────────────────────────
 # EVIDENCE LOG (current state per task, not a history)
@@ -227,7 +199,7 @@ latest_evidence:
       post-terminal valid-impostor tamper and SIGKILL death; two
       missing-teeth findings: probe_template had zero coverage —
       mutation survived every shipped suite — and cli decode-locus
-      exclusivity unenforced; two minors trigger-recorded R16-F2/F3) ->
+      exclusivity was unenforced; two minors trigger-recorded R16-F2/F3) ->
       COR-R2-1 + COR-R2-2 landed tests-only by builder B2 with RED->GREEN
       proven -> four teeth re-verified personally (vendor plant, M2
       shape-2, M1 probe, decode plant: RED -> byte-identical restore
@@ -242,6 +214,30 @@ latest_evidence:
     commit: "a1c15a2"                 # milestone commit carries B1 + round-1
                                       # corrections; the closure commit
                                       # carries COR-R2 teeth + records
+  task17:
+    report: ".agents/reports/task17/"
+    confirmation: >-
+      Build orchestrator-completed (builder died on usage window;
+      COR-O-fix-1..6 + COR-O1 canonical-closure tooth, 10 role artifacts
+      + harness installer; battery green) -> design-as-built critic
+      NOT_CONFIRM (14 residuals RES-D01..D14; 2 info, 12 accepted
+      as COR-D01..D14) -> B2 landed COR-D (typed deny-set, anchored
+      write_paths, FilesystemMode/NetworkMode vocabularies, contained_join,
+      EmptyRoleSet, etc.) -> falsifier round1 NOT_CONFIRM (2 major /
+      3 minor: drift invisibility / lock-forgery + resolved $VAR canary
+      leakage) -> B3 landed COR-R1-1..4 (derived-shape tamper checks,
+      DeclaredPath raw/resolved split + Display audit, duplicate-entry
+      refusal, drift-relative repair) with 6 RED->GREEN teeth ->
+      fresh blind falsifier round2 CONFIRM (0 blocking / 0 major,
+      1 minor + 2 informational trigger-recorded; every forgery / drift /
+      escape / canary / non-canonical shape repelled; 5 single-mechanism
+      mutants RED -> byte-identical restore c3300e62/18a8c581/b827277b ->
+      GREEN) -> SETTLED. Full battery 392/392, boundaries 228/228,
+      lint/deny/doctor/ruler/prereg PASS. P1/P3/P4/P5 supported,
+      P2 falsified-honestly. Outcome: task-17.outcome.yaml (43 units
+      provisional through Task 17). AK-063 locator divergence recorded
+      in reference-candidates (never the ruler).
+    commit: ["390ccf3", "a116046", "05e35b6"]
 
 # ─────────────────────────────────────────────────────────────────────────
 # OBSERVATIONS - facts a resuming agent needs, not a running commentary.
@@ -249,6 +245,23 @@ latest_evidence:
 # ─────────────────────────────────────────────────────────────────────────
 observations:
   # --- OBSERVED: directly verified this session/burst, evidence attached ---
+  - status: OBSERVED
+    statement: >-
+      Task 17 settled (05e35b6) on a fresh blind executing falsifier
+      round 2 (CONFIRM: 0 blocking / 0 major; 1 minor + 2 informational
+      trigger-recorded). The role artifacts (10), typed loader with
+      intersection semantics, verbatim install + content-digest drift
+      verify + tamper-evident canonical lock (derived-shape checks,
+      DeclaredPath raw-only Display, duplicate-entry refusal,
+      drift-relative repair) repelled every executed forgery, drift,
+      escape, canary, and non-canonical shape. The two majors from
+      round 1 (drift invisibility / secret leakage) are closed; the
+      only open seams are the intentionally lexical symlink check
+      (sandbox's job), write_atomic directory-entry fsync, and the
+      deny-set wiring at composition (R-1b, task20). Battery
+      392/392 + boundaries 228/228 + ruler/prereg PASS, 5 mutants
+      RED->byte-identical restore->GREEN (c3300e62/18a8c581/b827277b).
+    evidence: ".agents/reports/task17/closure.md"
   - status: OBSERVED
     statement: >-
       Task 16 settled on a fresh blind executing falsifier round 2
@@ -268,15 +281,6 @@ observations:
     evidence: ".agents/reports/task16/closure.md"
   - status: OBSERVED
     statement: >-
-      Two transient Agent-dispatch INTERNAL NETWORK failures occurred
-      before builder B2 launched (error ids 2026-08-30T10:24Z/10:31Z-
-      class); a third attempt seconds later succeeded. Both failures
-      were pre-launch (no b2 files, no tree changes — checked before
-      retrying), so no double-builder risk materialized. Rule applied:
-      after a dispatch failure, verify no artifacts exist, then retry;
-      do not assume the usage window without a window-specific error.
-  - status: OBSERVED
-    statement: >-
       The prime-agent harness (v0.8.0) is installed, live, and integrable on
       this host: task15's adapter performed REAL admissions through it twice
       (orchestrator 35.4s; falsifier 40.4s) with contract-file fan-in, and
@@ -290,59 +294,11 @@ observations:
     evidence: ".agents/reports/task15/closure.md"
   - status: OBSERVED
     statement: >-
-      Task 15 ran with ZERO sub-agent interruptions (vs 25+ across tasks
-      3-14). The working pattern: one builder holding the compile lock;
-      a static-only blind critic overlapped it (no cargo) for a
-      pre-implementation design review whose blocking find (invoke's return
-      point) was routed mid-flight — catching a design defect before the
-      code existed cost one message instead of a builder round plus
-      re-review. Live probes are env-gated (GAUNTLET_PRIME_LIVE_PROBE=1),
-      bounded, one real admission each, and authorized per round.
-    evidence: ".agents/reports/task15/IN-FLIGHT.md"
-  - status: OBSERVED
-    statement: >-
       Ruler is frozen with SHA256 digests locked in .gauntlet/reference.lock
       (answer key sha256:ccc7c99b..., manifest sha256:95331d3e...) and
       passes `just ruler` (re-run before and after every phase of the
-      task13 closure, including post-commit).
+      task17 closure, including post-commit).
     evidence: ".gauntlet/reference.lock"
-  - status: OBSERVED
-    statement: >-
-      Tasks 0-13 are closed. Task 13 final battery on the committed tree
-      (1fcfdd0, run personally 2026-08-28): ports 105/105, app 330/330,
-      sqlite 50/50 (includes the two COR3 settlement-append-gate legs),
-      proofs p7/p11/g10 12/12, standing battery p4/p6/p12/p2/p3 33/33,
-      lint 0, fmt-check clean, boundaries 215/215, deny ok, ruler PASS,
-      prereg-check 13 PASS (frozen d949e1e0).
-    evidence: ".agents/reports/task13/final-confirmation-round2.md"
-  - status: OBSERVED
-    statement: >-
-      The operator's role-agent charters live at .agents/agents/*.agent.md
-      (builder, critic, falsifier, finisher, diagnostician,
-      semantic-verifier, structural-reviewer, contract-guardian). They are
-      STILL NOT invocable as typed sub-agents from the session Agent tool
-      (re-probed twice during task13 closure: "Agent type not found;
-      available: general-purpose, Explore"; this client registers subagent
-      types via Settings -> Subagents or a plugin's agents component, and
-      scans no .agents/agents/ directory). Working pattern, used for all
-      task13 confirmation/correction dispatches: general-purpose transport
-      with the charter file adopted VERBATIM as the first prompt
-      instruction. Re-probe after any client update.
-    evidence: ".agents/reports/task13/final-confirmation-round2.md"
-  - status: OBSERVED
-    statement: >-
-      Sub-agent session interruptions / usage limits have occurred 21
-      times across tasks 3-16 (task15: zero; task16: one — the round-1
-      falsifier died on the 5-hour usage window ~17 min in; its
-      blind-composed attack files were recovered from the untracked
-      tests/ dir, executed, and retained as regression teeth; the
-      checkpoint-as-you-go discipline is what made the round completable).
-      The 21st was recovered via the tree-outranks-record reconciliation.
-      The 5-hour sub-agent usage window can exhaust; main-session tool
-      use is unaffected. When it exhausts: complete personally per the
-      operator's standing heal+continue instruction, record the degraded
-      blindness, and still dispatch a FRESH blind round before settlement.
-    evidence: ".agents/lessons/session-interruption-recovery.md"
   - status: OBSERVED
     statement: >-
       Host environment is WSL2 (6 cores, 7.8 GiB RAM, ~1.6 GiB free memory
@@ -353,26 +309,19 @@ observations:
     evidence: ".agents/reports/environment.json"
   - status: OBSERVED
     statement: >-
-      Answer-key unit status: 0 proven settled. 42 provisional through Task
-      16 (the 40 through Task 14 plus AK-013, AK-014 — first evidence via
-      the P8 substitution proof and the second real adapter; AK-013's
-      frozen locator divergence is recorded in reference-candidates,
-      2026-08-29 entry, never the ruler). 40 proposed, 0 blocked. AK-048
-      keeps its explicit BOUNDED CLAIM: delivered at gate and adapter level
-      with LIVE bwrap confinement executed, NOT through the composed loop
-      (wrap_builder_command still has no production caller — residual R-3,
-      trigger task20). UNK-003 further narrowed: doctor now MEASURES the
-      cli runner (parse-AND-render probe, honest RunnerDescriptor), but
-      runners.default is still selected by nobody — the operator's call at
-      composition time (task20 pressure).
+      Answer-key unit status: 43 provisional through Task 17 (the 42
+      through Task 16 plus AK-063 — roles installed + drift detection;
+      AK-063's frozen locator divergence is recorded in
+      reference-candidates, 2026-08-30 entry, never the ruler). 40
+      proposed, 0 blocked. AK-048 keeps its explicit BOUNDED CLAIM:
+      delivered at gate and adapter level with LIVE bwrap confinement
+      executed, NOT through the composed loop (wrap_builder_command still
+      has no production caller — residual R-3, trigger task20). UNK-003
+      further narrowed: doctor now MEASURES both real runners (prime via
+      version probe; cli via parse-AND-render template probe), but
+      runners.default is still selected by nobody — the operator's call
+      at composition time (task20 pressure).
     evidence: ".agents/reports/reference-candidates.md"
-  - status: OBSERVED
-    statement: >-
-      Round-1 vs round-2 lesson recorded in the outcome file: the STATIC
-      spec critic CONFIRMED the same surface the EXECUTING falsifier broke
-      (F-1). Blind confirmation rounds must keep an executing falsifier
-      role; static-only absence findings are weaker evidence.
-    evidence: ".agents/research/preregistrations/task-13.outcome.yaml"
 
   # --- UNKNOWN: known gap, not yet verified either way. Do not upgrade to
   #     OBSERVED without actually checking. ---
@@ -400,45 +349,29 @@ observations:
   - status: UNKNOWN
     statement: >-
       UNK-003: which concrete AgentRunner is runners.default in
-      GAUNTLET.md (deferred to Tasks 15-16). NARROWED by tasks 15-16, NOT
-      closed: real second adapters exist and doctor check 3 now MEASURES
-      any named runner against an honest probe (prime: version probe;
-      cli: parse-AND-render template probe), but no runner is selected
-      anywhere and the shipped GAUNTLET.md still names none. The decision
-      is explicitly the operator's at composition time (task20 will force
-      the question: its run must configure a runner).
-    evidence: ".agents/reports/task16/closure.md"
+      GAUNTLET.md (deferred to Tasks 15-16). NARROWED by tasks 15-17, NOT
+      closed: real third surface (roles) now measured too (doctor MEASURES
+      the harness registry + the two real runners), but no runner is
+      selected anywhere and the shipped GAUNTLET.md still names none. The
+      decision is explicitly the operator's at composition time (task20
+      will force the question: its run must configure a runner).
+    evidence: ".agents/reports/task17/closure.md"
 
 # ─────────────────────────────────────────────────────────────────────────
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task17                        # compensation rounds -> closure
+  task: task18                        # wayfinder-gauntlet skill + task20 CLI surface now both ready
   action: >-
-    PROBE the sub-agent window (reset ~2026-08-30T14:06, timezone
-    ambiguous; a dead window fails fast and costs nothing — attempt,
-    wait, re-attempt). When alive: dispatch (1) fresh-context static
-    design-as-built critic over the committed task17 tree (envelope =
-    tree + frozen prereg b3616216 + spec §10.1/§13.2/§8.5 + plan Task
-    17; firewalled from correction-orchestrator.md and IN-FLIGHT.md),
-    report to .agents/reports/task17/critic-design.md; adjudicate. Then
-    (2) blind EXECUTING falsifier (charter verbatim on general-purpose
-    transport; may run cargo — holds the compile lock; live legs
-    authorized: real `gauntlet roles install/verify` against temp
-    roots only; byte-identical mutation discipline with sha256 proof;
-    report to falsifier-round1.md). On CONFIRM: closure.md,
-    task-17.outcome.yaml, AK-063 locator reference-candidates entry,
-    latest_evidence, settle, recompute (task18; task20 unblocks).
+    Dispatch task18 (wayfinder-gauntlet formation skill, parallel-safe)
+    or task20 (CLI surface + E2E on mock — needs 7/9/10/11/12/13/14/17,
+    all now settled) in separate worktrees (compile lock); task20's
+    composed run proves the roles consumption seam (R-1b/R-2).
   reason: >-
-    Everything else is done and committed: role artifacts (10), typed
-    loader with intersection semantics, verbatim install + content-
-    digest drift verify + tamper-evident canonical lock, CLI surface,
-    arch pins, 22-test suite with all four teeth RED-proven, live
-    binary verification, battery 1211/1211 + boundaries 228/228 +
-    ruler/prereg PASS. The build was orchestrator-completed (builder
-    died on the window) — the two compensation rounds are what buy back
-    independent eyes before settlement.
-
+    Task 17 settled with fresh blind CONFIRM; 43 units provisional;
+    task18 is parallel-safe, task20 is the next milestone (self-hosting
+    begins) and now unblocked. Both hold the compile lock honestly;
+    sequential keeps the cache honest.
 
 # ─────────────────────────────────────────────────────────────────────────
 # HANDOFF
@@ -463,6 +396,7 @@ handoff:
     - "T14 Authority gate, sandbox port, tier policies (AK-044..AK-050, P5): govern::{gate,posture} + controller dispatch wiring + doctor check 4; three adapter crates (sandbox-none, sandbox-bwrap, policy-fs); three in-repo tier policies with irreversible absent by design; shared Sandbox contract suite grown to 5 Task-14 cases each with a broken stub; proofs p5_hard_gate + g7_tier_downgrade. TEN corrections across FOUR rounds: COR-1 shell-word quoting, COR-2 §17.5.2 anchor containment, COR-3 unforgeable GateAdmission (malformed shape made unrepresentable), COR-4 mask/bind ordering, COR-5 anchored-path bounding, COR-6 AK-044 frozen-locator teeth, COR-7 relocatable-nested-denial refusal, COR-8 validate() as a real policy dry run, COR-9 process/IPC/uts/cgroup/user namespace confinement + --new-session, COR-10 single source of truth for the §17.3 rung table. FIVE blind confirmation rounds (1-4 NOT CONFIRM, 5 CONFIRM)."
     - "T15 Prime-Agent adapter, the first real AgentRunner (AK-008..AK-012 re-evidenced on a second adapter): agent-prime crate over KernelTransport/HarnessControl seams; Annex C.1 renderer (byte-pinned; str()-coerced handle fields; in-cell 30s admission linger); invoke returns at handle-parse under a bounded watch with a detached reaper (never the parent-run lifetime); contract-file-only poll (post-terminal pinning, spec-deadline TimedOut+cancel preserving session_ref; mailbox/liveness never consulted); orphan sweep on admission failure; honest capabilities (isolation none); injected-range version probe; arch await-ban scan with negative controls; doctor check-3/4 runner half via measured RunnerDescriptor; env-gated live probe against the REAL harness (PASSED twice). Blind design critic NOT_CONFIRM (12 findings all corrected pre-implementation; blocking: invoke's return point) -> falsifier round 1 CONFIRM (13/13 attacks repelled; 2 majors were MISSING TEETH -> COR-D3 tests-only; teeth re-verified personally). COR-D1 (stderr version), COR-D2 (PosixPath handle fields + parent-linger child-creation + {sessions} wrapper), COR-D3. 1123/1123 on the final tree; zero sub-agent interruptions."
     - "T16 Generic CLI agent adapter + P8 substitution proof (AK-013, AK-014 first evidence — both provisional): gauntlet-adapter-agent-cli — command template parsed to shell-word argv (never shell grammar; placeholders bind as single verbatim words), ProcessChildTransport seam (SIGTERM -> bounded grace -> SIGKILL + dedicated reap grace), §10.3 classification total order with the NEW shape-2 rule (exited without valid result ⇒ Failed{missing_result} BEFORE the deadline; contract wins over exit status; TimedOut stops the child), terminal pins retire the child, honest capabilities, GAUNTLET_RESULT_PATH + prompt RESULT-PATH + envelope-body-sibling channels; ports revision InvocationFailure::MissingResult + exit_without_result_suite (sibling suite per RES-D1 — prime's one-input poll can never pass a universal process-exit case); p8 proof: FULL shared suite over mock+cli in one loop body, GAUNTLET_P8_ADAPTER=mock|cli|both fail-closed; doctor MEASURES the cli runner via probe_template (parse AND render). THREE confirmation rounds: design critic NOT_CONFIRM (12 findings, blocking RES-D1, all corrected pre-code) -> falsifier r1 NOT_CONFIRM (F1 cancel-reap grace, F2 comment-only template, F3 doc, F4 terminal child leak — agent died on the usage window, round completed by orchestrator, degraded blindness recorded, attacks retained in-tree) -> COR-F1..F4 -> fresh falsifier r2 CONFIRM (0 blocking/0 in-mechanism major; 2 missing-teeth -> COR-R2-1 probe_template honesty tests + COR-R2-2 cli decode-locus arch scan, teeth re-verified personally ×4). Residuals R16-F2 (contract-path poisoning makes TimedOut unreachable; never self-stops), R16-F3 (char-index-as-byte label), +2 transport notes. 1189/1189 on the closure tree; R-1b/R-2/R-3 restated for task20."
+    - "T17 Role artifacts + harness installer (AK-063 — roles installed and verified, drift-detected; 43 units provisional through Task 17): 10 role files (spec §10.1 front matter, context.allow/deny, permissions), typed loader with intersection semantics reusing task5's front-matter + $VAR machinery (FilesystemMode/NetworkMode vocabularies, DeclaredPath raw/resolved split with raw-only Display per spec §8.1, OverGrant/DenyShadowsAllow), semantic harness registry (prime-agent writable / generic-cli advisory with Enforcement), verbatim install into repo-configured state root with content-digest RolesLock (canonical serialization + self-digest, drift-relative repair flag) and content-digest verify (tamper-evident canonical closure, derived-shape path checks, contained_join traversal + absolute refusal, protected anchors §17.5.5, set-membership complete). Build orchestrator-completed after builder window death → design-as-built critic NOT_CONFIRM 14 residuals → B2 COR-D01..D14 → falsifier round1 NOT_CONFIRM (2 major drift-invisibility + canary leakage) → B3 COR-R1-1..4 (6 teeth) → falsifier round2 CONFIRM (0 blocking/0 major; every forgery drift escape canary non-canonical shape repelled; 5 mutants RED→byte-identical restore c3300e62/18a8c581/b827277b→GREEN). Battery 392/392 + boundaries 228/228 + lint/deny/doctor/ruler/prereg PASS; P1/P3/P4/P5 supported, P2 falsified-honestly. AK-063 locator divergence (tests/contract/roles) recorded in reference-candidates, never the ruler."
 
   unresolved_summary:
     # Every open thread not captured elsewhere: outstanding confirmations,
@@ -470,8 +404,10 @@ handoff:
     # to a later task ID.
     - "Task 15 residuals with triggers (closure.md §4): T15-R1 linger recalibration (30s default calibrated on ONE host observation; re-measure at first production dispatch), T15-R2 model-hint forwarding never exercised live (supports_model_selection is code+suite evidence only), T15-R3 concurrency posture asserted not proven (max_parallel>1 wiring), T15-R4 ProcessKernelTransport race windows (partial handle writes, reaper vs natural exit) attacked only once each, T15-R5 last_event_at mtime path unexercised"
     - "Task 16 residuals with triggers (closure.md §4): R16-F2 contract-path poisoning (hostile child plants a directory at its own GAUNTLET_RESULT_PATH and lives — poll errors typed forever, TimedOut unreachable, runner never self-stops; cancel bounds it; trigger: next transport/lifecycle touch or task25 recovery E2E), R16-F3 UnterminatedQuote char-index-labeled-as-byte (template.rs:88 vs 219/251; trigger: next template.rs touch), R16-note-1 SIGKILL-unreapable Ok(None) grace-expiry path pinned only by code reading (trigger: next transport touch), R16-note-2 OS pid reuse vs pid-keyed child map (trigger: next transport touch)"
+    - "Task 17 residuals with triggers (closure.md §4): R17-note-1 write_atomic directory-entry not fsynced (trigger: next roles install durability touch or task20 composition), R2-N1 deny-set typed+tested but unwired at composition (trigger: first real builder execution task20), R17-F4 runtime-provided $RESULT_CONTRACT_DIR lexical seam (sandbox's job, trigger: task20 CLI surface)"
     - "Task 15 falsifier not-attacked list, mostly still open (next round's benefit): recovery/resume + orphaned_by_restart (task16+ — still open), workspace resolution (R-1b), BudgetMeter side, observer/comparator paths, thread-safety proof, full cargo-mutants (task24). DISCHARGED by task16: the AK-013/P8 leg (now proven with real teeth)"
     - "Task 16 falsifier round-2 not-attacked list (next round's benefit): full mutation suite (task24), daemonized grandchildren/process groups, real agent binary or model (explicit nonclaim), dispatch-gate composition (R-1b), BudgetMeter/observer/comparator surfaces, concurrency >2 invocations"
+    - "Task 17 falsifier round-2 not-attacked list (next round's benefit): full cargo-mutants workspace sweep, symlink-escape, TOCTOU, case-insensitive, unicode stems, dotenv injection, doctor checks over roles.lock, scheduler/authority gating, recovery/resume"
     - "Task 14 deferrals: L1 authority-gate + tier posture, runner capability-vs-tier dispatch check, mock capability honesty pin (all IN-SCOPE for task14 now)"
     - "Task 13 later-scope (adjudicated, triggers recorded): M-1 minimum_reliability typed meaning (reference candidate + trigger: reference revision or Task 20), M-2/F-2 AK-062 positive half (Task 21), F-3 lexical containment vs 17.5.2 canonicalization (workspace-provider touch), F-7 recovery-time digest (non-content-addressed evidence adapter), m-1/2/4/6/7/8/9/11 minors (critic-round1.md)"
     - "Task 13 confirmation-round-2 minors (all trigger-recorded, outcome.yaml): round2-F-1 half-step+second-admission two-row shape on the instrument surface (admission should also see pending settlement events; next state-store/ports touch), FC2-A2 admit digest re-validation, FC2-A3/OBS-1 chain-shaped earning for in-process authorities (ports revision), FC2-A6/F-2 B.6 pin crash window, FC2-A7 p11 comparator-pass instantiation note, RES-A1 p7 intra-iteration reorder granularity, RES-A2 verifier-failure disposition row, RES-A3 digest scope (manifest/comparison contract)"
@@ -481,8 +417,7 @@ handoff:
     - "Task 14 ESCALATED to the operator (R-4, spec CandidateRevision candidate, NOT a task14 defect): the whole host filesystem is READABLE inside the sandbox via --ro-bind / /, including credential files and .wayfinder/answer-key.md. Literally spec-conformant - 17.3 puts credential denial at `local` and above and 17.5.5 / 8.5 check 7 bound only WRITABLE paths - but a builder that can READ the frozen ruler can target its assertions without ever modifying it"
     - "Task 14 smaller residuals with triggers: round5-F2 (an artifact may declare writable_roots [$HOME] at the contained tier; no writable_roots ⊆ workspace rule at either layer - operator-authoring hazard); round5-F4 (doctor ignores every Annex E env var when GAUNTLET.md is absent - fail-closed direction); round5-F6 (no rlimit/cgroup budget inside the sandbox - host DoS channel, inferred not executed); round5-F9 (forbidden-tier scan stem-exact and non-recursive - not a bypass); round1-F8 (an ungated RoleId::Verifier invocation at the composition root, verify/ladder.rs); critic-A OBS-1/OBS-2 (doctor check 4 stays `unavailable` pending the runner half; the deterministic clock makes above-contained LOOP admission with a live backend unexercisable until tasks 15/16)"
     - "Task 14 ruler divergence: AK-049's frozen locator tests/e2e/doctor::irreversible_policy_is_error matches no file and no function; the existing 2026-08-17 reference-candidates entry already names the three real doctor/mod.rs tests, so no new entry was owed. Settlement belongs to the ruler's owner"
-    - "Tasks 15-17 deferrals: child env fingerprint vs live process env / tool binding (AK-028), concrete runners.default (UNK-003 — narrowed by task16: doctor MEASURES both real runners, prime via version probe, cli via parse-and-render template probe; the selection remains explicitly the operator's, task20 forces the question). DONE by task15: the doctor check-3 runner-resolution half for prime. DONE by task16: the cli runner's measured-descriptor leg + P8/AK-013 substitution proof + AK-014"
-    - "Task 17/27 deferrals: produced_at integer vs Annex-B string placeholder in schemas; task17 dependency AND/OR ambiguity UNRESOLVED (see blocked_tasks note)"
+    - "Tasks 15-17 deferrals: child env fingerprint vs live process env / tool binding (AK-028), concrete runners.default (UNK-003 — narrowed by task17: doctor MEASURES the harness registry + both real runners; the selection remains explicitly the operator's, task20 forces the question). DONE by task15: the doctor check-3 runner-resolution half for prime. DONE by task16: the cli runner's measured-descriptor leg + P8/AK-013 substitution proof + AK-014; DONE by task17: the roles AK-063 with drift detection (pending composition, task20)"
     - "Task 20 deferrals: payment unification (critic costs into run budget_spent), model-rung dispatch unmetered, workspace-root pairing library seam, L4 cohort non-separability fixture, evidence production binding first-facet bytes"
     - "Task 22/24 deferrals: reference candidate recording / mutation teeth"
     - "Task 25 deferrals: evidence-fs crash injection E2E"
@@ -496,7 +431,7 @@ handoff:
     - "Do not implement directly as orchestrator while delegation is available (AGENTS.md rule); the standing heal+continue exception applies only when sub-agent dispatch is unavailable (usage-limit window) - record such completion honestly. Maintain strict blind critic separation; blind confirmation rounds must include an EXECUTING falsifier (task13 round-1 lesson: static-only CONFIRM was wrong)."
     - "Only one agent may compile at a time (build-lock discipline); WSL2 host memory is tight (~1.6 GiB free); watch target/ size and keep max_parallel low."
     - "Never mark a task settled on builder say-so; settlement requires independent blind confirmation (peer/adversarial CONFIRM) and proven teeth."
-    - "Always reconcile `git status` vs CURRENT_STATUS.yml vs IN-FLIGHT.md before treating any slice as unstarted (tree outranks record; 26 interruption instances so far - task14 alone lost 4 sub-agents to usage limits and request timeouts, every one reconciled with ZERO work lost because the orchestrator held its own sha256 baseline of all 185 source files and re-cut it after each correction round)."
+    - "Always reconcile `git status` vs CURRENT_STATUS.yml vs IN-FLIGHT.md before treating any slice as unstarted (tree outranks record; 27 interruption instances so far - task14 alone lost 4 sub-agents to usage limits and request timeouts, every one reconciled with ZERO work lost because the orchestrator held its own sha256 baseline of all 185 source files and re-cut it after each correction round)."
     - "NEVER let a confirmation round be static-only. Task 14 is the decisive case: a spec critic that independently re-ran TEN gates and mutation-verified FOUR teeth legs returned CONFIRM on a tree that then failed FOUR successive EXECUTING falsifier rounds on THREE MAJOR containment defects - one of which let a sandboxed process overwrite a host file the policy declared denied, while validation reported CLEAN. Each round found a different DIMENSION (filesystem mask ordering, path resolution, type forgeability, a rename-based bypass, process-namespace escape); re-running one attacker would not have found them."
     - "Falsifier probe hygiene is load-bearing: a transient .gauntlet/policies/irreversible.json probe was captured into git history by an operator commit taken mid-round, which made `just doctor` exit 1 on main. Any agent planting files under .gauntlet/policies/ must remove every one and `ls` the directory to prove it."
     - "One task, one commit discipline: use explicit pathspecs, never stage .jolli/, .tmp/, .agents/prompts/, .agents/agents/ (operator charters), or operator edits (.agents/AGENTS.md, .agents/CURRENT_STATUS*, .agents/research/AGENT.md, prereg-postrun-schema.md, TEMPLATE.prereg.yaml, escalations.md, lessons files)."
