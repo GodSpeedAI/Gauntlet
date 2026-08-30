@@ -277,16 +277,23 @@ pub enum ChildBehavior {
     /// fires (modeled as a probe count — `poll` never blocks on real
     /// time).
     Stall,
+    /// Plan Task 16, never-write shape 2: the child has EXITED without
+    /// ever writing a result document. A dead child can never write, so
+    /// the mock pins `Failed{missing_result}` on the first probe —
+    /// decided before any deadline, unlike [`ChildBehavior::Stall`]'s
+    /// deadline verdict.
+    ExitWithoutResult,
 }
 
 impl ChildBehavior {
     /// The wire tokens, for the error vocabulary.
-    const TOKENS: &'static str = "write-result | stall";
+    const TOKENS: &'static str = "write-result | stall | exit-without-result";
 
     fn parse(value: &str) -> Option<Self> {
         match value {
             "write-result" => Some(Self::WriteResult),
             "stall" => Some(Self::Stall),
+            "exit-without-result" => Some(Self::ExitWithoutResult),
             _ => None,
         }
     }
@@ -1275,6 +1282,65 @@ fn validate_root(root: Node) -> Result<Scenario, ScenarioError> {
                 });
             };
             (None, None, 0, Some(value))
+        }
+        // Plan Task 16, never-write shape 2: the child has EXITED without
+        // ever writing a document. Every writing key is refused exactly
+        // like stall's — and the deadline knob is refused TOO, because
+        // this verdict is decided by the OBSERVED EXIT, never by the
+        // clock (a dead child can never write, so no deadline is ever
+        // reached).
+        ChildBehavior::ExitWithoutResult => {
+            if let Some((_, line)) = probes {
+                return Err(ScenarioError::BehaviorConflict {
+                    line,
+                    detail: "behavior exit-without-result cannot carry probes_before_write; \
+                             an exited child writes nothing, ever"
+                        .to_owned(),
+                });
+            }
+            if let Some(node) = state_node {
+                return Err(ScenarioError::BehaviorConflict {
+                    line: node.line(),
+                    detail: "behavior exit-without-result cannot carry state; an exited \
+                             child declares no result state"
+                        .to_owned(),
+                });
+            }
+            if let Some((_, line)) = timeout {
+                return Err(ScenarioError::BehaviorConflict {
+                    line,
+                    detail: "behavior exit-without-result cannot carry timeout_after_probes; \
+                             the missing_result verdict is decided by the observed exit, \
+                             never by the deadline"
+                        .to_owned(),
+                });
+            }
+            if let Some(node) = derailment_node {
+                return Err(ScenarioError::BehaviorConflict {
+                    line: node.line(),
+                    detail: "behavior exit-without-result cannot carry a derailment; there \
+                             is no document to derail"
+                        .to_owned(),
+                });
+            }
+            if let Some(node) = payload_node {
+                return Err(ScenarioError::BehaviorConflict {
+                    line: node.line(),
+                    detail: "behavior exit-without-result cannot carry a payload; an \
+                             exited child writes no document"
+                        .to_owned(),
+                });
+            }
+            if let Some(node) = effects_node {
+                return Err(ScenarioError::BehaviorConflict {
+                    line: node.line(),
+                    detail: "behavior exit-without-result cannot carry workspace_effects; \
+                             the runner's exit arm applies no effects, so the fixture would \
+                             claim a write that never happens"
+                        .to_owned(),
+                });
+            }
+            (None, None, 0, None)
         }
     };
 

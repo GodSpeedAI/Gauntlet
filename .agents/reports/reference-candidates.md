@@ -1237,3 +1237,39 @@ through the normal spec process, never a builder's direct edit.
   `cargo`/`just ruler`/`just doctor` run backs it; the orchestrator's
   post-land gate run is the confirming instrument. Settlement of the
   2026-08-17 candidate remains with the ruler's owner.
+
+## 2026-08-29 — AK-013's evidence locator names a repo-root path where the repository's proofs live under a crate (Task 16)
+
+- **Unit:** AK-013 (`.wayfinder/answer-key.md` lines 85–92).
+- **Claim under review (unchanged, delivered this task):** "The full port
+  conformance suite passes against at least two AgentRunner adapters, one
+  of which is not the mock."
+- **Defect (evidence declaration only):** `evidence_required.locator` is
+  `tests/proofs/p8_adapter_substitution` with `kind: test_report`. The
+  repository's real proof tests live in `crates/gauntlet-cli/tests/`
+  (p4 corrective loop, p5 hard gate, p6 budget control, p7 recovery, p11
+  critic-is-not-verifier, p12 missing-is-not-passing, g6/g7/g10) — the
+  repo-root `tests/proofs/` directory is an empty `.gitkeep` placeholder.
+  The delivered evidence is
+  `crates/gauntlet-cli/tests/p8_adapter_substitution.rs::the_full_conformance_suite_passes_against_every_selected_adapter_unchanged`,
+  which runs the UNMODIFIED shared `agent_runner_suite` PLUS the
+  task-16-specific `exit_without_result_suite` over the mock and cli
+  factories through ONE loop body (zero per-adapter test bodies), plus
+  `GAUNTLET_P8_ADAPTER` selection with fail-closed behavior on unknown
+  values. Same locator-class divergence as AK-049's 2026-08-17 entry:
+  the locator names a path convention the repository did not adopt.
+- **Proposed resolution (ruler's owner):** re-point AK-013's locator to
+  `crates/gauntlet-cli/tests/p8_adapter_substitution` (or declare the
+  `tests/proofs/` convention authoritative and relocate the proof — the
+  crate location is the established precedent across eleven proof files).
+- **Composition note (for whoever settles this):** the "full suite" the
+  delivered proof runs is `agent_runner_suite` + the exported sibling
+  `exit_without_result_suite` (design adjudication RES-D1, this task):
+  the shape-2 clean-exit rule is plan-Task-16-specific (spec §10.6) and
+  is deliberately NOT a member of the universal §7.3 suite, because the
+  settled prime adapter's Annex-C.4 one-input poll cannot observe
+  process exit. Both suites run over BOTH adapters inside the single
+  p8 test body.
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock (`just ruler` PASS before and after the
+  task's phases, most recently on the corrected tree).

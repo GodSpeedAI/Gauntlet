@@ -134,9 +134,9 @@ impl MockAgentRunner {
 
     fn scenario_for_script(script: RunnerScript) -> Scenario {
         use RunnerScript::{
-            CompleteAfterProbes, CompleteImmediately, NeverWriteResult, WriteForeignEnvelopeDigest,
-            WriteForeignInvocationId, WriteMalformedResult, WriteUnknownEnvelopeField,
-            WriteUnknownNestedField,
+            CompleteAfterProbes, CompleteImmediately, ExitWithoutResult, NeverWriteResult,
+            WriteForeignEnvelopeDigest, WriteForeignInvocationId, WriteMalformedResult,
+            WriteUnknownEnvelopeField, WriteUnknownNestedField,
         };
         match script {
             CompleteAfterProbes {
@@ -153,6 +153,20 @@ impl MockAgentRunner {
                 ChildBehavior::Stall,
                 0,
                 Some(SILENT_CHILD_PROBES),
+                None,
+                Derailment::None,
+                None,
+                Vec::new(),
+            ),
+            // Plan Task 16, shape 2: the child EXITED without writing —
+            // the first probe pins `Failed{missing_result}`, before any
+            // deadline (distinct from the Stall deadline verdict above).
+            ExitWithoutResult => Scenario::assemble(
+                "suite-exit-without-result".to_owned(),
+                RoleId::Builder,
+                ChildBehavior::ExitWithoutResult,
+                0,
+                None,
                 None,
                 Derailment::None,
                 None,
@@ -247,6 +261,17 @@ impl MockAgentRunner {
                 {
                     entry.terminal = Some(InvocationStatus::TimedOut);
                 }
+            }
+            ChildBehavior::ExitWithoutResult => {
+                // Plan Task 16, shape 2: the child EXITED without ever
+                // writing a valid result document. A dead child can never
+                // write, so the verdict lands on the FIRST probe — before
+                // any deadline — and is `Failed{missing_result}`, never
+                // Completed (exit status is liveness evidence) and never
+                // TimedOut (no deadline was reached).
+                entry.terminal = Some(InvocationStatus::Failed {
+                    class: InvocationFailure::MissingResult,
+                });
             }
         }
     }

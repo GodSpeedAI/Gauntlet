@@ -119,13 +119,22 @@ impl std::error::Error for AgentError {}
 /// - `malformed_result` and `contract_mismatch` — §10.3 rules 4 and 6;
 /// - `orphaned_by_restart` — §18 recovery: "anything else is marked
 ///   `Failed{class: orphaned_by_restart}` and re-planned";
-/// - `Execution` — the §21.1 `agent_execution` locus without a finer class.
+/// - `Execution` — the §21.1 `agent_execution` locus without a finer class;
+/// - `missing_result` — plan Task 16 (the §4.1 command-template runner): the child
+///   process EXITED without writing a valid result contract. A dead child
+///   can never write, so the verdict is reachable BEFORE the deadline —
+///   this is a different never-write shape from §10.3 rule 5's `TimedOut`
+///   (the child still RUNNING, silent, at its deadline). Exit status is
+///   liveness evidence only (§6.1, §10.3): a zero exit with no valid
+///   contract is still `missing_result`, and a nonzero exit WITH a valid,
+///   matching contract is still `Completed`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InvocationFailure {
     MalformedResult,
     ContractMismatch,
     OrphanedByRestart,
     Execution,
+    MissingResult,
 }
 
 impl fmt::Display for InvocationFailure {
@@ -135,6 +144,7 @@ impl fmt::Display for InvocationFailure {
             Self::ContractMismatch => "contract_mismatch",
             Self::OrphanedByRestart => "orphaned_by_restart",
             Self::Execution => "agent_execution",
+            Self::MissingResult => "missing_result",
         };
         f.write_str(token)
     }

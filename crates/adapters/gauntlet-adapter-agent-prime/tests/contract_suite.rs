@@ -140,7 +140,7 @@ fn document_for(script: RunnerScript) -> Option<String> {
     use RunnerScript::*;
     match script {
         CompleteAfterProbes { .. } | CompleteImmediately => Some(valid_document()),
-        NeverWriteResult => None,
+        NeverWriteResult | ExitWithoutResult => None,
         WriteMalformedResult => Some(malformed_document()),
         WriteUnknownEnvelopeField => Some(unknown_envelope_field_document()),
         WriteUnknownNestedField => Some(unknown_nested_field_document()),

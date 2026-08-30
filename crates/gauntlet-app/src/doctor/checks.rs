@@ -637,21 +637,93 @@ fn read_reference_lock(lock_path: &Path) -> Result<FrozenLock, String> {
 /// [`BackendDescriptor`]. The app layer cannot probe a harness binary
 /// itself — the adapter lives under `crates/adapters/**` (§24.3) — so the
 /// measurement arrives from the composition root, which owns the
-/// adapters. What was MEASURED is the harness API-surface version
-/// compatibility only; the evidence text says so and nothing more.
+/// adapters. WHAT was measured is named by [`RunnerDescriptor::kind`] —
+/// plan Task 15's version-range probe or plan Task 16's configuration
+/// probe — and the evidence text renders that dimension and nothing more
+/// (correction RES-D6: a configuration-only probe must never claim a
+/// version measurement).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunnerDescriptor {
     /// The runner token the descriptor measured (must equal the resolved
     /// `runners.default`, or the descriptor describes a different runner).
     pub token: String,
-    /// Whether the probe RESOLVED: the binary was found, its version
-    /// parsed, and the version sits inside the supported range (the range
-    /// is [`crate::config::defaults::HARNESS_VERSION_MIN`] ..
-    /// [`crate::config::defaults::HARNESS_VERSION_LIMIT`], injected by
-    /// the composition root).
+    /// What the measurement WAS — the typed dimension (RES-D6). A
+    /// descriptor naming the configuration dimension claims version
+    /// compatibility for nothing, and vice versa.
+    pub kind: RunnerProbeKind,
+    /// Whether the probe RESOLVED: for [`RunnerProbeKind::VersionRange`],
+    /// the binary was found, its version parsed, and the version sits
+    /// inside the supported range injected by the composition root from
+    /// the app defaults module; for [`RunnerProbeKind::Configuration`],
+    /// the adapter's typed configuration probe resolved (the command
+    /// template parses and every placeholder is known).
     pub measured: bool,
     /// Why measurement failed, when it did — the probe's typed locus.
     pub note: Option<String>,
+}
+
+/// What a [`RunnerDescriptor`]'s measurement actually was (correction
+/// RES-D6, plan Task 16): the typed what-was-measured dimension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunnerProbeKind {
+    /// Plan Task 15: the real binary was located and its version probed
+    /// against the injected supported range. The only dimension that may
+    /// claim version compatibility.
+    VersionRange,
+    /// Plan Task 16: the adapter's typed configuration probe resolved —
+    /// the command template parses and every placeholder is known. No
+    /// binary is touched and no version is claimed.
+    Configuration,
+}
+
+impl RunnerProbeKind {
+    /// The evidence-text phrase for a CLEAN measurement of this dimension.
+    pub fn clean_phrase(self, token: &str) -> String {
+        match self {
+            Self::VersionRange => format!(
+                "runner '{token}' resolves: the harness API-surface version probe measured \
+                 clean (version compatibility only — isolation is declared per invocation at \
+                 dispatch)"
+            ),
+            Self::Configuration => format!(
+                "runner '{token}' resolves: the typed configuration probe measured clean \
+                 (command template parses and every placeholder is known — configuration \
+                 only, no binary probed and no version claimed)"
+            ),
+        }
+    }
+
+    /// The evidence-text phrase for a FAILED measurement of this
+    /// dimension.
+    pub fn failed_phrase(self, token: &str, note: Option<&str>) -> String {
+        let note = note.map(|note| format!(": {note}")).unwrap_or_default();
+        match self {
+            Self::VersionRange => format!(
+                "runner_probe_failed: runner '{token}' could not be probed{note} — a harness \
+                 whose API-surface version does not resolve is a configuration failure (spec \
+                 8.5 check 3, 21.1)"
+            ),
+            Self::Configuration => format!(
+                "runner_probe_failed: runner '{token}' could not be probed{note} — a command \
+                 template that does not parse (unknown placeholder, unbalanced quoting, or a \
+                 missing value) is a configuration failure (spec 8.5 check 3, 21.1)"
+            ),
+        }
+    }
+
+    /// The evidence-text phrase for the capability check's measured half.
+    pub fn capability_phrase(self, token: &str) -> String {
+        match self {
+            Self::VersionRange => format!(
+                "runner '{token}' probed: harness API-surface version compatibility measured \
+                 (that dimension only)"
+            ),
+            Self::Configuration => format!(
+                "runner '{token}' probed: runner configuration measured (that dimension only \
+                 — no binary probed and no version claimed)"
+            ),
+        }
+    }
 }
 
 pub fn check_runners(resolved: &ResolvedConfig, runner: Option<&RunnerDescriptor>) -> CheckOutcome {
@@ -731,25 +803,14 @@ pub fn check_runners(resolved: &ResolvedConfig, runner: Option<&RunnerDescriptor
         }
         (true, Some(descriptor)) if !descriptor.measured => (
             CheckStatus::Fail,
-            vec![format!(
-                "runner_probe_failed: runner '{}' could not be probed{} — a harness whose \
-                 API-surface version does not resolve is a configuration failure (spec 8.5 \
-                 check 3, 21.1)",
+            vec![descriptor.kind.failed_phrase(
                 resolved.runners_default.as_deref().unwrap_or(""),
-                descriptor
-                    .note
-                    .as_ref()
-                    .map(|note| format!(": {note}"))
-                    .unwrap_or_default()
+                descriptor.note.as_deref(),
             )],
         ),
         (true, Some(descriptor)) => (
             CheckStatus::Pass,
-            vec![format!(
-                "runner '{}' resolves: the harness API-surface version probe measured clean \
-                 (version compatibility only — isolation is declared per invocation at dispatch)",
-                descriptor.token
-            )],
+            vec![descriptor.kind.clean_phrase(&descriptor.token)],
         ),
         (true, None) => {
             let reason = "runner adapters land with plan Tasks 15–16";
@@ -959,11 +1020,7 @@ pub fn check_capabilities(
                 (
                     CheckStatus::Pass,
                     vec![
-                        format!(
-                            "runner '{}' probed: harness API-surface version compatibility \
-                             measured (that dimension only)",
-                            descriptor.token
-                        ),
+                        descriptor.kind.capability_phrase(&descriptor.token),
                         "runner isolation-vs-tier enforcement happens per invocation at the \
                          dispatch gate (spec 17.3); the doctor measures no rung for runners"
                             .to_owned(),

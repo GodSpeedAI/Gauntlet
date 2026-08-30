@@ -72,6 +72,7 @@
 //! scanner carries the same note).
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 use crate::deps::Member;
 
@@ -347,6 +348,144 @@ fn push_unique(list: &mut Vec<String>, value: String) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Plan Task 16 (correction RES-D5): the generic CLI adapter's WHOLE-CRATE
+// vendor scan.
+//
+// Spec §4.1 and plan Task 16 step 1 say the `cli-agent` adapter carries
+// "no vendor name anywhere in the crate". The core-crate scans above
+// cannot see inside `crates/adapters/**` (that is the whole §24.3 point),
+// and a public-API-extraction scan would be red at birth — settled
+// legitimate adapters publicize vendor-shaped names (`BwrapSandbox`,
+// `SqliteStateStore`). The adjudicated shape is therefore the NARROWEST
+// honest rule with the required teeth: scan EVERY file of the ONE crate
+// whose contract says "no vendor name anywhere", as raw text (whole
+// files, all extensions, re-exports included — there are no submodules to
+// launder through), over the EXISTING curated [`DENIED_TERMS`]. No new
+// term list, no masks, no exemptions, and no edits to the functions,
+// Roles, or allowlists above: this is strictly additive.
+// ---------------------------------------------------------------------------
+
+/// The crate directory the whole-crate vendor scan polices (plan Task 16).
+pub const GENERIC_CLI_ADAPTER_DIR: &str = "crates/adapters/gauntlet-adapter-agent-cli";
+
+/// Scan one file of the generic CLI adapter crate as raw text: a
+/// case-insensitive substring match of every curated vendor term, with
+/// the file's true line numbers. Splitting/escape normalization is
+/// deliberately NOT carried over from [`scan_source`] — this scan reads
+/// whole files of ONE crate whose written contract is "no vendor name
+/// anywhere", so the recorded residual is narrower, not wider: runtime
+/// assembly (`["cla", "ude"].join("")`) and `#[path]`-escaped submodules
+/// stay invisible to every text scanner (see the module-doc residual).
+pub fn scan_generic_cli_adapter(path: &str, text: &str, deny: &Denylist) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        let lowered = line.to_lowercase();
+        for term in &deny.vendor {
+            if contains_term(&lowered, term) {
+                let message = format!(
+                    "denied-cli-adapter-identifier: {path}:{}: '{term}' — the generic CLI \
+                     adapter crate must carry no vendor identifier anywhere in its surface; \
+                     selection is configuration, not code (plan Task 16; spec §4.1, §24.3)",
+                    index + 1
+                );
+                if !out.contains(&message) {
+                    out.push(message);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// The repo-level check: read EVERY file under
+/// [`GENERIC_CLI_ADAPTER_DIR`] (any extension — the crate's whole
+/// surface, Cargo.toml included) and run
+/// [`scan_generic_cli_adapter`] over each. Unreadable files are
+/// violations, never skips (I8). Anti-vacuity is built in: a missing
+/// crate directory, an empty walk, or a scan that saw no Rust source or
+/// no manifest all fail the check — a glob that matched nothing must not
+/// pass emptily.
+pub fn check_generic_cli_adapter_sources(root: &Path) -> Vec<String> {
+    let deny = Denylist::derive(&[]); // only the curated vendor terms are used
+    let crate_dir = root.join(GENERIC_CLI_ADAPTER_DIR);
+    let mut violations = Vec::new();
+    if !crate_dir.is_dir() {
+        return vec![format!(
+            "denied-cli-adapter-identifier: {GENERIC_CLI_ADAPTER_DIR} does not exist — the \
+             whole-crate vendor scan would be vacuous"
+        )];
+    }
+    let mut scanned = Vec::new();
+    let mut walk = |dir: &Path, out: &mut Vec<PathBuf>| {
+        let mut stack = vec![dir.to_path_buf()];
+        while let Some(current) = stack.pop() {
+            let entries = match std::fs::read_dir(&current) {
+                Ok(entries) => entries,
+                Err(error) => {
+                    violations.push(format!(
+                        "denied-cli-adapter-identifier: {} is not readable ({error}) — missing \
+                         evidence is not passing evidence (I8)",
+                        current.display()
+                    ));
+                    continue;
+                }
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else {
+                    out.push(path);
+                }
+            }
+        }
+    };
+    let mut files = Vec::new();
+    walk(&crate_dir, &mut files);
+    files.sort();
+    for path in &files {
+        let relative = path
+            .strip_prefix(root)
+            .map(|stripped| stripped.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| path.to_string_lossy().into_owned());
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(error) => {
+                violations.push(format!(
+                    "denied-cli-adapter-identifier: {relative} is not readable ({error}) — \
+                     missing evidence is not passing evidence (I8)"
+                ));
+                continue;
+            }
+        };
+        scanned.push(relative.clone());
+        violations.extend(scan_generic_cli_adapter(&relative, &text, &deny));
+    }
+    if files.is_empty() {
+        violations.push(
+            "denied-cli-adapter-identifier: the whole-crate scan walked zero files — the \
+             scan is vacuous"
+                .to_owned(),
+        );
+    }
+    if !scanned.iter().any(|file| file.ends_with(".rs")) {
+        violations.push(
+            "denied-cli-adapter-identifier: no Rust source under the generic CLI adapter \
+             crate was scanned — the walk or the crate layout is broken"
+                .to_owned(),
+        );
+    }
+    if !scanned.iter().any(|file| file.ends_with("Cargo.toml")) {
+        violations.push(
+            "denied-cli-adapter-identifier: the generic CLI adapter crate's manifest was not \
+             scanned — the crate surface is incomplete"
+                .to_owned(),
+        );
+    }
+    violations
+}
+
 /// Case-insensitive substring occurrence check. Word boundaries are
 /// deliberately NOT required: a vendor name embedded in a compound identifier
 /// (`SqliteConn`, `sqlite_conn`, `REQWEST_CLIENT`, `libsqlite3-sys`) still
@@ -606,6 +745,22 @@ mod repo {
             violations.is_empty(),
             "{}",
             crate::summarize("adapter-selection", &violations)
+        );
+    }
+
+    /// Plan Task 16's teeth (correction RES-D5): the generic CLI adapter
+    /// crate carries NO vendor identifier anywhere in its surface — the
+    /// whole crate, every file, as raw text. A vendor identifier planted
+    /// anywhere in this crate (public API included) fails this check, so
+    /// `just boundaries` goes red before the substitution story can
+    /// become vendor-coupled.
+    #[test]
+    fn the_generic_cli_adapter_crate_carries_no_vendor_identifiers() {
+        let violations = crate::check_generic_cli_adapter_sources(&crate::repo_root());
+        assert!(
+            violations.is_empty(),
+            "{}",
+            crate::summarize("denied-cli-adapter-identifier", &violations)
         );
     }
 }
@@ -1643,5 +1798,89 @@ let prime = match object.get(\"prime\") {
                     .any(|(key, _)| key == segment)
             })
             .collect()
+    }
+
+    // -------------------------------------------------------------------
+    // Plan Task 16 (correction RES-D5): the generic CLI adapter's
+    // whole-crate vendor scan — its own scanner tests, so the rule has
+    // demonstrated teeth of its own shape (raw text, every curated term,
+    // true line numbers) rather than borrowing the core scan's.
+    // -------------------------------------------------------------------
+
+    /// Every curated term is flagged by the whole-crate scanner, at the
+    /// true line, with the plan-Task-16 message.
+    #[test]
+    fn every_denied_term_is_flagged_in_the_cli_adapter_scan() {
+        let deny = deny();
+        for term in DENIED_TERMS {
+            let fixture = format!("let binding = \"call {term} now\";\nlet ok = 1;\n");
+            let violations = scan_generic_cli_adapter("fixture.rs", &fixture, &deny);
+            assert!(
+                violations
+                    .iter()
+                    .any(|v| v.contains(&format!("'{term}'")) && v.contains("fixture.rs:1")),
+                "term {term} not flagged at line 1: {violations:?}"
+            );
+        }
+    }
+
+    /// The scan is case-insensitive, reads whole files (comment prose
+    /// included — a vendor name in a doc comment is still a vendor name
+    /// in this crate), and reports NOTHING on clean text or on the
+    /// adapter's own capability vocabulary.
+    #[test]
+    fn the_cli_adapter_scan_is_case_insensitive_and_whole_file() {
+        let deny = deny();
+        let prose = "//! This module fronts any headless agent.\n// The configuration is \
+                     named OpenAI-shaped by the operator? That sentence itself is a \
+                     violation.\n";
+        let violations = scan_generic_cli_adapter("lib.rs", prose, &deny);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("lib.rs:2") && v.contains("'openai'")),
+            "prose must not launder the crate's vendor coupling: {violations:?}"
+        );
+        let clean = scan_generic_cli_adapter(
+            "lib.rs",
+            "//! Generic CLI agent adapter: selection is configuration, not code.\npub const \
+             RUNNER_TOKEN: &str = \"cli-agent\";\n",
+            &deny,
+        );
+        assert!(clean.is_empty(), "{clean:?}");
+    }
+
+    /// The negative control for the repo-level check's anti-vacuity: a
+    /// missing crate directory, an empty walk, or a walk without Rust
+    /// source or manifest all FAIL rather than pass emptily.
+    #[test]
+    fn a_vacuous_cli_adapter_scan_fails_rather_than_passing() {
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-arch-cli-scan-vacuous-{}",
+            std::process::id()
+        ));
+        std::fs::remove_dir_all(&dir).ok();
+        // (a) A missing crate directory is a violation.
+        let missing = check_generic_cli_adapter_sources(&dir);
+        assert!(
+            missing.iter().any(|v| v.contains("does not exist")),
+            "{missing:?}"
+        );
+        // (b) A crate directory with only a manifest is a violation (no
+        // Rust source scanned). The check looks under the fixed relative
+        // crate path, so the scratch mirrors that layout.
+        let crate_dir = dir
+            .join("crates")
+            .join("adapters")
+            .join("gauntlet-adapter-agent-cli");
+        std::fs::create_dir_all(&crate_dir).expect("scratch creatable");
+        std::fs::write(crate_dir.join("Cargo.toml"), "[package]\nname = \"x\"\n")
+            .expect("manifest writable");
+        let manifest_only = check_generic_cli_adapter_sources(&dir);
+        assert!(
+            manifest_only.iter().any(|v| v.contains("no Rust source")),
+            "{manifest_only:?}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

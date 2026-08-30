@@ -25,6 +25,13 @@ gauntlet-adapter-sandbox-bwrap.workspace = true
 # capability-named surface are spelled here; the boundary suite masks
 # the crate name only.
 gauntlet-adapter-agent-prime.workspace = true
+# Plan Task 16: `gauntlet doctor` MEASURES the configured generic CLI
+# runner (§8.5 check 3) through the adapter's typed CONFIGURATION probe —
+# the command template from GAUNTLET_CLI_AGENT_CMD must parse with only
+# known, whole-word placeholders (no binary is touched; RES-D6's
+# configuration probe kind). Only capability-named items are used; the
+# boundary suite masks the crate name only.
+gauntlet-adapter-agent-cli.workspace = true
 
 # Spec §4.1, plan Task 20: the CLI is the composition root — the only crate
 # that may construct adapters and wire them into the application layer.

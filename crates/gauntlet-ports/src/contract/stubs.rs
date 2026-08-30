@@ -28,8 +28,8 @@ use gauntlet_domain::{
 };
 
 use crate::agent_runner::{
-    AgentError, AgentRunner, CancelReason, InvocationHandle, InvocationStatus, Isolation,
-    ResultDelivery, RoleInvocationSpec, RunnerCapabilities,
+    AgentError, AgentRunner, CancelReason, InvocationFailure, InvocationHandle, InvocationStatus,
+    Isolation, ResultDelivery, RoleInvocationSpec, RunnerCapabilities,
 };
 use crate::budget_meter::{BudgetMeter, BudgetMeterError, BudgetSlice, Remaining, Reservation};
 use crate::clock::{Clock, ClockError};
@@ -276,6 +276,15 @@ impl ScriptedRunner {
                 if entry.probes >= 4 {
                     entry.terminal = Some(InvocationStatus::TimedOut);
                 }
+            }
+            // Plan Task 16, shape 2: the child EXITED without writing a
+            // valid contract — `Failed{missing_result}` on the first probe,
+            // decided before any deadline (a dead child can never write).
+            RunnerScript::ExitWithoutResult => {
+                entry.probes += 1;
+                entry.terminal = Some(InvocationStatus::Failed {
+                    class: InvocationFailure::MissingResult,
+                });
             }
             RunnerScript::WriteMalformedResult => {
                 entry.complete("not a result document".to_owned());

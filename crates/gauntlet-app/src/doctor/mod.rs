@@ -1541,6 +1541,7 @@ mod tests {
     fn measured_runner(token: &str) -> Option<checks::RunnerDescriptor> {
         Some(checks::RunnerDescriptor {
             token: token.to_owned(),
+            kind: checks::RunnerProbeKind::VersionRange,
             measured: true,
             note: None,
         })
@@ -1587,6 +1588,7 @@ mod tests {
         input.runner_measure = Some(|token| {
             Some(checks::RunnerDescriptor {
                 token: token.to_owned(),
+                kind: checks::RunnerProbeKind::VersionRange,
                 measured: false,
                 note: Some("runner binary not found at no-such-binary".to_owned()),
             })
@@ -1612,6 +1614,7 @@ mod tests {
         input.runner_measure = Some(|_| {
             Some(checks::RunnerDescriptor {
                 token: "a-different-runner".to_owned(),
+                kind: checks::RunnerProbeKind::VersionRange,
                 measured: true,
                 note: None,
             })

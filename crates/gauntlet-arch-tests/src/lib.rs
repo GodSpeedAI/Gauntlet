@@ -139,6 +139,13 @@ pub mod walk;
 
 use std::path::Path;
 
+/// Plan Task 16 (correction RES-D5): the generic CLI adapter crate's
+/// whole-crate vendor scan — every file under
+/// `crates/adapters/gauntlet-adapter-agent-cli` read as raw text and
+/// checked against the curated [`denylist::DENIED_TERMS`], with built-in
+/// anti-vacuity. Strictly additive: no existing scanner, Role, mask, or
+/// allowlist is touched.
+pub use denylist::check_generic_cli_adapter_sources;
 pub use walk::repo_root;
 
 /// Render a violation list as one assertion message. Each entry already

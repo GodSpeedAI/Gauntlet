@@ -2162,7 +2162,19 @@ impl RunController {
             }
             // §11.5 row 2 (transient: process/store loci; a restart orphan
             // is the store locus): retry after the exponential backoff.
-            InvocationFailure::OrphanedByRestart | InvocationFailure::Execution => {
+            // Plan Task 16 joins `missing_result` here (adjudicated design
+            // correction RES-D4; spec §11.5 names no row for the class):
+            // a finer class of the same transient disposition — the child
+            // exited and the work demonstrably did not happen, so a
+            // re-dispatch can succeed; a persistently broken configuration
+            // is bounded by the budget like any persistently failing
+            // execution. It is deliberately NOT the malformed row (there
+            // is no document to attach a schema reminder to) and NOT the
+            // TimedOut row (no deadline verdict was reached — the exit was
+            // observed first, plan Task 16 shape 2).
+            InvocationFailure::OrphanedByRestart
+            | InvocationFailure::Execution
+            | InvocationFailure::MissingResult => {
                 let cause = IterationCause::TransientError {
                     locus: disposition::TransientLocus::Process,
                     attempt: flight.attempt,

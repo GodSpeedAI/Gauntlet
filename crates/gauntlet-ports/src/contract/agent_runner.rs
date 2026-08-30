@@ -41,6 +41,10 @@ const PROBE_RETRY_STEP: u64 = 15;
 /// every timeout-shaped quantity stays configurable or in the budget.
 const SUITE_PROBE_CEILING: u32 = 24;
 
+/// How many post-terminal stability polls the shape-2 suite takes. A
+/// named constant, like the suite's other probe knobs.
+const STABILITY_POLLS: u64 = 2;
+
 /// How long the suite probes a live invocation before declaring the
 /// never-terminal violation (spec §10.3 rule 5: "No result by deadline is
 /// `TimedOut`").
@@ -107,6 +111,16 @@ pub enum RunnerScript {
     /// The child writes a valid document carrying a stale
     /// `context_envelope_digest` (spec §10.3 rule 6).
     WriteForeignEnvelopeDigest,
+    /// Plan Task 16 (the §4.1 command-template runner), never-write
+    /// shape 2: the
+    /// child has EXITED — cleanly or not — and never wrote a valid result
+    /// document. A dead child can never write, so the verdict is
+    /// `Failed{missing_result}`, decided BEFORE the deadline; `TimedOut`
+    /// is reserved for shape 1 (still RUNNING, silent, at the deadline)
+    /// and `Completed` would obey exit status over the contract.
+    /// Distinct from [`RunnerScript::NeverWriteResult`], whose child is
+    /// still alive.
+    ExitWithoutResult,
 }
 
 /// Constructs the adapter under test with the child behavior a case needs.
@@ -795,6 +809,130 @@ fn capabilities_are_stable_and_typed(factory: &dyn AgentRunnerFactory) -> Vec<Co
                 first.result_delivery.token()
             ),
         ));
+    }
+    findings
+}
+
+/// The never-write shape-2 suite (plan Task 16; the §4.1
+/// command-template runner): a
+/// SIBLING to [`agent_runner_suite`], deliberately NOT part of it. The
+/// settled prime adapter's poll is a deliberate one-input state machine —
+/// result-contract file + spec deadline, never process state (Annex C.4:
+/// idle children unload and reload; liveness is forensics only) — so a
+/// clean-exit verdict is unsatisfiable there by design. This suite pins
+/// the process-observing runner shape ("`poll` checks process state *and*
+/// the result contract") and runs against the adapters that have one
+/// (the mock's script table and the command-template adapter;
+/// AK-013's P8 evidence is
+/// `agent_runner_suite` + this function over both factories).
+///
+/// Pins: a child that has EXITED without writing a valid result contract
+/// is `Failed{missing_result}` — decided on the FIRST probe, before any
+/// deadline (a dead child can never write); never `Completed` (exit
+/// status is liveness evidence, the contract is the completion fact,
+/// §10.3 rule 3) and never `TimedOut` (that verdict is for a child still
+/// RUNNING at its deadline, rule 5); the missing document is never
+/// collectible; the terminal is stable.
+pub fn exit_without_result_suite(factory: &dyn AgentRunnerFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "exit_without_result_is_failed_missing_result";
+    const RULE: &str = "plan task 16 (spec 4.1 command-template runner): a child that EXITED without a valid \
+         result contract is Failed{missing_result}, decided before the deadline — never \
+         Completed (spec 10.3 rule 3) and never TimedOut (spec 10.3 rule 5)";
+    let mut findings = Vec::new();
+    let Ok(runner) = factory.build(RunnerScript::ExitWithoutResult) else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "the factory could not build a runner for the case".to_owned(),
+        )];
+    };
+    let invocation =
+        InvocationId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("suite invocation id is a ULID");
+    let Ok(handle) = runner.invoke(dispatch_spec(invocation)) else {
+        return vec![finding(
+            CASE,
+            RULE,
+            "invoke refused a well-formed spec".to_owned(),
+        )];
+    };
+    // First probe: the verdict is decided before any waiting — a dead
+    // child is classified as soon as the adapter looks, not at the
+    // deadline.
+    let verdict = InvocationStatus::Failed {
+        class: InvocationFailure::MissingResult,
+    };
+    match runner.poll(&handle) {
+        Ok(status) if status == verdict => {}
+        Ok(InvocationStatus::Completed { .. }) => findings.push(finding(
+            CASE,
+            RULE,
+            "an exited child with no valid result contract was reported Completed — exit \
+             status is liveness evidence, never completion evidence (spec 6.1 and 10.3)"
+                .to_owned(),
+        )),
+        Ok(InvocationStatus::TimedOut) => findings.push(finding(
+            CASE,
+            RULE,
+            "an exited child was reported TimedOut — the adapter polled a dead child to the \
+             deadline instead of classifying the observed exit (a dead child can never write)"
+                .to_owned(),
+        )),
+        Ok(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("an exited child with no document ended in {other:?} instead of the verdict"),
+        )),
+        Err(error) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("the first poll of an exited child errored: {error}"),
+        )),
+    }
+    // Post-terminal stability: the SAME verdict on every later poll.
+    // (The repeat count is a named constant, mirroring the suite's own
+    // poll-budget posture: a bare numeric here would sit in value
+    // position inside this statement region, which also carries the
+    // poll/deadline vocabulary.)
+    let mut attempts = 0;
+    while attempts < STABILITY_POLLS {
+        attempts += 1;
+        match runner.poll(&handle) {
+            Ok(status) if status == verdict => {}
+            Ok(other) => findings.push(finding(
+                CASE,
+                RULE,
+                format!(
+                    "poll after the missing_result verdict reported {other:?} on attempt \
+                     {attempts} — a second terminal transition"
+                ),
+            )),
+            Err(error) => findings.push(finding(
+                CASE,
+                RULE,
+                format!("poll after the missing_result verdict errored: {error}"),
+            )),
+        }
+    }
+    // A missing document is never collectible as a result.
+    match runner.collect(
+        &handle,
+        Deadline::at_epoch(EpochSeconds::new(BASE_INSTANT + SPAN)),
+    ) {
+        Ok(result) => findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "collect returned a result document for a missing_result invocation: \
+                 invocation {}",
+                result.invocation_id()
+            ),
+        )),
+        Err(AgentError::ResultNotReady { .. } | AgentError::CollectionFailed { .. }) => {}
+        Err(other) => findings.push(finding(
+            CASE,
+            RULE,
+            format!("collect failed with an unexpected error class: {other}"),
+        )),
     }
     findings
 }

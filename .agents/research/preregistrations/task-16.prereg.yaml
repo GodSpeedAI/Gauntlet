@@ -1,0 +1,361 @@
+# Task 16 preregistration — research instrumentation, non-normative.
+# Written BEFORE any Task-16 implementation exists. Immutable once frozen.
+# Derived only from: .agents/CURRENT_STATUS.yml, .agents/specs/Core-spec.md
+# (§4.1 cli-agent row, §6.1, §6.3, §7.3, §8.6, §10.3, §17.3, §21.2, §23.1
+# P8/I12, §24.3, Annex B.1-B.2, AK-008..AK-014), .agents/plans/gauntlet-impl.md
+# (Task 16, Task 15 context), .agents/reports/task15/{closure.md,IN-FLIGHT.md},
+# .agents/reports/task14/closure.md (residuals R-1b/R-2/R-3 and their
+# triggers), .agents/reports/environment.md, and the standing battery as
+# recorded in CURRENT_STATUS.
+
+schema_version: 1
+task: 16
+
+frozen_at:
+  git_commit: "054176b88192cc50777ab241b926821da99579fd"
+  timestamp_utc: "2026-08-29T23:12:24Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-16.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/Core-spec.md"
+  - ".agents/plans/gauntlet-impl.md"
+  - ".agents/reports/task15/closure.md"
+  - ".agents/reports/task15/IN-FLIGHT.md"
+  - ".agents/reports/task14/closure.md"
+  - ".agents/reports/environment.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task 16 delivers the SECOND real (non-mock) AgentRunner: a generic
+      command-template adapter ("cli-agent", spec §4.1) that spawns any
+      headless agent CLI as a subprocess and fans results in through the
+      result contract — plus the P8/AK-013 substitution proof that the FULL
+      port conformance suite passes against two adapters with one of them
+      not the mock, with zero test-body changes. Recon says the port layer
+      is complete and suite-tested (shared AgentRunner suite with
+      RunnerScript-driven factories; the mock and the task-15 prime adapter
+      both pass it), the crate exists as a doc-comment-only stub from
+      Task 2, and the plan names the new surface precisely: command
+      template from GAUNTLET_CLI_AGENT_CMD with {prompt_file}, {workspace},
+      {result_path}, {model} placeholders. The likely failure classes are
+      seams again, not missing primitives: (a) the TEMPLATE seam — the
+      command template is configuration text that must become argv WITHOUT
+      becoming shell words (task14 COR-1's exact failure class); an unknown
+      placeholder or a missing env var must be a typed configuration error
+      at admission, never a silently unrendered literal that strands the
+      result contract; (b) the PROCESS seam — spawn/wait/kill must sit
+      behind a transport-style seam so the suite runs over doubles with NO
+      real process (R-1b compliance), while the production impl uses real
+      child processes whose reaping, cancellation (SIGTERM then kill), and
+      orphan behavior are adapter obligations; (c) the CLASSIFICATION seam
+      — poll reads process state AND the result contract, and the plan adds
+      a NEW pinned rule the suite does not yet carry: a clean exit without
+      a valid result is Failed{missing_result}, not success and not
+      TimedOut. InvocationFailure (ports) has NO missing_result variant
+      today, so this task necessarily includes a small ports revision —
+      which re-raises the R-2 trigger question recorded below as D3.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          TWO never-write shapes must stay distinct, and the suite today
+          only pins one of them. Shape 1 (pinned by
+          missing_result_is_timed_out): the child is STILL RUNNING with no
+          result at the spec deadline — the verdict is TimedOut, and cancel
+          follows. Shape 2 (plan Task 16 step 2, NOT yet pinned anywhere):
+          the child has EXITED, no valid result exists — the verdict is
+          Failed{missing_result}, reachable BEFORE the deadline, because a
+          dead child will never write. An adapter that keeps polling a dead
+          child to the deadline, or reports TimedOut for a clean exit, or
+          reports Completed because exit status was zero, violates shape 2.
+          The shared suite gains the shape-2 case; both factories (mock,
+          cli) and the prime double must implement the new script.
+      - id: D2
+        statement: >
+          "The result contract is the completion fact" (§6.1, §10.3) means
+          process exit status is LIVENESS evidence, never completion
+          evidence. A zero exit with no valid contract is
+          Failed{missing_result}; a nonzero exit WITH a valid, matching
+          contract is Completed (the contract wins; the exit status is
+          recorded, not obeyed). Reading completion from exit status is the
+          exact mailbox-shaped shortcut the loop exists to forbid.
+      - id: D3
+        statement: >
+          R-2 FOG DECISION (recorded, not silently picked): task14's
+          residual names R-2 due at "the ports revision at Tasks 15/16",
+          and this task DOES revise ports (InvocationFailure::MissingResult,
+          D1). The operative invariant R-2 protects is "before any real
+          runner CONSUMES A WRAPPED COMMAND" — and this adapter consumes a
+          command TEMPLATE from operator configuration, never a
+          SandboxedCommand; nothing in its path touches wrap_builder_command
+          or the governance types. Task16 therefore does NOT discharge R-2;
+          the trigger stays bound to the first composition that hands a
+          runner a wrapped command (task20's run). The alternative reading
+          (any ports touch fires R-2) was considered and rejected as scope
+          invention; the operator can re-adjudicate at review.
+      - id: D4
+        statement: >
+          R-1b continues to bound BUILDER EXECUTION, not RUNNER DELIVERY:
+          the suite runs over process doubles, and any env-gated live leg
+          spawns a trivial probe child (a script/bin that writes the result
+          contract file), dispatched for no Unit, through no gate. No real
+          builder executes under this task. The trigger stays bound to the
+          first composed builder execution (task20 or task25).
+      - id: D5
+        statement: >
+          AK-013's frozen locator names tests/proofs/p8_adapter_substitution;
+          the repository's established proof location is
+          crates/gauntlet-cli/tests/ (p4/p5/p6/p7/p11/p12 precedent). The
+          delivered file will be crates/gauntlet-cli/tests/
+          p8_adapter_substitution.rs — a locator-class divergence recorded
+          via a reference-candidates entry (task14's AK-049 precedent),
+          never by editing the ruler.
+      - id: D6
+        statement: >
+          Honest capabilities: the adapter reports isolation none (external
+          wrapping is the Sandbox port's job), result_delivery file, and a
+          max_depth from configuration. A runner reporting isolation none
+          MUST NOT be selected for a contained tier (§7.3); doctor's
+          capability-vs-tier check already enforces that, and this adapter
+          must tell doctor the truth (measured RunnerDescriptor, prime
+          precedent) so the check can.
+
+    known_blindspots:
+      - >
+        The adapter's prompt-file format is adapter-defined (no spec pin on
+        its bytes beyond carrying what the child needs to write a matching
+        contract). A format chosen for human readability may be hostile to
+        trivial probe children and real CLIs alike; the live leg is the
+        first honest test of the format. Mitigation: keep the format
+        machine-parseable (explicit field markers), and let the live probe
+        exercise the REAL parse path.
+      - >
+        Real agent CLIs have their own flag vocabularies, output
+        idiosyncrasies, and TTY requirements; the adapter is proven against
+        the suite and a trivial probe child, NOT against any named product.
+        The claim is "the mechanism travels", never "every CLI works".
+      - >
+        Process semantics under WSL2 (signal delivery to grandchildren,
+        process-group behavior on cancel, zombie reaping timing) are
+        attacked once by the falsifier at most; exotic process-tree shapes
+        (daemonizing children that survive kill) may survive this task —
+        recorded, not hidden.
+
+  visible_intervention_classes:
+    - id: A1
+      class: >
+        Seam extraction with double-backed verification: parameterize the
+        adapter over a process transport seam (spawn/poll/kill); production
+        impl drives real child processes; suite factory binds
+        script-following in-memory doubles — the task-15 KernelTransport
+        pattern applied to processes.
+      why_visible_now: >
+        The shared suite requires child behaviors (RunnerScript) real CLIs
+        cannot deliver deterministically; the suite's own design says a
+        real adapter maps scripts to probe children, and R-1b forbids real
+        builder processes in the battery.
+    - id: A2
+      class: >
+        Strict admission at both ends: the result document read from disk
+        is untrusted external input — strict decode, invocation_id match,
+        envelope digest match (§10.3 rules 4-6); the command template is
+        untrusted configuration — typed render errors, no silent
+        pass-through of unrendered placeholders.
+      why_visible_now: >
+        The mock and prime adapters already encode both halves; the CLI
+        adapter's new surface is TEMPLATE rendering, where the failure mode
+        (unrendered literal reaching a child) has no precedent test.
+    - id: A3
+      class: >
+        Fail-first teeth: the new shared-suite shape-2 case, the vendor-name
+        denylist mutation (a vendor identifier planted in the adapter's
+        public API must fail just boundaries), and the p8 proof's
+        both-factories assertion must each be shown RED on a deliberately
+        broken shape before they are relied on GREEN.
+      why_visible_now: >
+        The done-when names the vendor-identifier teeth explicitly; a suite
+        case with no demonstrated tooth is a toothless check by the
+        task-14/15 standard.
+    - id: A4
+      class: >
+        Env-gated live verification: one bounded live leg
+        (GAUNTLET_CLI_AGENT_LIVE_PROBE=1 or equivalent) driving a trivial
+        probe child through the REAL spawn/poll/collect path — real process,
+        real contract file, no gate, no Unit, never retried into green.
+      why_visible_now: >
+        P8's "real adapter" claim should not rest on doubles alone; the
+        prime precedent made the same move, and the probe child is cheap
+        (no model).
+    - id: A5
+      class: >
+        Scope fencing: R-1b, R-2, R-3, T15-R1..R5 keep their recorded
+        triggers; composition desires (controller wiring, workspace
+        providers, model-hint dispatch) are recorded as fog/residuals,
+        never implemented here.
+      why_visible_now: >
+        This is the first adapter whose command COULD be pointed at a real
+        gauntlet builder; the temptation to "finish the story" is
+        structural (task15's R4 recurrence).
+
+  predictions:
+    - id: P1
+      prediction: >
+        The first template renderer will interpolate placeholders into a
+        single shell line (or otherwise let configuration text become shell
+        words) — surfacing either as a design-critic blocking find or as
+        the falsifier's quoting/injection payloads landing a word the
+        operator never wrote. Task14 COR-1 class recurrence in a new seam.
+      expects: fire_during_critique
+    - id: P2
+      prediction: >
+        The shape-1/shape-2 distinction (D1) will be wrong in the first
+        implementation: either the adapter keeps polling a dead child to
+        the deadline (reporting TimedOut for a clean exit), or it reports
+        Completed from a zero exit status without the contract, or
+        Failed{Execution} instead of Failed{missing_result} — each caught
+        by the new shared-suite case or the falsifier.
+      expects: fire_during_implementation
+    - id: P3
+      prediction: >
+        The blind executing falsifier finds at least one process-lifecycle
+        defect the suite misses: cancel that kills but never reaps (zombie),
+        a handle that outlives its process record (UnknownHandle after
+        restart-shaped poll), concurrent invocations on one runner instance
+        cross-wiring child records, or the prompt file leaking between
+        invocations of a shared state directory.
+      expects: fire_during_critique
+    - id: P4
+      prediction: >
+        Extending the shared suite with the shape-2 case breaks the OTHER
+        adapters' factories (mock script table; prime's clock-driven
+        double) — i.e., the suite extension is discovered to be a
+        three-adapter change, not a one-adapter one, and at least one
+        existing suite run goes RED until the doubles learn the new script.
+      expects: fire_during_implementation
+    - id: P5
+      prediction: >
+        At least one representational gap surfaces around the --adapter
+        selection mechanism (plan step 3 names a test-harness flag the
+        repository has no precedent for; nextest's arg-passing and
+        filter-expression syntax will not fit the plan's line as written),
+        or around where the prompt file lives (workspace? state dir?
+        anchored under the invocation?) — each resolved as a recorded
+        decision in the closure record, not a silent local invention.
+      expects: representation_inadequacy
+
+  risks:
+    - id: R1
+      description: >
+        Shell-word contamination: GAUNTLET_CLI_AGENT_CMD is operator
+        configuration; if the adapter renders it through a shell (sh -c)
+        or splits it naively, a workspace path or model hint containing
+        shell metacharacters becomes executable grammar — COR-1's failure
+        class, now with an operator-supplied attack surface.
+      mitigation_preregistered:
+        - class: A3
+          action: >
+            The design brief pins shell-word PARSING into argv with
+            placeholders substituted as single argv words (no shell
+            interpolation); the falsifier's round must include quoting and
+            metacharacter payloads through BOTH the template and the
+            substituted values, and the teeth must be shown RED on a
+            deliberately broken renderer.
+    - id: R2
+      description: >
+        Fake-success pressure on the real-adapter claim: if the live leg is
+        flaky under WSL2, the temptation is to let the suite-over-doubles
+        run stand as the "real adapter" evidence for P8.
+      mitigation_preregistered:
+        - class: A4
+          action: >
+            The live leg is env-gated, bounded, one real process, and its
+            outcome is recorded verbatim in the closure record; P8's claim
+            in the closure states which legs were live and which were
+            doubles, never blending them.
+    - id: R3
+      description: >
+        Ruler-adjacent drift: the suite extension could be implemented as
+        adapter-local tests instead of a shared-suite case (weakening what
+        AK-008..AK-013 pin), or the locator divergence (D5) could tempt an
+        answer-key edit.
+      mitigation_preregistered:
+        - class: A5
+          action: >
+            The shared suite in gauntlet-ports is the ONLY place the shape-2
+            rule may land; the locator divergence is recorded via
+            reference-candidates; just ruler must PASS before and after
+            every phase, and the answer key is never opened for edit.
+    - id: R4
+      description: >
+        Scope creep toward R-1b/R-2/R-3/composition: wiring the CLI adapter
+        into the controller, "fixing" governance types while ports are
+        open, or discharging T15 residuals that merely share a file.
+      mitigation_preregistered:
+        - class: A5
+          action: >
+            The builder brief enumerates the allowed touch surface (cli
+            crate, ports InvocationFailure + shared suite case + the three
+            factories' script tables, cli-cli proof test, doctor descriptor
+            mirror); everything else is recorded, not implemented.
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: >
+        The task-8 mock suite legs and the task-15 prime suite legs still
+        pass unchanged after the suite gains the shape-2 case (their
+        factories learn the new script; no assertion is weakened).
+      preregistered_expectation: >
+        just test shows mock and prime suite runs green with the ONLY
+        suite-source change being the additive shape-2 case; byte-diff of
+        existing case bodies is empty.
+    parametric_variation:
+      level: L2
+      description: >
+        The CLI adapter passes the SAME unmodified suite for every
+        RunnerScript variant (including the new shape-2 script), and p8
+        runs the full suite over BOTH factories with zero per-adapter test
+        bodies.
+      preregistered_expectation: >
+        agent_runner_suite over the cli factory returns empty findings;
+        p8_adapter_substitution passes with both adapters selected; no
+        test body branches on which adapter is running.
+    structural_transfer:
+      level: L3
+      description: >
+        A NEW bypass shape not in the suite — e.g. a template carrying an
+        unknown placeholder, a result written by the child AFTER a clean
+        exit but after the deadline, a placeholder value containing newline
+        or quote metacharacters — is rejected by the adapter's existing
+        render/classification logic without a special-case rule for that
+        exact payload.
+      preregistered_expectation: >
+        The falsifier's novel attack is refused by already-present render
+        validation or contract classification; any fix records a class,
+        not a payload blocklist.
+
+  explicit_nonclaims:
+    - >
+      This task does NOT discharge R-1b (no real builder executes), R-2
+      (no runner consumes a wrapped command here — D3 fog decision), or
+      R-3 (wrap_builder_command gains no production caller).
+    - >
+      This task does NOT prove that any specific vendor CLI works; the
+      adapter is proven against the suite, the probe-child live leg, and
+      the falsifier's payloads — "the mechanism travels", not "every CLI
+      works" (known_blindspots).
+    - >
+      This task does NOT select runners.default or resolve UNK-003; doctor
+      gains the ability to MEASURE the cli runner, and the choice remains
+      the operator's.
+    - >
+      Nothing here claims containment: isolation none is reported honestly
+      and the Sandbox port boundary is untouched (D6).
+    - >
+      A green p8 does NOT claim production dispatch readiness: the
+      controller still feeds mock runners; the composed path is task20's
+      with R-1b still hard-triggering it.
+
+post_run: {}

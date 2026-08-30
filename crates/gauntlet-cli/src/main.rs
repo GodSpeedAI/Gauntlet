@@ -91,34 +91,75 @@ fn doctor(args: &[String]) -> ExitCode {
 /// 15): fronts the real delegation-harness runner adapter, probes its
 /// binary through the adapter's typed probe (the supported-version range
 /// is injected from the app defaults module), and reports the
-/// measurement. `None` when the token names a runner this composition
-/// does not front. The only item names used are the adapter's
-/// capability-named surface and its runner token constant — the crate
-/// name is the composition root's to spell (§4.1).
+/// measurement. Plan Task 16 adds the generic CLI runner: its probe is
+/// the CONFIGURATION probe (RES-D6) — the command template must be
+/// present and must parse with only known, whole-word placeholders; no
+/// binary is touched and no version is claimed. `None` when the token
+/// names a runner this composition does not front. The only item names
+/// used are the adapters' capability-named surfaces and their runner
+/// token constants — the crate names are the composition root's to
+/// spell (§4.1).
 fn measure_runner(token: &str) -> Option<gauntlet_app::doctor::checks::RunnerDescriptor> {
+    use gauntlet_adapter_agent_cli as generic_cli_runner;
     use gauntlet_adapter_agent_prime as recursive_runner;
 
-    if token != recursive_runner::RUNNER_TOKEN {
-        // The token names a runner this composition does not front.
-        return None;
+    if token == recursive_runner::RUNNER_TOKEN {
+        let config = recursive_runner::PrimeAdapterConfig::default();
+        let range = recursive_runner::VersionRange {
+            min: gauntlet_app::config::defaults::HARNESS_VERSION_MIN,
+            limit: gauntlet_app::config::defaults::HARNESS_VERSION_LIMIT,
+        };
+        return Some(
+            match recursive_runner::probe(&config.binary, &range, doctor_bound()) {
+                Ok(_) => gauntlet_app::doctor::checks::RunnerDescriptor {
+                    token: token.to_owned(),
+                    kind: gauntlet_app::doctor::checks::RunnerProbeKind::VersionRange,
+                    measured: true,
+                    note: None,
+                },
+                Err(error) => gauntlet_app::doctor::checks::RunnerDescriptor {
+                    token: token.to_owned(),
+                    kind: gauntlet_app::doctor::checks::RunnerProbeKind::VersionRange,
+                    measured: false,
+                    note: Some(error.to_string()),
+                },
+            },
+        );
     }
-    let config = recursive_runner::PrimeAdapterConfig::default();
-    let range = recursive_runner::VersionRange {
-        min: gauntlet_app::config::defaults::HARNESS_VERSION_MIN,
-        limit: gauntlet_app::config::defaults::HARNESS_VERSION_LIMIT,
-    };
-    match recursive_runner::probe(&config.binary, &range, doctor_bound()) {
-        Ok(_) => Some(gauntlet_app::doctor::checks::RunnerDescriptor {
+    if token == generic_cli_runner::RUNNER_TOKEN {
+        // The configuration probe (plan Task 16; RES-D6): the typed
+        // template parse IS the measurement. A missing variable is an
+        // honest unmeasured descriptor naming the locus — never a pass.
+        let descriptor = |measured, note| gauntlet_app::doctor::checks::RunnerDescriptor {
             token: token.to_owned(),
-            measured: true,
-            note: None,
-        }),
-        Err(error) => Some(gauntlet_app::doctor::checks::RunnerDescriptor {
-            token: token.to_owned(),
-            measured: false,
-            note: Some(error.to_string()),
-        }),
+            kind: gauntlet_app::doctor::checks::RunnerProbeKind::Configuration,
+            measured,
+            note,
+        };
+        return Some(match std::env::var(generic_cli_runner::COMMAND_ENV_VAR) {
+            Err(std::env::VarError::NotPresent) => descriptor(
+                false,
+                Some(format!(
+                    "{} is not set — the generic CLI runner is driven entirely by its \
+                     configured command template",
+                    generic_cli_runner::COMMAND_ENV_VAR
+                )),
+            ),
+            Err(error) => descriptor(
+                false,
+                Some(format!(
+                    "{} is not readable as Unicode: {error}",
+                    generic_cli_runner::COMMAND_ENV_VAR
+                )),
+            ),
+            Ok(template) => match generic_cli_runner::probe_template(&template) {
+                Ok(()) => descriptor(true, None),
+                Err(error) => descriptor(false, Some(error.to_string())),
+            },
+        });
     }
+    // The token names a runner this composition does not front.
+    None
 }
 
 /// Measures the configured sandbox backend for §8.5 check 4 (plan Task

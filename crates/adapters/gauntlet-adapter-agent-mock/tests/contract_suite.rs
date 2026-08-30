@@ -11,7 +11,9 @@
 //! proven here.
 
 use gauntlet_adapter_agent_mock::MockRunnerFactory;
-use gauntlet_ports::contract::agent_runner::{ProbeBudget, agent_runner_suite};
+use gauntlet_ports::contract::agent_runner::{
+    ProbeBudget, agent_runner_suite, exit_without_result_suite,
+};
 
 /// The unmodified Task-4 `AgentRunner` contract suite against the mock
 /// adapter with the in-repo instant probe budget. Empty findings = pass.
@@ -25,6 +27,25 @@ fn the_mock_runner_passes_the_unmodified_shared_contract_suite() {
     assert!(
         findings.is_empty(),
         "the mock runner must pass the shared suite:\n{}",
+        findings
+            .iter()
+            .map(|finding| finding.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+/// Plan Task 16's shape-2 suite (a sibling of the shared suite, not part
+/// of it): the mock's script table learned `ExitWithoutResult`, so the
+/// mock must classify an exited child with no document as
+/// `Failed{missing_result}` on the first probe — never Completed, never
+/// TimedOut — with the document uncollectible.
+#[test]
+fn the_mock_runner_passes_the_exit_without_result_suite() {
+    let findings = exit_without_result_suite(&MockRunnerFactory);
+    assert!(
+        findings.is_empty(),
+        "the mock runner must pass the exit-without-result suite:\n{}",
         findings
             .iter()
             .map(|finding| finding.to_string())
