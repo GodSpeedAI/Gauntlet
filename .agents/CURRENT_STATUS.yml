@@ -8,28 +8,27 @@ metadata:
                                        # drives multiple plans
   spec_version: "2.0.0"
   initialized: true                   # false only before the very first burst
-  last_updated: "2026-08-30"
+  last_updated: "2026-08-31"
   updated_by: >-
-    orchestrator (Task 18 SETTLED — wayfinder-gauntlet skill derivation:
-    design-as-built critic CONFIRM (2 major/3 minor), falsifier round1
-    CONFIRM-but-found-gap→COR1, falsifier round2 NOT_CONFIRM (allowlist
-    fix recurred)→COR2 (deny-by-default redesign), fresh falsifier round3
-    CONFIRM 0 blocking; AK-064/AK-065 recorded; 45 units provisional
-    through Task 18)
+    orchestrator (Task 19 SETTLED — companion + repo-owned skills:
+    design-as-built critic CONFIRM (1 major/1 minor)→COR1+COR2 (widened
+    control-logic denylist + disclosure), falsifier round1 NOT_CONFIRM
+    (COR1 itself over-rejected sanctioned "the runtime does X" prose;
+    plus a secret-label boundary bug)→COR3+COR4 (structural "the runtime"
+    proximity exemption + boundary fix), fresh falsifier round2 CONFIRM
+    0 blocking/0 major/0 minor; task20 now the sole ready task)
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
 # ─────────────────────────────────────────────────────────────────────────
 execution:
-  last_settled_task: task18           # most recent task with a CONFIRM in
+  last_settled_task: task19           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: null                # task18 settled; see
-                                       # .agents/reports/task18/closure.md
+  in_flight_task: null                # task19 settled; see
+                                       # .agents/reports/task19/closure.md
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
-    - task19                          # companion + repo-owned skills
-                                       # (parallel-safe; needs 18, now settled)
     - task20                          # CLI surface + E2E on mock (needs 17; now ready:
                                        # 7/9/10/11/12/13/14/15/16/17 all settled)
 
@@ -52,7 +51,7 @@ execution:
 # ─────────────────────────────────────────────────────────────────────────
 active:
   task: null
-  phase: idle                        # task18 settled; next dispatch is task19 or task20
+  phase: idle                        # task19 settled; next dispatch is task20
   blocker: null
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -267,6 +266,39 @@ latest_evidence:
       Guardrails held throughout (answer-key.md, reference.lock untouched
       at every checkpoint).
     commit: "827dd46"
+  task19:
+    report: ".agents/reports/task19/"
+    confirmation: >-
+      Two parallel builder slices (content: four companion skills ported
+      from real upstream + PROVENANCE.md each, plus repo-owned
+      gauntlet-run/SKILL.md; code: gauntlet_app::skills lint over an
+      explicit REPO_OWNED_SKILLS closed list) -> design-as-built critic
+      CONFIRM (0 blocking/1 major/1 minor: control-logic denylist recall
+      gap RES-01, missing "what this lint is not" disclosure RES-02;
+      independently confirmed the single_writer.rs boundary-file edit is
+      a genuine documented lexical false positive, not a weakened
+      boundary) -> COR1+COR2 (widened CONTROL_LOGIC_PHRASES + added the
+      disclosure) -> fresh blind EXECUTING falsifier round1 NOT_CONFIRM
+      (1 major/1 minor: COR1's own widening was subject-blind and
+      over-rejected sanctioned "the runtime does X" descriptive prose —
+      a structural defect, not a one-off string; plus a compound
+      secret-label boundary bypass, e.g. api_key:) -> COR3+COR4
+      (structural "the runtime" same-line proximity exemption for
+      CONTROL_LOGIC_PHRASES only, never CONTROL_LOGIC_IDENTIFIERS; fixed
+      the secret-label underscore boundary bug; 9 new regression tests)
+      -> fresh blind EXECUTING falsifier round2 (different agent
+      instance) CONFIRM (0 blocking/0 major/0 minor: directly attacked
+      the COR3 exemption's own boundary via negation/contrast-clause
+      gaming and a cross-line split attempt; the gaming case reproduces
+      exactly the correction contract's own named accepted-out-of-scope
+      example, not a new gap; re-verified no regression on both sides).
+      Orchestrator personally ran the full gate battery
+      (check/test/lint/deny/boundaries/ruler/doctor + the literal
+      skills::lint gate) after every round — never settled on
+      builder/subagent say-so. Final battery: workspace 1281/1281,
+      boundaries 228/228, lint clean, deny ok, ruler PASS, doctor exit
+      OK.
+    commit: "b29da05"
 
 # ─────────────────────────────────────────────────────────────────────────
 # OBSERVATIONS - facts a resuming agent needs, not a running commentary.
@@ -411,19 +443,18 @@ observations:
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task19                        # companion/repo-owned skills + task20 CLI surface now both ready
+  task: task20                        # sole ready task now that task19 is settled
   action: >-
-    Dispatch task19 (companion + repo-owned skills, parallel-safe; needs
-    18, now settled) or task20 (CLI surface + E2E on mock — needs
-    7/9/10/11/12/13/14/17, all settled) in separate worktrees (compile
-    lock); task20's composed run proves the roles consumption seam
-    (R-1b/R-2) and forces the runners.default decision (UNK-003).
+    Dispatch task20 (CLI surface + E2E on mock — needs
+    7/9/10/11/12/13/14/17, all settled); its composed run proves the
+    roles consumption seam (R-1b/R-2) and forces the runners.default
+    decision (UNK-003). Self-hosting begins here — after this task,
+    remaining tasks run through `gauntlet run` per the plan's own
+    dogfooding instruction.
   reason: >-
-    Task 18 settled with a fresh executing falsifier round 3 CONFIRM
-    (0 blocking) after two correction rounds; 45 units provisional;
-    task19 is parallel-safe and now unblocked, task20 is the next
-    milestone (self-hosting begins). Both hold the compile lock
-    honestly; sequential keeps the cache honest.
+    Task 19 settled with a fresh executing falsifier round 2 CONFIRM
+    (0 blocking/0 major/0 minor) after two correction rounds; task20 is
+    the only remaining ready task and the next milestone.
 
 # ─────────────────────────────────────────────────────────────────────────
 # HANDOFF
@@ -450,6 +481,7 @@ handoff:
     - "T16 Generic CLI agent adapter + P8 substitution proof (AK-013, AK-014 first evidence — both provisional): gauntlet-adapter-agent-cli — command template parsed to shell-word argv (never shell grammar; placeholders bind as single verbatim words), ProcessChildTransport seam (SIGTERM -> bounded grace -> SIGKILL + dedicated reap grace), §10.3 classification total order with the NEW shape-2 rule (exited without valid result ⇒ Failed{missing_result} BEFORE the deadline; contract wins over exit status; TimedOut stops the child), terminal pins retire the child, honest capabilities, GAUNTLET_RESULT_PATH + prompt RESULT-PATH + envelope-body-sibling channels; ports revision InvocationFailure::MissingResult + exit_without_result_suite (sibling suite per RES-D1 — prime's one-input poll can never pass a universal process-exit case); p8 proof: FULL shared suite over mock+cli in one loop body, GAUNTLET_P8_ADAPTER=mock|cli|both fail-closed; doctor MEASURES the cli runner via probe_template (parse AND render). THREE confirmation rounds: design critic NOT_CONFIRM (12 findings, blocking RES-D1, all corrected pre-code) -> falsifier r1 NOT_CONFIRM (F1 cancel-reap grace, F2 comment-only template, F3 doc, F4 terminal child leak — agent died on the usage window, round completed by orchestrator, degraded blindness recorded, attacks retained in-tree) -> COR-F1..F4 -> fresh falsifier r2 CONFIRM (0 blocking/0 in-mechanism major; 2 missing-teeth -> COR-R2-1 probe_template honesty tests + COR-R2-2 cli decode-locus arch scan, teeth re-verified personally ×4). Residuals R16-F2 (contract-path poisoning makes TimedOut unreachable; never self-stops), R16-F3 (char-index-as-byte label), +2 transport notes. 1189/1189 on the closure tree; R-1b/R-2/R-3 restated for task20."
     - "T17 Role artifacts + harness installer (AK-063 — roles installed and verified, drift-detected; 43 units provisional through Task 17): 10 role files (spec §10.1 front matter, context.allow/deny, permissions), typed loader with intersection semantics reusing task5's front-matter + $VAR machinery (FilesystemMode/NetworkMode vocabularies, DeclaredPath raw/resolved split with raw-only Display per spec §8.1, OverGrant/DenyShadowsAllow), semantic harness registry (prime-agent writable / generic-cli advisory with Enforcement), verbatim install into repo-configured state root with content-digest RolesLock (canonical serialization + self-digest, drift-relative repair flag) and content-digest verify (tamper-evident canonical closure, derived-shape path checks, contained_join traversal + absolute refusal, protected anchors §17.5.5, set-membership complete). Build orchestrator-completed after builder window death → design-as-built critic NOT_CONFIRM 14 residuals → B2 COR-D01..D14 → falsifier round1 NOT_CONFIRM (2 major drift-invisibility + canary leakage) → B3 COR-R1-1..4 (6 teeth) → falsifier round2 CONFIRM (0 blocking/0 major; every forgery drift escape canary non-canonical shape repelled; 5 mutants RED→byte-identical restore c3300e62/18a8c581/b827277b→GREEN). Battery 392/392 + boundaries 228/228 + lint/deny/doctor/ruler/prereg PASS; P1/P3/P4/P5 supported, P2 falsified-honestly. AK-063 locator divergence (tests/contract/roles) recorded in reference-candidates, never the ruler."
     - "T18 wayfinder-gauntlet skill derivation (AK-064/AK-065 — 45 units provisional through Task 18): real upstream derivation (github.com/mattpocock/skills @ 6654f6b, MIT), .agents/skills/wayfinder-gauntlet/{SKILL.md,PROVENANCE.md} preserving destination-first/fog-of-war/out-of-scope/HITL semantics with no embedded control logic; gauntlet_app::reference::validate (thin reuse of the Task 7 parser) + gauntlet reference validate CLI subcommand; gauntlet_app::formation::check_reference_invariants enforcing the §9.2 fog/out-of-scope/decision-without-unit invariants, deliberately deny-by-default after two correction rounds (only the Decisions section treats an AK- reference as expected — every other state, including an unrecognized heading, refuses one); tests/contract/skills::wayfinder_gauntlet_conformance + tests/contract/formation::fog_not_in_answer_key (locator divergence recorded, same class as task17). Confirmation history: design-as-built critic CONFIRM (2 major/3 minor) -> falsifier round1 CONFIRM-but-found-the-same-major-class -> COR1 (allowlist widening) -> fresh falsifier round2 NOT_CONFIRM (allowlist recurred via an unenumerated heading spelling) -> COR2 (default-policy flip, not another allowlist entry) -> fresh falsifier round3 CONFIRM 0 blocking. Orchestrator personally verified every gate after every round. Commit: 827dd46."
+    - "T19 companion + repo-owned skills: four companion skills ported from real upstream (grilling, domain-modeling, research, prototype, same commit as task18) each with PROVENANCE.md, plus repo-owned gauntlet-run/SKILL.md (operator procedure, honestly declines to claim Task 20's `gauntlet run` already works); gauntlet_app::skills lint (front-matter schema, control-logic denylist, secret scan, absolute-path scan) over an explicit closed REPO_OWNED_SKILLS list that never globs .agents/skills/ (so untracked local tool skills like jolli* are never scanned). Confirmation history: design critic CONFIRM (1 major/1 minor) -> COR1+COR2 (widened denylist + disclosure) -> falsifier round1 NOT_CONFIRM (COR1 itself over-rejected sanctioned \"the runtime does X\" prose — a structural subject-blindness defect; plus a compound secret-label boundary bug) -> COR3+COR4 (a \"the runtime\" same-line proximity exemption, phrases only never identifiers; secret-label boundary fix) -> fresh falsifier round2 (different agent) CONFIRM 0 blocking/0 major/0 minor, directly re-attacked the new exemption's own boundary. Orchestrator personally ran the full gate battery after every round. Final battery: workspace 1281/1281, boundaries 228/228. Commit: b29da05."
 
   unresolved_summary:
     # Every open thread not captured elsewhere: outstanding confirmations,
