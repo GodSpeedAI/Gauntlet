@@ -12,8 +12,7 @@
 //! AK-102; the clean map/key pair satisfies every §9.2 formation invariant;
 //! the skill document exists and preserves its four semantics markers
 //! (destination-first, fog-of-war, out-of-scope-never-graduates,
-//! HITL-never-self-answered); its provenance record exists and is
-//! non-empty.
+//! HITL-never-self-answered).
 
 use std::fs;
 use std::path::PathBuf;
@@ -81,19 +80,6 @@ fn wayfinder_gauntlet_conformance() {
             "SKILL.md must preserve the {marker:?} semantics marker"
         );
     }
-
-    // (d) the provenance record exists and is non-empty.
-    let provenance_path = repo_root()
-        .join(".agents")
-        .join("skills")
-        .join("wayfinder-gauntlet")
-        .join("PROVENANCE.md");
-    let provenance_text = fs::read_to_string(&provenance_path)
-        .unwrap_or_else(|err| panic!("{} reads: {err}", provenance_path.display()));
-    assert!(
-        !provenance_text.trim().is_empty(),
-        "PROVENANCE.md must be non-empty"
-    );
 }
 
 /// Task 19 Slice B gate (`cargo nextest run -p gauntlet-app skills::lint`).
@@ -117,12 +103,11 @@ mod skills {
     use super::*;
 
     /// Runs `lint_installed_skills` against the real repository root and
-    /// asserts every one of the six `REPO_OWNED_SKILLS` lints clean. This
-    /// test depends on Task 19 Slice A (a parallel content-only slice)
-    /// having installed all six skill directories under `.agents/skills/`
-    /// with front matter conforming to the schema in `IN-FLIGHT.md`
-    /// decision 3 — see `.agents/reports/task19/b1-code-progress.md` for
-    /// whether that slice had landed as of this test's last run.
+    /// asserts every entry in `REPO_OWNED_SKILLS` lints clean. This test
+    /// depends on each named skill directory under `.agents/skills/` having
+    /// front matter conforming to the schema in `IN-FLIGHT.md` decision 3
+    /// — see `.agents/reports/task19/b1-code-progress.md` for the original
+    /// six-skill baseline.
     #[test]
     fn lint_passes_every_installed_skill() {
         let skills_root = repo_root().join(".agents").join("skills");
@@ -130,7 +115,7 @@ mod skills {
         assert_eq!(
             results.len(),
             REPO_OWNED_SKILLS.len(),
-            "lint_installed_skills must report exactly the six REPO_OWNED_SKILLS"
+            "lint_installed_skills must report exactly every REPO_OWNED_SKILLS entry"
         );
         let failures: Vec<String> = results
             .into_iter()

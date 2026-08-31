@@ -4,12 +4,9 @@ description: Grill the user relentlessly about a plan, decision, or idea. Use wh
 ---
 
 This is a direct port of the upstream `grilling` skill
-(`skills/productivity/grilling` in `mattpocock/skills`); its front matter
-already conformed to this repo's skill schema, so no field changes were
-needed. See `PROVENANCE.md` in this directory for upstream commit, licence,
-and delta. In this repo it is the companion `wayfinder-gauntlet` calls on
-during formation to extract sharp questions from a loose intent
-(Core-spec Annex D.4).
+(`skills/productivity/grilling` in `mattpocock/skills`). In this repo it is
+the companion `wayfinder-gauntlet` calls on during formation to extract
+sharp questions from a loose intent (Core-spec Annex D.4).
 
 Interview the requester relentlessly until reaching a shared understanding.
 Map this as a **design tree**: every decision branches into the decisions

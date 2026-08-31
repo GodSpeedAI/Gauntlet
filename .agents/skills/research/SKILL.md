@@ -4,12 +4,9 @@ description: Investigate a question against high-trust primary sources and captu
 ---
 
 This is a direct port of the upstream `research` skill
-(`skills/engineering/research` in `mattpocock/skills`); its front matter
-already conformed to this repo's skill schema, so no field changes were
-needed. See `PROVENANCE.md` in this directory for upstream commit, licence,
-and delta. In this repo it is the companion `wayfinder-gauntlet` calls on
-during formation for AFK resolution of a fact a decision is waiting on
-(Core-spec Annex D.4).
+(`skills/engineering/research` in `mattpocock/skills`). In this repo it is
+the companion `wayfinder-gauntlet` calls on during formation for AFK
+resolution of a fact a decision is waiting on (Core-spec Annex D.4).
 
 Spin up a background agent to do the research, so the requester keeps
 working while it reads.

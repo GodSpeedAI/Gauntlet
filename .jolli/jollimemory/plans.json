@@ -99,6 +99,167 @@
 			"updatedAt": "2026-08-28T13:23:35.346Z",
 			"commitHash": "1fcfdd0682877eba264592b9feb91971c794eec0",
 			"contentHashAtCommit": "205dbe97cebbb34609bfeb6fb0a893f53801fee76abffff0f90c09f63d045321"
+		},
+		"IN-FLIGHT": {
+			"slug": "IN-FLIGHT",
+			"title": "Task 18 IN-FLIGHT — wayfinder-gauntlet derivation",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task18/IN-FLIGHT.md",
+			"addedAt": "2026-08-30T23:02:51.142Z",
+			"updatedAt": "2026-08-30T23:53:01.294Z",
+			"commitHash": "827dd462ecabc6859fef34948f57fc9b0161eaf2",
+			"contentHashAtCommit": "6ba6ecc2287381a43393189ca7dddc6eea4fba82fef244d4389dca4c318e025c"
+		},
+		"closure": {
+			"slug": "closure",
+			"title": "Task 18 closure — `wayfinder-gauntlet` skill derivation",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task18/closure.md",
+			"addedAt": "2026-08-30T23:53:31.060Z",
+			"updatedAt": "2026-08-31T12:08:15.903Z",
+			"commitHash": "b29da05cb5d20c4c3ddf0322dabe57e71da3f94b",
+			"contentHashAtCommit": "2d01bb35e927299fb033052ba46fe8b21f9fd0ae33b9406b2e64445b50948b13"
+		},
+		"IN-FLIGHT-a9e9fc2b": {
+			"slug": "IN-FLIGHT-a9e9fc2b",
+			"title": "Task 19 IN-FLIGHT — companion + repo-owned skills",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task19/IN-FLIGHT.md",
+			"addedAt": "2026-08-31T01:08:30.431Z",
+			"updatedAt": "2026-08-31T12:08:15.907Z",
+			"commitHash": "b29da05cb5d20c4c3ddf0322dabe57e71da3f94b",
+			"contentHashAtCommit": "8d44323e294a72f49cdaff327d6f588d19b19d2a117005ddfa139b84ae8751e0"
+		},
+		"correction-round1": {
+			"slug": "correction-round1",
+			"title": "Task 19 correction round 1 (COR1 + COR2)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task19/correction-round1.md",
+			"addedAt": "2026-08-31T11:41:09.199Z",
+			"updatedAt": "2026-08-31T12:08:15.909Z",
+			"commitHash": "b29da05cb5d20c4c3ddf0322dabe57e71da3f94b",
+			"contentHashAtCommit": "37a6f30e41fd04c227f4178d4df57b70524ddf3e8089149b9dbf69f6ba7a5b0b"
+		},
+		"correction-round2": {
+			"slug": "correction-round2",
+			"title": "Task 19 correction round 2 (COR3 + COR4)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task19/correction-round2.md",
+			"addedAt": "2026-08-31T11:54:52.907Z",
+			"updatedAt": "2026-08-31T12:08:15.912Z",
+			"commitHash": "b29da05cb5d20c4c3ddf0322dabe57e71da3f94b",
+			"contentHashAtCommit": "d1a922992db009ad68df975c5fe8ab30a066e92bda9d4d8f9bf6af5358e30a0e"
+		},
+		"closure-185354fb": {
+			"slug": "closure-185354fb",
+			"title": "Task 19 closure — companion + repo-owned skills",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task19/closure.md",
+			"addedAt": "2026-08-31T12:08:40.155Z",
+			"updatedAt": "2026-08-31T12:08:40.155Z",
+			"commitHash": null
+		},
+		"SKILL": {
+			"slug": "SKILL",
+			"title": "SKILL.md",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/grilling/SKILL.md",
+			"addedAt": "2026-08-31T13:32:14.060Z",
+			"updatedAt": "2026-08-31T13:32:14.060Z",
+			"commitHash": null
+		},
+		"SKILL-7fec3982": {
+			"slug": "SKILL-7fec3982",
+			"title": "SKILL.md",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/wayfinder-gauntlet/SKILL.md",
+			"addedAt": "2026-08-31T13:32:14.060Z",
+			"updatedAt": "2026-08-31T13:32:14.060Z",
+			"commitHash": null
+		},
+		"SKILL-d1df3495": {
+			"slug": "SKILL-d1df3495",
+			"title": "SKILL.md",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/prototype/SKILL.md",
+			"addedAt": "2026-08-31T13:32:14.060Z",
+			"updatedAt": "2026-08-31T13:32:14.060Z",
+			"commitHash": null
+		},
+		"SKILL-d9d30cc7": {
+			"slug": "SKILL-d9d30cc7",
+			"title": "SKILL.md",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/research/SKILL.md",
+			"addedAt": "2026-08-31T13:32:14.060Z",
+			"updatedAt": "2026-08-31T13:32:14.060Z",
+			"commitHash": null
+		},
+		"Core-spec": {
+			"slug": "Core-spec",
+			"title": "GAUNTLET RUNTIME SPECIFICATION",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/specs/Core-spec.md",
+			"addedAt": "2026-08-31T13:32:14.060Z",
+			"updatedAt": "2026-08-31T13:32:14.060Z",
+			"commitHash": null
+		},
+		"SKILL-700a4f06": {
+			"slug": "SKILL-700a4f06",
+			"title": "DomainForge SEA — Gauntlet Integration",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/domainforge-sea/SKILL.md",
+			"addedAt": "2026-08-31T13:32:14.060Z",
+			"updatedAt": "2026-08-31T14:03:56.490Z",
+			"commitHash": null
+		},
+		"SKILL-931e34bf": {
+			"slug": "SKILL-931e34bf",
+			"title": "Domain Formation",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/domain-formation/SKILL.md",
+			"addedAt": "2026-08-31T13:32:14.060Z",
+			"updatedAt": "2026-08-31T13:32:14.060Z",
+			"commitHash": null
+		},
+		"gauntlet-domain-model-layout": {
+			"slug": "gauntlet-domain-model-layout",
+			"title": "Gauntlet Project Domain Model Layout",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/domainforge-sea/references/gauntlet-domain-model-layout.md",
+			"addedAt": "2026-08-31T14:03:56.490Z",
+			"updatedAt": "2026-08-31T14:03:56.490Z",
+			"commitHash": null
+		},
+		"SKILL-996c09f4": {
+			"slug": "SKILL-996c09f4",
+			"title": "NeatCode",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/neatcode/SKILL.md",
+			"addedAt": "2026-08-31T14:12:58.379Z",
+			"updatedAt": "2026-08-31T14:12:58.379Z",
+			"commitHash": null
+		}
+	},
+	"skills": {
+		"claude:skill-creator": {
+			"source": "claude",
+			"skill": "skill-creator",
+			"entryPaths": [
+				"command"
+			],
+			"invocations": [
+				{
+					"at": "2026-08-31T13:22:59.053Z",
+					"args": "audit then optimize the following skills: .agents/skills/domain-formation, .agents/skills/gauntlet-run, .agents/skills/grilling, .agents/skills/wayfinder-gauntlet, .agents/skills/prototype, .agents/skills/research and .agents/skills/domainforge-sea",
+					"bodyChars": 17730,
+					"ok": true
+				}
+			],
+			"invocationCount": 1,
+			"firstUsedAt": "2026-08-31T13:22:59.053Z",
+			"lastUsedAt": "2026-08-31T13:22:59.053Z",
+			"usage": {
+				"input": 102,
+				"cached": 163642,
+				"output": 32224,
+				"confidence": "attributed"
+			},
+			"usageBySession": {
+				"claude:f4ce910f-1452-4b1f-a51c-0245cef0c22b": {
+					"input": 102,
+					"cached": 163642,
+					"output": 32224,
+					"confidence": "attributed"
+				}
+			},
+			"sourcePath": "/home/sprime01/projects/gauntlet/.jolli/jollimemory/skills/claude/skill-creator-39f2ccd5.md",
+			"commitHash": null
 		}
 	}
 }

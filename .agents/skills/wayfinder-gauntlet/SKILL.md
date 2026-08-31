@@ -14,10 +14,9 @@ stays visibly unresolved.
 
 This is a derivation of the upstream `wayfinder` skill
 (`skills/engineering/wayfinder` in `mattpocock/skills`), adapted for the
-Gauntlet's writer-authority model. See `PROVENANCE.md` in this directory for
-exact upstream commit, licence, and the full delta. The load-bearing
-semantics below are preserved from upstream; the mechanics of where decisions
-get written are not.
+Gauntlet's writer-authority model. The load-bearing semantics below are
+preserved from upstream; the mechanics of where decisions get written are
+not.
 
 ## Destination first
 
@@ -239,10 +238,10 @@ is runtime control logic, not something this skill (or any skill) implements
 
 Per Core-spec Annex D.4, this skill leans on companions for parts of the
 grilling loop it does not itself implement: `grilling` (extracting sharp
-questions from loose intent), `domain-modeling` (producing the vocabulary
+questions from loose intent), `domain-formation` (producing the vocabulary
 the reference is written in), `research` (AFK resolution of a fact a
 decision waits on), and `prototype` (a cheap concrete artifact to raise
 discussion fidelity, used for HITL decisions where "how should it look or
 behave" is the live question). Call the Skill tool for whichever of these a
 given decision needs; when in doubt for a HITL decision, call both
-`grilling` and `domain-modeling`.
+`grilling` and `domain-formation`.

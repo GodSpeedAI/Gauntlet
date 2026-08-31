@@ -1,7 +1,7 @@
 {
 	"userDisabled": false,
 	"manuallyDisabled": true,
-	"cutoverAttemptedAtMs": 1786818880264,
+	"cutoverAttemptedAtMs": 1787978612465,
 	"cutoverFence": {
 		"reason": "cutover to sqlite",
 		"at": "2026-08-15T18:34:40.357Z",

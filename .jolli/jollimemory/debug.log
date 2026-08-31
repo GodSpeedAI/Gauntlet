@@ -2216,3 +2216,1119 @@
 [2026-08-28T19:42:56.046Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
 [2026-08-28T19:42:56.051Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
 [2026-08-28T19:42:56.055Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T21:37:59.420Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-28T21:37:59.438Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-28T21:37:59.904Z] INFO  [PostCommitHook] [trace=d186bb74e9149f67a9e2169172146ef3] Detected operation: commit
+[2026-08-28T21:37:59.910Z] INFO  [PostCommitHook] [trace=d186bb74e9149f67a9e2169172146ef3] Enqueued: type=commit hash=967731d6
+[2026-08-28T21:37:59.910Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Launching background worker
+[2026-08-28T21:37:59.911Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Background worker spawned (PID: 549610)
+[2026-08-28T21:38:00.111Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-28T21:38:00.119Z] INFO  [StorageFactory] [trace=d186bb74e9149f67a9e2169172146ef3] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T21:38:00.172Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Processing queue entry: type=commit hash=967731d6
+[2026-08-28T21:38:00.182Z] INFO  [GitOps] [trace=d186bb74e9149f67a9e2169172146ef3] Commit 967731d6: first push
+[2026-08-28T21:38:00.182Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Commit: 967731d6 - first push (5ms)
+[2026-08-28T21:38:00.480Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Transcript source: session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, lines=0→709, entries=60
+[2026-08-28T21:38:00.549Z] WARN  [GitOps] [trace=d186bb74e9149f67a9e2169172146ef3] Diff exceeds 150000-char budget (644186 chars) — prepending --stat file list and truncating body
+[2026-08-28T21:38:00.570Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Git diff: 56 files changed, +12160 -83 (89ms)
+[2026-08-28T21:38:00.631Z] WARN  [GitOps] [trace=d186bb74e9149f67a9e2169172146ef3] Diff exceeds 60000-char budget (644186 chars) — prepending --stat file list and truncating body
+[2026-08-28T21:38:00.636Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-28T21:38:00.636Z] INFO  [Summarizer] [trace=d186bb74e9149f67a9e2169172146ef3] Generating summary for commit 967731d6
+[2026-08-28T21:38:00.636Z] INFO  [Summarizer] [trace=d186bb74e9149f67a9e2169172146ef3] Context: transcript=60, files=56, lines=12160+83
+[2026-08-28T21:38:00.637Z] WARN  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-28T21:38:02.639Z] INFO  [Summarizer] [trace=d186bb74e9149f67a9e2169172146ef3] Generating summary for commit 967731d6
+[2026-08-28T21:38:02.639Z] INFO  [Summarizer] [trace=d186bb74e9149f67a9e2169172146ef3] Context: transcript=60, files=56, lines=12160+83
+[2026-08-28T21:38:02.640Z] ERROR [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-28T21:38:02.640Z] WARN  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Saving summary with empty topics + llm-failed marker for commit 967731d6
+[2026-08-28T21:38:02.640Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] API summary generated (2.0s)
+[2026-08-28T21:38:02.653Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-28T21:38:02.653Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-28T21:38:02.653Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-28T21:38:02.653Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Note association: detected 0 note(s): []
+[2026-08-28T21:38:02.654Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Reference association: detected 0 ref(s) for branch main
+[2026-08-28T21:38:02.656Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Summary built for 967731d6: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-28T21:38:02.726Z] INFO  [MetadataManager] [trace=d186bb74e9149f67a9e2169172146ef3] Manifest updated: main/first-push-967731d6.md (commit)
+[2026-08-28T21:38:02.726Z] INFO  [FolderStorage] [trace=d186bb74e9149f67a9e2169172146ef3] Markdown generated: main/first-push-967731d6.md
+[2026-08-28T21:38:02.727Z] INFO  [FolderStorage] [trace=d186bb74e9149f67a9e2169172146ef3] Wrote 4 files, deleted 0 (Add summary for 967731d6: first push)
+[2026-08-28T21:38:02.727Z] INFO  [SummaryStore] [trace=d186bb74e9149f67a9e2169172146ef3] Summary stored successfully for commit 967731d6
+[2026-08-28T21:38:02.732Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Summary stored successfully for commit 967731d6 (76ms, 0 plans, 0 notes, 0 references)
+[2026-08-28T21:38:02.733Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] === Pipeline completed in 2.6s ===
+[2026-08-28T21:38:02.733Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] === Summary content (0 topics) ===
+[2026-08-28T21:38:02.739Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Processed 1 queue entries
+[2026-08-28T21:38:02.741Z] INFO  [SessionTracker] [trace=d186bb74e9149f67a9e2169172146ef3] Enqueued queue operation: type=ingest tag=ingest file=1787953082740-00000001-8061b38d-ingest.json
+[2026-08-28T21:38:02.742Z] INFO  [PushExecutor] [trace=d186bb74e9149f67a9e2169172146ef3] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-28T21:38:02.778Z] INFO  [GitOps] [trace=d186bb74e9149f67a9e2169172146ef3] Commit 967731d6: first push
+[2026-08-28T21:38:02.831Z] INFO  [StorageFactory] [trace=d186bb74e9149f67a9e2169172146ef3] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T21:38:02.869Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] === Queue worker finished ===
+[2026-08-28T21:38:02.871Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-28T21:38:02.877Z] INFO  [QueueWorker] [trace=d186bb74e9149f67a9e2169172146ef3] No API key configured — skipping ingest (post-commit)
+[2026-08-28T21:38:17.378Z] INFO  [PrePushHook] [trace=caf40a0b404c2df0fb41d4d4dd5c6cfb] pre-push hook: remote=origin budget=3000ms
+[2026-08-28T21:38:17.415Z] INFO  [PushPendingStore] [trace=caf40a0b404c2df0fb41d4d4dd5c6cfb] Enqueued 35 new push-pending entries (branch=main)
+[2026-08-28T21:38:17.417Z] INFO  [PrePushHook] [trace=caf40a0b404c2df0fb41d4d4dd5c6cfb] pre-push: recorded 35 commit(s) across 1 pushed ref(s)
+[2026-08-28T21:38:17.422Z] INFO  [PrePushHook] [trace=caf40a0b404c2df0fb41d4d4dd5c6cfb] Recorded 35 commit(s) for later sync — not signed in to Jolli
+[2026-08-28T21:38:17.437Z] INFO  [StorageFactory] [trace=caf40a0b404c2df0fb41d4d4dd5c6cfb] StorageFactory.create: route=legacy-fenced, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T21:54:53.788Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-28T21:54:53.803Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-28T21:54:54.153Z] INFO  [PostCommitHook] [trace=024838e002e51a6055af075dc5a4a536] Detected operation: commit
+[2026-08-28T21:54:54.158Z] INFO  [PostCommitHook] [trace=024838e002e51a6055af075dc5a4a536] Enqueued: type=commit hash=d05bc2e6
+[2026-08-28T21:54:54.158Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Launching background worker
+[2026-08-28T21:54:54.160Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Background worker spawned (PID: 560610)
+[2026-08-28T21:54:54.343Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-28T21:54:54.356Z] INFO  [StorageFactory] [trace=024838e002e51a6055af075dc5a4a536] StorageFactory.create: route=legacy-fenced, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T21:54:54.407Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Processing queue entry: type=commit hash=d05bc2e6
+[2026-08-28T21:54:54.413Z] INFO  [GitOps] [trace=024838e002e51a6055af075dc5a4a536] Commit d05bc2e6: Initial commit: Add README with project overview and functio
+[2026-08-28T21:54:54.413Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Commit: d05bc2e6 - Initial commit: Add README with project overview and functionality description (3ms)
+[2026-08-28T21:54:54.471Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Git diff: 1 files changed, +359 -0 (8ms)
+[2026-08-28T21:54:54.484Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-28T21:54:54.484Z] INFO  [Summarizer] [trace=024838e002e51a6055af075dc5a4a536] Generating summary for commit d05bc2e6
+[2026-08-28T21:54:54.484Z] INFO  [Summarizer] [trace=024838e002e51a6055af075dc5a4a536] Context: transcript=0, files=1, lines=359+0
+[2026-08-28T21:54:54.484Z] WARN  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-28T21:54:56.487Z] INFO  [Summarizer] [trace=024838e002e51a6055af075dc5a4a536] Generating summary for commit d05bc2e6
+[2026-08-28T21:54:56.487Z] INFO  [Summarizer] [trace=024838e002e51a6055af075dc5a4a536] Context: transcript=0, files=1, lines=359+0
+[2026-08-28T21:54:56.487Z] ERROR [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-28T21:54:56.487Z] WARN  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Saving summary with empty topics + llm-failed marker for commit d05bc2e6
+[2026-08-28T21:54:56.487Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] API summary generated (2.0s)
+[2026-08-28T21:54:56.490Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-28T21:54:56.490Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-28T21:54:56.491Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-28T21:54:56.491Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Note association: detected 0 note(s): []
+[2026-08-28T21:54:56.492Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Reference association: detected 0 ref(s) for branch main
+[2026-08-28T21:54:56.495Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Summary built for d05bc2e6: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-28T21:54:56.509Z] ERROR [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Failed to process queue entry type=commit ref=d05bc2e6: SqliteStorage: cannot write memories for unregistered https://github.com/godspeedai/gauntlet
+[2026-08-28T21:54:56.510Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] Processed 1 queue entries
+[2026-08-28T21:54:56.512Z] INFO  [QueueWorker] [trace=024838e002e51a6055af075dc5a4a536] === Queue worker finished ===
+[2026-08-28T21:55:48.489Z] INFO  [PrePushHook] [trace=746976581ccbeed4b78c3ed7fdd88af0] pre-push hook: remote=origin budget=3000ms
+[2026-08-28T21:55:48.508Z] INFO  [PushPendingStore] [trace=746976581ccbeed4b78c3ed7fdd88af0] Enqueued 1 new push-pending entries (branch=main)
+[2026-08-28T21:55:48.510Z] INFO  [PrePushHook] [trace=746976581ccbeed4b78c3ed7fdd88af0] pre-push: recorded 1 commit(s) across 1 pushed ref(s)
+[2026-08-28T21:55:48.513Z] INFO  [PrePushHook] [trace=746976581ccbeed4b78c3ed7fdd88af0] Recorded 1 commit(s) for later sync — not signed in to Jolli
+[2026-08-28T21:55:48.523Z] INFO  [StorageFactory] [trace=746976581ccbeed4b78c3ed7fdd88af0] StorageFactory.create: route=legacy-fenced, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-28T22:42:45.784Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T22:42:45.792Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T22:42:45.799Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T23:06:14.226Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T23:06:14.232Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T23:06:14.238Z] INFO  [StopHook] Session saved successfully
+[2026-08-28T23:54:32.537Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-28T23:54:32.551Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-28T23:54:32.560Z] INFO  [StopHook] Session saved successfully
+[2026-08-29T03:41:29.921Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-29T03:41:29.935Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-29T03:41:29.940Z] INFO  [StopHook] Session saved successfully
+[2026-08-29T03:41:30.004Z] INFO  [StatsWriter] pruned 19 projected events older than 2026-08-15
+[2026-08-29T04:30:44.966Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-29T04:30:44.977Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-29T04:30:44.986Z] INFO  [StopHook] Session saved successfully
+[2026-08-29T04:43:29.329Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-29T04:43:29.347Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-29T04:43:29.751Z] INFO  [PostCommitHook] [trace=7649f2f60f87b26c49fec54193ccf993] Detected operation: commit
+[2026-08-29T04:43:29.756Z] INFO  [PostCommitHook] [trace=7649f2f60f87b26c49fec54193ccf993] Enqueued: type=commit hash=b5bdb9c4
+[2026-08-29T04:43:29.757Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Launching background worker
+[2026-08-29T04:43:29.758Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Background worker spawned (PID: 939952)
+[2026-08-29T04:43:29.889Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-29T04:43:29.898Z] INFO  [StorageFactory] [trace=7649f2f60f87b26c49fec54193ccf993] StorageFactory.create: route=legacy-fenced, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T04:43:29.945Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Processing queue entry: type=commit hash=b5bdb9c4
+[2026-08-29T04:43:29.953Z] INFO  [GitOps] [trace=7649f2f60f87b26c49fec54193ccf993] Commit b5bdb9c4: task 14: authority gate, sandbox port, tier policies (AK-044
+[2026-08-29T04:43:29.954Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Commit: b5bdb9c4 - task 14: authority gate, sandbox port, tier policies (AK-044/045/046/047/048/050; P5) — closure: COR-7..COR-10 + five blind confirmation rounds (3ms)
+[2026-08-29T04:43:30.154Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Transcript source: session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, lines=709→991, entries=14
+[2026-08-29T04:43:30.190Z] WARN  [GitOps] [trace=7649f2f60f87b26c49fec54193ccf993] Diff exceeds 150000-char budget (299558 chars) — prepending --stat file list and truncating body
+[2026-08-29T04:43:30.201Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Git diff: 18 files changed, +4411 -184 (42ms)
+[2026-08-29T04:43:30.250Z] WARN  [GitOps] [trace=7649f2f60f87b26c49fec54193ccf993] Diff exceeds 60000-char budget (299558 chars) — prepending --stat file list and truncating body
+[2026-08-29T04:43:30.257Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-29T04:43:30.258Z] INFO  [Summarizer] [trace=7649f2f60f87b26c49fec54193ccf993] Generating summary for commit b5bdb9c4
+[2026-08-29T04:43:30.258Z] INFO  [Summarizer] [trace=7649f2f60f87b26c49fec54193ccf993] Context: transcript=14, files=18, lines=4411+184
+[2026-08-29T04:43:30.258Z] WARN  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-29T04:43:32.260Z] INFO  [Summarizer] [trace=7649f2f60f87b26c49fec54193ccf993] Generating summary for commit b5bdb9c4
+[2026-08-29T04:43:32.261Z] INFO  [Summarizer] [trace=7649f2f60f87b26c49fec54193ccf993] Context: transcript=14, files=18, lines=4411+184
+[2026-08-29T04:43:32.261Z] ERROR [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-29T04:43:32.261Z] WARN  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Saving summary with empty topics + llm-failed marker for commit b5bdb9c4
+[2026-08-29T04:43:32.261Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] API summary generated (2.0s)
+[2026-08-29T04:43:32.263Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-29T04:43:32.263Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-29T04:43:32.263Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-29T04:43:32.264Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Note association: detected 0 note(s): []
+[2026-08-29T04:43:32.264Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Reference association: detected 0 ref(s) for branch main
+[2026-08-29T04:43:32.269Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Summary built for b5bdb9c4: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-29T04:43:32.301Z] INFO  [MetadataManager] [trace=7649f2f60f87b26c49fec54193ccf993] Branch mapping created: main → main
+[2026-08-29T04:43:32.331Z] INFO  [MetadataManager] [trace=7649f2f60f87b26c49fec54193ccf993] Manifest updated: main/task-14-authority-gate-sandbox-port-tier-policies-b5bdb9c4.md (commit)
+[2026-08-29T04:43:32.331Z] INFO  [FolderStorage] [trace=7649f2f60f87b26c49fec54193ccf993] Markdown generated: main/task-14-authority-gate-sandbox-port-tier-policies-b5bdb9c4.md
+[2026-08-29T04:43:32.332Z] INFO  [FolderStorage] [trace=7649f2f60f87b26c49fec54193ccf993] Wrote 4 files, deleted 0 (Add summary for b5bdb9c4: task 14: authority gate, sandbox port, tier polici)
+[2026-08-29T04:43:32.332Z] INFO  [SummaryStore] [trace=7649f2f60f87b26c49fec54193ccf993] Summary stored successfully for commit b5bdb9c4
+[2026-08-29T04:43:32.336Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Summary stored successfully for commit b5bdb9c4 (68ms, 0 plans, 0 notes, 0 references)
+[2026-08-29T04:43:32.337Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] === Pipeline completed in 2.4s ===
+[2026-08-29T04:43:32.337Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] === Summary content (0 topics) ===
+[2026-08-29T04:43:32.340Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Processed 1 queue entries
+[2026-08-29T04:43:32.343Z] INFO  [SessionTracker] [trace=7649f2f60f87b26c49fec54193ccf993] Enqueued queue operation: type=ingest tag=ingest file=1787978612342-00000001-6240f41a-ingest.json
+[2026-08-29T04:43:32.345Z] INFO  [PushExecutor] [trace=7649f2f60f87b26c49fec54193ccf993] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-29T04:43:32.353Z] INFO  [PushExecutor] [trace=7649f2f60f87b26c49fec54193ccf993] processPushPending(post-queue): 36 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-29T04:43:32.362Z] INFO  [PushExecutor] [trace=7649f2f60f87b26c49fec54193ccf993] processPushPending(post-queue): not signed in — keeping 36 entries for later
+[2026-08-29T04:43:32.369Z] INFO  [GitOps] [trace=7649f2f60f87b26c49fec54193ccf993] Commit b5bdb9c4: task 14: authority gate, sandbox port, tier policies (AK-044
+[2026-08-29T04:43:32.418Z] INFO  [StorageFactory] [trace=7649f2f60f87b26c49fec54193ccf993] StorageFactory.create: route=legacy-fenced, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T04:43:32.453Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] === Queue worker finished ===
+[2026-08-29T04:43:32.456Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-29T04:43:32.461Z] INFO  [QueueWorker] [trace=7649f2f60f87b26c49fec54193ccf993] No API key configured — skipping ingest (post-commit)
+[2026-08-29T04:43:32.570Z] INFO  [SotImport] [trace=7649f2f60f87b26c49fec54193ccf993] orphan import for https://github.com/godspeedai/gauntlet: %o
+[2026-08-29T04:43:32.628Z] INFO  [CutoverEngine] [trace=7649f2f60f87b26c49fec54193ccf993] cutover committed for https://github.com/godspeedai/gauntlet at version 1
+[2026-08-29T04:43:32.629Z] INFO  [AutoCutover] [trace=7649f2f60f87b26c49fec54193ccf993] auto-cutover: /home/sprime01/projects/gauntlet is now served from SQLite
+[2026-08-29T04:46:20.524Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-29T04:46:20.531Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-29T04:46:20.535Z] INFO  [StopHook] Session saved successfully
+[2026-08-29T12:08:42.084Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-29T12:08:42.100Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-29T12:08:42.498Z] INFO  [PostCommitHook] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Detected operation: commit
+[2026-08-29T12:08:42.504Z] INFO  [PostCommitHook] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Enqueued: type=commit hash=38e3944e
+[2026-08-29T12:08:42.504Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Launching background worker
+[2026-08-29T12:08:42.506Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Background worker spawned (PID: 1213995)
+[2026-08-29T12:08:42.655Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-29T12:08:42.665Z] INFO  [StorageFactory] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:08:42.712Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Processing queue entry: type=commit hash=38e3944e
+[2026-08-29T12:08:42.719Z] INFO  [GitOps] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Commit 38e3944e: status: Task 14 closed — CURRENT_STATUS.yml handoff for task
+[2026-08-29T12:08:42.719Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Commit: 38e3944e - status: Task 14 closed — CURRENT_STATUS.yml handoff for task15/16/18 (3ms)
+[2026-08-29T12:08:42.811Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Transcript source: session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, lines=991→1034, entries=3
+[2026-08-29T12:08:42.821Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Git diff: 2 files changed, +126 -81 (10ms)
+[2026-08-29T12:08:42.854Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-29T12:08:42.855Z] INFO  [Summarizer] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Generating summary for commit 38e3944e
+[2026-08-29T12:08:42.855Z] INFO  [Summarizer] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Context: transcript=3, files=2, lines=126+81
+[2026-08-29T12:08:42.855Z] WARN  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-29T12:08:44.857Z] INFO  [Summarizer] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Generating summary for commit 38e3944e
+[2026-08-29T12:08:44.858Z] INFO  [Summarizer] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Context: transcript=3, files=2, lines=126+81
+[2026-08-29T12:08:44.858Z] ERROR [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-29T12:08:44.858Z] WARN  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Saving summary with empty topics + llm-failed marker for commit 38e3944e
+[2026-08-29T12:08:44.858Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] API summary generated (2.0s)
+[2026-08-29T12:08:44.864Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-29T12:08:44.865Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-29T12:08:44.865Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-29T12:08:44.865Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Note association: detected 0 note(s): []
+[2026-08-29T12:08:44.866Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Reference association: detected 0 ref(s) for branch main
+[2026-08-29T12:08:44.868Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Summary built for 38e3944e: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-29T12:08:44.933Z] INFO  [MetadataManager] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Manifest updated: main/status-task-14-closed-currentstatusyml-handoff-for-38e3944e.md (commit)
+[2026-08-29T12:08:44.933Z] INFO  [FolderStorage] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Markdown generated: main/status-task-14-closed-currentstatusyml-handoff-for-38e3944e.md
+[2026-08-29T12:08:44.934Z] INFO  [FolderStorage] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Wrote 4 files, deleted 0 (Add summary for 38e3944e: status: Task 14 closed — CURRENT_STATUS.yml handof)
+[2026-08-29T12:08:44.934Z] INFO  [SummaryStore] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Summary stored successfully for commit 38e3944e
+[2026-08-29T12:08:44.942Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Summary stored successfully for commit 38e3944e (74ms, 0 plans, 0 notes, 0 references)
+[2026-08-29T12:08:44.942Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] === Pipeline completed in 2.2s ===
+[2026-08-29T12:08:44.942Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] === Summary content (0 topics) ===
+[2026-08-29T12:08:44.948Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Processed 1 queue entries
+[2026-08-29T12:08:44.950Z] INFO  [SessionTracker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Enqueued queue operation: type=ingest tag=ingest file=1788005324950-00000001-9fbb30fc-ingest.json
+[2026-08-29T12:08:44.951Z] INFO  [PushExecutor] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-29T12:08:44.957Z] INFO  [PushExecutor] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] processPushPending(post-queue): 36 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-29T12:08:44.970Z] INFO  [PushExecutor] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] processPushPending(post-queue): not signed in — keeping 36 entries for later
+[2026-08-29T12:08:44.971Z] INFO  [GitOps] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Commit 38e3944e: status: Task 14 closed — CURRENT_STATUS.yml handoff for task
+[2026-08-29T12:08:45.020Z] INFO  [StorageFactory] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:08:45.054Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] === Queue worker finished ===
+[2026-08-29T12:08:45.056Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-29T12:08:45.061Z] INFO  [QueueWorker] [trace=7c7f6733a6fbf21f7b7c66dbf6d99003] No API key configured — skipping ingest (post-commit)
+[2026-08-29T12:08:57.433Z] INFO  [PrePushHook] [trace=e9079cf5b7e0d1ff37cfd8bdd7436b63] pre-push hook: remote=origin budget=3000ms
+[2026-08-29T12:08:57.449Z] INFO  [PushPendingStore] [trace=e9079cf5b7e0d1ff37cfd8bdd7436b63] Enqueued 2 new push-pending entries (branch=main)
+[2026-08-29T12:08:57.450Z] INFO  [PrePushHook] [trace=e9079cf5b7e0d1ff37cfd8bdd7436b63] pre-push: recorded 2 commit(s) across 1 pushed ref(s)
+[2026-08-29T12:08:57.454Z] INFO  [PrePushHook] [trace=e9079cf5b7e0d1ff37cfd8bdd7436b63] Recorded 2 commit(s) for later sync — not signed in to Jolli
+[2026-08-29T12:08:57.464Z] INFO  [StorageFactory] [trace=e9079cf5b7e0d1ff37cfd8bdd7436b63] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:15:11.265Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-29T12:15:11.271Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-29T12:15:11.279Z] INFO  [StopHook] Session saved successfully
+[2026-08-29T12:36:06.761Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-29T12:36:06.770Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-29T12:36:06.776Z] INFO  [StopHook] Session saved successfully
+[2026-08-29T12:40:44.565Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-29T12:40:44.585Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-29T12:40:45.008Z] INFO  [PostCommitHook] [trace=5d3878ac03f482e50bb2bee1b7255af6] Detected operation: commit
+[2026-08-29T12:40:45.015Z] INFO  [PostCommitHook] [trace=5d3878ac03f482e50bb2bee1b7255af6] Enqueued: type=commit hash=082eddae
+[2026-08-29T12:40:45.016Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Launching background worker
+[2026-08-29T12:40:45.017Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Background worker spawned (PID: 1267247)
+[2026-08-29T12:40:45.146Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-29T12:40:45.154Z] INFO  [StorageFactory] [trace=5d3878ac03f482e50bb2bee1b7255af6] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:40:45.203Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Processing queue entry: type=commit hash=082eddae
+[2026-08-29T12:40:45.210Z] INFO  [GitOps] [trace=5d3878ac03f482e50bb2bee1b7255af6] Commit 082eddae: fix(task14 residual R-1a): PolicyFs::policy_for now scopes $
+[2026-08-29T12:40:45.210Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Commit: 082eddae - fix(task14 residual R-1a): PolicyFs::policy_for now scopes $WORKSPACE_ROOT per caller (4ms)
+[2026-08-29T12:40:45.295Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Transcript source: session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, lines=1034→1318, entries=5
+[2026-08-29T12:40:45.314Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Git diff: 3 files changed, +661 -15 (16ms)
+[2026-08-29T12:40:45.348Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-29T12:40:45.348Z] INFO  [Summarizer] [trace=5d3878ac03f482e50bb2bee1b7255af6] Generating summary for commit 082eddae
+[2026-08-29T12:40:45.348Z] INFO  [Summarizer] [trace=5d3878ac03f482e50bb2bee1b7255af6] Context: transcript=5, files=3, lines=661+15
+[2026-08-29T12:40:45.348Z] WARN  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-29T12:40:47.351Z] INFO  [Summarizer] [trace=5d3878ac03f482e50bb2bee1b7255af6] Generating summary for commit 082eddae
+[2026-08-29T12:40:47.351Z] INFO  [Summarizer] [trace=5d3878ac03f482e50bb2bee1b7255af6] Context: transcript=5, files=3, lines=661+15
+[2026-08-29T12:40:47.352Z] ERROR [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-29T12:40:47.352Z] WARN  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Saving summary with empty topics + llm-failed marker for commit 082eddae
+[2026-08-29T12:40:47.352Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] API summary generated (2.0s)
+[2026-08-29T12:40:47.357Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-29T12:40:47.357Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-29T12:40:47.357Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-29T12:40:47.358Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Note association: detected 0 note(s): []
+[2026-08-29T12:40:47.358Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Reference association: detected 0 ref(s) for branch main
+[2026-08-29T12:40:47.361Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Summary built for 082eddae: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-29T12:40:47.425Z] INFO  [MetadataManager] [trace=5d3878ac03f482e50bb2bee1b7255af6] Manifest updated: main/fixtask14-residual-r-1a-policyfspolicyfor-now-scop-082eddae.md (commit)
+[2026-08-29T12:40:47.425Z] INFO  [FolderStorage] [trace=5d3878ac03f482e50bb2bee1b7255af6] Markdown generated: main/fixtask14-residual-r-1a-policyfspolicyfor-now-scop-082eddae.md
+[2026-08-29T12:40:47.427Z] INFO  [FolderStorage] [trace=5d3878ac03f482e50bb2bee1b7255af6] Wrote 4 files, deleted 0 (Add summary for 082eddae: fix(task14 residual R-1a): PolicyFs::policy_for no)
+[2026-08-29T12:40:47.427Z] INFO  [SummaryStore] [trace=5d3878ac03f482e50bb2bee1b7255af6] Summary stored successfully for commit 082eddae
+[2026-08-29T12:40:47.434Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Summary stored successfully for commit 082eddae (73ms, 0 plans, 0 notes, 0 references)
+[2026-08-29T12:40:47.434Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] === Pipeline completed in 2.2s ===
+[2026-08-29T12:40:47.434Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] === Summary content (0 topics) ===
+[2026-08-29T12:40:47.437Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Processed 1 queue entries
+[2026-08-29T12:40:47.441Z] INFO  [SessionTracker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Enqueued queue operation: type=ingest tag=ingest file=1788007247440-00000001-3258d91f-ingest.json
+[2026-08-29T12:40:47.442Z] INFO  [PushExecutor] [trace=5d3878ac03f482e50bb2bee1b7255af6] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-29T12:40:47.449Z] INFO  [PushExecutor] [trace=5d3878ac03f482e50bb2bee1b7255af6] processPushPending(post-queue): 38 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-29T12:40:47.462Z] INFO  [PushExecutor] [trace=5d3878ac03f482e50bb2bee1b7255af6] processPushPending(post-queue): not signed in — keeping 38 entries for later
+[2026-08-29T12:40:47.463Z] INFO  [GitOps] [trace=5d3878ac03f482e50bb2bee1b7255af6] Commit 082eddae: fix(task14 residual R-1a): PolicyFs::policy_for now scopes $
+[2026-08-29T12:40:47.511Z] INFO  [StorageFactory] [trace=5d3878ac03f482e50bb2bee1b7255af6] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:40:47.564Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] === Queue worker finished ===
+[2026-08-29T12:40:47.568Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-29T12:40:47.575Z] INFO  [QueueWorker] [trace=5d3878ac03f482e50bb2bee1b7255af6] No API key configured — skipping ingest (post-commit)
+[2026-08-29T12:40:52.677Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-29T12:40:52.690Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-29T12:40:53.014Z] INFO  [PostCommitHook] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Detected operation: commit
+[2026-08-29T12:40:53.019Z] INFO  [PostCommitHook] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Enqueued: type=commit hash=6f133a82
+[2026-08-29T12:40:53.019Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Launching background worker
+[2026-08-29T12:40:53.021Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Background worker spawned (PID: 1267609)
+[2026-08-29T12:40:53.156Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-29T12:40:53.163Z] INFO  [StorageFactory] [trace=47bd7d433b83e2f29dd5e0d285efdd92] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:40:53.206Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Processing queue entry: type=commit hash=6f133a82
+[2026-08-29T12:40:53.211Z] INFO  [GitOps] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Commit 6f133a82: status: R-1 split — R-1a (adapter scoping) fixed, R-1b (per-
+[2026-08-29T12:40:53.211Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Commit: 6f133a82 - status: R-1 split — R-1a (adapter scoping) fixed, R-1b (per-unit workspace composition) remains (3ms)
+[2026-08-29T12:40:53.250Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Git diff: 2 files changed, +33 -17 (11ms)
+[2026-08-29T12:40:53.266Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-29T12:40:53.267Z] INFO  [Summarizer] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Generating summary for commit 6f133a82
+[2026-08-29T12:40:53.267Z] INFO  [Summarizer] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Context: transcript=0, files=2, lines=33+17
+[2026-08-29T12:40:53.267Z] WARN  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-29T12:40:55.270Z] INFO  [Summarizer] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Generating summary for commit 6f133a82
+[2026-08-29T12:40:55.270Z] INFO  [Summarizer] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Context: transcript=0, files=2, lines=33+17
+[2026-08-29T12:40:55.270Z] ERROR [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-29T12:40:55.270Z] WARN  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Saving summary with empty topics + llm-failed marker for commit 6f133a82
+[2026-08-29T12:40:55.270Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] API summary generated (2.0s)
+[2026-08-29T12:40:55.271Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-29T12:40:55.272Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-29T12:40:55.272Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-29T12:40:55.272Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Note association: detected 0 note(s): []
+[2026-08-29T12:40:55.273Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Reference association: detected 0 ref(s) for branch main
+[2026-08-29T12:40:55.275Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Summary built for 6f133a82: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-29T12:40:55.307Z] INFO  [MetadataManager] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Manifest updated: main/status-r-1-split-r-1a-adapter-scoping-fixed-r-1b-p-6f133a82.md (commit)
+[2026-08-29T12:40:55.307Z] INFO  [FolderStorage] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Markdown generated: main/status-r-1-split-r-1a-adapter-scoping-fixed-r-1b-p-6f133a82.md
+[2026-08-29T12:40:55.308Z] INFO  [FolderStorage] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Wrote 4 files, deleted 0 (Add summary for 6f133a82: status: R-1 split — R-1a (adapter scoping) fixed, )
+[2026-08-29T12:40:55.308Z] INFO  [SummaryStore] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Summary stored successfully for commit 6f133a82
+[2026-08-29T12:40:55.312Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Summary stored successfully for commit 6f133a82 (38ms, 0 plans, 0 notes, 0 references)
+[2026-08-29T12:40:55.313Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] === Pipeline completed in 2.1s ===
+[2026-08-29T12:40:55.313Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] === Summary content (0 topics) ===
+[2026-08-29T12:40:55.315Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Processed 1 queue entries
+[2026-08-29T12:40:55.316Z] INFO  [PushExecutor] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-29T12:40:55.321Z] INFO  [PushExecutor] [trace=47bd7d433b83e2f29dd5e0d285efdd92] processPushPending(post-queue): 38 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-29T12:40:55.332Z] INFO  [PushExecutor] [trace=47bd7d433b83e2f29dd5e0d285efdd92] processPushPending(post-queue): not signed in — keeping 38 entries for later
+[2026-08-29T12:40:55.333Z] INFO  [GitOps] [trace=47bd7d433b83e2f29dd5e0d285efdd92] Commit 6f133a82: status: R-1 split — R-1a (adapter scoping) fixed, R-1b (per-
+[2026-08-29T12:40:55.366Z] INFO  [StorageFactory] [trace=47bd7d433b83e2f29dd5e0d285efdd92] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:40:55.399Z] INFO  [QueueWorker] [trace=47bd7d433b83e2f29dd5e0d285efdd92] === Queue worker finished ===
+[2026-08-29T12:40:59.954Z] INFO  [PrePushHook] [trace=21ac658e20c9013982d96c6a08ff81c0] pre-push hook: remote=origin budget=3000ms
+[2026-08-29T12:40:59.968Z] INFO  [PushPendingStore] [trace=21ac658e20c9013982d96c6a08ff81c0] Enqueued 2 new push-pending entries (branch=main)
+[2026-08-29T12:40:59.969Z] INFO  [PrePushHook] [trace=21ac658e20c9013982d96c6a08ff81c0] pre-push: recorded 2 commit(s) across 1 pushed ref(s)
+[2026-08-29T12:40:59.972Z] INFO  [PrePushHook] [trace=21ac658e20c9013982d96c6a08ff81c0] Recorded 2 commit(s) for later sync — not signed in to Jolli
+[2026-08-29T12:40:59.982Z] INFO  [StorageFactory] [trace=21ac658e20c9013982d96c6a08ff81c0] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T12:41:11.307Z] INFO  [StopHook] Stop hook triggered (session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c)
+[2026-08-29T12:41:11.314Z] INFO  [StopHook] Hook input — session_id=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/d3dc32a6-efe6-4611-98f6-5dfdd90f932c.jsonl
+[2026-08-29T12:41:11.319Z] INFO  [StopHook] Session saved successfully
+[2026-08-29T22:52:16.342Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-29T22:52:16.370Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-29T22:52:17.027Z] INFO  [PostCommitHook] [trace=093e4deaa7a93b74af117ccc24154d16] Detected operation: commit
+[2026-08-29T22:52:17.033Z] INFO  [PostCommitHook] [trace=093e4deaa7a93b74af117ccc24154d16] Enqueued: type=commit hash=a8695563
+[2026-08-29T22:52:17.033Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Launching background worker
+[2026-08-29T22:52:17.035Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Background worker spawned (PID: 1674783)
+[2026-08-29T22:52:17.307Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-29T22:52:17.321Z] INFO  [StorageFactory] [trace=093e4deaa7a93b74af117ccc24154d16] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T22:52:17.385Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Processing queue entry: type=commit hash=a8695563
+[2026-08-29T22:52:17.436Z] INFO  [GitOps] [trace=093e4deaa7a93b74af117ccc24154d16] Commit a8695563: task 15: Prime-Agent adapter (first real AgentRunner), docto
+[2026-08-29T22:52:17.436Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Commit: a8695563 - task 15: Prime-Agent adapter (first real AgentRunner), doctor runner resolution (AK-008..AK-012 re-evidenced) (6ms)
+[2026-08-29T22:52:17.830Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Transcript source: session=d3dc32a6-efe6-4611-98f6-5dfdd90f932c, lines=1328→1339, entries=1
+[2026-08-29T22:52:17.869Z] WARN  [GitOps] [trace=093e4deaa7a93b74af117ccc24154d16] Diff exceeds 150000-char budget (349124 chars) — prepending --stat file list and truncating body
+[2026-08-29T22:52:17.879Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Git diff: 30 files changed, +6684 -27 (47ms)
+[2026-08-29T22:52:17.905Z] WARN  [GitOps] [trace=093e4deaa7a93b74af117ccc24154d16] Diff exceeds 60000-char budget (349124 chars) — prepending --stat file list and truncating body
+[2026-08-29T22:52:17.914Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-29T22:52:17.914Z] INFO  [Summarizer] [trace=093e4deaa7a93b74af117ccc24154d16] Generating summary for commit a8695563
+[2026-08-29T22:52:17.914Z] INFO  [Summarizer] [trace=093e4deaa7a93b74af117ccc24154d16] Context: transcript=1, files=30, lines=6684+27
+[2026-08-29T22:52:17.914Z] WARN  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-29T22:52:19.916Z] INFO  [Summarizer] [trace=093e4deaa7a93b74af117ccc24154d16] Generating summary for commit a8695563
+[2026-08-29T22:52:19.916Z] INFO  [Summarizer] [trace=093e4deaa7a93b74af117ccc24154d16] Context: transcript=1, files=30, lines=6684+27
+[2026-08-29T22:52:19.916Z] ERROR [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-29T22:52:19.916Z] WARN  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Saving summary with empty topics + llm-failed marker for commit a8695563
+[2026-08-29T22:52:19.918Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] API summary generated (2.0s)
+[2026-08-29T22:52:19.933Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-29T22:52:19.933Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-29T22:52:19.934Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-29T22:52:19.934Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Note association: detected 0 note(s): []
+[2026-08-29T22:52:19.934Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Reference association: detected 0 ref(s) for branch main
+[2026-08-29T22:52:19.937Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Summary built for a8695563: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-29T22:52:20.042Z] INFO  [MetadataManager] [trace=093e4deaa7a93b74af117ccc24154d16] Manifest updated: main/task-15-prime-agent-adapter-first-real-agentrunner-a8695563.md (commit)
+[2026-08-29T22:52:20.042Z] INFO  [FolderStorage] [trace=093e4deaa7a93b74af117ccc24154d16] Markdown generated: main/task-15-prime-agent-adapter-first-real-agentrunner-a8695563.md
+[2026-08-29T22:52:20.045Z] INFO  [FolderStorage] [trace=093e4deaa7a93b74af117ccc24154d16] Wrote 4 files, deleted 0 (Add summary for a8695563: task 15: Prime-Agent adapter (first real AgentRunn)
+[2026-08-29T22:52:20.045Z] INFO  [SummaryStore] [trace=093e4deaa7a93b74af117ccc24154d16] Summary stored successfully for commit a8695563
+[2026-08-29T22:52:20.051Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Summary stored successfully for commit a8695563 (114ms, 0 plans, 0 notes, 0 references)
+[2026-08-29T22:52:20.051Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] === Pipeline completed in 2.6s ===
+[2026-08-29T22:52:20.051Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] === Summary content (0 topics) ===
+[2026-08-29T22:52:20.054Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Processed 1 queue entries
+[2026-08-29T22:52:20.056Z] INFO  [SessionTracker] [trace=093e4deaa7a93b74af117ccc24154d16] Enqueued queue operation: type=ingest tag=ingest file=1788043940056-00000001-5ce24eec-ingest.json
+[2026-08-29T22:52:20.057Z] INFO  [PushExecutor] [trace=093e4deaa7a93b74af117ccc24154d16] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-29T22:52:20.065Z] INFO  [PushExecutor] [trace=093e4deaa7a93b74af117ccc24154d16] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-29T22:52:20.074Z] INFO  [PushExecutor] [trace=093e4deaa7a93b74af117ccc24154d16] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-29T22:52:20.086Z] INFO  [GitOps] [trace=093e4deaa7a93b74af117ccc24154d16] Commit a8695563: task 15: Prime-Agent adapter (first real AgentRunner), docto
+[2026-08-29T22:52:20.139Z] INFO  [StatsWriter] [trace=093e4deaa7a93b74af117ccc24154d16] pruned 9 projected events older than 2026-08-15
+[2026-08-29T22:52:20.147Z] INFO  [StorageFactory] [trace=093e4deaa7a93b74af117ccc24154d16] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T22:52:20.234Z] INFO  [Backup] [trace=093e4deaa7a93b74af117ccc24154d16] snapshot created: /home/sprime01/jolli_back/memory-20260829T225220Z-f742889f.db
+[2026-08-29T22:52:20.252Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] === Queue worker finished ===
+[2026-08-29T22:52:20.255Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-29T22:52:20.266Z] INFO  [QueueWorker] [trace=093e4deaa7a93b74af117ccc24154d16] No API key configured — skipping ingest (post-commit)
+[2026-08-29T22:55:10.188Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-29T22:55:10.199Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-29T22:55:10.619Z] INFO  [PostCommitHook] [trace=623ef60a790b20e91323006ebbd7216c] Detected operation: commit
+[2026-08-29T22:55:10.625Z] INFO  [PostCommitHook] [trace=623ef60a790b20e91323006ebbd7216c] Enqueued: type=commit hash=054176b8
+[2026-08-29T22:55:10.626Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Launching background worker
+[2026-08-29T22:55:10.627Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Background worker spawned (PID: 1676939)
+[2026-08-29T22:55:10.801Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-29T22:55:10.808Z] INFO  [StorageFactory] [trace=623ef60a790b20e91323006ebbd7216c] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T22:55:10.859Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Processing queue entry: type=commit hash=054176b8
+[2026-08-29T22:55:10.865Z] INFO  [GitOps] [trace=623ef60a790b20e91323006ebbd7216c] Commit 054176b8: status: task15 settled — first real AgentRunner; ready set i
+[2026-08-29T22:55:10.865Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Commit: 054176b8 - status: task15 settled — first real AgentRunner; ready set is task16/task18; R-1b binding sharpened to first real builder execution (4ms)
+[2026-08-29T22:55:10.912Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Git diff: 1 files changed, +125 -76 (9ms)
+[2026-08-29T22:55:10.934Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-29T22:55:10.934Z] INFO  [Summarizer] [trace=623ef60a790b20e91323006ebbd7216c] Generating summary for commit 054176b8
+[2026-08-29T22:55:10.934Z] INFO  [Summarizer] [trace=623ef60a790b20e91323006ebbd7216c] Context: transcript=0, files=1, lines=125+76
+[2026-08-29T22:55:10.934Z] WARN  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-29T22:55:12.937Z] INFO  [Summarizer] [trace=623ef60a790b20e91323006ebbd7216c] Generating summary for commit 054176b8
+[2026-08-29T22:55:12.937Z] INFO  [Summarizer] [trace=623ef60a790b20e91323006ebbd7216c] Context: transcript=0, files=1, lines=125+76
+[2026-08-29T22:55:12.937Z] ERROR [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-29T22:55:12.938Z] WARN  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Saving summary with empty topics + llm-failed marker for commit 054176b8
+[2026-08-29T22:55:12.938Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] API summary generated (2.0s)
+[2026-08-29T22:55:12.939Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-29T22:55:12.939Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-29T22:55:12.940Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-29T22:55:12.940Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Note association: detected 0 note(s): []
+[2026-08-29T22:55:12.941Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Reference association: detected 0 ref(s) for branch main
+[2026-08-29T22:55:12.943Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Summary built for 054176b8: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-29T22:55:12.979Z] INFO  [MetadataManager] [trace=623ef60a790b20e91323006ebbd7216c] Manifest updated: main/status-task15-settled-first-real-agentrunner-ready-054176b8.md (commit)
+[2026-08-29T22:55:12.979Z] INFO  [FolderStorage] [trace=623ef60a790b20e91323006ebbd7216c] Markdown generated: main/status-task15-settled-first-real-agentrunner-ready-054176b8.md
+[2026-08-29T22:55:12.980Z] INFO  [FolderStorage] [trace=623ef60a790b20e91323006ebbd7216c] Wrote 3 files, deleted 0 (Add summary for 054176b8: status: task15 settled — first real AgentRunner; r)
+[2026-08-29T22:55:12.980Z] INFO  [SummaryStore] [trace=623ef60a790b20e91323006ebbd7216c] Summary stored successfully for commit 054176b8
+[2026-08-29T22:55:12.983Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Summary stored successfully for commit 054176b8 (41ms, 0 plans, 0 notes, 0 references)
+[2026-08-29T22:55:12.984Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] === Pipeline completed in 2.1s ===
+[2026-08-29T22:55:12.984Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] === Summary content (0 topics) ===
+[2026-08-29T22:55:12.986Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] Processed 1 queue entries
+[2026-08-29T22:55:12.987Z] INFO  [PushExecutor] [trace=623ef60a790b20e91323006ebbd7216c] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-29T22:55:12.992Z] INFO  [PushExecutor] [trace=623ef60a790b20e91323006ebbd7216c] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-29T22:55:13.004Z] INFO  [PushExecutor] [trace=623ef60a790b20e91323006ebbd7216c] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-29T22:55:13.004Z] INFO  [GitOps] [trace=623ef60a790b20e91323006ebbd7216c] Commit 054176b8: status: task15 settled — first real AgentRunner; ready set i
+[2026-08-29T22:55:13.042Z] INFO  [StorageFactory] [trace=623ef60a790b20e91323006ebbd7216c] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-29T22:55:13.076Z] INFO  [QueueWorker] [trace=623ef60a790b20e91323006ebbd7216c] === Queue worker finished ===
+[2026-08-30T01:44:35.260Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T01:44:35.305Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T01:44:36.124Z] INFO  [PostCommitHook] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Detected operation: commit
+[2026-08-30T01:44:36.131Z] INFO  [PostCommitHook] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Enqueued: type=commit hash=a1c15a2b
+[2026-08-30T01:44:36.131Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Launching background worker
+[2026-08-30T01:44:36.133Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Background worker spawned (PID: 1822219)
+[2026-08-30T01:44:36.382Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T01:44:36.395Z] INFO  [StorageFactory] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T01:44:36.449Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Processing queue entry: type=commit hash=a1c15a2b
+[2026-08-30T01:44:36.464Z] INFO  [GitOps] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Commit a1c15a2b: task 16 (milestone, settlement pending round 2): CLI agent a
+[2026-08-30T01:44:36.464Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Commit: a1c15a2b - task 16 (milestone, settlement pending round 2): CLI agent adapter + P8 substitution proof (5ms)
+[2026-08-30T01:44:36.947Z] WARN  [GitOps] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Diff exceeds 150000-char budget (344609 chars) — prepending --stat file list and truncating body
+[2026-08-30T01:44:36.964Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Git diff: 39 files changed, +6534 -63 (72ms)
+[2026-08-30T01:44:37.011Z] WARN  [GitOps] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Diff exceeds 60000-char budget (344609 chars) — prepending --stat file list and truncating body
+[2026-08-30T01:44:37.022Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T01:44:37.022Z] INFO  [Summarizer] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Generating summary for commit a1c15a2b
+[2026-08-30T01:44:37.022Z] INFO  [Summarizer] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Context: transcript=0, files=39, lines=6534+63
+[2026-08-30T01:44:37.023Z] WARN  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T01:44:39.025Z] INFO  [Summarizer] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Generating summary for commit a1c15a2b
+[2026-08-30T01:44:39.025Z] INFO  [Summarizer] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Context: transcript=0, files=39, lines=6534+63
+[2026-08-30T01:44:39.025Z] ERROR [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T01:44:39.025Z] WARN  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Saving summary with empty topics + llm-failed marker for commit a1c15a2b
+[2026-08-30T01:44:39.025Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] API summary generated (2.0s)
+[2026-08-30T01:44:39.031Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T01:44:39.031Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T01:44:39.032Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T01:44:39.032Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Note association: detected 0 note(s): []
+[2026-08-30T01:44:39.033Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T01:44:39.039Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Summary built for a1c15a2b: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T01:44:39.143Z] INFO  [MetadataManager] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Manifest updated: main/task-16-milestone-settlement-pending-round-2-cli-a-a1c15a2b.md (commit)
+[2026-08-30T01:44:39.143Z] INFO  [FolderStorage] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Markdown generated: main/task-16-milestone-settlement-pending-round-2-cli-a-a1c15a2b.md
+[2026-08-30T01:44:39.144Z] INFO  [FolderStorage] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Wrote 3 files, deleted 0 (Add summary for a1c15a2b: task 16 (milestone, settlement pending round 2): C)
+[2026-08-30T01:44:39.145Z] INFO  [SummaryStore] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Summary stored successfully for commit a1c15a2b
+[2026-08-30T01:44:39.150Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Summary stored successfully for commit a1c15a2b (111ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T01:44:39.150Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] === Pipeline completed in 2.7s ===
+[2026-08-30T01:44:39.150Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] === Summary content (0 topics) ===
+[2026-08-30T01:44:39.156Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Processed 1 queue entries
+[2026-08-30T01:44:39.159Z] INFO  [SessionTracker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Enqueued queue operation: type=ingest tag=ingest file=1788054279158-00000001-0170a959-ingest.json
+[2026-08-30T01:44:39.161Z] INFO  [PushExecutor] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T01:44:39.173Z] INFO  [PushExecutor] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T01:44:39.181Z] INFO  [PushExecutor] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T01:44:39.204Z] INFO  [GitOps] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Commit a1c15a2b: task 16 (milestone, settlement pending round 2): CLI agent a
+[2026-08-30T01:44:39.282Z] INFO  [StorageFactory] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T01:44:39.341Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] === Queue worker finished ===
+[2026-08-30T01:44:39.346Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-30T01:44:39.361Z] INFO  [QueueWorker] [trace=aa2fe3ee8586d0e76438f6d0a4846cf1] No API key configured — skipping ingest (post-commit)
+[2026-08-30T01:45:44.391Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T01:45:44.407Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T01:45:44.937Z] INFO  [PostCommitHook] [trace=37a1a96716ace3de56950ffc0183dba7] Detected operation: commit
+[2026-08-30T01:45:44.947Z] INFO  [PostCommitHook] [trace=37a1a96716ace3de56950ffc0183dba7] Enqueued: type=commit hash=8550aaa7
+[2026-08-30T01:45:44.947Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Launching background worker
+[2026-08-30T01:45:44.948Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Background worker spawned (PID: 1823012)
+[2026-08-30T01:45:45.153Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T01:45:45.163Z] INFO  [StorageFactory] [trace=37a1a96716ace3de56950ffc0183dba7] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T01:45:45.221Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Processing queue entry: type=commit hash=8550aaa7
+[2026-08-30T01:45:45.229Z] INFO  [GitOps] [trace=37a1a96716ace3de56950ffc0183dba7] Commit 8550aaa7: status: task16 in flight at a1c15a2 — round 1 NOT_CONFIRM, C
+[2026-08-30T01:45:45.229Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Commit: 8550aaa7 - status: task16 in flight at a1c15a2 — round 1 NOT_CONFIRM, COR-F1..F4 landed, battery green; settlement waits for fresh blind round 2 (sub-agent window resets 2026-08-30T12:39) (3ms)
+[2026-08-30T01:45:45.290Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Git diff: 1 files changed, +66 -56 (14ms)
+[2026-08-30T01:45:45.308Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T01:45:45.309Z] INFO  [Summarizer] [trace=37a1a96716ace3de56950ffc0183dba7] Generating summary for commit 8550aaa7
+[2026-08-30T01:45:45.309Z] INFO  [Summarizer] [trace=37a1a96716ace3de56950ffc0183dba7] Context: transcript=0, files=1, lines=66+56
+[2026-08-30T01:45:45.310Z] WARN  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T01:45:47.313Z] INFO  [Summarizer] [trace=37a1a96716ace3de56950ffc0183dba7] Generating summary for commit 8550aaa7
+[2026-08-30T01:45:47.313Z] INFO  [Summarizer] [trace=37a1a96716ace3de56950ffc0183dba7] Context: transcript=0, files=1, lines=66+56
+[2026-08-30T01:45:47.313Z] ERROR [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T01:45:47.314Z] WARN  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Saving summary with empty topics + llm-failed marker for commit 8550aaa7
+[2026-08-30T01:45:47.314Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] API summary generated (2.0s)
+[2026-08-30T01:45:47.322Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T01:45:47.323Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T01:45:47.323Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T01:45:47.323Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Note association: detected 0 note(s): []
+[2026-08-30T01:45:47.324Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T01:45:47.327Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Summary built for 8550aaa7: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T01:45:47.405Z] INFO  [MetadataManager] [trace=37a1a96716ace3de56950ffc0183dba7] Manifest updated: main/status-task16-in-flight-at-a1c15a2-round-1-notconf-8550aaa7.md (commit)
+[2026-08-30T01:45:47.405Z] INFO  [FolderStorage] [trace=37a1a96716ace3de56950ffc0183dba7] Markdown generated: main/status-task16-in-flight-at-a1c15a2-round-1-notconf-8550aaa7.md
+[2026-08-30T01:45:47.406Z] INFO  [FolderStorage] [trace=37a1a96716ace3de56950ffc0183dba7] Wrote 3 files, deleted 0 (Add summary for 8550aaa7: status: task16 in flight at a1c15a2 — round 1 NOT_)
+[2026-08-30T01:45:47.406Z] INFO  [SummaryStore] [trace=37a1a96716ace3de56950ffc0183dba7] Summary stored successfully for commit 8550aaa7
+[2026-08-30T01:45:47.413Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Summary stored successfully for commit 8550aaa7 (86ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T01:45:47.413Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] === Pipeline completed in 2.2s ===
+[2026-08-30T01:45:47.413Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] === Summary content (0 topics) ===
+[2026-08-30T01:45:47.420Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] Processed 1 queue entries
+[2026-08-30T01:45:47.422Z] INFO  [PushExecutor] [trace=37a1a96716ace3de56950ffc0183dba7] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T01:45:47.427Z] INFO  [PushExecutor] [trace=37a1a96716ace3de56950ffc0183dba7] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T01:45:47.441Z] INFO  [PushExecutor] [trace=37a1a96716ace3de56950ffc0183dba7] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T01:45:47.446Z] INFO  [GitOps] [trace=37a1a96716ace3de56950ffc0183dba7] Commit 8550aaa7: status: task16 in flight at a1c15a2 — round 1 NOT_CONFIRM, C
+[2026-08-30T01:45:47.493Z] INFO  [StorageFactory] [trace=37a1a96716ace3de56950ffc0183dba7] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T01:45:47.537Z] INFO  [QueueWorker] [trace=37a1a96716ace3de56950ffc0183dba7] === Queue worker finished ===
+[2026-08-30T03:00:46.371Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T03:00:46.411Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T03:00:46.930Z] INFO  [PostCommitHook] [trace=e05df598b002d89cb19cbbc409d7f5d9] Detected operation: commit
+[2026-08-30T03:00:46.936Z] INFO  [PostCommitHook] [trace=e05df598b002d89cb19cbbc409d7f5d9] Enqueued: type=commit hash=072ce00d
+[2026-08-30T03:00:46.936Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Launching background worker
+[2026-08-30T03:00:46.938Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Background worker spawned (PID: 1885336)
+[2026-08-30T03:00:47.138Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T03:00:47.149Z] INFO  [StorageFactory] [trace=e05df598b002d89cb19cbbc409d7f5d9] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T03:00:47.210Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Processing queue entry: type=commit hash=072ce00d
+[2026-08-30T03:00:47.230Z] INFO  [GitOps] [trace=e05df598b002d89cb19cbbc409d7f5d9] Commit 072ce00d: task 16 settled: fresh blind round 2 CONFIRM — COR-R2-1/R2-2
+[2026-08-30T03:00:47.230Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Commit: 072ce00d - task 16 settled: fresh blind round 2 CONFIRM — COR-R2-1/R2-2 teeth (probe_template honesty, cli decode-locus scan), P8/AK-013+AK-014 proven, closure+outcome records (13ms)
+[2026-08-30T03:00:47.466Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Git diff: 10 files changed, +1409 -1 (24ms)
+[2026-08-30T03:00:47.489Z] WARN  [GitOps] [trace=e05df598b002d89cb19cbbc409d7f5d9] Diff exceeds 60000-char budget (84767 chars) — prepending --stat file list and truncating body
+[2026-08-30T03:00:47.499Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T03:00:47.499Z] INFO  [Summarizer] [trace=e05df598b002d89cb19cbbc409d7f5d9] Generating summary for commit 072ce00d
+[2026-08-30T03:00:47.499Z] INFO  [Summarizer] [trace=e05df598b002d89cb19cbbc409d7f5d9] Context: transcript=0, files=10, lines=1409+1
+[2026-08-30T03:00:47.499Z] WARN  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T03:00:49.501Z] INFO  [Summarizer] [trace=e05df598b002d89cb19cbbc409d7f5d9] Generating summary for commit 072ce00d
+[2026-08-30T03:00:49.502Z] INFO  [Summarizer] [trace=e05df598b002d89cb19cbbc409d7f5d9] Context: transcript=0, files=10, lines=1409+1
+[2026-08-30T03:00:49.502Z] ERROR [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T03:00:49.502Z] WARN  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Saving summary with empty topics + llm-failed marker for commit 072ce00d
+[2026-08-30T03:00:49.502Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] API summary generated (2.0s)
+[2026-08-30T03:00:49.508Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T03:00:49.508Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T03:00:49.509Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T03:00:49.509Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Note association: detected 0 note(s): []
+[2026-08-30T03:00:49.510Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T03:00:49.513Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Summary built for 072ce00d: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T03:00:49.638Z] INFO  [MetadataManager] [trace=e05df598b002d89cb19cbbc409d7f5d9] Manifest updated: main/task-16-settled-fresh-blind-round-2-confirm-cor-r2-072ce00d.md (commit)
+[2026-08-30T03:00:49.638Z] INFO  [FolderStorage] [trace=e05df598b002d89cb19cbbc409d7f5d9] Markdown generated: main/task-16-settled-fresh-blind-round-2-confirm-cor-r2-072ce00d.md
+[2026-08-30T03:00:49.641Z] INFO  [FolderStorage] [trace=e05df598b002d89cb19cbbc409d7f5d9] Wrote 3 files, deleted 0 (Add summary for 072ce00d: task 16 settled: fresh blind round 2 CONFIRM — COR)
+[2026-08-30T03:00:49.641Z] INFO  [SummaryStore] [trace=e05df598b002d89cb19cbbc409d7f5d9] Summary stored successfully for commit 072ce00d
+[2026-08-30T03:00:49.648Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Summary stored successfully for commit 072ce00d (134ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T03:00:49.648Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] === Pipeline completed in 2.4s ===
+[2026-08-30T03:00:49.648Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] === Summary content (0 topics) ===
+[2026-08-30T03:00:49.651Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Processed 1 queue entries
+[2026-08-30T03:00:49.654Z] INFO  [SessionTracker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Enqueued queue operation: type=ingest tag=ingest file=1788058849653-00000001-92cc2947-ingest.json
+[2026-08-30T03:00:49.655Z] INFO  [PushExecutor] [trace=e05df598b002d89cb19cbbc409d7f5d9] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T03:00:49.661Z] INFO  [PushExecutor] [trace=e05df598b002d89cb19cbbc409d7f5d9] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T03:00:49.672Z] INFO  [PushExecutor] [trace=e05df598b002d89cb19cbbc409d7f5d9] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T03:00:49.679Z] INFO  [GitOps] [trace=e05df598b002d89cb19cbbc409d7f5d9] Commit 072ce00d: task 16 settled: fresh blind round 2 CONFIRM — COR-R2-1/R2-2
+[2026-08-30T03:00:49.727Z] INFO  [StorageFactory] [trace=e05df598b002d89cb19cbbc409d7f5d9] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T03:00:49.762Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] === Queue worker finished ===
+[2026-08-30T03:00:49.765Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-30T03:00:49.770Z] INFO  [QueueWorker] [trace=e05df598b002d89cb19cbbc409d7f5d9] No API key configured — skipping ingest (post-commit)
+[2026-08-30T03:00:51.806Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T03:00:51.820Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T03:00:52.216Z] INFO  [PostCommitHook] [trace=b3c539794d1a94814ed7f63251ec81ab] Detected operation: commit
+[2026-08-30T03:00:52.222Z] INFO  [PostCommitHook] [trace=b3c539794d1a94814ed7f63251ec81ab] Enqueued: type=commit hash=f8d4f3f8
+[2026-08-30T03:00:52.222Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Launching background worker
+[2026-08-30T03:00:52.223Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Background worker spawned (PID: 1885516)
+[2026-08-30T03:00:52.410Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T03:00:52.417Z] INFO  [StorageFactory] [trace=b3c539794d1a94814ed7f63251ec81ab] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T03:00:52.467Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Processing queue entry: type=commit hash=f8d4f3f8
+[2026-08-30T03:00:52.473Z] INFO  [GitOps] [trace=b3c539794d1a94814ed7f63251ec81ab] Commit f8d4f3f8: status: task16 settled (072ce00) — ready set is task17/task1
+[2026-08-30T03:00:52.473Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Commit: f8d4f3f8 - status: task16 settled (072ce00) — ready set is task17/task18; task17 AND/OR ambiguity moot; 42 units provisional through task16 (4ms)
+[2026-08-30T03:00:52.520Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Git diff: 1 files changed, +170 -118 (9ms)
+[2026-08-30T03:00:52.533Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T03:00:52.534Z] INFO  [Summarizer] [trace=b3c539794d1a94814ed7f63251ec81ab] Generating summary for commit f8d4f3f8
+[2026-08-30T03:00:52.534Z] INFO  [Summarizer] [trace=b3c539794d1a94814ed7f63251ec81ab] Context: transcript=0, files=1, lines=170+118
+[2026-08-30T03:00:52.534Z] WARN  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T03:00:54.536Z] INFO  [Summarizer] [trace=b3c539794d1a94814ed7f63251ec81ab] Generating summary for commit f8d4f3f8
+[2026-08-30T03:00:54.536Z] INFO  [Summarizer] [trace=b3c539794d1a94814ed7f63251ec81ab] Context: transcript=0, files=1, lines=170+118
+[2026-08-30T03:00:54.536Z] ERROR [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T03:00:54.536Z] WARN  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Saving summary with empty topics + llm-failed marker for commit f8d4f3f8
+[2026-08-30T03:00:54.536Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] API summary generated (2.0s)
+[2026-08-30T03:00:54.538Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T03:00:54.538Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T03:00:54.539Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T03:00:54.539Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Note association: detected 0 note(s): []
+[2026-08-30T03:00:54.539Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T03:00:54.542Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Summary built for f8d4f3f8: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T03:00:54.578Z] INFO  [MetadataManager] [trace=b3c539794d1a94814ed7f63251ec81ab] Manifest updated: main/status-task16-settled-072ce00-ready-set-is-task17t-f8d4f3f8.md (commit)
+[2026-08-30T03:00:54.578Z] INFO  [FolderStorage] [trace=b3c539794d1a94814ed7f63251ec81ab] Markdown generated: main/status-task16-settled-072ce00-ready-set-is-task17t-f8d4f3f8.md
+[2026-08-30T03:00:54.578Z] INFO  [FolderStorage] [trace=b3c539794d1a94814ed7f63251ec81ab] Wrote 3 files, deleted 0 (Add summary for f8d4f3f8: status: task16 settled (072ce00) — ready set is ta)
+[2026-08-30T03:00:54.578Z] INFO  [SummaryStore] [trace=b3c539794d1a94814ed7f63251ec81ab] Summary stored successfully for commit f8d4f3f8
+[2026-08-30T03:00:54.583Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Summary stored successfully for commit f8d4f3f8 (41ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T03:00:54.584Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] === Pipeline completed in 2.1s ===
+[2026-08-30T03:00:54.584Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] === Summary content (0 topics) ===
+[2026-08-30T03:00:54.589Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] Processed 1 queue entries
+[2026-08-30T03:00:54.591Z] INFO  [PushExecutor] [trace=b3c539794d1a94814ed7f63251ec81ab] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T03:00:54.597Z] INFO  [PushExecutor] [trace=b3c539794d1a94814ed7f63251ec81ab] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T03:00:54.609Z] INFO  [PushExecutor] [trace=b3c539794d1a94814ed7f63251ec81ab] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T03:00:54.613Z] INFO  [GitOps] [trace=b3c539794d1a94814ed7f63251ec81ab] Commit f8d4f3f8: status: task16 settled (072ce00) — ready set is task17/task1
+[2026-08-30T03:00:54.650Z] INFO  [StorageFactory] [trace=b3c539794d1a94814ed7f63251ec81ab] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T03:00:54.680Z] INFO  [QueueWorker] [trace=b3c539794d1a94814ed7f63251ec81ab] === Queue worker finished ===
+[2026-08-30T12:31:51.134Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T12:31:51.174Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T12:31:52.057Z] INFO  [PostCommitHook] [trace=96da4df06b12464000ea5b5ba51c582b] Detected operation: commit
+[2026-08-30T12:31:52.064Z] INFO  [PostCommitHook] [trace=96da4df06b12464000ea5b5ba51c582b] Enqueued: type=commit hash=390ccf38
+[2026-08-30T12:31:52.065Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Launching background worker
+[2026-08-30T12:31:52.066Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Background worker spawned (PID: 2247047)
+[2026-08-30T12:31:52.272Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T12:31:52.283Z] INFO  [StorageFactory] [trace=96da4df06b12464000ea5b5ba51c582b] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T12:31:52.336Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Processing queue entry: type=commit hash=390ccf38
+[2026-08-30T12:31:52.345Z] INFO  [GitOps] [trace=96da4df06b12464000ea5b5ba51c582b] Commit 390ccf38: task 17 (milestone, settlement pending compensation rounds):
+[2026-08-30T12:31:52.346Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Commit: 390ccf38 - task 17 (milestone, settlement pending compensation rounds): role artifacts + harness installer — typed loader with intersection semantics, verbatim install + content-digest drift verify, tamper-evident lock; orchestrator-completed after builder window death (COR-O-fix-1..6, COR-O1 canonical-closure tooth); battery 1211/1211, boundaries 228/228 (5ms)
+[2026-08-30T12:31:52.573Z] WARN  [GitOps] [trace=96da4df06b12464000ea5b5ba51c582b] Diff exceeds 150000-char budget (195939 chars) — prepending --stat file list and truncating body
+[2026-08-30T12:31:52.585Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Git diff: 28 files changed, +4337 -10 (54ms)
+[2026-08-30T12:31:52.611Z] WARN  [GitOps] [trace=96da4df06b12464000ea5b5ba51c582b] Diff exceeds 60000-char budget (195939 chars) — prepending --stat file list and truncating body
+[2026-08-30T12:31:52.620Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T12:31:52.621Z] INFO  [Summarizer] [trace=96da4df06b12464000ea5b5ba51c582b] Generating summary for commit 390ccf38
+[2026-08-30T12:31:52.621Z] INFO  [Summarizer] [trace=96da4df06b12464000ea5b5ba51c582b] Context: transcript=0, files=28, lines=4337+10
+[2026-08-30T12:31:52.622Z] WARN  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T12:31:54.624Z] INFO  [Summarizer] [trace=96da4df06b12464000ea5b5ba51c582b] Generating summary for commit 390ccf38
+[2026-08-30T12:31:54.624Z] INFO  [Summarizer] [trace=96da4df06b12464000ea5b5ba51c582b] Context: transcript=0, files=28, lines=4337+10
+[2026-08-30T12:31:54.624Z] ERROR [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T12:31:54.624Z] WARN  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Saving summary with empty topics + llm-failed marker for commit 390ccf38
+[2026-08-30T12:31:54.625Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] API summary generated (2.0s)
+[2026-08-30T12:31:54.632Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T12:31:54.633Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T12:31:54.633Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T12:31:54.634Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Note association: detected 0 note(s): []
+[2026-08-30T12:31:54.634Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T12:31:54.636Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Summary built for 390ccf38: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T12:31:54.762Z] INFO  [MetadataManager] [trace=96da4df06b12464000ea5b5ba51c582b] Manifest updated: main/task-17-milestone-settlement-pending-compensation-390ccf38.md (commit)
+[2026-08-30T12:31:54.762Z] INFO  [FolderStorage] [trace=96da4df06b12464000ea5b5ba51c582b] Markdown generated: main/task-17-milestone-settlement-pending-compensation-390ccf38.md
+[2026-08-30T12:31:54.763Z] INFO  [FolderStorage] [trace=96da4df06b12464000ea5b5ba51c582b] Wrote 3 files, deleted 0 (Add summary for 390ccf38: task 17 (milestone, settlement pending compensatio)
+[2026-08-30T12:31:54.763Z] INFO  [SummaryStore] [trace=96da4df06b12464000ea5b5ba51c582b] Summary stored successfully for commit 390ccf38
+[2026-08-30T12:31:54.769Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Summary stored successfully for commit 390ccf38 (132ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T12:31:54.769Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] === Pipeline completed in 2.4s ===
+[2026-08-30T12:31:54.769Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] === Summary content (0 topics) ===
+[2026-08-30T12:31:54.774Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Processed 1 queue entries
+[2026-08-30T12:31:54.776Z] INFO  [SessionTracker] [trace=96da4df06b12464000ea5b5ba51c582b] Enqueued queue operation: type=ingest tag=ingest file=1788093114775-00000001-befb7796-ingest.json
+[2026-08-30T12:31:54.778Z] INFO  [PushExecutor] [trace=96da4df06b12464000ea5b5ba51c582b] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T12:31:54.784Z] INFO  [PushExecutor] [trace=96da4df06b12464000ea5b5ba51c582b] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T12:31:54.794Z] INFO  [PushExecutor] [trace=96da4df06b12464000ea5b5ba51c582b] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T12:31:54.798Z] INFO  [GitOps] [trace=96da4df06b12464000ea5b5ba51c582b] Commit 390ccf38: task 17 (milestone, settlement pending compensation rounds):
+[2026-08-30T12:31:54.867Z] INFO  [StorageFactory] [trace=96da4df06b12464000ea5b5ba51c582b] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T12:31:54.905Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] === Queue worker finished ===
+[2026-08-30T12:31:54.908Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-30T12:31:54.913Z] INFO  [QueueWorker] [trace=96da4df06b12464000ea5b5ba51c582b] No API key configured — skipping ingest (post-commit)
+[2026-08-30T12:32:57.695Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T12:32:57.706Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T12:32:57.961Z] INFO  [PostCommitHook] [trace=7c910f7a64861ffab0867831fb1d6ca9] Detected operation: commit
+[2026-08-30T12:32:57.965Z] INFO  [PostCommitHook] [trace=7c910f7a64861ffab0867831fb1d6ca9] Enqueued: type=commit hash=1de35bb7
+[2026-08-30T12:32:57.966Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Launching background worker
+[2026-08-30T12:32:57.967Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Background worker spawned (PID: 2247825)
+[2026-08-30T12:32:58.120Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T12:32:58.127Z] INFO  [StorageFactory] [trace=7c910f7a64861ffab0867831fb1d6ca9] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T12:32:58.169Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Processing queue entry: type=commit hash=1de35bb7
+[2026-08-30T12:32:58.175Z] INFO  [GitOps] [trace=7c910f7a64861ffab0867831fb1d6ca9] Commit 1de35bb7: status: task17 in flight at milestone — orchestrator-complet
+[2026-08-30T12:32:58.175Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Commit: 1de35bb7 - status: task17 in flight at milestone — orchestrator-completed build (heal+continue, builder window death), battery green; settlement waits for design-as-built critic + blind falsifier on window reset (4ms)
+[2026-08-30T12:32:58.210Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Git diff: 1 files changed, +60 -63 (9ms)
+[2026-08-30T12:32:58.221Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T12:32:58.222Z] INFO  [Summarizer] [trace=7c910f7a64861ffab0867831fb1d6ca9] Generating summary for commit 1de35bb7
+[2026-08-30T12:32:58.222Z] INFO  [Summarizer] [trace=7c910f7a64861ffab0867831fb1d6ca9] Context: transcript=0, files=1, lines=60+63
+[2026-08-30T12:32:58.222Z] WARN  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T12:33:00.226Z] INFO  [Summarizer] [trace=7c910f7a64861ffab0867831fb1d6ca9] Generating summary for commit 1de35bb7
+[2026-08-30T12:33:00.226Z] INFO  [Summarizer] [trace=7c910f7a64861ffab0867831fb1d6ca9] Context: transcript=0, files=1, lines=60+63
+[2026-08-30T12:33:00.226Z] ERROR [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T12:33:00.226Z] WARN  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Saving summary with empty topics + llm-failed marker for commit 1de35bb7
+[2026-08-30T12:33:00.226Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] API summary generated (2.0s)
+[2026-08-30T12:33:00.229Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T12:33:00.229Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T12:33:00.229Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T12:33:00.229Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Note association: detected 0 note(s): []
+[2026-08-30T12:33:00.230Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T12:33:00.232Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Summary built for 1de35bb7: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T12:33:00.262Z] INFO  [MetadataManager] [trace=7c910f7a64861ffab0867831fb1d6ca9] Manifest updated: main/status-task17-in-flight-at-milestone-orchestrator-1de35bb7.md (commit)
+[2026-08-30T12:33:00.262Z] INFO  [FolderStorage] [trace=7c910f7a64861ffab0867831fb1d6ca9] Markdown generated: main/status-task17-in-flight-at-milestone-orchestrator-1de35bb7.md
+[2026-08-30T12:33:00.262Z] INFO  [FolderStorage] [trace=7c910f7a64861ffab0867831fb1d6ca9] Wrote 3 files, deleted 0 (Add summary for 1de35bb7: status: task17 in flight at milestone — orchestrat)
+[2026-08-30T12:33:00.262Z] INFO  [SummaryStore] [trace=7c910f7a64861ffab0867831fb1d6ca9] Summary stored successfully for commit 1de35bb7
+[2026-08-30T12:33:00.266Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Summary stored successfully for commit 1de35bb7 (35ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T12:33:00.267Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] === Pipeline completed in 2.1s ===
+[2026-08-30T12:33:00.267Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] === Summary content (0 topics) ===
+[2026-08-30T12:33:00.269Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] Processed 1 queue entries
+[2026-08-30T12:33:00.270Z] INFO  [PushExecutor] [trace=7c910f7a64861ffab0867831fb1d6ca9] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T12:33:00.275Z] INFO  [PushExecutor] [trace=7c910f7a64861ffab0867831fb1d6ca9] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T12:33:00.288Z] INFO  [PushExecutor] [trace=7c910f7a64861ffab0867831fb1d6ca9] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T12:33:00.288Z] INFO  [GitOps] [trace=7c910f7a64861ffab0867831fb1d6ca9] Commit 1de35bb7: status: task17 in flight at milestone — orchestrator-complet
+[2026-08-30T12:33:00.324Z] INFO  [StorageFactory] [trace=7c910f7a64861ffab0867831fb1d6ca9] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T12:33:00.353Z] INFO  [QueueWorker] [trace=7c910f7a64861ffab0867831fb1d6ca9] === Queue worker finished ===
+[2026-08-30T19:09:49.352Z] INFO  [UpdateCheck] [trace=8990bb78b66915042f05a3af4e9799d2] Spawned detached update-check refresh (PID: 2568415)
+[2026-08-30T19:09:49.435Z] INFO  [StorageFactory] [trace=8990bb78b66915042f05a3af4e9799d2] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T19:09:49.516Z] INFO  [McpServer] [trace=8990bb78b66915042f05a3af4e9799d2] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-30T21:48:33.530Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T21:48:33.600Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T21:48:34.285Z] INFO  [PostCommitHook] [trace=80da3dba4a1c6aabc39bef46aa02636b] Detected operation: commit
+[2026-08-30T21:48:34.294Z] INFO  [PostCommitHook] [trace=80da3dba4a1c6aabc39bef46aa02636b] Enqueued: type=commit hash=a1160469
+[2026-08-30T21:48:34.295Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Launching background worker
+[2026-08-30T21:48:34.299Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Background worker spawned (PID: 2679990)
+[2026-08-30T21:48:34.470Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T21:48:34.484Z] INFO  [StorageFactory] [trace=80da3dba4a1c6aabc39bef46aa02636b] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T21:48:34.551Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Processing queue entry: type=commit hash=a1160469
+[2026-08-30T21:48:34.562Z] INFO  [GitOps] [trace=80da3dba4a1c6aabc39bef46aa02636b] Commit a1160469: task 17: design-as-built + falsifier round-1 corrections (CO
+[2026-08-30T21:48:34.562Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Commit: a1160469 - task 17: design-as-built + falsifier round-1 corrections (COR-D/COR-R1) (5ms)
+[2026-08-30T21:48:34.611Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Discovered 1 OpenCode session(s)
+[2026-08-30T21:48:34.617Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Discovered 1 Cline CLI session(s)
+[2026-08-30T21:48:34.693Z] INFO  [OpenCodeTranscriptReader] [trace=80da3dba4a1c6aabc39bef46aa02636b] Read OpenCode session ses_fabe: 45 new messages, 3 entries extracted (index 0→45)
+[2026-08-30T21:48:34.693Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Transcript source: session=ses_fabe80192ffe1Ax1YyEpEB8lUY, lines=0→45, entries=3
+[2026-08-30T21:48:34.741Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Transcript source: session=1788105196486_24md1, lines=0→122, entries=4
+[2026-08-30T21:48:34.785Z] WARN  [GitOps] [trace=80da3dba4a1c6aabc39bef46aa02636b] Diff exceeds 150000-char budget (218192 chars) — prepending --stat file list and truncating body
+[2026-08-30T21:48:34.797Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Git diff: 22 files changed, +3030 -130 (53ms)
+[2026-08-30T21:48:34.864Z] WARN  [GitOps] [trace=80da3dba4a1c6aabc39bef46aa02636b] Diff exceeds 60000-char budget (218192 chars) — prepending --stat file list and truncating body
+[2026-08-30T21:48:34.873Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T21:48:34.873Z] INFO  [Summarizer] [trace=80da3dba4a1c6aabc39bef46aa02636b] Generating summary for commit a1160469
+[2026-08-30T21:48:34.873Z] INFO  [Summarizer] [trace=80da3dba4a1c6aabc39bef46aa02636b] Context: transcript=7, files=22, lines=3030+130
+[2026-08-30T21:48:34.873Z] WARN  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T21:48:36.876Z] INFO  [Summarizer] [trace=80da3dba4a1c6aabc39bef46aa02636b] Generating summary for commit a1160469
+[2026-08-30T21:48:36.876Z] INFO  [Summarizer] [trace=80da3dba4a1c6aabc39bef46aa02636b] Context: transcript=7, files=22, lines=3030+130
+[2026-08-30T21:48:36.876Z] ERROR [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T21:48:36.876Z] WARN  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Saving summary with empty topics + llm-failed marker for commit a1160469
+[2026-08-30T21:48:36.876Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] API summary generated (2.0s)
+[2026-08-30T21:48:36.878Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T21:48:36.878Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T21:48:36.879Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T21:48:36.879Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Note association: detected 0 note(s): []
+[2026-08-30T21:48:36.880Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T21:48:36.883Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Summary built for a1160469: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T21:48:37.045Z] INFO  [MetadataManager] [trace=80da3dba4a1c6aabc39bef46aa02636b] Manifest updated: main/task-17-design-as-built-falsifier-round-1-correcti-a1160469.md (commit)
+[2026-08-30T21:48:37.045Z] INFO  [FolderStorage] [trace=80da3dba4a1c6aabc39bef46aa02636b] Markdown generated: main/task-17-design-as-built-falsifier-round-1-correcti-a1160469.md
+[2026-08-30T21:48:37.047Z] INFO  [FolderStorage] [trace=80da3dba4a1c6aabc39bef46aa02636b] Wrote 4 files, deleted 0 (Add summary for a1160469: task 17: design-as-built + falsifier round-1 corre)
+[2026-08-30T21:48:37.047Z] INFO  [SummaryStore] [trace=80da3dba4a1c6aabc39bef46aa02636b] Summary stored successfully for commit a1160469
+[2026-08-30T21:48:37.059Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Summary stored successfully for commit a1160469 (176ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T21:48:37.059Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] === Pipeline completed in 2.5s ===
+[2026-08-30T21:48:37.059Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] === Summary content (0 topics) ===
+[2026-08-30T21:48:37.064Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Processed 1 queue entries
+[2026-08-30T21:48:37.066Z] INFO  [SessionTracker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Enqueued queue operation: type=ingest tag=ingest file=1788126517065-00000001-90af2d49-ingest.json
+[2026-08-30T21:48:37.068Z] INFO  [PushExecutor] [trace=80da3dba4a1c6aabc39bef46aa02636b] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T21:48:37.074Z] INFO  [PushExecutor] [trace=80da3dba4a1c6aabc39bef46aa02636b] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T21:48:37.092Z] INFO  [PushExecutor] [trace=80da3dba4a1c6aabc39bef46aa02636b] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T21:48:37.111Z] INFO  [GitOps] [trace=80da3dba4a1c6aabc39bef46aa02636b] Commit a1160469: task 17: design-as-built + falsifier round-1 corrections (CO
+[2026-08-30T21:48:37.166Z] INFO  [StatsWriter] [trace=80da3dba4a1c6aabc39bef46aa02636b] pruned 19 projected events older than 2026-08-16
+[2026-08-30T21:48:37.178Z] INFO  [StorageFactory] [trace=80da3dba4a1c6aabc39bef46aa02636b] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T21:48:37.233Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] === Queue worker finished ===
+[2026-08-30T21:48:37.243Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-30T21:48:37.249Z] INFO  [QueueWorker] [trace=80da3dba4a1c6aabc39bef46aa02636b] No API key configured — skipping ingest (post-commit)
+[2026-08-30T21:52:56.223Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T21:52:56.236Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T21:52:56.600Z] INFO  [PostCommitHook] [trace=8d9feff885ab0fca47f3eadc9e751df8] Detected operation: commit
+[2026-08-30T21:52:56.607Z] INFO  [PostCommitHook] [trace=8d9feff885ab0fca47f3eadc9e751df8] Enqueued: type=commit hash=05e35b69
+[2026-08-30T21:52:56.607Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Launching background worker
+[2026-08-30T21:52:56.609Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Background worker spawned (PID: 2685542)
+[2026-08-30T21:52:56.777Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T21:52:56.784Z] INFO  [StorageFactory] [trace=8d9feff885ab0fca47f3eadc9e751df8] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T21:52:56.832Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Processing queue entry: type=commit hash=05e35b69
+[2026-08-30T21:52:56.837Z] INFO  [GitOps] [trace=8d9feff885ab0fca47f3eadc9e751df8] Commit 05e35b69: task 17: closure — blind falsifier round 2 CONFIRM, outcome,
+[2026-08-30T21:52:56.837Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Commit: 05e35b69 - task 17: closure — blind falsifier round 2 CONFIRM, outcome, drift-sealed (3ms)
+[2026-08-30T21:52:56.845Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Discovered 1 OpenCode session(s)
+[2026-08-30T21:52:56.848Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Discovered 1 Cline CLI session(s)
+[2026-08-30T21:52:56.897Z] INFO  [OpenCodeTranscriptReader] [trace=8d9feff885ab0fca47f3eadc9e751df8] Read OpenCode session ses_fabe: 34 new messages, 0 entries extracted (index 45→79)
+[2026-08-30T21:52:56.916Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Git diff: 3 files changed, +445 -0 (8ms)
+[2026-08-30T21:52:56.933Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T21:52:56.934Z] INFO  [Summarizer] [trace=8d9feff885ab0fca47f3eadc9e751df8] Generating summary for commit 05e35b69
+[2026-08-30T21:52:56.934Z] INFO  [Summarizer] [trace=8d9feff885ab0fca47f3eadc9e751df8] Context: transcript=0, files=3, lines=445+0
+[2026-08-30T21:52:56.934Z] WARN  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T21:52:58.936Z] INFO  [Summarizer] [trace=8d9feff885ab0fca47f3eadc9e751df8] Generating summary for commit 05e35b69
+[2026-08-30T21:52:58.936Z] INFO  [Summarizer] [trace=8d9feff885ab0fca47f3eadc9e751df8] Context: transcript=0, files=3, lines=445+0
+[2026-08-30T21:52:58.936Z] ERROR [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T21:52:58.936Z] WARN  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Saving summary with empty topics + llm-failed marker for commit 05e35b69
+[2026-08-30T21:52:58.936Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] API summary generated (2.0s)
+[2026-08-30T21:52:58.938Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T21:52:58.938Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T21:52:58.939Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T21:52:58.939Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Note association: detected 0 note(s): []
+[2026-08-30T21:52:58.939Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T21:52:58.942Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Summary built for 05e35b69: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T21:52:58.974Z] INFO  [MetadataManager] [trace=8d9feff885ab0fca47f3eadc9e751df8] Manifest updated: main/task-17-closure-blind-falsifier-round-2-confirm-ou-05e35b69.md (commit)
+[2026-08-30T21:52:58.974Z] INFO  [FolderStorage] [trace=8d9feff885ab0fca47f3eadc9e751df8] Markdown generated: main/task-17-closure-blind-falsifier-round-2-confirm-ou-05e35b69.md
+[2026-08-30T21:52:58.974Z] INFO  [FolderStorage] [trace=8d9feff885ab0fca47f3eadc9e751df8] Wrote 3 files, deleted 0 (Add summary for 05e35b69: task 17: closure — blind falsifier round 2 CONFIRM)
+[2026-08-30T21:52:58.974Z] INFO  [SummaryStore] [trace=8d9feff885ab0fca47f3eadc9e751df8] Summary stored successfully for commit 05e35b69
+[2026-08-30T21:52:58.985Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Summary stored successfully for commit 05e35b69 (43ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T21:52:58.985Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] === Pipeline completed in 2.2s ===
+[2026-08-30T21:52:58.985Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] === Summary content (0 topics) ===
+[2026-08-30T21:52:58.988Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] Processed 1 queue entries
+[2026-08-30T21:52:58.989Z] INFO  [PushExecutor] [trace=8d9feff885ab0fca47f3eadc9e751df8] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T21:52:58.996Z] INFO  [PushExecutor] [trace=8d9feff885ab0fca47f3eadc9e751df8] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T21:52:59.008Z] INFO  [PushExecutor] [trace=8d9feff885ab0fca47f3eadc9e751df8] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T21:52:59.008Z] INFO  [GitOps] [trace=8d9feff885ab0fca47f3eadc9e751df8] Commit 05e35b69: task 17: closure — blind falsifier round 2 CONFIRM, outcome,
+[2026-08-30T21:52:59.053Z] INFO  [StorageFactory] [trace=8d9feff885ab0fca47f3eadc9e751df8] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T21:52:59.092Z] INFO  [QueueWorker] [trace=8d9feff885ab0fca47f3eadc9e751df8] === Queue worker finished ===
+[2026-08-30T21:54:09.625Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T21:54:09.637Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T21:54:09.986Z] INFO  [PostCommitHook] [trace=2dabe6523ffd4c9b98368b7b84696c71] Detected operation: commit
+[2026-08-30T21:54:09.992Z] INFO  [PostCommitHook] [trace=2dabe6523ffd4c9b98368b7b84696c71] Enqueued: type=commit hash=d32c24bf
+[2026-08-30T21:54:09.993Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Launching background worker
+[2026-08-30T21:54:09.994Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Background worker spawned (PID: 2688034)
+[2026-08-30T21:54:10.152Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T21:54:10.159Z] INFO  [StorageFactory] [trace=2dabe6523ffd4c9b98368b7b84696c71] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T21:54:10.203Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Processing queue entry: type=commit hash=d32c24bf
+[2026-08-30T21:54:10.208Z] INFO  [GitOps] [trace=2dabe6523ffd4c9b98368b7b84696c71] Commit d32c24bf: status: task17 settled (43 units provisional) — ready set ta
+[2026-08-30T21:54:10.208Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Commit: d32c24bf - status: task17 settled (43 units provisional) — ready set task18+task20 (3ms)
+[2026-08-30T21:54:10.214Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Discovered 1 OpenCode session(s)
+[2026-08-30T21:54:10.216Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Discovered 1 Cline CLI session(s)
+[2026-08-30T21:54:10.252Z] INFO  [OpenCodeTranscriptReader] [trace=2dabe6523ffd4c9b98368b7b84696c71] Read OpenCode session ses_fabe: 4 new messages, 0 entries extracted (index 79→83)
+[2026-08-30T21:54:10.268Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Git diff: 1 files changed, +90 -155 (9ms)
+[2026-08-30T21:54:10.282Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T21:54:10.282Z] INFO  [Summarizer] [trace=2dabe6523ffd4c9b98368b7b84696c71] Generating summary for commit d32c24bf
+[2026-08-30T21:54:10.282Z] INFO  [Summarizer] [trace=2dabe6523ffd4c9b98368b7b84696c71] Context: transcript=0, files=1, lines=90+155
+[2026-08-30T21:54:10.282Z] WARN  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T21:54:12.284Z] INFO  [Summarizer] [trace=2dabe6523ffd4c9b98368b7b84696c71] Generating summary for commit d32c24bf
+[2026-08-30T21:54:12.284Z] INFO  [Summarizer] [trace=2dabe6523ffd4c9b98368b7b84696c71] Context: transcript=0, files=1, lines=90+155
+[2026-08-30T21:54:12.284Z] ERROR [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T21:54:12.284Z] WARN  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Saving summary with empty topics + llm-failed marker for commit d32c24bf
+[2026-08-30T21:54:12.285Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] API summary generated (2.0s)
+[2026-08-30T21:54:12.286Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T21:54:12.287Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T21:54:12.287Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T21:54:12.287Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Note association: detected 0 note(s): []
+[2026-08-30T21:54:12.288Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T21:54:12.290Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Summary built for d32c24bf: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T21:54:12.327Z] INFO  [MetadataManager] [trace=2dabe6523ffd4c9b98368b7b84696c71] Manifest updated: main/status-task17-settled-43-units-provisional-ready-s-d32c24bf.md (commit)
+[2026-08-30T21:54:12.327Z] INFO  [FolderStorage] [trace=2dabe6523ffd4c9b98368b7b84696c71] Markdown generated: main/status-task17-settled-43-units-provisional-ready-s-d32c24bf.md
+[2026-08-30T21:54:12.328Z] INFO  [FolderStorage] [trace=2dabe6523ffd4c9b98368b7b84696c71] Wrote 3 files, deleted 0 (Add summary for d32c24bf: status: task17 settled (43 units provisional) — re)
+[2026-08-30T21:54:12.328Z] INFO  [SummaryStore] [trace=2dabe6523ffd4c9b98368b7b84696c71] Summary stored successfully for commit d32c24bf
+[2026-08-30T21:54:12.338Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Summary stored successfully for commit d32c24bf (48ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T21:54:12.338Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] === Pipeline completed in 2.1s ===
+[2026-08-30T21:54:12.338Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] === Summary content (0 topics) ===
+[2026-08-30T21:54:12.341Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Processed 1 queue entries
+[2026-08-30T21:54:12.343Z] INFO  [SessionTracker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Enqueued queue operation: type=ingest tag=ingest file=1788126852342-00000001-f919b5d7-ingest.json
+[2026-08-30T21:54:12.345Z] INFO  [PushExecutor] [trace=2dabe6523ffd4c9b98368b7b84696c71] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T21:54:12.349Z] INFO  [PushExecutor] [trace=2dabe6523ffd4c9b98368b7b84696c71] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T21:54:12.361Z] INFO  [PushExecutor] [trace=2dabe6523ffd4c9b98368b7b84696c71] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T21:54:12.362Z] INFO  [GitOps] [trace=2dabe6523ffd4c9b98368b7b84696c71] Commit d32c24bf: status: task17 settled (43 units provisional) — ready set ta
+[2026-08-30T21:54:12.393Z] INFO  [StorageFactory] [trace=2dabe6523ffd4c9b98368b7b84696c71] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T21:54:12.424Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] === Queue worker finished ===
+[2026-08-30T21:54:12.430Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-30T21:54:12.435Z] INFO  [QueueWorker] [trace=2dabe6523ffd4c9b98368b7b84696c71] No API key configured — skipping ingest (post-commit)
+[2026-08-30T22:51:58.714Z] INFO  [SessionStartHook] SessionStartHook invoked (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-30T22:51:58.761Z] INFO  [SessionStartHook] No briefing or reminder generated (skipped or timed out)
+[2026-08-30T22:52:02.055Z] INFO  [StorageFactory] [trace=97dbe9580d537ec97d707e8b7535a4c1] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T22:52:02.090Z] INFO  [McpServer] [trace=97dbe9580d537ec97d707e8b7535a4c1] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-30T23:02:51.037Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:02:51.048Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:02:51.055Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:02:51.147Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 1 external path(s) into plans.json
+[2026-08-30T23:05:32.583Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:05:32.587Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:05:32.592Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:17:25.630Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:17:25.642Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:17:25.655Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:23:47.886Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:23:47.893Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:23:47.898Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:25:38.704Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:25:38.710Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:25:38.716Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:32:35.322Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:32:35.331Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:32:35.336Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:37:51.144Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:37:51.151Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:37:51.156Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:44:34.699Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:44:34.704Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:44:34.711Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:52:58.106Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T23:52:58.124Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T23:52:58.649Z] INFO  [PostCommitHook] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Detected operation: commit
+[2026-08-30T23:52:58.655Z] INFO  [PostCommitHook] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Enqueued: type=commit hash=827dd462
+[2026-08-30T23:52:58.655Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Launching background worker
+[2026-08-30T23:52:58.657Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Background worker spawned (PID: 2846248)
+[2026-08-30T23:52:58.817Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T23:52:58.826Z] INFO  [StorageFactory] [trace=31ce18a6b7620dd0b31227a9e9bcb719] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T23:52:58.871Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Processing queue entry: type=commit hash=827dd462
+[2026-08-30T23:52:58.885Z] INFO  [GitOps] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Commit 827dd462: task 18: wayfinder-gauntlet skill derivation + fog-invariant
+[2026-08-30T23:52:58.885Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Commit: 827dd462 - task 18: wayfinder-gauntlet skill derivation + fog-invariant enforcement (4ms)
+[2026-08-30T23:52:58.953Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Discovered 1 OpenCode session(s)
+[2026-08-30T23:52:58.957Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Discovered 1 Cline CLI session(s)
+[2026-08-30T23:52:59.067Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Transcript source: session=b1b4f6ef-92bc-41e0-b990-b729bcb10482, lines=0→595, entries=18
+[2026-08-30T23:52:59.181Z] INFO  [OpenCodeTranscriptReader] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Read OpenCode session ses_fabe: 2 new messages, 1 entries extracted (index 83→85)
+[2026-08-30T23:52:59.181Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Transcript source: session=ses_fabe80192ffe1Ax1YyEpEB8lUY, lines=83→85, entries=1
+[2026-08-30T23:52:59.233Z] WARN  [GitOps] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Diff exceeds 150000-char budget (175670 chars) — prepending --stat file list and truncating body
+[2026-08-30T23:52:59.239Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Git diff: 24 files changed, +3219 -0 (22ms)
+[2026-08-30T23:52:59.276Z] WARN  [GitOps] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Diff exceeds 60000-char budget (175670 chars) — prepending --stat file list and truncating body
+[2026-08-30T23:52:59.281Z] WARN  [ContextRelevance] [trace=31ce18a6b7620dd0b31227a9e9bcb719] rankContextRelevance failed (No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).) — keeping all items
+[2026-08-30T23:52:59.286Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Prompt blocks: plans=1 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T23:52:59.287Z] INFO  [Summarizer] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Generating summary for commit 827dd462
+[2026-08-30T23:52:59.287Z] INFO  [Summarizer] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Context: transcript=19, files=24, lines=3219+0
+[2026-08-30T23:52:59.287Z] WARN  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T23:53:01.289Z] INFO  [Summarizer] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Generating summary for commit 827dd462
+[2026-08-30T23:53:01.289Z] INFO  [Summarizer] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Context: transcript=19, files=24, lines=3219+0
+[2026-08-30T23:53:01.289Z] ERROR [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T23:53:01.289Z] WARN  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Saving summary with empty topics + llm-failed marker for commit 827dd462
+[2026-08-30T23:53:01.290Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] API summary generated (2.0s)
+[2026-08-30T23:53:01.292Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Plan registry scan: found 1 uncommitted slug(s) on main: [IN-FLIGHT]
+[2026-08-30T23:53:01.292Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Plan association: detected 1 slug(s) from transcripts: [IN-FLIGHT]
+[2026-08-30T23:53:01.294Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Plan association: registry has 12 entries: [delegation-spike(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), environment(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), CURRENT_STATUS(commitHash=f0a9d55f9630e67e8d845a068eeb1dc22be32ec8), escalations(commitHash=1fcfdd0682877eba264592b9feb91971c794eec0), residual-readjudication(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), correction-brief-f1(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), correction-brief-f2(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), correction-brief-f3(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), confirmation-brief(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), unrecorded-landed-work(commitHash=1fcfdd0682877eba264592b9feb91971c794eec0), session-interruption-recovery(commitHash=1fcfdd0682877eba264592b9feb91971c794eec0), IN-FLIGHT(commitHash=null)]
+[2026-08-30T23:53:01.297Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Plan archived: IN-FLIGHT → IN-FLIGHT-827dd462 (hash=6ba6ecc22873)
+[2026-08-30T23:53:01.317Z] INFO  [MetadataManager] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Manifest updated: main/plan--IN-FLIGHT-827dd462.md (plan)
+[2026-08-30T23:53:01.317Z] INFO  [FolderStorage] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Plan markdown generated: main/plan--IN-FLIGHT-827dd462.md
+[2026-08-30T23:53:01.317Z] INFO  [FolderStorage] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Wrote 1 files, deleted 0 (Archive 1 plan(s) for commit 827dd462)
+[2026-08-30T23:53:01.317Z] INFO  [SummaryStore] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Stored 1 plan file(s)
+[2026-08-30T23:53:01.318Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Associated 1 plan(s) with commit 827dd462
+[2026-08-30T23:53:01.319Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T23:53:01.319Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Note association: detected 0 note(s): []
+[2026-08-30T23:53:01.320Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T23:53:01.322Z] WARN  [PlanProgressEvaluator] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T23:53:01.323Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Plan progress: evaluated 0/1 plan(s)
+[2026-08-30T23:53:01.323Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Summary built for 827dd462: recap=no, topics=0, plans=1 ref(s): [IN-FLIGHT-827dd462], notes=absent, references=absent
+[2026-08-30T23:53:01.412Z] INFO  [MetadataManager] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Manifest updated: main/task-18-wayfinder-gauntlet-skill-derivation-fog-in-827dd462.md (commit)
+[2026-08-30T23:53:01.412Z] INFO  [FolderStorage] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Markdown generated: main/task-18-wayfinder-gauntlet-skill-derivation-fog-in-827dd462.md
+[2026-08-30T23:53:01.414Z] INFO  [FolderStorage] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Wrote 4 files, deleted 0 (Add summary for 827dd462: task 18: wayfinder-gauntlet skill derivation + fog)
+[2026-08-30T23:53:01.414Z] INFO  [SummaryStore] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Summary stored successfully for commit 827dd462
+[2026-08-30T23:53:01.427Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Summary stored successfully for commit 827dd462 (104ms, 1 plans, 0 notes, 0 references)
+[2026-08-30T23:53:01.427Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] === Pipeline completed in 2.5s ===
+[2026-08-30T23:53:01.427Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] === Summary content (0 topics) ===
+[2026-08-30T23:53:01.430Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Processed 1 queue entries
+[2026-08-30T23:53:01.432Z] INFO  [SessionTracker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Enqueued queue operation: type=ingest tag=ingest file=1788133981431-00000001-902860af-ingest.json
+[2026-08-30T23:53:01.433Z] INFO  [PushExecutor] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T23:53:01.438Z] INFO  [PushExecutor] [trace=31ce18a6b7620dd0b31227a9e9bcb719] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T23:53:01.446Z] INFO  [PushExecutor] [trace=31ce18a6b7620dd0b31227a9e9bcb719] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T23:53:01.451Z] INFO  [GitOps] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Commit 827dd462: task 18: wayfinder-gauntlet skill derivation + fog-invariant
+[2026-08-30T23:53:01.502Z] INFO  [StorageFactory] [trace=31ce18a6b7620dd0b31227a9e9bcb719] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T23:53:01.593Z] INFO  [Backup] [trace=31ce18a6b7620dd0b31227a9e9bcb719] snapshot created: /home/sprime01/jolli_back/memory-20260830T235301Z-f742889f.db
+[2026-08-30T23:53:01.606Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] === Queue worker finished ===
+[2026-08-30T23:53:01.609Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-30T23:53:01.613Z] INFO  [QueueWorker] [trace=31ce18a6b7620dd0b31227a9e9bcb719] No API key configured — skipping ingest (post-commit)
+[2026-08-30T23:53:12.924Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-30T23:53:12.940Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-30T23:53:13.366Z] INFO  [PostCommitHook] [trace=756f3d267d89b040e64ad40b96a01696] Detected operation: commit
+[2026-08-30T23:53:13.371Z] INFO  [PostCommitHook] [trace=756f3d267d89b040e64ad40b96a01696] Enqueued: type=commit hash=c59c2eaa
+[2026-08-30T23:53:13.372Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Launching background worker
+[2026-08-30T23:53:13.374Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Background worker spawned (PID: 2846821)
+[2026-08-30T23:53:13.525Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-30T23:53:13.533Z] INFO  [StorageFactory] [trace=756f3d267d89b040e64ad40b96a01696] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T23:53:13.582Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Processing queue entry: type=commit hash=c59c2eaa
+[2026-08-30T23:53:13.587Z] INFO  [GitOps] [trace=756f3d267d89b040e64ad40b96a01696] Commit c59c2eaa: status: task18 settled (827dd46) — 45 units provisional, rea
+[2026-08-30T23:53:13.588Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Commit: c59c2eaa - status: task18 settled (827dd46) — 45 units provisional, ready set task19+task20 (3ms)
+[2026-08-30T23:53:13.595Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Discovered 1 OpenCode session(s)
+[2026-08-30T23:53:13.597Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Discovered 1 Cline CLI session(s)
+[2026-08-30T23:53:13.631Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Transcript source: session=b1b4f6ef-92bc-41e0-b990-b729bcb10482, lines=595→607, entries=1
+[2026-08-30T23:53:13.643Z] INFO  [OpenCodeTranscriptReader] [trace=756f3d267d89b040e64ad40b96a01696] Read OpenCode session ses_fabe: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-30T23:53:13.658Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Git diff: 1 files changed, +79 -25 (8ms)
+[2026-08-30T23:53:13.672Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-30T23:53:13.673Z] INFO  [Summarizer] [trace=756f3d267d89b040e64ad40b96a01696] Generating summary for commit c59c2eaa
+[2026-08-30T23:53:13.673Z] INFO  [Summarizer] [trace=756f3d267d89b040e64ad40b96a01696] Context: transcript=1, files=1, lines=79+25
+[2026-08-30T23:53:13.673Z] WARN  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-30T23:53:15.675Z] INFO  [Summarizer] [trace=756f3d267d89b040e64ad40b96a01696] Generating summary for commit c59c2eaa
+[2026-08-30T23:53:15.675Z] INFO  [Summarizer] [trace=756f3d267d89b040e64ad40b96a01696] Context: transcript=1, files=1, lines=79+25
+[2026-08-30T23:53:15.675Z] ERROR [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-30T23:53:15.675Z] WARN  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Saving summary with empty topics + llm-failed marker for commit c59c2eaa
+[2026-08-30T23:53:15.675Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] API summary generated (2.0s)
+[2026-08-30T23:53:15.677Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-30T23:53:15.677Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-30T23:53:15.678Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-30T23:53:15.678Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Note association: detected 0 note(s): []
+[2026-08-30T23:53:15.679Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Reference association: detected 0 ref(s) for branch main
+[2026-08-30T23:53:15.682Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Summary built for c59c2eaa: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-30T23:53:15.720Z] INFO  [MetadataManager] [trace=756f3d267d89b040e64ad40b96a01696] Manifest updated: main/status-task18-settled-827dd46-45-units-provisional-c59c2eaa.md (commit)
+[2026-08-30T23:53:15.720Z] INFO  [FolderStorage] [trace=756f3d267d89b040e64ad40b96a01696] Markdown generated: main/status-task18-settled-827dd46-45-units-provisional-c59c2eaa.md
+[2026-08-30T23:53:15.722Z] INFO  [FolderStorage] [trace=756f3d267d89b040e64ad40b96a01696] Wrote 4 files, deleted 0 (Add summary for c59c2eaa: status: task18 settled (827dd46) — 45 units provis)
+[2026-08-30T23:53:15.722Z] INFO  [SummaryStore] [trace=756f3d267d89b040e64ad40b96a01696] Summary stored successfully for commit c59c2eaa
+[2026-08-30T23:53:15.736Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Summary stored successfully for commit c59c2eaa (54ms, 0 plans, 0 notes, 0 references)
+[2026-08-30T23:53:15.736Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] === Pipeline completed in 2.2s ===
+[2026-08-30T23:53:15.736Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] === Summary content (0 topics) ===
+[2026-08-30T23:53:15.740Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] Processed 1 queue entries
+[2026-08-30T23:53:15.741Z] INFO  [PushExecutor] [trace=756f3d267d89b040e64ad40b96a01696] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-30T23:53:15.747Z] INFO  [PushExecutor] [trace=756f3d267d89b040e64ad40b96a01696] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-30T23:53:15.759Z] INFO  [PushExecutor] [trace=756f3d267d89b040e64ad40b96a01696] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-30T23:53:15.759Z] INFO  [GitOps] [trace=756f3d267d89b040e64ad40b96a01696] Commit c59c2eaa: status: task18 settled (827dd46) — 45 units provisional, rea
+[2026-08-30T23:53:15.794Z] INFO  [StorageFactory] [trace=756f3d267d89b040e64ad40b96a01696] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-30T23:53:15.826Z] INFO  [QueueWorker] [trace=756f3d267d89b040e64ad40b96a01696] === Queue worker finished ===
+[2026-08-30T23:53:30.982Z] INFO  [StopHook] Stop hook triggered (session=b1b4f6ef-92bc-41e0-b990-b729bcb10482)
+[2026-08-30T23:53:30.987Z] INFO  [StopHook] Hook input — session_id=b1b4f6ef-92bc-41e0-b990-b729bcb10482, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl
+[2026-08-30T23:53:30.992Z] INFO  [StopHook] Session saved successfully
+[2026-08-30T23:53:31.062Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 1 external path(s) into plans.json
+[2026-08-31T01:02:16.927Z] INFO  [SessionStartHook] SessionStartHook invoked (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-31T01:02:16.951Z] INFO  [SessionStartHook] No briefing or reminder generated (skipped or timed out)
+[2026-08-31T01:08:30.292Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T01:08:30.301Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T01:08:30.312Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T01:08:30.439Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 1 external path(s) into plans.json
+[2026-08-31T01:14:56.594Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T01:14:56.599Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T01:14:56.604Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T01:32:36.979Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T01:32:36.987Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T01:32:36.994Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T02:02:51.595Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T02:02:51.602Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T02:02:51.610Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T02:02:51.659Z] INFO  [StatsWriter] pruned 6 projected events older than 2026-08-17
+[2026-08-31T11:41:09.050Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T11:41:09.074Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T11:41:09.084Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T11:41:09.203Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 1 external path(s) into plans.json
+[2026-08-31T11:47:30.681Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T11:47:30.692Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T11:47:30.700Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T11:54:52.823Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T11:54:52.828Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T11:54:52.832Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T11:54:52.911Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 1 external path(s) into plans.json
+[2026-08-31T12:00:20.677Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T12:00:20.683Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T12:00:20.690Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T12:08:12.783Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-31T12:08:12.797Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-31T12:08:13.246Z] INFO  [PostCommitHook] [trace=7613b4b7a1dfce035017259a6f50b331] Detected operation: commit
+[2026-08-31T12:08:13.251Z] INFO  [PostCommitHook] [trace=7613b4b7a1dfce035017259a6f50b331] Enqueued: type=commit hash=b29da05c
+[2026-08-31T12:08:13.251Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Launching background worker
+[2026-08-31T12:08:13.252Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Background worker spawned (PID: 3428040)
+[2026-08-31T12:08:13.386Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-31T12:08:13.396Z] INFO  [StorageFactory] [trace=7613b4b7a1dfce035017259a6f50b331] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-31T12:08:13.443Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Processing queue entry: type=commit hash=b29da05c
+[2026-08-31T12:08:13.453Z] INFO  [GitOps] [trace=7613b4b7a1dfce035017259a6f50b331] Commit b29da05c: task 19: companion + repo-owned skills
+[2026-08-31T12:08:13.453Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Commit: b29da05c - task 19: companion + repo-owned skills (4ms)
+[2026-08-31T12:08:13.641Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Discovered 1 OpenCode session(s)
+[2026-08-31T12:08:13.644Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Discovered 1 Cline CLI session(s)
+[2026-08-31T12:08:13.697Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Transcript source: session=b1b4f6ef-92bc-41e0-b990-b729bcb10482, lines=607→626, entries=1
+[2026-08-31T12:08:13.724Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Transcript source: session=980eb9ed-52f6-4d6b-924e-8dad342964ef, lines=0→638, entries=22
+[2026-08-31T12:08:13.782Z] INFO  [OpenCodeTranscriptReader] [trace=7613b4b7a1dfce035017259a6f50b331] Read OpenCode session ses_fabe: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-31T12:08:13.816Z] WARN  [GitOps] [trace=7613b4b7a1dfce035017259a6f50b331] Diff exceeds 150000-char budget (204588 chars) — prepending --stat file list and truncating body
+[2026-08-31T12:08:13.822Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Git diff: 25 files changed, +3802 -5 (25ms)
+[2026-08-31T12:08:13.875Z] WARN  [GitOps] [trace=7613b4b7a1dfce035017259a6f50b331] Diff exceeds 60000-char budget (204588 chars) — prepending --stat file list and truncating body
+[2026-08-31T12:08:13.885Z] WARN  [ContextRelevance] [trace=7613b4b7a1dfce035017259a6f50b331] rankContextRelevance failed (No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).) — keeping all items
+[2026-08-31T12:08:13.889Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Prompt blocks: plans=4 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-31T12:08:13.890Z] INFO  [Summarizer] [trace=7613b4b7a1dfce035017259a6f50b331] Generating summary for commit b29da05c
+[2026-08-31T12:08:13.890Z] INFO  [Summarizer] [trace=7613b4b7a1dfce035017259a6f50b331] Context: transcript=23, files=25, lines=3802+5
+[2026-08-31T12:08:13.890Z] WARN  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-31T12:08:15.892Z] INFO  [Summarizer] [trace=7613b4b7a1dfce035017259a6f50b331] Generating summary for commit b29da05c
+[2026-08-31T12:08:15.892Z] INFO  [Summarizer] [trace=7613b4b7a1dfce035017259a6f50b331] Context: transcript=23, files=25, lines=3802+5
+[2026-08-31T12:08:15.893Z] ERROR [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-31T12:08:15.893Z] WARN  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Saving summary with empty topics + llm-failed marker for commit b29da05c
+[2026-08-31T12:08:15.893Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] API summary generated (2.0s)
+[2026-08-31T12:08:15.902Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan registry scan: found 4 uncommitted slug(s) on main: [closure, IN-FLIGHT-a9e9fc2b, correction-round1, correction-round2]
+[2026-08-31T12:08:15.902Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan association: detected 4 slug(s) from transcripts: [closure, IN-FLIGHT-a9e9fc2b, correction-round1, correction-round2]
+[2026-08-31T12:08:15.903Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan association: registry has 16 entries: [delegation-spike(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), environment(commitHash=b69c095564f20af734b68fc453f58dd7e963bf25), CURRENT_STATUS(commitHash=f0a9d55f9630e67e8d845a068eeb1dc22be32ec8), escalations(commitHash=1fcfdd0682877eba264592b9feb91971c794eec0), residual-readjudication(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), correction-brief-f1(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), correction-brief-f2(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), correction-brief-f3(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), confirmation-brief(commitHash=1a88b39796d95862fc538a409377fdad5ee48015), unrecorded-landed-work(commitHash=1fcfdd0682877eba264592b9feb91971c794eec0), session-interruption-recovery(commitHash=1fcfdd0682877eba264592b9feb91971c794eec0), IN-FLIGHT(commitHash=827dd462ecabc6859fef34948f57fc9b0161eaf2), closure(commitHash=null), IN-FLIGHT-a9e9fc2b(commitHash=null), correction-round1(commitHash=null), correction-round2(commitHash=null)]
+[2026-08-31T12:08:15.907Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan archived: closure → closure-b29da05c (hash=2d01bb35e927)
+[2026-08-31T12:08:15.909Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan archived: IN-FLIGHT-a9e9fc2b → IN-FLIGHT-a9e9fc2b-b29da05c (hash=8d44323e294a)
+[2026-08-31T12:08:15.912Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan archived: correction-round1 → correction-round1-b29da05c (hash=37a6f30e41fd)
+[2026-08-31T12:08:15.915Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan archived: correction-round2 → correction-round2-b29da05c (hash=d1a922992db0)
+[2026-08-31T12:08:15.935Z] INFO  [MetadataManager] [trace=7613b4b7a1dfce035017259a6f50b331] Manifest updated: main/plan--closure-b29da05c.md (plan)
+[2026-08-31T12:08:15.935Z] INFO  [FolderStorage] [trace=7613b4b7a1dfce035017259a6f50b331] Plan markdown generated: main/plan--closure-b29da05c.md
+[2026-08-31T12:08:15.936Z] INFO  [MetadataManager] [trace=7613b4b7a1dfce035017259a6f50b331] Manifest updated: main/plan--IN-FLIGHT-a9e9fc2b-b29da05c.md (plan)
+[2026-08-31T12:08:15.936Z] INFO  [FolderStorage] [trace=7613b4b7a1dfce035017259a6f50b331] Plan markdown generated: main/plan--IN-FLIGHT-a9e9fc2b-b29da05c.md
+[2026-08-31T12:08:15.938Z] INFO  [MetadataManager] [trace=7613b4b7a1dfce035017259a6f50b331] Manifest updated: main/plan--correction-round1-b29da05c.md (plan)
+[2026-08-31T12:08:15.938Z] INFO  [FolderStorage] [trace=7613b4b7a1dfce035017259a6f50b331] Plan markdown generated: main/plan--correction-round1-b29da05c.md
+[2026-08-31T12:08:15.938Z] INFO  [MetadataManager] [trace=7613b4b7a1dfce035017259a6f50b331] Manifest updated: main/plan--correction-round2-b29da05c.md (plan)
+[2026-08-31T12:08:15.938Z] INFO  [FolderStorage] [trace=7613b4b7a1dfce035017259a6f50b331] Plan markdown generated: main/plan--correction-round2-b29da05c.md
+[2026-08-31T12:08:15.938Z] INFO  [FolderStorage] [trace=7613b4b7a1dfce035017259a6f50b331] Wrote 4 files, deleted 0 (Archive 4 plan(s) for commit b29da05c)
+[2026-08-31T12:08:15.938Z] INFO  [SummaryStore] [trace=7613b4b7a1dfce035017259a6f50b331] Stored 4 plan file(s)
+[2026-08-31T12:08:15.939Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Associated 4 plan(s) with commit b29da05c
+[2026-08-31T12:08:15.940Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-31T12:08:15.940Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Note association: detected 0 note(s): []
+[2026-08-31T12:08:15.940Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Reference association: detected 0 ref(s) for branch main
+[2026-08-31T12:08:15.942Z] WARN  [PlanProgressEvaluator] [trace=7613b4b7a1dfce035017259a6f50b331] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-31T12:08:15.942Z] WARN  [PlanProgressEvaluator] [trace=7613b4b7a1dfce035017259a6f50b331] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-31T12:08:15.942Z] WARN  [PlanProgressEvaluator] [trace=7613b4b7a1dfce035017259a6f50b331] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-31T12:08:15.942Z] WARN  [PlanProgressEvaluator] [trace=7613b4b7a1dfce035017259a6f50b331] Plan progress LLM call failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-31T12:08:15.942Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Plan progress: evaluated 0/4 plan(s)
+[2026-08-31T12:08:15.942Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Summary built for b29da05c: recap=no, topics=0, plans=4 ref(s): [closure-b29da05c, IN-FLIGHT-a9e9fc2b-b29da05c, correction-round1-b29da05c, correction-round2-b29da05c], notes=absent, references=absent
+[2026-08-31T12:08:16.004Z] INFO  [MetadataManager] [trace=7613b4b7a1dfce035017259a6f50b331] Manifest updated: main/task-19-companion-repo-owned-skills-b29da05c.md (commit)
+[2026-08-31T12:08:16.004Z] INFO  [FolderStorage] [trace=7613b4b7a1dfce035017259a6f50b331] Markdown generated: main/task-19-companion-repo-owned-skills-b29da05c.md
+[2026-08-31T12:08:16.005Z] INFO  [FolderStorage] [trace=7613b4b7a1dfce035017259a6f50b331] Wrote 4 files, deleted 0 (Add summary for b29da05c: task 19: companion + repo-owned skills)
+[2026-08-31T12:08:16.005Z] INFO  [SummaryStore] [trace=7613b4b7a1dfce035017259a6f50b331] Summary stored successfully for commit b29da05c
+[2026-08-31T12:08:16.018Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Summary stored successfully for commit b29da05c (75ms, 4 plans, 0 notes, 0 references)
+[2026-08-31T12:08:16.018Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] === Pipeline completed in 2.6s ===
+[2026-08-31T12:08:16.018Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] === Summary content (0 topics) ===
+[2026-08-31T12:08:16.020Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Processed 1 queue entries
+[2026-08-31T12:08:16.022Z] INFO  [SessionTracker] [trace=7613b4b7a1dfce035017259a6f50b331] Enqueued queue operation: type=ingest tag=ingest file=1788178096021-00000001-0dd7c663-ingest.json
+[2026-08-31T12:08:16.023Z] INFO  [PushExecutor] [trace=7613b4b7a1dfce035017259a6f50b331] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-31T12:08:16.028Z] INFO  [PushExecutor] [trace=7613b4b7a1dfce035017259a6f50b331] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-31T12:08:16.039Z] INFO  [PushExecutor] [trace=7613b4b7a1dfce035017259a6f50b331] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-31T12:08:16.043Z] INFO  [GitOps] [trace=7613b4b7a1dfce035017259a6f50b331] Commit b29da05c: task 19: companion + repo-owned skills
+[2026-08-31T12:08:16.087Z] INFO  [StorageFactory] [trace=7613b4b7a1dfce035017259a6f50b331] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-31T12:08:16.127Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] === Queue worker finished ===
+[2026-08-31T12:08:16.130Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] Processing queue entry: type=ingest triggeredBy=post-commit
+[2026-08-31T12:08:16.136Z] INFO  [QueueWorker] [trace=7613b4b7a1dfce035017259a6f50b331] No API key configured — skipping ingest (post-commit)
+[2026-08-31T12:08:29.452Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook started (source: message) ===
+[2026-08-31T12:08:29.463Z] INFO  [PrepareMsgHook] === Prepare-commit-msg hook finished ===
+[2026-08-31T12:08:29.768Z] INFO  [PostCommitHook] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Detected operation: commit
+[2026-08-31T12:08:29.773Z] INFO  [PostCommitHook] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Enqueued: type=commit hash=0b92a66b
+[2026-08-31T12:08:29.774Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Launching background worker
+[2026-08-31T12:08:29.775Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Background worker spawned (PID: 3428710)
+[2026-08-31T12:08:29.980Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] === Queue worker started === node=24.19.0 kind=cli source=cli pkgVer=0.99.11 cliVer=0.99.11 dist=/home/sprime01/.cache/nub/pm/store/@jolli.ai+cli@0.99.11_zod@4.4.3_-da09ec1fbb3fa1b7/node_modules/@jolli.ai/cli/dist
+[2026-08-31T12:08:29.986Z] INFO  [StorageFactory] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-31T12:08:30.033Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Processing queue entry: type=commit hash=0b92a66b
+[2026-08-31T12:08:30.038Z] INFO  [GitOps] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Commit 0b92a66b: status: task19 settled (b29da05) — ready set task20
+[2026-08-31T12:08:30.038Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Commit: 0b92a66b - status: task19 settled (b29da05) — ready set task20 (3ms)
+[2026-08-31T12:08:30.047Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Discovered 1 OpenCode session(s)
+[2026-08-31T12:08:30.050Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Discovered 1 Cline CLI session(s)
+[2026-08-31T12:08:30.091Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Transcript source: session=980eb9ed-52f6-4d6b-924e-8dad342964ef, lines=638→655, entries=1
+[2026-08-31T12:08:30.101Z] INFO  [OpenCodeTranscriptReader] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Read OpenCode session ses_fabe: 0 new messages, 0 entries extracted (index 85→85)
+[2026-08-31T12:08:30.116Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Git diff: 1 files changed, +56 -24 (8ms)
+[2026-08-31T12:08:30.128Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Prompt blocks: plans=0 notes=0 references=0 (+0 track-only archived, not prompted) (AI soft-excluded 0)
+[2026-08-31T12:08:30.129Z] INFO  [Summarizer] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Generating summary for commit 0b92a66b
+[2026-08-31T12:08:30.129Z] INFO  [Summarizer] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Context: transcript=1, files=1, lines=56+24
+[2026-08-31T12:08:30.129Z] WARN  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] First API attempt failed: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).. Retrying in 2000ms...
+[2026-08-31T12:08:32.131Z] INFO  [Summarizer] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Generating summary for commit 0b92a66b
+[2026-08-31T12:08:32.131Z] INFO  [Summarizer] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Context: transcript=1, files=1, lines=56+24
+[2026-08-31T12:08:32.131Z] ERROR [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] API call failed after retry: No LLM provider available. Set an Anthropic API key (ANTHROPIC_API_KEY) or configure a Jolli Space API key (jolliApiKey).
+[2026-08-31T12:08:32.132Z] WARN  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Saving summary with empty topics + llm-failed marker for commit 0b92a66b
+[2026-08-31T12:08:32.132Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] API summary generated (2.0s)
+[2026-08-31T12:08:32.133Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Plan registry scan: found 0 uncommitted slug(s) on main: []
+[2026-08-31T12:08:32.134Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Plan association: detected 0 slug(s) from transcripts: []
+[2026-08-31T12:08:32.134Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Note registry scan: found 0 uncommitted note(s) on main: []
+[2026-08-31T12:08:32.134Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Note association: detected 0 note(s): []
+[2026-08-31T12:08:32.135Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Reference association: detected 0 ref(s) for branch main
+[2026-08-31T12:08:32.138Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Summary built for 0b92a66b: recap=no, topics=0, plans=absent, notes=absent, references=absent
+[2026-08-31T12:08:32.172Z] INFO  [MetadataManager] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Manifest updated: main/status-task19-settled-b29da05-ready-set-task20-0b92a66b.md (commit)
+[2026-08-31T12:08:32.172Z] INFO  [FolderStorage] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Markdown generated: main/status-task19-settled-b29da05-ready-set-task20-0b92a66b.md
+[2026-08-31T12:08:32.172Z] INFO  [FolderStorage] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Wrote 4 files, deleted 0 (Add summary for 0b92a66b: status: task19 settled (b29da05) — ready set task2)
+[2026-08-31T12:08:32.172Z] INFO  [SummaryStore] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Summary stored successfully for commit 0b92a66b
+[2026-08-31T12:08:32.187Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Summary stored successfully for commit 0b92a66b (49ms, 0 plans, 0 notes, 0 references)
+[2026-08-31T12:08:32.187Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] === Pipeline completed in 2.2s ===
+[2026-08-31T12:08:32.187Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] === Summary content (0 topics) ===
+[2026-08-31T12:08:32.189Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Processed 1 queue entries
+[2026-08-31T12:08:32.190Z] INFO  [PushExecutor] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Post-queue push trigger: scheduling drain for 1 newly generated summar(ies)
+[2026-08-31T12:08:32.196Z] INFO  [PushExecutor] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] processPushPending(post-queue): 40 pending entr(ies) (filtered to 1 hash(es))
+[2026-08-31T12:08:32.206Z] INFO  [PushExecutor] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] processPushPending(post-queue): not signed in — keeping 40 entries for later
+[2026-08-31T12:08:32.212Z] INFO  [GitOps] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] Commit 0b92a66b: status: task19 settled (b29da05) — ready set task20
+[2026-08-31T12:08:32.250Z] INFO  [StorageFactory] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-31T12:08:32.287Z] INFO  [QueueWorker] [trace=e9773e946b9d9c9e8ebeb3c2e06ce8bb] === Queue worker finished ===
+[2026-08-31T12:08:40.024Z] INFO  [StopHook] Stop hook triggered (session=980eb9ed-52f6-4d6b-924e-8dad342964ef)
+[2026-08-31T12:08:40.030Z] INFO  [StopHook] Hook input — session_id=980eb9ed-52f6-4d6b-924e-8dad342964ef, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl
+[2026-08-31T12:08:40.035Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T12:08:40.160Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 1 external path(s) into plans.json
+[2026-08-31T13:19:42.924Z] INFO  [SessionStartHook] SessionStartHook invoked (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-31T13:19:43.001Z] INFO  [SessionStartHook] No briefing or reminder generated (skipped or timed out)
+[2026-08-31T13:19:45.812Z] INFO  [StorageFactory] [trace=ce7232868e73b20c9ac7cd6eca5b0690] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-08-31T13:19:45.846Z] INFO  [McpServer] [trace=ce7232868e73b20c9ac7cd6eca5b0690] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-08-31T13:32:13.967Z] INFO  [StopHook] Stop hook triggered (session=f4ce910f-1452-4b1f-a51c-0245cef0c22b)
+[2026-08-31T13:32:13.974Z] INFO  [StopHook] Hook input — session_id=f4ce910f-1452-4b1f-a51c-0245cef0c22b, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl
+[2026-08-31T13:32:13.978Z] INFO  [SessionTracker] Pruning stale session d3dc32a6-efe6-4611-98f6-5dfdd90f932c (age: 49h)
+[2026-08-31T13:32:13.986Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T13:32:14.038Z] INFO  [StatsWriter] pruned 6 projected events older than 2026-08-17
+[2026-08-31T13:32:14.068Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 7 external path(s) into plans.json
+[2026-08-31T13:32:14.096Z] INFO  [SessionTracker] upsertSkillEntry: claude:skill-creator (new, ×1)
+[2026-08-31T13:32:14.097Z] INFO  [SkillDiscovery] Persisted 1 skill(s) from f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl
+[2026-08-31T14:03:56.383Z] INFO  [StopHook] Stop hook triggered (session=f4ce910f-1452-4b1f-a51c-0245cef0c22b)
+[2026-08-31T14:03:56.392Z] INFO  [StopHook] Hook input — session_id=f4ce910f-1452-4b1f-a51c-0245cef0c22b, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl
+[2026-08-31T14:03:56.398Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T14:03:56.494Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 2 external path(s) into plans.json
+[2026-08-31T14:12:58.200Z] INFO  [StopHook] Stop hook triggered (session=f4ce910f-1452-4b1f-a51c-0245cef0c22b)
+[2026-08-31T14:12:58.213Z] INFO  [StopHook] Hook input — session_id=f4ce910f-1452-4b1f-a51c-0245cef0c22b, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl
+[2026-08-31T14:12:58.223Z] INFO  [StopHook] Session saved successfully
+[2026-08-31T14:12:58.394Z] INFO  [PlanDiscovery] Plan discovery: upserted 0 slug(s) + 1 external path(s) into plans.json
+[2026-08-31T14:13:21.874Z] INFO  [StopHook] Stop hook triggered (session=f4ce910f-1452-4b1f-a51c-0245cef0c22b)
+[2026-08-31T14:13:21.882Z] INFO  [StopHook] Hook input — session_id=f4ce910f-1452-4b1f-a51c-0245cef0c22b, transcript_path=/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl
+[2026-08-31T14:13:21.898Z] INFO  [StopHook] Session saved successfully

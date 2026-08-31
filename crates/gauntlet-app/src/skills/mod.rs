@@ -229,10 +229,12 @@ impl std::error::Error for SkillLintError {}
 pub const REPO_OWNED_SKILLS: &[&str] = &[
     "wayfinder-gauntlet",
     "grilling",
-    "domain-modeling",
+    "domain-formation",
     "research",
     "prototype",
     "gauntlet-run",
+    "domainforge-sea",
+    "neatcode",
 ];
 
 /// The control-logic denylist's exact identifiers — anchored on the

@@ -623,7 +623,7 @@ It is the reference. Everything downstream — what is observed, what is compare
 
 Formation runs when no sufficient reference exists. It is a **grilling** process that converts a loose intent into (a) a decision map with explicit fog and (b) a typed answer key.
 
-The runtime uses a repo-owned skill, `wayfinder-gauntlet`, derived from the upstream `wayfinder` skill (Annex D specifies the exact delta and provenance requirements). The upstream skill's semantics that MUST be preserved:
+The runtime uses a repo-owned skill, `wayfinder-gauntlet`, derived from the upstream `wayfinder` skill (Annex D specifies the exact delta). The upstream skill's semantics that MUST be preserved:
 
 - **Destination first.** Naming what reaching the end looks like is the first act; it fixes the scope every later question is measured against.
 - **Fog of war.** Anything not yet sharp enough to state as a precise question stays in `Not yet specified` rather than being guessed into the answer key. The test for fog-versus-item is *whether you can state the question precisely now*, not whether you can answer it.
@@ -1847,7 +1847,7 @@ authority: critic
 evidence_required: {kind: test_report, locator: tests/contract/roles::install_and_verify, producer: instrument}
 
 ## AK-064
-claim: The wayfinder-gauntlet skill is installed in-repo with recorded upstream provenance, preserves destination-first, fog-of-war, out-of-scope, and HITL semantics, and emits map.md plus a schema-valid answer-key.md.
+claim: The wayfinder-gauntlet skill is installed in-repo, preserves destination-first, fog-of-war, out-of-scope, and HITL semantics, and emits map.md plus a schema-valid answer-key.md.
 verify_by: test
 blast_radius: local
 authority: critic
@@ -2040,21 +2040,20 @@ The role prompt MUST instruct the child to write its typed result atomically to 
 
 # Annex D — `wayfinder-gauntlet` skill (derivation and installation)
 
-### D.1 Provenance requirement
+### D.1 Derivation note
 
-The skill is **derived**, not copied blindly, and its provenance is recorded. `.agents/skills/wayfinder-gauntlet/PROVENANCE.md` MUST record: upstream repository, upstream path, commit SHA, retrieval date, licence, and a summary of the delta. An implementation that cannot reach the network records `upstream: unavailable` and implements the skill from the semantics in §9.2 — which are sufficient on their own.
+The skill is **derived**, not copied blindly: `SKILL.md` names its upstream source (repository and path) in its own body. An implementation that cannot reach the network records that fact and implements the skill from the semantics in §9.2 — which are sufficient on their own. No separate in-repo provenance record is required; the delta lives in this Annex.
 
 ### D.2 Derivation procedure
 
 ```text
 1. Clone upstream into a temporary directory (never into the project tree).
 2. Read the upstream skill and the local-markdown tracker convention it falls back to.
-3. Record the commit SHA and licence.
-4. Transform (§9.2 delta table) into .agents/skills/wayfinder-gauntlet/SKILL.md.
-5. Copy in companion skills the transformed skill invokes (grilling, domain-modeling,
-   research, prototype), each with its own provenance entry.
-6. Delete the temporary clone.
-7. Run the skill conformance test (AK-064).
+3. Transform (§9.2 delta table) into .agents/skills/wayfinder-gauntlet/SKILL.md.
+4. Copy in companion skills the transformed skill invokes (grilling, domain-formation,
+   research, prototype).
+5. Delete the temporary clone.
+6. Run the skill conformance test (AK-064).
 ```
 
 ### D.3 Required behavior of the derived skill
@@ -2069,7 +2068,7 @@ The skill is **derived**, not copied blindly, and its provenance is recorded. `.
 | Skill | Role in the Gauntlet |
 |---|---|
 | `grilling` | Formation: extracting sharp questions from loose intent |
-| `domain-modeling` | Formation: producing the vocabulary the reference is written in |
+| `domain-formation` | Formation: producing the vocabulary the reference is written in |
 | `research` | Formation: AFK resolution of facts a decision waits on |
 | `prototype` | Formation: cheap artifacts that raise discussion fidelity |
 | `gauntlet-run` *(new, repo-owned)* | Operator-facing procedure for running and supervising a loop |

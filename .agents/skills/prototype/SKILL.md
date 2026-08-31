@@ -4,12 +4,10 @@ description: Build a throwaway prototype to answer a design question. Use when t
 ---
 
 This is a direct port of the upstream `prototype` skill
-(`skills/engineering/prototype` in `mattpocock/skills`); its front matter
-already conformed to this repo's skill schema, so no field changes were
-needed. See `PROVENANCE.md` in this directory for upstream commit, licence,
-and delta. In this repo it is the companion `wayfinder-gauntlet` calls on
-during formation for a cheap concrete artifact that raises discussion
-fidelity on a HITL decision (Core-spec Annex D.4).
+(`skills/engineering/prototype` in `mattpocock/skills`). In this repo it is
+the companion `wayfinder-gauntlet` calls on during formation for a cheap
+concrete artifact that raises discussion fidelity on a HITL decision
+(Core-spec Annex D.4).
 
 A prototype is **throwaway code that answers a question**. The question
 decides the shape.

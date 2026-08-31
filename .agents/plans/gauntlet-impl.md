@@ -85,7 +85,7 @@ The repository is empty, so the highest-leverage facts are external. Pin them he
 | Prime-Agent: `rlm(...)` returns an admission handle (`rlm_child_id`, `name`, `session_dir`, `model`) and **never** the child's answer; results arrive via `agent_message` or files | spec §10.5 and Annex C; upstream `packages/coding-agent/docs/rlm.md` |
 | Prime-Agent: kernel runs model-generated code with the worker's OS permissions — a control environment, not a security sandbox | spec Annex C.2; upstream "Trust Model" section |
 | Prime-Agent: harness state (prompts, memories, skills, subagent specs) is agent-mutable and session-local, refinable with rollback by id | spec §10.1, Annex C.4 |
-| Wayfinder upstream: skill at `skills/engineering/wayfinder/SKILL.md` in the upstream skills repository; companions at `skills/productivity/grilling`, `skills/engineering/{domain-modeling,research,prototype}` | spec Annex D.2 |
+| Wayfinder upstream: skill at `skills/engineering/wayfinder/SKILL.md` in the upstream skills repository; companions at `skills/productivity/grilling`, `skills/engineering/{domain-formation,research,prototype}` | spec Annex D.2 |
 | Wayfinder upstream: with no tracker configured it falls back to a local-markdown convention under `.scratch/<effort>/` with `map.md` plus `issues/NN-<slug>.md`, `Status:`/`Type:`/`Blocked by:` lines | spec §9.2 delta table (our variant replaces this with `.wayfinder/` two-file output) |
 | Wayfinder semantics that must survive derivation: destination-first, fog-of-war (precise-question test), out-of-scope never graduates, HITL never self-answered | spec §9.2, Annex D.3 |
 | Sandbox reality: policy schemas are the least stable input; the real risk is over-permissive default profiles, not weak isolation primitives; `irreversible` has **no** policy file | spec Annex F, §17.3 |
@@ -606,7 +606,7 @@ test -s .agents/skills/wayfinder-gauntlet/PROVENANCE.md
 
 ### Steps
 
-1. Install companions (`grilling`, `domain-modeling`, `research`, `prototype`) under `.agents/skills/`, each with its own `PROVENANCE.md`.
+1. Install companions (`grilling`, `domain-formation`, `research`, `prototype`) under `.agents/skills/`, each with its own `PROVENANCE.md`.
 2. Author `gauntlet-run` (operator procedure: doctor → reference → run → supervise escalations → inspect evidence) and per-role skills for anything too long for a role file body.
 3. Skill lint: front matter present and valid, no control logic (no settlement, authority, or budget decisions in skill text — those live in the runtime), no secrets, no absolute paths.
 
