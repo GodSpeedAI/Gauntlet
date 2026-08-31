@@ -120,11 +120,18 @@ use crate::walk;
 pub const ANSWER_KEY_SURFACE_TOKENS: &[&str] = &["wayfinder", "answerkeysource", "answer_key_name"];
 
 /// The pinned answer-key surface inventory: every core-crate production
-/// module that names the surface, each with its reason. Exactly the six
-/// `gauntlet-app` modules recon §7 found; nothing in domain, ports, or
+/// module that names the surface, each with its reason. Six of the seven
+/// are the `gauntlet-app` modules recon §7 found that actually own or
+/// derive the `.wayfinder` reference path; nothing in domain, ports, or
 /// the composition root names the ruler (their "answer key" prose is the
-/// two-word phrase, which no token here matches). Growth or shrinkage is
-/// a deliberate, recorded edit — the pin test holds it exact.
+/// two-word phrase, which no token here matches). The seventh
+/// (`skills/mod.rs`, plan Task 19) is a lexical false positive on
+/// purpose, pinned rather than avoided: `REPO_OWNED_SKILLS` must contain
+/// the literal, exact directory name `wayfinder-gauntlet` for its
+/// filesystem lookups to be correct, and no rephrasing removes that
+/// requirement — the entry documents that the match is real but the
+/// coupling it usually signals is not. Growth or shrinkage is a
+/// deliberate, recorded edit — the pin test holds it exact.
 pub const ANSWER_KEY_SURFACE_FILES: &[(&str, &str)] = &[
     (
         "crates/gauntlet-app/src/config/defaults.rs",
@@ -150,6 +157,12 @@ pub const ANSWER_KEY_SURFACE_FILES: &[(&str, &str)] = &[
     (
         "crates/gauntlet-app/src/reference/provider.rs",
         "FileReferenceProvider over .wayfinder; defines AnswerKeySource — the read-only seam",
+    ),
+    (
+        "crates/gauntlet-app/src/skills/mod.rs",
+        "REPO_OWNED_SKILLS names the installed skill directory 'wayfinder-gauntlet' — a skill \
+         identity string the lint's filesystem lookups must match exactly, not a path this \
+         module owns or derives; it neither reads nor writes .wayfinder/answer-key.md",
     ),
 ];
 
@@ -844,6 +857,7 @@ mod tests {
                 "crates/gauntlet-app/src/reference/parse.rs",
                 "crates/gauntlet-app/src/reference/manifest.rs",
                 "crates/gauntlet-app/src/reference/provider.rs",
+                "crates/gauntlet-app/src/skills/mod.rs",
             ]
         );
         let inventory: Vec<(&str, &str, Option<&str>)> = WRITE_API_INVENTORY
@@ -1033,7 +1047,7 @@ mod tests {
 
     impl Repo {
         /// A minimal four-core-crate workspace reproducing the whole
-        /// pinned state in miniature — the six surface files, the seven
+        /// pinned state in miniature — the seven surface files, the seven
         /// inventoried write tokens with their guards — so the battery's
         /// assertions isolate the payload under test and the clean
         /// fixture itself proves the pins are satisfiable.
@@ -1105,6 +1119,10 @@ mod tests {
             repo.write(
                 "crates/gauntlet-app/src/reference/provider.rs",
                 "pub enum AnswerKeySource { Path, Shared }\n",
+            );
+            repo.write(
+                "crates/gauntlet-app/src/skills/mod.rs",
+                "pub const REPO_OWNED_SKILLS: &[&str] = &[\"wayfinder-gauntlet\"];\n",
             );
             repo
         }

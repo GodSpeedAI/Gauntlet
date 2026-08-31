@@ -21,6 +21,7 @@ pub mod observation;
 pub mod reference;
 pub mod roles;
 pub mod settle;
+pub mod skills;
 pub mod state;
 pub mod verify;
 
