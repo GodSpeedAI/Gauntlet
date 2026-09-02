@@ -1,0 +1,75 @@
+cargo check -p gauntlet-app --all-targets
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+error[E0063]: missing field `role_deny` in initializer of `ComparisonDeps`
+    --> crates/gauntlet-app/src/control/controller.rs:5581:25
+     |
+5581 |             comparison: ComparisonDeps {
+     |                         ^^^^^^^^^^^^^^ missing `role_deny`
+
+error[E0063]: missing field `role_deny` in initializer of `ComparisonDeps`
+    --> crates/gauntlet-app/src/control/controller.rs:6402:25
+     |
+6402 |             comparison: ComparisonDeps {
+     |                         ^^^^^^^^^^^^^^ missing `role_deny`
+
+error[E0063]: missing field `role_deny` in initializer of `ComparisonDeps`
+    --> crates/gauntlet-app/src/control/controller.rs:6505:25
+     |
+6505 |             comparison: ComparisonDeps {
+     |                         ^^^^^^^^^^^^^^ missing `role_deny`
+
+error[E0063]: missing field `role_deny` in initializer of `ComparisonDeps`
+    --> crates/gauntlet-app/src/control/controller.rs:7445:25
+     |
+7445 |             comparison: ComparisonDeps {
+     |                         ^^^^^^^^^^^^^^ missing `role_deny`
+
+error[E0063]: missing field `role_deny` in initializer of `ComparisonDeps`
+    --> crates/gauntlet-app/src/control/controller.rs:7527:25
+     |
+7527 |             comparison: ComparisonDeps {
+     |                         ^^^^^^^^^^^^^^ missing `role_deny`
+
+error[E0063]: missing field `role_deny` in initializer of `ComparisonDeps`
+    --> crates/gauntlet-app/src/control/controller.rs:7603:25
+     |
+7603 |             comparison: ComparisonDeps {
+     |                         ^^^^^^^^^^^^^^ missing `role_deny`
+
+For more information about this error, try `rustc --explain E0063`.
+error: could not compile `gauntlet-app` (lib test) due to 6 previous errors
+error: recipe `check-package` failed on line 74 with exit code 101
+APP_EXIT=101
+Stopping sccache server...
+Compile requests                      6
+Compile requests executed             1
+Cache hits                            0
+Cache misses                          1
+Cache misses (Rust)                   1
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          1
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   5
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.001 s
+Average compiler                  1.554 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            5
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            2 GiB
+Max cache size                       10 GiB

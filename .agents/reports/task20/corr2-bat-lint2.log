@@ -1,0 +1,5 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Finished `dev` profile [unoptimized] target(s) in 2m 20s
+cargo fmt --check

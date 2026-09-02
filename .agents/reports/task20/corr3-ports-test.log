@@ -1,0 +1,120 @@
+cargo nextest run -p gauntlet-ports
+   Compiling gauntlet-ports v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-ports)
+    Finished `test` profile [unoptimized] target(s) in 3.62s
+────────────
+ Nextest run ID e9b8d944-d341-4b9f-87f4-db17416ae8ea with nextest profile: default
+    Starting 112 tests across 1 binary
+        PASS [   0.005s] (  1/112) gauntlet-ports comparator::canonical_tests::canonical_envelope_ignores_semantically_unordered_input_order
+        PASS [   0.006s] (  2/112) gauntlet-ports comparison_record::tests::the_payload_form_round_trips_without_the_schema_member
+        PASS [   0.006s] (  3/112) gauntlet-ports budget_meter::tests::remaining_is_forward_ceiling_minus_spent
+        PASS [   0.007s] (  4/112) gauntlet-ports comparison_record::tests::missing_members_are_named
+        PASS [   0.008s] (  5/112) gauntlet-ports comparator::canonical_tests::an_envelope_whose_digest_does_not_label_its_bytes_is_refused
+        PASS [   0.009s] (  6/112) gauntlet-ports comparison_record::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.005s] (  7/112) gauntlet-ports comparison_record::tests::wrong_schema_tokens_and_invalid_values_are_refused_whole
+        PASS [   0.005s] (  8/112) gauntlet-ports contract::sandbox::tests::shell_words_reads_quoting_the_way_a_shell_does
+        PASS [   0.006s] (  9/112) gauntlet-ports contract::suite_runs::agent_runner_broken_is_caught
+        PASS [   0.010s] ( 10/112) gauntlet-ports comparison_record::tests::unknown_fields_are_rejected_at_every_level
+        PASS [   0.005s] ( 11/112) gauntlet-ports contract::suite_runs::budget_meter_green_is_clean
+        PASS [   0.008s] ( 12/112) gauntlet-ports contract::suite_runs::agent_runner_green_is_clean
+        PASS [   0.007s] ( 13/112) gauntlet-ports contract::suite_runs::clock_broken_is_caught
+        PASS [   0.010s] ( 14/112) gauntlet-ports contract::suite_runs::budget_meter_broken_is_caught
+        PASS [   0.013s] ( 15/112) gauntlet-ports contract::suite_runs::agent_runner_caps_broken_is_caught
+        PASS [   0.005s] ( 16/112) gauntlet-ports contract::suite_runs::clock_green_is_clean
+        PASS [   0.006s] ( 17/112) gauntlet-ports contract::suite_runs::comparator_facet_blind_is_caught
+        PASS [   0.008s] ( 18/112) gauntlet-ports contract::suite_runs::comparator_broken_is_caught
+        PASS [   0.005s] ( 19/112) gauntlet-ports contract::suite_runs::event_log_green_is_clean
+        PASS [   0.011s] ( 20/112) gauntlet-ports contract::suite_runs::comparator_green_is_clean
+        PASS [   0.011s] ( 21/112) gauntlet-ports contract::suite_runs::evidence_store_broken_is_caught
+        PASS [   0.011s] ( 22/112) gauntlet-ports contract::suite_runs::event_log_broken_is_caught
+        PASS [   0.008s] ( 23/112) gauntlet-ports contract::suite_runs::human_escalation_broken_is_caught
+        PASS [   0.013s] ( 24/112) gauntlet-ports contract::suite_runs::evidence_store_green_is_clean
+        PASS [   0.011s] ( 25/112) gauntlet-ports contract::suite_runs::human_escalation_green_is_clean
+        PASS [   0.007s] ( 26/112) gauntlet-ports contract::suite_runs::id_generator_broken_is_caught
+        PASS [   0.007s] ( 27/112) gauntlet-ports contract::suite_runs::observer_broken_is_caught
+        PASS [   0.008s] ( 28/112) gauntlet-ports contract::suite_runs::id_generator_green_is_clean
+        PASS [   0.008s] ( 29/112) gauntlet-ports contract::suite_runs::observer_green_is_clean
+        PASS [   0.008s] ( 30/112) gauntlet-ports contract::suite_runs::operator_surface_broken_is_caught
+        PASS [   0.006s] ( 31/112) gauntlet-ports contract::suite_runs::policy_provider_broken_is_caught
+        PASS [   0.007s] ( 32/112) gauntlet-ports contract::suite_runs::policy_provider_green_is_clean
+        PASS [   0.007s] ( 33/112) gauntlet-ports contract::suite_runs::reference_provider_broken_is_caught
+        PASS [   0.007s] ( 34/112) gauntlet-ports contract::suite_runs::reference_provider_green_is_clean
+        PASS [   0.016s] ( 35/112) gauntlet-ports contract::suite_runs::operator_surface_green_is_clean
+        PASS [   0.010s] ( 36/112) gauntlet-ports contract::suite_runs::sandbox_fallback_broken_is_caught
+        PASS [   0.011s] ( 37/112) gauntlet-ports contract::suite_runs::sandbox_broken_is_caught
+        PASS [   0.010s] ( 38/112) gauntlet-ports contract::suite_runs::sandbox_green_is_clean
+        PASS [   0.011s] ( 39/112) gauntlet-ports contract::suite_runs::sandbox_process_space_broken_is_caught
+        PASS [   0.011s] ( 40/112) gauntlet-ports contract::suite_runs::sandbox_process_start_broken_is_caught
+        PASS [   0.008s] ( 41/112) gauntlet-ports contract::suite_runs::state_store_broken_is_caught
+        PASS [   0.009s] ( 42/112) gauntlet-ports contract::suite_runs::state_store_green_is_clean
+        PASS [   0.008s] ( 43/112) gauntlet-ports contract::suite_runs::state_store_settlement_lax_is_caught
+        PASS [   0.006s] ( 44/112) gauntlet-ports contract::suite_runs::tool_provider_broken_is_caught
+        PASS [   0.009s] ( 45/112) gauntlet-ports contract::suite_runs::the_comparator_suite_dispatches_only_contexts_it_earned
+        PASS [   0.006s] ( 46/112) gauntlet-ports contract::suite_runs::tool_provider_green_is_clean
+        PASS [   0.007s] ( 47/112) gauntlet-ports contract::suite_runs::verifier_green_is_clean
+        PASS [   0.006s] ( 48/112) gauntlet-ports contract::suite_runs::workspace_provider_broken_is_caught
+        PASS [   0.010s] ( 49/112) gauntlet-ports contract::suite_runs::verifier_broken_is_caught
+        PASS [   0.008s] ( 50/112) gauntlet-ports contract::suite_runs::workspace_provider_green_is_clean
+        PASS [   0.006s] ( 51/112) gauntlet-ports deadline::tests::a_deadline_is_a_point_and_expiry_is_exact
+        PASS [   0.006s] ( 52/112) gauntlet-ports json::tests::duplicate_keys_are_rejected
+        PASS [   0.005s] ( 53/112) gauntlet-ports json::tests::nesting_past_the_bound_is_a_typed_error_not_a_crash
+        PASS [   0.007s] ( 54/112) gauntlet-ports json::tests::malformed_documents_are_typed_errors
+        PASS [   0.010s] ( 55/112) gauntlet-ports json::tests::scalars_and_shapes_parse_and_round_trip
+        PASS [   0.007s] ( 56/112) gauntlet-ports json::tests::surrogate_pairs_decode_and_lone_surrogates_are_rejected
+        PASS [   0.008s] ( 57/112) gauntlet-ports observer_evidence::tests::a_wrong_schema_token_is_refused_whole
+        PASS [   0.007s] ( 58/112) gauntlet-ports observer_evidence::tests::an_empty_identity_field_is_rejected_on_decode_and_construction
+        PASS [   0.006s] ( 59/112) gauntlet-ports observer_evidence::tests::command_line_quoting_is_pinned
+        PASS [   0.008s] ( 60/112) gauntlet-ports observer_evidence::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.006s] ( 61/112) gauntlet-ports observer_evidence::tests::missing_fields_are_rejected
+        PASS [   0.008s] ( 62/112) gauntlet-ports observer_evidence::tests::unknown_fields_are_rejected
+        PASS [   0.006s] ( 63/112) gauntlet-ports observer_evidence::tests::wrong_shapes_are_typed_errors
+        PASS [   0.010s] ( 64/112) gauntlet-ports producer_authority::tests::a_foreign_run_pass_record_never_admits_even_under_a_run_blind_store
+        PASS [   0.008s] ( 65/112) gauntlet-ports producer_authority::tests::a_fresh_verification_key_cannot_re_settle_a_settled_unit
+        PASS [   0.007s] ( 66/112) gauntlet-ports producer_authority::tests::a_hand_built_pass_document_cannot_become_the_admission_substrate
+        PASS [   0.007s] ( 67/112) gauntlet-ports producer_authority::tests::a_key_hit_diverging_on_evidence_is_a_typed_refusal
+        PASS [   0.007s] ( 68/112) gauntlet-ports producer_authority::tests::a_settled_unit_re_attempted_under_a_fresh_honest_pass_refuses
+        PASS [   0.007s] ( 69/112) gauntlet-ports producer_authority::tests::a_settlement_admission_requires_a_durable_pass_record_for_the_unit
+        PASS [   0.006s] ( 70/112) gauntlet-ports producer_authority::tests::a_settlement_admission_requires_a_durable_run
+        PASS [   0.007s] ( 71/112) gauntlet-ports producer_authority::tests::a_stale_or_ahead_declared_iteration_is_refused
+        PASS [   0.006s] ( 72/112) gauntlet-ports producer_authority::tests::an_absent_ref_refuses_because_there_are_no_bytes_to_digest
+        PASS [   0.007s] ( 73/112) gauntlet-ports producer_authority::tests::an_already_committed_settlement_refuses_re_admission
+        PASS [   0.007s] ( 74/112) gauntlet-ports producer_authority::tests::an_earned_admission_commits_through_the_store_and_reads_back
+        PASS [   0.005s] ( 75/112) gauntlet-ports producer_authority::tests::an_earned_verification_record_reads_back
+        PASS [   0.096s] ( 76/112) gauntlet-ports contract::suite_runs::sandbox_relocatable_denial_broken_is_caught
+        PASS [   0.095s] ( 77/112) gauntlet-ports contract::suite_runs::sandbox_shell_words_broken_is_caught
+        PASS [   0.006s] ( 78/112) gauntlet-ports producer_authority::tests::an_unsupported_iteration_refuses_the_verification_record_write
+        PASS [   0.007s] ( 79/112) gauntlet-ports producer_authority::tests::an_undurable_run_refuses_every_owner_write
+        PASS [   0.005s] ( 80/112) gauntlet-ports producer_authority::tests::bundle_bytes_that_are_not_json_refuse_the_bind
+        PASS [   0.006s] ( 81/112) gauntlet-ports producer_authority::tests::one_pass_record_cannot_settle_n_distinct_verification_refs
+        PASS [   0.006s] ( 82/112) gauntlet-ports producer_authority::tests::bytes_swapped_after_the_fact_are_refused_by_the_derived_digest
+        PASS [   0.007s] ( 83/112) gauntlet-ports producer_authority::tests::the_binding_digest_is_the_canonical_124_derivation_of_the_bytes
+        PASS [   0.007s] ( 84/112) gauntlet-ports producer_authority::tests::the_content_digest_is_derived_from_the_served_bytes
+        PASS [   0.008s] ( 85/112) gauntlet-ports producer_authority::tests::the_minted_settlement_admission_has_no_public_constructor
+        PASS [   0.005s] ( 86/112) gauntlet-ports producer_authority::tests::the_minted_verification_record_has_no_public_constructor
+        PASS [   0.006s] ( 87/112) gauntlet-ports producer_authority::tests::the_minted_types_have_no_public_constructor
+        PASS [   0.117s] ( 88/112) gauntlet-ports contract::suite_runs::sandbox_mask_order_broken_is_caught
+        PASS [   0.006s] ( 89/112) gauntlet-ports role_result::tests::a_conforming_document_decodes_field_for_field
+        PASS [   0.006s] ( 90/112) gauntlet-ports role_result::tests::a_critic_comparison_payload_decodes_into_the_comparison_variant
+        PASS [   0.005s] ( 91/112) gauntlet-ports role_result::tests::a_wrong_schema_token_is_refused_whole
+        PASS [   0.006s] ( 92/112) gauntlet-ports role_result::tests::an_unknown_payload_schema_is_never_partially_admitted
+        PASS [   0.005s] ( 93/112) gauntlet-ports role_result::tests::unknown_envelope_fields_are_mechanically_rejected
+        PASS [   0.006s] ( 94/112) gauntlet-ports role_result::tests::unknown_artifact_claim_fields_are_mechanically_rejected
+        PASS [   0.010s] ( 95/112) gauntlet-ports role_result::tests::invalid_values_are_typed_errors_not_coerced_defaults
+        PASS [   0.009s] ( 96/112) gauntlet-ports role_result::tests::malformed_documents_never_partially_parse
+        PASS [   0.012s] ( 97/112) gauntlet-ports role_result::tests::dispatch_identity_mismatches_are_detectable_and_classified
+        PASS [   0.007s] ( 98/112) gauntlet-ports role_result::tests::unknown_payload_fields_are_mechanically_rejected
+        PASS [   0.007s] ( 99/112) gauntlet-ports role_result::tests::unknown_self_check_fields_are_mechanically_rejected
+        PASS [   0.007s] (100/112) gauntlet-ports role_result::tests::unknown_payment_fields_are_mechanically_rejected
+        PASS [   0.006s] (101/112) gauntlet-ports tokens::tests::snake_token_matches_the_spec_token_shapes
+        PASS [   0.010s] (102/112) gauntlet-ports state_store::tests::settlement_surface_read_defaults_fail_closed
+        PASS [   0.010s] (103/112) gauntlet-ports role_result::tests::unknown_unavailable_evidence_fields_are_mechanically_rejected
+        PASS [   0.006s] (104/112) gauntlet-ports verification_record::tests::a_class_on_a_settled_outcome_is_unrepresentable
+        PASS [   0.006s] (105/112) gauntlet-ports tokens::tests::tokens_round_trip_and_unknown_tokens_are_typed_errors
+        PASS [   0.007s] (106/112) gauntlet-ports verification_record::tests::every_fourteen_three_class_round_trips_and_none_collapses
+        PASS [   0.008s] (107/112) gauntlet-ports verification_record::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.005s] (108/112) gauntlet-ports verification_record::tests::unknown_fields_are_rejected_at_every_level
+        PASS [   0.008s] (109/112) gauntlet-ports verification_record::tests::the_payload_form_round_trips_without_the_schema_member
+        PASS [   0.006s] (110/112) gauntlet-ports verification_record::tests::the_verification_ref_member_is_required_and_valid
+        PASS [   0.006s] (111/112) gauntlet-ports verification_record::tests::wrong_schema_tokens_and_invalid_values_are_refused_whole
+        PASS [   0.009s] (112/112) gauntlet-ports verification_record::tests::missing_members_are_named
+────────────
+     Summary [   0.196s] 112 tests run: 112 passed, 0 skipped

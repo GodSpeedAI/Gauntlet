@@ -1,0 +1,45 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 19s
+────────────
+ Nextest run ID 85ca34a3-b65c-4845-957e-43064b4d317d with nextest profile: default
+    Starting 10 tests across 2 binaries
+        PASS [   0.042s] ( 1/10) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.050s] ( 2/10) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.053s] ( 3/10) gauntlet-cli::e2e_full_loop_mock the_dry_run_preflight_writes_nothing
+        PASS [   0.223s] ( 4/10) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+        PASS [   0.250s] ( 5/10) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.268s] ( 6/10) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+        PASS [   0.411s] ( 7/10) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+        PASS [   0.443s] ( 8/10) gauntlet-cli::e2e_full_loop_mock parallel_completions_carry_and_never_collide
+        PASS [   0.230s] ( 9/10) gauntlet-cli::e2e_full_loop_mock the_report_forging_liar_is_never_settled
+        FAIL [   0.361s] (10/10) gauntlet-cli::e2e_full_loop_mock the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+  stdout ───
+
+    running 1 test
+    test the_first_resume_of_a_fully_settled_run_is_a_settled_noop ... FAILED
+
+    failures:
+
+    failures:
+        the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.35s
+
+  stderr ───
+
+    thread 'the_first_resume_of_a_fully_settled_run_is_a_settled_noop' (1080776) panicked at crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:899:5:
+    the FIRST resume of the fully settled run exits 0: stdout=run: run_id=53X83Y9NSPQCHB14MMNZYD77V2
+    run: terminal=budget_exhausted iterations=4
+    run 53X83Y9NSPQCHB14MMNZYD77V2: implemented-and-proven 3, provisional 0, configured-but-untested 0, proposed 0, blocked 0, unknown 0; out_of_scope 0
+    implemented-and-proven: AK-901, AK-902, AK-903
+    capabilities: doctor=configured-but-untested, escalations=configured-but-untested, export=configured-but-untested, improve=proposed, init=configured-but-untested, inspect=configured-but-untested, reference=configured-but-untested, resume=configured-but-untested, roles=configured-but-untested, run=configured-but-untested, skills=configured-but-untested, status=configured-but-untested, verify=configured-but-untested
+    {"run_id":"53X83Y9NSPQCHB14MMNZYD77V2","run_present":true,"terminal_state":null,"categories":{"implemented-and-proven":["AK-901","AK-902","AK-903"],"provisional":[],"configured-but-untested":[],"proposed":[],"blocked":[],"unknown":[]},"units":[{"unit":"AK-901","category":"implemented-and-proven","basis":"settlement row names verification vrf-5MC4RZNG49DS8YZ90TAA4R5X51 with a durable PASS record at evidence sha256:98cbdd080be79908b5ec5a87daef45325ce89ea793fb501b91990b99f2ad0e12"},{"unit":"AK-902","category":"implemented-and-proven","basis":"settlement row names verification vrf-4JJZ7G6H063A2KMNFTTAHRJY83 with a durable PASS record at evidence sha256:873c013c6638f80c2123a28da222f29044c1a3d437c00a214b176b493a65ca41"},{"unit":"AK-903","category":"implemented-and-proven","basis":"settlement row names verification vrf-PKQ7PNACSQ74MQ9V0J01P6SK32 with a durable PASS record at evidence sha256:2614558d4e3b921fc32f5c040f61a126cad884debe9eff738b25e92a956a950e"}],"capabilities":[{"key":"doctor","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"escalations","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"export","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"improve","wired":false,"category":"proposed","basis":"the caller's manifest declares the capability not wired; the report claims nothing"},{"key":"init","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"inspect","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"reference","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"resume","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"roles","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"run","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"skills","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"status","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"},{"key":"verify","wired":true,"category":"configured-but-untested","basis":"wired per the caller's manifest; the manifest binds no run unit as its evidence"}],"out_of_scope":[]}
+
+    stderr=
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.478s] 10 tests run: 9 passed, 1 failed, 0 skipped
+        FAIL [   0.361s] (10/10) gauntlet-cli::e2e_full_loop_mock the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+error: test run failed

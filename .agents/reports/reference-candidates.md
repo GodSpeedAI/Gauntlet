@@ -1318,3 +1318,106 @@ through the normal spec process, never a builder's direct edit.
   post-settlement gate run is the confirming evidence). Settlement of this
   candidate belongs to the ruler's owner, not the task.
 
+
+## 2026-08-31 — AK-060's locator `tests/e2e/cli_surface` materialized in the owning crate (Task 20, the AK-063/AK-065 class)
+
+- **Unit:** AK-060 (CLI exposes the full §20.1 surface; frozen locator
+  `tests/e2e/cli_surface`).
+- **Defect (evidence declaration only, claim satisfied):** the locator names a
+  repo-root `tests/e2e/` target. The Cargo-target-path rule
+  (`gauntlet-arch-tests` `escapes.rs` `scan_cargo_target_paths`, exemption list
+  exactly `["crates/gauntlet-arch-tests"]`) forbids any OTHER crate from
+  declaring a repo-level test target, and the exemption's justification — the
+  arch suite "is not part of the product, depends on no internal crate … is
+  outside `walk::CORE_CRATES`" — cannot transfer to `gauntlet-cli`, which is a
+  core product crate: exempting it would let a relocated lib/bin root escape
+  the scanners. Additionally, hosting the snapshot elsewhere would lose
+  `CARGO_BIN_EXE_gauntlet`, the only seam that drives the REAL binary.
+- **Delivered evidence:** `crates/gauntlet-cli/tests/cli_surface.rs` — the
+  whole-tree `--help` snapshot against the committed golden
+  (`crates/gauntlet-cli/tests/cli_help.txt`, single-segment beside the test
+  after the boundaries gate's literal rules; update-only-with-a-recorded-change
+  procedure; the test file's doc comment still spells the pre-move
+  `golden/cli_help.txt` path — a doc nit, the `include_str!` is the binding
+  reference),
+  whole-tree dispatch + unknown-command smokes, per-command unknown-arg /
+  missing-arg exit-2 smokes, and the usage/dispatch/report-manifest agreement
+  pin.
+- **This is an additional instance of the existing locator-materialization
+  class (first recorded 2026-08-17, AK-049)** — not a new defect class — with
+  the additional architectural reason the spelled path cannot host this test
+  without weakening a product crate's scan guarantee.
+- **Proposed resolution (ruler's owner):** re-point AK-060's locator to
+  `crates/gauntlet-cli/tests/cli_surface`, or declare a repo-root
+  `tests/e2e/` host crate whose sole justification is locator materialization
+  (a spec-level decision, not a test move).
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock (`just ruler` PASS at slice start and re-run
+  at slice close).
+
+## 2026-08-31 — Observation-binding GRANULARITY: §12/§14 key the bundle per (run, iteration) while §11.2 dispatches up to `max_parallel` completions into ONE iteration (Task 20, COR-D2)
+
+- **Unit:** AK-061 (core builds and completes a full loop), exercised at the
+  §11.2/§12 seam.
+- **Tension (ruler-owner question, NOT implemented):** the observation binding
+  is write-once per (run, iteration) — §12/§14's bundle-to-iteration key —
+  while §11.2 plans up to `max_parallel` dispatches into ONE iteration. With
+  `max_parallel >= 2` and two eligible units, two completions arrive in the
+  same iteration and only one can bind; the store's integrity rule turns the
+  second into a typed refusal that, pre-correction, escaped the drain as a
+  raw run error — not one of §11.6's bounded terminals. The shipped §8.6
+  default is `max_parallel: 2`, so the composed surface could not run its own
+  default parallelism over a multi-unit reference.
+- **Implemented loop-locally (COR-D2, adjudication):** at most one observation
+  binding per (run, iteration); surplus completions of one drain CARRY to the
+  following iteration and bind at that iteration's own anchor (checkpoint
+  first, §18.2 order preserved; reservations and workspaces held until their
+  pipeline runs; carries pinned as evidence; §16.3 recovery semantics:
+  checkpoint lists carried invocations on the §18.3 re-probe surface, a
+  resume re-plans their units, nothing double-binds).
+- **The question left to the ruler's owner:** is the binding's
+  granularity right? Two candidate revisions: (a) re-key the observation
+  binding per INVOCATION (the bundle is already per-completion; the
+  iteration remains the comparison/production anchor), or (b) declare
+  §11.2 parallelism as across-iterations only (one completion per
+  iteration, which is what the loop now enforces anyway). Choosing (a) is
+  a ports+spec change via candidate revision — deliberately not done in a
+  correction.
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock (`just ruler` PASS at slice start;
+  re-run at slice close).
+
+## 2026-08-31 — `evidence_required.locator` CONTENT semantics are composition-bound (Task 20, RES-11 record + COR-D3 consequence)
+
+- **Unit:** AK-061 (§14.2/§14.3 evidence binding in the composed loop).
+- **Record (ruler-owner question):** the CONTENT a production binds at
+  `evidence_required.locator` depends on the composition's produce seam.
+  Two worlds ship: the controller's default
+  (`ProducePolicy::MaterializeObservation`, the frozen p4/p7 facet-document
+  proof rungs decide through it) materializes the first observation facet's
+  document AT the locator; the composed CLI world
+  (`ProducePolicy::BindLocatorContent`) ingests the locator's ACTUAL bytes —
+  the builder-produced artifact — and materializes the facet document only
+  at absence. Neither world lets a claim settle on claim bytes alone; a
+  mismatched composition fails the §14.3 three-way equality loudly
+  (fail-closed); the production's recorded instrument is the observation
+  instrument, honestly recorded. The BindLocatorContent world additionally
+  means the rung contract (not the ingestion) is what discriminates: it
+  ingests builder-produced bytes at the locator verbatim.
+- **COR-D3 consequence (recorded here for one decision):** with the composed
+  workspace provider wired, builder execution anchors INSIDE the admitted
+  per-unit workspace (§17.5.1 invariant 1), so locator reads and writes for
+  a completion anchor there too — while a locator is workspace-RELATIVE, so
+  the durable production record does not name the directory it resolved
+  under. The operator `verify` surface re-derives bindings under the
+  canonical root; where the artifact stood only inside a RELEASED per-unit
+  workspace, the §22.2 re-read honestly reports absence and the re-decided
+  outcome is INCONCLUSIVE, never PASS (missing evidence is not passing
+  evidence). Should §14.3 pin ONE world (e.g., require production records to
+  carry the anchored workspace path, or require locators to resolve under
+  the canonical root for every composition)? That is the ruler owner's
+  adjudication; a ports revision (workspace on the Verifier request) was
+  recorded in-task as the race-free closure and is deliberately not chosen
+  by a correction.
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock.

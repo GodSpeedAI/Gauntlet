@@ -1,0 +1,14 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+error: using `contains()` instead of `iter().any()` is more efficient
+   --> crates/gauntlet-cli/src/compose.rs:499:13
+    |
+499 |         if !policy.writable_roots.iter().any(|root| *root == entry) {
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `policy.writable_roots.contains(&entry)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#manual_contains
+    = note: `-D clippy::manual-contains` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_contains)]`
+
+error: could not compile `gauntlet-cli` (lib) due to 1 previous error
+error: recipe `lint` failed on line 26 with exit code 101

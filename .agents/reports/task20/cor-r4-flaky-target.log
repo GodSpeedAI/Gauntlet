@@ -1,0 +1,47 @@
+    Finished `test` profile [unoptimized] target(s) in 0.14s
+────────────
+ Nextest run ID e9629c47-2e88-4a3a-9dee-20eacd6642df with nextest profile: default
+    Starting 18 tests across 1 binary
+        PASS [   0.048s] ( 1/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b15_deadline_boundary_is_exact
+        PASS [   0.059s] ( 2/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b14_spawn_failure_is_transport
+        PASS [   0.103s] ( 3/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4_wrong_path_exited_child_is_missing_result_before_deadline
+        PASS [   0.116s] ( 4/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+        PASS [   0.069s] ( 5/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b7_directory_at_contract_path_is_an_error_not_running
+        PASS [   0.019s] ( 6/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_forged_handle_is_unknown_everywhere
+        PASS [   0.157s] ( 7/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b2_garbage_and_empty_documents_are_malformed
+        PASS [   0.058s] ( 8/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b8_late_contract_never_resurrects_missing_result
+        PASS [   0.067s] ( 9/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_cancel_lifecycle_with_real_children
+        PASS [   0.143s] (10/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b5_foreign_identity_is_contract_mismatch
+        PASS [   0.072s] (11/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks d_env_and_prompt_channels_and_envelope_sibling_are_exact
+        PASS [   0.115s] (12/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_hang_after_write_completes_and_the_child_is_retired
+        PASS [   0.077s] (13/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks f_collect_serves_the_poll_snapshot_not_the_file
+        PASS [   0.024s] (14/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks j_capabilities_derive_from_the_template
+        PASS [   0.039s] (15/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks h_orphan_handle_file_survives_runtime_death_and_is_parseable
+        FAIL [   0.104s] (16/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_two_invocations_no_cross_wiring
+  stdout ───
+
+    running 1 test
+    test c_two_invocations_no_cross_wiring ... FAILED
+
+    failures:
+
+    failures:
+        c_two_invocations_no_cross_wiring
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.08s
+
+  stderr ───
+
+    thread 'c_two_invocations_no_cross_wiring' (1462407) panicked at crates/adapters/gauntlet-adapter-agent-cli/tests/falsifier_round1_live_attacks.rs:696:5:
+    assertion failed: matches!(wait_terminal(&runner, &silent, 10), InvocationStatus::Completed
+        { .. })
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 2 tests still running
+        PASS [   3.266s] (17/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4b_running_silent_child_past_deadline_is_timed_out_and_stopped
+        PASS [   4.688s] (18/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_sigterm_ignoring_child_is_escalated_within_bound
+────────────
+     Summary [   4.865s] 18 tests run: 17 passed, 1 failed, 0 skipped
+        FAIL [   0.104s] (16/18) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_two_invocations_no_cross_wiring
+error: test run failed
+exit=100

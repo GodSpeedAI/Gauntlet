@@ -7,10 +7,17 @@ publish.workspace = true
 [lints]
 workspace = true
 
+
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
-gauntlet-app.workspace = true
+# Plan Task 20 (the audited §7.1 seam, widened from the dev-only edge by
+# THIS manifest act — see crates/gauntlet-arch-tests/src/deps.rs's
+# composition seal, which admits exactly this production edge and the
+# original dev edge): the run composition constructs the §14.2 rung set
+# (`Ladder::new`), so a normal build of the composition root carries the
+# sealed constructors.
+gauntlet-app = { workspace = true, features = ["composition"] }
 # Plan Task 14: the FIRST production adapter wiring in the composition
 # root — `gauntlet doctor` MEASURES the configured sandbox backend (§8.5
 # check 4) by validating a minimal policy through the real backend and
@@ -32,6 +39,32 @@ gauntlet-adapter-agent-prime.workspace = true
 # configuration probe kind). Only capability-named items are used; the
 # boundary suite masks the crate name only.
 gauntlet-adapter-agent-cli.workspace = true
+
+# Plan Task 20: the run composition (brief Item 2) — the production wiring
+# that fronts the REAL adapters the loop composes: the embedded state
+# store, the fs evidence/escalation/workspace providers, the budget meter,
+# the comparison sources, the fs policy provider behind a live backend,
+# the observation instruments, the deterministic verification rungs, the
+# production ULID ids, and the mock runner the E2E selects by token. The
+# composition root is the one crate allowed to name adapters (spec 4.1);
+# the boundary suite masks the crate name only.
+gauntlet-adapter-state-sqlite.workspace = true
+gauntlet-adapter-evidence-fs.workspace = true
+gauntlet-adapter-escalation-fs.workspace = true
+gauntlet-adapter-id-entropy.workspace = true
+gauntlet-adapter-workspace-fs.workspace = true
+gauntlet-adapter-meter-memory.workspace = true
+gauntlet-adapter-compare-diff.workspace = true
+gauntlet-adapter-compare-model.workspace = true
+gauntlet-adapter-policy-fs.workspace = true
+gauntlet-adapter-agent-mock.workspace = true
+gauntlet-adapter-observe-test.workspace = true
+gauntlet-adapter-observe-build.workspace = true
+gauntlet-adapter-observe-filesystem.workspace = true
+gauntlet-adapter-observe-git.workspace = true
+gauntlet-adapter-verify-command-exit-code.workspace = true
+gauntlet-adapter-verify-file-digest.workspace = true
+gauntlet-adapter-verify-test-report.workspace = true
 
 # Spec §4.1, plan Task 20: the CLI is the composition root — the only crate
 # that may construct adapters and wire them into the application layer.

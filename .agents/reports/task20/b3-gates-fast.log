@@ -1,0 +1,12 @@
+./scripts/verify-ruler.sh
+verify-ruler.sh: PASS — answer key and manifest digests match the frozen lock (/home/sprime01/projects/gauntlet/.gauntlet/reference.lock)
+RULER=0
+DOCTOR=0
+CHECK=0
+DRYRUN_ROOT=0
+BOUNDARIES=0
+DENY=0
+LINT=0
+TEST=100
+AGENTCLI_ISO=0
+TEST2=0

@@ -1,0 +1,9 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 30s
+────────────
+ Nextest run ID 46ca8911-d4cf-49d4-96a1-94cd8baf0616 with nextest profile: default
+    Starting 1 test across 1 binary (414 tests skipped)
+        PASS [   0.009s] (1/1) gauntlet-app control::controller::tests::a_resume_completes_half_applied_settlements_and_reconciles_the_projection
+────────────
+     Summary [   0.016s] 1 test run: 1 passed, 414 skipped
+rc=0

@@ -74,7 +74,6 @@ use gauntlet_ports::agent_runner::{
 use gauntlet_ports::budget_meter::BudgetMeter;
 use gauntlet_ports::comparator::{Comparator, ComparatorSource};
 use gauntlet_ports::deadline::Deadline;
-use gauntlet_ports::id_generator::IdGenerator;
 use gauntlet_ports::observer::{FacetKind, InstrumentIdentity};
 use gauntlet_ports::policy_provider::PolicyProvider;
 use gauntlet_ports::sandbox::Sandbox;
@@ -659,12 +658,12 @@ impl LoopFixture {
             .expect("the declared check names a program")
             .to_owned();
         let args: Vec<String> = tokens.map(str::to_owned).collect();
-        let run_dir = SeededIdGenerator::new(IDS_SEED)
-            .expect("a non-empty seed")
-            .run_id()
-            .to_string();
-        let run_workspace = workspace_root.join(&run_dir);
-        let runner = MockAgentRunner::new(scenario, run_workspace.clone());
+        // COR-D3 mechanical adaptation: the mock resolves effects under
+        // <root>/<spec.workspace>/, so it is constructed with the
+        // CANONICAL root — the effects land at
+        // workspace_root/<run_id>/… (the run workspace the None-shape
+        // controller derives), exactly where they stood before.
+        let runner = MockAgentRunner::new(scenario, workspace_root.clone());
         #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
         let observers: Vec<Arc<dyn gauntlet_ports::observer::Observer>> =
             vec![Arc::new(CommandObserver::from_parts(
@@ -697,6 +696,7 @@ impl LoopFixture {
         #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
         let meter_factory: Arc<dyn Fn(Budget) -> Arc<dyn BudgetMeter> + Send + Sync> =
             Arc::new(|budget| Arc::new(MeteredBudget::new(budget)));
+        let ladder_root = workspace_root.clone();
         #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
         let deps = ControllerDeps {
             state: state.clone(),
@@ -714,12 +714,15 @@ impl LoopFixture {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Adaptive,
                 model_dispatches: 0,
+                role_deny: gauntlet_app::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: Ladder::new(vec![LadderRung::new(
-                RungKind::TestReport,
-                Arc::new(FacetExitVerifier::new(&workspace_root)),
-            )])
-            .expect("the single-rung focused-test ladder composes"),
+            ladder_for: Arc::new(move |_| {
+                Ok(Ladder::new(vec![LadderRung::new(
+                    RungKind::TestReport,
+                    Arc::new(FacetExitVerifier::new(&ladder_root)),
+                )])
+                .expect("the single-rung focused-test ladder composes"))
+            }),
             reference: provider,
             answer_key: AnswerKeySource::Path(key_path.clone()),
             escalation: escalation.clone(),
@@ -743,6 +746,7 @@ impl LoopFixture {
             policy: policy(),
             workspace_root: workspace_root.clone(),
             govern,
+            workspaces: None,
             config_fingerprint: gauntlet_domain::Digest::new("sha256", &"ab".repeat(32))
                 .expect("digest"),
             environment_fingerprint: gauntlet_domain::Digest::new("sha256", &"cd".repeat(32))
@@ -812,7 +816,6 @@ fn live_govern(
             },
         ))),
         Authority::Critic,
-        gauntlet_domain::WorkspaceRef::new(GATE_WORKSPACE_REF).expect("valid workspace ref"),
     )
     .expect("the live governance posture composes");
     Some((deps, scratch))
@@ -824,6 +827,11 @@ fn gate_facts(unit: u16, tier: BlastRadius, isolation: Isolation) -> GateFacts {
         tier,
         authority: Authority::Critic,
         runner_isolation: isolation,
+        // Task 20 (R-1b): the workspace anchor moved from GovernDeps's
+        // lifetime field to the PER-DISPATCH facts. The anchor value is
+        // unchanged — the same subdirectory `live_govern` created.
+        workspace: gauntlet_domain::WorkspaceRef::new(GATE_WORKSPACE_REF)
+            .expect("valid workspace ref"),
     }
 }
 
@@ -876,7 +884,7 @@ fn irreversible_never_dispatched() {
     // or above every required rung), and no recorded facts are supplied
     // (the lattice conjunct is skipped).
     let facts = gate_facts(44, BlastRadius::Irreversible, Isolation::Process);
-    match AuthorityGate::new().admit(&GovernDeps::none_workspace(), &facts, None, live_bound()) {
+    match AuthorityGate::new().admit(&GovernDeps::none_backend(), &facts, None, live_bound()) {
         Err(GateRefusal::Irreversible { unit }) => assert_eq!(unit, facts.unit),
         other => panic!(
             "under the conservative posture the gate must refuse an irreversible dispatch on \
@@ -977,7 +985,7 @@ fn a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_average
     let fixture = LoopFixture::new(
         "quality-contained",
         CONTAINED_KEY,
-        GovernDeps::none_workspace(),
+        GovernDeps::none_backend(),
         Arc::new(RecordingEscalation::default()),
     );
     let outcome = fixture
@@ -1053,7 +1061,7 @@ fn a_sandbox_validation_failure_escalates_without_falling_back() {
     let process_request = gate_facts(2, BlastRadius::Local, Isolation::Process);
     let refusal = AuthorityGate::new()
         .admit(
-            &GovernDeps::none_workspace(),
+            &GovernDeps::none_backend(),
             &process_request,
             Some((BlastRadius::Local, Authority::Critic)),
             live_bound(),
@@ -1069,7 +1077,7 @@ fn a_sandbox_validation_failure_escalates_without_falling_back() {
     let fixture = LoopFixture::new(
         "no-backend-local",
         LOCAL_KEY,
-        GovernDeps::none_workspace(),
+        GovernDeps::none_backend(),
         escalation.clone(),
     );
     let outcome = fixture
@@ -1293,11 +1301,11 @@ fn irreversible_fixture(escalation: Arc<RecordingEscalation>) -> LoopFixture {
         BASE_INSTANT,
     )));
     let scenario = load_scenario(SCENARIO_NAME).expect("the REQUIRED fixture parses");
-    let run_dir = SeededIdGenerator::new(IDS_SEED)
-        .expect("a non-empty seed")
-        .run_id()
-        .to_string();
-    let runner = MockAgentRunner::new(scenario, workspace_root.join(&run_dir));
+    // COR-D3 mechanical adaptation: the mock resolves effects under
+    // <root>/<spec.workspace>/, so it is constructed with the CANONICAL
+    // root — the effects land at workspace_root/<run_id>/…, exactly where
+    // they stood under the prior construction.
+    let runner = MockAgentRunner::new(scenario, workspace_root.clone());
     #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
     let observers: Vec<Arc<dyn gauntlet_ports::observer::Observer>> = Vec::new();
     let contract = ComparisonContract::parse(COMPARISON_CONTRACT)
@@ -1322,6 +1330,7 @@ fn irreversible_fixture(escalation: Arc<RecordingEscalation>) -> LoopFixture {
     #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
     let meter_factory: Arc<dyn Fn(Budget) -> Arc<dyn BudgetMeter> + Send + Sync> =
         Arc::new(|budget| Arc::new(MeteredBudget::new(budget)));
+    let ladder_root = workspace_root.clone();
     #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
     let deps = ControllerDeps {
         state: state.clone(),
@@ -1339,12 +1348,15 @@ fn irreversible_fixture(escalation: Arc<RecordingEscalation>) -> LoopFixture {
             adversarial: None,
             review_mode: gauntlet_domain::ReviewMode::Adaptive,
             model_dispatches: 0,
+            role_deny: gauntlet_app::roles::ContextDenySet::new(Vec::new()),
         },
-        ladder: Ladder::new(vec![LadderRung::new(
-            RungKind::TestReport,
-            Arc::new(FacetExitVerifier::new(&workspace_root)),
-        )])
-        .expect("the single-rung focused-test ladder composes"),
+        ladder_for: Arc::new(move |_| {
+            Ok(Ladder::new(vec![LadderRung::new(
+                RungKind::TestReport,
+                Arc::new(FacetExitVerifier::new(&ladder_root)),
+            )])
+            .expect("the single-rung focused-test ladder composes"))
+        }),
         reference: provider,
         answer_key: AnswerKeySource::Path(key_path.clone()),
         escalation,
@@ -1367,7 +1379,8 @@ fn irreversible_fixture(escalation: Arc<RecordingEscalation>) -> LoopFixture {
         },
         policy: policy(),
         workspace_root: workspace_root.clone(),
-        govern: GovernDeps::none_workspace(),
+        govern: GovernDeps::none_backend(),
+        workspaces: None,
         config_fingerprint: gauntlet_domain::Digest::new("sha256", &"ab".repeat(32))
             .expect("digest"),
         environment_fingerprint: gauntlet_domain::Digest::new("sha256", &"cd".repeat(32))

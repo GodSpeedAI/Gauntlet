@@ -82,10 +82,15 @@ impl MockEntry {
     }
 }
 
-/// The scripted runner. Construct with a [`Scenario`] and the workspace
-/// root under which the scenario's file effects resolve (tests provide a
-/// tempdir; fixtures never name absolute paths), or through
-/// [`MockAgentRunner::from_script`] for suite-driven children.
+/// The scripted runner. Construct with a [`Scenario`] and the CANONICAL
+/// workspace root the dispatch's per-unit workspaces live under; the
+/// scenario's file effects resolve under
+/// `<workspace_root>/<spec.workspace>/` — the workspace the controller
+/// allocated and admitted the dispatch against (plan Task 20 COR-D3,
+/// §17.5.1 invariant 1). Tests provide a tempdir; fixture scenarios never
+/// name absolute paths; suite scripts carry no effects at all. Or
+/// construct through [`MockAgentRunner::from_script`] for suite-driven
+/// children.
 ///
 /// Single-threaded by design (`RefCell` interior): one runner replays one
 /// child per admitted invocation, and the contract suite drives it from
@@ -101,7 +106,8 @@ pub struct MockAgentRunner {
 
 impl MockAgentRunner {
     /// A runner replaying `scenario`, resolving file effects under
-    /// `workspace_root`.
+    /// `<workspace_root>/<spec.workspace>/` (the admitted per-unit
+    /// workspace segment; see the type docs).
     pub fn new(scenario: Scenario, workspace_root: PathBuf) -> Self {
         Self {
             scenario,
@@ -213,7 +219,7 @@ impl MockAgentRunner {
                 }
                 if !entry.effects_applied {
                     entry.effects_applied = true;
-                    if let Err(detail) = self.apply_effects() {
+                    if let Err(detail) = self.apply_effects(&entry.spec.workspace) {
                         entry.terminal = Some(InvocationStatus::Failed {
                             class: InvocationFailure::Execution,
                         });
@@ -276,14 +282,31 @@ impl MockAgentRunner {
         }
     }
 
-    /// Applies the scenario's workspace file effects under the runner's
-    /// workspace root. The parser already refused absolute/`..` paths;
-    /// this re-checks containment at use (two independent guards) and
-    /// creates parent directories as a real child process would.
-    fn apply_effects(&self) -> Result<(), String> {
+    /// Applies the scenario's workspace file effects under the ADMITTED
+    /// PER-UNIT WORKSPACE (plan Task 20 COR-D3, §17.5.1 invariant 1: the
+    /// builder runs only inside its assigned workspace): the effects root
+    /// is the constructed root joined with the dispatch's `spec.workspace`
+    /// segment — the workspace the controller allocated and admitted the
+    /// dispatch against — never the shared root itself. The ref is
+    /// untrusted external input: it must be a single sanitized key-class
+    /// component before it may join (the workspace provider's §17.5.3
+    /// class, re-checked here because the adapter depends on domain and
+    /// ports only). The scenario parser already refused absolute/`..`
+    /// effect paths; this re-checks containment at use (two independent
+    /// guards) and creates parent directories as a real child process
+    /// would.
+    fn apply_effects(&self, workspace: &gauntlet_domain::WorkspaceRef) -> Result<(), String> {
+        let reference = workspace.as_str();
+        if !is_workspace_key(reference) {
+            return Err(format!(
+                "workspace ref {reference:?} is outside the single-component key class — \
+                 refused at resolution"
+            ));
+        }
+        let effects_root = self.workspace_root.join(reference);
         for effect in self.scenario.workspace_effects() {
-            let target = self.workspace_root.join(effect.path());
-            if !target.starts_with(&self.workspace_root) {
+            let target = effects_root.join(effect.path());
+            if !target.starts_with(&effects_root) {
                 return Err(format!(
                     "effect path {:?} escapes the workspace root — refused at resolution",
                     effect.path()
@@ -325,6 +348,20 @@ fn scratch_root() -> PathBuf {
         std::process::id(),
         SEQUENCE.fetch_add(1, Ordering::Relaxed)
     ))
+}
+
+/// The §17.5.3 workspace key class the adapter accepts as an execution
+/// anchor: non-empty, one path component, every byte in
+/// `[A-Za-z0-9._-]`. The `WorkspaceProvider` derives exactly this class;
+/// the runner re-derives it because the ref rides the dispatch spec
+/// (untrusted external input) and the adapter depends on domain and ports
+/// only — never on the provider adapter where the class is enforced.
+fn is_workspace_key(raw: &str) -> bool {
+    !raw.is_empty()
+        && !raw.contains(['/', '\\'])
+        && raw.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-'
+        })
 }
 
 /// The status → coarse state mapping the ports' own stub uses for
@@ -741,7 +778,12 @@ mod tests {
     }
 
     #[test]
-    fn workspace_effects_resolve_under_the_provided_root() {
+    fn workspace_effects_resolve_under_the_admitted_per_unit_workspace() {
+        // COR-D3 teeth (red when bypassed): the effects anchor at
+        // <root>/<spec.workspace>/<effect.path()> — the workspace the
+        // dispatch was admitted against — and NEVER at the shared root
+        // itself (§17.5.1 invariant 1: the builder runs only inside its
+        // assigned workspace).
         let text = [
             "scenario: runner-effects",
             "role: builder",
@@ -769,9 +811,56 @@ mod tests {
             InvocationStatus::Completed { .. } => {}
             other => panic!("got {other:?}"),
         }
-        let written = std::fs::read_to_string(root.join("out/artifact.txt"))
-            .expect("the effect landed under the provided root");
+        let written = std::fs::read_to_string(root.join("ws-runner").join("out/artifact.txt"))
+            .expect("the effect landed under the admitted per-unit workspace segment");
         assert_eq!(written, "the artifact body");
+        assert!(
+            !root.join("out").exists(),
+            "no effect may land at the shared root: execution anchors at the per-unit workspace"
+        );
+    }
+
+    #[test]
+    fn a_workspace_ref_outside_the_key_class_refuses_effects() {
+        // The ref rides the dispatch spec — untrusted external input. A
+        // ref with a separator or a traversal segment never joins the
+        // root: the completion maps to the typed execution failure.
+        let text = [
+            "scenario: runner-hostile-ref",
+            "role: builder",
+            "behavior: write-result",
+            "state: completed",
+            "payload:",
+            "  attempted: [AK-014]",
+            "  changed_paths: []",
+            "  commands_run: []",
+            "  artifacts: []",
+            "  claims: []",
+            "  self_checks: []",
+            "  blocked_on: []",
+            "workspace_effects:",
+            "  - path: out/artifact.txt",
+            "    content: unreachable",
+        ]
+        .join("\n");
+        let scenario = parse_scenario(&text).expect("parses");
+        let root = scratch("hostile-ref");
+        let runner = MockAgentRunner::new(scenario, root.clone());
+        let mut hostile = spec();
+        hostile.workspace =
+            WorkspaceRef::new("seg/../escape").expect("the ref grammar admits the string");
+        let handle = runner.invoke(hostile).expect("admission records the facts");
+        match runner.poll(&handle).expect("a typed failure, not a panic") {
+            InvocationStatus::Failed {
+                class: InvocationFailure::Execution,
+            } => {}
+            other => panic!("got {other:?}"),
+        }
+        assert_eq!(
+            std::fs::read_dir(&root).expect("root reads").count(),
+            0,
+            "nothing was ever joined outside the key class"
+        );
     }
 
     #[test]

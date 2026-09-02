@@ -3,6 +3,11 @@
 **/target/
 Cargo.lock.bak
 
+# Task 20 (builder B3): the E2E fixture target project is a committed fixture,
+# not a build artifact — un-ignore exactly this one directory that the
+# `**/target/` rule above would otherwise swallow wholesale.
+!tests/fixtures/target/
+
 # Local environment overrides (spec §8.1: secrets by indirection only, never committed)
 .env
 .env.local

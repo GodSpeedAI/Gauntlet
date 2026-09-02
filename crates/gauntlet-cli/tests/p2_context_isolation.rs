@@ -386,9 +386,13 @@ fn composed_envelope(scratch: &Scratch) -> Composed {
     std::fs::create_dir_all(&workspace_dir).expect("the lying builder's workspace is creatable");
 
     // 1-2. Drive the scripted child to completion over that workspace.
+    // COR-D3 mechanical adaptation: the mock resolves effects under
+    // <root>/<spec.workspace>/, so it is constructed with the CANONICAL
+    // workspaces root — the effects land inside
+    // workspaces_root/WORKSPACE_KEY, exactly the tree the observers read.
     let runner = MockAgentRunner::new(
         load_scenario("lying-builder").expect("the REQUIRED fixture parses"),
-        workspace_dir.clone(),
+        workspaces_root.clone(),
     );
     let spec = dispatch_spec();
     let handle = runner.invoke(spec.clone()).expect("admission");

@@ -1,0 +1,9 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 48s
+────────────
+ Nextest run ID 0fc7a084-8074-4b25-b27f-6fce5aa610b6 with nextest profile: default
+    Starting 1 test across 6 binaries (471 tests skipped)
+        PASS [   0.009s] (1/1) gauntlet-app control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop
+────────────
+     Summary [   0.019s] 1 test run: 1 passed, 471 skipped
+exit=0

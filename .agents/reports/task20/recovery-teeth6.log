@@ -1,0 +1,11 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 22s
+────────────
+ Nextest run ID 38871bf3-6c08-40cf-8b93-b6189a8356f9 with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.143s] (1/4) gauntlet-cli::compose_teeth an_unset_runner_token_refuses_naming_key_and_env_and_nothing_runs
+        PASS [   0.148s] (2/4) gauntlet-cli::compose_teeth an_unknown_runner_token_refuses_naming_the_fronted_set
+        PASS [   0.188s] (3/4) gauntlet-cli::compose_teeth the_mock_token_without_its_scenario_hook_refuses
+        PASS [   0.309s] (4/4) gauntlet-cli::compose_teeth a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+────────────
+     Summary [   0.322s] 4 tests run: 4 passed, 0 skipped

@@ -1,0 +1,4 @@
+cargo check --workspace --all-targets
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 24s

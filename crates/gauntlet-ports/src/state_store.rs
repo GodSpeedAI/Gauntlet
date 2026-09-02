@@ -287,6 +287,52 @@ impl EvidenceProductionBinding {
     }
 }
 
+/// One durable [`RunEventKind::EvidenceProduced`] event at or after a resume
+/// anchor — the A5 crash window's durable fact the §18.3 resume-completion
+/// recovery completes the missing row from (COR-R3-1). The event is
+/// deliberately minimal (evidence ref and locator — see
+/// [`StateStore::complete_pending_evidence_production`]'s contract): the
+/// row's producer, iteration, and content-digest facts are NOT here and are
+/// never fabricated from this item — the recovery re-mints them through the
+/// production authority, deriving the content digest from the evidence
+/// store's own bytes at [`Self::evidence`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrphanEvidenceProduction {
+    evidence: EvidenceRef,
+    offset: EventLogOffset,
+    at: EpochSeconds,
+}
+
+impl OrphanEvidenceProduction {
+    pub fn new(evidence: EvidenceRef, offset: EventLogOffset, at: EpochSeconds) -> Self {
+        Self {
+            evidence,
+            offset,
+            at,
+        }
+    }
+
+    /// The evidence ref the durable event names — the ref the produce step
+    /// actually recorded (in the produced-artifact world, the locator
+    /// artifact's own content ref: a ref no observation facet names).
+    pub fn evidence(&self) -> &EvidenceRef {
+        &self.evidence
+    }
+
+    /// The orphan event's own append offset — the anchor the completed row
+    /// binds to (the settlement-replay pattern).
+    pub fn offset(&self) -> EventLogOffset {
+        self.offset
+    }
+
+    /// The orphan event's own stored timestamp — the `produced_at` fact the
+    /// completed row takes (the A3 discipline: the durable event is the
+    /// authority, never the re-mint's clock).
+    pub fn at(&self) -> EpochSeconds {
+        self.at
+    }
+}
+
 /// The §16.3 settlement commit payload: the settlement event's fields
 /// verbatim (`SettlementEvent{unit_id, evidence_ref, verification_ref,
 /// digest, ts}`). `at` is the event CONSTRUCTION timestamp (from the
@@ -715,6 +761,38 @@ pub trait StateStore {
     ) -> Result<Option<EvidenceProductionBinding>, StateStoreError> {
         Err(StateStoreError::WriteFailed {
             detail: "this state store does not implement evidence-production replay completion"
+                .to_owned(),
+        })
+    }
+
+    /// The durable [`RunEventKind::EvidenceProduced`] events of one run at or
+    /// after `anchor` naming `locator`, in offset order (oldest first) — the
+    /// orphan facts the §18.3 resume-completion recovery completes a missing
+    /// production row from (COR-R3-1, falsifier round 3, F-R3-1).
+    ///
+    /// Why the recovery needs this read: it must re-mint the missing row at
+    /// the ref the produce step ACTUALLY recorded in its world. In the
+    /// produced-artifact world that ref is the locator artifact's own
+    /// content ref — a ref NO observation facet names — so the recovery can
+    /// neither guess it from the bundle nor rebuild it from the event's
+    /// minimal payload without reading it here. The returned facts are
+    /// durable events only; every remaining row fact (producer, iteration,
+    /// content digest) is re-minted by the recovery's authority, and
+    /// [`StateStore::complete_pending_evidence_production`] cross-validates
+    /// the mint against the same events before any row lands.
+    ///
+    /// Fails closed: a store that cannot replay refuses, never a silent
+    /// empty that would under-inform the §18.3 re-entry reconciliation (the
+    /// COR-7 discipline for the settlement-surface reads).
+    fn pending_evidence_production_events(
+        &self,
+        _run_id: &RunId,
+        _anchor: EventLogOffset,
+        _locator: &EvidenceLocator,
+        _deadline: Deadline,
+    ) -> Result<Vec<OrphanEvidenceProduction>, StateStoreError> {
+        Err(StateStoreError::ReadFailed {
+            detail: "this state store does not implement evidence-production orphan reads"
                 .to_owned(),
         })
     }

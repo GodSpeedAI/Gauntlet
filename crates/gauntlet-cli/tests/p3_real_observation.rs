@@ -148,9 +148,14 @@ fn the_lying_builders_claim_diverges_from_reality_inside_the_bundle() {
     std::fs::create_dir_all(&workspace_dir).expect("the lying builder's workspace is creatable");
 
     // 1-2. Drive the scripted child to completion over that workspace.
+    // COR-D3 mechanical adaptation: the mock resolves effects under
+    // <root>/<spec.workspace>/, so it is constructed with the CANONICAL
+    // workspaces root — the effects land inside
+    // workspaces_root/WORKSPACE_KEY, exactly the tree the assertions and
+    // the observers below read.
     let runner = MockAgentRunner::new(
         load_scenario("lying-builder").expect("the REQUIRED fixture parses"),
-        workspace_dir.clone(),
+        workspaces_root.clone(),
     );
     let spec = dispatch_spec();
     let handle = runner.invoke(spec.clone()).expect("admission");
@@ -389,9 +394,13 @@ fn a_claims_swap_moves_the_digest_but_not_the_facet_inputs() {
     )
     .expect("the probe file is seedable");
 
+    // COR-D3 mechanical adaptation: constructed with the CANONICAL
+    // workspaces root — the effects land inside
+    // workspaces_root/WORKSPACE_KEY, where the pre-seeded probe file and
+    // the observers' workspace already sit.
     let runner = MockAgentRunner::new(
         load_scenario("lying-builder").expect("the REQUIRED fixture parses"),
-        workspace_dir,
+        workspaces_root.clone(),
     );
     let spec = dispatch_spec();
     let handle = runner.invoke(spec.clone()).expect("admission");

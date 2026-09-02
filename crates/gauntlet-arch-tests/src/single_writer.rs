@@ -159,6 +159,18 @@ pub const ANSWER_KEY_SURFACE_FILES: &[(&str, &str)] = &[
         "FileReferenceProvider over .wayfinder; defines AnswerKeySource — the read-only seam",
     ),
     (
+        "crates/gauntlet-cli/src/compose.rs",
+        "the run composition CONSTRUCTS the provider over the configured answer-key path          (AnswerKeySource::Path from the resolved config) — it derives no ruler path itself          and its writes are the configured state/evidence dir creations, never the ruler",
+    ),
+    (
+        "crates/gauntlet-cli/src/init_cmd.rs",
+        "the project scaffold writes a COMMENTED GAUNTLET.md template whose wayfinder paths          are inert examples — it refuses any existing file and never writes a real ruler",
+    ),
+    (
+        "crates/gauntlet-cli/src/reference_cmd.rs",
+        "reference show/verify/diff READ the configured key and the frozen lock (the typed          just-ruler twin); freeze writes evidence-store objects, never the ruler files",
+    ),
+    (
         "crates/gauntlet-app/src/skills/mod.rs",
         "REPO_OWNED_SKILLS names the installed skill directory 'wayfinder-gauntlet' — a skill \
          identity string the lint's filesystem lookups must match exactly, not a path this \
@@ -225,6 +237,45 @@ pub struct WriteSite {
 /// and the mock runner's two independent guards — cited, not duplicated,
 /// here.
 pub const WRITE_API_INVENTORY: &[WriteSite] = &[
+    // Plan Task 20: the run composition's durable-root creation — the state
+    // and evidence dirs come from the RESOLVED configuration, never from a
+    // literal; the guard is the composition's own path-from-config helper.
+    WriteSite {
+        file: "crates/gauntlet-cli/src/compose.rs",
+        token: "fs::create_dir_all",
+        reason: "ensuring the configured state and evidence directories exist before the                  run's stores open (plan Task 20 composition)",
+        guard: Some("fn ensure_configured_dir"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/init_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "project scaffold creates the .gauntlet runtime dir (plan Task 20); the                  command refuses any existing file first",
+        guard: Some("refusing to overwrite"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/init_cmd.rs",
+        token: "fs::write",
+        reason: "project scaffold writes the commented GAUNTLET.md template and the minimal                  env example — inert examples, never a real ruler (plan Task 20)",
+        guard: Some("refusing to overwrite"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/skills_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "skills install creates the per-skill installed directory under the state                  dir's runtime tree (plan Task 20, D8)",
+        guard: Some("fn installed_root"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/skills_cmd.rs",
+        token: "fs::write",
+        reason: "skills install writes the installed SKILL.md copies and the content-digest                  skills lock (plan Task 20, D8)",
+        guard: Some("fn installed_root"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/state_cmd.rs",
+        token: "fs::write",
+        reason: "export --out writes the canonical export to the OPERATOR-named path only                  (plan Task 20); the default writes nothing (stdout)",
+        guard: Some("--out"),
+    },
     WriteSite {
         file: "crates/gauntlet-app/src/control/controller.rs",
         token: "fs::create_dir_all",
@@ -306,6 +357,37 @@ pub const WRITE_API_INVENTORY: &[WriteSite] = &[
                  construction (the runtime lock leaf `project_root/.gauntlet/roles.lock` \
                  or a validated `<stem>.md` under the pre-validated installed dir)",
         guard: Some("fn ensure_within_root"),
+    },
+    // Plan Task 20, COR-R3-3 (falsifier round 3): the state-dir
+    // single-writer guard — the lock file's path is `state_dir.join` of
+    // the RESOLVED configuration dir, and the write is the single-writer
+    // admission itself: `create_new(true)` is the O_EXCL exclusion whose
+    // failure IS the typed second-writer refusal.
+    WriteSite {
+        file: "crates/gauntlet-cli/src/writer_lock.rs",
+        token: "fs::create_dir_all",
+        reason: "ensuring the configured state dir exists before the exclusive writer-lock \
+                 file is created (the state dir comes from the resolved configuration, \
+                 never a literal)",
+        guard: Some("fn acquire"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/writer_lock.rs",
+        token: "OpenOptions",
+        reason: "the single-writer admission itself: `create_new(true)` is the O_EXCL \
+                 exclusion — a second concurrent run/resume fails here and is refused \
+                 typed, naming the holder pid; the guard is fail-closed with no \
+                 liveness guessing and no automatic takeover",
+        guard: Some("fn acquire"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/writer_lock.rs",
+        token: "fs::remove_file",
+        reason: "the holder's release: the lock file is removed only by the handle that \
+                 created it, on every exit path of its own command (a failed removal \
+                 leaves the stale-lock case the typed refusal documents for manual \
+                 recovery)",
+        guard: Some("impl Drop for WriterLock"),
     },
 ];
 
@@ -857,6 +939,9 @@ mod tests {
                 "crates/gauntlet-app/src/reference/parse.rs",
                 "crates/gauntlet-app/src/reference/manifest.rs",
                 "crates/gauntlet-app/src/reference/provider.rs",
+                "crates/gauntlet-cli/src/compose.rs",
+                "crates/gauntlet-cli/src/init_cmd.rs",
+                "crates/gauntlet-cli/src/reference_cmd.rs",
                 "crates/gauntlet-app/src/skills/mod.rs",
             ]
         );
@@ -867,6 +952,36 @@ mod tests {
         assert_eq!(
             inventory,
             &[
+                (
+                    "crates/gauntlet-cli/src/compose.rs",
+                    "fs::create_dir_all",
+                    Some("fn ensure_configured_dir"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/init_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("refusing to overwrite"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/init_cmd.rs",
+                    "fs::write",
+                    Some("refusing to overwrite"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/skills_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn installed_root"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/skills_cmd.rs",
+                    "fs::write",
+                    Some("fn installed_root"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/state_cmd.rs",
+                    "fs::write",
+                    Some("--out"),
+                ),
                 (
                     "crates/gauntlet-app/src/control/controller.rs",
                     "fs::create_dir_all",
@@ -916,6 +1031,24 @@ mod tests {
                     "crates/gauntlet-app/src/roles/install.rs",
                     "fs::rename",
                     Some("fn ensure_within_root"),
+                ),
+                // COR-R3-3 (falsifier round 3): the state-dir single-writer
+                // guard — the O_EXCL admission, the state-dir creation it
+                // sits behind, and the holder's release-on-drop.
+                (
+                    "crates/gauntlet-cli/src/writer_lock.rs",
+                    "fs::create_dir_all",
+                    Some("fn acquire"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/writer_lock.rs",
+                    "OpenOptions",
+                    Some("fn acquire"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/writer_lock.rs",
+                    "fs::remove_file",
+                    Some("impl Drop for WriterLock"),
                 ),
             ]
         );
@@ -1123,6 +1256,48 @@ mod tests {
             repo.write(
                 "crates/gauntlet-app/src/skills/mod.rs",
                 "pub const REPO_OWNED_SKILLS: &[&str] = &[\"wayfinder-gauntlet\"];\n",
+            );
+            repo.write(
+                "crates/gauntlet-cli/src/compose.rs",
+                "use gauntlet_app::reference::provider::AnswerKeySource;\n\
+                 fn ensure_configured_dir(path: &std::path::Path) {\n    \
+                 std::fs::create_dir_all(path);\n}\n",
+            );
+            repo.write(
+                "crates/gauntlet-cli/src/init_cmd.rs",
+                "fn scaffold() {\n    // the wayfinder example stays inert; refusing to \
+                 overwrite\n    std::fs::create_dir_all(\"run\");\n    \
+                 std::fs::write(\"GAUNTLET.md\", b\"x\");\n}\n",
+            );
+            repo.write(
+                "crates/gauntlet-cli/src/reference_cmd.rs",
+                "//! .wayfinder\n",
+            );
+            repo.write(
+                "crates/gauntlet-cli/src/skills_cmd.rs",
+                "fn installed_root() -> std::path::PathBuf { unimplemented!() }\n\
+                 fn install() {\n    std::fs::create_dir_all(installed_root());\n    \
+                 std::fs::write(installed_root().join(\"s\"), b\"x\");\n}\n",
+            );
+            repo.write(
+                "crates/gauntlet-cli/src/state_cmd.rs",
+                "fn export(out: Option<&std::path::Path>, flag: &str) {\n    if flag == \
+                 \"--out\" {\n        if let Some(path) = out {\n            \
+                 std::fs::write(path, b\"x\");\n        }\n    }\n}\n",
+            );
+            // COR-R3-3: the state-dir single-writer guard's inventoried
+            // writes — the O_EXCL admission and its release-on-drop.
+            repo.write(
+                "crates/gauntlet-cli/src/writer_lock.rs",
+                "pub struct WriterLock { path: std::path::PathBuf }\n\
+                 impl Drop for WriterLock {\n    fn drop(&mut self) {\n        let _ = \
+                 std::fs::remove_file(&self.path);\n    }\n}\n\
+                 pub fn acquire(state_dir: &std::path::Path) -> std::io::Result<Self> {\n    \
+                 let lock_path = state_dir.join(\"writer.lock\");\n    \
+                 if let Some(parent) = lock_path.parent() {\n        \
+                 std::fs::create_dir_all(parent)?;\n    }\n    \
+                 let file = std::fs::OpenOptions::new().write(true).create_new(true).open(\
+                 &lock_path)?;\n    Ok(Self { path: lock_path })\n}\n",
             );
             repo
         }

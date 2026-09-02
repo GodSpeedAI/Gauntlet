@@ -1,0 +1,6 @@
+     Summary [   0.990s] 460 tests run: 460 passed, 0 skipped
+=== CLI ALL ===
+     Summary [   0.570s] 71 tests run: 71 passed, 0 skipped
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

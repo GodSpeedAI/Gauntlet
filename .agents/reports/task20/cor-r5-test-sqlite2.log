@@ -1,0 +1,57 @@
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+────────────
+ Nextest run ID fb06e5d3-5d74-408e-a312-1c3b44490929 with nextest profile: default
+    Starting 50 tests across 6 binaries
+        PASS [   0.015s] ( 1/50) gauntlet-adapter-state-sqlite encode::tests::a_mismatched_kind_column_is_a_typed_error
+        PASS [   0.014s] ( 2/50) gauntlet-adapter-state-sqlite encode::tests::checkpoint_projections_round_trip
+        PASS [   0.015s] ( 3/50) gauntlet-adapter-state-sqlite encode::tests::garbage_payloads_are_typed_errors_never_panics
+        PASS [   0.017s] ( 4/50) gauntlet-adapter-state-sqlite encode::tests::events_round_trip_through_the_canonical_payload
+        PASS [   0.035s] ( 5/50) gauntlet-adapter-state-sqlite migrations::tests::migrations_apply_in_order_and_reopening_applies_nothing_new
+        PASS [   0.024s] ( 6/50) gauntlet-adapter-state-sqlite state_store::tests::a_fully_applied_evidence_production_completes_nothing
+        PASS [   0.023s] ( 7/50) gauntlet-adapter-state-sqlite state_store::tests::a_half_applied_evidence_production_is_completed_exactly_once
+        PASS [   0.024s] ( 8/50) gauntlet-adapter-state-sqlite state_store::tests::a_projected_run_still_refuses_charged_checkpoints_loudly
+        PASS [   0.040s] ( 9/50) gauntlet-adapter-state-sqlite state_store::tests::a_commit_timestamp_disagreeing_with_the_durable_event_is_refused
+        PASS [   0.025s] (10/50) gauntlet-adapter-state-sqlite state_store::tests::a_settlement_row_at_its_own_event_offset_lands
+        PASS [   0.010s] (11/50) gauntlet-adapter-state-sqlite state_store::tests::a_settlement_row_pointing_at_a_foreign_event_is_refused
+        PASS [   0.012s] (12/50) gauntlet-adapter-state-sqlite state_store::tests::anchored_replay_skips_events_below_the_anchor_and_completes_the_rest
+        PASS [   0.015s] (13/50) gauntlet-adapter-state-sqlite state_store::tests::a_tampered_checkpoint_offset_is_corrupt_never_a_silent_zero
+        PASS [   0.013s] (14/50) gauntlet-adapter-state-sqlite state_store::tests::correction_selections_round_trip_with_alternatives_and_reasons
+        PASS [   0.015s] (15/50) gauntlet-adapter-state-sqlite state_store::tests::commit_settlement_is_the_spec_sequence_and_idempotent_by_key
+        PASS [   0.011s] (16/50) gauntlet-adapter-state-sqlite state_store::tests::evidence_production_records_are_write_once_and_idempotent
+        PASS [   0.018s] (17/50) gauntlet-adapter-state-sqlite state_store::tests::a_settlement_row_pointing_past_the_log_is_refused
+        PASS [   0.013s] (18/50) gauntlet-adapter-state-sqlite state_store::tests::export_is_the_pinned_golden_and_byte_identical
+        PASS [   0.010s] (19/50) gauntlet-adapter-state-sqlite state_store::tests::non_json_record_payloads_are_refused
+        PASS [   0.012s] (20/50) gauntlet-adapter-state-sqlite state_store::tests::recording_a_moved_reference_is_refused
+        PASS [   0.015s] (21/50) gauntlet-adapter-state-sqlite state_store::tests::load_run_prefers_the_recorded_identity
+        PASS [   0.013s] (22/50) gauntlet-adapter-state-sqlite state_store::tests::productions_at_a_locator_are_ordered_by_their_anchors
+        PASS [   0.016s] (23/50) gauntlet-adapter-state-sqlite state_store::tests::legacy_run_without_frozen_evidence_is_unavailable_not_rebound
+        PASS [   0.013s] (24/50) gauntlet-adapter-state-sqlite state_store::tests::resume_admits_charged_checkpoints_through_the_durable_run_budget
+        PASS [   0.015s] (25/50) gauntlet-adapter-state-sqlite state_store::tests::recording_a_wrong_frozen_evidence_binding_is_refused
+        PASS [   0.017s] (26/50) gauntlet-adapter-state-sqlite state_store::tests::resume_returns_the_latest_checkpoint_exactly
+        PASS [   0.017s] (27/50) gauntlet-adapter-state-sqlite state_store::tests::the_production_event_replays_through_the_event_log
+        PASS [   0.019s] (28/50) gauntlet-adapter-state-sqlite state_store::tests::the_production_content_digest_is_durable_and_write_once
+        PASS [   0.047s] (29/50) gauntlet-adapter-state-sqlite::crash_recovery a_half_settled_run_completes_exactly_once_on_replay
+        PASS [   0.051s] (30/50) gauntlet-adapter-state-sqlite::crash_recovery a_crash_before_the_packaged_commit_leaves_the_unit_retryable
+        PASS [   0.050s] (31/50) gauntlet-adapter-state-sqlite::crash_recovery a_damaged_tail_is_a_typed_damaged_error
+        PASS [   0.063s] (32/50) gauntlet-adapter-state-sqlite::crash_recovery a_crash_before_the_event_append_leaves_the_unit_retryable
+        PASS [   0.080s] (33/50) gauntlet-adapter-state-sqlite::contract_suite sqlite_event_log_passes_the_shared_contract_suite
+        PASS [   0.022s] (34/50) gauntlet-adapter-state-sqlite::crash_recovery a_mid_sequence_crash_leaves_the_log_readable_and_truncation_free
+        PASS [   0.023s] (35/50) gauntlet-adapter-state-sqlite::crash_recovery an_uninterrupted_settlement_is_complete_without_replay
+        PASS [   0.026s] (36/50) gauntlet-adapter-state-sqlite::crash_recovery the_packaged_commit_primitive_settles_completely_when_killed_after
+        PASS [   0.050s] (37/50) gauntlet-adapter-state-sqlite::settlement_append_gate the_event_log_append_surface_refuses_the_settlement_kind
+        PASS [   0.049s] (38/50) gauntlet-adapter-state-sqlite::settlement_append_gate the_state_store_append_surface_refuses_the_settlement_kind
+        PASS [   0.048s] (39/50) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_created_at_is_corrupt_naming_the_run
+        PASS [   0.018s] (40/50) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_projection_timestamp_is_corrupt_naming_the_run
+        PASS [   0.046s] (41/50) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_event_timestamp_is_damage_naming_the_offset
+        PASS [   0.063s] (42/50) gauntlet-adapter-state-sqlite::tamper_evidence a_half_settled_failure_names_the_durable_offset_and_the_recovery
+        PASS [   0.144s] (43/50) gauntlet-adapter-state-sqlite::contract_suite sqlite_state_store_passes_the_shared_contract_suite
+        PASS [   0.014s] (44/50) gauntlet-adapter-state-sqlite::tamper_evidence a_tampered_settlement_offset_is_corrupt_never_a_silent_zero
+        PASS [   0.018s] (45/50) gauntlet-adapter-state-sqlite::tamper_evidence a_same_key_divergent_event_is_loud_on_replay
+        PASS [   0.036s] (46/50) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_record_timestamp_is_corrupt_naming_the_row
+        PASS [   0.026s] (47/50) gauntlet-adapter-state-sqlite::tamper_evidence a_same_facts_duplicate_event_stays_the_idempotent_no_op
+        PASS [   0.016s] (48/50) gauntlet-adapter-state-sqlite::tamper_evidence an_offset_gap_is_damage_naming_the_hole
+        PASS [   0.015s] (49/50) gauntlet-adapter-state-sqlite::tamper_evidence log_damage_surfaces_as_corrupt_through_the_store
+        PASS [   0.016s] (50/50) gauntlet-adapter-state-sqlite::tamper_evidence record_run_refuses_a_changed_intent_on_the_same_digest
+────────────
+     Summary [   0.244s] 50 tests run: 50 passed, 0 skipped
+rc=0

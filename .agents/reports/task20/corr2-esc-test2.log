@@ -1,0 +1,22 @@
+cargo nextest run -p gauntlet-adapter-escalation-fs
+   Compiling gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Finished `test` profile [unoptimized] target(s) in 2m 14s
+────────────
+ Nextest run ID 31dad194-64bd-4388-90b6-7dfe64683888 with nextest profile: default
+    Starting 14 tests across 2 binaries
+        PASS [   0.009s] ( 1/14) gauntlet-adapter-escalation-fs::contract_suite a_hand_forged_record_is_a_typed_refusal_not_a_silent_member
+        PASS [   0.012s] ( 2/14) gauntlet-adapter-escalation-fs::contract_suite a_forged_records_own_traversal_ticket_field_cannot_steer_the_write
+        PASS [   0.014s] ( 3/14) gauntlet-adapter-escalation-fs::contract_suite a_lost_ticket_is_a_typed_refusal_on_the_read_surface
+        PASS [   0.015s] ( 4/14) gauntlet-adapter-escalation-fs::contract_suite a_lying_ticket_file_cannot_clobber_another_tickets_record
+        PASS [   0.017s] ( 5/14) gauntlet-adapter-escalation-fs::contract_suite a_completed_write_leaves_no_temp_file_behind
+        PASS [   0.022s] ( 6/14) gauntlet-adapter-escalation-fs::contract_suite a_corrupt_file_is_quarantined_beside_the_valid_tickets
+        PASS [   0.011s] ( 7/14) gauntlet-adapter-escalation-fs::contract_suite a_resolved_ticket_reports_resolved_stably_and_carries_the_operator
+        PASS [   0.010s] ( 8/14) gauntlet-adapter-escalation-fs::contract_suite an_out_of_root_ticket_file_is_refused_on_the_read_path
+        PASS [   0.016s] ( 9/14) gauntlet-adapter-escalation-fs::contract_suite a_traversal_ticket_id_is_refused_by_the_grammar
+        PASS [   0.019s] (10/14) gauntlet-adapter-escalation-fs::contract_suite a_second_resolve_on_a_ticket_is_a_typed_refusal_never_an_overwrite
+        PASS [   0.009s] (11/14) gauntlet-adapter-escalation-fs::contract_suite an_unreadable_file_quarantines_as_unreadable
+        PASS [   0.009s] (12/14) gauntlet-adapter-escalation-fs::contract_suite the_list_is_total_ordered_oldest_first_and_complete
+        PASS [   0.018s] (13/14) gauntlet-adapter-escalation-fs::contract_suite an_action_on_a_quarantined_ticket_fails_closed
+        PASS [   0.008s] (14/14) gauntlet-adapter-escalation-fs::contract_suite the_shared_human_escalation_suite_passes
+────────────
+     Summary [   0.038s] 14 tests run: 14 passed, 0 skipped

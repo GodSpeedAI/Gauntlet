@@ -1,0 +1,10 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 15s
+────────────
+ Nextest run ID 0a1785d2-41b2-438c-bd2f-5a320b58a4ac with nextest profile: default
+    Starting 3 tests across 1 binary
+        PASS [   0.027s] (1/3) gauntlet-cli::escalations_cli even_an_earned_pass_record_never_lets_the_operator_shape_settle
+        PASS [   0.033s] (2/3) gauntlet-cli::escalations_cli retry_with_a_non_pass_record_hits_the_same_gate
+        PASS [   0.038s] (3/3) gauntlet-cli::escalations_cli resolve_without_any_verification_record_refuses_and_the_ticket_stays_open
+────────────
+     Summary [   0.043s] 3 tests run: 3 passed, 0 skipped

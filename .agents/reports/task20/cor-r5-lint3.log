@@ -1,0 +1,52 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 42s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite/src/lib.rs:302:
+     /// settled_at)` — the ROW-side facts the COR-R5-1 E2E leg pins the
+     /// re-inserted settlement against (the row must carry the EVENT's own
+     /// offset and stored timestamp, never the recovery's clock).
+-    pub fn settlement_rows(
+-        db_path: &std::path::Path,
+-    ) -> Result<Vec<SettlementRowFacts>, String> {
++    pub fn settlement_rows(db_path: &std::path::Path) -> Result<Vec<SettlementRowFacts>, String> {
+         let connection =
+             ::rusqlite::Connection::open(db_path).map_err(|error| error.to_string())?;
+         let mut statement = connection
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:7373:
+             .iter()
+             .enumerate()
+             .find_map(|(index, event)| match &event.kind {
+-                gauntlet_ports::state_store::RunEventKind::SettlementCommitted { unit_id, .. }
+-                    if event.run_id == run_id && unit_id.as_str() == "AK-9101" =>
+-                {
++                gauntlet_ports::state_store::RunEventKind::SettlementCommitted {
++                    unit_id, ..
++                } if event.run_id == run_id && unit_id.as_str() == "AK-9101" => {
+                     Some((index as u64) + 1)
+                 }
+                 _ => None,
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:7543:
+             // event (order-independent: whichever way the parallel units
+             // settled, the anchored replay now starts past AK-9101's
+             // event and cannot re-complete its row).
+-            checkpoint.event_log_offset =
+-                gauntlet_domain::EventLogOffset::new(ak9101_offset + 1);
++            checkpoint.event_log_offset = gauntlet_domain::EventLogOffset::new(ak9101_offset + 1);
+         }
+         // THE RESUME: the certified settled no-op, WITH the honest pin.
+         let second = composed
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:7629:
+             "the second resume books nothing either"
+         );
+         assert_eq!(
+-            evidence_for_assert.records_containing("settlement_row_unrecoverable").len(),
++            evidence_for_assert
++                .records_containing("settlement_row_unrecoverable")
++                .len(),
+             2,
+             "each resume of the persistent damage records it honestly: one pin per resume"
+         );
+error: recipe `lint` failed on line 27 with exit code 1
+rc=1

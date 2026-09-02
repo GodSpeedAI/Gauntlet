@@ -122,6 +122,17 @@ never)
 garbage)
   printf 'this is not json {{{{' > "$result_path"
   ;;
+tornwrite)
+  printf 'this is not json {{{{' > "$result_path"
+  sleep 2
+  cat > "$result_path" <<EOF
+{{"schema":"role_result@v1","invocation_id":"$inv","run_id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","iteration_no":1,"role":"builder","context_envelope_digest":"$digest","state":"completed","payload_schema":"builder_result@v1","payload":{{"attempted":[],"changed_paths":[],"commands_run":[],"artifacts":[],"claims":[],"self_checks":[],"blocked_on":[]}},"payment":{{"input_tokens":0,"output_tokens":0,"tool_calls":0,"wall_seconds":0,"cost_usd":0}},"unavailable_evidence":[],"errors":[]}}
+EOF
+  ;;
+tornstillbad)
+  printf 'this is not json {{{{' > "$result_path"
+  sleep 2
+  ;;
 emptyfile)
   : > "$result_path"
   ;;
@@ -168,6 +179,17 @@ struct Live {
     state_dir: PathBuf,
     ws: PathBuf,
 }
+
+/// The wall-clock slack `wait_terminal` grants a live child before it
+/// reports the still-Running status. This is test-infrastructure slack,
+/// NOT a mechanism input: every asserted behavior here (contract wins
+/// over exit status, process state never consulted) is timing
+/// independent, and the spec-deadline path is tested separately. The
+/// budget is sized for a LOADED host — this suite's full-battery runs
+/// spawn many live children in parallel, and a 10s budget starved twice
+/// on the 6-core WSL host (2026-09-01) while the same legs passed in
+/// isolation every time.
+const WAIT_BUDGET: u64 = 60;
 
 fn live(mode: &str) -> (CliAgentRunner<ProcessChildTransport>, Live) {
     let env = Live {
@@ -266,11 +288,73 @@ fn sibling(env: &Live, id: &str, suffix: &str) -> PathBuf {
 
 // B1: a valid matching contract completes even on a hostile exit 7; the
 // process state is NEVER consulted on this path (forensics stays None).
+/// The torn-write alive window this regression polls through: long enough
+/// that dozens of polls land inside it, short enough to keep the test
+/// fast (the child's own `sleep 2` is the other half of the window).
+const TORN_WINDOW: u64 = 1200;
+
+// B6: the torn-read grace (plan task20). A LIVE child half-writes its
+// document and the runner polls mid-write: the read fails to parse, and
+// pre-correction that pinned `Failed{malformed_result}` over bytes that
+// were still landing (observed under full-battery load: `MalformedResult`
+// while the finished document sat complete on disk). A parse failure is
+// decidable only once the child is terminal.
+#[test]
+fn b6_a_torn_write_while_alive_is_never_a_terminal_verdict() {
+    let (runner, env) = live("tornwrite");
+    let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
+    // Inside the child's alive window every poll must be non-terminal.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(TORN_WINDOW);
+    let mut polls = 0;
+    while std::time::Instant::now() < deadline {
+        match runner.poll(&handle).expect("poll reads") {
+            InvocationStatus::Running { .. } => {}
+            other => panic!("a live child's torn document must never terminalize: {other:?}"),
+        }
+        polls += 1;
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    assert!(polls > 0, "the alive window was polled");
+    // The child then completes the document and exits: the exit re-read
+    // admits it — the torn write cost nothing.
+    match wait_terminal(&runner, &handle, WAIT_BUDGET) {
+        InvocationStatus::Completed { .. } => {}
+        other => panic!("the completed-over document wins at the exit re-read: {other:?}"),
+    }
+    let _ = std::fs::remove_dir_all(&env.state_dir);
+    let _ = std::fs::remove_dir_all(&env.ws);
+}
+
+// B9 (torn-read half): the same torn write that NEVER completes — the
+// malformed verdict must still arrive, at the exit re-read (rule 4), not
+// before.
+#[test]
+fn b9_a_torn_write_that_stays_garbage_is_malformed_at_exit_not_before() {
+    let (runner, env) = live("tornstillbad");
+    let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(TORN_WINDOW);
+    while std::time::Instant::now() < deadline {
+        match runner.poll(&handle).expect("poll reads") {
+            InvocationStatus::Running { .. } => {}
+            other => panic!("a live child's torn document must never terminalize: {other:?}"),
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    match wait_terminal(&runner, &handle, WAIT_BUDGET) {
+        InvocationStatus::Failed {
+            class: InvocationFailure::MalformedResult,
+        } => {}
+        other => panic!("the garbage document is malformed at exit: {other:?}"),
+    }
+    let _ = std::fs::remove_dir_all(&env.state_dir);
+    let _ = std::fs::remove_dir_all(&env.ws);
+}
+
 #[test]
 fn b1_contract_wins_over_exit7_and_process_is_never_consulted() {
     let (runner, env) = live("exit7");
     let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
-    match wait_terminal(&runner, &handle, 10) {
+    match wait_terminal(&runner, &handle, WAIT_BUDGET) {
         InvocationStatus::Completed { .. } => {}
         other => panic!("expected Completed, got {other:?}"),
     }
@@ -294,7 +378,7 @@ fn b2_garbage_and_empty_documents_are_malformed() {
     for mode in ["garbage", "emptyfile"] {
         let (runner, env) = live(mode);
         let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
-        match wait_terminal(&runner, &handle, 10) {
+        match wait_terminal(&runner, &handle, WAIT_BUDGET) {
             InvocationStatus::Failed {
                 class: InvocationFailure::MalformedResult,
             } => {}
@@ -318,7 +402,7 @@ fn b2_garbage_and_empty_documents_are_malformed() {
 fn b4_wrong_path_exited_child_is_missing_result_before_deadline() {
     let (runner, env) = live("wrongpath");
     let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
-    match wait_terminal(&runner, &handle, 10) {
+    match wait_terminal(&runner, &handle, WAIT_BUDGET) {
         InvocationStatus::Failed {
             class: InvocationFailure::MissingResult,
         } => {}
@@ -369,7 +453,7 @@ fn b5_foreign_identity_is_contract_mismatch() {
     for mode in ["foreignid", "foreigndigest"] {
         let (runner, env) = live(mode);
         let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
-        match wait_terminal(&runner, &handle, 10) {
+        match wait_terminal(&runner, &handle, WAIT_BUDGET) {
             InvocationStatus::Failed {
                 class: InvocationFailure::ContractMismatch,
             } => {}
@@ -430,7 +514,7 @@ fn d_env_and_prompt_channels_and_envelope_sibling_are_exact() {
     // Settle the invocation: the observing child EXITED without writing
     // the contract — missing_result, not TimedOut.
     assert!(matches!(
-        wait_terminal(&runner, &handle, 10),
+        wait_terminal(&runner, &handle, WAIT_BUDGET),
         InvocationStatus::Failed {
             class: InvocationFailure::MissingResult
         }
@@ -475,7 +559,7 @@ fn b7_directory_at_contract_path_is_an_error_not_running() {
 fn b8_late_contract_never_resurrects_missing_result() {
     let (runner, env) = live("exited_nowrite");
     let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
-    match wait_terminal(&runner, &handle, 10) {
+    match wait_terminal(&runner, &handle, WAIT_BUDGET) {
         InvocationStatus::Failed {
             class: InvocationFailure::MissingResult,
         } => {}
@@ -869,7 +953,7 @@ fn f_collect_serves_the_poll_snapshot_not_the_file() {
     let (runner, env) = live("complete");
     let handle = runner.invoke(spec_with(ID_A, 30, None)).expect("admission");
     assert!(matches!(
-        wait_terminal(&runner, &handle, 10),
+        wait_terminal(&runner, &handle, WAIT_BUDGET),
         InvocationStatus::Completed { .. }
     ));
     // Tamper with the on-disk contract AFTER completion.

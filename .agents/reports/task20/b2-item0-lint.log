@@ -1,0 +1,329 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Checking gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-adapter-verify-command-exit-code v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-command-exit-code)
+    Checking gauntlet-adapter-sandbox-none v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-none)
+    Checking gauntlet-adapter-verify-test-report v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-test-report)
+    Checking gauntlet-adapter-meter-memory v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-meter-memory)
+    Checking gauntlet-adapter-verify-schema-check v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-schema-check)
+    Checking gauntlet-adapter-observe-git v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-git)
+    Checking gauntlet-adapter-observe-command v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-command)
+    Checking gauntlet-adapter-agent-prime v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-prime)
+    Checking gauntlet-adapter-verify-file-digest v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-file-digest)
+    Checking gauntlet-adapter-observe-build v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-build)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-adapter-policy-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-policy-fs)
+    Checking gauntlet-adapter-sandbox-bwrap v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-bwrap)
+    Checking gauntlet-adapter-observe-filesystem v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-filesystem)
+    Checking gauntlet-adapter-evidence-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-evidence-fs)
+    Checking gauntlet-adapter-compare-model v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-model)
+    Checking gauntlet-adapter-compare-diff v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-diff)
+    Checking gauntlet-adapter-workspace-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs)
+    Checking gauntlet-adapter-observe-test v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-test)
+    Checking gauntlet-ports v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-ports)
+    Checking gauntlet-domain v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-domain)
+    Finished `dev` profile [unoptimized] target(s) in 2m 45s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs/src/provider.rs:119:
+                 ),
+             }
+         })?;
+-        let resolved_child = std::fs::canonicalize(child).map_err(|error| {
+-            WorkspaceProviderError::CreateFailed {
++        let resolved_child =
++            std::fs::canonicalize(child).map_err(|error| WorkspaceProviderError::CreateFailed {
+                 detail: format!(
+                     "the workspace {} could not be resolved: {error}",
+                     child.display()
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs/src/provider.rs:127:
+                 ),
+-            }
+-        })?;
++            })?;
+         if !resolved_child.starts_with(&resolved_root) {
+             return Err(WorkspaceProviderError::ContainmentViolated {
+                 path: resolved_child.to_string_lossy().into_owned(),
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs/src/provider.rs:145:
+     ) -> Result<Workspace, WorkspaceProviderError> {
+         let key = Self::key_for(run_id, &subject);
+         let child = self.contained_child(&key)?;
+-        std::fs::create_dir_all(&child).map_err(|error| {
+-            WorkspaceProviderError::CreateFailed {
+-                detail: format!(
+-                    "the workspace directory {} could not be created: {error}",
+-                    child.display()
+-                ),
+-            }
++        std::fs::create_dir_all(&child).map_err(|error| WorkspaceProviderError::CreateFailed {
++            detail: format!(
++                "the workspace directory {} could not be created: {error}",
++                child.display()
++            ),
+         })?;
+         // §17.5.2: the escape is CHECKED after the fact, on the resolved
+         // path — creation through a symlinked component is a refusal, and
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs/src/provider.rs:249:
+ /// Whether a string is already inside the §17.5.3 key class.
+ fn is_sanitized(raw: &str) -> bool {
+     !raw.is_empty()
+-        && raw
+-            .bytes()
+-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-')
++        && raw.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-'
++        })
+ }
+ 
+ #[cfg(test)]
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs/src/provider.rs:319:
+             if let Ok(reference) = WorkspaceRef::new(hostile) {
+                 let result = provider.cleanup(&reference, bound());
+                 assert!(
+-                    matches!(result, Err(WorkspaceProviderError::ContainmentViolated { .. })),
++                    matches!(
++                        result,
++                        Err(WorkspaceProviderError::ContainmentViolated { .. })
++                    ),
+                     "a ref outside the key class must be refused, got {result:?} for {hostile:?}"
+                 );
+             }
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs/src/provider.rs:364:
+                 .expect("plants the symlink");
+             let check = provider.resolved_containment(&root.join("planted-escape"));
+             assert!(
+-                matches!(check, Err(WorkspaceProviderError::ContainmentViolated { .. })),
++                matches!(
++                    check,
++                    Err(WorkspaceProviderError::ContainmentViolated { .. })
++                ),
+                 "a symlink pointing outside the root is a typed containment refusal: {check:?}"
+             );
+         }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/report/mod.rs:264:
+             .iter()
+             .map(|row| {
+                 JsonValue::Object(vec![
+-                    ("unit".to_owned(), JsonValue::Str(row.unit.as_str().to_owned())),
+                     (
++                        "unit".to_owned(),
++                        JsonValue::Str(row.unit.as_str().to_owned()),
++                    ),
++                    (
+                         "category".to_owned(),
+                         JsonValue::Str(row.category.token().to_owned()),
+                     ),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/report/mod.rs:325:
+             .map(|category| format!("{} {}", category.token(), self.count(*category)))
+             .collect::<Vec<_>>()
+             .join(", ");
+-        let mut first = format!(
+-            "run {}: {}",
+-            self.run_id.as_str(),
+-            counts
+-        );
++        let mut first = format!("run {}: {}", self.run_id.as_str(), counts);
+         first.push_str(&format!("; out_of_scope {}", self.out_of_scope.len()));
+         if let Some(state) = &self.terminal_state {
+             first.push_str(&format!("; terminal {}", state.wire()));
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/report/mod.rs:446:
+         // Out-of-scope units that were never attempted are surfaced
+         // separately; recorded activity keeps the classified category (the
+         // projection never hides activity).
+-        if status == Some(UnitStatus::OutOfScope) && category == StatusCategory::ConfiguredButUntested
++        if status == Some(UnitStatus::OutOfScope)
++            && category == StatusCategory::ConfiguredButUntested
+         {
+             out_of_scope.push(unit.clone());
+             continue;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/report/mod.rs:489:
+ ) -> (StatusCategory, String) {
+     // 1. The proof pair: settlement row + the durable PASS record it names.
+     if let Some(row) = settlement {
+-        let proven = records
+-            .iter()
+-            .any(|record| record.verification() == row.verification() && record.outcome() == Outcome::Pass);
++        let proven = records.iter().any(|record| {
++            record.verification() == row.verification() && record.outcome() == Outcome::Pass
++        });
+         if proven {
+             return (
+                 StatusCategory::ImplementedAndProven,
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/report/mod.rs:541:
+         }
+         Some(UnitStatus::Settled) => {
+             reasons.push(
+-                "the latest checkpoint projects settled but no settlement record exists"
+-                    .to_owned(),
++                "the latest checkpoint projects settled but no settlement record exists".to_owned(),
+             );
+         }
+         _ => {}
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:3:
+ //! change the records and the report moves; identical records render
+ //! byte-identically; an all-empty store populates nothing.
+ 
+-use gauntlet_app::report::{build_report, CapabilityManifestEntry, StatusCategory};
++use gauntlet_app::report::{CapabilityManifestEntry, StatusCategory, build_report};
+ use gauntlet_domain::{
+-    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind, EvidenceRef,
+-    EvidenceLocator, IterationNo, Limits, MicroUsd, Outcome, Producer, ReferenceId,
++    Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind,
++    EvidenceLocator, EvidenceRef, IterationNo, Limits, MicroUsd, Outcome, Producer, ReferenceId,
+     ReferenceVersion, Run, RunDefinition, RunId, SettlementRecord, UnitId, UnitStatus,
+     VerificationRef,
+ };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:201:
+         Ok(rows)
+     }
+ 
+-    fn export_jsonl(&self, _run_id: &RunId, _deadline: Deadline) -> Result<String, StateStoreError> {
++    fn export_jsonl(
++        &self,
++        _run_id: &RunId,
++        _deadline: Deadline,
++    ) -> Result<String, StateStoreError> {
+         Ok(String::new())
+     }
+ }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:208:
+ 
+ fn manifest_entry(key: &str, wired: bool, evidence: Option<&str>) -> CapabilityManifestEntry {
+-    CapabilityManifestEntry::new(
+-        key.to_owned(),
+-        wired,
+-        evidence.map(unit),
+-    )
+-    .expect("valid manifest entry")
++    CapabilityManifestEntry::new(key.to_owned(), wired, evidence.map(unit))
++        .expect("valid manifest entry")
+ }
+ 
+ // ---------------------------------------------------------------------------
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:326:
+     // A manifest entry bound to a unit no record names: unknown, and the
+     // units section does not invent the unit.
+     let manifest = vec![manifest_entry("inspect", true, Some("AK-099"))];
+-    let report =
+-        build_report(&blocked_projection, &run_id(), &manifest, bound()).expect("builds");
+-    assert_eq!(report.count(StatusCategory::Unknown), 0, "run-scope units are record-named only");
++    let report = build_report(&blocked_projection, &run_id(), &manifest, bound()).expect("builds");
++    assert_eq!(
++        report.count(StatusCategory::Unknown),
++        0,
++        "run-scope units are record-named only"
++    );
+     assert!(report.units.iter().all(|row| row.unit != unit("AK-099")));
+     let capability = report
+         .capabilities
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:381:
+         second.to_json(),
+         "the same records render byte-identically every time"
+     );
+-    let from_reversed_store =
+-        build_report(&reversed, &run_id(), &[], bound()).expect("builds");
++    let from_reversed_store = build_report(&reversed, &run_id(), &[], bound()).expect("builds");
+     assert_eq!(
+         first.to_json(),
+         from_reversed_store.to_json(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:392:
+     assert_eq!(first, from_reversed_store);
+     // The run's own recorded facts move through, never minted.
+     assert!(first.run_present);
+-    assert_eq!(first.terminal_state, Some(gauntlet_domain::TerminalState::Settled));
++    assert_eq!(
++        first.terminal_state,
++        Some(gauntlet_domain::TerminalState::Settled)
++    );
+     assert!(
+         first.to_json().contains("\"terminal_state\":\"settled\""),
+         "{}",
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:447:
+     }
+     for category in StatusCategory::ALL {
+         assert!(
+-            report.human_summary().contains(&format!("{} 0", category.token())),
++            report
++                .human_summary()
++                .contains(&format!("{} 0", category.token())),
+             "the summary counts {category} as empty: {}",
+             report.human_summary()
+         );
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:531:
+         "a not-wired declaration is never upgraded by records"
+     );
+     // Rows sort by key, whatever order the caller listed them in.
+-    let keys: Vec<&str> = report.capabilities.iter().map(|row| row.key.as_str()).collect();
++    let keys: Vec<&str> = report
++        .capabilities
++        .iter()
++        .map(|row| row.key.as_str())
++        .collect();
+     assert_eq!(keys, vec!["improve", "run", "status"]);
+ 
+     // Records of a DIFFERENT run are not this run's proof.
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/report.rs:554:
+         0,
+         "another run's settlement row is not this run's proof"
+     );
+-    assert!(report.units.is_empty(), "foreign records name no unit of this run");
++    assert!(
++        report.units.is_empty(),
++        "foreign records name no unit of this run"
++    );
+ }
+ 
+ /// Duplicate manifest keys are a typed refusal — an ambiguous report is not
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/g10_builder_writes_answer_key.rs:813:
+         // runner's honest none isolation makes above-contained refusal
+         // the correct posture here.
+         govern: gauntlet_app::govern::GovernDeps::none_backend(),
+-            workspaces: None,
++        workspaces: None,
+         environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
+         intent: "g10 builder-writes-answer-key proof".to_owned(),
+     };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/p11_critic_is_not_verifier.rs:803:
+         // runner's honest none isolation makes above-contained refusal
+         // the correct posture here.
+         govern: gauntlet_app::govern::GovernDeps::none_backend(),
+-            workspaces: None,
++        workspaces: None,
+         environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
+         intent: "p11 critic-is-not-verifier proof".to_owned(),
+     };
+error: recipe `lint` failed on line 27 with exit code 1
+LINT_EXIT=1
+Stopping sccache server...
+Compile requests                     61
+Compile requests executed             0
+Cache hits                            0
+Cache misses                          0
+Cache hits rate                       -
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          0
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                  61
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.000 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+multiple input files                 58
+missing output_dir                    2
+-                                     1
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Max cache size                       10 GiB

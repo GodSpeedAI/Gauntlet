@@ -1,0 +1,69 @@
+run: dry-run — preflight clean, zero writes ahead
+reference: 70 unit(s) parsed from /home/sprime01/projects/gauntlet/.wayfinder/answer-key.md
+reference: lock verified (70 unit(s) frozen)
+run: intent="repo-root preflight probe"
+plan: 61 dispatch(es) planned for the first iteration (parallelism=2)
+plan: units=[AK-019] tier=contained authority=critic depth=0
+plan: units=[AK-054] tier=contained authority=critic depth=0
+plan: units=[AK-059] tier=contained authority=critic depth=0
+plan: units=[AK-060] tier=contained authority=critic depth=0
+plan: units=[AK-068] tier=contained authority=critic depth=0
+plan: units=[AK-003] tier=local authority=critic depth=0
+plan: units=[AK-004] tier=local authority=critic depth=0
+plan: units=[AK-006] tier=local authority=critic depth=0
+plan: units=[AK-007] tier=local authority=critic depth=0
+plan: units=[AK-010] tier=local authority=critic depth=0
+plan: units=[AK-012] tier=local authority=critic depth=0
+plan: units=[AK-014] tier=local authority=critic depth=0
+plan: units=[AK-015] tier=local authority=critic depth=0
+plan: units=[AK-017] tier=local authority=critic depth=0
+plan: units=[AK-020] tier=local authority=critic depth=0
+plan: units=[AK-021] tier=local authority=critic depth=0
+plan: units=[AK-028] tier=local authority=critic depth=0
+plan: units=[AK-032] tier=local authority=critic depth=0
+plan: units=[AK-033] tier=local authority=critic depth=0
+plan: units=[AK-034] tier=local authority=critic depth=0
+plan: units=[AK-035] tier=local authority=critic depth=0
+plan: units=[AK-037] tier=local authority=critic depth=0
+plan: units=[AK-038] tier=local authority=critic depth=0
+plan: units=[AK-039] tier=local authority=critic depth=0
+plan: units=[AK-049] tier=local authority=critic depth=0
+plan: units=[AK-051] tier=local authority=critic depth=0
+plan: units=[AK-052] tier=local authority=critic depth=0
+plan: units=[AK-055] tier=local authority=critic depth=0
+plan: units=[AK-061] tier=local authority=critic depth=0
+plan: units=[AK-063] tier=local authority=critic depth=0
+plan: units=[AK-064] tier=local authority=critic depth=0
+plan: units=[AK-065] tier=local authority=critic depth=0
+plan: units=[AK-067] tier=local authority=critic depth=0
+plan: units=[AK-069] tier=local authority=lead_agent depth=0
+plan: units=[AK-070] tier=local authority=lead_agent depth=0
+plan: units=[AK-001] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-002] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-005] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-008] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-009] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-011] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-016] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-018] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-022] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-024] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-025] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-026] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-029] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-030] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-031] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-036] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-040] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-041] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-045] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-046] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-050] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-053] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-056] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-057] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-058] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-062] tier=cross_cutting authority=lead_agent depth=0
+run: dry-run complete — no freeze, no state rows, no evidence pins, no dispatch
+exit=0
+porcelain-diff-bytes=0

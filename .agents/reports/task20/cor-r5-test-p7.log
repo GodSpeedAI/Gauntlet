@@ -1,0 +1,10 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 8.58s
+────────────
+ Nextest run ID 0d6ed4ff-9c19-4d20-9594-cf9bf3263964 with nextest profile: default
+    Starting 1 test across 1 binary (4 tests skipped)
+        PASS [   0.188s] (1/1) gauntlet-cli::p7_recovery a_crash_between_event_and_row_completes_exactly_once_through_resume
+────────────
+     Summary [   0.189s] 1 test run: 1 passed, 4 skipped
+rc=0

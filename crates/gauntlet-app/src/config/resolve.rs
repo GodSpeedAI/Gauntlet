@@ -1216,6 +1216,25 @@ pub struct ResolvedBudget {
 }
 
 impl ResolvedBudget {
+    /// The §15.2 diagnostic allowance (plan Task 20 COR-D9: the mapping is
+    /// a POLICY shape, so it lives in the application layer, not the
+    /// composition root — the CLI passes the config scalar through). The
+    /// config scalar `diagnostic_budget` bounds the number of diagnostic
+    /// cycles; each cycle may spend one per-attempt share of the run's own
+    /// forward ceilings (the recovery reserve is removed first — diagnosis
+    /// spends forward money, never the recovery reserve). No new policy
+    /// constant is invented.
+    pub fn diagnostic_allowance(&self) -> gauntlet_domain::DiagnosticAllowance {
+        let cycles = u64::from(self.diagnostic_budget.max(1));
+        let forward_pct = u64::from(100u8.saturating_sub(self.recovery_reserve_pct.min(100)));
+        let per_cycle_tokens = self.max_tokens.saturating_mul(forward_pct) / 100;
+        let per_cycle_cost = self.max_cost_usd.get().saturating_mul(forward_pct) / 100;
+        gauntlet_domain::DiagnosticAllowance::new(
+            per_cycle_tokens.saturating_mul(cycles),
+            gauntlet_domain::MicroUsd::new(per_cycle_cost.saturating_mul(cycles)),
+        )
+    }
+
     /// The domain `Limits` (spec §5.3.7): conversion only — the domain
     /// refuses zero ceilings, which is exactly the §8.5 check-8 rule.
     pub fn limits(&self) -> Result<gauntlet_domain::Limits, gauntlet_domain::BudgetError> {

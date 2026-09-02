@@ -1,0 +1,36 @@
+# The E2E lying-builder scenario (builder B3, the discrimination tooth;
+# verification-artifact effects re-keyed by the COR-B3a composition
+# correction): the result document claims the dispatched slice passed the
+# project's own check, while the workspace effects plant the honest FAILING
+# reality — a gadget source WITHOUT the stable marker (scripts/check.sh
+# really exits 1 over it) and, at every fixture unit's locator, a
+# well-formed test-report artifact that RECORDS the failure (tests ran,
+# failures present). Present-and-wrong evidence is a FAIL DECISION under
+# the §14.2 test-report rung — the instrument discriminates the lie, the
+# settlement gates refuse, and the run ends in a bounded honest
+# non-settlement (never a run error, never a settlement on the claim).
+scenario: e2e-lying
+role: builder
+behavior: write-result
+state: completed
+derailment: none
+payload:
+  attempted: []
+  changed_paths: [src/gadget.rs]
+  commands_run: [scripts/check.sh]
+  artifacts: []
+  claims:
+    - the dispatched slice is implemented and the project check passes
+  self_checks:
+    - command: scripts/check.sh
+      exit_code: 0
+  blocked_on: []
+workspace_effects:
+  - path: src/gadget.rs
+    content: pub const GADGET_MARKER: &str = "the marker was quietly dropped";
+  - path: evidence/marker-check-report.json
+    content: {"tests": 1, "failures": 1, "command": "scripts/check.sh --marker"}
+  - path: evidence/check-report.json
+    content: {"tests": 2, "failures": 1, "command": "scripts/check.sh"}
+  - path: evidence/full-check-report.json
+    content: {"tests": 3, "failures": 3, "command": "scripts/check.sh --all"}

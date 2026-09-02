@@ -1,0 +1,32 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 28s
+────────────
+ Nextest run ID 7c62aa05-723c-41a9-8a5c-8cd4dd305616 with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.037s] (1/4) gauntlet-cli::compose_teeth an_unknown_runner_token_refuses_naming_the_fronted_set
+        PASS [   0.040s] (2/4) gauntlet-cli::compose_teeth an_unset_runner_token_refuses_naming_key_and_env_and_nothing_runs
+        PASS [   0.047s] (3/4) gauntlet-cli::compose_teeth the_mock_token_without_its_scenario_hook_refuses
+        FAIL [   0.331s] (4/4) gauntlet-cli::compose_teeth a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+  stdout ───
+
+    running 1 test
+    test a_live_backend_wrap_verdict_refuses_the_run_never_unwraps ... FAILED
+
+    failures:
+
+    failures:
+        a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.32s
+
+  stderr ───
+
+    thread 'a_live_backend_wrap_verdict_refuses_the_run_never_unwraps' (890191) panicked at crates/gauntlet-cli/tests/compose_teeth.rs:410:5:
+    the refusal fires BEFORE any dispatch — no invocation is ever anchored unwrapped
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.411s] 4 tests run: 3 passed, 1 failed, 0 skipped
+        FAIL [   0.331s] (4/4) gauntlet-cli::compose_teeth a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+error: test run failed

@@ -1,0 +1,110 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-domain v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-domain)
+    Checking gauntlet-ports v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-ports)
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-adapter-agent-prime v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-prime)
+    Checking gauntlet-adapter-observe-filesystem v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-filesystem)
+    Checking gauntlet-adapter-verify-file-digest v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-file-digest)
+    Checking gauntlet-adapter-observe-test v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-test)
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Checking gauntlet-adapter-verify-test-report v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-test-report)
+    Checking gauntlet-adapter-meter-memory v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-meter-memory)
+    Checking gauntlet-adapter-observe-git v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-git)
+    Checking gauntlet-adapter-verify-command-exit-code v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-command-exit-code)
+    Checking gauntlet-adapter-workspace-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs)
+    Checking gauntlet-adapter-evidence-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-evidence-fs)
+    Checking gauntlet-adapter-observe-build v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-build)
+    Checking gauntlet-adapter-compare-model v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-model)
+    Checking gauntlet-adapter-compare-diff v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-diff)
+    Checking gauntlet-adapter-policy-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-policy-fs)
+    Checking gauntlet-adapter-sandbox-bwrap v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-bwrap)
+    Checking gauntlet-adapter-id-entropy v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-entropy)
+    Checking gauntlet-adapter-observe-command v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-command)
+    Checking gauntlet-adapter-verify-schema-check v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-schema-check)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Checking gauntlet-arch-tests v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests)
+error: returning the result of a `let` binding from a block
+   --> crates/gauntlet-app/tests/compare_deny.rs:186:5
+    |
+175 | /     let run = gauntlet_domain::Run::new(gauntlet_domain::RunDefinition {
+176 | |         id: RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("the fixture run id"),
+177 | |         created_at: EpochSeconds::new(FIXTURE_EPOCH_BASE),
+178 | |         reference_version,
+...   |
+184 | |     })
+185 | |     .expect("the fixture run is well formed");
+    | |______________________________________________- unnecessary `let` binding
+186 |       run
+    |       ^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#let_and_return
+    = note: `-D clippy::let-and-return` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::let_and_return)]`
+help: return the expression directly
+    |
+175 ~     
+176 ~     gauntlet_domain::Run::new(gauntlet_domain::RunDefinition {
+177 +         id: RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("the fixture run id"),
+178 +         created_at: EpochSeconds::new(FIXTURE_EPOCH_BASE),
+179 +         reference_version,
+180 +         intent: "the deny wiring teeth".to_owned(),
+181 +         config_fingerprint: digest_of("config"),
+182 +         environment_fingerprint: digest_of("environment"),
+183 +         budget,
+184 +         parent_run: None,
+185 +     })
+186 +     .expect("the fixture run is well formed")
+    |
+
+error: returning the result of a `let` binding from a block
+   --> crates/gauntlet-app/tests/compare_deny.rs:194:5
+    |
+190 | /     let binding = ObservationBinding::new(
+191 | |         gauntlet_domain::EvidenceRef::new("evd-deny-bundle").expect("the fixture bundle ref"),
+192 | |         digest_of(&bundle_text()),
+193 | |     );
+    | |______- unnecessary `let` binding
+194 |       binding
+    |       ^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#let_and_return
+help: return the expression directly
+    |
+190 ~     
+191 ~     ObservationBinding::new(
+192 +         gauntlet_domain::EvidenceRef::new("evd-deny-bundle").expect("the fixture bundle ref"),
+193 +         digest_of(&bundle_text()),
+194 +     )
+    |
+
+error: returning the result of a `let` binding from a block
+   --> crates/gauntlet-app/tests/compare_deny.rs:205:5
+    |
+198 | /     let contract = ComparisonContract::parse(
+199 | |         "version: 1\ndimensions:\n  - functional behavior\n\
+200 | |      severity_rubric:\n  - blocking | invalidates the iteration\n  - major | real, not \
+201 | |      invalidating\n  - minor | small\n  - informational | recorded only\ncomparator_receives:\n  \
+...   |
+204 | |     .expect("the minimal contract parses");
+    | |___________________________________________- unnecessary `let` binding
+205 |       contract
+    |       ^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#let_and_return
+help: return the expression directly
+    |
+198 ~     
+199 ~     ComparisonContract::parse(
+200 +         "version: 1\ndimensions:\n  - functional behavior\n\
+201 +      severity_rubric:\n  - blocking | invalidates the iteration\n  - major | real, not \
+202 +      invalidating\n  - minor | small\n  - informational | recorded only\ncomparator_receives:\n  \
+203 +      - the allowlist members\nresidual_definition:\n  - a difference\n",
+204 +     )
+205 +     .expect("the minimal contract parses")
+    |
+
+error: could not compile `gauntlet-app` (test "compare_deny") due to 3 previous errors
+error: recipe `lint` failed on line 26 with exit code 101

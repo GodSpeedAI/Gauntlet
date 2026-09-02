@@ -782,14 +782,17 @@ fn compose(tag: &str, verdict: Verdict, rounds: u32) -> Fixture {
             adversarial: None,
             review_mode: gauntlet_domain::ReviewMode::Adaptive,
             model_dispatches: 0,
+            role_deny: gauntlet_app::roles::ContextDenySet::new(Vec::new()),
         },
-        ladder: gauntlet_app::verify::ladder::Ladder::new(vec![
-            gauntlet_app::verify::ladder::LadderRung::new(
-                gauntlet_app::verify::ladder::RungKind::TestReport,
-                Arc::new(VerdictRung { verdict }),
-            ),
-        ])
-        .expect("the single-rung verdict ladder composes"),
+        ladder_for: Arc::new(move |_| {
+            Ok(gauntlet_app::verify::ladder::Ladder::new(vec![
+                gauntlet_app::verify::ladder::LadderRung::new(
+                    gauntlet_app::verify::ladder::RungKind::TestReport,
+                    Arc::new(VerdictRung { verdict }),
+                ),
+            ])
+            .expect("the single-rung verdict ladder composes"))
+        }),
         reference: provider,
         answer_key: AnswerKeySource::Path(key_path),
         escalation: Arc::new(RecordingEscalation::default()),
@@ -802,7 +805,8 @@ fn compose(tag: &str, verdict: Verdict, rounds: u32) -> Fixture {
         // critic-tier dispatches run ungated by containment; the mock
         // runner's honest none isolation makes above-contained refusal
         // the correct posture here.
-        govern: gauntlet_app::govern::GovernDeps::none_workspace(),
+        govern: gauntlet_app::govern::GovernDeps::none_backend(),
+        workspaces: None,
         environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
         intent: "p11 critic-is-not-verifier proof".to_owned(),
     };

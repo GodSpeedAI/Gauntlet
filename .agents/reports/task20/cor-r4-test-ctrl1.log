@@ -1,0 +1,30 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 37s
+────────────
+ Nextest run ID b7d83b83-79f2-461f-a058-7d228f909cd0 with nextest profile: default
+    Starting 1 test across 6 binaries (471 tests skipped)
+        FAIL [   0.012s] (1/1) gauntlet-app control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop
+  stdout ───
+
+    running 1 test
+    test control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop ... FAILED
+
+    failures:
+
+    failures:
+        control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 412 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop' (1382099) panicked at crates/gauntlet-app/src/control/controller.rs:7173:60:
+    index out of bounds: the len is 5 but the index is 5
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.054s] 1 test run: 0 passed, 1 failed, 471 skipped
+        FAIL [   0.012s] (1/1) gauntlet-app control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop
+error: test run failed
+exit=100

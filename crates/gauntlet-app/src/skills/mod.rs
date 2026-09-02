@@ -237,6 +237,23 @@ pub const REPO_OWNED_SKILLS: &[&str] = &[
     "neatcode",
 ];
 
+/// SHA-256 over RAW bytes as the `sha256:<lowercase hex>` token — the
+/// roles lock's own hashing instrument (roles/install.rs's `sha256_hex`),
+/// shared verbatim so the two installed-content surfaces cannot drift
+/// into two rules. COR-R4-2 (falsifier round 4, F-R4-1): the skills lock
+/// digests BYTE-EXACT bytes — no normalization pass — so a
+/// normalization-equivalent body (line-ending spellings, trailing blank
+/// lines) is drift exactly when roles calls the same shape drift, and a
+/// clean verify asserts the installed bytes ARE the canonical bytes.
+pub fn digest_raw(bytes: &[u8]) -> String {
+    use sha2::{Digest as _, Sha256};
+    let mut hex = String::with_capacity(64);
+    for byte in Sha256::digest(bytes).iter() {
+        hex.push_str(&format!("{byte:02x}"));
+    }
+    format!("sha256:{hex}")
+}
+
 /// The control-logic denylist's exact identifiers — anchored on the
 /// runtime's own control vocabulary (spec's `SettlementService`,
 /// `settle_unit`, `AuthorityGate`, `GateAdmission`, `BudgetMeter`,

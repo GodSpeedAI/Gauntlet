@@ -1,0 +1,179 @@
+=== VERIFY-A start Mon Aug 31 18:20:11 EDT 2026 ===
+./scripts/verify-ruler.sh
+verify-ruler.sh: PASS — answer key and manifest digests match the frozen lock (/home/sprime01/projects/gauntlet/.gauntlet/reference.lock)
+RULER_EXIT=0
+cargo run -q -p gauntlet-cli -- doctor
+gauntlet doctor (spec 8.5 preflight)
+  1. config                   pass
+      - front matter parses  pass
+          contract found and parsed at /home/sprime01/projects/gauntlet/GAUNTLET.md
+      - unknown keys         pass
+          no unknown front-matter keys
+      - unknown environment  pass
+          no unknown environment variables
+      - config values        pass
+          every config value converted into its domain
+      - indirections         pass
+          0 indirection(s) resolved
+          no indirections configured
+  2. reference                pass
+      - manifest             pass
+          manifest exists; top level is a mapping (1 keys); deep-parses under the frozen reference shape (id gauntlet-core-bootstrap, version 1)
+      - answer key           pass
+          answer key exists, non-empty, 70 units (frozen count 70)
+      - unit schema          pass
+          70/70 units well-formed under the 5.3.2 schema (tier/authority coupling included)
+      - digest               pass
+          recomputed normalized digest sha256:ccc7c99be3d3b60488930eed9975dc6d67378a84bf3b13910b48511e9c228859 matches the frozen record (answer-key half, digest-vs-lock)
+          recomputed normalized digest sha256:95331d3e345fa799e9840dbdb02b60b7c41c73be84c96fb7ecc1068775ba5e94 matches the frozen record (manifest half, digest-vs-lock)
+  3. runners                  unavailable
+      - structure            skipped
+          no runners configured (UNK-003): the default runner is an open unknown; selection arrives via the runner variables in later tasks
+      - resolution           unavailable
+          runtime resolution against a runner registry is unavailable: no runner configured (UNK-003)
+  4. capabilities             unavailable
+      - tier rungs           pass
+          sandbox backend resolves to 'none' (the 8.6 conservative default): only the contained tier is dispatchable
+          above-contained units refuse dispatch at the governance gate with an escalation ticket (spec 8.6; plan Task 14) — runtime governance, not a config error
+      - runner capabilities  unavailable
+          runtime runner-capability resolution is unavailable: runner capabilities resolve with plan Tasks 15-16; the dispatch gate enforces per-invocation isolation in the meantime
+  5. sandbox policies         pass
+      - no top-tier policy   pass
+          no policy file for the top tier in policy dir '.gauntlet/policies' (AK-049)
+      - tier policies exist  skipped
+          sandbox backend resolves to 'none'; policy files for contained, local, cross_cutting are required only when a backend is configured (spec 8.5 check 5)
+  6. required capabilities    pass
+      no required capabilities configured
+  7. writable paths           pass
+      - state dir            pass
+          state dir = /tmp/gauntlet/state: created, wrote, removed a scratch file
+      - evidence dir         pass
+          evidence dir = /tmp/gauntlet/evidence: created, wrote, removed a scratch file
+      - workspace root       pass
+          workspace root = /tmp/gauntlet/workspaces: created, wrote, removed a scratch file
+      - answer key placement pass
+          answer key = /home/sprime01/projects/gauntlet/.wayfinder/answer-key.md
+          answer key outside every builder-writable workspace (lexical and canonical)
+  8. budget                   pass
+      domain Limits constructed from the effective budget
+      recovery reserve 15 percent, below one hundred
+      diagnostic budget 2
+      - ceilings             pass
+          rounds 8 parallel 2 depth 1 wall 3600 tokens 2000000 micro-usd 25000000
+      - recovery reserve     pass
+      - diagnostic           pass
+exit: OK
+report: /home/sprime01/projects/gauntlet/.agents/reports/doctor.json
+DOCTOR_EXIT=0
+--- dry-run gate ---
+run: dry-run — preflight clean, zero writes ahead
+reference: 70 unit(s) parsed from /home/sprime01/projects/gauntlet/.wayfinder/answer-key.md
+reference: lock verified (70 unit(s) frozen)
+run: intent="seeded bounded task"
+plan: 61 dispatch(es) planned for the first iteration (parallelism=2)
+plan: units=[AK-019] tier=contained authority=critic depth=0
+plan: units=[AK-054] tier=contained authority=critic depth=0
+plan: units=[AK-059] tier=contained authority=critic depth=0
+plan: units=[AK-060] tier=contained authority=critic depth=0
+plan: units=[AK-068] tier=contained authority=critic depth=0
+plan: units=[AK-003] tier=local authority=critic depth=0
+plan: units=[AK-004] tier=local authority=critic depth=0
+plan: units=[AK-006] tier=local authority=critic depth=0
+plan: units=[AK-007] tier=local authority=critic depth=0
+plan: units=[AK-010] tier=local authority=critic depth=0
+plan: units=[AK-012] tier=local authority=critic depth=0
+plan: units=[AK-014] tier=local authority=critic depth=0
+plan: units=[AK-015] tier=local authority=critic depth=0
+plan: units=[AK-017] tier=local authority=critic depth=0
+plan: units=[AK-020] tier=local authority=critic depth=0
+plan: units=[AK-021] tier=local authority=critic depth=0
+plan: units=[AK-028] tier=local authority=critic depth=0
+plan: units=[AK-032] tier=local authority=critic depth=0
+plan: units=[AK-033] tier=local authority=critic depth=0
+plan: units=[AK-034] tier=local authority=critic depth=0
+plan: units=[AK-035] tier=local authority=critic depth=0
+plan: units=[AK-037] tier=local authority=critic depth=0
+plan: units=[AK-038] tier=local authority=critic depth=0
+plan: units=[AK-039] tier=local authority=critic depth=0
+plan: units=[AK-049] tier=local authority=critic depth=0
+plan: units=[AK-051] tier=local authority=critic depth=0
+plan: units=[AK-052] tier=local authority=critic depth=0
+plan: units=[AK-055] tier=local authority=critic depth=0
+plan: units=[AK-061] tier=local authority=critic depth=0
+plan: units=[AK-063] tier=local authority=critic depth=0
+plan: units=[AK-064] tier=local authority=critic depth=0
+plan: units=[AK-065] tier=local authority=critic depth=0
+plan: units=[AK-067] tier=local authority=critic depth=0
+plan: units=[AK-069] tier=local authority=lead_agent depth=0
+plan: units=[AK-070] tier=local authority=lead_agent depth=0
+plan: units=[AK-001] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-002] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-005] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-008] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-009] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-011] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-016] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-018] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-022] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-024] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-025] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-026] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-029] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-030] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-031] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-036] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-040] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-041] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-045] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-046] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-050] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-053] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-056] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-057] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-058] tier=cross_cutting authority=lead_agent depth=0
+plan: units=[AK-062] tier=cross_cutting authority=lead_agent depth=0
+run: dry-run complete — no freeze, no state rows, no evidence pins, no dispatch
+DRYRUN_EXIT=0
+ZERO_WRITES_CONFIRMED
+--- just check ---
+cargo check --workspace --all-targets
+    Checking gauntlet-adapter-id-entropy v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-entropy)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Checking gauntlet-arch-tests v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `dev` profile [unoptimized] target(s) in 2m 23s
+CHECK_EXIT=0
+=== VERIFY-A end Mon Aug 31 18:22:36 EDT 2026 ===
+Stopping sccache server...
+Compile requests                     28
+Compile requests executed             3
+Cache hits                            0
+Cache misses                          3
+Cache misses (Rust)                   3
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          3
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                  25
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.001 s
+Average compiler                  0.555 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                           25
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            2 GiB
+Max cache size                       10 GiB

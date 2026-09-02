@@ -1,0 +1,26 @@
+   Compiling gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+error[E0533]: expected unit struct, unit variant or constant, found struct variant `InvocationStatus::Running`
+   --> crates/adapters/gauntlet-adapter-agent-cli/tests/falsifier_round1_live_attacks.rs:311:13
+    |
+311 |             InvocationStatus::Running => {}
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^ not a unit struct, unit variant or constant
+    |
+help: the struct variant's fields are being ignored
+    |
+311 |             InvocationStatus::Running { last_event_at: _, payment_so_far: _ } => {}
+    |                                       +++++++++++++++++++++++++++++++++++++++
+
+error[E0533]: expected unit struct, unit variant or constant, found struct variant `InvocationStatus::Running`
+   --> crates/adapters/gauntlet-adapter-agent-cli/tests/falsifier_round1_live_attacks.rs:338:13
+    |
+338 |             InvocationStatus::Running => {}
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^ not a unit struct, unit variant or constant
+    |
+help: the struct variant's fields are being ignored
+    |
+338 |             InvocationStatus::Running { last_event_at: _, payment_so_far: _ } => {}
+    |                                       +++++++++++++++++++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0533`.
+error: could not compile `gauntlet-adapter-agent-cli` (test "falsifier_round1_live_attacks") due to 2 previous errors
+error: command `/home/sprime01/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --message-format json-render-diagnostics --package gauntlet-adapter-agent-cli` exited with code 101

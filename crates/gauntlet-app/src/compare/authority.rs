@@ -94,11 +94,32 @@ impl std::error::Error for AdmissionError {}
 pub struct ComparisonAuthority {
     state: Arc<dyn StateStore>,
     evidence: Arc<dyn EvidenceStore>,
+    /// The comparison (critic) role's typed `context.deny` set, loaded by
+    /// the composition root from the installed roles (plan Task 20,
+    /// R2-N1): enforced at `issue`, BEFORE the envelope is built, so a
+    /// denied context category cannot enter the envelope through the
+    /// composed path. Empty by construction; a composition that loads
+    /// roles REPLACES it via [`ComparisonAuthority::with_role_deny`].
+    role_deny: crate::roles::ContextDenySet,
 }
 
 impl ComparisonAuthority {
     pub fn new(state: Arc<dyn StateStore>, evidence: Arc<dyn EvidenceStore>) -> Self {
-        Self { state, evidence }
+        Self {
+            state,
+            evidence,
+            role_deny: crate::roles::ContextDenySet::new(Vec::new()),
+        }
+    }
+
+    /// Wires the comparison (critic) role's typed deny set (plan Task 20,
+    /// R2-N1). The composition root loads the roles and hands the
+    /// critic's deny set here; from then on `issue` refuses any input
+    /// set carrying a denied category — a structural allowlist check at
+    /// the envelope boundary (§10.1), never a silent narrowing.
+    pub fn with_role_deny(mut self, role_deny: crate::roles::ContextDenySet) -> Self {
+        self.role_deny = role_deny;
+        self
     }
 
     /// Opens the governed chain for one durable run at one iteration. The run
@@ -122,6 +143,7 @@ impl ComparisonAuthority {
             evidence: self.evidence.clone(),
             authority,
             projection,
+            role_deny: self.role_deny.clone(),
         })
     }
 }
@@ -133,6 +155,7 @@ pub struct GovernedRun {
     evidence: Arc<dyn EvidenceStore>,
     authority: RunComparisonAuthority,
     projection: FrozenReferenceProjection,
+    role_deny: crate::roles::ContextDenySet,
 }
 
 impl GovernedRun {
@@ -180,7 +203,7 @@ impl GovernedRun {
                 detail: format!("observation evidence does not decode as a bundle: {error}"),
             }
         })?;
-        let built = build_envelope(EnvelopeInputs {
+        let inputs = EnvelopeInputs {
             authority: &self.authority,
             frozen_reference: &self.projection,
             bundle: &bundle,
@@ -189,8 +212,15 @@ impl GovernedRun {
             contract,
             constraints,
             open_residuals,
-        })
-        .map_err(AdmissionError::EnvelopeRefused)?;
+        };
+        // R2-N1 wiring (plan Task 20; §10.1): the loaded role's deny set
+        // is enforced HERE, at the composed chain's envelope boundary —
+        // a denied category never enters the envelope, and a refusal is
+        // a typed admission error, never a silent narrowing to "what the
+        // role permits anyway".
+        super::envelope::assert_within_role_deny_set(&inputs, &self.role_deny)
+            .map_err(AdmissionError::EnvelopeRefused)?;
+        let built = build_envelope(inputs).map_err(AdmissionError::EnvelopeRefused)?;
         Ok(IssuedComparison {
             state: self.state,
             evidence: self.evidence,

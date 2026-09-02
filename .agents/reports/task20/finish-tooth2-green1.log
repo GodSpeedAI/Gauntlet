@@ -1,0 +1,9 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 39.51s
+────────────
+ Nextest run ID c305213f-19a8-448f-a5b3-f1007c360c41 with nextest profile: default
+    Starting 1 test across 5 binaries (457 tests skipped)
+        PASS [   0.011s] (1/1) gauntlet-app roles::install::tests::write_atomic_fsyncs_the_directory_entry
+────────────
+     Summary [   0.026s] 1 test run: 1 passed, 457 skipped
+GREEN1_EXIT=0

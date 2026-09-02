@@ -1,0 +1,12 @@
+        PASS [   0.008s] ( 50/228) gauntlet-arch-tests deps::scanner_tests::an_unreadable_or_unparseable_declared_build_input_is_a_violation
+        PASS [   0.010s] ( 77/228) gauntlet-arch-tests envfile::scanner_tests::a_line_without_equals_is_a_violation_not_a_skip
+        PASS [   0.008s] ( 79/228) gauntlet-arch-tests envfile::scanner_tests::a_vacuous_parse_is_a_violation
+        PASS [   0.009s] ( 92/228) gauntlet-arch-tests escapes::tests::build_scripts_in_a_core_crate_are_violations
+        PASS [   0.008s] (105/228) gauntlet-arch-tests escapes::tests::unterminated_input_is_a_violation_not_a_skip
+        PASS [   0.011s] (106/228) gauntlet-arch-tests escapes::tests::unresolvable_include_targets_are_violations_not_passes
+        PASS [   0.007s] (214/228) gauntlet-arch-tests walk::scope_tests::symlinks_inside_a_core_crate_are_violations
+        PASS [   0.007s] (216/228) gauntlet-arch-tests walk::scope_tests::unscannable_files_are_violations_not_skips
+     Summary [  27.274s] 228 tests run: 228 passed, 0 skipped
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

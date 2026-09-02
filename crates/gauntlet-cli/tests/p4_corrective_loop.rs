@@ -1077,6 +1077,7 @@ impl Fixture {
                     .expect("the provider's real evidence store opens"),
             ),
         ));
+        let ladder_root = workspace_root.clone();
         #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
         let deps = ControllerDeps {
             state: state.clone(),
@@ -1094,12 +1095,15 @@ impl Fixture {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Adaptive,
                 model_dispatches: 0,
+                role_deny: gauntlet_app::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: Ladder::new(vec![LadderRung::new(
-                RungKind::TestReport,
-                Arc::new(FacetExitVerifier::new(&workspace_root)),
-            )])
-            .expect("the single-rung focused-test ladder composes"),
+            ladder_for: Arc::new(move |_| {
+                Ok(Ladder::new(vec![LadderRung::new(
+                    RungKind::TestReport,
+                    Arc::new(FacetExitVerifier::new(&ladder_root)),
+                )])
+                .expect("the single-rung focused-test ladder composes"))
+            }),
             reference: provider,
             answer_key: AnswerKeySource::Path(key_path.clone()),
             escalation: Arc::new(RecordingEscalation::default()),
@@ -1127,7 +1131,8 @@ impl Fixture {
             // critic-tier dispatches run ungated by containment; the mock
             // runner's honest none isolation makes above-contained refusal
             // the correct posture here.
-            govern: gauntlet_app::govern::GovernDeps::none_workspace(),
+            govern: gauntlet_app::govern::GovernDeps::none_backend(),
+            workspaces: None,
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "p4 corrective loop proof".to_owned(),
         };

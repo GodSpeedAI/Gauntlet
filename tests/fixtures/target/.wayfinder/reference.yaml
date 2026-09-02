@@ -1,0 +1,59 @@
+# Reference manifest for the E2E fixture target project (spec §5.3.1, §9).
+# The checkable-Unit projection lives separately in .wayfinder/answer-key.md
+# (AK-901..AK-903); `units` below stays empty so the two never become
+# competing copies — the same discipline the repository's own reference
+# manifest holds. The field set is the strict closed manifest shape: NO
+# cohort key exists on any shipped surface (charter D7).
+reference:
+  id: gauntlet-e2e-fixture-target
+  version: 1
+  digest: null
+
+  source_refs:
+    - src/gadget.rs
+
+  purpose: >
+    A minimal, self-contained target project the composed Gauntlet loop can
+    run against end to end on the mock runner: one source file, one real
+    check command, and three blocking units whose evidence requirements name
+    locators real instruments can produce.
+
+  desired_state: >
+    Every blocking unit of the fixture reference settles with pinned,
+    instrument-produced evidence — or the runtime honestly reports the
+    non-settlement — when `gauntlet run` completes a loop over this
+    reference from freeze to report.
+
+  invariants:
+    - id: I1
+      statement: The builder never modifies the standard its work is evaluated against.
+    - id: I8
+      statement: Missing evidence is not passing evidence.
+
+  constraints:
+    - The fixture is copied to a per-test tempdir before any run; the fixture
+      tree itself is never written at test time.
+    - Only the shipped `none` sandbox posture is exercised; units are tier
+      `contained` with authority `critic` because that posture admits nothing
+      else.
+
+  anti_goals:
+    - The fixture reference expressing a cohort on any shipped surface.
+    - A settlement whose evidence is the builder's claim rather than an
+      instrument's record.
+
+  units: []
+
+  quality_dimensions: []
+
+  settlement:
+    success_criteria:
+      - every blocking unit of the fixture reference is settled with PASS
+        verification and pinned instrument evidence
+    required_evidence:
+      - the fixture check script's real exit status, observed by an
+        instrument the runtime composes
+    minimum_reliability: >
+      fixture posture: >= 1 settlements is the smallest loop the E2E can
+      observe end to end; a single clean run never promotes anything.
+    terminal_conditions: [settled, blocked, budget_exhausted, escalated, aborted, inconclusive]

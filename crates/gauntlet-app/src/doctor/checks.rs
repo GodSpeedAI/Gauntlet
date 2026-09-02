@@ -813,7 +813,12 @@ pub fn check_runners(resolved: &ResolvedConfig, runner: Option<&RunnerDescriptor
             vec![descriptor.kind.clean_phrase(&descriptor.token)],
         ),
         (true, None) => {
-            let reason = "runner adapters land with plan Tasks 15–16";
+            // COR-D8 (Task 20 RES-09): token-neutral and present-tense —
+            // the composition fronting no MEASUREMENT for this token is
+            // the honest locus (e.g. the test-division mock token); the
+            // stale "adapters land with plan Tasks 15–16" named a past
+            // state and mislocated the fact.
+            let reason = "no measurement fronted for this runner token";
             (
                 CheckStatus::Unavailable {
                     reason: reason.to_owned(),

@@ -1,0 +1,33 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 39s
+────────────
+ Nextest run ID e58cbab1-d8ba-4c9f-afc2-2ffff70d125c with nextest profile: default
+    Starting 2 tests across 1 binary (413 tests skipped)
+        PASS [   0.022s] (1/2) gauntlet-app control::controller::tests::a_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row
+        FAIL [   0.025s] (2/2) gauntlet-app control::controller::tests::a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop
+  stdout ───
+
+    running 1 test
+    test control::controller::tests::a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop ... FAILED
+
+    failures:
+
+    failures:
+        control::controller::tests::a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 414 filtered out; finished in 0.02s
+
+  stderr ───
+
+    thread 'control::controller::tests::a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop' (1616219) panicked at crates/gauntlet-app/src/control/controller.rs:7408:9:
+    assertion `left == right` failed: the durable settlement stands unduplicated
+      left: 0
+     right: 1
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.051s] 2 tests run: 1 passed, 1 failed, 413 skipped
+        FAIL [   0.025s] (2/2) gauntlet-app control::controller::tests::a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop
+error: test run failed
+rc=100

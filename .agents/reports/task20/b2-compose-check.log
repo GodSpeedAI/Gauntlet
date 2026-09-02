@@ -1,0 +1,13 @@
+cargo check -p gauntlet-cli --all-targets
+error: duplicate key
+  --> crates/gauntlet-cli/Cargo.toml:67:1
+   |
+67 | gauntlet-app = { workspace = true, features = ["composition"] }
+   | ^^^^^^^^^^^^
+error: failed to load manifest for workspace member `/home/sprime01/projects/gauntlet/crates/gauntlet-cli`
+referenced by workspace at `/home/sprime01/projects/gauntlet/Cargo.toml`
+error: recipe `check-package` failed on line 74 with exit code 101
+CLI_EXIT=101
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

@@ -795,6 +795,66 @@ pub fn install(input: &InstallInput<'_>) -> Result<InstallReport, RolesError> {
 /// out-of-band edit to installed state, a source edit since install, a
 /// missing file, or a hand-edited or re-forged lock — is a typed
 /// configuration failure.
+/// What one installed role is, listed read-only (`gauntlet roles list`,
+/// COR-D1 / §20.1's `roles list`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListedRole {
+    /// The install identifier (the source file's stem).
+    pub role: String,
+    /// The declared role identity token.
+    pub role_id: String,
+    /// The critic fan-out dimension, when the stem names one.
+    pub dimension: Option<String>,
+}
+
+/// A read-only enumeration of the INSTALLED roles, from the roles lock the
+/// installer wrote (`.gauntlet/roles.lock`), strict-parsed so a tampered or
+/// re-forged lock is the same typed refusal `verify` raises — a list that
+/// trusted an unverified file would be a forged inventory. Read-only: no
+/// source or installed byte is read, no digest compared, no state written;
+/// drift detection remains `verify`'s job.
+pub fn list(project_root: &Path) -> Result<ListReport, RolesError> {
+    let lock_path = defaults::runtime_dir_at(project_root).join(ROLES_LOCK_NAME);
+    let bytes = std::fs::read(&lock_path).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            RolesError::LockMissing {
+                path: lock_path.to_string_lossy().into_owned(),
+            }
+        } else {
+            RolesError::Io {
+                locus: "reading the roles lock",
+                path: lock_path.to_string_lossy().into_owned(),
+                kind: error.kind(),
+            }
+        }
+    })?;
+    let text = String::from_utf8(bytes).map_err(|_| RolesError::NotUtf8 {
+        path: lock_path.to_string_lossy().into_owned(),
+    })?;
+    let lock = RolesLock::parse(&text)?;
+    Ok(ListReport {
+        harness: lock.harness,
+        enforcement: lock.enforcement,
+        roles: lock
+            .entries
+            .into_iter()
+            .map(|entry| ListedRole {
+                role: entry.role,
+                role_id: entry.role_id,
+                dimension: entry.dimension,
+            })
+            .collect(),
+    })
+}
+
+/// What one list found when the lock parsed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListReport {
+    pub harness: String,
+    pub enforcement: Enforcement,
+    pub roles: Vec<ListedRole>,
+}
+
 pub fn verify(input: &VerifyInput<'_>) -> Result<VerifyReport, RolesError> {
     let lock_path = defaults::runtime_dir_at(input.project_root).join(ROLES_LOCK_NAME);
     let bytes = std::fs::read(&lock_path).map_err(|error| {
@@ -1134,13 +1194,14 @@ fn sha256_hex(bytes: &[u8]) -> String {
     hex
 }
 
-/// Atomic file write (write beside, fsync, rename over): a reader never
-/// sees a torn artifact, and the staged bytes are flushed to the file
-/// before the rename commits them — the §10.3 result-document discipline
-/// applied to the installer's own outputs. Scope note (COR-D05): the FILE
-/// is fsynced; the parent DIRECTORY is not, so the lock's directory entry
-/// is not crash-durable — recorded residual R17-note-1, deliberately out
-/// of scope here.
+/// Atomic file write (write beside, fsync, rename, fsync the parent): a
+/// reader never sees a torn artifact, the staged bytes are flushed to the
+/// file before the rename commits them, and the RENAME's directory entry is
+/// flushed after — the §10.3 result-document discipline applied to the
+/// installer's own outputs. The directory-entry half closes residual
+/// R17-note-1 (plan Task 20 decision D10): the file fsync alone is not
+/// crash-durable for a NEWLY CREATED file, because the durability of the
+/// entry naming it lives in the parent directory, not the file's own bytes.
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), RolesError> {
     let staging = path.with_extension("staging");
     std::fs::write(&staging, bytes).map_err(|error| RolesError::Io {
@@ -1164,5 +1225,108 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), RolesError> {
         path: path.to_string_lossy().into_owned(),
         kind: error.kind(),
     })?;
+    // Directory-entry durability half (R17-note-1 closed): fsync the PARENT
+    // DIRECTORY so the rename's entry survives a crash after the commit. A
+    // read-only handle on the directory is sufficient — fsync flushes the
+    // directory's entries, not the fd's write permission — and `File::open`
+    // IS the read-only open: it takes no write handle, so it stays outside
+    // the single-writer gate's write-API inventory by design.
+    let parent = path.parent().ok_or_else(|| RolesError::Io {
+        locus: "locating a role artifact's parent directory",
+        path: path.to_string_lossy().into_owned(),
+        kind: std::io::ErrorKind::InvalidInput,
+    })?;
+    std::fs::File::open(parent)
+        .and_then(|dir| dir.sync_all())
+        .map_err(|error| RolesError::Io {
+            locus: "fsyncing a role artifact's directory entry",
+            path: parent.to_string_lossy().into_owned(),
+            kind: error.kind(),
+        })?;
+    directory_entry_fsync_sensor::record();
     Ok(())
+}
+
+/// The directory-entry fsync's call sensor — the mutation tooth's
+/// observability seam. TWO cfg-disjoint twin modules bind ONE name:
+/// production builds bind a no-op (the production path stays
+/// machine-code untouched); test builds bind the counting sensor the
+/// tooth reads. Shape note: the single-writer gate's blanker classifies
+/// gated MODULES (and functions), never gated statics or statements
+/// (I8, fail-closed) — so the sensor lives in gated modules, not behind
+/// a `#[cfg(test)]` static or a gated statement.
+#[cfg(not(test))]
+mod directory_entry_fsync_sensor {
+    /// Production twin: nothing to count, nothing to read.
+    pub(super) fn record() {}
+}
+
+#[cfg(test)]
+mod directory_entry_fsync_sensor {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    pub(super) static CALLS: AtomicU64 = AtomicU64::new(0);
+
+    pub(super) fn record() {
+        CALLS.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// MUTATION TOOTH for R17-note-1's closure (plan Task 20 D10): the
+    /// directory-entry fsync must happen on EVERY `write_atomic` commit.
+    /// WHY A CALL-COUNTER AND NOT A KERNEL OBSERVATION: no std API can read
+    /// back whether a past fsync reached the platter — an in-process test
+    /// that "checks durability" would be theater. The honest tooth pins the
+    /// strongest in-process observable: that the commit path invoked the
+    /// parent-directory fsync exactly once per write. A mutant that removes
+    /// the `sync_all` on the parent directory (or opens the wrong node)
+    /// leaves the counter unmoved and this test RED; a mutant that fsyncs
+    /// but mis-renders the error locus is caught by the success-path
+    /// assertions below. The file-level fsync half keeps its own guard: the
+    /// staged bytes must be gone (renamed, not copied) and the content
+    /// verbatim, so a mutant that degrades the whole helper to
+    /// `std::fs::write` also goes red here.
+    #[test]
+    fn write_atomic_fsyncs_the_directory_entry() {
+        let root = std::env::temp_dir().join(format!(
+            "gauntlet-write-atomic-tooth-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).expect("the tooth scratch directory is creatable");
+        let target = root.join("artifact.md");
+        let before = directory_entry_fsync_sensor::CALLS.load(std::sync::atomic::Ordering::Relaxed);
+        write_atomic(&target, b"verbatim bytes")
+            .expect("the atomic write succeeds on a creatable path");
+        let after = directory_entry_fsync_sensor::CALLS.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            after - before,
+            1,
+            "exactly one directory-entry fsync per committed write — a write_atomic that \
+             skips the parent-directory fsync is a durability regression (R17-note-1)"
+        );
+        assert_eq!(
+            std::fs::read(&target).expect("the committed artifact reads"),
+            b"verbatim bytes",
+            "the committed artifact is the bytes, verbatim"
+        );
+        assert!(
+            !root.join("artifact.staging").exists(),
+            "the staging file is renamed over, never left behind"
+        );
+        // A second write to the SAME path (the lock reinstall path) commits
+        // through the same sequence.
+        write_atomic(&target, b"second commit").expect("the overwrite succeeds");
+        let final_count =
+            directory_entry_fsync_sensor::CALLS.load(std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(
+            final_count - before,
+            2,
+            "every commit fsyncs the directory entry, not just the first"
+        );
+        std::fs::remove_dir_all(&root).expect("the tooth scratch is removable");
+    }
 }

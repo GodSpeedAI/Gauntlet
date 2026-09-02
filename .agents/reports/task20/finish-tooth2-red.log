@@ -1,0 +1,21 @@
+    failures:
+
+    failures:
+        roles::install::tests::write_atomic_fsyncs_the_directory_entry
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 400 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'roles::install::tests::write_atomic_fsyncs_the_directory_entry' (3860087) panicked at crates/gauntlet-app/src/roles/install.rs:1241:9:
+    assertion `left == right` failed: exactly one directory-entry fsync per committed write — a write_atomic that skips the parent-directory fsync is a durability regression (R17-note-1)
+      left: 0
+     right: 1
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.024s] 1 test run: 0 passed, 1 failed, 457 skipped
+        FAIL [   0.004s] (1/1) gauntlet-app roles::install::tests::write_atomic_fsyncs_the_directory_entry
+error: test run failed
+RED_EXIT=100

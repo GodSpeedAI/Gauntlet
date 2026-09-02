@@ -1,0 +1,64 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 46s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/writer_lock.rs:446:
+             std::thread::sleep(Duration::from_millis(LATE_WRITE_HEAD_START));
+             std::fs::write(&lock_path, "424242\n").expect("the late pid write lands");
+         });
+-        let error = WriterLock::acquire_with_rereads(
+-            &root,
+-            WIDENED_REREAD_STEPS,
+-            WIDENED_REREAD_PAUSE,
+-        )
+-        .expect_err("the lock refuses regardless of the reread");
++        let error =
++            WriterLock::acquire_with_rereads(&root, WIDENED_REREAD_STEPS, WIDENED_REREAD_PAUSE)
++                .expect_err("the lock refuses regardless of the reread");
+         writer.join().expect("the late writer finishes");
+         match &error {
+             WriterLockError::Held { holder_pid, .. } => assert_eq!(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:348:
+ /// the PREVIOUS offset so the caller asserts the forge landed.
+ fn regress_latest_checkpoint_offset(state_db: &Path, run_id: &str, new_offset: u64) -> u64 {
+     gauntlet_adapter_state_sqlite::test_support::regress_latest_checkpoint_offset(
+-        state_db,
+-        run_id,
+-        new_offset,
++        state_db, run_id, new_offset,
+     )
+     .expect("the anchor surgery runs")
+ }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:1429:
+         let stderr = String::from_utf8_lossy(&outcome.stderr).into_owned();
+         // COR-R4-3 mechanical adaptation: the typed refusal's stable token
+         // is the hedged "stale or unreadable writer lock" wording.
+-        outcome.status.success()
+-            || stderr.contains("stale or unreadable writer lock")
++        outcome.status.success() || stderr.contains("stale or unreadable writer lock")
+     };
+     assert!(
+         shaped(&first_out) && shaped(&second_out),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:509:
+ 
+     // THE SWAP: byte-different, normalization-equivalent.
+     let swapped = {
+-        let mut text =
+-            String::from_utf8(source_bytes.clone()).expect("the source is UTF-8");
++        let mut text = String::from_utf8(source_bytes.clone()).expect("the source is UTF-8");
+         text = text.replace('\n', "\r\n");
+         text.push_str("\r\n\r\n");
+         text.into_bytes()
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:520:
+         "the precondition holds: the installed bytes are NOT the source bytes"
+     );
+     assert_eq!(
+-        gauntlet_app::reference::normalize::digest_of(&swapped)
+-            .expect("the swapped bytes digest"),
++        gauntlet_app::reference::normalize::digest_of(&swapped).expect("the swapped bytes digest"),
+         gauntlet_app::reference::normalize::digest_of(&source_bytes)
+             .expect("the source bytes digest"),
+         "the precondition holds: the swap is INSIDE the normalizer's fixed-point class — \
+error: recipe `lint` failed on line 27 with exit code 1
+exit=1

@@ -1,0 +1,5 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 9.87s
+cargo fmt --check

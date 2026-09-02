@@ -878,16 +878,20 @@ pub fn root_feature_edges(root_manifest: &Table, members: &[Member]) -> Vec<Feat
     out
 }
 
-/// The composition feature seal (F2): the ONLY edge in the workspace
-/// permitted to enable `gauntlet-app/composition` is `gauntlet-cli`'s
+/// The composition feature seal (F2, widened by plan Task 20 with the
+/// production edge recorded at that task): the ONLY edges in the workspace
+/// permitted to enable `gauntlet-app/composition` are `gauntlet-cli`'s
 /// unscoped `[dev-dependencies]` edge — the one correction round 1
-/// recorded as the audited §7.1 composition seam. Every other spelling is
-/// a violation: any production section (a normal build of that crate
-/// would then contain the ladder/rung constructors C1 sealed away), any
-/// other member, any target-scoped or build-dependency section, and any
-/// root `[workspace.dependencies]` entry (`owner: None`, inheritable by
-/// every member). Narrow by design: this pins ONE seam; a general
-/// feature-policy language is not being invented here.
+/// recorded as the audited §7.1 composition seam — AND, from plan Task 20,
+/// `gauntlet-cli`'s unscoped `[dependencies]` edge: the run composition is
+/// the production caller the Task 11 note anticipated ("the production
+/// wiring of Tasks 12/20"), and it constructs the §14.2 rung set
+/// (`Ladder::new`) in a normal build of the composition root. Every other
+/// spelling is a violation: any production section of any OTHER member,
+/// any target-scoped or build-dependency section, and any root
+/// `[workspace.dependencies]` entry (`owner: None`, inheritable by
+/// every member). Narrow by design: this pins the TWO composition seams;
+/// a general feature-policy language is not being invented here.
 pub fn composition_seal_violations(
     manifest: &str,
     owner: Option<&str>,
@@ -898,14 +902,17 @@ pub fn composition_seal_violations(
         if edge.dep != "gauntlet-app" || edge.feature != "composition" {
             continue;
         }
-        let legal = owner == Some("gauntlet-cli") && edge.section == "dev-dependencies";
+        let legal = owner == Some("gauntlet-cli")
+            && (edge.section == "dev-dependencies" || edge.section == "dependencies");
         if !legal {
             out.push(format!(
                 "composition-seal: {manifest}: {} enables feature 'composition' on '{}' via \
-                 [{}] — the audited §7.1 seam (Task 11 correction round 1, C1) may be enabled \
-                 ONLY by gauntlet-cli's unscoped [dev-dependencies] edge; any other edge puts \
-                 the sealed ladder/rung constructors into a normal build of a crate that must \
-                 not have them (Task 11 correction round 2, F2)",
+                 [{}] — the audited §7.1 seam (Task 11 correction round 1, C1) is enabled \
+                 ONLY by gauntlet-cli's unscoped [dev-dependencies] edge, plus (plan Task \
+                 20) gauntlet-cli's unscoped [dependencies] edge: the run composition is \
+                 the recorded production caller; any other edge puts the sealed ladder/rung \
+                 constructors into a normal build of a crate that must not have them (Task \
+                 11 correction round 2, F2)",
                 owner.unwrap_or("the root [workspace.dependencies] table"),
                 edge.dep,
                 edge.section
@@ -2794,12 +2801,15 @@ core = { package = "gauntlet-domain", features = "serde" }
     }
 
     #[test]
-    fn the_composition_seal_accepts_only_the_cli_dev_edge() {
+    fn the_composition_seal_accepts_only_the_recorded_cli_edges() {
         let members = fixture_members();
         let root_deps = no_root_deps();
         let cli = "crates/gauntlet-cli/Cargo.toml";
 
-        // The one legal edge: gauntlet-cli's unscoped dev-dependency.
+        // The legal edges: gauntlet-cli's unscoped dev-dependency (Task 11)
+        // and, since plan Task 20, its unscoped production dependency — the
+        // run composition is the recorded production caller of the sealed
+        // rung constructors.
         let legal = "[dev-dependencies]\ngauntlet-app = { workspace = true, features = \
                      [\"composition\"] }\n";
         let edges = member_feature_edges("crates/gauntlet-cli", legal, &members, &root_deps)
@@ -2808,15 +2818,39 @@ core = { package = "gauntlet-domain", features = "serde" }
             composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
             "{edges:?}"
         );
+        let legal_production = "[dependencies]\ngauntlet-app = { workspace = true, features = \
+             [\"composition\"] }\n";
+        let edges = member_feature_edges(
+            "crates/gauntlet-cli",
+            legal_production,
+            &members,
+            &root_deps,
+        )
+        .expect("parses");
+        assert!(
+            composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
+            "the plan Task 20 production composition edge is a recorded seam: {edges:?}"
+        );
 
         // FAIL-FIRST SHAPE (demonstrated against the live repo before the
-        // pin landed): a PRODUCTION `features = ["composition"]` edge on
-        // the same crate — the exact regression the seal exists to catch.
+        // pin landed, and re-demonstrated when plan Task 20 widened the
+        // seal to admit the cli production edge): the SAME production edge
+        // on any OTHER member — the exact regression the seal exists to
+        // catch.
         let production =
             "[dependencies]\ngauntlet-app = { workspace = true, features = [\"composition\"] }\n";
-        let edges = member_feature_edges("crates/gauntlet-cli", production, &members, &root_deps)
-            .expect("parses");
-        let violations = composition_seal_violations(cli, Some("gauntlet-cli"), &edges);
+        let edges = member_feature_edges(
+            "crates/adapters/gauntlet-adapter-agent-mock",
+            production,
+            &members,
+            &root_deps,
+        )
+        .expect("parses");
+        let violations = composition_seal_violations(
+            "crates/adapters/gauntlet-adapter-agent-mock/Cargo.toml",
+            Some("gauntlet-adapter-agent-mock"),
+            &edges,
+        );
         assert_eq!(violations.len(), 1, "{violations:?}");
         assert!(
             violations[0].contains("[dependencies]") && violations[0].contains("composition-seal"),
@@ -2824,13 +2858,24 @@ core = { package = "gauntlet-domain", features = "serde" }
             violations[0]
         );
 
-        // The bare-string spelling is equally caught.
+        // The bare-string spelling is equally caught (on the one member the
+        // seal does not admit a production edge for).
         let string_form = "[dependencies]\ngauntlet-app = { workspace = true, features = \
                            \"composition\" }\n";
-        let edges = member_feature_edges("crates/gauntlet-cli", string_form, &members, &root_deps)
-            .expect("parses");
+        let edges = member_feature_edges(
+            "crates/adapters/gauntlet-adapter-agent-mock",
+            string_form,
+            &members,
+            &root_deps,
+        )
+        .expect("parses");
         assert_eq!(
-            composition_seal_violations(cli, Some("gauntlet-cli"), &edges).len(),
+            composition_seal_violations(
+                "crates/adapters/gauntlet-adapter-agent-mock/Cargo.toml",
+                Some("gauntlet-adapter-agent-mock"),
+                &edges
+            )
+            .len(),
             1,
             "{edges:?}"
         );

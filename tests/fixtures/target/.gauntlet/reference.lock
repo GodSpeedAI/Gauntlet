@@ -1,0 +1,13 @@
+{
+  "answer_key_path": ".wayfinder/answer-key.md",
+  "answer_key_digest": "sha256:ebba17b091b2c66b161a0196d3fd3497759a27cc747c5b7550f0430f48a44ce5",
+  "manifest_path": ".wayfinder/reference.yaml",
+  "manifest_digest": "sha256:fe5fb4d34ae9d346fb23c79c8d77834f2f600977ebd422766ae943d2b4435ed0",
+  "algo": "sha256",
+  "frozen_at": "2026-08-31T00:00:00Z",
+  "spec_source": "src/gadget.rs",
+  "spec_annex": "E2E fixture target answer key (AK-901..AK-903)",
+  "unit_count": 3,
+  "digest_tool": "scripts/reference-digest.sh",
+  "note": "Fixture freeze record for the e2e_full_loop_mock proof (plan Task 20, builder B3). Committed as part of the fixture; the E2E never writes here. The digests are the scripts/reference-digest.sh normalization over the two frozen artifacts."
+}

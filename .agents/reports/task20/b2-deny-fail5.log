@@ -1,0 +1,23 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 13s
+────────────
+ Nextest run ID b642407f-b417-448d-864c-58616e7923a6 with nextest profile: default
+    Starting 2 tests across 6 binaries (458 tests skipped)
+       START [         ] (1/2) gauntlet-app::compare_deny a_wired_deny_set_refuses_the_envelope_before_it_is_built
+
+running 1 test
+test a_wired_deny_set_refuses_the_envelope_before_it_is_built ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+        PASS [   0.005s] (1/2) gauntlet-app::compare_deny a_wired_deny_set_refuses_the_envelope_before_it_is_built
+       START [         ] (2/2) gauntlet-app::compare_deny an_empty_deny_set_reaches_the_envelope_construction
+
+running 1 test
+test an_empty_deny_set_reaches_the_envelope_construction ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+        PASS [   0.004s] (2/2) gauntlet-app::compare_deny an_empty_deny_set_reaches_the_envelope_construction
+────────────
+     Summary [   0.010s] 2 tests run: 2 passed, 458 skipped

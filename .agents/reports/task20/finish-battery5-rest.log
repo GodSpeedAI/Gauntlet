@@ -1,0 +1,17 @@
+=== check-package ===
+cargo check -p gauntlet-adapter-workspace-fs --all-targets
+    Finished `dev` profile [unoptimized] target(s) in 0.13s
+CP_EXIT=0
+=== test-package ===
+        PASS [   0.008s] (3/6) gauntlet-adapter-workspace-fs provider::tests::cleanup_refuses_a_ref_outside_the_key_class
+        PASS [   0.009s] (4/6) gauntlet-adapter-workspace-fs provider::tests::a_symlinked_workspace_escape_is_a_typed_refusal
+        PASS [   0.010s] (5/6) gauntlet-adapter-workspace-fs provider::tests::every_created_key_is_one_sanitized_component_under_the_root
+        PASS [   0.010s] (6/6) gauntlet-adapter-workspace-fs::contract_suite fs_workspace_provider_passes_the_shared_contract_suite
+────────────
+     Summary [   0.011s] 6 tests run: 6 passed, 0 skipped
+TP_EXIT=0
+=== check ===
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 20s
+CHECK_EXIT=0

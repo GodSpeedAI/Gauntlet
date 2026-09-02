@@ -1,0 +1,67 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-arch-tests v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests)
+    Finished `dev` profile [unoptimized] target(s) in 2m 16s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/writer_lock.rs:105:
+                     read_error,
+                 });
+             }
+-            Err(error) => return Err(WriterLockError::Io { path: lock_path, error }),
++            Err(error) => {
++                return Err(WriterLockError::Io {
++                    path: lock_path,
++                    error,
++                });
++            }
+         };
+         use std::io::Write as _;
+         writeln!(file, "{}", std::process::id()).map_err(|error| WriterLockError::Io {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/writer_lock.rs:112:
+             path: lock_path.clone(),
+             error,
+         })?;
+-        Ok(Self {
+-            path: lock_path,
+-        })
++        Ok(Self { path: lock_path })
+     }
+ 
+     /// The lock file's path (the doctor-visible locus; the guard itself
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:335:
+ /// removed (the callers ASSERT the count: damage that touched nothing must
+ /// fail the test, not pass it silently).
+ fn delete_production_rows(state_db: &Path, locator: Option<&str>) -> usize {
+-    gauntlet_adapter_state_sqlite::test_support::delete_evidence_production_rows(
+-        state_db,
+-        locator,
+-    )
+-    .expect("the damage injection runs")
++    gauntlet_adapter_state_sqlite::test_support::delete_evidence_production_rows(state_db, locator)
++        .expect("the damage injection runs")
+ }
+ 
+ // ---------------------------------------------------------------------------
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:973:
+ /// never spelled — the locator literals would be environment coupling and
+ /// the hardcoded-literal gate rightly refuses them).
+ fn fixture_locators() -> Vec<String> {
+-    let key = std::fs::read_to_string(
+-        fixture_target()
+-            .join(".wayfinder")
+-            .join("answer-key.md"),
+-    )
+-    .expect("the fixture answer key reads");
++    let key = std::fs::read_to_string(fixture_target().join(".wayfinder").join("answer-key.md"))
++        .expect("the fixture answer key reads");
+     let mut locators: Vec<String> = Vec::new();
+     for line in key.lines() {
+         let Some(rest) = line.trim().strip_prefix("evidence_required:") else {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:1002:
+ 
+ #[test]
+ fn the_resume_of_a_settled_run_with_all_production_rows_deleted_is_honest() {
+-
+     let world = World::new("settled-damage-all");
+     let env = world.env("e2e-happy", "e2e-happy-seed");
+     let run = world.run(&env, &["run", "seeded bounded task"]);
+error: recipe `lint` failed on line 27 with exit code 1

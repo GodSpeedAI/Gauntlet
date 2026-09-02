@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized] target(s) in 1.41s
+────────────
+ Nextest run ID 475dbf19-7f6f-4135-ad26-34fba6043535 with nextest profile: default
+    Starting 14 tests across 2 binaries
+        PASS [   0.186s] ( 1/14) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.264s] ( 2/14) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.153s] ( 3/14) gauntlet-cli::e2e_full_loop_mock the_dry_run_preflight_writes_nothing
+        PASS [   0.341s] ( 4/14) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+        PASS [   0.423s] ( 5/14) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.430s] ( 6/14) gauntlet-cli::e2e_full_loop_mock the_report_forging_liar_is_never_settled
+        PASS [   0.810s] ( 7/14) gauntlet-cli::e2e_full_loop_mock parallel_completions_carry_and_never_collide
+        PASS [   0.489s] ( 8/14) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+        PASS [   0.900s] ( 9/14) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+        PASS [   0.719s] (10/14) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_names_exactly_the_damaged_locator
+        PASS [   0.973s] (11/14) gauntlet-cli::e2e_full_loop_mock the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+        PASS [   0.653s] (12/14) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_all_production_rows_deleted_is_honest
+        PASS [   0.756s] (13/14) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_a_recovery_completed_production_is_the_settled_noop
+        PASS [   0.717s] (14/14) gauntlet-cli::e2e_full_loop_mock the_single_writer_guard_bounds_the_concurrent_double_resume_attack
+────────────
+     Summary [   1.557s] 14 tests run: 14 passed, 0 skipped
+exit=0

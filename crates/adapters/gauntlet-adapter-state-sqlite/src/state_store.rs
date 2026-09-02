@@ -2537,6 +2537,47 @@ impl StateStore for SqliteStateStore {
         Ok(Some(binding))
     }
 
+    /// COR-R3-1 (falsifier round 3, F-R3-1): the orphan-event read the
+    /// §18.3 resume-completion recovery needs to re-mint a missing row at
+    /// the ref the produce step actually recorded — the same replay scan
+    /// `complete_pending_evidence_production` performs, surfaced as facts
+    /// instead of a keyed completion.
+    fn pending_evidence_production_events(
+        &self,
+        run_id: &RunId,
+        anchor: EventLogOffset,
+        locator: &gauntlet_domain::EvidenceLocator,
+        _deadline: Deadline,
+    ) -> Result<Vec<gauntlet_ports::state_store::OrphanEvidenceProduction>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let entries = read_entries(&conn, anchor).map_err(map_log_error)?;
+        let mut orphans = Vec::new();
+        for entry in entries {
+            if entry.event.run_id != *run_id {
+                continue;
+            }
+            let RunEventKind::EvidenceProduced {
+                evidence,
+                locator: event_locator,
+            } = &entry.event.kind
+            else {
+                continue;
+            };
+            if event_locator != locator {
+                continue;
+            }
+            orphans.push(gauntlet_ports::state_store::OrphanEvidenceProduction::new(
+                evidence.clone(),
+                entry.offset,
+                entry.event.at,
+            ));
+        }
+        Ok(orphans)
+    }
+
     /// Deterministic export (spec §6.2: "Export is deterministic"): stable
     /// segments and explicit `ORDER BY` everywhere — the output is a pure
     /// function of durable state, never of query timing. Timestamps are the

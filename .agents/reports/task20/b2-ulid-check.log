@@ -1,0 +1,67 @@
+cargo nextest run -p gauntlet-adapter-id-ulid
+   Compiling gauntlet-adapter-id-ulid v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-ulid)
+warning: constant `FNV_OFFSET` is never used
+  --> crates/adapters/gauntlet-adapter-id-ulid/src/lib.rs:41:7
+   |
+41 | const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+   |       ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `gauntlet-adapter-id-ulid` (lib) generated 1 warning
+error[E0308]: mismatched types
+   --> crates/adapters/gauntlet-adapter-id-ulid/src/lib.rs:185:9
+    |
+185 |         assert_ne!(first, third);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^
+    |         |
+    |         expected `RunId`, found `InvocationId`
+    |         expected because this is `gauntlet_domain::RunId`
+
+error[E0308]: mismatched types
+   --> crates/adapters/gauntlet-adapter-id-ulid/src/lib.rs:186:9
+    |
+186 |         assert_ne!(second, third);
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |         |
+    |         expected `RunId`, found `InvocationId`
+    |         expected because this is `gauntlet_domain::RunId`
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `gauntlet-adapter-id-ulid` (lib test) due to 2 previous errors
+error: command `/home/sprime01/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --message-format json-render-diagnostics --package gauntlet-adapter-id-ulid` exited with code 101
+error: recipe `test-package` failed on line 77 with exit code 101
+ULID_EXIT=101
+Stopping sccache server...
+Compile requests                      2
+Compile requests executed             1
+Cache hits                            0
+Cache misses                          1
+Cache misses (Rust)                   1
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          1
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   1
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.060 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            1
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            2 GiB
+Max cache size                       10 GiB

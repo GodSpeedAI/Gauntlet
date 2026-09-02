@@ -1,0 +1,1397 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Checking gauntlet-arch-tests v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests)
+    Checking gauntlet-adapter-verify-schema-check v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-schema-check)
+    Checking gauntlet-adapter-observe-command v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-command)
+    Checking gauntlet-adapter-observe-test v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-test)
+    Checking gauntlet-adapter-observe-git v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-git)
+    Checking gauntlet-adapter-verify-command-exit-code v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-command-exit-code)
+    Checking gauntlet-adapter-verify-file-digest v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-file-digest)
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Checking gauntlet-adapter-meter-memory v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-meter-memory)
+    Checking gauntlet-adapter-observe-build v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-build)
+    Checking gauntlet-adapter-verify-test-report v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-test-report)
+    Checking gauntlet-adapter-evidence-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-evidence-fs)
+    Checking gauntlet-adapter-observe-filesystem v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-filesystem)
+    Checking gauntlet-adapter-workspace-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-adapter-agent-prime v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-prime)
+    Checking gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-adapter-sandbox-none v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-none)
+    Checking gauntlet-adapter-policy-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-policy-fs)
+    Checking gauntlet-adapter-sandbox-bwrap v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-bwrap)
+    Checking gauntlet-adapter-compare-diff v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-diff)
+    Checking gauntlet-adapter-id-ulid v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-ulid)
+    Checking gauntlet-adapter-compare-model v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-model)
+    Checking gauntlet-ports v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-ports)
+    Checking gauntlet-domain v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-domain)
+    Finished `dev` profile [unoptimized] target(s) in 2m 25s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:60:
+                 write!(f, "ensuring the escalations queue root failed: {detail}")
+             }
+             Self::RecordInvalid { ticket, detail } => {
+-                write!(f, "escalation ticket {ticket} is not a valid record: {detail}")
++                write!(
++                    f,
++                    "escalation ticket {ticket} is not a valid record: {detail}"
++                )
+             }
+             Self::ListFailed { detail } => {
+                 write!(f, "reading the escalations queue failed: {detail}")
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:151:
+     /// id — a total, stable order for the operator's list).
+     pub fn list(&self) -> Result<Vec<EscalationRecord>, EscalationQueueError> {
+         let mut records = Vec::new();
+-        let entries = std::fs::read_dir(&self.root).map_err(|error| {
+-            EscalationQueueError::ListFailed {
++        let entries =
++            std::fs::read_dir(&self.root).map_err(|error| EscalationQueueError::ListFailed {
+                 detail: format!("{}: {error}", self.root.display()),
+-            }
+-        })?;
++            })?;
+         for entry in entries {
+-            let entry = entry
+-                .map_err(|error| EscalationQueueError::ListFailed {
+-                    detail: error.to_string(),
+-                })?;
++            let entry = entry.map_err(|error| EscalationQueueError::ListFailed {
++                detail: error.to_string(),
++            })?;
+             let path = entry.path();
+             if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                 continue;
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:174:
+                     detail: error.to_string(),
+                 }
+             })?;
+-            let record = decode_record(&text).map_err(|detail| {
+-                EscalationQueueError::RecordInvalid {
++            let record =
++                decode_record(&text).map_err(|detail| EscalationQueueError::RecordInvalid {
+                     ticket: stem.to_owned(),
+                     detail,
+-                }
+-            })?;
++                })?;
+             records.push(record);
+         }
+         records.sort_by(|left, right| {
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:186:
+-            (left.created_at.get(), left.ticket.as_str()).cmp(&(right.created_at.get(), right.ticket.as_str()))
++            (left.created_at.get(), left.ticket.as_str())
++                .cmp(&(right.created_at.get(), right.ticket.as_str()))
+         });
+         Ok(records)
+     }
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:245:
+         use std::io::Write;
+         let temp = self.root.join(format!("{file_name}{TEMP_SUFFIX}"));
+         let final_path = self.root.join(file_name);
+-        let mut file = std::fs::File::create(&temp).map_err(|error| {
+-            EscalationQueueError::WriteFailed {
++        let mut file =
++            std::fs::File::create(&temp).map_err(|error| EscalationQueueError::WriteFailed {
+                 detail: format!("{}: {error}", temp.display()),
+-            }
+-        })?;
+-        file.write_all(text.as_bytes()).map_err(|error| {
+-            EscalationQueueError::WriteFailed {
++            })?;
++        file.write_all(text.as_bytes())
++            .map_err(|error| EscalationQueueError::WriteFailed {
+                 detail: error.to_string(),
+-            }
+-        })?;
+-        file.sync_all().map_err(|error| {
+-            EscalationQueueError::WriteFailed {
++            })?;
++        file.sync_all()
++            .map_err(|error| EscalationQueueError::WriteFailed {
+                 detail: error.to_string(),
+-            }
+-        })?;
++            })?;
+         drop(file);
+-        std::fs::rename(&temp, &final_path).map_err(|error| {
+-            EscalationQueueError::WriteFailed {
+-                detail: format!("{} -> {}: {error}", temp.display(), final_path.display()),
+-            }
++        std::fs::rename(&temp, &final_path).map_err(|error| EscalationQueueError::WriteFailed {
++            detail: format!("{} -> {}: {error}", temp.display(), final_path.display()),
+         })?;
+         if let Ok(dir) = std::fs::File::open(&self.root) {
+             let _ = dir.sync_all();
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:341:
+                 detail: error.to_string(),
+             }
+         })?;
+-        let record = decode_record(&text).map_err(|detail| {
+-            HumanEscalationError::StateReadFailed { detail }
+-        })?;
++        let record = decode_record(&text)
++            .map_err(|detail| HumanEscalationError::StateReadFailed { detail })?;
+         Ok(record.state)
+     }
+ }
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:432:
+     }
+     let ticket = TicketId::new(&string_field("ticket")?).map_err(|error| error.to_string())?;
+     let run_id = RunId::new(&string_field("run_id")?).map_err(|error| error.to_string())?;
+-    let context =
+-        EvidenceRef::new(&string_field("context")?).map_err(|error| error.to_string())?;
++    let context = EvidenceRef::new(&string_field("context")?).map_err(|error| error.to_string())?;
+     let created_at = match parsed.get("created_at") {
+-        Some(JsonValue::Number(number)) => {
+-            number.as_u64().ok_or_else(|| "created_at is not a u64".to_owned())?
+-        }
++        Some(JsonValue::Number(number)) => number
++            .as_u64()
++            .ok_or_else(|| "created_at is not a u64".to_owned())?,
+         _ => return Err("field \"created_at\" is not a number".to_owned()),
+     };
+     let state_token = string_field("state")?;
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/tests/contract_suite.rs:13:
+     OperatorAction, TICKET_SCHEMA,
+ };
+ use gauntlet_domain::{EpochSeconds, EvidenceRef, RunId};
+-use gauntlet_ports::contract::human_escalation::{
+-    HumanEscalationFactory, human_escalation_suite,
+-};
+ use gauntlet_ports::contract::ContractFinding;
++use gauntlet_ports::contract::human_escalation::{HumanEscalationFactory, human_escalation_suite};
+ use gauntlet_ports::deadline::Deadline;
+ use gauntlet_ports::human_escalation::{
+     EscalationItem, EscalationState, HumanEscalation, TicketId,
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/tests/contract_suite.rs:238:
+     let scratch = Scratch::new("lost-ticket");
+     let queue = scratch.queue();
+     let unknown = TicketId::new("esc-never-minted-1").expect("the fixture ticket id is usable");
+-    let refusal = queue.record(&unknown).expect_err("a lost ticket is refused");
++    let refusal = queue
++        .record(&unknown)
++        .expect_err("a lost ticket is refused");
+     assert!(
+         matches!(refusal, EscalationQueueError::RecordInvalid { .. }),
+         "{refusal}"
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-ulid/src/lib.rs:55:
+     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+         match self {
+             Self::Unavailable { detail } => {
+-                write!(f, "the id entropy source {RANDOM_DEVICE} is unavailable: {detail}")
++                write!(
++                    f,
++                    "the id entropy source {RANDOM_DEVICE} is unavailable: {detail}"
++                )
+             }
+             Self::ShortRead => write!(
+                 f,
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-ulid/src/lib.rs:114:
+     /// system's random device cannot serve the draw.
+     pub fn new() -> Result<Self, IdEntropyError> {
+         let mut entropy = [0u8; ENTROPY_BYTES];
+-        let mut device = std::fs::File::open(RANDOM_DEVICE).map_err(|error| {
+-            IdEntropyError::Unavailable {
++        let mut device =
++            std::fs::File::open(RANDOM_DEVICE).map_err(|error| IdEntropyError::Unavailable {
+                 detail: error.to_string(),
++            })?;
++        device.read_exact(&mut entropy).map_err(|error| {
++            if error.kind() == std::io::ErrorKind::UnexpectedEof {
++                IdEntropyError::ShortRead
++            } else {
++                IdEntropyError::Unavailable {
++                    detail: error.to_string(),
++                }
+             }
+         })?;
+-        device
+-            .read_exact(&mut entropy)
+-            .map_err(|error| {
+-                if error.kind() == std::io::ErrorKind::UnexpectedEof {
+-                    IdEntropyError::ShortRead
+-                } else {
+-                    IdEntropyError::Unavailable {
+-                        detail: error.to_string(),
+-                    }
+-                }
+-            })?;
+         let mut seed_w0 = [0u8; 8];
+         let mut seed_w1 = [0u8; 8];
+         seed_w0.copy_from_slice(&entropy[..8]);
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:778:
+             ObservationBindingAuthority::new(deps.state.clone(), deps.evidence.clone());
+         let evidence_production =
+             EvidenceProductionAuthority::new(deps.state.clone(), deps.evidence.clone());
+-        let comparison_authority = ComparisonAuthority::new(deps.state.clone(), deps.evidence.clone())
+-            .with_role_deny(deps.comparison.role_deny.clone());
++        let comparison_authority =
++            ComparisonAuthority::new(deps.state.clone(), deps.evidence.clone())
++                .with_role_deny(deps.comparison.role_deny.clone());
+         let verification_authority =
+             VerificationAuthority::new(deps.state.clone(), deps.evidence.clone(), deps.ids.clone());
+         let settlement = SettlementService::new(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/compare_deny.rs:8:
+ 
+ use std::sync::Arc;
+ 
+-use gauntlet_app::compare::authority::{ComparisonAuthority, AdmissionError};
++use gauntlet_app::compare::authority::{AdmissionError, ComparisonAuthority};
+ use gauntlet_app::compare::contract::ComparisonContract;
+ use gauntlet_app::roles::{ContextCategory, ContextDenySet};
++use gauntlet_domain::EvidenceKind;
+ use gauntlet_domain::{
+-    Budget, DiagnosticAllowance, Digest, EpochSeconds, IterationNo, Limits, MicroUsd,
+-    ReferenceId, RunId,
++    Budget, DiagnosticAllowance, Digest, EpochSeconds, IterationNo, Limits, MicroUsd, ReferenceId,
++    RunId,
+ };
+ use gauntlet_ports::deadline::Deadline;
+ use gauntlet_ports::evidence_store::{EvidenceStore, EvidenceStoreError};
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/compare_deny.rs:20:
+-use gauntlet_domain::EvidenceKind;
+ use gauntlet_ports::state_store::{
+     Checkpoint, ObservationBinding, RunEvent, StateStore, StateStoreError,
+ };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/compare_deny.rs:30:
+ const KEY_TEXT: &str = "## Units\n\n### AK-001\nclaim: the composed chain refuses denied context\nverify_by: test\ntier: contained\nauthority: write\nevidence_required: test report at reports/deny.txt\n";
+ 
+ fn bundle_text() -> String {
+-    use gauntlet_app::observation::bundle::{
+-        BundleContent, ClaimsFacet, ObservationBundleDoc,
+-    };
++    use gauntlet_app::observation::bundle::{BundleContent, ClaimsFacet, ObservationBundleDoc};
+     use gauntlet_app::observation::digest::observation_digest;
+     let content = BundleContent {
+         run_id: RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("the fixture run id"),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/compare_deny.rs:170:
+         digest_of(KEY_TEXT),
+         gauntlet_domain::EvidenceRef::new("evd-deny-frozen-key").expect("the fixture ref"),
+     );
+-    let limits = Limits::new(
+-        2,
+-        1,
+-        1,
+-        60,
+-        10_000,
+-        MicroUsd::new(1_000),
+-    )
+-    .expect("the fixture limits are usable");
++    let limits = Limits::new(2, 1, 1, 60, 10_000, MicroUsd::new(1_000))
++        .expect("the fixture limits are usable");
+     let budget = Budget::new(limits, 15, DiagnosticAllowance::new(100, MicroUsd::new(50)))
+         .expect("the fixture budget is usable");
+     gauntlet_domain::Run::new(gauntlet_domain::RunDefinition {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/compare_deny.rs:206:
+         "version: 1\ndimensions:\n  - functional behavior\n\
+      severity_rubric:\n  - blocking | invalidates the iteration\n  - major | real, not \
+      invalidating\n  - minor | small\n  - informational | recorded only\ncomparator_receives:\n  \
+-     - the allowlist members\nresidual_definition:\n  - a difference\n"
++     - the allowlist members\nresidual_definition:\n  - a difference\n",
+     )
+     .expect("the minimal contract parses")
+ }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/tests/compare_deny.rs:253:
+     };
+     match refusal {
+         AdmissionError::EnvelopeRefused(
+-            gauntlet_app::compare::EnvelopeError::DeniedContextPresent {
+-                category,
+-            },
+-        ) => assert_eq!(category, "reference", "the refusal names the denied category"),
++            gauntlet_app::compare::EnvelopeError::DeniedContextPresent { category },
++        ) => assert_eq!(
++            category, "reference",
++            "the refusal names the denied category"
++        ),
+         other => panic!("expected the deny refusal, got {other:?}"),
+     }
+ }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests/src/deps.rs:2818:
+             composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
+             "{edges:?}"
+         );
+-        let legal_production =
+-            "[dependencies]\ngauntlet-app = { workspace = true, features = \
++        let legal_production = "[dependencies]\ngauntlet-app = { workspace = true, features = \
+              [\"composition\"] }\n";
+-        let edges =
+-            member_feature_edges("crates/gauntlet-cli", legal_production, &members, &root_deps)
+-                .expect("parses");
++        let edges = member_feature_edges(
++            "crates/gauntlet-cli",
++            legal_production,
++            &members,
++            &root_deps,
++        )
++        .expect("parses");
+         assert!(
+             composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
+             "the plan Task 20 production composition edge is a recorded seam: {edges:?}"
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:47:
+ use std::sync::Arc;
+ 
+ use gauntlet_adapter_agent_cli as generic_cli_runner;
+-use gauntlet_adapter_id_ulid::UlidIdGenerator;
+ use gauntlet_adapter_agent_mock as mock_runner;
+ use gauntlet_adapter_agent_prime as recursive_runner;
+ use gauntlet_adapter_compare_diff::DiffComparator;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:54:
+ use gauntlet_adapter_compare_model::{ModelComparator, ModelComparatorSource};
+-use gauntlet_adapter_evidence_fs::FsEvidenceStore;
+ use gauntlet_adapter_escalation_fs::{ESCALATIONS_DIR_NAME, FsEscalationQueue};
++use gauntlet_adapter_evidence_fs::FsEvidenceStore;
++use gauntlet_adapter_id_ulid::UlidIdGenerator;
+ use gauntlet_adapter_meter_memory::MeteredBudget;
+ use gauntlet_adapter_observe_build::BuildObserver;
+ use gauntlet_adapter_observe_filesystem::FilesystemObserver;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:125:
+ impl core::fmt::Display for CompositionError {
+     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+         match self {
+-            Self::Configuration { key, env, detail } => write!(
+-                f,
+-                "configuration failure: {key} ({env}): {detail}"
+-            ),
++            Self::Configuration { key, env, detail } => {
++                write!(f, "configuration failure: {key} ({env}): {detail}")
++            }
+             Self::UnknownBackend { token } => write!(
+                 f,
+                 "configuration failure: sandbox.backend token '{token}' names no backend this \
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:163:
+ /// the environment variable — the repository's own GAUNTLET.md stays
+ /// unset on purpose (UNK-003 is the operator's decision).
+ pub fn select_runner_token(context: &RuntimeContext) -> Result<String, CompositionError> {
+-    let env_token = std::env::var("GAUNTLET_AGENT_RUNNER").ok().filter(|v| !v.is_empty());
++    let env_token = std::env::var("GAUNTLET_AGENT_RUNNER")
++        .ok()
++        .filter(|v| !v.is_empty());
+     let token = context
+         .resolved
+         .runners_default
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:242:
+             Ok(Arc::new(runner))
+         }
+         mock_runner::RUNNER_TOKEN => {
+-            let stem = std::env::var(MOCK_SCENARIO_VAR).ok().filter(|v| !v.is_empty());
++            let stem = std::env::var(MOCK_SCENARIO_VAR)
++                .ok()
++                .filter(|v| !v.is_empty());
+             let Some(stem) = stem else {
+                 return Err(CompositionError::Configuration {
+                     key: "runners.default",
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:422:
+     if token == defaults::SANDBOX_BACKEND {
+         return Ok(GovernDeps::none_backend());
+     }
+-    let binary = gauntlet_adapter_sandbox_bwrap::locate().ok_or_else(|| {
+-        CompositionError::Store {
++    let binary =
++        gauntlet_adapter_sandbox_bwrap::locate().ok_or_else(|| CompositionError::Store {
+             detail: format!(
+                 "the '{token}' backend's process-isolation binary could not be located"
+             ),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:430:
+-        }
+-    })?;
++        })?;
+     let backend = ProcessIsolationBackend::new(binary);
+     if backend.backend_identity().as_str() != token {
+         return Err(CompositionError::UnknownBackend { token });
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:510:
+         role: &gauntlet_domain::RoleId,
+         unit: &gauntlet_domain::UnitId,
+         deadline: Deadline,
+-    ) -> Result<gauntlet_ports::policy_provider::PermissionSet, gauntlet_ports::policy_provider::PolicyProviderError>
+-    {
++    ) -> Result<
++        gauntlet_ports::policy_provider::PermissionSet,
++        gauntlet_ports::policy_provider::PolicyProviderError,
++    > {
+         self.inner.permissions_for(role, unit, deadline)
+     }
+ }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:574:
+         gauntlet_app::verify::ladder::LadderRung::new(
+             gauntlet_app::verify::ladder::RungKind::FileDigest,
+             Arc::new(
+-                FileDigestVerifier::new(workspace_root.to_path_buf())
+-                    .map_err(|error| CompositionError::Store {
++                FileDigestVerifier::new(workspace_root.to_path_buf()).map_err(|error| {
++                    CompositionError::Store {
+                         detail: error.to_string(),
+-                    })?,
++                    }
++                })?,
+             ),
+         ),
+         gauntlet_app::verify::ladder::LadderRung::new(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:584:
+             gauntlet_app::verify::ladder::RungKind::CommandExitCode,
+             Arc::new(
+-                CommandExitVerifier::new(workspace_root.to_path_buf())
+-                    .map_err(|error| CompositionError::Store {
++                CommandExitVerifier::new(workspace_root.to_path_buf()).map_err(|error| {
++                    CompositionError::Store {
+                         detail: error.to_string(),
+-                    })?,
++                    }
++                })?,
+             ),
+         ),
+         gauntlet_app::verify::ladder::LadderRung::new(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:593:
+             gauntlet_app::verify::ladder::RungKind::TestReport,
+             Arc::new(
+-                TestReportVerifier::new(workspace_root.to_path_buf())
+-                    .map_err(|error| CompositionError::Store {
++                TestReportVerifier::new(workspace_root.to_path_buf()).map_err(|error| {
++                    CompositionError::Store {
+                         detail: error.to_string(),
+-                    })?,
++                    }
++                })?,
+             ),
+         ),
+     ])
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:683:
+     std::fs::create_dir_all(&evidence_root).map_err(|error| CompositionError::Store {
+         detail: format!("{}: {error}", evidence_root.display()),
+     })?;
+-    let state = Arc::new(EmbeddedStateStore::open(&state_dir.join(STATE_DB_NAME)).map_err(
+-        |error| CompositionError::Store {
+-            detail: error.to_string(),
+-        },
+-    )?);
++    let state = Arc::new(
++        EmbeddedStateStore::open(&state_dir.join(STATE_DB_NAME)).map_err(|error| {
++            CompositionError::Store {
++                detail: error.to_string(),
++            }
++        })?,
++    );
+     let evidence = Arc::new(FsEvidenceStore::open(&evidence_root).map_err(|error| {
+         CompositionError::Store {
+             detail: error.to_string(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:694:
+         }
+     })?);
+     let escalation_root = state_dir.join(ESCALATIONS_DIR_NAME);
+-    let escalation = FsEscalationQueue::open(&escalation_root).map_err(|error| {
+-        CompositionError::Store {
++    let escalation =
++        FsEscalationQueue::open(&escalation_root).map_err(|error| CompositionError::Store {
+             detail: error.to_string(),
+-        }
+-    })?;
+-    let workspaces = FsWorkspaceProvider::open(&workspace_root).map_err(|error| {
+-        CompositionError::Store {
++        })?;
++    let workspaces =
++        FsWorkspaceProvider::open(&workspace_root).map_err(|error| CompositionError::Store {
+             detail: error.to_string(),
+-        }
+-    })?;
++        })?;
+ 
+     // Ids: the Annex E seed hook keeps its documented meaning (deterministic
+     // ids for tests); production runs mint entropy-seeded ULIDs.
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:710:
+-    let ids: Arc<dyn IdGenerator> =
+-        match mock_runner::id_generator_from_env() {
+-            Some(seeded) => Arc::new(seeded),
+-            None => Arc::new(
+-                UlidIdGenerator::new().map_err(|error| CompositionError::Store {
+-                    detail: error.to_string(),
+-                })?,
+-            ),
+-        };
++    let ids: Arc<dyn IdGenerator> = match mock_runner::id_generator_from_env() {
++        Some(seeded) => Arc::new(seeded),
++        None => Arc::new(
++            UlidIdGenerator::new().map_err(|error| CompositionError::Store {
++                detail: error.to_string(),
++            })?,
++        ),
++    };
+ 
+     // Runners (D2): the builder dispatches through the default token; the
+     // critic dispatches through `runners.by_role.critic` when configured,
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:747:
+             detail: error.to_string(),
+         })?;
+     let budget_for_slices = gauntlet_domain::Budget::new(
+-        context.resolved.budget.limits().map_err(|error| {
+-            CompositionError::Configuration {
++        context
++            .resolved
++            .budget
++            .limits()
++            .map_err(|error| CompositionError::Configuration {
+                 key: "budget.max_rounds",
+                 env: "GAUNTLET_MAX_ROUNDS",
+                 detail: error.to_string(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:755:
+-            }
+-        })?,
++            })?,
+         context.resolved.budget.recovery_reserve_pct,
+         diagnostic_allowance(context),
+     )
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:787:
+     let reference = gauntlet_app::reference::provider::FileReferenceProvider::from_paths(
+         context.resolved.reference.answer_key.clone(),
+         context.resolved.reference.manifest.clone(),
+-        std::rc::Rc::new(
+-            FsEvidenceStore::open(&evidence_root).map_err(|error| CompositionError::Store {
++        std::rc::Rc::new(FsEvidenceStore::open(&evidence_root).map_err(|error| {
++            CompositionError::Store {
+                 detail: error.to_string(),
+-            })?,
+-        ),
++            }
++        })?),
+     );
+ 
+     // The composition-root meter factory (C2): the bare REAL adapter.
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:798:
+-    let meter_factory: MeterFactory =
+-        Arc::new(|budget: gauntlet_domain::Budget| -> Arc<dyn gauntlet_ports::budget_meter::BudgetMeter> {
++    let meter_factory: MeterFactory = Arc::new(
++        |budget: gauntlet_domain::Budget| -> Arc<dyn gauntlet_ports::budget_meter::BudgetMeter> {
+             Arc::new(MeteredBudget::new(budget))
+-        });
++        },
++    );
+ 
+     let deps = ControllerDeps {
+         state: state.clone(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:893:
+     }
+     // The dispatch shape the wrap protects: the FIRST planned unit's real
+     // facts, parsed from the frozen ruler.
+-    let key_text = std::fs::read_to_string(&context.resolved.reference.answer_key).map_err(
+-        |error| CompositionError::Plan {
+-            detail: format!(
+-                "reading {}: {error}",
+-                context.resolved.reference.answer_key.display()
+-            ),
+-        },
+-    )?;
+-    let parsed = gauntlet_app::reference::parse::parse_answer_key(&key_text);
+-    let unit = parsed
+-        .units
+-        .first()
+-        .ok_or_else(|| CompositionError::Plan {
+-            detail: "the ruler parses to no units — nothing to admit".to_owned(),
++    let key_text =
++        std::fs::read_to_string(&context.resolved.reference.answer_key).map_err(|error| {
++            CompositionError::Plan {
++                detail: format!(
++                    "reading {}: {error}",
++                    context.resolved.reference.answer_key.display()
++                ),
++            }
+         })?;
++    let parsed = gauntlet_app::reference::parse::parse_answer_key(&key_text);
++    let unit = parsed.units.first().ok_or_else(|| CompositionError::Plan {
++        detail: "the ruler parses to no units — nothing to admit".to_owned(),
++    })?;
+     let facts = gauntlet_app::govern::GateFacts {
+         unit: unit.id().clone(),
+         tier: unit.blast_radius(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:914:
+         authority: unit.authority(),
+         runner_isolation,
+-        workspace: gauntlet_domain::WorkspaceRef::new(defaults::WORKSPACES_DIR_NAME)
+-            .map_err(|error| CompositionError::Plan {
++        workspace: gauntlet_domain::WorkspaceRef::new(defaults::WORKSPACES_DIR_NAME).map_err(
++            |error| CompositionError::Plan {
+                 detail: error.to_string(),
+-            })?,
++            },
++        )?,
+     };
+     let gate = gauntlet_app::govern::AuthorityGate::new();
+     let deadline = crate::context::doctor_bound();
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/context.rs:128:
+ /// used are the adapters' capability-named surfaces and their runner
+ /// token constants — the crate names are the composition root's to
+ /// spell (§4.1).
+-pub fn measure_runner(
+-    token: &str,
+-) -> Option<gauntlet_app::doctor::checks::RunnerDescriptor> {
++pub fn measure_runner(token: &str) -> Option<gauntlet_app::doctor::checks::RunnerDescriptor> {
+     use gauntlet_adapter_agent_cli as generic_cli_runner;
+     use gauntlet_adapter_agent_prime as recursive_runner;
+ 
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/context.rs:201:
+ /// that cannot be located or validated yields an unmeasured descriptor
+ /// (which check 4 fails honestly); an unknown token yields `None` (no
+ /// adapter fronts it).
+-pub fn measure_backend(
+-    token: &str,
+-) -> Option<gauntlet_app::doctor::checks::BackendDescriptor> {
++pub fn measure_backend(token: &str) -> Option<gauntlet_app::doctor::checks::BackendDescriptor> {
+     use gauntlet_ports::agent_runner::Isolation;
+     use gauntlet_ports::sandbox::Sandbox;
+ 
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:21:
+ pub fn escalations(args: &[String]) -> ExitCode {
+     match args.first().map(String::as_str) {
+         Some("list") => list(&args[1..]),
+-        Some("resolve") => operator_action(&args[1..], gauntlet_adapter_escalation_fs::OperatorAction::Resolve),
+-        Some("retry") => operator_action(&args[1..], gauntlet_adapter_escalation_fs::OperatorAction::Retry),
++        Some("resolve") => operator_action(
++            &args[1..],
++            gauntlet_adapter_escalation_fs::OperatorAction::Resolve,
++        ),
++        Some("retry") => operator_action(
++            &args[1..],
++            gauntlet_adapter_escalation_fs::OperatorAction::Retry,
++        ),
+         Some(other) => {
+             eprintln!("gauntlet escalations: unknown subcommand '{other}'");
+             usage();
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:60:
+             return ExitCode::FAILURE;
+         }
+     };
+-    let root = context.state_dir().join(gauntlet_adapter_escalation_fs::ESCALATIONS_DIR_NAME);
++    let root = context
++        .state_dir()
++        .join(gauntlet_adapter_escalation_fs::ESCALATIONS_DIR_NAME);
+     if !root.is_dir() {
+         println!("escalations: queue empty (no queue at {})", root.display());
+         return ExitCode::SUCCESS;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:101:
+         };
+         println!(
+             "escalations: ticket={} run={} state={} summary={:?}",
+-            record.ticket,
+-            record.run_id,
+-            state,
+-            record.summary
++            record.ticket, record.run_id, state, record.summary
+         );
+     }
+     ExitCode::SUCCESS
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:127:
+     let mut note = String::new();
+     let mut index = 0;
+     while index < args.len() {
+-        let take = |name: &str, slot: &mut Option<String>, args: &[String], index: &mut usize| -> bool {
+-            match args.get(*index + 1) {
+-                Some(value) => {
+-                    if slot.replace(value.clone()).is_some() {
+-                        eprintln!("gauntlet escalations {action_word}: --{name} given twice");
+-                        return false;
++        let take =
++            |name: &str, slot: &mut Option<String>, args: &[String], index: &mut usize| -> bool {
++                match args.get(*index + 1) {
++                    Some(value) => {
++                        if slot.replace(value.clone()).is_some() {
++                            eprintln!("gauntlet escalations {action_word}: --{name} given twice");
++                            return false;
++                        }
++                        *index += 2;
++                        true
+                     }
+-                    *index += 2;
+-                    true
++                    None => {
++                        eprintln!("gauntlet escalations {action_word}: --{name} requires a value");
++                        false
++                    }
+                 }
+-                None => {
+-                    eprintln!("gauntlet escalations {action_word}: --{name} requires a value");
+-                    false
+-                }
+-            }
+-        };
++            };
+         match args[index].as_str() {
+             "--ticket" => {
+                 if !take("ticket", &mut ticket, args, &mut index) {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:159:
+                     return ExitCode::from(2);
+                 }
+             }
+-            "--note" => {
+-                match args.get(index + 1) {
+-                    Some(value) => {
+-                        note = value.clone();
+-                        index += 2;
+-                    }
+-                    None => {
+-                        eprintln!("gauntlet escalations {action_word}: --note requires a value");
+-                        return ExitCode::from(2);
+-                    }
++            "--note" => match args.get(index + 1) {
++                Some(value) => {
++                    note = value.clone();
++                    index += 2;
+                 }
+-            }
++                None => {
++                    eprintln!("gauntlet escalations {action_word}: --note requires a value");
++                    return ExitCode::from(2);
++                }
++            },
+             other => {
+                 eprintln!("gauntlet escalations {action_word}: unknown argument '{other}'");
+                 usage();
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:224:
+             return ExitCode::FAILURE;
+         }
+     };
+-    let identity =
+-        match gauntlet_app::settle::OperatorIdentity::new(&operator) {
+-            Ok(identity) => identity,
+-            Err(error) => {
+-                eprintln!(
+-                    "gauntlet escalations {action_word}: the operator identity is not usable: \
++    let identity = match gauntlet_app::settle::OperatorIdentity::new(&operator) {
++        Ok(identity) => identity,
++        Err(error) => {
++            eprintln!(
++                "gauntlet escalations {action_word}: the operator identity is not usable: \
+                      {error}"
+-                );
+-                return ExitCode::FAILURE;
+-            }
+-        };
++            );
++            return ExitCode::FAILURE;
++        }
++    };
+     let request = gauntlet_app::settle::OperatorActionRequest {
+         run_id: record.run_id.clone(),
+         unit_id,
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:244:
+     // (§16.3's single write path; D9). Two handles into the SAME stores:
+     // the service settles, and the queue handle — used only AFTER the
+     // service accepted — records the operator action on the ticket.
+-    let evidence = match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(
+-        &context.resolved.evidence_dir,
+-    ) {
+-        Ok(store) => store,
+-        Err(error) => {
+-            eprintln!("gauntlet escalations: {error}");
+-            return ExitCode::FAILURE;
+-        }
+-    };
++    let evidence =
++        match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(&context.resolved.evidence_dir) {
++            Ok(store) => store,
++            Err(error) => {
++                eprintln!("gauntlet escalations: {error}");
++                return ExitCode::FAILURE;
++            }
++        };
+     let evidence_for_provider =
+         match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(&context.resolved.evidence_dir) {
+             Ok(store) => store,
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/escalations_cmd.rs:279:
+         Ok(()) => {
+             // The service accepted: NOW the queue record resolves.
+             if let Err(error) = queue.resolve(&ticket_id, &operator, &note, action) {
+-                eprintln!("gauntlet escalations: the settle committed but the queue write \
+-                           failed: {error}");
++                eprintln!(
++                    "gauntlet escalations: the settle committed but the queue write \
++                           failed: {error}"
++                );
+                 return ExitCode::FAILURE;
+             }
+             println!(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/init_cmd.rs:42:
+         }
+     }
+     if let Err(error) = std::fs::create_dir_all(&runtime_dir) {
+-        eprintln!(
+-            "gauntlet init: creating {}: {error}",
+-            runtime_dir.display()
+-        );
++        eprintln!("gauntlet init: creating {}: {error}", runtime_dir.display());
+         return ExitCode::FAILURE;
+     }
+     if let Err(error) = std::fs::write(&gauntlet_md, GAUNTLET_MD_TEMPLATE) {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/init_cmd.rs:52:
+-        eprintln!(
+-            "gauntlet init: writing {}: {error}",
+-            gauntlet_md.display()
+-        );
++        eprintln!("gauntlet init: writing {}: {error}", gauntlet_md.display());
+         return ExitCode::FAILURE;
+     }
+     if let Err(error) = std::fs::write(&env_example, ENV_EXAMPLE_TEMPLATE) {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/init_cmd.rs:59:
+-        eprintln!(
+-            "gauntlet init: writing {}: {error}",
+-            env_example.display()
+-        );
++        eprintln!("gauntlet init: writing {}: {error}", env_example.display());
+         return ExitCode::FAILURE;
+     }
+     println!(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/lib.rs:16:
+ //! services exist are real; `improve` is an honest typed not-wired
+ //! failure naming plan Task 23 (charter D8) — never a fake success.
+ 
+-pub mod context;
+ pub mod compose;
++pub mod context;
+ pub mod doctor_cmd;
+ pub mod escalations_cmd;
+ pub mod improve_cmd;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/reference_cmd.rs:269:
+             }
+         },
+     };
+-    let evidence = match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(
+-        &context.resolved.evidence_dir,
+-    ) {
+-        Ok(store) => store,
+-        Err(error) => {
+-            eprintln!("gauntlet reference freeze: {error}");
+-            return ExitCode::FAILURE;
+-        }
+-    };
++    let evidence =
++        match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(&context.resolved.evidence_dir) {
++            Ok(store) => store,
++            Err(error) => {
++                eprintln!("gauntlet reference freeze: {error}");
++                return ExitCode::FAILURE;
++            }
++        };
+     let provider = gauntlet_app::reference::provider::FileReferenceProvider::from_paths(
+         context.resolved.reference.answer_key.clone(),
+         context.resolved.reference.manifest.clone(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/reference_cmd.rs:333:
+     let bytes = match std::fs::read(key_path) {
+         Ok(bytes) => bytes,
+         Err(error) => {
+-            eprintln!("gauntlet reference show: reading {}: {error}", key_path.display());
++            eprintln!(
++                "gauntlet reference show: reading {}: {error}",
++                key_path.display()
++            );
+             return ExitCode::FAILURE;
+         }
+     };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/reference_cmd.rs:340:
+     let digest = match gauntlet_app::reference::normalize::digest_of(&bytes) {
+         Ok(digest) => digest,
+         Err(error) => {
+-            eprintln!("gauntlet reference show: {} does not digest: {error}", key_path.display());
++            eprintln!(
++                "gauntlet reference show: {} does not digest: {error}",
++                key_path.display()
++            );
+             return ExitCode::FAILURE;
+         }
+     };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/reference_cmd.rs:347:
+     let text = match String::from_utf8(bytes) {
+         Ok(text) => text,
+         Err(error) => {
+-            eprintln!("gauntlet reference show: {} is not UTF-8: {error}", key_path.display());
++            eprintln!(
++                "gauntlet reference show: {} is not UTF-8: {error}",
++                key_path.display()
++            );
+             return ExitCode::FAILURE;
+         }
+     };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/reference_cmd.rs:369:
+             None => by_tier.push((tier, 1)),
+         }
+         let authority = unit.authority();
+-        match by_authority.iter_mut().find(|(existing, _)| *existing == authority) {
++        match by_authority
++            .iter_mut()
++            .find(|(existing, _)| *existing == authority)
++        {
+             Some(entry) => entry.1 += 1,
+             None => by_authority.push((authority, 1)),
+         }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/reference_lock.rs:34:
+         match self {
+             Self::Lock { detail } => write!(f, "the reference lock is unusable: {detail}"),
+             Self::Artifact { detail } => {
+-                write!(f, "a frozen artifact is unusable against the lock: {detail}")
++                write!(
++                    f,
++                    "a frozen artifact is unusable against the lock: {detail}"
++                )
+             }
+             Self::AnswerKeyMutated { expected, actual } => write!(
+                 f,
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/report_manifest.rs:23:
+ /// the `cli_surface` snapshot; a command added there without a row here
+ /// under-reports the surface's scope).
+ const COMMAND_TABLE: &[CommandRow] = &[
+-    CommandRow { name: "doctor", wired: true },
+-    CommandRow { name: "init", wired: true },
+-    CommandRow { name: "reference", wired: true },
+-    CommandRow { name: "run", wired: true },
+-    CommandRow { name: "status", wired: true },
+-    CommandRow { name: "inspect", wired: true },
+-    CommandRow { name: "verify", wired: true },
+-    CommandRow { name: "resume", wired: true },
+-    CommandRow { name: "escalations", wired: true },
+-    CommandRow { name: "roles", wired: true },
+-    CommandRow { name: "skills", wired: true },
++    CommandRow {
++        name: "doctor",
++        wired: true,
++    },
++    CommandRow {
++        name: "init",
++        wired: true,
++    },
++    CommandRow {
++        name: "reference",
++        wired: true,
++    },
++    CommandRow {
++        name: "run",
++        wired: true,
++    },
++    CommandRow {
++        name: "status",
++        wired: true,
++    },
++    CommandRow {
++        name: "inspect",
++        wired: true,
++    },
++    CommandRow {
++        name: "verify",
++        wired: true,
++    },
++    CommandRow {
++        name: "resume",
++        wired: true,
++    },
++    CommandRow {
++        name: "escalations",
++        wired: true,
++    },
++    CommandRow {
++        name: "roles",
++        wired: true,
++    },
++    CommandRow {
++        name: "skills",
++        wired: true,
++    },
+     // D8's honest exposure: the optimizer is plan Task 23's slice. The
+     // command parses its subcommands and returns a typed not-wired
+     // failure; the manifest records the same fact.
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/report_manifest.rs:40:
+-    CommandRow { name: "improve", wired: false },
+-    CommandRow { name: "export", wired: true },
++    CommandRow {
++        name: "improve",
++        wired: false,
++    },
++    CommandRow {
++        name: "export",
++        wired: true,
++    },
+ ];
+ 
+ /// The manifest entries handed to `gauntlet_app::report::build_report`.
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:13:
+ use std::process::ExitCode;
+ 
+ use gauntlet_app::control::controller::RunOutcome;
+-use gauntlet_app::control::scheduler::{
+-    Concurrency, PlanInput, PlannedDispatch, UnitScheduler,
+-  };
++use gauntlet_app::control::scheduler::{Concurrency, PlanInput, PlannedDispatch, UnitScheduler};
+ 
+ use crate::compose::{self, CompositionError};
+ use crate::context::{RuntimeContext, resolve_context};
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:67:
+     let context = match resolve_context(config.as_deref()) {
+         Ok(context) => context,
+         Err(error) => {
+-            eprintln!("gauntlet run: the configuration did not resolve: {error} (see gauntlet doctor)");
++            eprintln!(
++                "gauntlet run: the configuration did not resolve: {error} (see gauntlet doctor)"
++            );
+             return ExitCode::FAILURE;
+         }
+     };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:229:
+         Ok(lock) => {
+             println!(
+                 "reference: lock verified ({} unit(s) frozen)",
+-                lock.unit_count.map(|n| n.to_string()).unwrap_or_else(|| "?".to_owned())
++                lock.unit_count
++                    .map(|n| n.to_string())
++                    .unwrap_or_else(|| "?".to_owned())
+             );
+         }
+         Err(error) => {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:260:
+     intent: &str,
+     units: &[gauntlet_domain::Unit],
+ ) -> Result<Vec<String>, CompositionError> {
+-    let limits = context.resolved.budget.limits().map_err(|error| {
+-        CompositionError::Configuration {
+-            key: "budget.max_rounds",
+-            env: "GAUNTLET_MAX_ROUNDS",
+-            detail: error.to_string(),
+-        }
+-    })?;
++    let limits =
++        context
++            .resolved
++            .budget
++            .limits()
++            .map_err(|error| CompositionError::Configuration {
++                key: "budget.max_rounds",
++                env: "GAUNTLET_MAX_ROUNDS",
++                detail: error.to_string(),
++            })?;
+     let reserve = context.resolved.budget.recovery_reserve_pct;
+     let diagnostic = compose::diagnostic_allowance(context);
+-    let budget = gauntlet_domain::Budget::new(limits, reserve, diagnostic).map_err(
+-        |error| CompositionError::Configuration {
++    let budget = gauntlet_domain::Budget::new(limits, reserve, diagnostic).map_err(|error| {
++        CompositionError::Configuration {
+             key: "budget.max_tokens",
+             env: "GAUNTLET_MAX_TOKENS",
+             detail: error.to_string(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:277:
+-        },
+-    )?;
++        }
++    })?;
+     let meter = gauntlet_adapter_meter_memory::MeteredBudget::new(budget);
+-    let estimates: std::collections::BTreeMap<gauntlet_domain::UnitId, gauntlet_ports::budget_meter::BudgetSlice> =
+-        units
+-            .iter()
+-            .map(|unit| (unit.id().clone(), per_attempt_share(&limits, reserve)))
+-            .collect();
++    let estimates: std::collections::BTreeMap<
++        gauntlet_domain::UnitId,
++        gauntlet_ports::budget_meter::BudgetSlice,
++    > = units
++        .iter()
++        .map(|unit| (unit.id().clone(), per_attempt_share(&limits, reserve)))
++        .collect();
+     let mut tier_capacity: Vec<(gauntlet_domain::BlastRadius, u32)> = Vec::new();
+     for unit in units {
+         let tier = unit.blast_radius();
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:308:
+         statuses: std::collections::BTreeMap::new(),
+         configured_roles: vec![gauntlet_domain::RoleId::Builder],
+     };
+-    let planned = UnitScheduler::new()
+-        .plan(&input, &meter)
+-        .map_err(|error| CompositionError::Plan {
+-            detail: error.to_string(),
+-        })?;
++    let planned =
++        UnitScheduler::new()
++            .plan(&input, &meter)
++            .map_err(|error| CompositionError::Plan {
++                detail: error.to_string(),
++            })?;
+     let mut lines = vec![
+         format!("run: intent={intent:?}"),
+         format!(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:401:
+ 
+ fn print_outcome(outcome: &RunOutcome) {
+     println!("run: run_id={}", outcome.run_id);
+-    println!("run: terminal={} iterations={}", outcome.terminal, outcome.iterations);
++    println!(
++        "run: terminal={} iterations={}",
++        outcome.terminal, outcome.iterations
++    );
+     if let Some(breach) = &outcome.reference_breach {
+         println!("run: reference_breach={breach:?}");
+     }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/run_cmd.rs:420:
+ /// The six-category report after a terminal state (brief Item 4): the
+ /// CLI's real command table is the capability manifest (charter D8 —
+ /// the manifest declares, the records decide).
+-fn print_run_report(
+-    composed: &compose::ComposedRun,
+-    outcome: &RunOutcome,
+-) {
++fn print_run_report(composed: &compose::ComposedRun, outcome: &RunOutcome) {
+     let manifest = crate::report_manifest::cli_capability_manifest();
+     let deadline = crate::context::doctor_bound();
+     let store = composed.state.clone();
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/skills_cmd.rs:79:
+ 
+ /// Reads the lock's (name → digest) pairs; a missing lock is an empty
+ /// map (install creates it), a malformed lock is a typed refusal.
+-fn read_lock(
+-    path: &std::path::Path,
+-) -> Result<Vec<(String, String)>, String> {
++fn read_lock(path: &std::path::Path) -> Result<Vec<(String, String)>, String> {
+     let text = match std::fs::read_to_string(path) {
+         Ok(text) => text,
+         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/skills_cmd.rs:143:
+         // The task19 lint gates the install (a skill that does not lint
+         // is not installed).
+         if let Err(error) = lint_skill_text(name, &text) {
+-            eprintln!(
+-                "gauntlet skills install: '{name}' failed the skill lint: {error}"
+-            );
++            eprintln!("gauntlet skills install: '{name}' failed the skill lint: {error}");
+             return ExitCode::FAILURE;
+         }
+         let installed_dir = installed.join(name);
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/skills_cmd.rs:197:
+                 "schema".to_owned(),
+                 JsonValue::Str(SKILLS_LOCK_SCHEMA.to_owned())
+             ),
+-            ("count".to_owned(), JsonValue::Number(JsonNumber::Uint(entries.len() as u64))),
++            (
++                "count".to_owned(),
++                JsonValue::Number(JsonNumber::Uint(entries.len() as u64))
++            ),
+             ("skills".to_owned(), skills),
+         ])
+         .to_json_text()
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/skills_cmd.rs:204:
+     );
+     if let Err(error) = std::fs::write(&lock, body) {
+-        eprintln!("gauntlet skills install: writing {}: {error}", lock.display());
++        eprintln!(
++            "gauntlet skills install: writing {}: {error}",
++            lock.display()
++        );
+         return ExitCode::FAILURE;
+     }
+     println!(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:8:
+ 
+ use std::process::ExitCode;
+ 
+-use gauntlet_ports::state_store::Checkpoint;
+ use gauntlet_ports::deadline::Deadline;
++use gauntlet_ports::state_store::Checkpoint;
+ 
+ use crate::compose::open_operator_surface;
+ use crate::context::resolve_context;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:88:
+     };
+     println!("status: run_id={run_id}");
+     println!("status: intent={:?}", run.intent());
+-    println!("status: reference_digest={}", run.reference_version().digest());
++    println!(
++        "status: reference_digest={}",
++        run.reference_version().digest()
++    );
+     let checkpoint = match surface.state.resume(&run_id, deadline) {
+         Ok(checkpoint) => checkpoint,
+         Err(error) => {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:120:
+                 .iter()
+                 .find(|(id, _)| id == unit.id())
+                 .map(|(_, status)| *status);
+-            let settled = matches!(
+-                status,
+-                Some(gauntlet_domain::UnitStatus::Settled)
+-            );
++            let settled = matches!(status, Some(gauntlet_domain::UnitStatus::Settled));
+             match by_tier.iter_mut().find(|(key, _, _)| *key == tier) {
+                 Some(entry) => {
+                     entry.1 += 1;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:213:
+             }
+             other => {
+                 eprintln!("gauntlet inspect: unknown argument '{other}'");
+-                println!("usage: gauntlet inspect --run <run-id> [--iteration <n>] [--unit <unit-id>] [--verifications] [--settlements]");
++                println!(
++                    "usage: gauntlet inspect --run <run-id> [--iteration <n>] [--unit <unit-id>] [--verifications] [--settlements]"
++                );
+                 return ExitCode::from(2);
+             }
+         }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:220:
+     }
+     let Some(run_id) = run_id else {
+         eprintln!("gauntlet inspect: --run is required");
+-        println!("usage: gauntlet inspect --run <run-id> [--iteration <n>] [--unit <unit-id>] [--verifications] [--settlements]");
++        println!(
++            "usage: gauntlet inspect --run <run-id> [--iteration <n>] [--unit <unit-id>] [--verifications] [--settlements]"
++        );
+         return ExitCode::from(2);
+     };
+     let Ok(run_id) = gauntlet_domain::RunId::new(&run_id) else {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:247:
+         }
+     };
+     let deadline = read_bound();
+-    if surface.state.load_run(&run_id, deadline).map(|r| r.is_none()).unwrap_or(true) {
++    if surface
++        .state
++        .load_run(&run_id, deadline)
++        .map(|r| r.is_none())
++        .unwrap_or(true)
++    {
+         eprintln!("gauntlet inspect: run {run_id} is not durable in this state store");
+         return ExitCode::FAILURE;
+     }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:255:
+     if let Some(number) = iteration {
+         let iteration_no = gauntlet_domain::IterationNo::new(number);
+         match iteration_no {
+-            Ok(iteration_no) => match surface
+-                .state
+-                .observation_binding(&run_id, iteration_no, deadline)
+-            {
+-                Ok(Some(binding)) => println!(
+-                    "inspect: iteration={} observation={} digest={}",
+-                    iteration_no,
+-                    binding.evidence(),
+-                    binding.digest()
+-                ),
+-                Ok(None) => println!(
+-                    "inspect: iteration={iteration_no} has no bound observation"
+-                ),
+-                Err(error) => {
+-                    eprintln!("gauntlet inspect: {error}");
+-                    return ExitCode::FAILURE;
++            Ok(iteration_no) => {
++                match surface
++                    .state
++                    .observation_binding(&run_id, iteration_no, deadline)
++                {
++                    Ok(Some(binding)) => println!(
++                        "inspect: iteration={} observation={} digest={}",
++                        iteration_no,
++                        binding.evidence(),
++                        binding.digest()
++                    ),
++                    Ok(None) => {
++                        println!("inspect: iteration={iteration_no} has no bound observation")
++                    }
++                    Err(error) => {
++                        eprintln!("gauntlet inspect: {error}");
++                        return ExitCode::FAILURE;
++                    }
+                 }
+-            },
++            }
+             Err(error) => {
+                 eprintln!("gauntlet inspect: --iteration {number} is not valid: {error}");
+                 return ExitCode::FAILURE;
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/state_cmd.rs:387:
+             match out {
+                 Some(path) => {
+                     if let Err(error) = std::fs::write(&path, &text) {
+-                        eprintln!(
+-                            "gauntlet export: writing {}: {error}",
+-                            path.display()
+-                        );
++                        eprintln!("gauntlet export: writing {}: {error}", path.display());
+                         return ExitCode::FAILURE;
+                     }
+-                    println!("export: run_id={run_id} out={} bytes={}", path.display(), text.len());
++                    println!(
++                        "export: run_id={run_id} out={} bytes={}",
++                        path.display(),
++                        text.len()
++                    );
+                 }
+                 None => {
+                     print!("{text}");
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/verify_cmd.rs:111:
+             return ExitCode::FAILURE;
+         }
+     };
+-    let evidence = match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(
+-        &context.resolved.evidence_dir,
+-    ) {
+-        Ok(store) => std::sync::Arc::new(store),
+-        Err(error) => {
+-            eprintln!("gauntlet verify: {error}");
+-            return ExitCode::FAILURE;
+-        }
+-    };
++    let evidence =
++        match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(&context.resolved.evidence_dir) {
++            Ok(store) => std::sync::Arc::new(store),
++            Err(error) => {
++                eprintln!("gauntlet verify: {error}");
++                return ExitCode::FAILURE;
++            }
++        };
+     let ids = match gauntlet_adapter_id_ulid::UlidIdGenerator::new() {
+         Ok(ids) => std::sync::Arc::new(ids),
+         Err(error) => {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/verify_cmd.rs:139:
+         evidence,
+         ids,
+     );
+-    let governed = match authority.for_run(&run_id, iteration, ladder, surface.workspace_root.clone(), bound())
+-    {
++    let governed = match authority.for_run(
++        &run_id,
++        iteration,
++        ladder,
++        surface.workspace_root.clone(),
++        bound(),
++    ) {
+         Ok(governed) => governed,
+         Err(error) => {
+             eprintln!("gauntlet verify: the governed verification open refused: {error}");
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/verify_cmd.rs:154:
+     for candidate in &units {
+         let requirement = candidate.evidence_required();
+         let request = VerificationRequest {
+-            id: gauntlet_domain::VerificationRef::new(&format!(
+-                "verify-cli-{}",
+-                candidate.id()
+-            ))
+-            .expect("the minted verification ref is valid"),
++            id: gauntlet_domain::VerificationRef::new(&format!("verify-cli-{}", candidate.id()))
++                .expect("the minted verification ref is valid"),
+             run_id: run_id.clone(),
+             unit_id: candidate.id().clone(),
+             claim: candidate.claim().to_owned(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/verify_cmd.rs:176:
+                 }
+             }
+             Err(refusal) => {
+-                eprintln!(
+-                    "verify: unit={} REFUSED — {}",
+-                    candidate.id(),
+-                    refusal
+-                );
++                eprintln!("verify: unit={} REFUSED — {}", candidate.id(), refusal);
+                 refused += 1;
+             }
+         }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/cli_surface.rs:84:
+             "command {command} is not dispatched by the root: {stderr}"
+         );
+     }
+-    let output = binary().arg("definitely-not-a-command").output().expect("runs");
++    let output = binary()
++        .arg("definitely-not-a-command")
++        .output()
++        .expect("runs");
+     assert_eq!(output.status.code(), Some(2), "unknown command exits 2");
+     let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+     assert!(
+error: recipe `lint` failed on line 27 with exit code 1

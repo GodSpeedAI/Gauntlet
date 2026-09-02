@@ -414,11 +414,12 @@ impl LoopFixture {
             BASE_INSTANT,
         )));
         let scenario = load_scenario(SCENARIO_NAME).expect("the REQUIRED fixture parses");
-        let run_dir = SeededIdGenerator::new(IDS_SEED)
-            .expect("a non-empty seed")
-            .run_id()
-            .to_string();
-        let runner = MockAgentRunner::new(scenario, workspace_root.join(&run_dir));
+        // COR-D3 mechanical adaptation: the mock resolves effects under
+        // <root>/<spec.workspace>/, so it is constructed with the
+        // CANONICAL root — the effects land at
+        // workspace_root/<run_id>/…, exactly where they stood under the
+        // prior construction.
+        let runner = MockAgentRunner::new(scenario, workspace_root.clone());
         let contract = ComparisonContract::parse(COMPARISON_CONTRACT)
             .expect("the frozen comparison contract parses");
         #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
@@ -458,12 +459,15 @@ impl LoopFixture {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Adaptive,
                 model_dispatches: 0,
+                role_deny: gauntlet_app::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: Ladder::new(vec![LadderRung::new(
-                RungKind::TestReport,
-                Arc::new(UnusedRung),
-            )])
-            .expect("the single-rung ladder composes"),
+            ladder_for: Arc::new(move |_| {
+                Ok(Ladder::new(vec![LadderRung::new(
+                    RungKind::TestReport,
+                    Arc::new(UnusedRung),
+                )])
+                .expect("the single-rung ladder composes"))
+            }),
             reference: provider,
             answer_key: AnswerKeySource::Path(key_path.clone()),
             escalation: Arc::new(g7_support::NoopEscalation),
@@ -486,7 +490,8 @@ impl LoopFixture {
             },
             policy: policy(),
             workspace_root: workspace_root.clone(),
-            govern: GovernDeps::none_workspace(),
+            govern: GovernDeps::none_backend(),
+            workspaces: None,
             config_fingerprint: gauntlet_domain::Digest::new("sha256", &"ab".repeat(32))
                 .expect("digest"),
             environment_fingerprint: gauntlet_domain::Digest::new("sha256", &"cd".repeat(32))
@@ -658,10 +663,12 @@ fn a_dispatch_fact_below_the_recorded_facts_is_refused_as_a_downgrade() {
         tier: BlastRadius::Contained,
         authority: Authority::Critic,
         runner_isolation: Isolation::Process,
+        workspace: gauntlet_domain::WorkspaceRef::new("g7-gate-workspace")
+            .expect("valid workspace ref"),
     };
     let refusal = gate
         .admit(
-            &GovernDeps::none_workspace(),
+            &GovernDeps::none_backend(),
             &forged,
             Some((BlastRadius::Local, Authority::Critic)),
             bound(),
@@ -692,9 +699,11 @@ fn a_dispatch_fact_below_the_recorded_facts_is_refused_as_a_downgrade() {
         tier: BlastRadius::Contained,
         authority: Authority::Critic,
         runner_isolation: Isolation::Process,
+        workspace: gauntlet_domain::WorkspaceRef::new("g7-gate-workspace")
+            .expect("valid workspace ref"),
     };
     gate.admit(
-        &GovernDeps::none_workspace(),
+        &GovernDeps::none_backend(),
         &honest,
         Some((BlastRadius::Contained, Authority::Critic)),
         bound(),

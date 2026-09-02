@@ -1,0 +1,474 @@
+cargo nextest run -p gauntlet-app
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 37s
+────────────
+ Nextest run ID 082108ce-b5f0-432a-9581-d14b06ed0ef5 with nextest profile: default
+    Starting 466 tests across 6 binaries
+        PASS [   0.006s] (  1/466) gauntlet-app compare::aggregate::tests::empty_and_disagreeing_inputs_are_typed_errors
+        PASS [   0.007s] (  2/466) gauntlet-app compare::aggregate::tests::deterministic_aggregation
+        PASS [   0.007s] (  3/466) gauntlet-app compare::contract::tests::a_minimal_contract_parses_and_the_view_round_trips
+        PASS [   0.017s] (  4/466) gauntlet-app compare::aggregate::tests::any_blocking_residual_forces_fail_regardless_of_everything_else
+        PASS [   0.019s] (  5/466) gauntlet-app compare::aggregate::tests::omitted_hard_gate_is_not_held
+        PASS [   0.020s] (  6/466) gauntlet-app compare::aggregate::tests::preserves_an_already_disputed_residual
+        PASS [   0.020s] (  7/466) gauntlet-app compare::aggregate::tests::hard_gates_hold_only_when_every_contributor_holds
+        PASS [   0.014s] (  8/466) gauntlet-app compare::aggregate::tests::verdict_intents_flow_deterministically
+        PASS [   0.006s] (  9/466) gauntlet-app compare::contract::tests::unknown_versions_are_typed_errors_never_partially_adopted
+        PASS [   0.009s] ( 10/466) gauntlet-app compare::envelope::tests::a_critic_role_invocation_carries_the_envelope_digest
+        PASS [   0.016s] ( 11/466) gauntlet-app compare::contract::tests::the_repository_artifact_parses_into_the_typed_view
+        PASS [   0.017s] ( 12/466) gauntlet-app compare::contract::tests::structural_defects_are_typed_errors_with_loci
+        PASS [   0.015s] ( 13/466) gauntlet-app compare::envelope::tests::a_built_envelope_is_usable_by_the_ports_comparator_surface
+        PASS [   0.026s] ( 14/466) gauntlet-app compare::contract::tests::rubric_and_dimension_vocabulary_is_enforced
+        PASS [   0.017s] ( 15/466) gauntlet-app compare::envelope::tests::a_poisoned_serialization_fails_the_blindness_proof
+        PASS [   0.012s] ( 16/466) gauntlet-app compare::envelope::tests::legitimate_frozen_prose_is_not_mistaken_for_an_injected_field
+        PASS [   0.014s] ( 17/466) gauntlet-app compare::envelope::tests::the_envelope_carries_facet_reality_and_none_of_the_claims
+        PASS [   0.020s] ( 18/466) gauntlet-app compare::envelope::tests::a_role_deny_set_naming_a_carried_category_refuses_the_input_set
+        PASS [   0.010s] ( 19/466) gauntlet-app compare::recording::tests::persistence_failure_cancels_the_already_admitted_child
+        PASS [   0.014s] ( 20/466) gauntlet-app compare::envelope::tests::the_envelope_digest_is_recomputable_and_coupling_friendly
+        PASS [   0.008s] ( 21/466) gauntlet-app compare::review::tests::adaptive_skips_settled_dimensions
+        PASS [   0.013s] ( 22/466) gauntlet-app compare::review::tests::cancellation_error_quarantines_every_unconfirmed_sibling
+        PASS [   0.019s] ( 23/466) gauntlet-app compare::review::tests::a_meter_refusal_truncates_the_dimension_with_the_typed_cause
+        PASS [   0.032s] ( 24/466) gauntlet-app compare::envelope::tests::a_tampered_bundle_is_refused_at_the_consumption_boundary
+        PASS [   0.021s] ( 25/466) gauntlet-app compare::review::tests::a_comparator_cannot_accept_a_document_bound_to_an_envelope_it_invented
+        PASS [   0.029s] ( 26/466) gauntlet-app compare::review::tests::adaptive_inconclusive_probe_is_not_a_settlement
+        PASS [   0.024s] ( 27/466) gauntlet-app compare::review::tests::concurrency_lease_releases_before_third_admission_without_a_clock
+        PASS [   0.022s] ( 28/466) gauntlet-app compare::review::tests::failed_collection_cancels_every_uncollected_sibling
+        PASS [   0.023s] ( 29/466) gauntlet-app compare::review::tests::forever_running_primary_cancel_refusal_quarantines_its_permit
+        PASS [   0.023s] ( 30/466) gauntlet-app compare::review::tests::every_mode_merges_into_one_coupled_record
+        PASS [   0.008s] ( 31/466) gauntlet-app compare::review::tests::high_assurance_requires_an_adversarial_source
+        PASS [   0.017s] ( 32/466) gauntlet-app compare::review::tests::high_assurance_admits_every_job_before_its_first_collection
+        PASS [   0.028s] ( 33/466) gauntlet-app compare::review::tests::forever_running_primary_is_cancelled_before_its_permit_is_released
+        PASS [   0.010s] ( 34/466) gauntlet-app config::canonical::tests::indirection_tokens_serialize_raw_and_values_never_appear
+        PASS [   0.017s] ( 35/466) gauntlet-app compare::review::tests::review_refuses_a_mutated_envelope_before_source_selection
+        PASS [   0.016s] ( 36/466) gauntlet-app compare::review::tests::review_retains_contributor_records_for_verification
+        PASS [   0.018s] ( 37/466) gauntlet-app compare::review::tests::source_failure_after_admission_cancels_the_admitted_job
+        PASS [   0.018s] ( 38/466) gauntlet-app config::canonical::tests::canonical_parsing_rejects_unknown_keys_and_foreign_shapes
+        PASS [   0.012s] ( 39/466) gauntlet-app config::canonical::tests::the_canonical_form_round_trips_exactly
+        PASS [   0.012s] ( 40/466) gauntlet-app config::canonical::tests::the_same_effective_configuration_serializes_identically_however_built
+        PASS [   0.014s] ( 41/466) gauntlet-app config::canonical::tests::keys_are_sorted_and_the_shape_is_two_space_indent
+        PASS [   0.013s] ( 42/466) gauntlet-app config::canonical::tests::secrets_never_leaked
+        PASS [   0.024s] ( 43/466) gauntlet-app compare::review::tests::truncation_is_recorded
+        PASS [   0.008s] ( 44/466) gauntlet-app config::defaults::tests::the_four_policy_rows_pin_to_their_table_values
+        PASS [   0.017s] ( 45/466) gauntlet-app config::defaults::tests::interactive_parses_every_documented_spelling
+        PASS [   0.012s] ( 46/466) gauntlet-app config::defaults::tests::the_inline_11_5_default_pins_to_its_spec_value
+        PASS [   0.014s] ( 47/466) gauntlet-app config::defaults::tests::the_six_numeric_rows_pin_to_their_table_values
+        PASS [   0.019s] ( 48/466) gauntlet-app config::defaults::tests::layout_names_compose_against_the_given_root
+        PASS [   0.022s] ( 49/466) gauntlet-app config::defaults::tests::the_inline_11_4_default_pins_to_its_spec_value
+        PASS [   0.007s] ( 50/466) gauntlet-app config::env_layer::tests::the_process_environment_wins_over_the_dotenv_file
+        PASS [   0.014s] ( 51/466) gauntlet-app config::env_layer::tests::export_prefixes_apply_and_inline_comments_strip_from_unquoted_values
+        PASS [   0.015s] ( 52/466) gauntlet-app config::env_layer::tests::dotenv_parsing_strips_quotes_and_skips_comments
+        PASS [   0.016s] ( 53/466) gauntlet-app config::env_layer::tests::lowercase_gauntlet_names_are_reported_not_silently_inert
+        PASS [   0.010s] ( 54/466) gauntlet-app config::env_layer::tests::unknown_gauntlet_names_are_collected_with_their_source
+        PASS [   0.010s] ( 55/466) gauntlet-app config::fingerprint::tests::any_changed_value_moves_the_fingerprint
+        PASS [   0.008s] ( 56/466) gauntlet-app config::fingerprint::tests::identical_configurations_digest_identically_however_built
+        PASS [   0.010s] ( 57/466) gauntlet-app config::fingerprint::tests::the_digest_is_the_domain_shape_and_carries_no_secret_values
+        PASS [   0.010s] ( 58/466) gauntlet-app config::gauntlet_md::tests::a_leading_byte_order_mark_is_rejected_not_tolerated
+        PASS [   0.009s] ( 59/466) gauntlet-app config::gauntlet_md::tests::duplicate_keys_in_flow_mappings_are_rejected_like_block_keys
+        PASS [   0.010s] ( 60/466) gauntlet-app config::gauntlet_md::tests::empty_fences_parse_to_an_empty_map
+        PASS [   0.010s] ( 61/466) gauntlet-app config::gauntlet_md::tests::entries_carry_physical_lines
+        PASS [   0.009s] ( 62/466) gauntlet-app config::gauntlet_md::tests::flow_mappings_and_indirection_tokens_survive_verbatim
+        PASS [   0.014s] ( 63/466) gauntlet-app config::gauntlet_md::tests::every_rejected_shape_is_its_own_typed_error
+        PASS [   0.012s] ( 64/466) gauntlet-app config::gauntlet_md::tests::nested_maps_scalars_and_comments_parse
+        PASS [   0.012s] ( 65/466) gauntlet-app config::gauntlet_md::tests::no_fence_means_no_front_matter
+        PASS [   0.011s] ( 66/466) gauntlet-app config::gauntlet_md::tests::the_spec_example_fixture_parses_with_flow_maps_and_indirections
+        PASS [   0.017s] ( 67/466) gauntlet-app config::resolve::tests::a_bad_environment_number_is_its_own_typed_error
+        PASS [   0.010s] ( 68/466) gauntlet-app config::resolve::tests::discovery_follows_the_spec_order
+        PASS [   0.015s] ( 69/466) gauntlet-app config::resolve::tests::budget_money_parses_into_the_domain_newtype_and_zero_refuses
+        PASS [   0.012s] ( 70/466) gauntlet-app config::resolve::tests::control_settings_carry_one_spec_default_and_four_required_absences
+        PASS [   0.019s] ( 71/466) gauntlet-app config::resolve::tests::an_empty_world_resolves_to_the_defaults_table
+        PASS [   0.021s] ( 72/466) gauntlet-app config::resolve::tests::cli_flags_beat_the_environment
+        PASS [   0.007s] ( 73/466) gauntlet-app config::resolve::tests::role_runner_configs_merge_from_all_layers
+        PASS [   0.010s] ( 74/466) gauntlet-app config::resolve::tests::gauntlet_md_beats_the_defaults_table
+        PASS [   0.010s] ( 75/466) gauntlet-app config::resolve::tests::precedence
+        PASS [   0.011s] ( 76/466) gauntlet-app config::resolve::tests::indirections_expand_and_missing_ones_name_the_variable_only
+        PASS [   0.011s] ( 77/466) gauntlet-app config::resolve::tests::text_precedence_and_list_precedence_hold_too
+        PASS [   0.008s] ( 78/466) gauntlet-app config::resolve::tests::the_full_chain_shows_each_layer_winning_in_turn
+        PASS [   0.010s] ( 79/466) gauntlet-app config::resolve::tests::the_environment_beats_gauntlet_md
+        PASS [   0.011s] ( 80/466) gauntlet-app config::resolve::tests::the_nonconvergence_threshold_defaults_to_the_spec_three_and_overrides
+        PASS [   0.012s] ( 81/466) gauntlet-app config::resolve::tests::the_process_environment_beats_the_dotenv_file
+        PASS [   0.014s] ( 82/466) gauntlet-app config::resolve::tests::unknown_keys_and_kind_mismatches_are_reported_not_guessed
+        PASS [   0.015s] ( 83/466) gauntlet-app control::controller::tests::a_corroborated_produced_artifact_settles_in_the_produced_world
+        PASS [   0.012s] ( 84/466) gauntlet-app control::controller::tests::a_dangling_depends_on_is_surfaced_from_the_scheduler
+        PASS [   0.015s] ( 85/466) gauntlet-app control::controller::tests::a_critic_reservation_releases_at_fan_in_so_a_later_iteration_still_dispatches
+        PASS [   0.016s] ( 86/466) gauntlet-app control::controller::tests::a_crash_after_a_settlement_never_re_runs_settled_work
+        PASS [   0.009s] ( 87/466) gauntlet-app control::controller::tests::a_drain_that_never_terminates_is_bounded_cancelled_and_escalated
+        PASS [   0.010s] ( 88/466) gauntlet-app control::controller::tests::a_malformed_result_gets_one_reminder_re_dispatch_then_escalates
+        PASS [   0.023s] ( 89/466) gauntlet-app control::controller::tests::a_declared_attempted_other_unit_never_settles_and_is_recorded
+        PASS [   0.012s] ( 90/466) gauntlet-app control::controller::tests::a_governance_blocked_run_terminals_blocked_with_a_ticket_never_exhausted
+        PASS [   0.014s] ( 91/466) gauntlet-app control::controller::tests::a_fresh_run_checkpoint_carries_a_real_event_log_offset
+        PASS [   0.009s] ( 92/466) gauntlet-app control::controller::tests::a_multi_member_slice_is_refused_rather_than_charged_for_and_dropped
+        PASS [   0.022s] ( 93/466) gauntlet-app control::controller::tests::a_file_only_unit_is_never_dispatched_the_frozen_reference_bounds_membership
+        PASS [   0.022s] ( 94/466) gauntlet-app control::controller::tests::a_full_iteration_settles_a_unit_through_the_composed_chain
+        PASS [   0.015s] ( 95/466) gauntlet-app control::controller::tests::a_mid_run_answer_key_edit_aborts_the_run_with_both_digests_as_evidence
+        PASS [   0.016s] ( 96/466) gauntlet-app control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues
+        PASS [   0.015s] ( 97/466) gauntlet-app control::controller::tests::a_recurring_residual_routes_composed_diagnosis_to_correction_indicated
+        PASS [   0.013s] ( 98/466) gauntlet-app control::controller::tests::a_result_the_run_budget_refuses_is_recorded_not_dropped
+        PASS [   0.017s] ( 99/466) gauntlet-app control::controller::tests::a_result_whose_meter_charge_is_refused_is_recorded_not_dropped
+        PASS [   0.010s] (100/466) gauntlet-app control::controller::tests::a_stalled_attempt_cancels_retries_once_then_escalates
+        PASS [   0.018s] (101/466) gauntlet-app control::controller::tests::a_residual_retry_dispatch_carries_residual_text_only
+        PASS [   0.018s] (102/466) gauntlet-app control::controller::tests::a_resume_completes_half_applied_settlements_and_reconciles_the_projection
+        PASS [   0.016s] (103/466) gauntlet-app control::controller::tests::an_escalation_summary_with_quotes_and_backslashes_stays_parseable_evidence
+        PASS [   0.034s] (104/466) gauntlet-app control::controller::tests::a_settled_dependency_stays_in_the_graph_while_eligibility_filters_it
+        PASS [   0.022s] (105/466) gauntlet-app control::controller::tests::an_answer_key_read_failure_degrades_the_iteration_and_stays_resumeable
+        PASS [   0.017s] (106/466) gauntlet-app control::controller::tests::an_escaping_evidence_locator_is_refused_at_the_write_boundary
+        PASS [   0.020s] (107/466) gauntlet-app control::controller::tests::an_empty_parsed_ruler_is_refused_at_composition
+        PASS [   0.040s] (108/466) gauntlet-app control::controller::tests::a_surviving_hypothesis_ends_inconclusive_with_quarantine_composed
+        PASS [   0.028s] (109/466) gauntlet-app control::controller::tests::reference_unavailability_is_a_recorded_gap_not_an_abort
+        PASS [   0.030s] (110/466) gauntlet-app control::controller::tests::budget_exhaustion_drives_the_terminal_state_with_the_reserve_intact
+        PASS [   0.032s] (111/466) gauntlet-app control::controller::tests::an_over_capacity_fan_out_is_truncated_and_recorded_never_a_run_error
+        PASS [   0.034s] (112/466) gauntlet-app control::controller::tests::an_uncorroborated_produced_artifact_never_settles_in_the_produced_world
+        PASS [   0.011s] (113/466) gauntlet-app control::controller::tests::the_answer_key_cannot_express_a_cohort_on_any_shipped_surface
+        PASS [   0.011s] (114/466) gauntlet-app control::controller::tests::resuming_an_all_settled_run_is_an_honest_settled_no_op
+        PASS [   0.044s] (115/466) gauntlet-app control::controller::tests::resume_restores_per_unit_attempts_from_durable_productions
+        PASS [   0.015s] (116/466) gauntlet-app control::controller::tests::the_answer_key_cannot_express_a_unit_status_on_any_shipped_surface
+        PASS [   0.011s] (117/466) gauntlet-app control::controller::tests::the_corroboration_rule_demands_this_runs_executed_passing_test_facet
+        PASS [   0.045s] (118/466) gauntlet-app control::controller::tests::resume_restores_the_budget_from_the_checkpoint_watermark
+        PASS [   0.030s] (119/466) gauntlet-app control::controller::tests::resuming_an_all_settled_run_is_a_settled_noop_in_the_produced_world
+        PASS [   0.022s] (120/466) gauntlet-app control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces
+        PASS [   0.030s] (121/466) gauntlet-app control::controller::tests::without_a_provider_the_dispatch_falls_back_to_the_run_derived_ref
+        PASS [   0.012s] (122/466) gauntlet-app control::diagnosis::tests::a_zero_spend_engine_is_refused_and_the_cycle_is_forward_only
+        PASS [   0.039s] (123/466) gauntlet-app control::controller::tests::the_pass_leg_settles_durably_through_the_service
+        PASS [   0.025s] (124/466) gauntlet-app control::diagnosis::tests::a_measuring_apparatus_input_does_not_route_to_implementation_defect
+        PASS [   0.031s] (125/466) gauntlet-app control::diagnosis::tests::a_disconfirmed_hypothesis_completes_the_cycle_bounded
+        PASS [   0.007s] (126/466) gauntlet-app control::diagnosis::tests::different_observed_locators_do_not_accumulate_one_recurrence_count
+        PASS [   0.023s] (127/466) gauntlet-app control::diagnosis::tests::a_zero_threshold_is_refused
+        PASS [   0.041s] (128/466) gauntlet-app control::diagnosis::tests::a_surviving_hypothesis_is_inconclusive_never_re_asked
+        PASS [   0.019s] (129/466) gauntlet-app control::diagnosis::tests::different_dimension_or_class_under_the_same_unit_does_not_accumulate
+        PASS [   0.019s] (130/466) gauntlet-app control::diagnosis::tests::an_escalation_refusal_carries_the_quarantine_in_the_error
+        PASS [   0.019s] (131/466) gauntlet-app control::diagnosis::tests::every_non_implementation_locus_outranks_implementation_defect
+        PASS [   0.027s] (132/466) gauntlet-app control::diagnosis::tests::budget_exhaustion_yields_inconclusive_quarantine_and_escalation
+        PASS [   0.009s] (133/466) gauntlet-app control::diagnosis::tests::recurring_residuals_with_fresh_ids_still_trigger
+        PASS [   0.018s] (134/466) gauntlet-app control::diagnosis::tests::reference_integrity_outranks_every_hypothesis_and_empty_evidence_selects_none
+        PASS [   0.014s] (135/466) gauntlet-app control::diagnosis::tests::nonconvergence_triggers_on_the_nth_occurrence_not_before
+        PASS [   0.025s] (136/466) gauntlet-app control::diagnosis::tests::the_locus_vocabulary_is_the_spec_sixteen
+        PASS [   0.035s] (137/466) gauntlet-app control::diagnosis::tests::evidence_with_no_hypothesis_is_inconclusive_without_inventing_one
+        PASS [   0.007s] (138/466) gauntlet-app control::disposition::tests::a_sandbox_failure_escalates_and_the_table_has_no_unsandboxed_outcome
+        PASS [   0.021s] (139/466) gauntlet-app control::disposition::tests::a_non_converging_residual_set_stops_correcting_and_enters_diagnosis
+        PASS [   0.017s] (140/466) gauntlet-app control::disposition::tests::a_residual_with_no_attempts_left_escalates_max_attempts_exceeded
+        PASS [   0.041s] (141/466) gauntlet-app control::disposition::tests::a_malformed_result_gets_one_reminder_then_escalates
+        PASS [   0.037s] (142/466) gauntlet-app control::disposition::tests::a_residual_with_attempts_left_re_dispatches_with_residual_text_only
+        PASS [   0.018s] (143/466) gauntlet-app control::disposition::tests::transient_backoff_grows_exponentially_and_is_capped_at_the_ceiling
+        PASS [   0.028s] (144/466) gauntlet-app control::disposition::tests::an_authority_gap_escalates_and_has_no_loop_disposition
+        PASS [   0.018s] (145/466) gauntlet-app control::disposition::tests::zero_policy_values_are_refused_setting_by_setting
+        PASS [   0.067s] (146/466) gauntlet-app control::disposition::tests::a_reference_digest_mismatch_aborts_with_both_digests_and_no_retry
+        PASS [   0.040s] (147/466) gauntlet-app control::disposition::tests::required_settings_absent_from_the_config_layer_are_typed_errors
+        PASS [   0.018s] (148/466) gauntlet-app control::scheduler::tests::a_depends_on_cycle_is_a_typed_error_naming_the_cycle
+        PASS [   0.021s] (149/466) gauntlet-app control::scheduler::tests::a_missing_estimate_is_a_typed_input_error_never_a_zero
+        PASS [   0.073s] (150/466) gauntlet-app control::disposition::tests::a_timeout_cancels_preserves_the_session_and_retries_exactly_once
+        PASS [   0.019s] (151/466) gauntlet-app control::scheduler::tests::duplicate_units_are_refused_and_invalid_cohorts_are_refused
+        PASS [   0.023s] (152/466) gauntlet-app control::scheduler::tests::a_missing_runner_excludes_eligibility
+        PASS [   0.023s] (153/466) gauntlet-app control::scheduler::tests::an_open_irreversible_unit_is_never_eligible_and_never_sliced
+        PASS [   0.059s] (154/466) gauntlet-app control::scheduler::tests::a_dangling_depends_on_is_a_typed_load_error
+        PASS [   0.013s] (155/466) gauntlet-app control::scheduler::tests::the_authority_lattice_is_pinned_by_the_coupling_rules
+        PASS [   0.032s] (156/466) gauntlet-app control::scheduler::tests::ordering_follows_blast_then_depth_then_id_and_is_deterministic
+        PASS [   0.051s] (157/466) gauntlet-app control::scheduler::tests::global_and_tier_concurrency_are_both_accounted
+        PASS [   0.028s] (158/466) gauntlet-app control::scheduler::tests::status_and_claim_conjuncts_hold
+        PASS [   0.036s] (159/466) gauntlet-app control::scheduler::tests::meter_refusal_excludes_eligibility
+        PASS [   0.042s] (160/466) gauntlet-app control::scheduler::tests::slices_inherit_the_highest_blast_and_most_restrictive_authority
+        PASS [   0.021s] (161/466) gauntlet-app control::scheduler::tests::the_durable_projection_decides_status_for_membership_and_dependencies
+        PASS [   0.019s] (162/466) gauntlet-app control::scheduler::tests::unsettled_dependencies_block_and_settled_or_out_of_scope_release
+        PASS [   0.035s] (163/466) gauntlet-app control::select::tests::controller_records_alternatives
+        PASS [   0.039s] (164/466) gauntlet-app control::select::tests::bounded_corrections_beat_speculative_rewrites
+        PASS [   0.024s] (165/466) gauntlet-app control::select::tests::tie_breaks_are_deterministic_and_the_priority_decides_in_order
+        PASS [   0.043s] (166/466) gauntlet-app control::select::tests::a_budget_block_records_the_meters_own_numbers
+        PASS [   0.022s] (167/466) gauntlet-app doctor::tests::a_forbidden_policy_in_the_default_dir_fails_even_when_policy_dir_is_overridden
+        PASS [   0.051s] (168/466) gauntlet-app control::select::tests::governance_blocks_are_never_chosen_even_when_highest_impact
+        PASS [   0.026s] (169/466) gauntlet-app doctor::tests::a_bom_prefixed_contract_fails_check_one_citing_the_byte_order_mark
+        PASS [   0.019s] (170/466) gauntlet-app doctor::tests::a_live_backend_requires_tier_policy_files
+        PASS [   0.062s] (171/466) gauntlet-app control::select::tests::empty_and_fully_blocked_inputs_are_typed_errors_carrying_their_evidence
+        PASS [   0.013s] (172/466) gauntlet-app doctor::tests::a_malformed_block_fails_the_unit_schema_clause_with_its_locus
+        PASS [   0.033s] (173/466) gauntlet-app doctor::tests::a_healthy_scratch_project_passes_every_real_check
+        PASS [   0.014s] (174/466) gauntlet-app doctor::tests::a_malformed_money_value_fails_under_config_values_not_indirections
+        PASS [   0.030s] (175/466) gauntlet-app doctor::tests::a_moved_answer_key_fails_check_two_as_a_reference_class_failure
+        PASS [   0.028s] (176/466) gauntlet-app doctor::tests::a_moved_manifest_fails_check_two_as_a_reference_class_failure
+        PASS [   0.036s] (177/466) gauntlet-app doctor::tests::a_manifest_that_cannot_deep_parse_fails_check_two_as_a_reference_class_failure
+        PASS [   0.037s] (178/466) gauntlet-app doctor::tests::a_missing_contract_stays_the_honest_no_contract_pass
+        PASS [   0.029s] (179/466) gauntlet-app doctor::tests::a_non_utf8_contract_fails_check_one_with_the_failure_class
+        PASS [   0.030s] (180/466) gauntlet-app doctor::tests::a_permission_denied_contract_fails_check_one_not_as_not_found
+        PASS [   0.017s] (181/466) gauntlet-app doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run
+        PASS [   0.011s] (182/466) gauntlet-app doctor::tests::an_explicit_config_override_to_a_missing_path_fails_check_one_naming_it
+        PASS [   0.015s] (183/466) gauntlet-app doctor::tests::a_wrong_unit_count_fails_check_two
+        PASS [   0.018s] (184/466) gauntlet-app doctor::tests::an_all_indented_manifest_is_not_a_mapping_and_fails_check_two
+        PASS [   0.021s] (185/466) gauntlet-app doctor::tests::an_answer_key_inside_the_workspace_fails_check_seven
+        PASS [   0.021s] (186/466) gauntlet-app doctor::tests::an_answer_key_inside_the_workspace_only_canonically_still_fails_check_seven
+        PASS [   0.010s] (187/466) gauntlet-app doctor::tests::an_unknown_field_in_the_reference_record_is_a_finding
+        PASS [   0.014s] (188/466) gauntlet-app doctor::tests::an_unparsable_contract_fails_check_one_and_degrades_the_rest
+        PASS [   0.016s] (189/466) gauntlet-app doctor::tests::check_four_fails_an_unmeasured_or_mistokened_descriptor
+        PASS [   0.020s] (190/466) gauntlet-app doctor::tests::budget_violations_fail_check_eight_through_the_domain
+        PASS [   0.025s] (191/466) gauntlet-app doctor::tests::an_unreadable_policy_dir_fails_check_five_and_recovers_when_readable
+        PASS [   0.019s] (192/466) gauntlet-app doctor::tests::check_four_covers_the_dispatchable_tiers_with_the_measured_rung
+        PASS [   0.020s] (193/466) gauntlet-app doctor::tests::check_four_fails_a_configured_backend_no_adapter_fronts
+        PASS [   0.018s] (194/466) gauntlet-app doctor::tests::check_four_passes_the_conservative_posture_and_names_the_dispatch_note
+        PASS [   0.014s] (195/466) gauntlet-app doctor::tests::check_three_fails_a_failed_measured_probe_and_so_does_check_four
+        PASS [   0.010s] (196/466) gauntlet-app doctor::tests::dotenv_inline_comments_no_longer_corrupt_directory_names
+        PASS [   0.015s] (197/466) gauntlet-app doctor::tests::check_three_stays_unavailable_without_a_measurement_hook
+        PASS [   0.021s] (198/466) gauntlet-app doctor::tests::check_three_fails_a_mistokened_descriptor
+        PASS [   0.020s] (199/466) gauntlet-app doctor::tests::check_three_reports_a_measured_runner_instead_of_the_blanket_unavailable
+        PASS [   0.015s] (200/466) gauntlet-app doctor::tests::the_canary_secret_never_reaches_the_report_or_the_summary
+        PASS [   0.018s] (201/466) gauntlet-app doctor::tests::forbidden_tier_policies_under_any_spelling_or_link_fail_check_five
+        PASS [   0.019s] (202/466) gauntlet-app doctor::tests::generated_at_is_present_and_the_fingerprint_is_the_domain_shape
+        PASS [   0.012s] (203/466) gauntlet-app formation::tests::a_clean_pair_satisfies_every_invariant
+        PASS [   0.021s] (204/466) gauntlet-app doctor::tests::duplicate_flow_mapping_keys_fail_the_run_at_parse
+        PASS [   0.018s] (205/466) gauntlet-app doctor::tests::unknown_capabilities_fail_and_unknown_names_are_reported
+        PASS [   0.013s] (206/466) gauntlet-app formation::tests::ak_reference_before_any_recognized_heading_is_refused
+        PASS [   0.014s] (207/466) gauntlet-app formation::tests::a_dangling_decision_reference_is_refused
+        PASS [   0.011s] (208/466) gauntlet-app formation::tests::fog_leak_under_case_variant_heading_is_refused
+        PASS [   0.018s] (209/466) gauntlet-app formation::tests::an_invalid_answer_key_is_refused
+        PASS [   0.019s] (210/466) gauntlet-app formation::tests::fog_carrying_an_ak_reference_is_refused
+        PASS [   0.024s] (211/466) gauntlet-app formation::tests::a_decision_without_a_unit_or_context_only_is_refused
+        PASS [   0.007s] (212/466) gauntlet-app formation::tests::fog_leak_under_deeper_heading_after_decisions_is_refused
+        PASS [   0.014s] (213/466) gauntlet-app formation::tests::fog_leak_via_ascii_arrow_is_refused
+        PASS [   0.019s] (214/466) gauntlet-app formation::tests::fog_leak_under_colon_suffixed_heading_is_refused
+        PASS [   0.015s] (215/466) gauntlet-app formation::tests::out_of_scope_carrying_an_ak_reference_is_refused
+        PASS [   0.012s] (216/466) gauntlet-app govern::gate::tests::a_dispatch_fact_below_the_recorded_facts_is_refused_as_lattice_movement
+        PASS [   0.017s] (217/466) gauntlet-app formation::tests::out_of_scope_leak_under_colon_suffixed_deeper_heading_is_refused
+        PASS [   0.019s] (218/466) gauntlet-app formation::tests::unrecognized_heading_with_no_ak_reference_is_not_over_rejected
+        PASS [   0.043s] (219/466) gauntlet-app govern::gate::tests::a_validation_failure_escalates_and_never_falls_back
+        PASS [   0.038s] (220/466) gauntlet-app govern::gate::tests::authority_above_the_ceiling_escalates_before_any_transform
+        PASS [   0.039s] (221/466) gauntlet-app govern::gate::tests::an_admission_the_posture_did_not_earn_is_a_typed_refusal
+        PASS [   0.046s] (222/466) gauntlet-app govern::gate::tests::a_real_backend_posture_admits_above_contained_with_the_validated_policy_carried
+        PASS [   0.057s] (223/466) gauntlet-app govern::gate::tests::a_none_isolation_runner_is_refused_for_any_tier_above_contained
+        PASS [   0.010s] (224/466) gauntlet-app govern::posture::tests::an_agent_cannot_move_a_unit_in_any_direction
+        PASS [   0.050s] (225/466) gauntlet-app govern::gate::tests::construction_refuses_inconsistent_postures
+        PASS [   0.019s] (226/466) gauntlet-app govern::gate::tests::irreversible_is_refused_before_every_other_conjunct
+        PASS [   0.018s] (227/466) gauntlet-app govern::gate::tests::the_gate_anchors_policy_resolution_at_the_dispatch_workspace
+        PASS [   0.007s] (228/466) gauntlet-app govern::posture::tests::the_rung_table_is_the_spec_posture_and_monotone_with_blast_rank
+        PASS [   0.010s] (229/466) gauntlet-app govern::posture::tests::an_operator_may_raise_and_may_not_lower
+        PASS [   0.026s] (230/466) gauntlet-app govern::gate::tests::the_conservative_posture_admits_contained_critic_and_refuses_every_above_contained_tier
+        PASS [   0.010s] (231/466) gauntlet-app observation::assembly::tests::a_failing_bundle_store_write_is_a_typed_assembly_error
+        PASS [   0.014s] (232/466) gauntlet-app observation::assembly::tests::a_badly_shaped_environment_fingerprint_is_refused
+        PASS [   0.021s] (233/466) gauntlet-app observation::assembly::tests::all_healthy_observers_leave_both_arrays_explicitly_empty
+        PASS [   0.019s] (234/466) gauntlet-app observation::assembly::tests::an_empty_observer_list_is_refused
+        PASS [   0.026s] (235/466) gauntlet-app observation::assembly::tests::a_provenance_disagreement_is_recorded_not_fatal
+        PASS [   0.011s] (236/466) gauntlet-app observation::assembly::tests::an_observer_store_write_failure_surfaces_as_gap_entries
+        PASS [   0.012s] (237/466) gauntlet-app observation::assembly::tests::assembly_is_deterministic_under_the_same_clock_and_environment
+        PASS [   0.012s] (238/466) gauntlet-app observation::assembly::tests::observer_failures_populate_both_gap_arrays_exactly_once
+        PASS [   0.029s] (239/466) gauntlet-app observation::assembly::tests::an_exitless_facet_against_exited_evidence_is_a_provenance_mismatch
+        PASS [   0.031s] (240/466) gauntlet-app observation::assembly::tests::an_empty_project_revision_is_refused
+        PASS [   0.013s] (241/466) gauntlet-app observation::assembly::tests::garbage_evidence_populates_both_gap_arrays
+        PASS [   0.017s] (242/466) gauntlet-app observation::assembly::tests::cross_wired_evidence_with_equal_exits_is_a_provenance_mismatch
+        PASS [   0.012s] (243/466) gauntlet-app observation::bundle::tests::as_domain_view_maps_gaps_and_the_digest
+        PASS [   0.013s] (244/466) gauntlet-app observation::bundle::tests::claims_rendering_is_the_pinned_json_array_form
+        PASS [   0.021s] (245/466) gauntlet-app observation::assembly::tests::the_assembled_document_round_trips_and_feeds_verification_inputs
+        PASS [   0.016s] (246/466) gauntlet-app observation::bundle::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.016s] (247/466) gauntlet-app observation::bundle::tests::a_claims_facet_claiming_inclusion_does_not_decode
+        PASS [   0.010s] (248/466) gauntlet-app observation::bundle::tests::unknown_fields_are_rejected_at_every_level
+        PASS [   0.021s] (249/466) gauntlet-app observation::bundle::tests::every_facet_kind_token_is_a_valid_locator_and_instrument_name
+        PASS [   0.014s] (250/466) gauntlet-app observation::bundle::tests::from_facet_copies_verbatim_and_nulls_absent_optionals
+        PASS [   0.015s] (251/466) gauntlet-app observation::digest::tests::normalized_bytes_is_the_full_json_minus_the_timestamp_members
+        PASS [   0.017s] (252/466) gauntlet-app observation::bundle::tests::wrong_schema_tokens_and_unknown_kinds_are_refused_whole
+        PASS [   0.007s] (253/466) gauntlet-app observation::digest::tests::the_digest_field_itself_is_pinned_away
+        PASS [   0.010s] (254/466) gauntlet-app observation::input::tests::claims_text_never_reaches_verification_inputs
+        PASS [   0.028s] (255/466) gauntlet-app observation::digest::tests::facet_content_claims_and_gap_changes_each_change_the_digest
+        PASS [   0.022s] (256/466) gauntlet-app observation::input::tests::a_claims_change_moves_the_digest_but_not_the_facet_inputs
+        PASS [   0.015s] (257/466) gauntlet-app observation::input::tests::the_facet_and_gap_inputs_are_identical_under_a_claims_swap
+        PASS [   0.018s] (258/466) gauntlet-app observation::input::tests::gaps_are_inputs_not_noise
+        PASS [   0.026s] (259/466) gauntlet-app observation::digest::tests::shifted_timestamps_do_not_change_the_digest
+        PASS [   0.011s] (260/466) gauntlet-app reference::manifest::tests::a_minimal_manifest_parses_its_fields
+        PASS [   0.011s] (261/466) gauntlet-app reference::manifest::tests::a_non_null_digest_and_a_populated_units_section_are_loud_failures
+        PASS [   0.010s] (262/466) gauntlet-app reference::manifest::tests::empty_flow_entries_are_refused
+        PASS [   0.010s] (263/466) gauntlet-app reference::manifest::tests::folded_scalars_fold_lines_into_single_spaced_text
+        PASS [   0.019s] (264/466) gauntlet-app reference::manifest::tests::duplicate_keys_are_refused_rather_than_last_won
+        PASS [   0.025s] (265/466) gauntlet-app reference::manifest::tests::a_tab_in_the_indentation_is_typed_drift_wherever_it_sits
+        PASS [   0.012s] (266/466) gauntlet-app reference::manifest::tests::terminal_conditions_and_reliability_prose_fail_loudly_on_drift
+        PASS [   0.029s] (267/466) gauntlet-app reference::manifest::tests::build_definition_carries_the_deferred_sections_as_empty
+        PASS [   0.013s] (268/466) gauntlet-app reference::manifest::tests::unknown_sub_keys_in_nested_sections_are_typed_errors
+        PASS [   0.029s] (269/466) gauntlet-app reference::manifest::tests::missing_required_keys_and_bad_values_are_typed_errors
+        PASS [   0.023s] (270/466) gauntlet-app reference::manifest::tests::the_frozen_manifest_parses_with_its_fields_intact
+        PASS [   0.018s] (271/466) gauntlet-app reference::manifest::tests::unknown_keys_and_roots_are_typed_errors_naming_the_line
+        PASS [   0.021s] (272/466) gauntlet-app reference::normalize::tests::empty_and_all_blank_inputs_normalize_to_zero_bytes
+        PASS [   0.012s] (273/466) gauntlet-app reference::normalize::tests::normalization_is_deterministic_across_line_ending_and_final_newline_spellings
+        PASS [   0.016s] (274/466) gauntlet-app reference::normalize::tests::invalid_utf8_is_a_typed_error_with_the_byte_locus
+        PASS [   0.008s] (275/466) gauntlet-app reference::parse::tests::a_duplicate_block_id_fails_the_later_block
+        PASS [   0.032s] (276/466) gauntlet-app reference::normalize::tests::short_inputs_pin_the_exact_normalized_output
+        PASS [   0.050s] (277/466) gauntlet-app reference::normalize::tests::a_whitespace_only_last_line_is_content_not_a_blank_line
+        PASS [   0.025s] (278/466) gauntlet-app reference::parse::tests::a_missing_required_field_is_a_block_failure
+        PASS [   0.037s] (279/466) gauntlet-app reference::normalize::tests::normalization_is_sensitive_to_content_edits
+        PASS [   0.017s] (280/466) gauntlet-app reference::parse::tests::a_well_formed_block_parses_into_a_unit
+        PASS [   0.023s] (281/466) gauntlet-app reference::parse::tests::a_tier_authority_coupling_violation_is_a_block_failure
+        PASS [   0.013s] (282/466) gauntlet-app reference::parse::tests::every_enum_field_reports_unknown_values_through_the_same_door
+        PASS [   0.012s] (283/466) gauntlet-app reference::parse::tests::malformed_evidence_mappings_fail_the_block_not_the_file
+        PASS [   0.015s] (284/466) gauntlet-app reference::parse::tests::crlf_endings_are_tolerated_line_by_line
+        PASS [   0.021s] (285/466) gauntlet-app reference::parse::tests::depends_on_parses_all_three_frozen_spellings
+        PASS [   0.025s] (286/466) gauntlet-app reference::parse::tests::an_unknown_enum_value_names_field_value_and_block
+        PASS [   0.009s] (287/466) gauntlet-app reference::parse::tests::parse_all_or_fail_is_all_or_nothing
+        PASS [   0.012s] (288/466) gauntlet-app reference::parse::tests::one_malformed_block_fails_only_itself
+        PASS [   0.025s] (289/466) gauntlet-app reference::parse::tests::non_ak_headings_and_wrong_depth_are_heading_failures
+        PASS [   0.015s] (290/466) gauntlet-app reference::parse::tests::the_frozen_answer_key_parses_seventy_clean_units
+        PASS [   0.010s] (291/466) gauntlet-app reference::provider::tests::a_broken_artifact_after_freeze_is_unavailable_not_reference_mutated
+        PASS [   0.011s] (292/466) gauntlet-app reference::parse::tests::unknown_field_keys_and_stray_lines_are_typed_errors
+        PASS [   0.014s] (293/466) gauntlet-app reference::provider::tests::a_missing_artifact_is_unavailable_not_reference_mutated
+        PASS [   0.016s] (294/466) gauntlet-app reference::provider::tests::freeze_is_content_addressed_and_idempotent_for_the_same_run
+        PASS [   0.022s] (295/466) gauntlet-app reference::provider::tests::a_mutation_between_normalize_and_freeze_fires_the_tripwire_at_freeze
+        PASS [   0.015s] (296/466) gauntlet-app reference::provider::tests::the_production_provider_passes_the_shared_contract_suite
+        PASS [   0.019s] (297/466) gauntlet-app reference::provider::tests::significance_of_the_digest_and_refusal_semantics
+        PASS [   0.020s] (298/466) gauntlet-app reference::validate::tests::a_malformed_key_is_the_first_block_failure
+        PASS [   0.017s] (299/466) gauntlet-app reference::validate::tests::a_well_formed_key_validates_into_units
+        PASS [   0.014s] (300/466) gauntlet-app report::tests::a_store_failure_is_typed
+        PASS [   0.008s] (301/466) gauntlet-app report::tests::an_empty_manifest_key_is_refused
+        PASS [   0.009s] (302/466) gauntlet-app roles::install::tests::write_atomic_fsyncs_the_directory_entry
+        PASS [   0.010s] (303/466) gauntlet-app report::tests::the_six_category_tokens_are_exact
+        PASS [   0.011s] (304/466) gauntlet-app settle::tests::a_blocking_residual_referencing_the_unit_refuses_settlement
+        PASS [   0.009s] (305/466) gauntlet-app settle::tests::a_durably_blocked_projection_wins_over_a_clear_tracked_view
+        PASS [   0.011s] (306/466) gauntlet-app settle::tests::a_critic_unit_settles_durably_under_automatic_closure
+        PASS [   0.011s] (307/466) gauntlet-app settle::tests::a_disagreeing_durable_record_for_the_same_identity_refuses
+        PASS [   0.010s] (308/466) gauntlet-app settle::tests::a_half_applied_evidence_production_completes_from_durable_facts_only
+        PASS [   0.015s] (309/466) gauntlet-app settle::tests::a_fail_claim_refuses_at_service_entry_with_zero_durable_writes
+        PASS [   0.011s] (310/466) gauntlet-app settle::tests::a_half_applied_settlement_completes_exactly_once_from_the_anchor
+        PASS [   0.008s] (311/466) gauntlet-app settle::tests::a_produced_world_completion_reads_produced_from_the_locator_key_surface
+        PASS [   0.010s] (312/466) gauntlet-app settle::tests::a_lead_agent_unit_requires_a_recorded_rationale
+        PASS [   0.016s] (313/466) gauntlet-app settle::tests::a_human_authority_unit_refuses_automatic_closure_and_escalates
+        PASS [   0.009s] (314/466) gauntlet-app settle::tests::a_re_entry_of_the_same_settlement_key_is_idempotent_success
+        PASS [   0.017s] (315/466) gauntlet-app settle::tests::a_re_entry_diverging_on_evidence_is_a_typed_refusal_not_success
+        PASS [   0.011s] (316/466) gauntlet-app settle::tests::a_settle_time_reference_mutation_aborts_with_both_digests_as_pinned_evidence
+        PASS [   0.016s] (317/466) gauntlet-app settle::tests::an_inconclusive_claim_is_a_distinct_entry_refusal_from_fail
+        PASS [   0.011s] (318/466) gauntlet-app settle::tests::an_operator_action_without_pass_evidence_hits_the_same_gate_as_the_loop
+        PASS [   0.016s] (319/466) gauntlet-app settle::tests::a_settle_time_unavailability_refuses_without_aborting_or_escalating
+        PASS [   0.011s] (320/466) gauntlet-app settle::tests::each_refused_condition_is_a_distinct_typed_refusal
+        PASS [   0.020s] (321/466) gauntlet-app settle::tests::an_undurable_run_refuses_every_settlement
+        PASS [   0.016s] (322/466) gauntlet-app settle::tests::the_fixture_key_parses_into_three_authority_levels
+        PASS [   0.015s] (323/466) gauntlet-app settle::tests::operator_action_refusals_name_the_three_states_and_the_shared_gate_variant
+        PASS [   0.019s] (324/466) gauntlet-app settle::tests::an_unrecoverable_orphan_is_a_recorded_limitation_never_a_fabrication
+        PASS [   0.011s] (325/466) gauntlet-app settle::tests::the_service_re_derives_conditions_one_and_two_over_the_claim_itself
+        PASS [   0.019s] (326/466) gauntlet-app settle::tests::the_operator_identity_cannot_inject_members_into_the_decision_record
+        PASS [   0.009s] (327/466) gauntlet-app skills::tests::a_bare_control_word_in_ordinary_prose_is_not_over_rejected
+        PASS [   0.008s] (328/466) gauntlet-app skills::tests::a_compound_api_key_label_is_refused
+        PASS [   0.010s] (329/466) gauntlet-app skills::tests::a_compound_auth_token_label_is_refused
+        PASS [   0.011s] (330/466) gauntlet-app skills::tests::a_compound_secret_key_label_is_refused
+        PASS [   0.016s] (331/466) gauntlet-app skills::tests::a_compound_client_secret_label_is_refused
+        PASS [   0.017s] (332/466) gauntlet-app skills::tests::a_clean_skill_document_lints
+        PASS [   0.009s] (333/466) gauntlet-app skills::tests::a_document_without_disable_model_invocation_still_lints
+        PASS [   0.014s] (334/466) gauntlet-app skills::tests::a_decisive_control_phrase_is_refused
+        PASS [   0.011s] (335/466) gauntlet-app skills::tests::a_missing_required_field_is_refused
+        PASS [   0.010s] (336/466) gauntlet-app skills::tests::a_name_field_mismatch_is_refused
+        PASS [   0.010s] (337/466) gauntlet-app skills::tests::a_relative_path_is_not_over_rejected
+        PASS [   0.010s] (338/466) gauntlet-app skills::tests::a_runtime_descriptive_sentence_authorizing_budget_is_not_over_rejected
+        PASS [   0.012s] (339/466) gauntlet-app skills::tests::a_pem_block_marker_is_refused
+        PASS [   0.016s] (340/466) gauntlet-app skills::tests::a_runtime_descriptive_sentence_granting_authority_is_not_over_rejected
+        PASS [   0.010s] (341/466) gauntlet-app skills::tests::a_secret_shaped_literal_is_refused_and_never_echoed
+        PASS [   0.007s] (342/466) gauntlet-app skills::tests::a_skill_claiming_to_settle_the_unit_without_a_runtime_mention_is_still_refused
+        PASS [   0.010s] (343/466) gauntlet-app skills::tests::a_skill_instructing_authority_elevation_is_refused
+        PASS [   0.018s] (344/466) gauntlet-app skills::tests::a_runtime_descriptive_sentence_settling_the_unit_is_not_over_rejected
+        PASS [   0.017s] (345/466) gauntlet-app skills::tests::a_skill_claiming_to_settle_the_unit_itself_is_refused
+        PASS [   0.007s] (346/466) gauntlet-app skills::tests::an_absolute_path_in_the_body_is_refused
+        PASS [   0.012s] (347/466) gauntlet-app skills::tests::a_skill_instructing_budget_authorization_is_refused
+        PASS [   0.012s] (348/466) gauntlet-app skills::tests::a_token_with_no_leading_slash_is_not_flagged_as_an_absolute_path
+        PASS [   0.017s] (349/466) gauntlet-app skills::tests::a_word_merely_ending_in_a_label_is_not_flagged_as_a_secret
+        PASS [   0.013s] (350/466) gauntlet-app skills::tests::an_exact_control_identifier_is_refused
+        PASS [   0.015s] (351/466) gauntlet-app skills::tests::an_indirected_value_is_not_flagged_as_a_secret
+        PASS [   0.016s] (352/466) gauntlet-app skills::tests::an_unknown_front_matter_key_is_refused
+        PASS [   0.010s] (353/466) gauntlet-app state::export::deterministic::duplicate_canonical_keys_are_refused
+        PASS [   0.019s] (354/466) gauntlet-app skills::tests::the_wayfinder_gauntlet_front_matter_shape_parses
+        PASS [   0.011s] (355/466) gauntlet-app state::export::deterministic::export_is_byte_identical_and_canonical_under_reordered_input
+        PASS [   0.008s] (356/466) gauntlet-app state::export::deterministic::fields_outside_the_canonical_shape_are_refused
+        PASS [   0.024s] (357/466) gauntlet-app skills::tests::no_front_matter_fence_is_refused
+        PASS [   0.018s] (358/466) gauntlet-app state::export::deterministic::an_empty_history_exports_empty
+        PASS [   0.008s] (359/466) gauntlet-app state::export::deterministic::malformed_lines_are_typed_errors
+        PASS [   0.015s] (360/466) gauntlet-app state::export::deterministic::mis_shaped_at_fields_are_typed_errors
+        PASS [   0.010s] (361/466) gauntlet-app verify::authority::tests::a_hand_built_rung_cannot_mint_a_verified_claim
+        PASS [   0.011s] (362/466) gauntlet-app state::export::deterministic::missing_canonical_fields_are_typed_errors
+        PASS [   0.014s] (363/466) gauntlet-app state::export::deterministic::unknown_record_kinds_are_typed_errors
+        PASS [   0.013s] (364/466) gauntlet-app verify::authority::tests::a_lying_request_cannot_make_stale_evidence_fresh
+        PASS [   0.018s] (365/466) gauntlet-app verify::authority::tests::a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass
+        PASS [   0.014s] (366/466) gauntlet-app verify::authority::tests::a_missing_instrument_artifact_is_inconclusive_unresolvable_p12
+        PASS [   0.010s] (367/466) gauntlet-app verify::authority::tests::a_tampered_frozen_reference_refuses_authority
+        PASS [   0.015s] (368/466) gauntlet-app verify::authority::tests::a_request_naming_another_run_is_refused
+        PASS [   0.009s] (369/466) gauntlet-app verify::authority::tests::an_evidence_store_read_failure_is_a_typed_refusal_not_a_class
+        PASS [   0.015s] (370/466) gauntlet-app verify::authority::tests::a_unit_absent_from_the_frozen_reference_is_refused
+        PASS [   0.020s] (371/466) gauntlet-app verify::authority::tests::a_run_that_is_not_durable_refuses_authority
+        PASS [   0.011s] (372/466) gauntlet-app verify::authority::tests::an_iteration_no_durable_checkpoint_supports_is_refused
+        PASS [   0.009s] (373/466) gauntlet-app verify::authority::tests::evidence_from_a_prior_iteration_is_inconclusive_stale
+        PASS [   0.007s] (374/466) gauntlet-app verify::authority::tests::fresh_resolvable_evidence_passes_and_carries_the_instrument_identity
+        PASS [   0.015s] (375/466) gauntlet-app verify::authority::tests::instrument_produced_evidence_never_satisfies_a_human_requirement
+        PASS [   0.023s] (376/466) gauntlet-app verify::authority::tests::an_instrument_returning_another_identity_is_refused
+        PASS [   0.022s] (377/466) gauntlet-app verify::authority::tests::an_unresolvable_evidence_ref_is_inconclusive_unresolvable
+        PASS [   0.015s] (378/466) gauntlet-app verify::authority::tests::the_freshest_passing_candidate_wins_and_ties_break_to_the_fresh_class
+        PASS [   0.019s] (379/466) gauntlet-app verify::authority::tests::no_production_record_at_the_locator_is_inconclusive_unresolvable
+        PASS [   0.021s] (380/466) gauntlet-app verify::authority::tests::store_bytes_that_are_not_the_recorded_content_are_refused
+        PASS [   0.012s] (381/466) gauntlet-app verify::authority::tests::when_every_candidate_fails_the_freshest_class_is_recorded
+        PASS [   0.012s] (382/466) gauntlet-app verify::authority::tests::the_locator_check_bites_a_store_that_leaks_off_locator_productions
+        PASS [   0.012s] (383/466) gauntlet-app verify::content_digest_pins::the_ports_production_content_digest_is_this_layers_rule
+        PASS [   0.009s] (384/466) gauntlet-app verify::ladder::tests::a_model_result_at_another_iteration_is_refused
+        PASS [   0.008s] (385/466) gauntlet-app verify::ladder::tests::a_model_result_under_another_role_is_refused
+        PASS [   0.013s] (386/466) gauntlet-app verify::ladder::tests::a_model_record_claiming_determinism_is_refused
+        PASS [   0.020s] (387/466) gauntlet-app verify::ladder::tests::a_foreign_invocation_id_is_refused
+        PASS [   0.007s] (388/466) gauntlet-app verify::ladder::tests::a_rung_declining_at_dispatch_falls_through_to_the_next_that_can_decide
+        PASS [   0.016s] (389/466) gauntlet-app verify::ladder::tests::a_never_terminal_runner_is_a_bounded_instrument_failure
+        PASS [   0.014s] (390/466) gauntlet-app verify::ladder::tests::a_non_verification_payload_is_refused
+        PASS [   0.014s] (391/466) gauntlet-app verify::ladder::tests::a_requirement_no_rung_can_decide_is_a_typed_refusal
+        PASS [   0.014s] (392/466) gauntlet-app verify::ladder::tests::the_model_rung_decides_only_where_no_deterministic_rung_can
+        PASS [   0.014s] (393/466) gauntlet-app verify::ladder::tests::the_ladder_refuses_empty_and_duplicate_positions
+        PASS [   0.015s] (394/466) gauntlet-app verify::ladder::tests::a_supported_broken_rung_terminates_selection_and_never_reaches_the_model
+        PASS [   0.023s] (395/466) gauntlet-app verify::ladder::tests::a_rung_failing_as_an_instrument_is_a_typed_refusal_naming_it_not_an_outcome
+        PASS [   0.022s] (396/466) gauntlet-app verify::ladder::tests::a_rung_whose_kind_and_verifier_disagree_is_refused_at_construction
+        PASS [   0.013s] (397/466) gauntlet-app verify::ladder::tests::the_model_rung_dispatch_carries_the_governed_iteration
+        PASS [   0.009s] (398/466) gauntlet-app verify::ladder::tests::the_model_rung_reports_non_deterministic_and_its_records_are_flagged
+        PASS [   0.020s] (399/466) gauntlet-app verify::ladder::tests::when_a_deterministic_rung_and_the_model_rung_could_both_decide_the_deterministic_one_does
+        PASS [   0.020s] (400/466) gauntlet-app verify::ladder::tests::the_verifier_envelope_is_serialized_json_even_with_hostile_text
+        PASS [   0.019s] (401/466) gauntlet-app verify::precondition::tests::a_pass_record_with_resolving_pinned_evidence_is_ready
+        PASS [   0.023s] (402/466) gauntlet-app verify::precondition::tests::a_pass_record_from_another_run_is_refused
+        PASS [   0.037s] (403/466) gauntlet-app verify::precondition::tests::a_chain_minted_model_record_carries_the_non_deterministic_flag
+        PASS [   0.031s] (404/466) gauntlet-app verify::precondition::tests::a_stooge_store_cannot_satisfy_the_settlement_precondition
+        PASS [   0.021s] (405/466) gauntlet-app verify::precondition::tests::an_inconclusive_record_is_refused_and_stays_distinct_from_fail
+        PASS [   0.024s] (406/466) gauntlet-app verify::precondition::tests::an_unanswerable_pin_query_fails_closed
+        PASS [   0.024s] (407/466) gauntlet-app::compare_deny a_wired_deny_set_refuses_the_envelope_before_it_is_built
+        PASS [   0.013s] (408/466) gauntlet-app::formation fog_not_in_answer_key
+        PASS [   0.010s] (409/466) gauntlet-app::report an_all_empty_store_populates_nothing
+        PASS [   0.019s] (410/466) gauntlet-app::compare_deny an_empty_deny_set_reaches_the_envelope_construction
+        PASS [   0.033s] (411/466) gauntlet-app verify::precondition::tests::unpinned_or_unresolvable_evidence_is_refused
+        PASS [   0.016s] (412/466) gauntlet-app::report a_settlement_without_a_durable_pass_record_is_never_proven
+        PASS [   0.009s] (413/466) gauntlet-app::report capability_rows_follow_the_manifest_and_the_records
+        PASS [   0.009s] (414/466) gauntlet-app::report removing_the_settlement_record_moves_the_unit_out_of_implemented_and_proven
+        PASS [   0.012s] (415/466) gauntlet-app::report categories_populate_from_records
+        PASS [   0.013s] (416/466) gauntlet-app::report duplicate_manifest_keys_are_a_typed_error
+        PASS [   0.019s] (417/466) gauntlet-app::report an_inconclusive_record_is_provisional_never_proven
+        PASS [   0.016s] (418/466) gauntlet-app::report the_machine_rendering_is_deterministic_and_order_independent
+        PASS [   0.027s] (419/466) gauntlet-app::report blocked_and_unknown_are_record_driven
+        PASS [   0.012s] (420/466) gauntlet-app::roles critic_dimension_files_load_uniformly_and_mismatches_are_refused
+        PASS [   0.021s] (421/466) gauntlet-app::roles advisory_harness_records_advisory_and_materializes_injectable_artifacts
+        PASS [   0.021s] (422/466) gauntlet-app::roles cross_harness_relabeled_relocated_lock_is_tamper
+        PASS [   0.014s] (423/466) gauntlet-app::roles deny_shadowing_allow_is_refused
+        PASS [   0.012s] (424/466) gauntlet-app::roles deny_set_and_envelope_grant_are_consumable_data
+        PASS [   0.029s] (425/466) gauntlet-app::roles allow_naming_an_envelope_denied_category_is_refused
+        PASS [   0.014s] (426/466) gauntlet-app::roles duplicate_entry_lock_is_tamper
+        PASS [   0.021s] (427/466) gauntlet-app::roles deleted_source_file_is_source_missing_drift
+        PASS [   0.016s] (428/466) gauntlet-app::roles forged_traversal_source_in_lock_is_tamper
+        PASS [   0.017s] (429/466) gauntlet-app::roles forged_absolute_source_in_lock_is_tamper
+        PASS [   0.016s] (430/466) gauntlet-app::roles forged_empty_lock_with_recomputed_digest_is_tamper
+        PASS [   0.013s] (431/466) gauntlet-app::roles full_lock_source_redirect_reforge_cannot_bless_drift
+        PASS [   0.031s] (432/466) gauntlet-app::roles every_registered_harness_installs_and_verifies
+        PASS [   0.021s] (433/466) gauntlet-app::roles full_lock_reforge_cannot_bless_installed_drift
+        PASS [   0.018s] (434/466) gauntlet-app::roles install_and_verify
+        PASS [   0.010s] (435/466) gauntlet-app::roles missing_installed_file_is_drift
+        PASS [   0.013s] (436/466) gauntlet-app::roles missing_indirection_is_a_typed_error_naming_the_variable
+        PASS [   0.032s] (437/466) gauntlet-app::roles hand_edited_lock_is_a_typed_tamper_failure
+        PASS [   0.023s] (438/466) gauntlet-app::roles noncanonical_lock_with_recomputed_digest_is_tamper
+        PASS [   0.032s] (439/466) gauntlet-app::roles legitimate_workspace_relative_write_path_passes
+        PASS [   0.019s] (440/466) gauntlet-app::roles out_of_band_installed_edit_is_drift
+        PASS [   0.019s] (441/466) gauntlet-app::roles reinstall_of_unchanged_tree_is_byte_identical_lock
+        PASS [   0.009s] (442/466) gauntlet-app::roles resolved_indirection_value_never_echoes_into_error_text_mode_refusal
+        PASS [   0.032s] (443/466) gauntlet-app::roles out_of_band_installed_addition_is_drift
+        PASS [   0.012s] (444/466) gauntlet-app::roles resolved_secrets_never_reach_the_lock_or_bytes_or_debug
+        PASS [   0.017s] (445/466) gauntlet-app::roles repository_role_artifacts_load
+        PASS [   0.018s] (446/466) gauntlet-app::roles resolved_indirection_value_never_echoes_into_error_text_write_path_escape
+        PASS [   0.010s] (447/466) gauntlet-app::roles unknown_context_category_is_refused
+        PASS [   0.009s] (448/466) gauntlet-app::roles unknown_filesystem_mode_is_refused
+        PASS [   0.013s] (449/466) gauntlet-app::roles source_edit_after_install_is_drift
+        PASS [   0.031s] (450/466) gauntlet-app::roles reinstall_over_out_of_band_installed_drift_reports_the_repair
+        PASS [   0.019s] (451/466) gauntlet-app::roles source_addition_after_install_is_drift
+        PASS [   0.013s] (452/466) gauntlet-app::roles unknown_front_matter_key_is_refused
+        PASS [   0.009s] (453/466) gauntlet-app::roles unknown_network_mode_is_refused
+        PASS [   0.010s] (454/466) gauntlet-app::roles unknown_or_missing_harness_fails_closed
+        PASS [   0.015s] (455/466) gauntlet-app::roles write_path_of_the_project_root_is_refused
+        PASS [   0.019s] (456/466) gauntlet-app::roles unknown_tool_token_is_refused
+        PASS [   0.017s] (457/466) gauntlet-app::roles write_path_of_the_runtime_dir_is_refused
+        PASS [   0.020s] (458/466) gauntlet-app::roles write_path_resolving_outside_the_roots_is_refused
+        PASS [   0.021s] (459/466) gauntlet-app::roles write_path_over_the_answer_key_is_refused
+        PASS [   0.029s] (460/466) gauntlet-app::roles verify_without_install_is_a_configuration_failure
+        PASS [   0.016s] (461/466) gauntlet-app::skills skills::lint_rejects_absolute_path
+        PASS [   0.015s] (462/466) gauntlet-app::skills skills::lint_rejects_control_logic_fixture
+        PASS [   0.016s] (463/466) gauntlet-app::skills skills::lint_rejects_secret_like_value
+        PASS [   0.014s] (464/466) gauntlet-app::skills wayfinder_gauntlet_conformance
+        PASS [   0.012s] (465/466) gauntlet-app::skills skills::lint_rejects_unknown_front_matter_key
+        PASS [   0.040s] (466/466) gauntlet-app::skills skills::lint_passes_every_installed_skill
+────────────
+     Summary [   1.486s] 466 tests run: 466 passed, 0 skipped

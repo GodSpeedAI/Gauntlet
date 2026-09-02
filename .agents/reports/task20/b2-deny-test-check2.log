@@ -1,0 +1,67 @@
+cargo check -p gauntlet-app --all-targets
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+error[E0425]: cannot find type `EventLogOffset` in crate `gauntlet_ports`
+   --> crates/gauntlet-app/tests/compare_deny.rs:116:33
+    |
+116 |     ) -> Result<gauntlet_ports::EventLogOffset, StateStoreError> {
+    |                                 ^^^^^^^^^^^^^^ not found in `gauntlet_ports`
+
+error[E0425]: cannot find value `BUNDLE_TEXT` in this scope
+   --> crates/gauntlet-app/tests/compare_deny.rs:200:19
+    |
+ 32 | fn bundle_text() -> String {
+    | -------------------------- similarly named function `bundle_text` defined here
+...
+200 |         digest_of(BUNDLE_TEXT),
+    |                   ^^^^^^^^^^^
+    |
+help: a function with a similar name exists
+    |
+200 -         digest_of(BUNDLE_TEXT),
+200 +         digest_of(bundle_text),
+    |
+
+error[E0277]: `IssuedComparison` doesn't implement `Debug`
+   --> crates/gauntlet-app/tests/compare_deny.rs:251:10
+    |
+251 |         .expect_err("a denied, always-carried category refuses the envelope");
+    |          ^^^^^^^^^^ the trait `Debug` is not implemented for `IssuedComparison`
+    |
+note: required by a bound in `Result::<T, E>::expect_err`
+   --> /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/core/src/result.rs:1291:4
+
+Some errors have detailed explanations: E0277, E0425.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `gauntlet-app` (test "compare_deny") due to 3 previous errors
+error: recipe `check-package` failed on line 74 with exit code 101
+APP_EXIT=101
+Stopping sccache server...
+Compile requests                      1
+Compile requests executed             0
+Cache hits                            0
+Cache misses                          0
+Cache hits rate                       -
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          0
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   1
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.000 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            1
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Max cache size                       10 GiB

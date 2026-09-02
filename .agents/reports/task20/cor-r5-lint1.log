@@ -1,0 +1,23 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> crates/adapters/gauntlet-adapter-state-sqlite/src/lib.rs:249:10
+    |
+249 |     ) -> Result<Vec<(u64, String, String, String, i64)>, String> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#type_complexity
+    = note: `-D clippy::type-complexity` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::type_complexity)]`
+
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> crates/adapters/gauntlet-adapter-state-sqlite/src/lib.rs:298:10
+    |
+298 |     ) -> Result<Vec<(String, String, String, i64, i64)>, String> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#type_complexity
+
+error: could not compile `gauntlet-adapter-state-sqlite` (lib) due to 2 previous errors
+error: recipe `lint` failed on line 26 with exit code 101
+rc=101

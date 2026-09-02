@@ -1,0 +1,28 @@
+    Finished `test` profile [unoptimized] target(s) in 0.07s
+────────────
+ Nextest run ID 5015624b-d514-4cd8-a7a8-5f76838902c5 with nextest profile: default
+    Starting 1 test across 6 binaries (57 tests skipped)
+        FAIL [   0.047s] (1/1) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+  stdout ───
+
+    running 1 test
+    test b1_contract_wins_over_exit7_and_process_is_never_consulted ... FAILED
+
+    failures:
+
+    failures:
+        b1_contract_wins_over_exit7_and_process_is_never_consulted
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.03s
+
+  stderr ───
+
+    thread 'b1_contract_wins_over_exit7_and_process_is_never_consulted' (867897) panicked at crates/adapters/gauntlet-adapter-agent-cli/tests/falsifier_round1_live_attacks.rs:275:18:
+    expected Completed, got Failed { class: MalformedResult }
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.052s] 1 test run: 0 passed, 1 failed, 57 skipped
+        FAIL [   0.047s] (1/1) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+error: test run failed

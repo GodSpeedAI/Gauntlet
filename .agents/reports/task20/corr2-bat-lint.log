@@ -1,0 +1,72 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 16.13s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/tests/contract_suite.rs:474:
+         .resolve(a.id(), "operator-7", "", OperatorAction::Resolve)
+         .expect_err("the lying ticket's resolve is refused");
+     assert!(
+-        matches!(
+-            refusal,
+-            EscalationQueueError::TicketIdentityMismatch { .. }
+-        ),
++        matches!(refusal, EscalationQueueError::TicketIdentityMismatch { .. }),
+         "{refusal}"
+     );
+     // A's own file stands untouched (the refusal wrote nothing).
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/skills_cmd.rs:121:
+             return Err(format!(
+                 "{} carries no schema token: {other:?}",
+                 path.display()
+-            ))
++            ));
+         }
+     };
+     if schema != SKILLS_LOCK_SCHEMA {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/skills_cmd.rs:134:
+         return Err(format!("{} carries no skills array", path.display()));
+     };
+     let count = match parsed.get("count") {
+-        Some(JsonValue::Number(number)) => {
+-            number
+-                .as_u64()
+-                .ok_or_else(|| format!("{} carries a non-integer count", path.display()))?
+-        }
+-        other => {
+-            return Err(format!(
+-                "{} carries no count: {other:?}",
+-                path.display()
+-            ))
+-        }
++        Some(JsonValue::Number(number)) => number
++            .as_u64()
++            .ok_or_else(|| format!("{} carries a non-integer count", path.display()))?,
++        other => return Err(format!("{} carries no count: {other:?}", path.display())),
+     };
+     if count != entries.len() as u64 {
+         return Err(format!(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:923:
+         "the settled no-op wrote nothing to the durable record"
+     );
+     let after_set = file_set(&world.root);
+-    assert_eq!(snapshot, after_set, "the settled no-op wrote nothing anywhere");
++    assert_eq!(
++        snapshot, after_set,
++        "the settled no-op wrote nothing anywhere"
++    );
+ }
+ 
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:259:
+     // 3. A REMOVED entry over a CONSISTENT count (owned-1 entries, count
+     //    owned-1): the digest comparison alone would silently pass a
+     //    narrowed lock — the owned-set completeness check is the tooth.
+-    let entry_start = original.find("{\"name\":\"").expect("the first entry starts");
++    let entry_start = original
++        .find("{\"name\":\"")
++        .expect("the first entry starts");
+     let entry_end = original[entry_start..].find('}').expect("the entry ends");
+     let mut narrowed = String::with_capacity(original.len());
+     narrowed.push_str(&original[..entry_start]);
+error: recipe `lint` failed on line 27 with exit code 1

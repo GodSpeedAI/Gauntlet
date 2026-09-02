@@ -1,0 +1,63 @@
+cargo nextest run -p gauntlet-adapter-agent-cli
+    Finished `test` profile [unoptimized] target(s) in 0.04s
+────────────
+ Nextest run ID 47e3f44a-775d-4abd-9152-8cd45947fbce with nextest profile: default
+    Starting 56 tests across 6 binaries
+        PASS [   0.004s] ( 1/56) gauntlet-adapter-agent-cli clock::tests::the_system_clock_reads_epoch_seconds
+        PASS [   0.005s] ( 2/56) gauntlet-adapter-agent-cli prompt::tests::the_prompt_file_parses_back_and_the_body_is_verbatim
+        PASS [   0.005s] ( 3/56) gauntlet-adapter-agent-cli config::tests::defaults_are_conservative_and_the_probe_is_the_parse
+        PASS [   0.006s] ( 4/56) gauntlet-adapter-agent-cli runner::tests::a_matching_contract_beats_the_exit_status
+        PASS [   0.004s] ( 5/56) gauntlet-adapter-agent-cli runner::tests::capabilities_are_derived_from_configuration
+        PASS [   0.005s] ( 6/56) gauntlet-adapter-agent-cli runner::tests::an_unparseable_template_refuses_construction
+        PASS [   0.011s] ( 7/56) gauntlet-adapter-agent-cli config::tests::a_missing_env_var_is_a_typed_missing_command
+        PASS [   0.011s] ( 8/56) gauntlet-adapter-agent-cli runner::tests::a_model_template_without_a_hint_refuses_admission_cleanly
+        PASS [   0.005s] ( 9/56) gauntlet-adapter-agent-cli template::tests::comments_and_newlines_flatten_and_hash_only_comments_at_word_start
+        PASS [   0.008s] (10/56) gauntlet-adapter-agent-cli runner::tests::classification_follows_the_total_order
+        PASS [   0.005s] (11/56) gauntlet-adapter-agent-cli template::tests::legal_but_odd_bare_prompt_template_parses_and_is_documented
+        PASS [   0.005s] (12/56) gauntlet-adapter-agent-cli template::tests::every_refusal_shape_is_typed
+        PASS [   0.006s] (13/56) gauntlet-adapter-agent-cli template::tests::no_expansion_ever_happens
+        PASS [   0.007s] (14/56) gauntlet-adapter-agent-cli template::tests::plain_words_quotes_and_placeholders_parse_into_argv
+        PASS [   0.008s] (15/56) gauntlet-adapter-agent-cli template::tests::substituted_values_stay_single_verbatim_words
+        PASS [   0.008s] (16/56) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_exit_without_result_suite
+        PASS [   0.008s] (17/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b14_spawn_failure_is_transport
+        PASS [   0.011s] (18/56) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_unmodified_shared_contract_suite
+        PASS [   0.005s] (19/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b15_deadline_boundary_is_exact
+        PASS [   0.017s] (20/56) gauntlet-adapter-agent-cli transport::tests::stopping_an_already_exited_child_succeeds
+        PASS [   0.018s] (21/56) gauntlet-adapter-agent-cli transport::tests::the_child_sees_the_result_path_variable
+        PASS [   0.028s] (22/56) gauntlet-adapter-agent-cli transport::tests::a_live_child_stops_within_its_bound_and_is_reaped
+        PASS [   0.031s] (23/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+        PASS [   0.032s] (24/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4_wrong_path_exited_child_is_missing_result_before_deadline
+        PASS [   0.032s] (25/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b7_directory_at_contract_path_is_an_error_not_running
+        PASS [   0.005s] (26/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_forged_handle_is_unknown_everywhere
+        PASS [   0.057s] (27/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b2_garbage_and_empty_documents_are_malformed
+        PASS [   0.031s] (28/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b8_late_contract_never_resurrects_missing_result
+        PASS [   0.059s] (29/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b5_foreign_identity_is_contract_mismatch
+        PASS [   0.048s] (30/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_cancel_lifecycle_with_real_children
+        PASS [   0.033s] (31/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_two_invocations_no_cross_wiring
+        PASS [   0.006s] (32/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks h_orphan_handle_file_survives_runtime_death_and_is_parseable
+        PASS [   0.004s] (33/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks j_capabilities_derive_from_the_template
+        PASS [   0.006s] (34/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a10_duplicated_placeholders_bind_twice
+        PASS [   0.030s] (35/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks f_collect_serves_the_poll_snapshot_not_the_file
+        PASS [   0.004s] (36/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a12_backslash_inside_quotes_stays_literal
+        PASS [   0.006s] (37/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a11_crlf_is_separator
+        PASS [   0.004s] (38/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a13_hash_rules
+        PASS [   0.057s] (39/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks d_env_and_prompt_channels_and_envelope_sibling_are_exact
+        PASS [   0.004s] (40/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a1_unknown_and_case_tricks_are_typed_refusals
+        PASS [   0.004s] (41/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a2_fused_placeholders_are_refusals
+        PASS [   0.004s] (42/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a3_quoted_placeholders_still_bind
+        PASS [   0.005s] (43/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a4b_comment_only_template_is_a_typed_parse_refusal
+        PASS [   0.005s] (44/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a5_unbalanced_refuse
+        PASS [   0.009s] (45/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a4_empty_shapes_refuse
+        PASS [   0.083s] (46/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_hang_after_write_completes_and_the_child_is_retired
+        PASS [   0.005s] (47/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a6_template_grammar_stays_data
+        PASS [   0.006s] (48/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a7_hostile_values_stay_single_words
+        PASS [   0.006s] (49/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a9_model_without_hint_refuses_at_render
+        PASS [   0.011s] (50/56) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a8_odd_argv0_shapes
+        PASS [   0.015s] (51/56) gauntlet-adapter-agent-cli::live_probe one_real_subprocess_completes_through_the_result_contract
+        PASS [   0.012s] (52/56) gauntlet-adapter-agent-cli::probe_template_honesty valid_template_with_all_placeholders_probes_ok
+        PASS [   0.014s] (53/56) gauntlet-adapter-agent-cli::probe_template_honesty unknown_placeholder_is_refused
+        PASS [   0.017s] (54/56) gauntlet-adapter-agent-cli::probe_template_honesty parse_ok_render_impossible_template_is_refused
+        PASS [   3.229s] (55/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4b_running_silent_child_past_deadline_is_timed_out_and_stopped
+        PASS [   4.430s] (56/56) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_sigterm_ignoring_child_is_escalated_within_bound
+────────────
+     Summary [   4.517s] 56 tests run: 56 passed, 0 skipped

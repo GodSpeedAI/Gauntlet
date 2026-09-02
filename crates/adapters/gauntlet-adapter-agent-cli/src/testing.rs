@@ -202,6 +202,9 @@ struct InnerDouble {
     children: RefCell<BTreeMap<u64, ChildDouble>>,
     next_child: Cell<u64>,
     spawned: RefCell<Vec<Vec<String>>>,
+    /// The cwd each spawn carried (COR-D3 teeth surface: the execution
+    /// anchor must be the admitted per-unit workspace).
+    spawned_cwds: RefCell<Vec<String>>,
     stopped: RefCell<Vec<u64>>,
 }
 
@@ -292,6 +295,7 @@ impl ScriptedProcessTransport {
                 children: RefCell::new(BTreeMap::new()),
                 next_child: Cell::new(1),
                 spawned: RefCell::new(Vec::new()),
+                spawned_cwds: RefCell::new(Vec::new()),
                 stopped: RefCell::new(Vec::new()),
             }),
         }
@@ -309,6 +313,12 @@ impl ScriptedProcessTransport {
         self.inner.spawned.borrow().clone()
     }
 
+    /// The cwd each spawn carried, in spawn order (COR-D3 teeth surface:
+    /// the execution anchor is the admitted per-unit workspace).
+    pub fn spawned_cwds(&self) -> Vec<String> {
+        self.inner.spawned_cwds.borrow().clone()
+    }
+
     /// The children a cancel/stop actually reached.
     pub fn stopped_children(&self) -> Vec<u64> {
         self.inner.stopped.borrow().clone()
@@ -318,6 +328,10 @@ impl ScriptedProcessTransport {
 impl ProcessTransport for ScriptedProcessTransport {
     fn spawn(&self, spec: &ProcessSpec) -> Result<ChildId, TransportError> {
         self.inner.spawned.borrow_mut().push(spec.argv.clone());
+        self.inner
+            .spawned_cwds
+            .borrow_mut()
+            .push(spec.cwd.to_string_lossy().into_owned());
         // SUITE_TEMPLATE's word order: prompt file at argv[1], result
         // path at argv[3]. The double parses the REAL prompt file.
         let facts = parse_prompt_file(Path::new(&spec.argv[1])).map_err(|detail| {

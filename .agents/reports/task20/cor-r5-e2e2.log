@@ -1,0 +1,9 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 14s
+────────────
+ Nextest run ID 56047606-1a3d-44c9-b130-438b2697f8e5 with nextest profile: default
+    Starting 1 test across 1 binary (11 tests skipped)
+        PASS [   0.062s] (1/1) gauntlet-cli::e2e_full_loop_mock the_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row
+────────────
+     Summary [   0.063s] 1 test run: 1 passed, 11 skipped
+rc=0

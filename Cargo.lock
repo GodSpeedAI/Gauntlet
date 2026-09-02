@@ -139,12 +139,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-escalation-fs"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-adapter-evidence-fs"
 version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
  "sha2",
+]
+
+[[package]]
+name = "gauntlet-adapter-id-entropy"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
 ]
 
 [[package]]
@@ -267,6 +283,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-workspace-fs"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-app"
 version = "0.1.0"
 dependencies = [
@@ -291,7 +315,9 @@ dependencies = [
  "gauntlet-adapter-agent-prime",
  "gauntlet-adapter-compare-diff",
  "gauntlet-adapter-compare-model",
+ "gauntlet-adapter-escalation-fs",
  "gauntlet-adapter-evidence-fs",
+ "gauntlet-adapter-id-entropy",
  "gauntlet-adapter-meter-memory",
  "gauntlet-adapter-observe-build",
  "gauntlet-adapter-observe-command",
@@ -305,6 +331,7 @@ dependencies = [
  "gauntlet-adapter-verify-file-digest",
  "gauntlet-adapter-verify-schema-check",
  "gauntlet-adapter-verify-test-report",
+ "gauntlet-adapter-workspace-fs",
  "gauntlet-app",
  "gauntlet-domain",
  "gauntlet-ports",

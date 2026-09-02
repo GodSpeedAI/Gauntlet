@@ -1,0 +1,82 @@
+cargo check --workspace --all-targets
+    Checking gauntlet-ports v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-ports)
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-agent-prime v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-prime)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-adapter-meter-memory v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-meter-memory)
+    Checking gauntlet-adapter-observe-build v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-build)
+    Checking gauntlet-adapter-verify-test-report v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-test-report)
+    Checking gauntlet-adapter-verify-command-exit-code v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-command-exit-code)
+    Checking gauntlet-adapter-observe-filesystem v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-filesystem)
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Checking gauntlet-adapter-observe-git v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-git)
+    Checking gauntlet-adapter-evidence-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-evidence-fs)
+    Checking gauntlet-adapter-workspace-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs)
+    Checking gauntlet-adapter-observe-test v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-test)
+    Checking gauntlet-adapter-verify-file-digest v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-file-digest)
+    Checking gauntlet-adapter-policy-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-policy-fs)
+    Checking gauntlet-adapter-compare-diff v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-diff)
+    Checking gauntlet-adapter-sandbox-bwrap v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-bwrap)
+    Checking gauntlet-adapter-compare-model v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-model)
+    Checking gauntlet-adapter-id-entropy v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-entropy)
+    Checking gauntlet-adapter-verify-schema-check v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-schema-check)
+    Checking gauntlet-adapter-observe-command v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-command)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Checking gauntlet-adapter-sandbox-none v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-none)
+error[E0308]: mismatched types
+    --> crates/gauntlet-app/src/control/controller.rs:8513:13
+     |
+8512 |           FacetRecord::from_facet(
+     |           ----------------------- arguments to this function are incorrect
+8513 | /             ObservationFacet::new(kind, instrument, evidence_ref)
+8514 | |                 .with_invocation(command.map(str::to_owned), exit),
+     | |__________________________________________________________________^ expected `&ObservationFacet`, found `ObservationFacet`
+     |
+note: associated function defined here
+    --> crates/gauntlet-app/src/observation/bundle.rs:147:12
+     |
+ 147 |     pub fn from_facet(facet: &ObservationFacet) -> Self {
+     |            ^^^^^^^^^^ ------------------------
+help: consider borrowing here
+     |
+8513 |             &ObservationFacet::new(kind, instrument, evidence_ref)
+     |             +
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `gauntlet-app` (lib test) due to 1 previous error
+error: recipe `check` failed on line 16 with exit code 101
+Stopping sccache server...
+Compile requests                     88
+Compile requests executed            25
+Cache hits                            0
+Cache misses                         25
+Cache misses (Rust)                  25
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                         25
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                  63
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.001 s
+Average compiler                  0.332 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                           63
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            2 GiB
+Max cache size                       10 GiB

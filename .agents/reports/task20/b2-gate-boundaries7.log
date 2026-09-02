@@ -1,0 +1,20 @@
+cargo nextest run -p gauntlet-arch-tests
+   Compiling gauntlet-arch-tests v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests)
+warning: ignoring -C extra-filename flag due to -o flag
+
+error: unknown character escape: ` `
+    --> crates/gauntlet-arch-tests/src/single_writer.rs:1202:115
+     |
+1202 | ... if let Some(path) = out {\n                     \    std::fs::write(path, b\"x\");\n    }\n}\n",
+     |                                                      ^ unknown character escape
+     |
+     = help: for more information, visit <https://doc.rust-lang.org/reference/tokens.html#literals>
+help: if you meant to write a literal backslash (perhaps escaping in a regular expression), consider a raw string literal
+     |
+1202 |                 r"fn export(out: Option<&std::path::Path>) {\n    if let Some(path) = out {\n                     \    std::fs::write(path, b\"x\");\n    }\n}\n",
+     |                 +
+
+warning: `gauntlet-arch-tests` (lib) generated 1 warning
+error: could not compile `gauntlet-arch-tests` (lib) due to 1 previous error; 1 warning emitted
+error: command `/home/sprime01/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --message-format json-render-diagnostics --package gauntlet-arch-tests` exited with code 101
+error: recipe `boundaries` failed on line 38 with exit code 101

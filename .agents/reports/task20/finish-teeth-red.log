@@ -1,0 +1,42 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+warning: unused import: `WorkspaceSubject`
+   --> crates/gauntlet-app/src/control/controller.rs:145:48
+    |
+145 |     WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
+    |                                                ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `gauntlet-app` (lib) generated 1 warning (run `cargo fix --lib -p gauntlet-app` to apply 1 suggestion)
+warning: `gauntlet-app` (lib test) generated 1 warning (1 duplicate)
+    Finished `test` profile [unoptimized] target(s) in 10.21s
+────────────
+ Nextest run ID 8ebaa020-fd7b-476b-bf81-7fa6443d55a5 with nextest profile: default
+    Starting 1 test across 5 binaries (457 tests skipped)
+        FAIL [   0.009s] (1/1) gauntlet-app control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces
+  stdout ───
+
+    running 1 test
+    test control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces ... FAILED
+
+    failures:
+
+    failures:
+        control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 400 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces' (3665507) panicked at crates/gauntlet-app/src/control/controller.rs:7841:9:
+    assertion `left == right` failed: two units of one run must hold DISTINCT workspace refs at admission, got {"01ARZ3NDEKTSV4RRFFQ69G5FAV"} — a shared ref is the R-1b defect this tooth exists to refuse
+      left: 1
+     right: 2
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.010s] 1 test run: 0 passed, 1 failed, 457 skipped
+        FAIL [   0.009s] (1/1) gauntlet-app control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces
+error: test run failed
+EXIT=100

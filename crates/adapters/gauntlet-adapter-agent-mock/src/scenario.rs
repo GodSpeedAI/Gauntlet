@@ -1707,7 +1707,48 @@ pub fn scenario_fixtures_dir() -> std::path::PathBuf {
 
 /// Loads and parses one scenario fixture by stem (e.g. `"happy"`), also
 /// checking that the file's declared `scenario:` identity matches its stem.
+///
+/// COR-F2 (falsifier round 1, F-2): the stem is a fixture NAME, not a
+/// path. Only a simple name — non-empty, no path separators, no `..`
+/// component, no whitespace — is accepted, and the refusal fires BEFORE
+/// any path join, so the loader's reach is exactly the frozen-locator
+/// fixture directory (`tests/fixtures/mock_runner_scenarios`); a traversal
+/// stem cannot even name a file outside it, and the `scenario:` identity
+/// check stays a consistency pin, never the containment guard.
 pub fn load_scenario(name: &str) -> Result<Scenario, ScenarioError> {
+    let invalid = |detail: String| ScenarioError::ValueInvalid {
+        line: 0,
+        key: "scenario".to_owned(),
+        detail,
+    };
+    if name.is_empty() {
+        return Err(invalid("the scenario stem must not be empty".to_owned()));
+    }
+    if name.starts_with('/') {
+        return Err(invalid(format!(
+            "the scenario stem {name:?} must be a fixture name, not a path"
+        )));
+    }
+    if name.bytes().any(|b| b.is_ascii_whitespace()) {
+        return Err(invalid(format!(
+            "the scenario stem {name:?} must be whitespace-free"
+        )));
+    }
+    if name.chars().any(std::path::is_separator) {
+        return Err(invalid(format!(
+            "the scenario stem {name:?} must be a simple fixture name (no path separators) \
+             under the scenario fixtures dir"
+        )));
+    }
+    if !std::path::Path::new(name)
+        .components()
+        .all(|component| matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(invalid(format!(
+            "the scenario stem {name:?} must be a simple fixture name (no '.'/'..') under \
+             the scenario fixtures dir"
+        )));
+    }
     let path = scenario_fixtures_dir().join(format!("{name}.yaml"));
     let text =
         std::fs::read_to_string(&path).map_err(|error| ScenarioError::FixtureUnreadable {
@@ -2448,4 +2489,53 @@ mod tests {
         let scenario = parse_scenario(&text).expect("parses");
         assert_eq!(scenario.probes_before_write(), 2);
     }
+}
+
+// ---------------------------------------------------------------------------
+// COR-F2 (falsifier round 1, F-2): the loader's stem is a fixture NAME.
+// Containment fires BEFORE any path join, so no traversal stem can even
+// name a file outside the frozen-locator fixtures dir — the `scenario:`
+// identity check stays a consistency pin, never the containment guard.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_traversal_or_pathed_stem_is_refused_before_any_join() {
+    // The falsifier's own delivery stem, plus the separator/'.'/traversal
+    // classes: every one is a typed ValueInvalid naming the stem rule.
+    let refused = [
+        "../../../../../../../../../../tmp/falsifier-t20/forged-report",
+        "/etc/passwd",
+        "sub/dir/happy",
+        "./happy",
+        "../happy",
+        "..",
+        ".",
+        "happy/",
+        "",
+        "white space",
+    ];
+    // (A backslash stem is NOT refused on this platform: `std::path::
+    // is_separator` is platform-truthful, and a backslash cannot traverse
+    // on a POSIX host — it can only name an absent fixture, which the
+    // loader's typed unreadable error already covers.)
+    for stem in refused {
+        let error = super::load_scenario(stem).expect_err("a non-simple stem is refused");
+        assert!(
+            matches!(error, ScenarioError::ValueInvalid { ref key, .. } if key == "scenario"),
+            "stem {stem:?} must be refused as a stem-grammar violation, got {error:?}"
+        );
+    }
+}
+
+#[test]
+fn a_simple_fixture_stem_still_loads_from_the_frozen_locator() {
+    // The guard keeps the loader's legitimate reach: real fixture stems
+    // load, and the loaded identity still agrees with the stem.
+    let scenario = super::load_scenario("e2e-happy").expect("the shipped fixture loads");
+    assert_eq!(scenario.name(), "e2e-happy");
+    // A simple name that names no fixture is the typed unreadable error —
+    // NOT a traversal refusal (the stem grammar passed; the fixture is
+    // simply absent).
+    let error = super::load_scenario("no-such-fixture").expect_err("absent fixture");
+    assert!(matches!(error, ScenarioError::FixtureUnreadable { .. }));
 }

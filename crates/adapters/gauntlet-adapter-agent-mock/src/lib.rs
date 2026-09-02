@@ -29,3 +29,17 @@ pub use scenario::{
     parse_scenario, scenario_fixtures_dir,
 };
 pub use seeded_ids::{EmptySeed, SeededIdGenerator};
+
+/// The runner token this adapter's composition fronts (plan Task 20,
+/// charter D2; the same convention as the prime and generic-CLI
+/// siblings): `runners.default = mock-agent` selects the scripted
+/// runner — explicitly, by operator configuration (the E2E fixture
+/// selects it; a production run never defaults to it).
+pub const RUNNER_TOKEN: &str = "mock-agent";
+
+/// The test hook that names the scenario the mock token replays (a
+/// fixture stem under the scenario fixtures dir). Deliberately NOT in
+/// `.env.example`: the AK-019 instrument pins that file to Annex E
+/// lockstep, and this is a test-division hook, not operator
+/// configuration — the composition refuses a mock selection without it.
+pub const MOCK_SCENARIO_VAR: &str = "GAUNTLET_MOCK_SCENARIO";

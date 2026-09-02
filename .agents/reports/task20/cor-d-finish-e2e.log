@@ -1,0 +1,46 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 14s
+────────────
+ Nextest run ID 267cdf79-cf03-4581-a255-9d4d64676f86 with nextest profile: default
+    Starting 8 tests across 2 binaries
+        PASS [   0.008s] (1/8) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.009s] (2/8) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.011s] (3/8) gauntlet-cli::e2e_full_loop_mock the_dry_run_preflight_writes_nothing
+        PASS [   0.035s] (4/8) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+        PASS [   0.044s] (5/8) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.049s] (6/8) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+        PASS [   0.067s] (7/8) gauntlet-cli::e2e_full_loop_mock parallel_completions_carry_and_never_collide
+        PASS [   0.075s] (8/8) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+────────────
+     Summary [   0.076s] 8 tests run: 8 passed, 0 skipped
+E2E_EXIT=0
+Stopping sccache server...
+Compile requests                      2
+Compile requests executed             0
+Cache hits                            0
+Cache misses                          0
+Cache hits rate                       -
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          0
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   2
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.000 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            2
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Max cache size                       10 GiB

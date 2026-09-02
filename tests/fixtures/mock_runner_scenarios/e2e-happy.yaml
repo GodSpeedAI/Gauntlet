@@ -1,0 +1,48 @@
+# The E2E happy scenario (builder B3; verification-artifact effects re-keyed
+# by the COR-B3a composition correction): the scripted child completes the
+# dispatched slice after one probe of in-flight work.
+#
+# `attempted` is deliberately EMPTY: the controller's empty-attempted
+# fallback processes the FLIGHT'S OWN unit, so one scenario serves every
+# fixture unit (the scenario fixture is selected once per run via
+# GAUNTLET_MOCK_SCENARIO, not per unit).
+#
+# The workspace effects stand in for the dispatched builder's honest work.
+# `src/gadget.rs` is the change itself (the marker the fixture reference
+# demands, so the filesystem observer genuinely observes it). The three
+# `evidence/` files are the fixture units' VERIFICATION ARTIFACTS at their
+# locators — each in the §14.2 test-report rung's declared contract:
+# tests ran, zero failures. (The scenario parser carries single-line scalars
+# only, so the two-line artifact contracts — the file-digest manifest and
+# the command/exit transcript — cannot be expressed as effects; the fixture
+# answer key is keyed to the test-report rung accordingly.) The artifacts
+# are honest by construction and falsifiable by the instrument: a report
+# claiming failures would be a FAIL decision, never a run error.
+scenario: e2e-happy
+role: builder
+behavior: write-result
+probes_before_write: 1
+state: completed
+derailment: none
+payload:
+  attempted: []
+  changed_paths: [src/gadget.rs]
+  commands_run: [scripts/check.sh]
+  artifacts:
+    - path: src/gadget.rs
+      evidence_ref: evd-e2e-happy-gadget
+  claims:
+    - the dispatched slice is implemented and the project check passes
+  self_checks:
+    - command: scripts/check.sh
+      exit_code: 0
+  blocked_on: []
+workspace_effects:
+  - path: src/gadget.rs
+    content: pub const GADGET_MARKER_V1: &str = "GADGET_MARKER_V1";
+  - path: evidence/marker-check-report.json
+    content: {"tests": 1, "failures": 0, "command": "scripts/check.sh --marker"}
+  - path: evidence/check-report.json
+    content: {"tests": 2, "failures": 0, "command": "scripts/check.sh"}
+  - path: evidence/full-check-report.json
+    content: {"tests": 3, "failures": 0, "command": "scripts/check.sh --all"}

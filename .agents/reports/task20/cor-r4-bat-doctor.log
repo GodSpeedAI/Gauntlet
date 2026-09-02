@@ -1,0 +1,63 @@
+cargo run -q -p gauntlet-cli -- doctor
+gauntlet doctor (spec 8.5 preflight)
+  1. config                   pass
+      - front matter parses  pass
+          contract found and parsed at /home/sprime01/projects/gauntlet/GAUNTLET.md
+      - unknown keys         pass
+          no unknown front-matter keys
+      - unknown environment  pass
+          no unknown environment variables
+      - config values        pass
+          every config value converted into its domain
+      - indirections         pass
+          0 indirection(s) resolved
+          no indirections configured
+  2. reference                pass
+      - manifest             pass
+          manifest exists; top level is a mapping (1 keys); deep-parses under the frozen reference shape (id gauntlet-core-bootstrap, version 1)
+      - answer key           pass
+          answer key exists, non-empty, 70 units (frozen count 70)
+      - unit schema          pass
+          70/70 units well-formed under the 5.3.2 schema (tier/authority coupling included)
+      - digest               pass
+          recomputed normalized digest sha256:ccc7c99be3d3b60488930eed9975dc6d67378a84bf3b13910b48511e9c228859 matches the frozen record (answer-key half, digest-vs-lock)
+          recomputed normalized digest sha256:95331d3e345fa799e9840dbdb02b60b7c41c73be84c96fb7ecc1068775ba5e94 matches the frozen record (manifest half, digest-vs-lock)
+  3. runners                  unavailable
+      - structure            skipped
+          no runners configured (UNK-003): the default runner is an open unknown; selection arrives via the runner variables in later tasks
+      - resolution           unavailable
+          runtime resolution against a runner registry is unavailable: no runner configured (UNK-003)
+  4. capabilities             unavailable
+      - tier rungs           pass
+          sandbox backend resolves to 'none' (the 8.6 conservative default): only the contained tier is dispatchable
+          above-contained units refuse dispatch at the governance gate with an escalation ticket (spec 8.6; plan Task 14) — runtime governance, not a config error
+      - runner capabilities  unavailable
+          runtime runner-capability resolution is unavailable: runner capabilities resolve with plan Tasks 15-16; the dispatch gate enforces per-invocation isolation in the meantime
+  5. sandbox policies         pass
+      - no top-tier policy   pass
+          no policy file for the top tier in policy dir '.gauntlet/policies' (AK-049)
+      - tier policies exist  skipped
+          sandbox backend resolves to 'none'; policy files for contained, local, cross_cutting are required only when a backend is configured (spec 8.5 check 5)
+  6. required capabilities    pass
+      no required capabilities configured
+  7. writable paths           pass
+      - state dir            pass
+          state dir = /tmp/gauntlet/state: created, wrote, removed a scratch file
+      - evidence dir         pass
+          evidence dir = /tmp/gauntlet/evidence: created, wrote, removed a scratch file
+      - workspace root       pass
+          workspace root = /tmp/gauntlet/workspaces: created, wrote, removed a scratch file
+      - answer key placement pass
+          answer key = /home/sprime01/projects/gauntlet/.wayfinder/answer-key.md
+          answer key outside every builder-writable workspace (lexical and canonical)
+  8. budget                   pass
+      domain Limits constructed from the effective budget
+      recovery reserve 15 percent, below one hundred
+      diagnostic budget 2
+      - ceilings             pass
+          rounds 8 parallel 2 depth 1 wall 3600 tokens 2000000 micro-usd 25000000
+      - recovery reserve     pass
+      - diagnostic           pass
+exit: OK
+report: /home/sprime01/projects/gauntlet/.agents/reports/doctor.json
+exit=0

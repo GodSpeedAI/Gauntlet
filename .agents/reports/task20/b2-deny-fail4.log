@@ -1,0 +1,28 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 13s
+────────────
+ Nextest run ID 1e3c2abf-01ed-4ca9-9638-fac749600ab5 with nextest profile: default
+    Starting 2 tests across 6 binaries (458 tests skipped)
+       START [         ] (1/2) gauntlet-app::compare_deny a_wired_deny_set_refuses_the_envelope_before_it_is_built
+
+running 1 test
+
+thread 'a_wired_deny_set_refuses_the_envelope_before_it_is_built' (171625) panicked at crates/gauntlet-app/tests/compare_deny.rs:210:6:
+the minimal contract parses: Syntax { line: 8, detail: "indented line is not a `- ` list item" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test a_wired_deny_set_refuses_the_envelope_before_it_is_built ... FAILED
+
+failures:
+
+failures:
+    a_wired_deny_set_refuses_the_envelope_before_it_is_built
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+        FAIL [   0.004s] (1/2) gauntlet-app::compare_deny a_wired_deny_set_refuses_the_envelope_before_it_is_built
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.005s] 1/2 tests run: 0 passed, 1 failed, 458 skipped
+        FAIL [   0.004s] (1/2) gauntlet-app::compare_deny a_wired_deny_set_refuses_the_envelope_before_it_is_built
+warning: 1/2 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed

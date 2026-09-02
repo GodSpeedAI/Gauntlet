@@ -1,0 +1,22 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+error: needlessly taken reference of both operands
+    --> crates/gauntlet-app/src/control/controller.rs:7184:22
+     |
+7184 |                 } if &event.run_id == &run_id => {
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#op_ref
+     = note: `-D clippy::op-ref` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::op_ref)]`
+help: use the values directly
+     |
+7184 -                 } if &event.run_id == &run_id => {
+7184 +                 } if event.run_id == run_id => {
+     |
+
+error: could not compile `gauntlet-app` (lib test) due to 1 previous error
+error: recipe `lint` failed on line 26 with exit code 101
+exit=101

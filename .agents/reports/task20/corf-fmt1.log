@@ -1,0 +1,63 @@
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/lib.rs:25:
+ 
+ pub use queue::{
+     ESCALATIONS_DIR_NAME, EscalationQueueError, EscalationRecord, FsEscalationQueue,
+-    OperatorAction, QuarantinedTicket, QuarantineClass, QueueListing, TICKET_ID_PREFIX,
++    OperatorAction, QuarantineClass, QuarantinedTicket, QueueListing, TICKET_ID_PREFIX,
+     TICKET_SCHEMA,
+ };
+ 
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:311:
+         }
+         let path = self.root.join(&file);
+         if path.parent() != Some(self.root.as_path())
+-            || path
+-                .components()
+-                .any(|component| !matches!(component, std::path::Component::Normal(_) | std::path::Component::RootDir | std::path::Component::Prefix(_)))
++            || path.components().any(|component| {
++                !matches!(
++                    component,
++                    std::path::Component::Normal(_)
++                        | std::path::Component::RootDir
++                        | std::path::Component::Prefix(_)
++                )
++            })
+         {
+             return Err(refused(ticket));
+         }
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:329:
+     /// then at most once by resolve). The destination is the ticket's
+     /// CONTAINED path (COR-F3): the write validates before it touches the
+     /// filesystem.
+-    fn write_atomically(
+-        &self,
+-        ticket: &TicketId,
+-        text: &str,
+-    ) -> Result<(), EscalationQueueError> {
++    fn write_atomically(&self, ticket: &TicketId, text: &str) -> Result<(), EscalationQueueError> {
+         use std::io::Write;
+         let final_path = self.contained_ticket_path(ticket)?;
+         let mut temp_name = final_path.as_os_str().to_owned();
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/src/queue.rs:424:
+         ticket: &EscalationTicket,
+         _deadline: Deadline,
+     ) -> Result<EscalationState, HumanEscalationError> {
+-        let path = self
+-            .contained_ticket_path(ticket.id())
+-            .map_err(|error| HumanEscalationError::StateReadFailed {
++        let path = self.contained_ticket_path(ticket.id()).map_err(|error| {
++            HumanEscalationError::StateReadFailed {
+                 detail: error.to_string(),
+-            })?;
++            }
++        })?;
+         if !path.exists() {
+             return Err(HumanEscalationError::TicketNotFound {
+                 ticket: ticket.id().clone(),
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs/tests/contract_suite.rs:272:
+         let error = TicketId::new(payload)
+             .expect_err("a traversal-flavored payload is not a usable ticket id");
+         assert!(
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

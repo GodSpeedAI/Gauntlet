@@ -258,14 +258,11 @@ pub(crate) fn build_envelope(inputs: EnvelopeInputs<'_>) -> Result<BuiltEnvelope
 /// non-empty. `authority`, `evidence`, and `deadline` are provenance, not
 /// context categories, and are not consulted.
 ///
-/// ADDITIVE AND DELIBERATELY UNWIRED: this function changes ZERO existing
-/// call sites. Composed dispatch (plan Task 20) is its consumer — the
-/// composer calls it with the invocation's role deny-set before
-/// [`build_envelope`] and treats a refusal as a configuration failure, never
-/// a silent narrowing to "what the builder permits anyway". Until that
-/// composition lands, this seam is the typed obligation that compels the
-/// wiring to exist.
-#[allow(dead_code)]
+/// ADDITIVE, WIRED AT PLAN TASK 20: the composed comparison chain is the
+/// consumer — `GovernedRun::issue` calls it with the invocation's role
+/// deny-set (loaded by the composition root) BEFORE [`build_envelope`]
+/// and treats a refusal as a typed admission error, never a silent
+/// narrowing to "what the builder permits anyway" (R2-N1).
 pub fn assert_within_role_deny_set(
     inputs: &EnvelopeInputs<'_>,
     denies: &crate::roles::ContextDenySet,

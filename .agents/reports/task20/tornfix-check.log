@@ -1,0 +1,3 @@
+cargo check -p gauntlet-adapter-agent-cli --all-targets
+    Checking gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 17s

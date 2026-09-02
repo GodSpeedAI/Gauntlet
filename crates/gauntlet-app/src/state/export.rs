@@ -45,6 +45,13 @@ const GENERIC_KINDS: &[&str] = &[
     "candidate_revision",
     "promotion_decision",
     "escalation",
+    // The §15.1 selection record (AK-037): the loop records the iteration's
+    // chosen correction — with its rejected alternative — every iteration,
+    // so any run that crossed a boundary carries these rows, and the export
+    // admits them like every other generic record (the live-E2E correction:
+    // this kind list predated the first composed run that actually settled,
+    // so the omission surfaced only there).
+    "correction_selection",
 ];
 
 /// Export failures — typed, carrying the 1-based line that caused them.

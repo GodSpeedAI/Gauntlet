@@ -1,0 +1,11 @@
+        PASS [   0.019s] (19/24) gauntlet-cli::p5_hard_gate irreversible_never_dispatched
+        PASS [   0.009s] (20/24) gauntlet-cli::p6_budget_control the_meter_refuses_the_reserve_consuming_slice_and_books_nothing
+        PASS [   0.061s] (21/24) gauntlet-cli::p5_hard_gate a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_averaged
+        PASS [   0.070s] (22/24) gauntlet-cli::p5_hard_gate a_sandbox_validation_failure_escalates_without_falling_back
+        PASS [   0.068s] (23/24) gauntlet-cli::p6_budget_control a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact
+        PASS [   0.168s] (24/24) gauntlet-cli::p5_hard_gate containment_wraps_from_process_start_and_confines_the_session
+────────────
+     Summary [   0.254s] 24 tests run: 24 passed, 0 skipped
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

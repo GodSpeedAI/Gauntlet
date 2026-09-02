@@ -93,6 +93,47 @@
 //! event's own offset and timestamp; an orphan whose facts are not durably
 //! recoverable is a RECORDED limitation, never a fabrication), and the
 //! durable-settlement reconciliation input.
+//!
+//! COR-R2-1 (falsifier round 2): the completion is POLICY-AWARE — the
+//! controller threads the run's own [`ProducePolicy`] in, and the
+//! "already applied" check reads the SAME production key surface the
+//! produce step writes (`ProducePolicy::production_recorded`): the facet's
+//! own ref in the default `MaterializeObservation` world, the locator's
+//! durable-production surface in the composed `BindLocatorContent` world
+//! (whose production key — the locator artifact's content ref — no facet
+//! names, and whose per-completion record fronts the FIRST facet's
+//! instrument, so no single facet's identity owns it). One definition of
+//! "produced" across both produce worlds; without it, every first resume
+//! of a fully settled composed run re-minted its productions, failed the
+//! settled no-op predicate, and burned an iteration into a dishonest
+//! `budget_exhausted` terminal.
+//!
+//! COR-R3-1 (falsifier round 3): the MINT half is unified with the same
+//! key-surface discipline — each world's recovery walks the surface its
+//! produce step writes and mints the ref that world actually records:
+//!
+//! - default world: the facet walk, unchanged in mechanism — the produce
+//!   step records the facet document's own ref, so the facet ref IS the
+//!   mint ref, per facet (the read is ref-keyed, so per-facet granularity
+//!   is exact).
+//! - produced world: a LOCATOR walk driven by the durable orphan events —
+//!   the store's `pending_evidence_production_events` read surfaces the
+//!   `EvidenceProduced` facts at/after the anchor per locator, and the
+//!   recovery mints at the event's OWN ref (in this world, the locator
+//!   artifact's content ref — a ref no facet names, so the pre-correction
+//!   facet-ref mint could never match an orphan event and the honest A5
+//!   crash window ended in false "unrecoverable" pins). Granularity is
+//!   PER-LOCATOR: one intact locator's row can never mask a sibling's
+//!   missing row.
+//!
+//! Every pinned limitation states only what was looked at and what is
+//! actually missing — the world, the locator/ref, and the replay anchor —
+//! never a false "no event exists" or "bytes absent" claim, and never a
+//! fabrication. An otherwise-settled run whose recovery records only
+//! forensic pins takes the controller's settled no-op terminal: forensic
+//! bookkeeping is evidence-store work, not state movement, and re-entering
+//! the loop from an all-settled fact set can only burn iterations into a
+//! dishonest terminal.
 
 use std::sync::Arc;
 
@@ -113,6 +154,7 @@ use gauntlet_ports::producer_authority::{
 use gauntlet_ports::reference_provider::{ReferenceProvider, ReferenceProviderError};
 use gauntlet_ports::state_store::{SettlementCommit, StateStore, StateStoreError};
 
+use crate::control::controller::ProducePolicy;
 use crate::verify::authority::VerifiedClaim;
 use crate::verify::precondition::PreconditionFailure;
 
@@ -795,10 +837,22 @@ impl SettlementService {
     /// §18.3 step 1: complete the half-applied durable writes at or after
     /// the checkpoint anchor. See the module doc's resume-completion
     /// section for the recovery mapping and its recorded limitations.
+    ///
+    /// `produce` is the run's own produce policy (the composition's
+    /// [`ProducePolicy`] decision, threaded from the controller's resume
+    /// path — COR-R2-1): the recovery's "already applied" check consults
+    /// the SAME production key surface the produce step writes, through
+    /// [`ProducePolicy::production_recorded`], and — COR-R3-1 — the MINT
+    /// half is policy-shaped too: each world's walk mints the ref that
+    /// world's produce step actually records (facet refs in the default
+    /// world; the durable orphan events' own refs in the produced world).
+    /// There is deliberately no recovery-side guess about which world
+    /// produced the durable rows.
     pub fn complete_pending_after_checkpoint(
         &self,
         run_id: &RunId,
         anchor: EventLogOffset,
+        produce: ProducePolicy,
         deadline: Deadline,
     ) -> Result<ResumeCompletion, SettleError> {
         let mut completion = ResumeCompletion {
@@ -850,6 +904,51 @@ impl SettlementService {
                 detail,
             }
         })?;
+        match produce {
+            ProducePolicy::MaterializeObservation => {
+                self.complete_pending_default_world(
+                    run_id,
+                    anchor,
+                    durable,
+                    &facets,
+                    &units,
+                    &mut completion,
+                    deadline,
+                )?;
+            }
+            ProducePolicy::BindLocatorContent => {
+                self.complete_pending_produced_world(
+                    run_id,
+                    anchor,
+                    durable,
+                    &facets,
+                    &units,
+                    &mut completion,
+                    deadline,
+                )?;
+            }
+        }
+        Ok(completion)
+    }
+
+    /// The DEFAULT world's recovery walk (the pre-COR-R3-1 mechanism,
+    /// byte-identical in decisions): the produce step records the facet
+    /// document's own ref, so the facet ref IS the mint ref — per facet,
+    /// with the facet's own instrument. The per-facet granularity is exact
+    /// here because the applied read is REF-keyed (the locator never enters
+    /// it), so one facet's state can never mask a sibling's.
+    #[allow(clippy::too_many_arguments)]
+    fn complete_pending_default_world(
+        &self,
+        run_id: &RunId,
+        anchor: EventLogOffset,
+        durable: IterationNo,
+        facets: &[crate::observation::bundle::FacetRecord],
+        units: &[Unit],
+        completion: &mut ResumeCompletion,
+        deadline: Deadline,
+    ) -> Result<(), SettleError> {
+        let produce = ProducePolicy::MaterializeObservation;
         for facet in facets {
             let Ok(evidence_ref) = EvidenceRef::new(facet.evidence_ref()) else {
                 let detail = format!(
@@ -860,27 +959,48 @@ impl SettlementService {
                 completion.limitations.push(detail);
                 continue;
             };
-            // Already applied: nothing pending for this facet.
-            if self
-                .state
-                .evidence_production(run_id, &evidence_ref, deadline)?
-                .is_some()
-            {
+            // The facet's instrument identity — parsed once here (COR-R2-1
+            // restructure): the applied check below needs it, and it is a
+            // facet fact, not a per-unit one. The refusal text is the old
+            // per-unit arm's, unchanged.
+            let Ok(instrument_name) = InstrumentName::new(facet.instrument_name()) else {
+                let detail = format!(
+                    "the facet's instrument name {:?} is not a valid instrument name",
+                    facet.instrument_name()
+                );
+                self.pin_limitation(run_id, &detail, deadline)?;
+                completion.limitations.push(detail);
                 continue;
-            }
+            };
+            let instrument =
+                InstrumentIdentity::new(instrument_name, facet.instrument_version().to_owned());
             let mut recovered = false;
+            let mut applied = false;
             let mut mint_refused: Option<String> = None;
-            for unit in &units {
+            for unit in units {
                 let locator = unit.evidence_required().locator().clone();
-                let Ok(name) = InstrumentName::new(facet.instrument_name()) else {
-                    mint_refused = Some(format!(
-                        "the facet's instrument name {:?} is not a valid instrument name",
-                        facet.instrument_name()
-                    ));
-                    break;
-                };
-                let instrument =
-                    InstrumentIdentity::new(name, facet.instrument_version().to_owned());
+                // COR-R2-1: "already applied" is read from the SAME
+                // production key surface the produce step writes — the
+                // run's own produce policy decides which surface that is
+                // (`ProducePolicy::production_recorded`). The recovery no
+                // longer assumes the default world's facet-ref key, which
+                // is what made every first resume of a fully SETTLED
+                // composed run re-mint its productions, fail the
+                // settled no-op predicate, and burn an iteration.
+                let applied_here = produce
+                    .production_recorded(
+                        self.state.as_ref(),
+                        run_id,
+                        &evidence_ref,
+                        &instrument,
+                        &locator,
+                        deadline,
+                    )
+                    .map_err(SettleError::State)?;
+                if applied_here {
+                    applied = true;
+                    continue;
+                }
                 let produced_at = EpochSeconds::new(
                     facet
                         .ended_at()
@@ -946,18 +1066,223 @@ impl SettlementService {
                     }
                 }
             }
-            if !recovered {
+            if !recovered && !applied {
+                // COR-R3-1: the fallback names only what was actually
+                // looked at — the world, the facet ref, and the anchor —
+                // never a presupposed orphan event (none may exist) and
+                // never a byte-presence claim the recovery did not make.
                 let detail = mint_refused.unwrap_or_else(|| {
                     format!(
-                        "no frozen locator agrees with the orphan EvidenceProduced event for \
-                         {evidence_ref} — its locator is not durably recoverable"
+                        "default world: the facet production for {evidence_ref} is not durably \
+                         recorded and no EvidenceProduced event at or after the resume anchor \
+                         (offset {}) agrees with it under any frozen locator — the §18.3 replay \
+                         cannot complete it",
+                        anchor.get()
                     )
                 });
                 self.pin_limitation(run_id, &detail, deadline)?;
                 completion.limitations.push(detail);
             }
         }
-        Ok(completion)
+        Ok(())
+    }
+
+    /// The PRODUCED world's recovery walk (COR-R3-1, falsifier round 3,
+    /// F-R3-1): the produce step records the LOCATOR ARTIFACT's own content
+    /// ref — a ref NO observation facet names — so the pre-correction
+    /// facet-ref mint could never match a durable orphan event and the
+    /// honest A5 crash window (event appended, row not yet inserted) ended
+    /// in false "unrecoverable" pins. The walk is LOCATOR-driven instead:
+    /// per frozen unit, the durable `EvidenceProduced` events at/after the
+    /// anchor (the store's `pending_evidence_production_events` read) name
+    /// the refs to mint, and the store's own cross-validation completes the
+    /// row against the event. Granularity is PER-LOCATOR: one intact
+    /// locator's row can never mask a sibling's missing row, and every
+    /// recorded limitation names its own locator and what is actually
+    /// missing — never a false claim.
+    #[allow(clippy::too_many_arguments)]
+    fn complete_pending_produced_world(
+        &self,
+        run_id: &RunId,
+        anchor: EventLogOffset,
+        durable: IterationNo,
+        facets: &[crate::observation::bundle::FacetRecord],
+        units: &[Unit],
+        completion: &mut ResumeCompletion,
+        deadline: Deadline,
+    ) -> Result<(), SettleError> {
+        let produce = ProducePolicy::BindLocatorContent;
+        // The produce step fronts the completion's FIRST facet's instrument
+        // on the record (`ProducePolicy::BindLocatorContent`'s doc); the
+        // recovery derives the same identity from the durable bound bundle.
+        // No facet at all is honest damage: nothing in this bundle can
+        // derive the record's producer identity — every unit's limitation
+        // states exactly that.
+        let producer: Option<Result<InstrumentIdentity, String>> = facets.first().map(|first| {
+            InstrumentName::new(first.instrument_name())
+                .map(|name| InstrumentIdentity::new(name, first.instrument_version().to_owned()))
+                .map_err(|error| error.to_string())
+        });
+        let producer_refusal: Option<String> = match &producer {
+            None => Some(
+                "the bound bundle carries no observation facet — the record's producer identity \
+                 is not derivable"
+                    .to_owned(),
+            ),
+            Some(Err(invalid)) => Some(format!(
+                "the bound bundle's first facet's instrument name {invalid:?} is not a valid \
+                 instrument name — the record's producer identity is not derivable"
+            )),
+            Some(Ok(_)) => None,
+        };
+        // The applied-read needs AN evidence ref to carry; the produced
+        // world's read (`evidence_productions_at`) never consults it. The
+        // first facet's ref is the honest carrier; a bundle whose first
+        // facet's ref does not parse is damaged, named in every unit's
+        // refusal, and never fabricated into an applied verdict.
+        let carrier: Option<Result<EvidenceRef, String>> = facets
+            .first()
+            .map(|first| EvidenceRef::new(first.evidence_ref()).map_err(|error| error.to_string()));
+        let carrier = carrier.and_then(|parsed| parsed.ok());
+        let carrier_refusal: Option<String> = match &carrier {
+            None if !facets.is_empty() => Some(format!(
+                "the bound bundle's first facet's evidence ref {:?} is not a valid ref — \
+                 produced-ness cannot be read",
+                facets[0].evidence_ref()
+            )),
+            _ => None,
+        };
+        // The units whose §14.3 chain PROVES a production row must exist: a
+        // durably settled unit settled over verification that read its
+        // locator's durable production. A row missing there is damage. An
+        // OPEN unit's missing row is normal mid-run state — it has not
+        // produced yet — and pinning a limitation for it would pin healthy
+        // state as if it were damage.
+        let settled_units: std::collections::BTreeSet<UnitId> = self
+            .state
+            .settlements(run_id, deadline)?
+            .into_iter()
+            .map(|record| record.unit_id().clone())
+            .collect();
+        for unit in units {
+            let locator = unit.evidence_required().locator().clone();
+            let applied = match (&carrier, &producer) {
+                (Some(r#ref), Some(Ok(instrument))) => produce
+                    .production_recorded(
+                        self.state.as_ref(),
+                        run_id,
+                        r#ref,
+                        instrument,
+                        &locator,
+                        deadline,
+                    )
+                    .map_err(SettleError::State)?,
+                _ => false,
+            };
+            if applied {
+                continue;
+            }
+            let pending = self
+                .state
+                .pending_evidence_production_events(run_id, anchor, &locator, deadline)
+                .map_err(SettleError::State)?;
+            if pending.is_empty() && !settled_units.contains(unit.id()) {
+                // Not damage: an open unit that has not produced yet.
+                continue;
+            }
+            let mut recovered = false;
+            let mut refusal: Option<String> =
+                producer_refusal.clone().or_else(|| carrier_refusal.clone());
+            for orphan in &pending {
+                let Some(Ok(instrument)) = &producer else {
+                    break;
+                };
+                match self.production_authority.mint(
+                    run_id,
+                    durable,
+                    orphan.evidence(),
+                    instrument,
+                    &locator,
+                    orphan.at(),
+                    deadline,
+                ) {
+                    Ok(minted) => {
+                        match self
+                            .state
+                            .complete_pending_evidence_production(run_id, anchor, &minted, deadline)
+                        {
+                            Ok(Some(binding)) => {
+                                completion.productions_completed.push(binding);
+                                recovered = true;
+                                break;
+                            }
+                            // The orphan's ref is already durably recorded —
+                            // at a DIFFERENT locator (this locator's surface
+                            // read un-applied above, and the store refuses a
+                            // second row over one ref). An anomaly, named.
+                            Ok(None) => {
+                                refusal = Some(format!(
+                                    "the orphan EvidenceProduced event for {} (offset {}) is \
+                                     already durably recorded at a different locator than \
+                                     {locator}",
+                                    orphan.evidence(),
+                                    orphan.offset().get()
+                                ));
+                                break;
+                            }
+                            // The store's own cross-validation refused the
+                            // mint; try the next orphan.
+                            Err(StateStoreError::WriteFailed { .. }) => {}
+                            Err(other) => return Err(other.into()),
+                        }
+                    }
+                    // The bytes the durable event names are not in the
+                    // store: the row cannot be completed — a recorded
+                    // limitation, never a fabricated digest.
+                    Err(ProducerAuthorityError::EvidenceAbsent { .. })
+                    | Err(ProducerAuthorityError::EvidenceUnreadable { .. }) => {
+                        refusal = Some(format!(
+                            "the durable orphan event's evidence {} (offset {}) does not resolve \
+                             in the evidence store",
+                            orphan.evidence(),
+                            orphan.offset().get()
+                        ));
+                        break;
+                    }
+                    // The durable anchor does not support the orphan's
+                    // iteration — honest limitation, recorded.
+                    Err(ProducerAuthorityError::IterationUnsupported { .. }) => {
+                        refusal = Some(format!(
+                            "the durable iteration anchor does not support re-minting {}",
+                            orphan.evidence()
+                        ));
+                        break;
+                    }
+                    Err(ProducerAuthorityError::State(state_error)) => {
+                        return Err(state_error.into());
+                    }
+                    Err(other) => {
+                        return Err(SettleError::State(StateStoreError::WriteFailed {
+                            detail: format!("minting the orphan production failed: {other}"),
+                        }));
+                    }
+                }
+            }
+            if !recovered {
+                let detail = refusal.unwrap_or_else(|| {
+                    format!(
+                        "produced world: the durable production row for locator {locator} is \
+                         missing and no EvidenceProduced event at or after the resume anchor \
+                         (offset {}) names this locator — the §18.3 replay cannot complete it \
+                         (a producing event below the anchor is outside the replay's bound)",
+                        anchor.get()
+                    )
+                });
+                self.pin_limitation(run_id, &detail, deadline)?;
+                completion.limitations.push(detail);
+            }
+        }
+        Ok(())
     }
 
     /// The frozen unit from the durable run's own reference version — the
@@ -1301,6 +1626,49 @@ impl SettlementService {
         self.evidence.pin(run_id, &evidence, deadline)?;
         Ok(())
     }
+
+    /// COR-R5-2 (falsifier round 5, F-R5-2): pins ONE forensic record per
+    /// settled-projecting unit whose KEYED settlement row is missing from
+    /// the store — the below-anchor damage class the anchor-bounded §18.3
+    /// replay cannot re-complete, which the production arm records and
+    /// this arm used to absorb silently into a certified settled no-op.
+    /// The callers pass the divergence they observed at the resume seam
+    /// (the durable projection's settled units MINUS the units the store's
+    /// own settlement rows account for — checked against the store, never
+    /// against a report); each pin names the run, the missing row's unit,
+    /// and the anchor bound that keeps the replay from re-completing it.
+    /// It asserts NO byte presence and NO event position beyond the anchor
+    /// fact — the durable settlement EVENT stays the truth the row derives
+    /// from, and the pin records the divergence, never a repair. The
+    /// production arm's sibling (`pin_limitation`) carries the same
+    /// posture: honest per-row forensics, no fabrication, no silence.
+    pub fn pin_missing_settlement_rows(
+        &self,
+        run_id: &RunId,
+        units: &[UnitId],
+        anchor: EventLogOffset,
+        deadline: Deadline,
+    ) -> Result<(), SettleError> {
+        for unit in units {
+            let detail = format!(
+                "settled no-op cross-check: no keyed settlement row exists for unit {unit} of \
+                 run {run_id} (checked against the store's settlement rows) while the durable \
+                 projection certifies the unit Settled; the §18.3 settlement replay is \
+                 anchor-bounded at offset {} and cannot re-complete it — the divergence is \
+                 recorded, never silently absorbed",
+                anchor.get()
+            );
+            let record = format!(
+                "{{\"run\":\"{run_id}\",\"class\":\"settlement_row_unrecoverable\",\"unit\":\"{unit}\",\"detail\":\"{}\"}}",
+                crate::control::controller::escape_json_text(&detail)
+            );
+            let evidence = self
+                .evidence
+                .put(record.as_bytes(), EvidenceKind::Log, deadline)?;
+            self.evidence.pin(run_id, &evidence, deadline)?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -1313,7 +1681,8 @@ mod tests {
 
     use super::{
         ActorKind, BlockingResidual, ClosingActor, OperatorActionRequest, OperatorIdentity,
-        ReferenceMutatedRefusal, ResumeCompletion, SettleError, SettleRequest, SettlementService,
+        ProducePolicy, ReferenceMutatedRefusal, ResumeCompletion, SettleError, SettleRequest,
+        SettlementService,
     };
     use crate::observation::bundle::{
         BundleContent, ClaimsFacet, FacetRecord, ObservationBundleDoc,
@@ -1605,6 +1974,19 @@ mod tests {
         }
 
         fn checkpoint_at(&self, iteration: u32, unit_states: Vec<(UnitId, UnitStatus)>) {
+            self.checkpoint_at_offset(iteration, unit_states, 0);
+        }
+
+        /// The anchor-parameterized variant (COR-R3-1 tests): a SETTLED
+        /// run's checkpoint anchor sits ABOVE the run's own production
+        /// events, which is exactly the shape that puts post-settlement
+        /// row damage outside the §18.3 replay's bound.
+        fn checkpoint_at_offset(
+            &self,
+            iteration: u32,
+            unit_states: Vec<(UnitId, UnitStatus)>,
+            event_log_offset: u64,
+        ) {
             *self.checkpoint.borrow_mut() = Some(Checkpoint {
                 run_id: run_id(),
                 reference_digest: self
@@ -1624,7 +2006,7 @@ mod tests {
                 .expect("budget")
                 .spent(),
                 in_flight: Vec::new(),
-                event_log_offset: gauntlet_domain::EventLogOffset::new(0),
+                event_log_offset: gauntlet_domain::EventLogOffset::new(event_log_offset),
             });
         }
 
@@ -1655,6 +2037,48 @@ mod tests {
                 .iter()
                 .find(|binding| binding.production().evidence() == evidence)
                 .cloned()
+        }
+
+        /// Out-of-band DAMAGE (the COR-R3-1 tests): drops the production
+        /// row at one locator while every durable event and evidence byte
+        /// stays — LESS damage than any real crash, exactly the falsifier's
+        /// round-3 reproduction shape.
+        fn drop_production_at(&self, locator: &str) {
+            self.productions
+                .borrow_mut()
+                .retain(|binding| binding.production().locator().as_str() != locator);
+        }
+
+        /// A durable settlement row for one unit (the COR-R3-1 tests'
+        /// settled-run shape): the row + event the §16.3 commit writes,
+        /// without the admission ceremony the recovery tests do not
+        /// exercise.
+        fn commit_settlement_row(&self, unit_id: UnitId) {
+            let offset = self.next_offset.get();
+            self.next_offset.set(offset + 1);
+            let commit = gauntlet_ports::state_store::SettlementCommit {
+                run_id: run_id(),
+                unit_id: unit_id.clone(),
+                evidence: EvidenceRef::new(&format!("evd-{unit_id}")).expect("fixture ref"),
+                verification: gauntlet_domain::VerificationRef::new(&format!("vrf-{unit_id}"))
+                    .expect("fixture ref"),
+                reference_digest: crate::verify::content_digest(KEY.as_bytes()),
+                at: EpochSeconds::new(BASE_INSTANT + 5),
+            };
+            self.events.borrow_mut().push((
+                offset,
+                RunEvent {
+                    run_id: run_id(),
+                    kind: RunEventKind::SettlementCommitted {
+                        unit_id,
+                        evidence: commit.evidence.clone(),
+                        verification: commit.verification.clone(),
+                        reference_digest: commit.reference_digest.clone(),
+                    },
+                    at: commit.at,
+                },
+            ));
+            self.settlement_rows.borrow_mut().push((offset, commit));
         }
     }
 
@@ -1936,6 +2360,38 @@ mod tests {
             );
             self.productions.borrow_mut().push(binding.clone());
             Ok(Some(binding))
+        }
+        fn pending_evidence_production_events(
+            &self,
+            run_id: &RunId,
+            anchor: gauntlet_domain::EventLogOffset,
+            locator: &EvidenceLocator,
+            _: Deadline,
+        ) -> Result<Vec<gauntlet_ports::state_store::OrphanEvidenceProduction>, StateStoreError>
+        {
+            let events = self.events.borrow().clone();
+            let mut orphans = Vec::new();
+            for (offset, event) in events {
+                if offset < anchor.get() || &event.run_id != run_id {
+                    continue;
+                }
+                let RunEventKind::EvidenceProduced {
+                    evidence,
+                    locator: event_locator,
+                } = &event.kind
+                else {
+                    continue;
+                };
+                if event_locator != locator {
+                    continue;
+                }
+                orphans.push(gauntlet_ports::state_store::OrphanEvidenceProduction::new(
+                    evidence.clone(),
+                    gauntlet_domain::EventLogOffset::new(offset),
+                    event.at,
+                ));
+            }
+            Ok(orphans)
         }
         fn export_jsonl(&self, _: &RunId, _: Deadline) -> Result<String, StateStoreError> {
             Ok(String::new())
@@ -2945,6 +3401,7 @@ mod tests {
             .complete_pending_after_checkpoint(
                 &run_id(),
                 gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::MaterializeObservation,
                 bound(),
             )
             .expect("the replay completes");
@@ -2956,6 +3413,7 @@ mod tests {
             .complete_pending_after_checkpoint(
                 &run_id(),
                 gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::MaterializeObservation,
                 bound(),
             )
             .expect("the second replay completes");
@@ -2987,6 +3445,7 @@ mod tests {
             .complete_pending_after_checkpoint(
                 &run_id(),
                 gauntlet_domain::EventLogOffset::new(offset + 1),
+                ProducePolicy::MaterializeObservation,
                 bound(),
             )
             .expect("completes");
@@ -3047,6 +3506,7 @@ mod tests {
             .complete_pending_after_checkpoint(
                 &run_id(),
                 gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::MaterializeObservation,
                 bound(),
             )
             .expect("the completion runs");
@@ -3083,10 +3543,114 @@ mod tests {
             .complete_pending_after_checkpoint(
                 &run_id(),
                 gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::MaterializeObservation,
                 bound(),
             )
             .expect("the second completion runs");
         assert!(again.productions_completed.is_empty());
+    }
+
+    #[test]
+    fn a_produced_world_completion_reads_produced_from_the_locator_key_surface() {
+        // COR-R2-1 (falsifier round 2, F-R2-3): in the composed
+        // BindLocatorContent world the production's key is the LOCATOR
+        // ARTIFACT's own content ref — a ref no facet names — so
+        // "already applied" is read from the locator's durable-production
+        // surface the produce step writes on every row. A facet whose ref
+        // has NO row but whose unit's locator HAS a durable production is
+        // APPLIED: nothing is re-minted and no limitation is recorded.
+        // Before the unification this exact shape re-minted on every
+        // resume whose anchor iteration still had a binding, failed the
+        // controller's settled no-op predicate, and burned an iteration
+        // into a dishonest `budget_exhausted` terminal on the FIRST
+        // resume of a fully settled composed run.
+        let f = fixture();
+        f.state.checkpoint_at(1, Vec::new());
+        // The world-B produce row: evidence = the locator content's ref,
+        // locator = the frozen unit's locator, producer = the facet's
+        // instrument — the produce step's own field set.
+        let produced_ref = f
+            .evidence
+            .insert("evd-produced-artifact", b"the locator artifact bytes");
+        gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            f.state.clone(),
+            f.evidence.clone(),
+        )
+        .record(
+            &run_id(),
+            IterationNo::new(1).expect("1-based"),
+            &produced_ref,
+            &instrument(),
+            &EvidenceLocator::new("settle-9501.json").expect("locator"),
+            EpochSeconds::new(BASE_INSTANT + 1),
+            bound(),
+        )
+        .expect("the produce-row shape records");
+        // The bound bundle names a facet whose ref is NOT the production's
+        // ref — the composed world's normal posture.
+        let facet_ref = f.evidence.insert("evd-orphan", b"the facet bytes");
+        let facet = ObservationFacet::new(FacetKind::Test, instrument(), facet_ref.clone())
+            .with_window(
+                Some(EpochSeconds::new(BASE_INSTANT + 1)),
+                Some(EpochSeconds::new(BASE_INSTANT + 2)),
+            );
+        let doc = ObservationBundleDoc::new(BundleContent {
+            run_id: run_id(),
+            iteration_no: IterationNo::new(1).expect("1-based"),
+            observed_at: BASE_INSTANT + 2,
+            project_revision: "rev".to_owned(),
+            environment_fingerprint: "env".to_owned(),
+            observation_digest: crate::verify::content_digest(b"bundle"),
+            facets: vec![FacetRecord::from_facet(&facet)],
+            claims_facet: ClaimsFacet::new(ClaimsFacet::render_content(&[])),
+            unavailable_evidence: Vec::new(),
+            observation_failures: Vec::new(),
+        });
+        let bundle_ref = f
+            .evidence
+            .put(doc.to_json().as_bytes(), EvidenceKind::Log, bound())
+            .expect("the bundle stores");
+        f.state
+            .hold_binding(1, bundle_ref, crate::verify::content_digest(b"bundle"));
+        let completion = f
+            .service
+            .complete_pending_after_checkpoint(
+                &run_id(),
+                gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::BindLocatorContent,
+                bound(),
+            )
+            .expect("the completion runs");
+        assert!(
+            completion.productions_completed.is_empty(),
+            "the locator surface reads the facet's production as applied: {:?}",
+            completion.productions_completed
+        );
+        assert!(
+            completion.limitations.is_empty(),
+            "an applied surface records no limitation: {:?}",
+            completion.limitations
+        );
+        // The contrast, pinned: the SAME durable state through the DEFAULT
+        // policy reads by facet ref — no row there, no orphan event over
+        // the facet ref — so the surface decision lives in the policy,
+        // never in the recovery.
+        let again = f
+            .service
+            .complete_pending_after_checkpoint(
+                &run_id(),
+                gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::MaterializeObservation,
+                bound(),
+            )
+            .expect("the default-world completion runs");
+        assert!(again.productions_completed.is_empty());
+        assert_eq!(
+            again.limitations.len(),
+            1,
+            "the default world still reads by facet ref: {:?}",
+            again.limitations
+        );
     }
 
     #[test]
@@ -3124,6 +3688,7 @@ mod tests {
             .complete_pending_after_checkpoint(
                 &run_id(),
                 gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::MaterializeObservation,
                 bound(),
             )
             .expect("the completion runs");
@@ -3137,6 +3702,331 @@ mod tests {
             "evidence_production_orphan_unrecoverable"
         ));
         // No row for the ghost.
+        assert!(f.state.production_row(&ghost).is_none());
+    }
+
+    /// Binds a one-facet observation bundle to the fixture's durable
+    /// iteration — the shared shape of the COR-R3-1 produced-world tests.
+    fn bind_one_facet_bundle(f: &Fixture, facet_ref: &EvidenceRef) {
+        let facet = ObservationFacet::new(FacetKind::Test, instrument(), facet_ref.clone())
+            .with_window(
+                Some(EpochSeconds::new(BASE_INSTANT + 1)),
+                Some(EpochSeconds::new(BASE_INSTANT + 2)),
+            );
+        let doc = ObservationBundleDoc::new(BundleContent {
+            run_id: run_id(),
+            iteration_no: IterationNo::new(1).expect("1-based"),
+            observed_at: BASE_INSTANT + 2,
+            project_revision: "rev".to_owned(),
+            environment_fingerprint: "env".to_owned(),
+            observation_digest: crate::verify::content_digest(b"bundle"),
+            facets: vec![FacetRecord::from_facet(&facet)],
+            claims_facet: ClaimsFacet::new(ClaimsFacet::render_content(&[])),
+            unavailable_evidence: Vec::new(),
+            observation_failures: Vec::new(),
+        });
+        let bundle_ref = f
+            .evidence
+            .put(doc.to_json().as_bytes(), EvidenceKind::Log, bound())
+            .expect("the bundle stores");
+        f.state
+            .hold_binding(1, bundle_ref, crate::verify::content_digest(b"bundle"));
+    }
+
+    /// Produces one locator's world-B production row (row + event) over
+    /// freshly stored artifact bytes, through the authority the produce
+    /// step itself earns its write through.
+    fn produce_world_b_row(f: &Fixture, ref_name: &str, body: &[u8], locator: &str) -> EvidenceRef {
+        let produced_ref = f.evidence.insert(ref_name, body);
+        gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+            f.state.clone(),
+            f.evidence.clone(),
+        )
+        .record(
+            &run_id(),
+            IterationNo::new(1).expect("1-based"),
+            &produced_ref,
+            &instrument(),
+            &EvidenceLocator::new(locator).expect("locator"),
+            EpochSeconds::new(BASE_INSTANT + 1),
+            bound(),
+        )
+        .expect("the produce-row shape records");
+        produced_ref
+    }
+
+    #[test]
+    fn the_produced_world_crash_window_completes_from_the_orphan_events_ref() {
+        // COR-R3-1 (falsifier round 3, F-R3-1): the A5 window — the
+        // EvidenceProduced EVENT is durable, the row is not — must
+        // self-complete in the PRODUCED world too. Before the mint half
+        // was unified, the recovery minted the FACET ref here (the default
+        // world's key), the durable orphan event names the LOCATOR
+        // ARTIFACT's content ref — a ref no facet names — so the completion
+        // could never match and the honest crash path ended in a false
+        // "unrecoverable" pin.
+        let f = fixture();
+        f.state.checkpoint_at(1, Vec::new());
+        // The locator artifact's bytes ARE in the store (the produce step
+        // ingested them before the crash window opened).
+        let produced_ref = f
+            .evidence
+            .insert("evd-produced-artifact", b"the locator artifact bytes");
+        let orphan_offset = f
+            .state
+            .append_event(
+                RunEvent {
+                    run_id: run_id(),
+                    kind: RunEventKind::EvidenceProduced {
+                        evidence: produced_ref.clone(),
+                        locator: EvidenceLocator::new("settle-9501.json").expect("locator"),
+                    },
+                    at: EpochSeconds::new(BASE_INSTANT + 7),
+                },
+                bound(),
+            )
+            .expect("the orphan event lands")
+            .get();
+        // The bound bundle names a DIFFERENT facet ref — the composed
+        // world's normal posture.
+        let facet_ref = f.evidence.insert("evd-bundle-facet", b"the facet bytes");
+        bind_one_facet_bundle(&f, &facet_ref);
+        let completion = f
+            .service
+            .complete_pending_after_checkpoint(
+                &run_id(),
+                gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::BindLocatorContent,
+                bound(),
+            )
+            .expect("the completion runs");
+        assert_eq!(
+            completion.productions_completed.len(),
+            1,
+            "the orphan completes from the EVENT's own ref: {:?}",
+            completion.limitations
+        );
+        let completed = &completion.productions_completed[0];
+        assert_eq!(
+            completed.event_log_offset().get(),
+            orphan_offset,
+            "the row binds to the ORPHAN EVENT's offset"
+        );
+        assert_eq!(
+            completed.production().produced_at(),
+            EpochSeconds::new(BASE_INSTANT + 7),
+            "produced_at is EVENT-derived, never the re-mint's clock"
+        );
+        assert_eq!(
+            completed.production().content(),
+            &crate::verify::content_digest(b"the locator artifact bytes"),
+            "the content digest is derived from the store's own bytes at the event's ref"
+        );
+        assert_eq!(
+            completed.production().locator().as_str(),
+            "settle-9501.json",
+            "the completed row names the locator the event names"
+        );
+        assert!(
+            completion.limitations.is_empty(),
+            "a fully recoverable orphan records no limitation: {:?}",
+            completion.limitations
+        );
+        // Idempotent: the second call finds the row.
+        let again = f
+            .service
+            .complete_pending_after_checkpoint(
+                &run_id(),
+                gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::BindLocatorContent,
+                bound(),
+            )
+            .expect("the second completion runs");
+        assert!(again.productions_completed.is_empty());
+        assert!(again.limitations.is_empty());
+    }
+
+    #[test]
+    fn damaged_produced_world_rows_are_honest_per_locator_forensics() {
+        // COR-R3-1 (falsifier round 3, F-R3-1's exact reproduction, in-app):
+        // a SETTLED produced-world run whose production ROWS were deleted
+        // out-of-band — every durable event and evidence byte left in
+        // place, LESS damage than any real crash. The honest outcomes: one
+        // forensic record PER damaged locator, naming the world, the
+        // locator, and what is actually missing; the intact locator never
+        // masked, never mentioned; and no false "no event exists" or
+        // "bytes absent" claim anywhere. The events sit BELOW the settled
+        // checkpoint's anchor — the checkpoint certified them — so the
+        // §18.3 replay correctly refuses to rewrite history and records
+        // the damage instead.
+        let f = fixture();
+        produce_world_b_row(
+            &f,
+            "evd-artifact-a",
+            b"the artifact bytes a",
+            "settle-9501.json",
+        );
+        produce_world_b_row(
+            &f,
+            "evd-artifact-b",
+            b"the artifact bytes b",
+            "settle-9502.json",
+        );
+        produce_world_b_row(
+            &f,
+            "evd-artifact-c",
+            b"the artifact bytes c",
+            "settle-9503.json",
+        );
+        let facet_ref = f.evidence.insert("evd-bundle-facet", b"the facet bytes");
+        bind_one_facet_bundle(&f, &facet_ref);
+        // The SETTLED checkpoint: its anchor sits above every production
+        // event, and all three units are durably settled.
+        let settled = vec![
+            (unit_id("AK-9501"), UnitStatus::Settled),
+            (unit_id("AK-9502"), UnitStatus::Settled),
+            (unit_id("AK-9503"), UnitStatus::Settled),
+        ];
+        let anchor = f.state.next_offset.get();
+        f.state
+            .checkpoint_at_offset(1, settled.clone(), anchor + 10);
+        for unit in settled {
+            f.state.commit_settlement_row(unit.0);
+        }
+        // THE DAMAGE: two rows deleted, one locator intact.
+        f.state.drop_production_at("settle-9501.json");
+        f.state.drop_production_at("settle-9502.json");
+        let completion = f
+            .service
+            .complete_pending_after_checkpoint(
+                &run_id(),
+                gauntlet_domain::EventLogOffset::new(anchor + 10),
+                ProducePolicy::BindLocatorContent,
+                bound(),
+            )
+            .expect("the completion runs");
+        assert!(
+            completion.productions_completed.is_empty(),
+            "damage below the anchor is never rewritten by the replay: {:?}",
+            completion.productions_completed
+        );
+        assert_eq!(
+            completion.limitations.len(),
+            2,
+            "exactly the damaged locators are named: {:?}",
+            completion.limitations
+        );
+        // The units are walked in frozen order, so the records come out in
+        // locator order: settle-9501.json then settle-9502.json.
+        for (detail, locator) in completion
+            .limitations
+            .iter()
+            .zip(["settle-9501.json", "settle-9502.json"])
+        {
+            assert!(
+                detail.starts_with("produced world:"),
+                "the record names the world: {detail}"
+            );
+            assert!(
+                detail.contains(locator) && detail.contains("is missing"),
+                "the record names the locator and the missing row: {detail}"
+            );
+            assert!(
+                !detail.contains("does not resolve in the evidence store"),
+                "the bytes ARE in the store — no false byte claim: {detail}"
+            );
+            assert!(
+                detail.contains("no EvidenceProduced event at or after the resume anchor"),
+                "the record states the anchor-bounded fact, never a global claim: {detail}"
+            );
+        }
+        assert!(
+            !completion
+                .limitations
+                .iter()
+                .any(|detail| detail.contains("settle-9503.json")),
+            "the intact locator is never masked into a limitation nor named: {:?}",
+            completion.limitations
+        );
+        assert!(is_pinned_record(
+            &f.evidence,
+            "evidence_production_orphan_unrecoverable"
+        ));
+    }
+
+    #[test]
+    fn an_open_units_missing_row_is_never_pinned_as_damage() {
+        // COR-R3-1's over-rejection half: an OPEN unit (no settlement) with
+        // no production row and no orphan event is normal mid-run state —
+        // the produced-world recovery records NO limitation for it.
+        let f = fixture();
+        f.state.checkpoint_at(1, Vec::new());
+        let facet_ref = f.evidence.insert("evd-bundle-facet", b"the facet bytes");
+        bind_one_facet_bundle(&f, &facet_ref);
+        let completion = f
+            .service
+            .complete_pending_after_checkpoint(
+                &run_id(),
+                gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::BindLocatorContent,
+                bound(),
+            )
+            .expect("the completion runs");
+        assert!(completion.productions_completed.is_empty());
+        assert!(
+            completion.limitations.is_empty(),
+            "healthy mid-run state is not forensic damage: {:?}",
+            completion.limitations
+        );
+    }
+
+    #[test]
+    fn a_produced_world_orphan_whose_bytes_are_absent_is_an_honest_limitation() {
+        // The durable orphan event names a ref whose bytes never landed in
+        // the store: the row cannot be completed (the mint has nothing to
+        // derive the digest from) and the limitation names THAT — the ref,
+        // the offset, the actual gap — never a fabricated digest.
+        let f = fixture();
+        f.state.checkpoint_at(1, Vec::new());
+        let ghost = EvidenceRef::new("evd-never-stored").expect("ref");
+        let orphan_offset = f
+            .state
+            .append_event(
+                RunEvent {
+                    run_id: run_id(),
+                    kind: RunEventKind::EvidenceProduced {
+                        evidence: ghost.clone(),
+                        locator: EvidenceLocator::new("settle-9501.json").expect("locator"),
+                    },
+                    at: EpochSeconds::new(BASE_INSTANT + 7),
+                },
+                bound(),
+            )
+            .expect("the orphan event lands")
+            .get();
+        let facet_ref = f.evidence.insert("evd-bundle-facet", b"the facet bytes");
+        bind_one_facet_bundle(&f, &facet_ref);
+        let completion = f
+            .service
+            .complete_pending_after_checkpoint(
+                &run_id(),
+                gauntlet_domain::EventLogOffset::new(0),
+                ProducePolicy::BindLocatorContent,
+                bound(),
+            )
+            .expect("the completion runs");
+        assert!(
+            completion.productions_completed.is_empty(),
+            "nothing is fabricated"
+        );
+        assert_eq!(completion.limitations.len(), 1, "the gap is recorded");
+        assert!(
+            completion.limitations[0].contains(&ghost.to_string())
+                && completion.limitations[0].contains(&orphan_offset.to_string())
+                && completion.limitations[0].contains("does not resolve in the evidence store"),
+            "the record names the ref, the offset, and the actual gap: {:?}",
+            completion.limitations
+        );
         assert!(f.state.production_row(&ghost).is_none());
     }
 

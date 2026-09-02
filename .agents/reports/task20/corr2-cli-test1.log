@@ -1,0 +1,15 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 13.72s
+────────────
+ Nextest run ID 79e72432-6dbf-44a6-aa24-d26157aded9c with nextest profile: default
+    Starting 7 tests across 2 binaries
+        PASS [   0.035s] (1/7) gauntlet-cli::escalations_cli resolve_without_any_verification_record_refuses_and_the_ticket_stays_open
+        PASS [   0.105s] (2/7) gauntlet-cli::escalations_cli even_an_earned_pass_record_never_lets_the_operator_shape_settle
+        PASS [   0.117s] (3/7) gauntlet-cli::escalations_cli retry_with_a_non_pass_record_hits_the_same_gate
+        PASS [   0.121s] (4/7) gauntlet-cli::skills_roundtrip a_forged_lock_is_a_typed_refusal_and_the_old_nested_shape_never_reads
+        PASS [   0.112s] (5/7) gauntlet-cli::skills_roundtrip the_lock_reader_refuses_the_forged_strict_shapes
+        PASS [   0.150s] (6/7) gauntlet-cli::skills_roundtrip install_then_verify_round_trips_and_the_lock_is_the_readers_schema
+        PASS [   0.164s] (7/7) gauntlet-cli::skills_roundtrip an_out_of_band_edit_is_named_drift_and_reinstall_repairs
+────────────
+     Summary [   0.167s] 7 tests run: 7 passed, 0 skipped

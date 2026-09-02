@@ -1,0 +1,61 @@
+cargo nextest run --workspace
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 26s
+────────────
+ Nextest run ID 99ae00d9-6390-4ed4-8da6-4a3e7148256a with nextest profile: default
+    Starting 1333 tests across 84 binaries
+        PASS [   0.019s] (   1/1333) gauntlet-adapter-agent-cli clock::tests::the_system_clock_reads_epoch_seconds
+        PASS [   0.021s] (   2/1333) gauntlet-adapter-agent-cli config::tests::a_missing_env_var_is_a_typed_missing_command
+        PASS [   0.022s] (   3/1333) gauntlet-adapter-agent-cli config::tests::defaults_are_conservative_and_the_probe_is_the_parse
+        PASS [   0.024s] (   4/1333) gauntlet-adapter-agent-cli runner::tests::a_hostile_workspace_ref_refuses_admission_cleanly
+        PASS [   0.025s] (   5/1333) gauntlet-adapter-agent-cli prompt::tests::the_prompt_file_parses_back_and_the_body_is_verbatim
+        PASS [   0.007s] (   6/1333) gauntlet-adapter-agent-cli runner::tests::an_unparseable_template_refuses_construction
+        PASS [   0.010s] (   7/1333) gauntlet-adapter-agent-cli runner::tests::a_model_template_without_a_hint_refuses_admission_cleanly
+        PASS [   0.012s] (   8/1333) gauntlet-adapter-agent-cli runner::tests::capabilities_are_derived_from_configuration
+        PASS [   0.016s] (   9/1333) gauntlet-adapter-agent-cli runner::tests::classification_follows_the_total_order
+        PASS [   0.017s] (  10/1333) gauntlet-adapter-agent-cli runner::tests::execution_anchors_at_the_admitted_per_unit_workspace
+        PASS [   0.042s] (  11/1333) gauntlet-adapter-agent-cli runner::tests::a_matching_contract_beats_the_exit_status
+        PASS [   0.007s] (  12/1333) gauntlet-adapter-agent-cli template::tests::legal_but_odd_bare_prompt_template_parses_and_is_documented
+        PASS [   0.013s] (  13/1333) gauntlet-adapter-agent-cli template::tests::comments_and_newlines_flatten_and_hash_only_comments_at_word_start
+        PASS [   0.007s] (  14/1333) gauntlet-adapter-agent-cli template::tests::no_expansion_ever_happens
+        PASS [   0.014s] (  15/1333) gauntlet-adapter-agent-cli template::tests::every_refusal_shape_is_typed
+        PASS [   0.007s] (  16/1333) gauntlet-adapter-agent-cli template::tests::substituted_values_stay_single_verbatim_words
+        PASS [   0.015s] (  17/1333) gauntlet-adapter-agent-cli template::tests::plain_words_quotes_and_placeholders_parse_into_argv
+        PASS [   0.023s] (  18/1333) gauntlet-adapter-agent-cli transport::tests::stopping_an_already_exited_child_succeeds
+        PASS [   0.020s] (  19/1333) gauntlet-adapter-agent-cli transport::tests::the_child_sees_the_result_path_variable
+        PASS [   0.046s] (  20/1333) gauntlet-adapter-agent-cli transport::tests::a_live_child_stops_within_its_bound_and_is_reaped
+        PASS [   0.042s] (  21/1333) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_exit_without_result_suite
+        PASS [   0.038s] (  22/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b14_spawn_failure_is_transport
+        PASS [   0.029s] (  23/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b15_deadline_boundary_is_exact
+        PASS [   0.064s] (  24/1333) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_unmodified_shared_contract_suite
+        FAIL [   0.058s] (  25/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+  stdout ───
+
+    running 1 test
+    test b1_contract_wins_over_exit7_and_process_is_never_consulted ... FAILED
+
+    failures:
+
+    failures:
+        b1_contract_wins_over_exit7_and_process_is_never_consulted
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 17 filtered out; finished in 0.05s
+
+  stderr ───
+
+    thread 'b1_contract_wins_over_exit7_and_process_is_never_consulted' (896809) panicked at crates/adapters/gauntlet-adapter-agent-cli/tests/falsifier_round1_live_attacks.rs:275:18:
+    expected Completed, got Failed { class: MalformedResult }
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 5 tests still running
+        PASS [   0.070s] (  26/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b2_garbage_and_empty_documents_are_malformed
+        PASS [   0.070s] (  27/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4_wrong_path_exited_child_is_missing_result_before_deadline
+        PASS [   0.047s] (  28/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b7_directory_at_contract_path_is_an_error_not_running
+        PASS [   0.074s] (  29/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b5_foreign_identity_is_contract_mismatch
+        PASS [   3.245s] (  30/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4b_running_silent_child_past_deadline_is_timed_out_and_stopped
+────────────
+     Summary [   3.351s] 30/1333 tests run: 29 passed, 1 failed, 0 skipped
+        FAIL [   0.058s] (  25/1333) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+warning: 1303/1333 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+error: recipe `test` failed on line 21 with exit code 100

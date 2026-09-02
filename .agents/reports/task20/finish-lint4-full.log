@@ -1,0 +1,15 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+error: redundant closure
+   --> crates/gauntlet-app/tests/report.rs:213:22
+    |
+213 |         evidence.map(|id| unit(id)),
+    |                      ^^^^^^^^^^^^^ help: replace the closure with the function itself: `unit`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_closure
+    = note: `-D clippy::redundant-closure` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure)]`
+
+error: could not compile `gauntlet-app` (test "report") due to 1 previous error
+error: recipe `lint` failed on line 26 with exit code 101

@@ -1,0 +1,23 @@
+cargo nextest run -p gauntlet-adapter-escalation-fs
+   Compiling gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+error[E0382]: borrow of moved value: `lying`
+   --> crates/adapters/gauntlet-adapter-escalation-fs/tests/contract_suite.rs:485:5
+    |
+466 |     let lying = original.replace(
+    |         ----- move occurs because `lying` has type `String`, which does not implement the `Copy` trait
+...
+470 |     std::fs::write(&path_a, lying).expect("the lying file is written");
+    |                             ----- value moved here
+...
+485 |     assert_eq!(after, lying, "the refused resolve wrote nothing");
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ value borrowed here after move
+    |
+help: consider borrowing `lying`
+    |
+470 |     std::fs::write(&path_a, &lying).expect("the lying file is written");
+    |                             +
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `gauntlet-adapter-escalation-fs` (test "contract_suite") due to 1 previous error
+error: command `/home/sprime01/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo test --no-run --message-format json-render-diagnostics --package gauntlet-adapter-escalation-fs` exited with code 101
+error: recipe `test-package` failed on line 77 with exit code 101

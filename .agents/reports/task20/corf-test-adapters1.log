@@ -1,0 +1,95 @@
+cargo nextest run -p gauntlet-adapter-agent-mock
+   Compiling gauntlet-ports v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-ports)
+   Compiling gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Finished `test` profile [unoptimized] target(s) in 2m 19s
+────────────
+ Nextest run ID 32c1f6ee-4680-479c-8727-9dcd1f1ec649 with nextest profile: default
+    Starting 73 tests across 3 binaries
+        PASS [   0.006s] ( 1/73) gauntlet-adapter-agent-mock deterministic_clock::tests::sleeping_advances_to_the_target_instant
+        PASS [   0.008s] ( 2/73) gauntlet-adapter-agent-mock deterministic_clock::tests::now_is_pure_until_something_sleeps
+        PASS [   0.011s] ( 3/73) gauntlet-adapter-agent-mock deterministic_clock::tests::concurrent_sleeps_settle_on_the_maximum_target_under_sharing
+        PASS [   0.012s] ( 4/73) gauntlet-adapter-agent-mock hooks::tests::a_seed_selects_the_seeded_generator_and_it_replays
+        PASS [   0.006s] ( 5/73) gauntlet-adapter-agent-mock hooks::tests::an_absent_or_empty_clock_hook_keeps_the_production_clock
+        PASS [   0.006s] ( 6/73) gauntlet-adapter-agent-mock hooks::tests::an_absent_or_empty_seed_keeps_the_production_source
+        PASS [   0.014s] ( 7/73) gauntlet-adapter-agent-mock deterministic_clock::tests::sleeping_never_moves_backwards
+        PASS [   0.015s] ( 8/73) gauntlet-adapter-agent-mock deterministic_clock::tests::repeated_sleeps_settle_on_the_maximum_target
+        PASS [   0.006s] ( 9/73) gauntlet-adapter-agent-mock hooks::tests::the_deterministic_token_selects_the_virtual_clock
+        PASS [   0.009s] (10/73) gauntlet-adapter-agent-mock runner::tests::a_workspace_ref_outside_the_key_class_refuses_effects
+        PASS [   0.012s] (11/73) gauntlet-adapter-agent-mock hooks::tests::the_clock_type_remains_directly_constructible
+        PASS [   0.008s] (12/73) gauntlet-adapter-agent-mock runner::tests::cancel_before_terminal_is_idempotent_and_typed
+        PASS [   0.011s] (13/73) gauntlet-adapter-agent-mock hooks::tests::unknown_clock_tokens_are_typed_errors_never_fallbacks
+        PASS [   0.006s] (14/73) gauntlet-adapter-agent-mock runner::tests::capabilities_report_honest_containment_and_delivery
+        PASS [   0.008s] (15/73) gauntlet-adapter-agent-mock runner::tests::re_invoking_a_completed_invocation_is_refused_and_terminal_state_survives
+        PASS [   0.007s] (16/73) gauntlet-adapter-agent-mock runner::tests::repeated_collects_return_the_same_document
+        PASS [   0.013s] (17/73) gauntlet-adapter-agent-mock runner::tests::collect_before_completion_is_result_not_ready
+        PASS [   0.013s] (18/73) gauntlet-adapter-agent-mock runner::tests::re_invoking_while_running_is_refused_too
+        PASS [   0.028s] (19/73) gauntlet-adapter-agent-mock runner::tests::an_unwritable_workspace_maps_to_execution_failure
+        PASS [   0.008s] (20/73) gauntlet-adapter-agent-mock runner::tests::workspace_effects_resolve_under_the_admitted_per_unit_workspace
+        PASS [   0.025s] (21/73) gauntlet-adapter-agent-mock runner::tests::invoke_admits_and_first_poll_reports_in_flight_work
+        PASS [   0.014s] (22/73) gauntlet-adapter-agent-mock scenario::a_simple_fixture_stem_still_loads_from_the_frozen_locator
+        PASS [   0.011s] (23/73) gauntlet-adapter-agent-mock scenario::tests::a_dash_staircase_beyond_the_cap_is_a_typed_error
+        PASS [   0.024s] (24/73) gauntlet-adapter-agent-mock runner::tests::the_written_document_is_retrievable_by_contract_path
+        FAIL [   0.016s] (25/73) gauntlet-adapter-agent-mock scenario::a_traversal_or_pathed_stem_is_refused_before_any_join
+  stdout ───
+
+    running 1 test
+    test scenario::a_traversal_or_pathed_stem_is_refused_before_any_join ... FAILED
+
+    failures:
+
+    failures:
+        scenario::a_traversal_or_pathed_stem_is_refused_before_any_join
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 61 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'scenario::a_traversal_or_pathed_stem_is_refused_before_any_join' (963733) panicked at crates/adapters/gauntlet-adapter-agent-mock/src/scenario.rs:2520:9:
+    stem "back\\slash" must be refused as a stem-grammar violation, got FixtureUnreadable { name: "back\\slash", detail: "No such file or directory (os error 2)" }
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 5 tests still running
+        PASS [   0.027s] (26/73) gauntlet-adapter-agent-mock runner::tests::unknown_handles_are_refused_by_every_operation
+        PASS [   0.014s] (27/73) gauntlet-adapter-agent-mock scenario::tests::a_foreign_invocation_id_derailment_is_grammar_valid_but_mismatched
+        PASS [   0.007s] (28/73) gauntlet-adapter-agent-mock scenario::tests::a_raw_malformed_derailment_is_not_json
+        PASS [   0.011s] (29/73) gauntlet-adapter-agent-mock scenario::tests::a_missing_fixture_file_is_a_typed_error
+        PASS [   0.136s] (30/73) gauntlet-adapter-agent-mock scenario::tests::a_monstrous_staircase_on_a_small_stack_is_typed_not_an_abort
+────────────
+     Summary [   0.193s] 30/73 tests run: 29 passed, 1 failed, 0 skipped
+        FAIL [   0.016s] (25/73) gauntlet-adapter-agent-mock scenario::a_traversal_or_pathed_stem_is_refused_before_any_join
+warning: 43/73 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+error: recipe `test-package` failed on line 77 with exit code 100
+Stopping sccache server...
+Compile requests                      5
+Compile requests executed             2
+Cache hits                            0
+Cache misses                          2
+Cache misses (Rust)                   2
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          2
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   3
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.004 s
+Average compiler                  1.499 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            3
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            2 GiB
+Max cache size                       10 GiB

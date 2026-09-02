@@ -1,0 +1,34 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-agent-prime v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-prime)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-adapter-meter-memory v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-meter-memory)
+    Checking gauntlet-adapter-verify-schema-check v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-schema-check)
+    Checking gauntlet-adapter-verify-command-exit-code v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-command-exit-code)
+    Checking gauntlet-adapter-observe-build v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-build)
+    Checking gauntlet-adapter-observe-test v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-test)
+    Checking gauntlet-adapter-observe-filesystem v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-filesystem)
+    Checking gauntlet-adapter-verify-file-digest v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-file-digest)
+    Checking gauntlet-adapter-verify-test-report v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-test-report)
+    Checking gauntlet-adapter-sandbox-bwrap v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-bwrap)
+    Checking gauntlet-adapter-evidence-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-evidence-fs)
+    Checking gauntlet-adapter-observe-git v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-git)
+    Checking gauntlet-adapter-observe-command v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-command)
+    Checking gauntlet-adapter-compare-diff v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-diff)
+    Checking gauntlet-adapter-policy-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-policy-fs)
+    Checking gauntlet-adapter-compare-model v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-model)
+    Checking gauntlet-arch-tests v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests)
+    Checking gauntlet-adapter-workspace-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+error: redundant closure
+   --> crates/gauntlet-app/tests/report.rs:213:22
+    |
+213 |         evidence.map(|id| unit(id)),
+    |                      ^^^^^^^^^^^^^ help: replace the closure with the function itself: `unit`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#redundant_closure
+    = note: `-D clippy::redundant-closure` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure)]`
+
+error: could not compile `gauntlet-app` (test "report") due to 1 previous error
+error: recipe `lint` failed on line 26 with exit code 101

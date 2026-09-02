@@ -1,0 +1,15 @@
+
+  stderr ───
+
+    thread 'the_lying_builder_is_never_settled' (452785) panicked at crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:532:5:
+    the planted failing reports are durably on record — the divergence the loop discriminated is reconstructable from the store alone
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.036s] 3 tests run: 1 passed, 2 failed, 0 skipped
+        FAIL [   0.029s] (2/3) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+        FAIL [   0.036s] (3/3) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+error: test run failed
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

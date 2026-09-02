@@ -1,0 +1,33 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 14s
+────────────
+ Nextest run ID 47759ac5-42ea-4d7d-8d4d-5d145087851a with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.011s] (1/4) gauntlet-cli::compose_teeth an_unknown_runner_token_refuses_naming_the_fronted_set
+        PASS [   0.011s] (2/4) gauntlet-cli::compose_teeth an_unset_runner_token_refuses_naming_key_and_env_and_nothing_runs
+        PASS [   0.014s] (3/4) gauntlet-cli::compose_teeth the_mock_token_without_its_scenario_hook_refuses
+        FAIL [   0.033s] (4/4) gauntlet-cli::compose_teeth a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+  stdout ───
+
+    running 1 test
+    test a_live_backend_wrap_verdict_refuses_the_run_never_unwraps ... FAILED
+
+    failures:
+
+    failures:
+        a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.03s
+
+  stderr ───
+
+    thread 'a_live_backend_wrap_verdict_refuses_the_run_never_unwraps' (884414) panicked at crates/gauntlet-cli/tests/compose_teeth.rs:384:5:
+    the refusal is the composition's LiveContainmentDeferred: gauntlet run: configuration failure: control.stall_timeout_ms (GAUNTLET_STALL_TIMEOUT_MS): control setting 'stall_timeout_ms' (GAUNTLET_STALL_TIMEOUT_MS) is REQUIRED — the spec tables no default, so the control loop refuses to run without it
+
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.035s] 4 tests run: 3 passed, 1 failed, 0 skipped
+        FAIL [   0.033s] (4/4) gauntlet-cli::compose_teeth a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+error: test run failed

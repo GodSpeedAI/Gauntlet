@@ -1,0 +1,257 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-domain v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-domain)
+    Checking gauntlet-ports v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-ports)
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+    Checking gauntlet-adapter-agent-prime v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-prime)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-adapter-verify-test-report v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-test-report)
+    Checking gauntlet-adapter-meter-memory v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-meter-memory)
+    Checking gauntlet-adapter-verify-command-exit-code v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-command-exit-code)
+    Checking gauntlet-adapter-observe-test v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-test)
+    Checking gauntlet-adapter-evidence-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-evidence-fs)
+    Checking gauntlet-adapter-workspace-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs)
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Checking gauntlet-adapter-observe-build v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-build)
+    Checking gauntlet-adapter-verify-file-digest v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-file-digest)
+    Checking gauntlet-adapter-observe-git v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-git)
+    Checking gauntlet-adapter-observe-filesystem v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-filesystem)
+    Checking gauntlet-adapter-policy-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-policy-fs)
+    Checking gauntlet-adapter-sandbox-bwrap v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-sandbox-bwrap)
+    Checking gauntlet-adapter-id-ulid v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-ulid)
+    Checking gauntlet-adapter-compare-diff v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-diff)
+    Checking gauntlet-adapter-compare-model v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-compare-model)
+    Checking gauntlet-adapter-verify-schema-check v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-verify-schema-check)
+    Checking gauntlet-adapter-observe-command v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-observe-command)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:214:16
+    |
+214 |               Ok(Arc::new(recursive_runner::PrimeAgentRunner::new(
+    |  ________________^
+215 | |                 config,
+216 | |                 state_dir,
+217 | |                 context.project_root.clone(),
+...   |
+220 | |                 clock.clone(),
+221 | |             )))
+    | |______________^
+    |
+    = note: `Arc<PrimeAgentRunner<ProcessKernelTransport, ProcessHarnessControl>>` is not `Send` and `Sync` as `PrimeAgentRunner<ProcessKernelTransport, ProcessHarnessControl>` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `PrimeAgentRunner<ProcessKernelTransport, ProcessHarnessControl>` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+    = note: `-D clippy::arc-with-non-send-sync` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::arc_with_non_send_sync)]`
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:241:16
+    |
+241 |             Ok(Arc::new(runner))
+    |                ^^^^^^^^^^^^^^^^
+    |
+    = note: `Arc<CliAgentRunner<ProcessChildTransport>>` is not `Send` and `Sync` as `CliAgentRunner<ProcessChildTransport>` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `CliAgentRunner<ProcessChildTransport>` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:263:16
+    |
+263 |               Ok(Arc::new(mock_runner::MockAgentRunner::new(
+    |  ________________^
+264 | |                 scenario,
+265 | |                 context.state_dir().join(defaults::WORKSPACES_DIR_NAME),
+266 | |             )))
+    | |______________^
+    |
+    = note: `Arc<MockAgentRunner>` is not `Send` and `Sync` as `MockAgentRunner` is not `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `MockAgentRunner` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:326:32
+    |
+326 |                   observers.push(Arc::new(TestObserver::from_parts(
+    |  ________________________________^
+327 | |                     TestCommand::new(program, tokens.map(str::to_owned).collect()),
+328 | |                     workspace_root.clone(),
+329 | |                     clock.clone(),
+330 | |                     evidence.clone(),
+331 | |                     &host_pairs(),
+332 | |                 )));
+    | |__________________^
+    |
+    = note: `Arc<TestObserver>` is not `Send` and `Sync` as `TestObserver` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `TestObserver` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:353:32
+    |
+353 |                   observers.push(Arc::new(BuildObserver::from_parts(
+    |  ________________________________^
+354 | |                     gauntlet_adapter_observe_build::BuildCommand::new(
+355 | |                         program,
+356 | |                         tokens.map(str::to_owned).collect(),
+...   |
+361 | |                     &host_pairs(),
+362 | |                 )));
+    | |__________________^
+    |
+    = note: `Arc<BuildObserver>` is not `Send` and `Sync` as `BuildObserver` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `BuildObserver` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:364:44
+    |
+364 |               "filesystem" => observers.push(Arc::new(FilesystemObserver::from_parts(
+    |  ____________________________________________^
+365 | |                 workspace_root.clone(),
+366 | |                 clock.clone(),
+367 | |                 evidence.clone(),
+368 | |                 &host_pairs(),
+369 | |             ))),
+    | |______________^
+    |
+    = note: `Arc<FilesystemObserver>` is not `Send` and `Sync` as `FilesystemObserver` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `FilesystemObserver` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:370:44
+    |
+370 |               "versioning" => observers.push(Arc::new(GitObserver::from_parts(
+    |  ____________________________________________^
+371 | |                 workspace_root.clone(),
+372 | |                 clock.clone(),
+373 | |                 evidence.clone(),
+374 | |                 &host_pairs(),
+375 | |             ))),
+    | |______________^
+    |
+    = note: `Arc<GitObserver>` is not `Send` and `Sync` as `GitObserver` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `GitObserver` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: using `contains()` instead of `iter().any()` is more efficient
+   --> crates/gauntlet-cli/src/compose.rs:497:13
+    |
+497 |         if !policy.writable_roots.iter().any(|root| *root == entry) {
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: try: `policy.writable_roots.contains(&entry)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#manual_contains
+    = note: `-D clippy::manual-contains` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_contains)]`
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:709:29
+    |
+709 |             Some(seeded) => Arc::new(seeded),
+    |                             ^^^^^^^^^^^^^^^^
+    |
+    = note: `Arc<SeededIdGenerator>` is not `Send` and `Sync` as `SeededIdGenerator` is not `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `SeededIdGenerator` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:710:21
+    |
+710 |               None => Arc::new(
+    |  _____________________^
+711 | |                 UlidIdGenerator::new().map_err(|error| CompositionError::Store {
+712 | |                     detail: error.to_string(),
+713 | |                 })?,
+714 | |             ),
+    | |_____________^
+    |
+    = note: `Arc<UlidIdGenerator>` is not `Send` and `Sync` as `UlidIdGenerator` is not `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `UlidIdGenerator` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:772:16
+    |
+772 |         model: Arc::new(model),
+    |                ^^^^^^^^^^^^^^^
+    |
+    = note: `Arc<ModelComparatorSource>` is not `Send` and `Sync` as `ModelComparatorSource` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `ModelComparatorSource` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/compose.rs:814:20
+    |
+814 |         reference: Arc::new(reference),
+    |                    ^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `Arc<FileReferenceProvider>` is not `Send` and `Sync` as `FileReferenceProvider` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `FileReferenceProvider` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/escalations_cmd.rs:273:9
+    |
+273 |         std::sync::Arc::new(reference),
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `Arc<FileReferenceProvider>` is not `Send` and `Sync` as `FileReferenceProvider` is neither `Send` nor `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `FileReferenceProvider` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: using `clone` on type `Limits` which implements the `Copy` trait
+   --> crates/gauntlet-cli/src/run_cmd.rs:272:47
+    |
+272 |     let budget = gauntlet_domain::Budget::new(limits.clone(), reserve, diagnostic).map_err(
+    |                                               ^^^^^^^^^^^^^^ help: try removing the `clone` call: `limits`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#clone_on_copy
+    = note: `-D clippy::clone-on-copy` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::clone_on_copy)]`
+
+error: this `if` statement can be collapsed
+   --> crates/gauntlet-cli/src/state_cmd.rs:291:13
+    |
+291 | /             if let Some(Ok(filter)) = &unit_filter {
+292 | |                 if record.unit_id() != filter {
+293 | |                     continue;
+294 | |                 }
+295 | |             }
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+291 ~             if let Some(Ok(filter)) = &unit_filter
+292 ~                 && record.unit_id() != filter {
+293 |                     continue;
+294 ~                 }
+    |
+
+error: usage of an `Arc` that is not `Send` and `Sync`
+   --> crates/gauntlet-cli/src/verify_cmd.rs:123:20
+    |
+123 |         Ok(ids) => std::sync::Arc::new(ids),
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `Arc<UlidIdGenerator>` is not `Send` and `Sync` as `UlidIdGenerator` is not `Sync`
+    = help: if the `Arc` will not be used across threads replace it with an `Rc`
+    = help: otherwise make `UlidIdGenerator` `Send` and `Sync` or consider a wrapper type such as `Mutex`
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.98.0/index.html#arc_with_non_send_sync
+
+error: could not compile `gauntlet-cli` (lib) due to 16 previous errors
+error: recipe `lint` failed on line 26 with exit code 101

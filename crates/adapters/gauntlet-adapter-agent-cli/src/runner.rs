@@ -12,9 +12,12 @@
 //! 1. contract read: valid matching document ⇒ `Completed` (whatever the
 //!    exit status says — the contract wins, §6.1/§10.3; the exit status
 //!    is recorded in adapter-local forensics only, never obeyed — the
-//!    Annex B.1 strict codec admits no extra result fields); malformed ⇒
-//!    `Failed{malformed_result}` (rule 4); foreign identity ⇒
-//!    `Failed{contract_mismatch}` (rule 6);
+//!    Annex B.1 strict codec admits no extra result fields); foreign
+//!    identity ⇒ `Failed{contract_mismatch}` (rule 6); a PARSE failure
+//!    is decidable only once the child is terminal (a live child may be
+//!    mid-write — a torn read of a landing document never pins a
+//!    terminal verdict; the exit-path re-read then classifies rule 4's
+//!    `Failed{malformed_result}`);
 //! 2. child EXITED (any exit status — clean, nonzero, signal-death: the
 //!    collapse is deliberate, RES-D8c) with no valid document ⇒
 //!    `Failed{missing_result}`, decided BEFORE the deadline — a dead
@@ -148,6 +151,44 @@ fn invocation_files(
     })
 }
 
+/// The EXECUTION anchor for one dispatch (plan Task 20 COR-D3,
+/// §17.5.1 invariant 1): the canonical workspace root joined with the
+/// dispatch's `spec.workspace` segment — the workspace the controller
+/// allocated and admitted the dispatch against. The ref is untrusted
+/// external input: it must be a single key-class component (`[A-Za-z0-9._-]`,
+/// the workspace provider's §17.5.3 class, re-derived here because the
+/// adapter depends on domain and ports only) before it may join, and the
+/// directory is ensured (a real child needs a cwd; the provider normally
+/// created it before dispatch). Any refusal is typed
+/// `AdmissionRefused` — fail-closed at admission, nothing left behind.
+fn execution_root(
+    workspace_root: &Path,
+    workspace: &gauntlet_domain::WorkspaceRef,
+) -> Result<PathBuf, AgentError> {
+    let reference = workspace.as_str();
+    let key_ok = !reference.is_empty()
+        && !reference.contains(['/', '\\'])
+        && reference.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-'
+        });
+    if !key_ok {
+        return Err(AgentError::AdmissionRefused {
+            detail: format!(
+                "workspace ref {reference:?} is outside the single-component key class — the \
+                 execution anchor refuses to join it onto the workspace root"
+            ),
+        });
+    }
+    let root = workspace_root.join(reference);
+    std::fs::create_dir_all(&root).map_err(|error| AgentError::AdmissionRefused {
+        detail: format!(
+            "the per-unit workspace {} could not be ensured as the execution anchor ({error})",
+            root.display()
+        ),
+    })?;
+    Ok(root)
+}
+
 /// The coarse state an [`InvocationStatus`] maps to, for the ports' typed
 /// `ResultNotReady`/`AlreadyTerminal` loci.
 fn status_state(status: Option<&InvocationStatus>) -> InvocationState {
@@ -190,10 +231,14 @@ pub struct CliAgentRunner<T: ProcessTransport> {
     /// parse never admits anything).
     template: Template,
     state_dir: PathBuf,
-    /// The workspace the child starts in — an INJECTED typed input from
-    /// the composition root (this adapter resolves no `WorkspaceRef`
-    /// into a path; production per-unit workspace resolution remains
-    /// R-1b's territory, recorded).
+    /// The CANONICAL root the dispatch's per-unit workspaces live under
+    /// (injected from the composition root). Each invocation's EXECUTION
+    /// anchor is `<workspace_root>/<spec.workspace>/` — the workspace the
+    /// controller allocated and admitted the dispatch against (plan Task
+    /// 20 COR-D3, §17.5.1 invariant 1: builder processes run only inside
+    /// their assigned workspace) — and it is what the child's cwd, the
+    /// `{workspace}` template placeholder, and the prompt's WORKSPACE
+    /// field carry.
     workspace_root: PathBuf,
     transport: T,
     clock: Arc<dyn Clock>,
@@ -242,7 +287,10 @@ impl<T: ProcessTransport> CliAgentRunner<T> {
     /// The one contract classification: strict decode plus the §10.3
     /// rule-6 identity check, failures mapped by the ports' vocabulary
     /// (§10.3 rules 3/4/6). `Ok(None)` = no document yet.
-    fn classify_contract(entry: &mut CliEntry) -> Result<Option<InvocationStatus>, AgentError> {
+    fn classify_contract(
+        entry: &mut CliEntry,
+        malformed_decidable: bool,
+    ) -> Result<Option<InvocationStatus>, AgentError> {
         match std::fs::read_to_string(&entry.contract_file) {
             Ok(text) => {
                 let outcome = read_result_contract(
@@ -259,9 +307,24 @@ impl<T: ProcessTransport> CliAgentRunner<T> {
                             result_ref: entry.spec.result_contract_path.clone(),
                         }))
                     }
-                    Err(error) => Ok(Some(InvocationStatus::Failed {
-                        class: error.failure_class(),
-                    })),
+                    Err(error) => {
+                        // A PARSE failure is only decidable once the child
+                        // is terminal: a live child may be mid-write, and
+                        // a torn read of a landing document must never pin
+                        // a terminal verdict (the task20 torn-read
+                        // correction — observed as `MalformedResult` over
+                        // a document that was complete on disk). While
+                        // alive, the read stays undecidable; the exit path
+                        // re-reads and classifies then. A VALID parse
+                        // (Completed, mismatch) needs no such grace: a
+                        // torn write does not strictly validate.
+                        if !malformed_decidable {
+                            return Ok(None);
+                        }
+                        Ok(Some(InvocationStatus::Failed {
+                            class: error.failure_class(),
+                        }))
+                    }
                 }
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -352,6 +415,16 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
         // The one anchor rule: invocation dir under the state root, the
         // contract token as the literal leaf.
         let files = invocation_files(&self.state_dir, &spec)?;
+        // The EXECUTION anchor (plan Task 20 COR-D3, §17.5.1 invariant 1):
+        // the admitted per-unit workspace — the canonical root joined with
+        // the dispatch's `spec.workspace` segment. The ref is untrusted
+        // external input: it must be a single key-class component before
+        // it may join (the workspace provider's §17.5.3 class, re-derived
+        // here because the adapter depends on domain and ports only); the
+        // provider normally created the directory before dispatch, and the
+        // adapter ensures it (a real child needs a cwd) — failure is a
+        // typed admission refusal, never a guessed-at path.
+        let execution_root = execution_root(&self.workspace_root, &spec.workspace)?;
         // Render the template BEFORE any filesystem effect: a template
         // failure is a typed configuration refusal and must leave nothing
         // behind (fail-closed at admission; RES-D8's refusal set).
@@ -359,7 +432,7 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
             &self.template,
             &TemplateValues {
                 prompt_file: &files.prompt_file.to_string_lossy(),
-                workspace: &self.workspace_root.to_string_lossy(),
+                workspace: &execution_root.to_string_lossy(),
                 result_path: &files.contract_file.to_string_lossy(),
                 model: spec.model_hint.as_ref().map(|model| model.as_str()),
             },
@@ -388,22 +461,22 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
                 &spec,
                 &files.envelope_file,
                 &files.contract_file,
-                &self.workspace_root,
+                &execution_root,
             ),
         )
         .map_err(|error| AgentError::AdmissionRefused {
             detail: format!("the prompt file for {invocation_id} could not be written ({error})"),
         })?;
-        // SPAWN: the child gets the rendered argv, the workspace as its
-        // cwd, and the environment channel (parent env verbatim +
-        // GAUNTLET_RESULT_PATH, RES-D3). A spawn failure is the port's
-        // Transport class (the environment may be fixable and the
+        // SPAWN: the child gets the rendered argv, the ADMITTED PER-UNIT
+        // workspace as its cwd, and the environment channel (parent env
+        // verbatim + GAUNTLET_RESULT_PATH, RES-D3). A spawn failure is the
+        // port's Transport class (the environment may be fixable and the
         // dispatch retryable).
         let child = self
             .transport
             .spawn(&ProcessSpec {
                 argv,
-                cwd: self.workspace_root.clone(),
+                cwd: execution_root,
                 result_path: files.contract_file.to_string_lossy().into_owned(),
             })
             .map_err(|error| match error {
@@ -473,8 +546,11 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
             return Ok(terminal.clone());
         }
         // TOTAL ORDER (RES-D8a), step 1: the contract read — the ONE
-        // completion fact.
-        if let Some(terminal) = Self::classify_contract(entry)? {
+        // completion fact. A parse failure is not yet decidable here (the
+        // child may be mid-write; see the torn-read note in
+        // `classify_contract`), so only a VALID document completes at this
+        // step.
+        if let Some(terminal) = Self::classify_contract(entry, false)? {
             self.retire_child(entry);
             return Ok(Self::pin(entry, terminal));
         }
@@ -497,8 +573,10 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
                 entry.exit_status = Some(code);
                 // The exit-triggered FINAL re-read: the child's last
                 // write raced the exit; give the document its last chance
-                // before declaring it missing forever.
-                if let Some(terminal) = Self::classify_contract(entry)? {
+                // before declaring it missing forever. The child is now
+                // terminal, so a parse failure IS decidable here (the
+                // torn-read grace ends with the process).
+                if let Some(terminal) = Self::classify_contract(entry, true)? {
                     self.retire_child(entry);
                     return Ok(Self::pin(entry, terminal));
                 }
@@ -837,5 +915,95 @@ mod tests {
         assert_eq!(caps.isolation, Isolation::None);
         assert_eq!(caps.result_delivery, ResultDelivery::File);
         assert_eq!(caps.max_depth, crate::config::DEFAULT_MAX_DEPTH);
+    }
+
+    /// COR-D3 teeth (red when bypassed): the child's cwd, the
+    /// `{workspace}` template value, and the prompt's WORKSPACE field all
+    /// anchor at the ADMITTED PER-UNIT workspace
+    /// `<root>/<spec.workspace>/` — never at the shared root (§17.5.1
+    /// invariant 1: builder processes run only inside their assigned
+    /// workspace).
+    #[test]
+    fn execution_anchors_at_the_admitted_per_unit_workspace() {
+        let transport = ScriptedProcessTransport::new(
+            gauntlet_ports::contract::agent_runner::RunnerScript::CompleteImmediately,
+        );
+        let state_dir = scratch("anchor-state");
+        let ws = scratch("anchor-ws");
+        let runner = CliAgentRunner::new(
+            CliAgentConfig::new(SUITE_TEMPLATE),
+            state_dir.clone(),
+            ws.clone(),
+            transport.clone(),
+            Arc::new(SteppingClock::new()),
+        )
+        .expect("the suite template parses");
+        runner.invoke(spec()).expect("admission");
+        let expected = ws.join("ws-suite-01");
+        // The spawn's cwd IS the per-unit workspace, and it exists (the
+        // child needs a real cwd).
+        let cwds = transport.spawned_cwds();
+        assert_eq!(cwds.len(), 1, "exactly one spawn");
+        assert_eq!(
+            cwds[0],
+            expected.to_string_lossy(),
+            "the child starts inside the admitted per-unit workspace"
+        );
+        assert!(expected.is_dir(), "the execution anchor exists");
+        // The {workspace} placeholder carries the same anchor...
+        let argv = &transport.spawned_argv()[0];
+        assert_eq!(
+            argv[2],
+            expected.to_string_lossy(),
+            "the template placeholder binds the per-unit workspace (SUITE_TEMPLATE word 3)"
+        );
+        // ...and so does the prompt file's WORKSPACE field (the prompt
+        // lives at the adapter's documented anchor:
+        // runs/<run>/inv/<invocation>/<leaf>.prompt.txt).
+        let prompt = std::fs::read_to_string(
+            state_dir
+                .join("runs")
+                .join("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+                .join("inv")
+                .join("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+                .join("suite-result-document.prompt.txt"),
+        )
+        .expect("the prompt file reads");
+        assert!(
+            prompt.contains(&format!("WORKSPACE: {}", expected.display())),
+            "the prompt's WORKSPACE field is the per-unit workspace: {prompt}"
+        );
+    }
+
+    /// A workspace ref outside the single-component key class is a typed
+    /// ADMISSION refusal — the anchor never joins a separator or
+    /// traversal segment onto the root, and nothing is left behind.
+    #[test]
+    fn a_hostile_workspace_ref_refuses_admission_cleanly() {
+        let transport = ScriptedProcessTransport::new(
+            gauntlet_ports::contract::agent_runner::RunnerScript::CompleteImmediately,
+        );
+        let state_dir = scratch("hostile-state");
+        let ws = scratch("hostile-ws");
+        let runner = CliAgentRunner::new(
+            CliAgentConfig::new(SUITE_TEMPLATE),
+            state_dir.clone(),
+            ws,
+            transport,
+            Arc::new(SteppingClock::new()),
+        )
+        .expect("the suite template parses");
+        let mut hostile = spec();
+        hostile.workspace =
+            WorkspaceRef::new("seg/../escape").expect("the ref grammar admits the string");
+        let error = runner.invoke(hostile).expect_err("admission refuses");
+        assert!(
+            error.to_string().contains("key class"),
+            "the locus is the ref's key class: {error}"
+        );
+        assert!(
+            !state_dir.join("runs").exists(),
+            "a ref refusal leaves nothing behind"
+        );
     }
 }

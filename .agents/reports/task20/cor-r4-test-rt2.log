@@ -1,0 +1,14 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 19s
+────────────
+ Nextest run ID 1e33e0be-9bff-47fa-af8c-b1a5e80adf90 with nextest profile: default
+    Starting 6 tests across 1 binary
+        PASS [   0.156s] (1/6) gauntlet-cli::skills_roundtrip a_forged_lock_is_a_typed_refusal_and_the_old_nested_shape_never_reads
+        PASS [   0.174s] (2/6) gauntlet-cli::skills_roundtrip install_then_verify_round_trips_and_the_lock_is_the_readers_schema
+        PASS [   0.204s] (3/6) gauntlet-cli::skills_roundtrip the_lock_reader_refuses_the_forged_strict_shapes
+        PASS [   0.228s] (4/6) gauntlet-cli::skills_roundtrip an_out_of_band_edit_is_named_drift_and_reinstall_repairs
+        PASS [   0.260s] (5/6) gauntlet-cli::skills_roundtrip a_self_consistent_lock_over_tampered_bodies_is_drift_against_the_canonical_source
+        PASS [   0.262s] (6/6) gauntlet-cli::skills_roundtrip a_normalization_equivalent_body_under_a_reforged_lock_refuses_byte_drift
+────────────
+     Summary [   0.278s] 6 tests run: 6 passed, 0 skipped
+exit=0

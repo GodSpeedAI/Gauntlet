@@ -1,0 +1,98 @@
+cargo nextest run -p gauntlet-cli
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 22s
+────────────
+ Nextest run ID cef06b50-3d36-495c-91fb-bb7b687fead1 with nextest profile: default
+    Starting 90 tests across 21 binaries
+        PASS [   0.007s] ( 1/90) gauntlet-cli writer_lock::tests::a_stale_lock_refuses_with_the_manual_recovery_never_a_takeover
+        PASS [   0.007s] ( 2/90) gauntlet-cli report_manifest::tests::the_command_table_has_no_duplicates_and_names_the_not_wired_row
+        PASS [   0.009s] ( 3/90) gauntlet-cli spec_vocab::tests::the_vocabularies_are_complete
+        PASS [   0.010s] ( 4/90) gauntlet-cli writer_lock::tests::the_lock_is_exclusive_records_the_pid_and_releases_on_drop
+        PASS [   0.017s] ( 5/90) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.015s] ( 6/90) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.014s] ( 7/90) gauntlet-cli::compose_teeth an_unset_runner_token_refuses_naming_key_and_env_and_nothing_runs
+        PASS [   0.022s] ( 8/90) gauntlet-cli::compose_teeth an_unknown_runner_token_refuses_naming_the_fronted_set
+        PASS [   0.029s] ( 9/90) gauntlet-cli::compose_teeth the_mock_token_without_its_scenario_hook_refuses
+        PASS [   0.053s] (10/90) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+        PASS [   0.053s] (11/90) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.028s] (12/90) gauntlet-cli::e2e_full_loop_mock the_dry_run_preflight_writes_nothing
+        PASS [   0.129s] (13/90) gauntlet-cli::e2e_full_loop_mock parallel_completions_carry_and_never_collide
+        PASS [   0.108s] (14/90) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+        PASS [   0.149s] (15/90) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+        PASS [   0.151s] (16/90) gauntlet-cli::e2e_full_loop_mock the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+        PASS [   0.126s] (17/90) gauntlet-cli::e2e_full_loop_mock the_report_forging_liar_is_never_settled
+        PASS [   0.030s] (18/90) gauntlet-cli::escalations_cli resolve_without_any_verification_record_refuses_and_the_ticket_stays_open
+        PASS [   0.230s] (19/90) gauntlet-cli::compose_teeth a_live_backend_wrap_verdict_refuses_the_run_never_unwraps
+        PASS [   0.035s] (20/90) gauntlet-cli::escalations_cli even_an_earned_pass_record_never_lets_the_operator_shape_settle
+        PASS [   0.023s] (21/90) gauntlet-cli::escalations_cli retry_with_a_non_pass_record_hits_the_same_gate
+        PASS [   0.027s] (22/90) gauntlet-cli::export_stack the_real_adapter_export_stack_is_deterministic_and_canonical
+        PASS [   0.035s] (23/90) gauntlet-cli::g10_builder_writes_answer_key a_builder_context_write_at_the_key_is_refused_by_containment
+        PASS [   0.119s] (24/90) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_names_exactly_the_damaged_locator
+        PASS [   0.020s] (25/90) gauntlet-cli::g6_hide_failed_observations a_probe_store_write_failure_surfaces_as_gap_entries
+        PASS [   0.014s] (26/90) gauntlet-cli::g6_hide_failed_observations an_all_healthy_bundle_attests_empty_gap_arrays_explicitly
+        PASS [   0.039s] (27/90) gauntlet-cli::g10_builder_writes_answer_key a_midrun_key_tamper_aborts_with_both_digests_pinned
+        PASS [   0.009s] (28/90) gauntlet-cli::g7_tier_downgrade a_dispatch_fact_below_the_recorded_facts_is_refused_as_a_downgrade
+        PASS [   0.006s] (29/90) gauntlet-cli::g7_tier_downgrade an_agent_role_cannot_move_a_units_lattice_in_any_direction
+        PASS [   0.025s] (30/90) gauntlet-cli::g7_tier_downgrade a_mid_run_tier_downgrade_attempt_never_dispatches_at_the_lowered_tier
+        PASS [   0.024s] (31/90) gauntlet-cli::p11_critic_is_not_verifier a_broken_verifier_refuses_and_nothing_settles
+        PASS [   0.024s] (32/90) gauntlet-cli::p11_critic_is_not_verifier a_fail_verdict_never_settles_and_names_the_real_cause
+        PASS [   0.166s] (33/90) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_all_production_rows_deleted_is_honest
+        PASS [   0.161s] (34/90) gauntlet-cli::e2e_full_loop_mock the_single_writer_guard_bounds_the_concurrent_double_resume_attack
+        PASS [   0.027s] (35/90) gauntlet-cli::p11_critic_is_not_verifier a_pass_verdict_settles_the_same_composition
+        PASS [   0.015s] (36/90) gauntlet-cli::p12_missing_is_not_passing a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass
+        PASS [   0.023s] (37/90) gauntlet-cli::p11_critic_is_not_verifier no_rung_can_decide_and_nothing_settles
+        PASS [   0.028s] (38/90) gauntlet-cli::p11_critic_is_not_verifier an_inconclusive_verdict_never_settles_and_names_itself
+        PASS [   0.014s] (39/90) gauntlet-cli::p12_missing_is_not_passing a_request_lying_about_recency_producer_and_locator_cannot_make_stale_fresh
+        PASS [   0.015s] (40/90) gauntlet-cli::p12_missing_is_not_passing absent_store_evidence_is_inconclusive_at_every_layer_never_pass
+        PASS [   0.016s] (41/90) gauntlet-cli::p12_missing_is_not_passing an_absent_artifact_at_a_resolving_production_is_inconclusive_p12
+        PASS [   0.017s] (42/90) gauntlet-cli::p12_missing_is_not_passing every_model_rung_record_is_flagged_non_deterministic
+        PASS [   0.015s] (43/90) gauntlet-cli::p12_missing_is_not_passing fresh_resolving_pinned_evidence_passes_and_approaches_settlement
+        PASS [   0.017s] (44/90) gauntlet-cli::p12_missing_is_not_passing evidence_at_another_locator_is_unresolvable_not_the_required_evidence
+        PASS [   0.015s] (45/90) gauntlet-cli::p12_missing_is_not_passing instrument_produced_evidence_never_satisfies_a_human_producer
+        PASS [   0.018s] (46/90) gauntlet-cli::p12_missing_is_not_passing stale_evidence_from_a_prior_iteration_is_inconclusive_stale
+        PASS [   0.012s] (47/90) gauntlet-cli::p12_missing_is_not_passing the_four_real_adapters_report_absent_evidence_as_a_typed_error
+        PASS [   0.018s] (48/90) gauntlet-cli::p12_missing_is_not_passing the_deterministic_rung_decides_when_the_model_rung_could_too
+        PASS [   0.013s] (49/90) gauntlet-cli::p1_reference_integrity builder_mutation_of_the_active_reference_aborts_with_reference_mutated
+        PASS [   0.013s] (50/90) gauntlet-cli::p1_reference_integrity digest_rechecked
+        PASS [   0.016s] (51/90) gauntlet-cli::p1_reference_integrity frozen_copy_outside_workspace
+        PASS [   0.031s] (52/90) gauntlet-cli::p12_missing_is_not_passing the_three_binding_classes_are_reachable_and_distinct
+        PASS [   0.020s] (53/90) gauntlet-cli::p1_reference_integrity the_run_carries_the_frozen_version
+        PASS [   0.030s] (54/90) gauntlet-cli::p2_context_isolation a_bound_observation_whose_bytes_are_absent_is_refused_never_treated_as_empty
+        PASS [   0.031s] (55/90) gauntlet-cli::p2_context_isolation a_stale_envelope_digest_is_unrepresentable_from_outside_the_port
+        PASS [   0.168s] (56/90) gauntlet-cli::g6_hide_failed_observations a_failed_probe_is_recorded_in_both_arrays_and_covered_by_the_digest
+        PASS [   0.033s] (57/90) gauntlet-cli::p2_context_isolation an_iteration_with_no_durable_observation_binding_has_no_authority
+        PASS [   0.029s] (58/90) gauntlet-cli::p2_context_isolation an_observation_bundle_that_misdeclares_its_own_digest_is_refused
+        PASS [   0.012s] (59/90) gauntlet-cli::p2_context_isolation comparison_authority_requires_a_durable_run
+        PASS [   0.034s] (60/90) gauntlet-cli::p2_context_isolation an_unrecorded_substitute_observation_cannot_enter_comparison
+        PASS [   0.026s] (61/90) gauntlet-cli::p2_context_isolation bytes_that_are_not_the_bound_observation_cannot_be_served_into_a_comparison
+        PASS [   0.024s] (62/90) gauntlet-cli::p2_context_isolation frozen_evidence_that_disagrees_with_the_durable_digest_yields_no_projection
+        PASS [   0.009s] (63/90) gauntlet-cli::p3_real_observation a_claims_swap_moves_the_digest_but_not_the_facet_inputs
+        PASS [   0.034s] (64/90) gauntlet-cli::p2_context_isolation mandatory_acceptance_failure_is_non_success_and_never_writes_a_comparison
+        PASS [   0.042s] (65/90) gauntlet-cli::p2_context_isolation durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_crosswire
+        PASS [   0.038s] (66/90) gauntlet-cli::p2_context_isolation teeth
+        PASS [   0.015s] (67/90) gauntlet-cli::p3_real_observation the_lying_builders_claim_diverges_from_reality_inside_the_bundle
+        PASS [   0.016s] (68/90) gauntlet-cli::p4_corrective_loop a_mid_run_answer_key_edit_cancels_the_in_flight_attempt_and_aborts
+        PASS [   0.042s] (69/90) gauntlet-cli::p2_context_isolation the_issued_envelope_carries_the_durable_runs_own_frozen_digest
+        PASS [   0.012s] (70/90) gauntlet-cli::p4_corrective_loop correction_selection_durably_carries_rejected_alternatives_with_reasons
+        PASS [   0.062s] (71/90) gauntlet-cli::p2_context_isolation the_envelope_is_structurally_blind_and_carries_instrument_reality
+        PASS [   0.035s] (72/90) gauntlet-cli::p4_corrective_loop an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction
+        PASS [   0.019s] (73/90) gauntlet-cli::p5_hard_gate irreversible_never_dispatched
+        PASS [   0.039s] (74/90) gauntlet-cli::p5_hard_gate a_sandbox_validation_failure_escalates_without_falling_back
+        PASS [   0.049s] (75/90) gauntlet-cli::p5_hard_gate a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_averaged
+        PASS [   0.007s] (76/90) gauntlet-cli::p6_budget_control the_meter_refuses_the_reserve_consuming_slice_and_books_nothing
+        PASS [   0.070s] (77/90) gauntlet-cli::p6_budget_control a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact
+        PASS [   0.052s] (78/90) gauntlet-cli::p7_recovery a_settled_run_reresumes_over_anchored_settlements_without_rescanning
+        PASS [   0.188s] (79/90) gauntlet-cli::p5_hard_gate containment_wraps_from_process_start_and_confines_the_session
+        PASS [   0.049s] (80/90) gauntlet-cli::p7_recovery commit_order
+        PASS [   0.015s] (81/90) gauntlet-cli::p8_adapter_substitution the_full_conformance_suite_passes_against_every_selected_adapter_unchanged
+        PASS [   0.041s] (82/90) gauntlet-cli::skills_roundtrip a_forged_lock_is_a_typed_refusal_and_the_old_nested_shape_never_reads
+        PASS [   0.219s] (83/90) gauntlet-cli::p7_recovery a_crash_after_the_durable_row_never_reruns_settled_work
+        PASS [   0.218s] (84/90) gauntlet-cli::p7_recovery a_crash_between_event_and_row_completes_exactly_once_through_resume
+        PASS [   0.232s] (85/90) gauntlet-cli::p7_recovery a_crash_before_the_settlement_event_retries_as_if_never_verified
+        PASS [   0.055s] (86/90) gauntlet-cli::skills_roundtrip install_then_verify_round_trips_and_the_lock_is_the_readers_schema
+        PASS [   0.068s] (87/90) gauntlet-cli::skills_roundtrip the_lock_reader_refuses_the_forged_strict_shapes
+        PASS [   0.100s] (88/90) gauntlet-cli::skills_roundtrip an_out_of_band_edit_is_named_drift_and_reinstall_repairs
+        PASS [   0.360s] (89/90) gauntlet-cli::p4_corrective_loop a_recurring_residual_through_the_real_diff_comparator_enters_bounded_diagnosis
+        PASS [   0.147s] (90/90) gauntlet-cli::skills_roundtrip a_self_consistent_lock_over_tampered_bodies_is_drift_against_the_canonical_source
+────────────
+     Summary [   0.846s] 90 tests run: 90 passed, 0 skipped

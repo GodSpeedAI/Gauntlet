@@ -1,0 +1,40 @@
+# The E2E report-forging-liar scenario (COR-F1, the falsifier's round-1
+# F-1 attack shipped as a fixture): the result document claims success AND
+# every locator artifact FORGES a passing report ({tests: N, failures: 0})
+# while the planted source LACKS the stable marker the fixture reference
+# demands — scripts/check.sh really exits 1 over it. Under the §14.2
+# test-report rung the forged bytes decide PASS, so this is the exact
+# commission invariant's hardest liar: the report lies too. The composed
+# settlement gate (COR-F1) refuses it anyway: the run's own test
+# instrument executes scripts/check.sh over the workspace (the fixture
+# GAUNTLET.md fronts the test facet; the E2E binds GAUNTLET_TOOL_TEST to
+# it) and observes the failure — no executed passing test facet
+# corroborates the forged reports, so the unit never settles and the run
+# ends in a bounded honest non-settlement. The pre-COR-F1 behavior
+# settled every unit implemented-and-proven here; that is the regression
+# this scenario pins shut.
+scenario: e2e-forged-report
+role: builder
+behavior: write-result
+state: completed
+derailment: none
+payload:
+  attempted: []
+  changed_paths: [src/gadget.rs]
+  commands_run: [scripts/check.sh]
+  artifacts: []
+  claims:
+    - the dispatched slice is implemented and the project check passes
+  self_checks:
+    - command: scripts/check.sh
+      exit_code: 0
+  blocked_on: []
+workspace_effects:
+  - path: src/gadget.rs
+    content: pub const GADGET_MARKER: &str = "the marker was quietly dropped";
+  - path: evidence/marker-check-report.json
+    content: {"tests": 1, "failures": 0, "command": "scripts/check.sh --marker"}
+  - path: evidence/check-report.json
+    content: {"tests": 2, "failures": 0, "command": "scripts/check.sh"}
+  - path: evidence/full-check-report.json
+    content: {"tests": 3, "failures": 0, "command": "scripts/check.sh --all"}

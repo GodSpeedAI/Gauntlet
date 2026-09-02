@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.05s
+────────────
+ Nextest run ID 7bac4713-4751-449f-80c9-9429954ef4c8 with nextest profile: default
+    Starting 1 test across 6 binaries (55 tests skipped)
+        PASS [   0.040s] (1/1) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+────────────
+     Summary [   0.043s] 1 test run: 1 passed, 55 skipped
+ISO_EXIT=0

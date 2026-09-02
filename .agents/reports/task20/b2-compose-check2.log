@@ -1,0 +1,84 @@
+cargo check -p gauntlet-cli --all-targets
+    Checking gauntlet-adapter-workspace-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-workspace-fs)
+    Checking gauntlet-adapter-id-ulid v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-ulid)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+warning: ignoring -C extra-filename flag due to -o flag
+
+error[E0432]: unresolved import `gauntlet_adapter_agent_id_ulid`
+  --> crates/gauntlet-cli/src/compose.rs:50:5
+   |
+50 | use gauntlet_adapter_agent_id_ulid::UlidIdGenerator;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `gauntlet_adapter_agent_id_ulid`
+   |
+help: there is a crate or module with a similar name
+   |
+50 - use gauntlet_adapter_agent_id_ulid::UlidIdGenerator;
+50 + use gauntlet_adapter_agent_cli::UlidIdGenerator;
+   |
+
+error[E0423]: expected value, found struct `generic_cli_runner::ProcessChildTransport`
+   --> crates/gauntlet-cli/src/compose.rs:247:17
+    |
+247 |                 generic_cli_runner::ProcessChildTransport,
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+   ::: crates/adapters/gauntlet-adapter-agent-cli/src/transport.rs:156:1
+    |
+156 | pub struct ProcessChildTransport {
+    | -------------------------------- `generic_cli_runner::ProcessChildTransport` defined here
+
+error[E0425]: cannot find type `BudgetSlice` in crate `gauntlet_domain`
+   --> crates/gauntlet-cli/src/run_cmd.rs:270:89
+    |
+270 |     let estimates: std::collections::BTreeMap<gauntlet_domain::UnitId, gauntlet_domain::BudgetSlice> =
+    |                                                                                         ^^^^^^^^^^^ not found in `gauntlet_domain`
+
+error[E0425]: cannot find type `BudgetSlice` in crate `gauntlet_domain`
+   --> crates/gauntlet-cli/src/run_cmd.rs:346:23
+    |
+346 | ) -> gauntlet_domain::BudgetSlice {
+    |                       ^^^^^^^^^^^ not found in `gauntlet_domain`
+
+error[E0422]: cannot find struct, variant or union type `BudgetSlice` in crate `gauntlet_domain`
+   --> crates/gauntlet-cli/src/run_cmd.rs:355:22
+    |
+355 |     gauntlet_domain::BudgetSlice {
+    |                      ^^^^^^^^^^^ not found in `gauntlet_domain`
+
+Some errors have detailed explanations: E0422, E0423, E0425, E0432.
+For more information about an error, try `rustc --explain E0422`.
+warning: `gauntlet-cli` (lib) generated 1 warning
+error: could not compile `gauntlet-cli` (lib) due to 5 previous errors; 1 warning emitted
+error: recipe `check-package` failed on line 74 with exit code 101
+CLI_EXIT=101
+Stopping sccache server...
+Compile requests                      4
+Compile requests executed             4
+Cache hits                            0
+Cache misses                          3
+Cache misses (Rust)                   3
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          1
+Cache errors (Rust)                   1
+Compilations                          3
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   0
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.182 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            2 GiB
+Max cache size                       10 GiB

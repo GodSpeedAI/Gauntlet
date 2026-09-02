@@ -22,10 +22,21 @@ pub struct TicketId {
 
 impl TicketId {
     pub fn new(ticket: &str) -> Result<Self, HumanEscalationError> {
+        // COR-F3 (falsifier round 1, F-3): the id is an OPAQUE token, never
+        // a path fragment. Any path-separator payload is refused outright,
+        // and the surviving grammar is pinned to plain name components —
+        // `..` (and `.`) cannot ride a ticket id into any adapter's path
+        // join. Validity: non-empty, ≤128 bytes, no leading `/`, no
+        // whitespace, no path separator, and every path component a plain
+        // name.
         let valid = !ticket.is_empty()
             && ticket.len() <= 128
             && !ticket.starts_with('/')
-            && !ticket.bytes().any(|b| b.is_ascii_whitespace());
+            && !ticket.bytes().any(|b| b.is_ascii_whitespace())
+            && !ticket.chars().any(std::path::is_separator)
+            && std::path::Path::new(ticket)
+                .components()
+                .all(|component| matches!(component, std::path::Component::Normal(_)));
         if valid {
             Ok(Self {
                 ticket: ticket.to_owned(),

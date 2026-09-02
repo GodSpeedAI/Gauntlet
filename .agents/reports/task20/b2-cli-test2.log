@@ -1,0 +1,69 @@
+cargo nextest run -p gauntlet-cli
+warning: unused import: `StateStore`
+  --> crates/gauntlet-cli/src/state_cmd.rs:11:47
+   |
+11 | use gauntlet_ports::state_store::{Checkpoint, StateStore};
+   |                                               ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `context`
+   --> crates/gauntlet-cli/src/run_cmd.rs:159:5
+    |
+159 |     context: &RuntimeContext,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_context`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `gauntlet-cli` (lib) generated 2 warnings (run `cargo fix --lib -p gauntlet-cli` to apply 1 suggestion)
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+warning: `gauntlet-cli` (lib test) generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized] target(s) in 2m 14s
+────────────
+ Nextest run ID 57df702b-16ad-4832-8290-f4769b92b5df with nextest profile: default
+    Starting 67 tests across 17 binaries
+        PASS [   0.004s] ( 1/67) gauntlet-cli report_manifest::tests::the_command_table_has_no_duplicates_and_names_the_not_wired_row
+        PASS [   0.005s] ( 2/67) gauntlet-cli spec_vocab::tests::the_vocabularies_are_complete
+        PASS [   0.006s] ( 3/67) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.007s] ( 4/67) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.015s] ( 5/67) gauntlet-cli::export_stack the_real_adapter_export_stack_is_deterministic_and_canonical
+        PASS [   0.021s] ( 6/67) gauntlet-cli::g10_builder_writes_answer_key a_builder_context_write_at_the_key_is_refused_by_containment
+        PASS [   0.011s] ( 7/67) gauntlet-cli::g6_hide_failed_observations a_probe_store_write_failure_surfaces_as_gap_entries
+        PASS [   0.028s] ( 8/67) gauntlet-cli::g10_builder_writes_answer_key a_midrun_key_tamper_aborts_with_both_digests_pinned
+        PASS [   0.009s] ( 9/67) gauntlet-cli::g6_hide_failed_observations an_all_healthy_bundle_attests_empty_gap_arrays_explicitly
+        PASS [   0.037s] (10/67) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+        PASS [   0.008s] (11/67) gauntlet-cli::g7_tier_downgrade a_dispatch_fact_below_the_recorded_facts_is_refused_as_a_downgrade
+        PASS [   0.005s] (12/67) gauntlet-cli::g7_tier_downgrade an_agent_role_cannot_move_a_units_lattice_in_any_direction
+        FAIL [   0.047s] (13/67) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+  stdout ───
+
+    running 1 test
+    test unknown_and_missing_arguments_are_usage_errors_with_exit_two ... FAILED
+
+    failures:
+
+    failures:
+        unknown_and_missing_arguments_are_usage_errors_with_exit_two
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.04s
+
+  stderr ───
+
+    thread 'unknown_and_missing_arguments_are_usage_errors_with_exit_two' (176288) panicked at crates/gauntlet-cli/tests/cli_surface.rs:129:9:
+    assertion `left == right` failed: invocation ["export", "--run", "only"] must be a usage error (exit 2)
+      left: Some(1)
+     right: Some(2)
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 5 tests still running
+        PASS [   0.016s] (14/67) gauntlet-cli::g7_tier_downgrade a_mid_run_tier_downgrade_attempt_never_dispatches_at_the_lowered_tier
+        PASS [   0.020s] (15/67) gauntlet-cli::p11_critic_is_not_verifier a_broken_verifier_refuses_and_nothing_settles
+        PASS [   0.019s] (16/67) gauntlet-cli::p11_critic_is_not_verifier a_fail_verdict_never_settles_and_names_the_real_cause
+        PASS [   0.022s] (17/67) gauntlet-cli::p11_critic_is_not_verifier a_pass_verdict_settles_the_same_composition
+        PASS [   0.078s] (18/67) gauntlet-cli::g6_hide_failed_observations a_failed_probe_is_recorded_in_both_arrays_and_covered_by_the_digest
+────────────
+     Summary [   0.085s] 18/67 tests run: 17 passed, 1 failed, 0 skipped
+        FAIL [   0.047s] (13/67) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+warning: 49/67 tests were not run due to test failure (run with --no-fail-fast to run all tests, or run with --max-fail)
+error: test run failed
+error: recipe `test-package` failed on line 77 with exit code 100

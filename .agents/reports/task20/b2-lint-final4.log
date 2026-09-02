@@ -1,0 +1,29 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Checking gauntlet-adapter-id-ulid v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-id-ulid)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 21s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-arch-tests/src/deps.rs:2818:
+             composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
+             "{edges:?}"
+         );
+-        let legal_production =
+-            "[dependencies]\ngauntlet-app = { workspace = true, features = \
++        let legal_production = "[dependencies]\ngauntlet-app = { workspace = true, features = \
+              [\"composition\"] }\n";
+-        let edges =
+-            member_feature_edges("crates/gauntlet-cli", legal_production, &members, &root_deps)
+-                .expect("parses");
++        let edges = member_feature_edges(
++            "crates/gauntlet-cli",
++            legal_production,
++            &members,
++            &root_deps,
++        )
++        .expect("parses");
+         assert!(
+             composition_seal_violations(cli, Some("gauntlet-cli"), &edges).is_empty(),
+             "the plan Task 20 production composition edge is a recorded seam: {edges:?}"
+error: recipe `lint` failed on line 27 with exit code 1

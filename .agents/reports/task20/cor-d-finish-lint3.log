@@ -1,0 +1,376 @@
+cargo clippy --workspace --all-targets -- -D warnings
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Checking gauntlet-adapter-agent-mock v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-adapter-agent-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 25s
+cargo fmt --check
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-cli/src/runner.rs:165:
+     let reference = workspace.as_str();
+     let key_ok = !reference.is_empty()
+         && !reference.contains(['/', '\\'])
+-        && reference
+-            .bytes()
+-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-');
++        && reference.bytes().all(|byte| {
++            byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-'
++        });
+     if !key_ok {
+         return Err(AgentError::AdmissionRefused {
+             detail: format!(
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock/tests/scenario_playback.rs:302:
+         .expect("collectible: the envelope itself is valid");
+     // Side A — the artifact on disk fails the check (instrument view).
+     // COR-D3: the effect resolves under the admitted per-unit workspace.
+-    let artifact =
+-        std::fs::read_to_string(root.path.join(WS_REF).join("out/check-target.txt"))
+-            .expect("the scripted effect wrote the artifact");
++    let artifact = std::fs::read_to_string(root.path.join(WS_REF).join("out/check-target.txt"))
++        .expect("the scripted effect wrote the artifact");
+     assert!(
+         artifact.contains("FAIL") && !artifact.contains("PASS"),
+         "the artifact fails the declared self-check: {artifact:?}"
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-agent-mock/tests/scenario_playback.rs:335:
+     // test-provided workspace root's PER-UNIT SEGMENT (COR-D3: effects
+     // resolve under <root>/<spec.workspace>/) — the fixture names relative
+     // paths only.
+-    let standin = root
+-        .path
+-        .join(WS_REF)
+-        .join("ruler-standin/answer-key.md");
++    let standin = root.path.join(WS_REF).join("ruler-standin/answer-key.md");
+     std::fs::create_dir_all(standin.parent().expect("the stand-in has a parent"))
+         .expect("stand-in directory is creatable");
+     const SENTINEL: &str = "the frozen ruler's original bytes";
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:2854:
+                 let single = !reference.is_empty()
+                     && std::path::Path::new(reference)
+                         .components()
+-                        .all(|component| {
+-                            matches!(component, std::path::Component::Normal(_))
+-                        });
++                        .all(|component| matches!(component, std::path::Component::Normal(_)));
+                 if !single {
+                     return Err(ControlError::Workspace(
+                         WorkspaceProviderError::ContainmentViolated {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:6901:
+                 model_dispatches: 4,
+                 role_deny: crate::roles::ContextDenySet::new(Vec::new()),
+             },
+-            ladder_for: Arc::new(move |_| Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))),
++            ladder_for: Arc::new(move |_| {
++                Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))
++            }),
+             reference: provider,
+             answer_key: AnswerKeySource::Shared(key.clone()),
+             escalation: Arc::new(FakeEscalation::default()),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:7925:
+                 model_dispatches: 4,
+                 role_deny: crate::roles::ContextDenySet::new(Vec::new()),
+             },
+-            ladder_for: Arc::new(move |_| Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))),
++            ladder_for: Arc::new(move |_| {
++                Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))
++            }),
+             reference: provider,
+             answer_key: AnswerKeySource::Path(key_path.clone()),
+             escalation: Arc::new(FakeEscalation::default()),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:8002:
+                 model_dispatches: 4,
+                 role_deny: crate::roles::ContextDenySet::new(Vec::new()),
+             },
+-            ladder_for: Arc::new(move |_| Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))),
++            ladder_for: Arc::new(move |_| {
++                Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))
++            }),
+             reference: resumed_provider,
+             answer_key: AnswerKeySource::Path(key_path.clone()),
+             escalation: Arc::new(FakeEscalation::default()),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/roles/mod.rs:43:
+ pub use definition::{FilesystemMode, NetworkMode, RoleDefinition, RoleError, RolePermissions};
+ pub use harness::{HarnessRegistry, RegistryError, RoleSurface};
+ pub use install::{
+-    DriftKind, DriftRecord, Enforcement, InstallInput, InstallReport, ListedRole, ListReport,
++    DriftKind, DriftRecord, Enforcement, InstallInput, InstallReport, ListReport, ListedRole,
+     LockEntry, RolesError, RolesLock, VerifyInput, VerifyReport, install, list, verify,
+ };
+ 
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/compose.rs:823:
+     // actually ran in. (`gauntlet verify` re-anchors the same set at the
+     // canonical root — see `composed_ladder`.)
+     let ladder_for: gauntlet_app::control::controller::LadderFactory =
+-        Arc::new(|root: &std::path::Path| {
+-            composed_ladder(root).map_err(|error| error.to_string())
+-        });
++        Arc::new(|root: &std::path::Path| composed_ladder(root).map_err(|error| error.to_string()));
+ 
+     // Reference.
+     let reference = gauntlet_app::reference::provider::FileReferenceProvider::from_paths(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/compose_teeth.rs:35:
+ }
+ 
+ fn fixture_target() -> PathBuf {
+-    workspace_root().join("tests").join("fixtures").join("target")
++    workspace_root()
++        .join("tests")
++        .join("fixtures")
++        .join("target")
+ }
+ 
+ /// One scratch world: a fresh copy of the fixture target project plus the
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/compose_teeth.rs:66:
+     fn state_dir(&self) -> PathBuf {
+         self.root.join("state")
+     }
+-
+ }
+ 
+ impl Drop for World {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/compose_teeth.rs:102:
+         .env_remove("GAUNTLET_CLI_AGENT_CMD")
+         .env_remove("GAUNTLET_PROJECT_ROOT")
+         .env_remove("GAUNTLET_CONFIG_DIR")
+-        .env("GAUNTLET_STATE_DIR", world.state_dir().display().to_string())
+         .env(
++            "GAUNTLET_STATE_DIR",
++            world.state_dir().display().to_string(),
++        )
++        .env(
+             "GAUNTLET_ARTIFACT_DIR",
+             world.root.join("evidence").display().to_string(),
+         );
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/compose_teeth.rs:202:
+     let object = JsonValue::Object(vec![
+         ("reference".to_owned(), JsonValue::Str(reference)),
+         ("tier".to_owned(), JsonValue::Str(tier)),
+-        ("backend".to_owned(), JsonValue::Str(backend_token.to_owned())),
+         (
++            "backend".to_owned(),
++            JsonValue::Str(backend_token.to_owned()),
++        ),
++        (
+             "network".to_owned(),
+             JsonValue::Str("deny_by_default".to_owned()),
+         ),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/compose_teeth.rs:319:
+         eprintln!("skipped: the process-isolation binary is not locatable on this host");
+         return;
+     };
+-    let backend_token =
+-        gauntlet_adapter_sandbox_bwrap::ProcessIsolationBackend::new(binary)
+-            .backend_identity()
+-            .as_str()
+-            .to_owned();
++    let backend_token = gauntlet_adapter_sandbox_bwrap::ProcessIsolationBackend::new(binary)
++        .backend_identity()
++        .as_str()
++        .to_owned();
+ 
+     let world = World::new("live-wrap");
+     let policy_dir = world.root.join("policies");
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/compose_teeth.rs:330:
+     write_contained_policy(&policy_dir, &backend_token);
+-    write_config(&world, &front_matter_with(
+-        "runners:\n  default: cli-agent\n",
+-        &backend_token,
+-        Some(&policy_dir),
+-    ));
++    write_config(
++        &world,
++        &front_matter_with(
++            "runners:\n  default: cli-agent\n",
++            &backend_token,
++            Some(&policy_dir),
++        ),
++    );
+     // The workspace subdirectory the wrap-time policy resolution scopes
+     // `$WORKSPACE_ROOT` into — what a real WorkspaceProvider::create()
+     // would have made by the time a policy resolves.
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/compose_teeth.rs:341:
+ 
+     let output = run(
+         &world,
+-        &[
+-            ("GAUNTLET_CLI_AGENT_CMD", "cli-probe {prompt_file} {workspace} {result_path}"),
+-        ],
++        &[(
++            "GAUNTLET_CLI_AGENT_CMD",
++            "cli-probe {prompt_file} {workspace} {result_path}",
++        )],
+         &["run", "seeded bounded task"],
+     );
+     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:303:
+     // change. Every blocking unit lands in the proven category.
+     let report = report_json_of(&run);
+     use gauntlet_ports::json::JsonValue;
+-    let parsed = gauntlet_ports::json::parse(&report)
+-        .expect("the printed report is valid canonical JSON");
++    let parsed =
++        gauntlet_ports::json::parse(&report).expect("the printed report is valid canonical JSON");
+     let units = match parsed.get("units") {
+         Some(JsonValue::Array(units)) => units,
+         other => panic!("the report carries the units array: {other:?}"),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:312:
+     for unit in ["AK-901", "AK-902", "AK-903"] {
+         let entry = units
+             .iter()
+-            .find(|entry| {
+-                matches!(entry.get("unit"), Some(JsonValue::Str(name)) if name == unit)
+-            })
++            .find(|entry| matches!(entry.get("unit"), Some(JsonValue::Str(name)) if name == unit))
+             .unwrap_or_else(|| panic!("unit {unit} appears in the report: {report}"));
+         let category = match entry.get("category") {
+             Some(JsonValue::Str(category)) => Some(category.as_str()),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:341:
+     // workspace, and the pinned observation manifests carry the walked
+     // per-unit trees that name the gadget the fixture's marker demands.
+     let happy_effects = scenario_effects("e2e-happy");
+-    let artifact_bodies: Vec<String> = ["marker-check-report.json", "check-report.json",
+-        "full-check-report.json"]
+-        .iter()
+-        .map(|name| {
+-            happy_effects
+-                .get(&format!("evidence/{name}"))
+-                .expect("the scenario plants the artifact")
+-                .clone()
+-        })
+-        .collect();
++    let artifact_bodies: Vec<String> = [
++        "marker-check-report.json",
++        "check-report.json",
++        "full-check-report.json",
++    ]
++    .iter()
++    .map(|name| {
++        happy_effects
++            .get(&format!("evidence/{name}"))
++            .expect("the scenario plants the artifact")
++            .clone()
++    })
++    .collect();
+     assert!(
+         store_holds_exact_objects(&world.evidence_dir(), &artifact_bodies),
+         "every planted verification artifact is durably ingested at its locator"
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/escalations_cli.rs:40:
+ use gauntlet_ports::human_escalation::{EscalationItem, HumanEscalation};
+ use gauntlet_ports::producer_authority::VerificationRecordAuthority;
+ use gauntlet_ports::state_store::{Checkpoint, StateStore};
+-use gauntlet_ports::verification_record::{VerificationContent, VerificationRecordDoc, VerifyingInstrument};
++use gauntlet_ports::verification_record::{
++    VerificationContent, VerificationRecordDoc, VerifyingInstrument,
++};
+ 
+ const GAUNTLET: &str = env!("CARGO_BIN_EXE_gauntlet");
+ 
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/escalations_cli.rs:52:
+ }
+ 
+ fn fixture_target() -> PathBuf {
+-    workspace_root().join("tests").join("fixtures").join("target")
++    workspace_root()
++        .join("tests")
++        .join("fixtures")
++        .join("target")
+ }
+ 
+ fn bound() -> Deadline {
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/escalations_cli.rs:177:
+                 bound(),
+             )
+             .expect("the checkpoint records");
+-        let outcome = if pass {
+-            Outcome::Pass
+-        } else {
+-            Outcome::Fail
+-        };
++        let outcome = if pass { Outcome::Pass } else { Outcome::Fail };
+         let document = VerificationRecordDoc::new(VerificationContent {
+             verification: gauntlet_domain::VerificationRef::new("vrf-escalations-cli-seed")
+                 .expect("valid verification ref"),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/escalations_cli.rs:286:
+         "the typed PASS-gate refusal surfaces: {stderr}"
+     );
+     assert!(
+-        stderr.contains("the settlement service refused") && stderr.contains("the ticket stays open"),
++        stderr.contains("the settlement service refused")
++            && stderr.contains("the ticket stays open"),
+         "the CLI names the service refusal and the ticket's fate: {stderr}"
+     );
+     assert!(world.ticket_is_open(), "the ticket is untouched");
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/p4_corrective_loop.rs:1078:
+             ),
+         ));
+         let ladder_root = workspace_root.clone();
+-#[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
+-let deps = ControllerDeps {
++        #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
++        let deps = ControllerDeps {
+             state: state.clone(),
+             evidence: evidence.clone(),
+             ids: Arc::new(SeededIdGenerator::new("p4-proof-identity").expect("a non-empty seed")),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/p5_hard_gate.rs:697:
+         let meter_factory: Arc<dyn Fn(Budget) -> Arc<dyn BudgetMeter> + Send + Sync> =
+             Arc::new(|budget| Arc::new(MeteredBudget::new(budget)));
+         let ladder_root = workspace_root.clone();
+-#[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
+-let deps = ControllerDeps {
++        #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
++        let deps = ControllerDeps {
+             state: state.clone(),
+             evidence: evidence.clone(),
+             ids: Arc::new(SeededIdGenerator::new(IDS_SEED).expect("a non-empty seed")),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/p5_hard_gate.rs:1331:
+     let meter_factory: Arc<dyn Fn(Budget) -> Arc<dyn BudgetMeter> + Send + Sync> =
+         Arc::new(|budget| Arc::new(MeteredBudget::new(budget)));
+     let ladder_root = workspace_root.clone();
+-#[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
+-let deps = ControllerDeps {
++    #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
++    let deps = ControllerDeps {
+         state: state.clone(),
+         evidence: evidence.clone(),
+         ids: Arc::new(SeededIdGenerator::new(IDS_SEED).expect("a non-empty seed")),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/p6_budget_control.rs:776:
+             });
+ 
+         let ladder_root = workspace_root.clone();
+-#[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
+-let deps = ControllerDeps {
++        #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
++        let deps = ControllerDeps {
+             state: state.clone(),
+             evidence: evidence.clone(),
+             ids: Arc::new(SeededIdGenerator::new(IDS_SEED).expect("a non-empty seed")),
+error: recipe `lint` failed on line 27 with exit code 1
+LINT_EXIT=1
+Stopping sccache server...
+Compile requests                     25
+Compile requests executed             0
+Cache hits                            0
+Cache misses                          0
+Cache hits rate                       -
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          0
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                  25
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.000 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+multiple input files                 25
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Max cache size                       10 GiB

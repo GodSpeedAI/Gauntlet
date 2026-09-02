@@ -65,10 +65,13 @@
 //!
 //! ONE canonical `workspace_root` field exists here. Every derived
 //! consumer flows from it: the verification open (`for_run`'s locator
-//! root), the evidence-producer locator writes, and — for the composition
-//! root that binds observers — the [`RunController::workspace_root`]
-//! accessor. Observation requests carry a relative workspace REF;
-//! observers resolve it under the root they were bound to at construction.
+//! root), the evidence owner's locator ingest (and, when no produced
+//! artifact stands at the locator, the observation facet's
+//! materialization there — see `process_completion`), and — for the
+//! composition root that binds observers — the
+//! [`RunController::workspace_root`] accessor. Observation requests carry
+//! a relative workspace REF; observers resolve it under the root they
+//! were bound to at construction.
 //!
 //! ## The meter/rounds split (C2)
 //!
@@ -109,7 +112,7 @@ const CHARGE_LOCUS_METER: &str = "meter";
 const CHARGE_LOCUS_RUN_BUDGET: &str = "run_budget";
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gauntlet_domain::{
@@ -141,6 +144,9 @@ use gauntlet_ports::state_store::{
     Checkpoint, RunEvent, RunEventKind, StateStore, StateStoreError,
 };
 use gauntlet_ports::verifier::VerificationRequest;
+use gauntlet_ports::workspace_provider::{
+    WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
+};
 
 use crate::compare::authority::ComparisonAuthority;
 use crate::compare::contract::ComparisonContract;
@@ -197,6 +203,17 @@ impl BudgetShape {
 /// supplies the concrete adapter (B4's wiring; tests wrap a fake).
 pub type MeterFactory = Arc<dyn Fn(Budget) -> Arc<dyn BudgetMeter> + Send + Sync>;
 
+/// Anchors the composed §14.2 rung set at one path (plan Task 20 COR-D3):
+/// the controller calls it once per completion-workspace with the
+/// completion's evidence workspace — the per-unit workspace the dispatch
+/// ran in — so the instruments examine the bytes the produce step bound.
+/// The error string carries the construction locus (the controller maps it
+/// to a typed error). The composition root supplies the concrete rungs;
+/// tests wrap a fixed ladder. No Send/Sync bounds: the loop is
+/// single-threaded and the rung set is not required to cross threads (the
+/// MeterFactory precedent is stricter than the loop needs).
+pub type LadderFactory = Arc<dyn Fn(&Path) -> Result<Ladder, String>>;
+
 /// The comparison wiring the loop drives: the frozen comparison contract
 /// artifact, the comparator sources review dispatches through, the §13.3
 /// review mode, and the model-dispatch allowance per iteration.
@@ -207,6 +224,14 @@ pub struct ComparisonDeps {
     pub adversarial: Option<Arc<dyn AdversarialComparatorSource>>,
     pub review_mode: gauntlet_domain::ReviewMode,
     pub model_dispatches: u32,
+    /// The comparison (critic) role's typed `context.deny` set, loaded
+    /// from the roles by the composition root (plan Task 20, R2-N1):
+    /// enforced at the governed chain's envelope boundary BEFORE the
+    /// envelope is built, so a denied context category can never enter
+    /// the composed comparison. `ContextDenySet::new(Vec::new())` denies
+    /// nothing; a composition that serves roles declares the real set
+    /// here.
+    pub role_deny: crate::roles::ContextDenySet,
 }
 
 /// Everything the composed controller is handed. Every field is a port or
@@ -226,10 +251,16 @@ pub struct ControllerDeps {
     /// bound (by the composition root) to the canonical workspace root.
     pub observers: Vec<Arc<dyn Observer>>,
     pub comparison: ComparisonDeps,
-    /// The pre-built §14.2 rung set — EARNED authority injected at every
-    /// governed verification open. `Ladder::new` stays feature-gated; this
-    /// controller never constructs a rung.
-    pub ladder: Ladder,
+    /// The §14.2 rung set as a PER-COMPLETION LADDER FACTORY — EARNED
+    /// authority injected at every governed verification open. `Ladder::new`
+    /// stays feature-gated; this controller never constructs a rung. The
+    /// rung SET is composed once (adapter wiring, the composition root's
+    /// job); its instruments ANCHOR at the workspace the dispatch actually
+    /// ran in, so the factory re-anchors the set at each completion's
+    /// evidence workspace (plan Task 20 COR-D3, §17.5.1 invariant 1). A
+    /// caller that wants the pre-correction canonical anchoring returns the
+    /// same ladder at every path.
+    pub ladder_for: LadderFactory,
     pub reference: Arc<dyn ReferenceProvider>,
     /// The answer-key source for §11.4 step 3's per-tick re-read — the
     /// in-memory snapshot is never authoritative over this.
@@ -247,6 +278,16 @@ pub struct ControllerDeps {
     /// posture; a real-backend posture REQUIRES the sandbox and policy
     /// instances (construction refuses the inconsistent shapes).
     pub govern: crate::govern::GovernDeps,
+    /// The run's workspace provider (plan Task 20, R-1b): when wired, EVERY
+    /// dispatched unit is allocated a FRESH per-unit workspace from it
+    /// before gate admission, the admission and the invocation spec name
+    /// THAT workspace, and it is released best-effort when the invocation
+    /// terminalizes (§17.5.1 invariant 1 — parallel units never share a
+    /// workspace). `None` is the pre-composition shape: the controller
+    /// falls back to the run-derived workspace ref. When the composition
+    /// wired a provider, a provider failure is a typed run error — never a
+    /// silent fallback to the shared ref.
+    pub workspaces: Option<Arc<dyn WorkspaceProvider>>,
     pub config_fingerprint: Digest,
     pub environment_fingerprint: Digest,
     pub intent: String,
@@ -330,6 +371,17 @@ pub enum ControlError {
     /// error's variant set is large and this arm must not inflate every
     /// `Result<_, ControlError>` in the crate.
     Settlement(Box<crate::settle::SettleError>),
+    /// The composed `WorkspaceProvider` refused to allocate a dispatch's
+    /// per-unit workspace (plan Task 20, R-1b). When a provider is wired,
+    /// this is a HARD dispatch error — the unit never falls back to a
+    /// shared workspace ref (a fallback would silently recreate the exact
+    /// sharing R-1b closes).
+    Workspace(WorkspaceProviderError),
+    /// The §14.2 ladder factory refused to anchor the rung set at a
+    /// completion's evidence workspace (plan Task 20 COR-D3): the rung
+    /// construction failed for that path — an observation/verification
+    /// infrastructure failure, never a coerced outcome.
+    Ladder(String),
 }
 
 impl core::fmt::Display for ControlError {
@@ -394,6 +446,15 @@ impl core::fmt::Display for ControlError {
                 root.display()
             ),
             Self::Settlement(error) => write!(f, "the settlement service refused: {error}"),
+            Self::Workspace(error) => write!(
+                f,
+                "the workspace provider refused a per-unit allocation: {error}"
+            ),
+            Self::Ladder(detail) => write!(
+                f,
+                "the verification ladder could not anchor at the completion's workspace: \
+                 {detail}"
+            ),
         }
     }
 }
@@ -469,6 +530,12 @@ impl From<SelectionError> for ControlError {
 impl From<crate::settle::SettleError> for ControlError {
     fn from(source: crate::settle::SettleError) -> Self {
         Self::Settlement(Box::new(source))
+    }
+}
+
+impl From<WorkspaceProviderError> for ControlError {
+    fn from(source: WorkspaceProviderError) -> Self {
+        Self::Workspace(source)
     }
 }
 
@@ -582,6 +649,21 @@ struct LoopState {
     /// timeout ledger.
     reminders: BTreeMap<UnitId, u32>,
     in_flight: Vec<InFlight>,
+    /// COR-D2 (plan Task 20): completions polled terminal `Completed`
+    /// whose observation binding owes a FREE (run, iteration) key. The
+    /// binding is write-once per (run, iteration) while §11.2 dispatches
+    /// up to `max_parallel` invocations INTO one iteration — a second
+    /// completion processed in the same iteration would collide with the
+    /// first's binding as a raw store error. Surplus completions are
+    /// CARRIED here (reservation and workspace held: their pipelines
+    /// still run) and absorbed ONE per following iteration, at that
+    /// iteration's own anchor. Never a second bundle for one key; never
+    /// a store error out of the drain.
+    carried: Vec<InFlight>,
+    /// Whether THIS iteration's observation binding is already spent (by
+    /// the drain's one processed completion or by absorbing a carried
+    /// one). Reset at every iteration boundary.
+    iteration_binding_spent: bool,
     detector: NonconvergenceDetector,
     open_residuals: Vec<Residual>,
     /// The latest governed verification outcome per unit — §15.2's
@@ -620,7 +702,16 @@ pub struct RunController {
     runner: RecordingAgentRunner,
     observers: Vec<Arc<dyn Observer>>,
     comparison: ComparisonDeps,
-    ladder: Ladder,
+    ladder_for: LadderFactory,
+    /// One ladder instance per anchored workspace, memoized across the
+    /// run: the factory runs the FIRST time a completion anchors at a
+    /// given workspace, and the SAME ladder instance (carrying any
+    /// instrument state its rungs hold) serves every later completion
+    /// there. The provider-less shape anchors every completion at the one
+    /// canonical root, so it holds exactly one instance — the
+    /// pre-correction behavior, byte for byte. Single-threaded loop
+    /// (RefCell interior, the adapters' own posture).
+    ladder_cache: core::cell::RefCell<std::collections::HashMap<PathBuf, Ladder>>,
     reference: Arc<dyn ReferenceProvider>,
     answer_key: AnswerKeySource,
     escalation: Arc<dyn HumanEscalation>,
@@ -643,6 +734,106 @@ pub struct RunController {
     /// consulted at dispatch time before `runner.invoke`.
     govern: crate::govern::GovernDeps,
     gate: crate::govern::AuthorityGate,
+    /// The run's workspace provider (plan Task 20, R-1b). `Some` ⇒ every
+    /// dispatched unit gets a FRESH per-unit workspace before admission;
+    /// `None` ⇒ the run-derived workspace ref (the pre-composition shape).
+    workspaces: Option<Arc<dyn WorkspaceProvider>>,
+    /// The evidence owner's produce policy (the live-E2E correction): what
+    /// stands at the unit's locator when verification opens. A composition
+    /// decision — see [`ProducePolicy`].
+    produce: ProducePolicy,
+}
+
+/// The evidence owner's produce policy (the live-E2E correction, plan
+/// Task 20 COR-B3a): what the loop puts at a unit's
+/// `evidence_required.locator` — the location the §14.2 verification
+/// opens at — per completed dispatch. A COMPOSITION DECISION, matched to
+/// the fronted rung set, because the two worlds genuinely differ: rungs
+/// whose declared artifact contract is the loop's observation facet
+/// document (the frozen p4/p7 proof rungs) need the facet standing at the
+/// locator, refreshed every completion; rungs whose declared contracts
+/// are produced artifacts (digest manifests, transcripts, reports) need
+/// the dispatched work's own artifact there, never overwritten by
+/// observation bytes. The pre-correction behavior hard-coded the first
+/// world into the loop, which is precisely the composition defect that
+/// left no fixture able to settle a unit under the shipped rung set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProducePolicy {
+    /// The loop's observation facet document is materialized at the
+    /// locator and the production binds it — refreshed every completion.
+    /// The pre-correction behavior, and the default: the frozen proofs
+    /// decide through exactly this world.
+    MaterializeObservation,
+    /// The locator is the produced verification artifact's home: the
+    /// owner binds the locator's ACTUAL content — ingesting a produced
+    /// artifact into the content-addressed store, materializing the
+    /// observation facet only when no artifact stands there, and never
+    /// overwriting a produced artifact.
+    BindLocatorContent,
+}
+
+impl ProducePolicy {
+    /// COR-R2-1 (falsifier round 2, F-R2-3): THE production key surface —
+    /// the one definition of "this completion's production is durably
+    /// recorded", read from the SAME surface [`RunController`]'s produce
+    /// step writes, for every consumer of produced-ness (the §18.3
+    /// resume-completion orphan recovery is the second consumer the
+    /// ProducePolicy seam used to leak past: it used to guess the key from
+    /// the facet alone, which is exactly the default world's key, so the
+    /// composed produced-artifact world never read anything as "already
+    /// applied" and every first resume of a fully settled run re-minted,
+    /// failed the settled no-op predicate, and burned an iteration into a
+    /// dishonest `budget_exhausted` terminal). The surface per world:
+    ///
+    /// - [`Self::MaterializeObservation`]: the production IS the facet
+    ///   document's own ref — the produce step records
+    ///   `(evidence = facet_ref, locator, producer, iteration)`, so the
+    ///   keyed `(run, ref)` row is the exact surface. Reading it by ref
+    ///   keeps the multi-attempt, shared-locator precision the crash
+    ///   recovery needs (attempt N's facet ref is never attempt N-1's
+    ///   row).
+    /// - [`Self::BindLocatorContent`]: the production's key is the
+    ///   locator artifact's OWN content ref — a ref NO facet names, so a
+    ///   facet-ref read is structurally the wrong surface here. The read
+    ///   is therefore the `evidence_productions_at(locator)` surface:
+    ///   "this unit's work product has a durable production". Deliberately
+    ///   producer-agnostic: the produce step fronts the record with the
+    ///   completion's FIRST facet's instrument (a multi-facet completion —
+    ///   e.g. the composed `filesystem`+`test` plan — writes ONE locator
+    ///   production, so no single facet's identity owns it), and it is
+    ///   iteration-insensitive because the produce step itself is: a
+    ///   re-produced identical artifact dedupes onto the durable row
+    ///   (`already_durable` compares locator + producer, never
+    ///   iteration).
+    ///
+    /// COR-R3-1 (falsifier round 3): the same discipline now governs the
+    /// recovery's MINT half, not only its applied read. In the produced
+    /// world the §18.3 recovery walks the frozen units' locators and
+    /// re-mints the refs the DURABLE orphan events name (the store's
+    /// `pending_evidence_production_events` read) — in this world those
+    /// are the locator artifacts' content refs, which no facet names, so
+    /// a facet-shaped mint could never complete the A5 crash window here.
+    /// This method stays the ONE definition of "produced" for the applied
+    /// check; the per-world mint shapes live beside it in the recovery.
+    pub(crate) fn production_recorded(
+        self,
+        state: &dyn StateStore,
+        run_id: &RunId,
+        evidence_ref: &EvidenceRef,
+        _instrument: &gauntlet_ports::observer::InstrumentIdentity,
+        locator: &EvidenceLocator,
+        deadline: Deadline,
+    ) -> Result<bool, StateStoreError> {
+        match self {
+            Self::MaterializeObservation => state
+                .evidence_production(run_id, evidence_ref, deadline)
+                .map(|row| row.is_some()),
+            Self::BindLocatorContent => {
+                let rows = state.evidence_productions_at(run_id, locator, deadline)?;
+                Ok(!rows.is_empty())
+            }
+        }
+    }
 }
 
 impl RunController {
@@ -651,7 +842,29 @@ impl RunController {
     /// Unit set; F7 — the depends_on graph must validate (the B2
     /// scheduler's own error is surfaced); §8.5 check 8 — the budget shape
     /// must yield a usable budget.
+    ///
+    /// The produce policy is [`ProducePolicy::MaterializeObservation`] —
+    /// the pre-correction behavior the frozen proofs decide through. A
+    /// composition fronting produced-artifact rungs opts into
+    /// [`Self::compose_binding_produced_artifacts`].
     pub fn compose(deps: ControllerDeps) -> Result<Self, ControlError> {
+        Self::compose_with(deps, ProducePolicy::MaterializeObservation)
+    }
+
+    /// Composes the controller with the evidence owner binding the
+    /// locator's ACTUAL content (the live-E2E correction): a produced
+    /// verification artifact at a unit's locator is ingested into the
+    /// content-addressed store and the production binds it; the
+    /// observation facet is materialized only when no artifact stands
+    /// there, and a produced artifact is never overwritten with
+    /// observation bytes. For compositions whose fronted §14.2 rungs
+    /// decide over produced artifacts (digest manifests, command
+    /// transcripts, test reports).
+    pub fn compose_binding_produced_artifacts(deps: ControllerDeps) -> Result<Self, ControlError> {
+        Self::compose_with(deps, ProducePolicy::BindLocatorContent)
+    }
+
+    fn compose_with(deps: ControllerDeps, produce: ProducePolicy) -> Result<Self, ControlError> {
         let units = strict_units(&deps.answer_key)?;
         if units.is_empty() {
             return Err(ControlError::EmptyRuler {
@@ -738,7 +951,8 @@ impl RunController {
         let evidence_production =
             EvidenceProductionAuthority::new(deps.state.clone(), deps.evidence.clone());
         let comparison_authority =
-            ComparisonAuthority::new(deps.state.clone(), deps.evidence.clone());
+            ComparisonAuthority::new(deps.state.clone(), deps.evidence.clone())
+                .with_role_deny(deps.comparison.role_deny.clone());
         let verification_authority =
             VerificationAuthority::new(deps.state.clone(), deps.evidence.clone(), deps.ids.clone());
         let settlement = SettlementService::new(
@@ -757,7 +971,8 @@ impl RunController {
             runner,
             observers: deps.observers,
             comparison: deps.comparison,
-            ladder: deps.ladder,
+            ladder_for: deps.ladder_for,
+            ladder_cache: core::cell::RefCell::new(std::collections::HashMap::new()),
             reference: deps.reference,
             answer_key: deps.answer_key,
             escalation: deps.escalation,
@@ -778,6 +993,8 @@ impl RunController {
             settlement,
             govern: deps.govern,
             gate: crate::govern::AuthorityGate::new(),
+            workspaces: deps.workspaces,
+            produce,
         })
     }
 
@@ -839,6 +1056,8 @@ impl RunController {
             timeout_retries: BTreeMap::new(),
             reminders: BTreeMap::new(),
             in_flight: Vec::new(),
+            carried: Vec::new(),
+            iteration_binding_spent: false,
             detector: NonconvergenceDetector::new(self.policy.nonconvergence_n())
                 .map_err(ControlError::Diagnosis)?,
             open_residuals: Vec::new(),
@@ -894,17 +1113,29 @@ impl RunController {
         // evidence-production orphan completion (re-minted from durable
         // facts only; orphans whose facts are not durably recoverable are
         // pinned limitations by the service, never fabrications).
-        match self.settlement.complete_pending_after_checkpoint(
-            run_id,
-            checkpoint.event_log_offset,
-            deadline,
-        ) {
-            Ok(_completion) => {}
-            Err(SettleError::State(error)) => return Err(ControlError::State(error)),
-            Err(SettleError::Evidence(error)) => return Err(ControlError::Evidence(error)),
-            Err(SettleError::Escalation(error)) => return Err(ControlError::Escalation(error)),
-            Err(other) => return Err(ControlError::Settlement(Box::new(other))),
-        }
+        // COR-R5-1: the completion's RETURN VALUE no longer gates the
+        // settled no-op — a completed settlement row and a completed
+        // production mint are both durable by themselves (see the
+        // predicate below) — but the completion itself always runs: its
+        // side effects ARE the §18.3 step-1 recovery, and a resume that
+        // completed state must never skip it.
+        let _completion = {
+            match self.settlement.complete_pending_after_checkpoint(
+                run_id,
+                checkpoint.event_log_offset,
+                // COR-R2-1: the completion reads produced-ness from the
+                // SAME key surface THIS run's produce step writes — the
+                // policy the composition chose threads through.
+                self.produce,
+                deadline,
+            ) {
+                Ok(completion) => completion,
+                Err(SettleError::State(error)) => return Err(ControlError::State(error)),
+                Err(SettleError::Evidence(error)) => return Err(ControlError::Evidence(error)),
+                Err(SettleError::Escalation(error)) => return Err(ControlError::Escalation(error)),
+                Err(other) => return Err(ControlError::Settlement(Box::new(other))),
+            }
+        };
         // §5.3.3: the projection is rebuilt from events — but EVENT ORDER
         // decides which word wins. A settlement whose event sits STRICTLY
         // BEYOND the checkpoint's water-mark is one the checkpoint could
@@ -914,11 +1145,12 @@ impl RunController {
         // checkpoint's knowledge; a projection that still says Open
         // postdates that settlement (e.g. a §11.5 residual retry
         // legitimately re-opened the unit for correction), and the later
-        // word stands.
-        let durable_settled: BTreeSet<UnitId> = self
-            .state
-            .settlements(run_id, deadline)?
-            .into_iter()
+        // word stands. The full keyed-row set is kept too: COR-R5-2's
+        // settled no-op cross-check reads the missing-row divergence
+        // against it (checked against the store, never a report's say-so).
+        let settlement_rows = self.state.settlements(run_id, deadline)?;
+        let durable_settled: BTreeSet<UnitId> = settlement_rows
+            .iter()
             .filter(|record| record.event_log_offset().get() > checkpoint.event_log_offset.get())
             .map(|record| record.unit_id().clone())
             .collect();
@@ -936,6 +1168,118 @@ impl RunController {
         let frozen_units = self.frozen_units(&run)?;
         let frozen_membership: BTreeSet<UnitId> =
             frozen_units.iter().map(|unit| unit.id().clone()).collect();
+        // COR-F6 (falsifier round 1, F-7): an ALL-SETTLED run's resume is
+        // an honest settled NO-OP — terminal `settled` at the checkpoint's
+        // own iteration, ZERO writes, ZERO new iterations burned. The
+        // close fires BEFORE (and regardless of) iteration booking: an
+        // all-settled projection with nothing in flight can only plan zero
+        // dispatches, so re-entering the loop would book an empty round
+        // whose booking — under a spent rounds dimension — is REFUSED and
+        // terminalizes `budget_exhausted` BEFORE `decide_progress`'s
+        // all-closed settled close is consulted, misreporting a fully
+        // settled run (the falsifier's round-5 reproduction: the recovery
+        // half honest, the loop half dishonest; reachable from an ordinary
+        // §16.3/A5 crash with no forgery). The predicate is conservative
+        // on every axis:
+        // - the §18.3 step-1 completion's output is durable BY ITSELF in
+        //   both arms, so a recovery that COMPLETED state never defers the
+        //   close to a fresh booked round. COR-R2-1: "nothing to complete"
+        //   is read through the run's OWN produce policy
+        //   (`ProducePolicy::production_recorded`), so the composed
+        //   produced-artifact world — whose production keys are the
+        //   locator artifacts' content refs, not facet refs — reads its
+        //   settled runs as settled too, and the FIRST resume of a fully
+        //   settled run is the no-op in both produce worlds;
+        //   COR-R3-1: forensic-only recovery output — LIMITATION pins,
+        //   whose writes land in the evidence store and are already
+        //   durable by themselves — does NOT defeat the no-op: the pins
+        //   record bookkeeping damage honestly, but no STATE moved that a
+        //   reconciliation checkpoint would need to record;
+        //   COR-R4-1 (falsifier round 4, F-R4-3): a recovery-COMPLETED
+        //   PRODUCTION is the same class — the mint inserted a row
+        //   cross-validated against the durable `EvidenceProduced` event,
+        //   appending no event and moving no field a checkpoint records;
+        //   COR-R5-1 (falsifier round 5, F-R5-1): a recovery-COMPLETED
+        //   SETTLEMENT is the same class again — the anchored replay
+        //   re-inserts the keyed row cross-validated against the durable
+        //   `SettlementCommitted` event (the row's offset and `settled_at`
+        //   are the EVENT's own), appending no event and moving no field a
+        //   checkpoint records. The row's durability derives from the
+        //   durable event, not from a checkpoint, and the replay is
+        //   idempotent on every later resume — so the pre-COR-R5-1
+        //   "the normal path's reconciliation checkpoint must record it"
+        //   routing is not what made the state durable, and booking a
+        //   round for it burns exactly the empty round the no-op exists
+        //   to prevent. The distinction this predicate does NOT decide:
+        //   the reproduction's checkpoint-offset forgery precondition
+        //   stays the recorded "checkpoint() forged-row projection class
+        //   (planning-layer)" deferral — this arm keys on the
+        //   EVENT-ORDERED projection being all-settled, whatever surgery
+        //   produced it, and never validates or repairs checkpoint
+        //   offsets. Below-anchor keyed-row damage that the anchor-bounded
+        //   replay cannot re-complete is NOT silent either: the COR-R5-2
+        //   cross-check inside this branch pins it per row (falsifier
+        //   round 5, F-R5-2), without touching the anchor rule;
+        // - nothing is in flight to re-probe;
+        // - the EVENT-ORDERED projection (the checkpoint's own word plus
+        //   any post-anchor §16.3 settlement window, §5.3.3) carries every
+        //   frozen unit Settled. A checkpoint that legitimately projects a
+        //   unit Open (e.g. a residual retry re-opened it) fails the
+        //   predicate and takes the full path — a run that merely LOOKS
+        //   settled is never short-circuited, and a genuinely unfinished
+        //   run never closes as a no-op.
+        // The §18.3 step-2 re-freeze-verify above already ran, so a
+        // mutated reference never reaches this arm; p7/g7's crash-recovery
+        // semantics are untouched (their checkpoints owe open units).
+        if checkpoint.in_flight.is_empty()
+            && !frozen_membership.is_empty()
+            && frozen_membership
+                .iter()
+                .all(|unit| unit_states.get(unit) == Some(&UnitStatus::Settled))
+        {
+            // COR-R5-2 (falsifier round 5, F-R5-2): the same per-row
+            // forensic honesty the production arm emits for below-anchor
+            // damage. A unit the durable projection certifies Settled
+            // whose KEYED settlement row is missing from the store is
+            // pinned, per row, checked against the store's own rows —
+            // never silently absorbed by the certified no-op, and never
+            // pinned when every settled unit's row stands (the no-damage
+            // resume writes nothing). The full path's behavior is
+            // untouched: this check lives only in the no-op close.
+            let settled_row_units: BTreeSet<UnitId> = settlement_rows
+                .iter()
+                .map(|record| record.unit_id().clone())
+                .collect();
+            let missing_rows: Vec<UnitId> = frozen_membership
+                .iter()
+                .filter(|unit| {
+                    unit_states.get(*unit) == Some(&UnitStatus::Settled)
+                        && !settled_row_units.contains(*unit)
+                })
+                .cloned()
+                .collect();
+            if !missing_rows.is_empty() {
+                self.settlement
+                    .pin_missing_settlement_rows(
+                        run.id(),
+                        &missing_rows,
+                        checkpoint.event_log_offset,
+                        deadline,
+                    )
+                    .map_err(|error| match error {
+                        SettleError::State(state) => ControlError::State(state),
+                        SettleError::Evidence(evidence) => ControlError::Evidence(evidence),
+                        other => ControlError::Settlement(Box::new(other)),
+                    })?;
+            }
+            return Ok(RunOutcome {
+                run_id: run.id().clone(),
+                terminal: TerminalState::Settled,
+                iterations: checkpoint.iteration_no.get(),
+                reference_breach: None,
+                escalation_summary: None,
+            });
+        }
         let mut state = LoopState {
             run: run.clone(),
             version_digest: run.reference_version().digest().clone(),
@@ -949,6 +1293,8 @@ impl RunController {
             timeout_retries: BTreeMap::new(),
             reminders: BTreeMap::new(),
             in_flight: Vec::new(),
+            carried: Vec::new(),
+            iteration_binding_spent: false,
             detector: NonconvergenceDetector::new(self.policy.nonconvergence_n())
                 .map_err(ControlError::Diagnosis)?,
             open_residuals: Vec::new(),
@@ -1037,6 +1383,71 @@ impl RunController {
         Ok(())
     }
 
+    /// The §14.2 ladder anchored at one completion's evidence workspace
+    /// (plan Task 20 COR-D3), memoized per workspace so a rung set with
+    /// instrument state keeps that state across the run's completions at
+    /// the same workspace — the provider-less shape holds exactly one
+    /// instance, the pre-correction behavior.
+    fn ladder_at(&self, workspace: &Path) -> Result<Ladder, ControlError> {
+        let mut cache = self.ladder_cache.borrow_mut();
+        if let Some(ladder) = cache.get(workspace) {
+            return Ok(ladder.clone());
+        }
+        let ladder = (self.ladder_for)(workspace).map_err(ControlError::Ladder)?;
+        cache.insert(workspace.to_path_buf(), ladder.clone());
+        Ok(ladder)
+    }
+
+    /// The invocation-terminal release (plan Task 20, R-1b part b): the
+    /// reservation slot goes back AND the dispatch's own workspace is
+    /// returned to the provider. Every call site is a point where the
+    /// invocation has terminalized (failed, timed out, cancelled, or its
+    /// charge was refused) — a re-dispatch allocates a FRESH workspace, so
+    /// the old one is returned now, not at run end.
+    fn release_flight(&self, state: &LoopState, flight: &InFlight) {
+        release_reservation(state, flight);
+        self.release_workspace(state, &flight.spec.workspace);
+    }
+
+    /// Best-effort workspace release through the composed provider (plan
+    /// Task 20, R-1b part b). NEVER a settlement input: §16's ordering is
+    /// about the settlement's own atomic commit sequence, and this runs
+    /// strictly AFTER an invocation's durable effects — it releases a
+    /// directory nothing downstream reads, can never block settlement, and
+    /// can never reorder it. A cleanup FAILURE is recorded as pinned
+    /// evidence ("never a swallowed error") and the loop proceeds: a leaked
+    /// workspace directory under the configured root is a storage loss, not
+    /// a correctness fact, and it must not convert a settled run into a
+    /// failed one. With no provider composed there is nothing to release —
+    /// the fallback ref names no allocation.
+    fn release_workspace(&self, state: &LoopState, workspace: &gauntlet_domain::WorkspaceRef) {
+        let Some(provider) = self.workspaces.as_ref() else {
+            return;
+        };
+        if let Err(error) = provider.cleanup(workspace, self.operation_bound()) {
+            let record = format!(
+                "{{\"class\":\"workspace_cleanup_failed\",\"run\":\"{}\",\"workspace\":\"{}\",\"detail\":\"{}\"}}",
+                state.run.id(),
+                workspace.as_str(),
+                escape_json_text(&error.to_string())
+            );
+            let pinned = self
+                .evidence
+                .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())
+                .and_then(|evidence| {
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                    Ok(())
+                });
+            if pinned.is_err() {
+                // Even the FAILURE RECORD failed: the release stays
+                // best-effort end to end — the loop's own error surface is
+                // reserved for facts that gate correctness, and this is not
+                // one (a directory leak under the workspace root).
+            }
+        }
+    }
+
     /// Item 0 — the C7 remainder (the post-F1 orchestrator ruling): the
     /// run's settleable and dispatch-eligible membership is the FROZEN
     /// reference's, never the per-tick file re-read's. Derives the frozen
@@ -1084,6 +1495,8 @@ impl RunController {
     fn drive(&self, mut state: LoopState) -> Result<RunOutcome, ControlError> {
         while state.terminal.is_none() {
             state.next_iteration();
+            // COR-D2: a new iteration owns a FRESH observation binding key.
+            state.iteration_binding_spent = false;
             // §18.2/C8.2: THE ITERATION-BOUNDARY CHECKPOINT — written at
             // the TOP of iteration k. One placement satisfies both rules
             // that were in tension while the checkpoint sat mid-pipeline
@@ -1114,6 +1527,20 @@ impl RunController {
             if let Some(outcome) = self.boundary_verify(&mut state)? {
                 return Ok(outcome);
             }
+            // COR-D2: absorb ONE carried completion per iteration, at THIS
+            // iteration's own anchor — the §18.2 boundary checkpoint above
+            // already declares this iteration, so the carried completion's
+            // owner writes (observation binding, production, comparison)
+            // validate exactly like a same-iteration completion's. One per
+            // iteration keeps the write-once per-(run, iteration) binding
+            // rule intact; the rest wait for the following boundaries.
+            if !state.carried.is_empty() && !state.iteration_binding_spent {
+                let flight = state.carried.remove(0);
+                let workspace = flight.spec.workspace.clone();
+                self.process_completion(&mut state, flight)?;
+                state.iteration_binding_spent = true;
+                self.release_workspace(&state, &workspace);
+            }
             self.plan_and_dispatch(&mut state)?;
             // Any terminal the plan decided (C1: `budget_exhausted` on a
             // real budget breach, `blocked` on governance-only blockage) is
@@ -1140,6 +1567,14 @@ impl RunController {
             {
                 return Ok(outcome);
             }
+        }
+        // COR-D2: a terminal set mid-loop strands unabsorbed carried
+        // completions. Their pipelines never ran — the units stay open and
+        // a resume re-plans them (the carried invocations' terminal facts
+        // are already durable events) — so their reservations and
+        // workspaces are released now, never held past the run.
+        while let Some(flight) = state.carried.pop() {
+            self.release_flight(&state, &flight);
         }
         let terminal = state.terminal.unwrap_or(TerminalState::Settled);
         self.checkpoint(&mut state)?;
@@ -1295,9 +1730,10 @@ impl RunController {
             ) && !state
                 .in_flight
                 .iter()
+                .chain(state.carried.iter())
                 .any(|flight| flight.unit == *unit.id())
         });
-        if !owes_work && state.in_flight.is_empty() {
+        if !owes_work && state.in_flight.is_empty() && state.carried.is_empty() {
             return Ok(());
         }
         let estimates: BTreeMap<UnitId, BudgetSlice> = units
@@ -1323,11 +1759,15 @@ impl RunController {
             claimed: state
                 .in_flight
                 .iter()
+                .chain(state.carried.iter())
                 .map(|flight| (flight.unit.clone(), flight.spec.invocation_id.clone()))
                 .collect(),
             concurrency: Concurrency {
                 global_capacity: self.budget_shape.limits.max_parallel(),
-                global_in_flight: state.in_flight.len() as u32,
+                // COR-D2: a carried completion still holds its parallel
+                // slot (its pipeline is still owed), so it counts against
+                // the dispatch capacity exactly like an in-flight one.
+                global_in_flight: (state.in_flight.len() + state.carried.len()) as u32,
                 tier_capacity: dispatchable_tier_capacity(self.budget_shape.limits),
                 tier_in_flight: Vec::new(),
             },
@@ -1369,7 +1809,7 @@ impl RunController {
         // no forward dispatch at all. In-flight work drains to completion
         // first; once nothing is in flight the loop drives to terminal.
         if rounds_exhausted(state) {
-            if state.in_flight.is_empty() {
+            if state.in_flight.is_empty() && state.carried.is_empty() {
                 state.terminal = Some(TerminalState::BudgetExhausted);
             }
             return Ok(());
@@ -1388,7 +1828,7 @@ impl RunController {
         let mut budget_refused = false;
         for planned in dispatches {
             let mut pending = planned.estimated_slice;
-            for flight in &state.in_flight {
+            for flight in state.in_flight.iter().chain(state.carried.iter()) {
                 pending = add_slices(pending, flight.reservation.slice());
             }
             if state.meter.would_breach_reserve(pending) {
@@ -1587,7 +2027,7 @@ impl RunController {
                 }
                 // Zero-payment charge releases the reservation slot (the
                 // B1 adapter convention for cancelled invocations).
-                release_reservation(state, &flight);
+                self.release_flight(state, &flight);
                 state.last_offset = self
                     .append_terminal_event(
                         state.run.id(),
@@ -1620,6 +2060,25 @@ impl RunController {
             // violation, not an invented unit; skip rather than guess.
             return Ok(DispatchAdmission::EmptySlice);
         };
+        // The dispatch's FRESH per-unit workspace (plan Task 20, R-1b) —
+        // allocated BEFORE admission, so the gate validates containment
+        // against the workspace the unit will actually run in, not a
+        // lifetime-scoped ref (§17.5.1 invariant 1). With no provider
+        // composed, the pre-composition run-derived ref is the honest
+        // fallback; with a provider composed, a provider failure is a HARD
+        // error — falling back would silently recreate the sharing R-1b
+        // closes.
+        let workspace = match &self.workspaces {
+            Some(provider) => {
+                let allocated = provider.create(
+                    state.run.id(),
+                    WorkspaceSubject::Unit(unit.clone()),
+                    self.operation_bound(),
+                )?;
+                allocated.reference
+            }
+            None => run_workspace_ref(state.run.id()),
+        };
         // The §17 governance gate: authority decides WHETHER, containment
         // decides HOW CONTAINED, and both are decided here — before the
         // spec, before the runner is invoked (D2's correction: a check
@@ -1632,6 +2091,7 @@ impl RunController {
             tier: planned.blast_radius,
             authority: planned.authority,
             runner_isolation: self.runner.capabilities().isolation,
+            workspace: workspace.clone(),
         };
         let admission =
             match self
@@ -1640,6 +2100,10 @@ impl RunController {
             {
                 Ok(admission) => admission,
                 Err(refusal) => {
+                    // No invocation will run in the freshly allocated
+                    // workspace: release it best-effort (never blocking
+                    // the refusal's own durable record).
+                    self.release_workspace(state, &workspace);
                     self.record_gate_refusal(state, &unit, &refusal)?;
                     return Ok(DispatchAdmission::GovernanceRefused { unit });
                 }
@@ -1725,7 +2189,10 @@ impl RunController {
             role: gauntlet_domain::RoleId::Builder,
             prompt,
             context_envelope: envelope,
-            workspace: run_workspace_ref(state.run.id()),
+            // The dispatch's OWN workspace (plan Task 20, R-1b): the fresh
+            // per-unit allocation the gate just validated against — the
+            // run-derived ref only in the provider-less composition.
+            workspace,
             permissions: gauntlet_domain::PermissionSetRef::new("builder-envelope").map_err(
                 |error| {
                     ControlError::Agent(AgentError::AdmissionRefused {
@@ -1951,8 +2418,49 @@ impl RunController {
                 };
                 match status {
                     Ok(InvocationStatus::Completed { .. }) => {
+                        // COR-D2: the (run, iteration) observation binding
+                        // is write-once while dispatch admits up to
+                        // `max_parallel` completions per iteration. The
+                        // FIRST completion of this iteration runs its full
+                        // pipeline; every LATER one is CARRIED to the
+                        // following iteration boundary — reservation and
+                        // workspace held (their pipeline still runs there)
+                        // — never a second bundle for one key, never the
+                        // store's collision refusal escaping the drain.
+                        if state.iteration_binding_spent {
+                            let flight = state.in_flight.remove(index);
+                            // The carry is PINNED as evidence (a fact about
+                            // this completion's absorption, §21.2 — never a
+                            // swallowed event): the unit, the invocation,
+                            // and the iteration that will absorb it are
+                            // reconstructable from the store alone.
+                            let record = format!(
+                                "{{\"class\":\"completion_carried\",\"run\":\"{}\",\"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\"}}",
+                                state.run.id(),
+                                state.iteration,
+                                flight.unit,
+                                flight.spec.invocation_id,
+                            );
+                            let evidence = self.evidence.put(
+                                record.as_bytes(),
+                                EvidenceKind::Log,
+                                self.operation_bound(),
+                            )?;
+                            self.evidence
+                                .pin(state.run.id(), &evidence, self.operation_bound())?;
+                            state.carried.push(flight);
+                            continue;
+                        }
                         let flight = state.in_flight.remove(index);
+                        // The per-unit workspace is released AFTER the
+                        // whole completion pipeline (§16 ordering: cleanup
+                        // can neither precede nor preempt the settlement
+                        // commit; observers read the workspace during the
+                        // observe leg only).
+                        let workspace = flight.spec.workspace.clone();
                         self.process_completion(state, flight)?;
+                        state.iteration_binding_spent = true;
+                        self.release_workspace(state, &workspace);
                     }
                     Ok(InvocationStatus::Failed { class }) => {
                         let mut flight = state.in_flight.remove(index);
@@ -1964,7 +2472,7 @@ impl RunController {
                     }
                     Ok(InvocationStatus::Cancelled) => {
                         let flight = state.in_flight.remove(index);
-                        release_reservation(state, &flight);
+                        self.release_flight(state, &flight);
                         state.last_offset = self
                             .append_terminal_event(
                                 state.run.id(),
@@ -2057,7 +2565,7 @@ impl RunController {
                 Ok(()) | Err(AgentError::AlreadyTerminal { .. }) => {}
                 Err(error) => return Err(ControlError::Agent(error)),
             }
-            release_reservation(state, &flight);
+            self.release_flight(state, &flight);
             state.last_offset = self
                 .append_terminal_event(
                     state.run.id(),
@@ -2120,7 +2628,7 @@ impl RunController {
             // §11.6: a contract mismatch is an INTEGRITY violation, not a
             // retryable malformed result — terminal abort.
             InvocationFailure::ContractMismatch => {
-                release_reservation(state, flight);
+                self.release_flight(state, flight);
                 state.terminal = Some(TerminalState::Aborted);
                 state.escalation_summary = Some(format!(
                     "contract mismatch from {}",
@@ -2135,7 +2643,7 @@ impl RunController {
                 };
                 match disposition::dispose(cause, &self.policy) {
                     Disposition::RetryOnceWithSchemaReminder { .. } => {
-                        release_reservation(state, flight);
+                        self.release_flight(state, flight);
                         // The row-3 reminder ledger is per-unit loop
                         // state: the unit's next malformed result
                         // escalates.
@@ -2151,7 +2659,7 @@ impl RunController {
                         Ok(())
                     }
                     Disposition::Escalate { reason } => {
-                        release_reservation(state, flight);
+                        self.release_flight(state, flight);
                         let unit = flight.unit.clone();
                         self.escalate(state, &unit, reason.to_string())
                     }
@@ -2181,7 +2689,7 @@ impl RunController {
                 };
                 match disposition::dispose(cause, &self.policy) {
                     Disposition::RetryAfterBackoff { delay_ms, .. } => {
-                        release_reservation(state, flight);
+                        self.release_flight(state, flight);
                         // Virtual-time backoff: advance the clock to the
                         // retry instant — no wall-clock wait exists here.
                         let now = self.clock.now().get();
@@ -2241,7 +2749,7 @@ impl RunController {
         };
         match disposition::dispose(cause, &self.policy) {
             Disposition::RetryAfterBackoff { delay_ms, .. } => {
-                release_reservation(state, flight);
+                self.release_flight(state, flight);
                 // Virtual-time backoff: advance the clock to the retry
                 // instant — no wall-clock wait exists here.
                 let now = self.clock.now().get();
@@ -2284,7 +2792,7 @@ impl RunController {
         };
         match disposition::dispose(cause, &self.policy) {
             Disposition::CancelThenRetryOnce { .. } => {
-                release_reservation(state, flight);
+                self.release_flight(state, flight);
                 // The retry-once ledger is per-unit loop state: the spent
                 // count is recorded NOW so the unit's next attempt
                 // re-disposes at retries_used + 1 and its second timeout
@@ -2305,7 +2813,7 @@ impl RunController {
                 Ok(())
             }
             Disposition::Escalate { reason } => {
-                release_reservation(state, flight);
+                self.release_flight(state, flight);
                 let unit = flight.unit.clone();
                 // The §10.3 rule-5 forensic note rides the ticket itself:
                 // the preserved session reference is named in the
@@ -2411,7 +2919,7 @@ impl RunController {
                     // booked charge releases the parallel slot) — release
                     // it, then keep the completed result for forensics
                     // before the terminal. Never a silent drop.
-                    release_reservation(state, &flight);
+                    self.release_flight(state, &flight);
                     self.record_uncharged_result(state, &flight, payment, CHARGE_LOCUS_METER)?;
                     state.terminal = Some(TerminalState::BudgetExhausted);
                     return Ok(());
@@ -2445,14 +2953,16 @@ impl RunController {
             })
         })?;
         // OBSERVE (§12) + the gated binding (the observation owner's
-        // write).
+        // write). The observation targets the workspace the dispatch
+        // actually ran in (plan Task 20, R-1b) — the flight's own spec
+        // ref, not a re-derivation.
         let claims = builder_claims(&result);
         let assembled = self.assembler.assemble(
             ObservationPlan {
                 request: ObservationRequest {
                     run_id: state.run.id().clone(),
                     iteration_no: iteration,
-                    workspace: run_workspace_ref(state.run.id()),
+                    workspace: flight.spec.workspace.clone(),
                 },
                 observers: self
                     .observers
@@ -2516,16 +3026,63 @@ impl RunController {
             .accept(self.operation_bound())?;
         // The residual set drives §11.5 rows 1/9.
         let residuals = residuals_of(&accepted, &flight.unit);
+        // COR-D3 (plan Task 20; §17.5.1 invariant 1): the completion's
+        // evidence surface is the workspace the dispatch ACTUALLY ran in —
+        // the flight's admitted per-unit workspace under the canonical
+        // root. Every locator read and write for THIS completion (the
+        // produce step and the verification chain's §22.2 re-read) anchors
+        // there. When no provider is wired (the pre-composition shape the
+        // frozen proofs pin), the run-derived ref names the canonical
+        // surface and the anchor is the root — byte-for-byte the prior
+        // behavior. The ref is the provider's key class; the component
+        // check keeps the join lexical (a separator or `..` segment is a
+        // typed refusal, never a path outside).
+        let evidence_workspace = match &self.workspaces {
+            Some(_) => {
+                let reference = flight.spec.workspace.as_str();
+                let single = !reference.is_empty()
+                    && std::path::Path::new(reference)
+                        .components()
+                        .all(|component| matches!(component, std::path::Component::Normal(_)));
+                if !single {
+                    return Err(ControlError::Workspace(
+                        WorkspaceProviderError::ContainmentViolated {
+                            path: reference.to_owned(),
+                        },
+                    ));
+                }
+                let path = self.workspace_root.join(reference);
+                // The workspace exists while the dispatch runs (the
+                // provider created it and release happens after this
+                // pipeline); ensuring it here keeps the §14 opens and the
+                // produce writes on one existing surface even when a
+                // completion arrives with nothing on disk yet.
+                std::fs::create_dir_all(&path).map_err(|error| {
+                    ControlError::Workspace(WorkspaceProviderError::CreateFailed {
+                        detail: format!(
+                            "the completion's evidence workspace {} could not be ensured: \
+                             {error}",
+                            path.display()
+                        ),
+                    })
+                })?;
+                path
+            }
+            None => self.workspace_root.clone(),
+        };
         // VERIFY (§14): the evidence owner produces the observation at
         // each attempted unit's required locator (the gated write), then
-        // the governed verification chain decides the claim.
+        // the governed verification chain decides the claim. The §14.2
+        // ladder anchors at THIS completion's evidence workspace (COR-D3):
+        // the instruments examine the same surface the produce step bound.
+        let ladder = self.ladder_at(&evidence_workspace)?;
         let governed_verification = self
             .verification_authority
             .for_run(
                 state.run.id(),
                 iteration,
-                self.ladder.clone(),
-                self.workspace_root.clone(),
+                ladder,
+                evidence_workspace.clone(),
                 self.operation_bound(),
             )
             .map_err(ControlError::VerificationOpen)?;
@@ -2587,57 +3144,22 @@ impl RunController {
             };
             if let Some(facet) = &facet {
                 let locator = unit.evidence_required().locator().clone();
-                // The producer's honest three-way fact: the bytes at the
-                // locator under the canonical root, in the store, and in
-                // the recorded digest are ONE fact. N4: the locator must
-                // resolve INSIDE the canonical root before any byte is
-                // written (typed refusal, never a write outside).
-                let locator_path = contained_locator_path(&self.workspace_root, &locator)?;
-                if let Some(parent) = locator_path.parent() {
-                    std::fs::create_dir_all(parent).map_err(|error| {
-                        ControlError::State(StateStoreError::WriteFailed {
-                            detail: format!("creating the locator parent failed: {error}"),
-                        })
-                    })?;
-                }
-                let facet_ref = EvidenceRef::new(facet.evidence_ref()).map_err(|error| {
-                    ControlError::Producer(ProducerAuthorityError::EvidenceUnreadable {
-                        evidence: EvidenceRef::new(facet.evidence_ref()).unwrap_or_else(|_| {
-                            EvidenceRef::new("evd-unparseable-facet-ref")
-                                .expect("fallback ref grammar")
-                        }),
-                        detail: error.to_string(),
-                    })
-                })?;
-                let facet_bytes = self
-                    .evidence
-                    .get(&facet_ref, self.operation_bound())?
-                    .unwrap_or_default();
-                std::fs::write(&locator_path, &facet_bytes).map_err(|error| {
-                    ControlError::State(StateStoreError::WriteFailed {
-                        detail: format!("writing the locator bytes failed: {error}"),
-                    })
-                })?;
-                let instrument_name = gauntlet_domain::InstrumentName::new(facet.instrument_name())
-                    .map_err(|error| {
-                        ControlError::Producer(ProducerAuthorityError::EvidenceUnreadable {
-                            evidence: facet_ref.clone(),
-                            detail: error.to_string(),
-                        })
-                    })?;
-                let instrument = gauntlet_ports::observer::InstrumentIdentity::new(
-                    instrument_name,
-                    facet.instrument_version().to_owned(),
-                );
-                self.evidence_production.record(
-                    state.run.id(),
-                    iteration,
-                    &facet_ref,
-                    &instrument,
-                    &locator,
-                    self.clock.now(),
-                    self.operation_bound(),
-                )?;
+                // N4: the locator must resolve INSIDE this completion's
+                // evidence workspace — the admitted per-unit workspace
+                // under the canonical root (COR-D3) — before any byte is
+                // read or written (typed refusal, never a path outside).
+                let locator_path = contained_locator_path(&evidence_workspace, &locator)?;
+                // The evidence owner's produce step — WHAT stands at the
+                // locator is the composition's produce policy (see
+                // [`ProducePolicy`]): the observation facet's document
+                // (the default, pre-correction world the frozen
+                // facet-document proof rungs decide through), or the
+                // locator's actual content — a produced verification
+                // artifact ingested into the content-addressed store, the
+                // facet materialized only at absence, a produced artifact
+                // never overwritten (the composed world whose rungs
+                // decide over artifacts).
+                self.produce_unit_evidence(state, iteration, unit, facet, &locator, &locator_path)?;
             }
             let request = VerificationRequest {
                 id: VerificationRef::new(&format!(
@@ -2715,65 +3237,107 @@ impl RunController {
                         detail: residual.residual.detail().to_owned(),
                     })
                     .collect();
-                match self.settlement.settle(
-                    SettleRequest {
-                        claim: &verified,
-                        actor: ClosingActor::Automatic,
-                        tracked_residuals: &tracked,
-                    },
-                    self.operation_bound(),
-                ) {
-                    Ok(outcome) => {
-                        // C8.1: the settlement append enters the
-                        // water-mark like every append.
-                        state.last_offset = outcome.event_log_offset.get();
-                        state
-                            .unit_states
-                            .insert(unit_id.clone(), UnitStatus::Settled);
-                    }
-                    // The settle-time mutation is §21.3's abort row: the
-                    // service already pinned BOTH digests; the run ends
-                    // `aborted{reference_mutated}` (§9.4).
-                    Err(SettleError::ReferenceMutated(refusal)) => {
-                        let crate::settle::ReferenceMutatedRefusal {
-                            expected, actual, ..
-                        } = *refusal;
-                        state.terminal = Some(TerminalState::Aborted);
-                        state.reference_breach =
-                            Some(ReferenceBreach::Mutated { expected, actual });
-                    }
-                    // Environment failures propagate typed, never
-                    // swallowed into a silent non-settlement.
-                    Err(SettleError::State(error)) => return Err(ControlError::State(error)),
-                    Err(SettleError::Evidence(error)) => {
-                        return Err(ControlError::Evidence(error));
-                    }
-                    Err(SettleError::Escalation(error)) => {
-                        return Err(ControlError::Escalation(error));
-                    }
-                    Err(SettleError::Admission(
-                        gauntlet_ports::producer_authority::SettlementAdmissionError::State(error),
-                    )) => return Err(ControlError::State(error)),
-                    Err(SettleError::Reference(error)) => {
-                        return Err(ControlError::Reference(error));
-                    }
-                    // A §16.1 gate refusal is a fact about THIS unit,
-                    // not a run error: pinned forensic evidence, the
-                    // unit stays open (the service already escalated
-                    // and pinned the authority-gap record where
-                    // §11.5 row 6 applies).
-                    Err(failure) => {
-                        let record = format!(
-                            "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"settlement_refused\":\"{failure}\"}}",
-                            state.run.id()
-                        );
-                        let evidence = self.evidence.put(
-                            record.as_bytes(),
-                            EvidenceKind::Log,
-                            self.operation_bound(),
-                        )?;
-                        self.evidence
-                            .pin(state.run.id(), &evidence, self.operation_bound())?;
+                // COR-F1 (falsifier round 1, F-1): in the COMPOSED
+                // produced-artifact world, an instrument-produced
+                // requirement settles only over CORROBORATED locator bytes
+                // — this completion's observation must contain an executed,
+                // passing test facet (the exact rule:
+                // [`Self::produced_artifact_corroborated`]). A PASS verdict
+                // decided purely over the builder-authored bytes at the
+                // locator (falsifier F-1's forged-report liar) settles
+                // NOTHING: the block is pinned as typed evidence and the
+                // unit stays open — a bounded honest non-settlement, never
+                // a silent downgrade and never a run error. The default
+                // [`ProducePolicy::MaterializeObservation`] world is
+                // untouched: its locator artifact IS the instrument's own
+                // facet document, and the frozen proofs decide through it
+                // byte for byte.
+                let corroboration_gated = self.produce == ProducePolicy::BindLocatorContent
+                    && unit.evidence_required().producer() == gauntlet_domain::Producer::Instrument
+                    && verified.record().outcome() == Outcome::Pass;
+                let corroborated = corroboration_gated
+                    && Self::produced_artifact_corroborated(
+                        &assembled.doc,
+                        state.run.id(),
+                        iteration,
+                    );
+                if corroboration_gated && !corroborated {
+                    let record = format!(
+                        "{{\"class\":\"producer_uncorroborated\",\"run\":\"{}\",\"unit\":\"{unit_id}\",\"locator\":\"{}\",\"detail\":\"the instrument-required unit's PASS was decided over locator bytes no instrument execution in this run's observation corroborates: no executed passing test facet (kind=test with command and exit status 0) covers the evidence workspace this iteration\"}}",
+                        state.run.id(),
+                        unit.evidence_required().locator(),
+                    );
+                    let evidence = self.evidence.put(
+                        record.as_bytes(),
+                        EvidenceKind::Log,
+                        self.operation_bound(),
+                    )?;
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                }
+                if !corroboration_gated || corroborated {
+                    match self.settlement.settle(
+                        SettleRequest {
+                            claim: &verified,
+                            actor: ClosingActor::Automatic,
+                            tracked_residuals: &tracked,
+                        },
+                        self.operation_bound(),
+                    ) {
+                        Ok(outcome) => {
+                            // C8.1: the settlement append enters the
+                            // water-mark like every append.
+                            state.last_offset = outcome.event_log_offset.get();
+                            state
+                                .unit_states
+                                .insert(unit_id.clone(), UnitStatus::Settled);
+                        }
+                        // The settle-time mutation is §21.3's abort row: the
+                        // service already pinned BOTH digests; the run ends
+                        // `aborted{reference_mutated}` (§9.4).
+                        Err(SettleError::ReferenceMutated(refusal)) => {
+                            let crate::settle::ReferenceMutatedRefusal {
+                                expected, actual, ..
+                            } = *refusal;
+                            state.terminal = Some(TerminalState::Aborted);
+                            state.reference_breach =
+                                Some(ReferenceBreach::Mutated { expected, actual });
+                        }
+                        // Environment failures propagate typed, never
+                        // swallowed into a silent non-settlement.
+                        Err(SettleError::State(error)) => return Err(ControlError::State(error)),
+                        Err(SettleError::Evidence(error)) => {
+                            return Err(ControlError::Evidence(error));
+                        }
+                        Err(SettleError::Escalation(error)) => {
+                            return Err(ControlError::Escalation(error));
+                        }
+                        Err(SettleError::Admission(
+                            gauntlet_ports::producer_authority::SettlementAdmissionError::State(
+                                error,
+                            ),
+                        )) => return Err(ControlError::State(error)),
+                        Err(SettleError::Reference(error)) => {
+                            return Err(ControlError::Reference(error));
+                        }
+                        // A §16.1 gate refusal is a fact about THIS unit,
+                        // not a run error: pinned forensic evidence, the
+                        // unit stays open (the service already escalated
+                        // and pinned the authority-gap record where
+                        // §11.5 row 6 applies).
+                        Err(failure) => {
+                            let record = format!(
+                                "{{\"run\":\"{}\",\"unit\":\"{unit_id}\",\"settlement_refused\":\"{failure}\"}}",
+                                state.run.id()
+                            );
+                            let evidence = self.evidence.put(
+                                record.as_bytes(),
+                                EvidenceKind::Log,
+                                self.operation_bound(),
+                            )?;
+                            self.evidence
+                                .pin(state.run.id(), &evidence, self.operation_bound())?;
+                        }
                     }
                 }
             }
@@ -2843,6 +3407,236 @@ impl RunController {
             self.record_selection(state, &flight.unit, false)?;
         }
         Ok(())
+    }
+
+    /// COR-F1 (falsifier round 1, F-1): the instrument corroboration rule
+    /// for the composed produced-artifact world
+    /// ([`ProducePolicy::BindLocatorContent`]). The EXACT matching rule:
+    ///
+    /// A produced locator artifact is CORROBORATED iff the completion's
+    /// own observation bundle — the bundle assembled and bound at THIS
+    /// (run, iteration), verified by equality of the document's `run_id`
+    /// and `iteration_no` against the settling loop's facts — contains at
+    /// least one instrument facet record where ALL of:
+    ///
+    /// 1. `kind` is `test` — the instrument class whose executions produce
+    ///    test reports (the class the `evidence_required.kind =
+    ///    test_report` requirement is answered by);
+    /// 2. `command` is present and `exit_status` is present — a REAL
+    ///    instrument execution over the completion's evidence workspace
+    ///    (the workspace the observation request anchored at, which is the
+    ///    workspace the produce step bound the locator artifact in —
+    ///    COR-D3's one-surface anchoring), never an attestation stub;
+    /// 3. `exit_status == 0` — the instrument's own execution SUCCEEDED,
+    ///    agreeing with the passing report the locator artifact claims.
+    ///
+    /// A bundle without such a record does not corroborate: an
+    /// instrument-required unit whose verification PASSED over uncorroborated
+    /// locator bytes must not settle (falsifier F-1: a report-forging liar
+    /// otherwise settles every unit by forging the report content — the
+    /// observation facets are the loop's only reality probes, so the
+    /// settlement gate demands one that actually executed and passed).
+    fn produced_artifact_corroborated(
+        doc: &crate::observation::bundle::ObservationBundleDoc,
+        run_id: &RunId,
+        iteration: IterationNo,
+    ) -> bool {
+        // "Produced by the observation instruments in THIS run": the bundle
+        // must be the one this completion assembled — a carried or stale
+        // document names a different fact source and corroborates nothing.
+        if doc.run_id() != run_id || doc.iteration_no() != iteration {
+            return false;
+        }
+        // The facet kind is compared through the ports' own vocabulary —
+        // the wire token comes from `FacetKind::Test`, never a spelled
+        // string (the adapter-class tokens are configuration vocabulary,
+        // AK-014).
+        let test_token = gauntlet_ports::observer::FacetKind::Test.token();
+        doc.facets().iter().any(|facet| {
+            facet.kind() == test_token.as_str()
+                && facet.command().is_some()
+                && facet.exit_status() == Some(0)
+        })
+    }
+
+    /// The evidence owner's produce step (the live-E2E correction): bind
+    /// THIS completion's evidence at the attempted unit's frozen locator,
+    /// per the composition's [`ProducePolicy`]. Either policy leaves the
+    /// §14.3 three-way fact ONE fact — the bytes at the locator, the
+    /// bytes in the store, and the recorded digest — and leaves the N4
+    /// containment discipline intact (the locator resolved inside the
+    /// canonical root before any byte was read or written; the typed
+    /// refusal fired at the caller).
+    fn produce_unit_evidence(
+        &self,
+        state: &LoopState,
+        iteration: IterationNo,
+        unit: &Unit,
+        facet: &crate::observation::bundle::FacetRecord,
+        locator: &EvidenceLocator,
+        locator_path: &std::path::Path,
+    ) -> Result<(), ControlError> {
+        let instrument_name = gauntlet_domain::InstrumentName::new(facet.instrument_name())
+            .map_err(|error| {
+                ControlError::Producer(ProducerAuthorityError::EvidenceUnreadable {
+                    evidence: EvidenceRef::new(facet.evidence_ref()).unwrap_or_else(|_| {
+                        EvidenceRef::new("evd-unparseable-facet-ref").expect("fallback ref grammar")
+                    }),
+                    detail: error.to_string(),
+                })
+            })?;
+        let instrument = gauntlet_ports::observer::InstrumentIdentity::new(
+            instrument_name.clone(),
+            facet.instrument_version().to_owned(),
+        );
+        let facet_ref = EvidenceRef::new(facet.evidence_ref()).map_err(|error| {
+            ControlError::Producer(ProducerAuthorityError::EvidenceUnreadable {
+                evidence: EvidenceRef::new(facet.evidence_ref()).unwrap_or_else(|_| {
+                    EvidenceRef::new("evd-unparseable-facet-ref").expect("fallback ref grammar")
+                }),
+                detail: error.to_string(),
+            })
+        })?;
+        match self.produce {
+            ProducePolicy::MaterializeObservation => {
+                // The pre-correction behavior, byte for byte: the first
+                // observation facet's document IS the completion's
+                // produced evidence — materialize it at the locator and
+                // record the production over the facet's own store ref.
+                // The frozen p4/p7 proof rungs (facet-document artifact
+                // contracts) decide through exactly this world.
+                if let Some(parent) = locator_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(|error| {
+                        ControlError::State(StateStoreError::WriteFailed {
+                            detail: format!("creating the locator parent failed: {error}"),
+                        })
+                    })?;
+                }
+                let facet_bytes = self
+                    .evidence
+                    .get(&facet_ref, self.operation_bound())?
+                    .unwrap_or_default();
+                std::fs::write(locator_path, &facet_bytes).map_err(|error| {
+                    ControlError::State(StateStoreError::WriteFailed {
+                        detail: format!("writing the locator bytes failed: {error}"),
+                    })
+                })?;
+                self.evidence_production.record(
+                    state.run.id(),
+                    iteration,
+                    &facet_ref,
+                    &instrument,
+                    locator,
+                    self.clock.now(),
+                    self.operation_bound(),
+                )?;
+                Ok(())
+            }
+            ProducePolicy::BindLocatorContent => {
+                // The locator is the VERIFICATION ARTIFACT's home — the
+                // location of the work product the §14.2 rung decides
+                // over. The owner binds the locator's ACTUAL content and
+                // never overwrites a produced artifact:
+                //
+                // - when the dispatched work produced an artifact at the
+                //   locator, those bytes are INGESTED into the
+                //   content-addressed store and the production is
+                //   recorded over them. (The pre-correction behavior
+                //   wrote the first facet's `facet_evidence@v1` bytes
+                //   over that artifact, so the §14.3 three-way equality
+                //   forced every artifact-contract rung to read an
+                //   observation document — no composed unit could ever
+                //   verify.)
+                // - when the locator holds no artifact, the completion's
+                //   produced instrument evidence IS the first observation
+                //   facet's document: it is materialized at the locator
+                //   and the production binds the facet's own store ref.
+                //
+                // The instrument identity carried on the production is
+                // the completion's observation instrument — the
+                // instrument under whose observation the locator content
+                // was bound (the §14.3 condition-2 class check —
+                // instrument, never a model assertion — is what the
+                // record answers).
+                let produced_ref = match std::fs::read(locator_path) {
+                    Ok(artifact_bytes) => Some(
+                        self.evidence
+                            .put(
+                                &artifact_bytes,
+                                unit.evidence_required().kind(),
+                                self.operation_bound(),
+                            )
+                            .map_err(ControlError::Evidence)?,
+                    ),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                    Err(error) => {
+                        return Err(ControlError::State(StateStoreError::WriteFailed {
+                            detail: format!(
+                                "reading the verification artifact at the locator failed: {error}"
+                            ),
+                        }));
+                    }
+                };
+                let produced_ref = if let Some(ingested) = produced_ref {
+                    ingested
+                } else {
+                    if let Some(parent) = locator_path.parent() {
+                        std::fs::create_dir_all(parent).map_err(|error| {
+                            ControlError::State(StateStoreError::WriteFailed {
+                                detail: format!("creating the locator parent failed: {error}"),
+                            })
+                        })?;
+                    }
+                    let facet_bytes = self
+                        .evidence
+                        .get(&facet_ref, self.operation_bound())?
+                        .unwrap_or_default();
+                    std::fs::write(locator_path, &facet_bytes).map_err(|error| {
+                        ControlError::State(StateStoreError::WriteFailed {
+                            detail: format!("writing the locator bytes failed: {error}"),
+                        })
+                    })?;
+                    facet_ref.clone()
+                };
+                // Content addressing makes a RE-PRODUCED identical
+                // artifact land on the ref that is already durably
+                // recorded (a retry whose work product did not change).
+                // The store's write-once production rule refuses the same
+                // ref with different anchor facts — and the re-record
+                // would carry nothing new: the durable row already states
+                // that these bytes stand at this locator under this
+                // instrument. When that exact fact exists, the record is
+                // idempotently SKIPPED and §14.3's recency condition does
+                // the honest work (unchanged content at a later iteration
+                // verifies stale — evidence cannot re-certify a transform
+                // it predates). Any OTHER existing row (a different
+                // locator or instrument on the same ref) is an anomaly
+                // the store adjudicates.
+                let already_durable = self
+                    .state
+                    .evidence_production(state.run.id(), &produced_ref, self.operation_bound())?
+                    .is_some_and(|existing| {
+                        *existing.production().locator() == *locator
+                            && existing.production().producer().name().as_str()
+                                == instrument_name.as_str()
+                            && existing.production().producer().version()
+                                == facet.instrument_version()
+                    });
+                if already_durable {
+                    return Ok(());
+                }
+                self.evidence_production.record(
+                    state.run.id(),
+                    iteration,
+                    &produced_ref,
+                    &instrument,
+                    locator,
+                    self.clock.now(),
+                    self.operation_bound(),
+                )?;
+                Ok(())
+            }
+        }
     }
 
     /// §11.5 row 9 / §15.2: stop correcting, run ONE bounded diagnostic
@@ -3268,6 +4062,7 @@ impl RunController {
             in_flight: state
                 .in_flight
                 .iter()
+                .chain(state.carried.iter())
                 .map(|flight| {
                     (
                         flight.spec.invocation_id.clone(),
@@ -3724,6 +4519,7 @@ mod tests {
     // rationale as the recording/ladder test fixtures.
     #![allow(clippy::arc_with_non_send_sync)]
 
+    use super::run_workspace_ref;
     use super::{
         BudgetShape, ComparisonDeps, ControlError, ControllerDeps, ReferenceBreach, RunController,
     };
@@ -3758,6 +4554,9 @@ mod tests {
         Checkpoint, EvidenceProductionBinding, RunEvent, StateStore, StateStoreError,
     };
     use gauntlet_ports::verifier::{Verifier, VerifierError};
+    use gauntlet_ports::workspace_provider::{
+        WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
+    };
     use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
     use std::rc::Rc;
@@ -4362,6 +5161,78 @@ mod tests {
                 on_first_settlement: RefCell::new(None),
             })
         }
+
+        /// Out-of-band DAMAGE (the COR-R3-1 test): drops the production row at
+        /// one locator while every durable event and evidence byte stays —
+        /// LESS damage than any real crash, exactly the falsifier's round-3
+        /// reproduction shape.
+        pub fn drop_production_at(&self, locator: &str) {
+            self.productions
+                .borrow_mut()
+                .retain(|binding| binding.production().locator().as_str() != locator);
+        }
+
+        /// Out-of-band DAMAGE (the COR-R5 tests): drops the KEYED SETTLEMENT
+        /// ROW of one unit while the durable `SettlementCommitted` event and
+        /// every other durable fact stay — LESS damage than any real crash
+        /// (a §16.3 half-applied settlement is exactly this end-state when
+        /// the crash lands between the event append and the keyed insert).
+        /// Whether the anchored replay can re-complete the dropped row
+        /// depends on the resume anchor alone: an event AT/ABOVE the anchor
+        /// is replayed and the row is recovered (the COR-R5-1 arm — the
+        /// tests move the durable checkpoint's anchor to the reproduction's
+        /// posture); an event BELOW it is out of replay scope and the
+        /// divergence is pinned by the COR-R5-2 cross-check instead.
+        pub fn drop_settlement_row(&self, unit_id: &str) {
+            self.settlement_rows
+                .borrow_mut()
+                .retain(|(_, row)| row.unit_id.as_str() != unit_id);
+        }
+
+        /// Out-of-band EVENT PLANT (the COR-R4-1 test): appends the
+        /// durable `EvidenceProduced` event the REAL store's produce step
+        /// writes (event + row), taking the event's facts from the run's
+        /// own durable production row and stamping it with the given
+        /// timestamp. This fixture's produce write is deliberately
+        /// row-only, so the A5-shaped end-state — the event durable ABOVE
+        /// the resume anchor, the row missing — is reached by planting
+        /// the event after the fact, where it naturally sits above the
+        /// close-out checkpoint's anchor. The falsifier's exact
+        /// forged-anchor ROUTE (regressing a checkpoint offset below a
+        /// mid-log produce event — the recorded "checkpoint() forged-row
+        /// projection class (planning-layer)" deferral) is what the REAL
+        /// store needs to reach this same end-state, and it is pinned by
+        /// the E2E leg through the real binary. The planted event's
+        /// offset, as every store read here reports it, is the POSITIONAL
+        /// one — read the event back positionally (the store's own
+        /// convention) rather than trusting this fixture's append
+        /// counter, which diverges from positions wherever a production
+        /// consumed an offset without an event.
+        pub fn plant_orphan_evidence_production_event(
+            &self,
+            run_id: &RunId,
+            at: gauntlet_domain::EpochSeconds,
+        ) {
+            let (evidence, locator) = {
+                let productions = self.productions.borrow();
+                let binding = productions
+                    .iter()
+                    .find(|binding| binding.run_id() == run_id)
+                    .expect("the settled run carries a durable production row");
+                (
+                    binding.production().evidence().clone(),
+                    binding.production().locator().clone(),
+                )
+            };
+            self.events.borrow_mut().push(RunEvent {
+                run_id: run_id.clone(),
+                kind: gauntlet_ports::state_store::RunEventKind::EvidenceProduced {
+                    evidence,
+                    locator,
+                },
+                at,
+            });
+        }
     }
 
     impl StateStore for FakeState {
@@ -4655,6 +5526,113 @@ mod tests {
                 .collect();
             found.sort_by_key(|binding| binding.event_log_offset().get());
             Ok(found)
+        }
+        fn complete_pending_evidence_production(
+            &self,
+            run_id: &RunId,
+            anchor: gauntlet_domain::EventLogOffset,
+            production: &AdmittedEvidenceProduction,
+            _: Deadline,
+        ) -> Result<Option<EvidenceProductionBinding>, StateStoreError> {
+            // COR-R3-1 fixture support: the same replay completion
+            // `SettleState` implements — the A5-window produced-world
+            // regression drives it through the composed resume path. The
+            // fixture's event offsets are positional (the convention this
+            // store's settlement replay documents).
+            let payload = production.production();
+            if self
+                .productions
+                .borrow()
+                .iter()
+                .any(|binding| binding.production().evidence() == payload.evidence())
+            {
+                return Ok(None);
+            }
+            let events = self.events.borrow().clone();
+            let Some((offset, event)) = events
+                .into_iter()
+                .enumerate()
+                .map(|(index, event)| ((index as u64) + 1, event))
+                .find(|(offset, event)| {
+                    *offset >= anchor.get()
+                        && &event.run_id == run_id
+                        && matches!(
+                            &event.kind,
+                            gauntlet_ports::state_store::RunEventKind::EvidenceProduced {
+                                evidence,
+                                ..
+                            } if evidence == payload.evidence()
+                        )
+                })
+            else {
+                return Ok(None);
+            };
+            let gauntlet_ports::state_store::RunEventKind::EvidenceProduced { evidence, locator } =
+                event.kind
+            else {
+                return Ok(None);
+            };
+            if &locator != payload.locator() {
+                return Err(StateStoreError::WriteFailed {
+                    detail: format!(
+                        "the orphan EvidenceProduced event at offset {offset} names locator \
+                         {locator}, not {} — the orphan belongs to a different production",
+                        payload.locator()
+                    ),
+                });
+            }
+            // The A3 discipline, mirrored: the completed row takes the
+            // EVENT's stored timestamp, never the re-mint's clock.
+            let completed = gauntlet_ports::state_store::EvidenceProduction::new(
+                evidence,
+                payload.content().clone(),
+                payload.producer().clone(),
+                locator,
+                payload.iteration_no(),
+                event.at,
+            );
+            let binding = EvidenceProductionBinding::new(
+                run_id.clone(),
+                completed,
+                gauntlet_domain::EventLogOffset::new(offset),
+            );
+            self.productions.borrow_mut().push(binding.clone());
+            Ok(Some(binding))
+        }
+        fn pending_evidence_production_events(
+            &self,
+            run_id: &RunId,
+            anchor: gauntlet_domain::EventLogOffset,
+            locator: &gauntlet_domain::EvidenceLocator,
+            _: Deadline,
+        ) -> Result<Vec<gauntlet_ports::state_store::OrphanEvidenceProduction>, StateStoreError>
+        {
+            // The fixture's event offsets are positional (the same
+            // convention its settlement replay documents).
+            let events = self.events.borrow().clone();
+            let mut orphans = Vec::new();
+            for (index, event) in events.into_iter().enumerate() {
+                let offset = (index as u64) + 1;
+                if offset < anchor.get() || &event.run_id != run_id {
+                    continue;
+                }
+                let gauntlet_ports::state_store::RunEventKind::EvidenceProduced {
+                    evidence,
+                    locator: event_locator,
+                } = &event.kind
+                else {
+                    continue;
+                };
+                if event_locator != locator {
+                    continue;
+                }
+                orphans.push(gauntlet_ports::state_store::OrphanEvidenceProduction::new(
+                    evidence.clone(),
+                    gauntlet_domain::EventLogOffset::new(offset),
+                    event.at,
+                ));
+            }
+            Ok(orphans)
         }
         fn accept_comparison(
             &self,
@@ -5402,6 +6380,7 @@ mod tests {
             policy(),
             fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
             meter_factory(),
+            None,
         )
     }
 
@@ -5418,6 +6397,7 @@ mod tests {
         meter_factory: Arc<
             dyn Fn(Budget) -> Arc<dyn gauntlet_ports::budget_meter::BudgetMeter> + Send + Sync,
         >,
+        workspaces: Option<Arc<dyn WorkspaceProvider>>,
     ) -> Result<Composed, ControlError> {
         let scratch = Scratch::new("compose");
         let clock = DeterministicClock::new();
@@ -5451,20 +6431,20 @@ mod tests {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Single,
                 model_dispatches: 4,
+                role_deny: crate::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder,
+            ladder_for: Arc::new(move |_| Ok(ladder.clone())),
             reference: provider,
             answer_key: AnswerKeySource::Shared(key.clone()),
             escalation: Arc::new(FakeEscalation::default()),
             meter_factory,
             budget: budget_shape(rounds),
             policy,
+            workspaces,
 
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
-            govern: crate::govern::GovernDeps::none_backend(
-                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
-            ),
+            govern: crate::govern::GovernDeps::none_backend(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -5986,19 +6966,697 @@ mod tests {
             rows.iter().any(|row| row.unit_id() == &owed),
             "the half-applied settlement completed: {rows:?}"
         );
-        // The projection was rebuilt from the durable rows.
+        // The settled-ness is durably carried. COR-R5-1 (falsifier round 5,
+        // F-R5-1) — MECHANICAL ADAPTATION, reason recorded: the resume's
+        // close is now the settled NO-OP (zero booked rounds, no
+        // reconciliation checkpoint); the pre-correction shape pinned the
+        // boundary checkpoint the reconciliation iteration wrote, which is
+        // exactly the booked-round behavior the round-5 reproduction
+        // burned into `budget_exhausted` on an all-settled run. The
+        // durable truth of the completion is the keyed row at the event's
+        // own offset, and the projection every later resume actually
+        // derives — the §5.3.3 event-ordered rebuild, the checkpoint's own
+        // word upgraded by the durable settlement rows above the anchor —
+        // carries the owed unit Settled. Assertion strength is preserved
+        // (the settled-ness must be durably re-derivable, never
+        // re-dispatched) and the no-op's zero-round shape is newly pinned.
+        assert_eq!(
+            outcome.iterations, first_outcome.iterations,
+            "zero booked rounds: the settlement-arm close is the settled no-op"
+        );
         let checkpoint = state
             .resume(&run_id, bound())
             .expect("checkpoint readable")
             .expect("a checkpoint exists");
+        let rows = state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        let mut projected: std::collections::BTreeMap<gauntlet_domain::UnitId, UnitStatus> =
+            checkpoint.unit_states.iter().cloned().collect();
+        for row in rows
+            .iter()
+            .filter(|row| row.event_log_offset().get() > checkpoint.event_log_offset.get())
+        {
+            projected.insert(row.unit_id().clone(), UnitStatus::Settled);
+        }
         assert_eq!(
-            checkpoint
-                .unit_states
+            projected.get(&owed),
+            Some(&UnitStatus::Settled),
+            "the §5.3.3 event-ordered projection carries the durable settlement: {projected:?}"
+        );
+    }
+
+    #[test]
+    fn resuming_an_all_settled_run_is_an_honest_settled_no_op() {
+        // COR-F6 (falsifier round 1, F-7): a fully settled run's resume
+        // short-circuits — terminal `settled` at the checkpoint's own
+        // iteration, ZERO new iterations burned, zero re-dispatches, and
+        // the durable record counts untouched (no close-out rewrite).
+        // Before the correction the resume re-entered the loop, planned
+        // zero dispatches, and ended `budget_exhausted` one iteration
+        // later.
+        let composed =
+            fixture_composed(vec![Behavior::Complete], 0, 1, FIXTURE_ROUNDS).expect("composes");
+        let first = composed.controller.start_run().expect("the run settles");
+        assert_eq!(first.terminal, TerminalState::Settled);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        let second = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the settled run resumes");
+        assert_eq!(
+            second.terminal,
+            TerminalState::Settled,
+            "the settled run's resume is an honest settled no-op"
+        );
+        assert_eq!(
+            second.iterations, first.iterations,
+            "no iteration is burned by the settled no-op"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            1,
+            "the only dispatch is the original run's — the resume re-dispatched nothing: {:?}",
+            composed.runner.prompts.borrow()
+        );
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(rows.len(), 1, "no settlement was duplicated");
+        assert_eq!(
+            composed.state.role_invocations.borrow().len(),
+            1,
+            "no invocation was re-admitted"
+        );
+        let checkpoint = composed
+            .state
+            .resume(&run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        assert_eq!(
+            checkpoint.iteration_no.get(),
+            first.iterations,
+            "the close-out checkpoint stands unrewritten"
+        );
+    }
+
+    #[test]
+    fn resuming_an_all_settled_run_is_a_settled_noop_in_the_produced_world() {
+        // COR-R2-1 (falsifier round 2, F-R2-3): the falsifier's blocking
+        // reproduction, pinned in the composed produced-artifact world.
+        // There the produce step keys every production by the LOCATOR
+        // ARTIFACT's content ref, so the resume completion's applied
+        // check must consult that same key surface (through the run's
+        // [`ProducePolicy`]) — before the unification the facet-ref guess
+        // never read a settled run as settled, and the FIRST `resume`
+        // re-minted, failed this no-op's predicate, burned an iteration,
+        // and reported a dishonest `budget_exhausted` terminal. The
+        // default-world pin above stays byte for byte.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FixtureObserver {
+            store: evidence.clone(),
+            clock,
+        })];
+        let composed = compose_produced(key, state, evidence, runner, observers).expect("composes");
+        let first = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(first.terminal, TerminalState::Settled);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        // THE FIRST resume — the exact leg the falsifier executed.
+        let second = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the settled run resumes");
+        assert_eq!(
+            second.terminal,
+            TerminalState::Settled,
+            "the FIRST resume of the settled produced-world run is the honest settled no-op"
+        );
+        assert_eq!(
+            second.iterations, first.iterations,
+            "no iteration is burned by the produced-world settled no-op"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            1,
+            "the resume re-dispatched nothing: {:?}",
+            composed.runner.prompts.borrow()
+        );
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(rows.len(), 1, "no settlement was duplicated");
+        assert_eq!(
+            composed.state.role_invocations.borrow().len(),
+            1,
+            "no invocation was re-admitted"
+        );
+        let checkpoint = composed
+            .state
+            .resume(&run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        assert_eq!(
+            checkpoint.iteration_no.get(),
+            first.iterations,
+            "the close-out checkpoint stands unrewritten"
+        );
+    }
+
+    #[test]
+    fn damaged_production_bookkeeping_on_a_settled_produced_world_run_resumes_settled() {
+        // COR-R3-1 (falsifier round 3, F-R3-1's exact reproduction shape):
+        // a fully SETTLED produced-world run whose production ROW was
+        // deleted out-of-band — every durable event and evidence byte left
+        // in place, LESS damage than any real crash. Before the correction
+        // this resumed into false "unrecoverable" pins and a dishonest
+        // `budget_exhausted` terminal (all rows deleted) or silent masking
+        // (one row deleted). The honest outcomes pinned here: the resume
+        // reports terminal=settled at the checkpoint's own iteration with
+        // zero re-dispatch, and ONE honest forensic record naming the
+        // damaged locator and the missing row — never budget_exhausted,
+        // never a false claim, and the durable settlement stands.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let evidence_for_assert = evidence.clone();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FixtureObserver {
+            store: evidence.clone(),
+            clock,
+        })];
+        let composed = compose_produced(key, state, evidence, runner, observers).expect("composes");
+        let first = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(first.terminal, TerminalState::Settled);
+        // THE DAMAGE.
+        composed.state.drop_production_at("ctrl-9101.json");
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        let second = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the damaged settled run resumes");
+        assert_eq!(
+            second.terminal,
+            TerminalState::Settled,
+            "an otherwise-settled run never reports a budget terminal from recovery \
+             bookkeeping"
+        );
+        assert_eq!(
+            second.iterations, first.iterations,
+            "zero iterations are burned by the forensic-only resume"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            1,
+            "the resume re-dispatched nothing: {:?}",
+            composed.runner.prompts.borrow()
+        );
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(rows.len(), 1, "the durable settlement stands unduplicated");
+        let forensics = evidence_for_assert.records_containing("produced world:");
+        assert!(
+            forensics.iter().any(|record| {
+                record.contains("ctrl-9101.json")
+                    && record.contains("is missing")
+                    && record.contains("no EvidenceProduced event at or after the resume anchor")
+            }),
+            "the damage is recorded honestly, naming the locator, the missing row, and the \
+             anchor-bounded search: {forensics:?}"
+        );
+        assert!(
+            evidence_for_assert
+                .records_containing("budget_exhausted")
+                .is_empty(),
+            "no dishonest budget terminal is pinned anywhere"
+        );
+    }
+
+    #[test]
+    fn a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop() {
+        // COR-R4-1 (falsifier round 4, F-R4-3): the falsifier's compound
+        // shape on an otherwise fully SETTLED produced-world run — the
+        // production ROW deleted while the `EvidenceProduced` event stays
+        // durable ABOVE the resume anchor (the A5 end-state). The
+        // recovery half is honest and COMPLETES the row from the event's
+        // own facts; the loop half must then re-assess the terminal
+        // projection AFTER that completion and close as the settled
+        // no-op — never book an iteration (whose round is long spent)
+        // into a dishonest `budget_exhausted` terminal over a fully
+        // settled projection. This fixture reaches the end-state with the
+        // event planted (its produce write is row-only; see the helper's
+        // doc for why the real store's forged-anchor route differs); the
+        // forged-anchor precondition stays the recorded "checkpoint()
+        // forged-row projection class (planning-layer)" deferral, pinned
+        // through the real binary by the E2E leg.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let evidence_for_assert = evidence.clone();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FixtureObserver {
+            store: evidence.clone(),
+            clock,
+        })];
+        let composed = compose_produced(key, state, evidence, runner, observers).expect("composes");
+        let first = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(first.terminal, TerminalState::Settled);
+        // THE A5 END-STATE: the produce event durable ABOVE the resume
+        // anchor (planted here from the row's own facts, stamped with a
+        // timestamp that is NOT the recovery clock's — the fixture's
+        // produce write is row-only; see the helper's doc), and then the
+        // row DELETED while the event stays.
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        let planted_at = gauntlet_domain::EpochSeconds::new(1_750_000_000);
+        composed
+            .state
+            .plant_orphan_evidence_production_event(&run_id, planted_at);
+        composed.state.drop_production_at("ctrl-9101.json");
+        // THE RESUME.
+        let second = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the damaged settled run resumes");
+        assert_eq!(
+            second.terminal,
+            TerminalState::Settled,
+            "the recovery-completed settled run closes as the honest settled no-op"
+        );
+        assert_eq!(
+            second.iterations, first.iterations,
+            "ZERO additional iterations: a fully settled projection books no round"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            1,
+            "the resume re-dispatched nothing: {:?}",
+            composed.runner.prompts.borrow()
+        );
+        // The mint half: the row was re-minted at the EVENT'S OWN
+        // identity — the event's offset (the store's positional
+        // convention, the offset every recovery read reports), the
+        // event's ref, and the event's stored timestamp, never the
+        // recovery's clock or a fabricated fact.
+        let planted = composed
+            .state
+            .events
+            .borrow()
+            .iter()
+            .enumerate()
+            .find_map(|(index, event)| match &event.kind {
+                gauntlet_ports::state_store::RunEventKind::EvidenceProduced {
+                    evidence, ..
+                } if event.run_id == run_id => {
+                    Some(((index as u64) + 1, event.at, evidence.clone()))
+                }
+                _ => None,
+            })
+            .expect("the planted production event exists");
+        let minted = composed
+            .state
+            .productions
+            .borrow()
+            .iter()
+            .find(|binding| binding.production().locator().as_str() == "ctrl-9101.json")
+            .expect("the recovery re-minted the deleted row")
+            .clone();
+        assert_eq!(
+            minted.event_log_offset().get(),
+            planted.0,
+            "the minted row binds to the event's own offset"
+        );
+        assert_eq!(
+            minted.production().produced_at(),
+            planted.1,
+            "the minted row takes the event's stored timestamp, never the recovery's clock"
+        );
+        assert_eq!(
+            minted.production().evidence(),
+            &planted.2,
+            "the minted row names the event's own ref"
+        );
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(rows.len(), 1, "the durable settlement stands unduplicated");
+        assert_eq!(
+            composed.state.role_invocations.borrow().len(),
+            1,
+            "no invocation was re-admitted"
+        );
+        // The mint SUCCEEDED, so nothing is unrecoverable and no forensic
+        // limitation is pinned — recovery-completed damage is not damage
+        // the loop must re-plan over.
+        assert!(
+            evidence_for_assert
+                .records_containing("produced world:")
+                .is_empty(),
+            "a completed production is not pinned as forensic damage"
+        );
+        assert!(
+            evidence_for_assert
+                .records_containing("budget_exhausted")
+                .is_empty(),
+            "no dishonest budget terminal is pinned anywhere"
+        );
+        // The NEXT resume is the same honest settled no-op (the terminal
+        // is not sticky-damaged by the surgery either).
+        let third = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the second resume runs");
+        assert_eq!(third.terminal, TerminalState::Settled);
+        assert_eq!(
+            third.iterations, first.iterations,
+            "the second resume burns nothing either"
+        );
+    }
+
+    #[test]
+    fn a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop() {
+        // COR-R5-1 (falsifier round 5, F-R5-1): the SETTLEMENT arm of the
+        // recovery-completed shape. The keyed settlement ROW is deleted
+        // while the durable `SettlementCommitted` event stays, and the
+        // resume anchor is regressed to just BELOW that event (the
+        // falsifier's exact compound reproduction posture — the §16.3/A5
+        // end-state with the event durable ABOVE the resume anchor). The
+        // §18.3 replay honestly re-inserts the row from the event's own
+        // facts; the loop half must then close as the settled no-op —
+        // ZERO booked rounds, never the refused booking's
+        // `budget_exhausted` over a fully settled projection, never a
+        // burned empty round when headroom exists.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let evidence_for_assert = evidence.clone();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FixtureObserver {
+            store: evidence.clone(),
+            clock,
+        })];
+        let composed = compose_produced(key, state, evidence, runner, observers).expect("composes");
+        let first = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(first.terminal, TerminalState::Settled);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        // THE DAMAGE: the falsifier's exact compound reproduction posture —
+        // the keyed settlement ROW deleted, and the resume anchor regressed
+        // to JUST BELOW the durable `SettlementCommitted` event, so the
+        // event stands ABOVE the anchor (the §16.3/A5 end-state: the crash
+        // landed between the event append and the keyed insert; the loop's
+        // own later water-mark appends sit above the event in this
+        // fixture's close-out checkpoint, the same relative geometry the
+        // real store's multi-iteration run shows for an early-settled
+        // unit). The anchor move is the same GIVEN-damage class the
+        // shipped COR-R4-1 leg exercises through the real binary — the
+        // recorded "checkpoint() forged-row projection class
+        // (planning-layer)" deferral, never widened here.
+        composed.state.drop_settlement_row("AK-9101");
+        assert!(
+            composed
+                .state
+                .settlements(&run_id, bound())
+                .expect("settlement rows readable")
+                .is_empty(),
+            "the damage removed exactly the run's one settlement row"
+        );
+        let settlement_offset = composed
+            .state
+            .events
+            .borrow()
+            .iter()
+            .enumerate()
+            .find_map(|(index, event)| match &event.kind {
+                gauntlet_ports::state_store::RunEventKind::SettlementCommitted {
+                    unit_id, ..
+                } if event.run_id == run_id && unit_id.as_str() == "AK-9101" => {
+                    Some((index as u64) + 1)
+                }
+                _ => None,
+            })
+            .expect("the durable settlement event exists");
+        {
+            let mut checkpoints = composed.state.checkpoints.borrow_mut();
+            let checkpoint = checkpoints
+                .get_mut(&run_id)
+                .expect("the close-out checkpoint is durable");
+            assert!(
+                checkpoint.event_log_offset.get() >= settlement_offset,
+                "the natural close-out anchor sits at or above the settlement event: the \
+                 regression below it is the reproduction's precondition"
+            );
+            checkpoint.event_log_offset =
+                gauntlet_domain::EventLogOffset::new(settlement_offset - 1);
+        }
+        // THE RESUME: the honest settled no-op at the checkpoint's OWN
+        // iteration.
+        let second = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the damaged settled run resumes");
+        assert_eq!(
+            second.terminal,
+            TerminalState::Settled,
+            "the recovery-completed settled run closes as the honest settled no-op"
+        );
+        assert_eq!(
+            second.iterations, first.iterations,
+            "ZERO booked rounds: an all-settled projection closes before/regardless of \
+             iteration booking"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            1,
+            "the resume re-dispatched nothing: {:?}",
+            composed.runner.prompts.borrow()
+        );
+        assert_eq!(
+            composed.state.role_invocations.borrow().len(),
+            1,
+            "no invocation was re-admitted"
+        );
+        // THE REPLAY: the row is back, bound to the EVENT'S OWN offset (the
+        // positional offset every store read here reports), and the
+        // settlement stands unduplicated.
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(rows.len(), 1, "the durable settlement stands unduplicated");
+        assert_eq!(
+            rows[0].event_log_offset().get(),
+            settlement_offset,
+            "the re-inserted row binds to the event's own offset"
+        );
+        // A COMPLETED settlement is not damage: no forensic pin of either
+        // class, and no dishonest budget terminal anywhere.
+        assert!(
+            evidence_for_assert
+                .records_containing("settlement_row_unrecoverable")
+                .is_empty(),
+            "a recovery-completed settlement is not pinned as forensic damage"
+        );
+        assert!(
+            evidence_for_assert
+                .records_containing("evidence_production_orphan_unrecoverable")
+                .is_empty(),
+            "the production half completed nothing, so it pins nothing"
+        );
+        assert!(
+            evidence_for_assert
+                .records_containing("budget_exhausted")
+                .is_empty(),
+            "no dishonest budget terminal is pinned anywhere"
+        );
+        // The NEXT resume is the same honest settled no-op (the replay is
+        // idempotent over the restored row).
+        let third = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the second resume runs");
+        assert_eq!(third.terminal, TerminalState::Settled);
+        assert_eq!(
+            third.iterations, first.iterations,
+            "the second resume books nothing either"
+        );
+    }
+
+    #[test]
+    fn a_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row() {
+        // COR-R5-2 (falsifier round 5, F-R5-2): below-anchor settlement-row
+        // damage on an otherwise fully settled run must not be absorbed
+        // SILENTLY by the certified settled no-op — the production arm
+        // pins exactly this shape, and the settlement arm now does too.
+        // Two units settle in order; the FIRST unit's settlement event sits
+        // strictly BELOW the close-out anchor (the second unit's own
+        // settlement is the loop's last tracked append), so the
+        // anchor-bounded replay cannot re-complete the dropped row — the
+        // divergence is pinned per row, checked against the store's own
+        // settlement rows, and the intact sibling is never named.
+        let key = Rc::new(RefCell::new(answer_key(2)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let evidence_for_assert = evidence.clone();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FixtureObserver {
+            store: evidence.clone(),
+            clock,
+        })];
+        let composed = compose_produced(key, state, evidence, runner, observers).expect("composes");
+        let first = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(first.terminal, TerminalState::Settled);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        assert_eq!(
+            composed
+                .state
+                .settlements(&run_id, bound())
+                .expect("settlement rows readable")
+                .len(),
+            2,
+            "the two-unit run settles both units"
+        );
+        // THE DAMAGE: AK-9101's keyed row deleted; its settlement event must
+        // sit strictly BELOW the resume anchor for the anchored replay to be
+        // unable to re-complete it. Fixture fact: FIXTURE_PARALLELISM is 2,
+        // so both units settle in ONE iteration and both events land above
+        // the boundary-checkpoint anchor — the ADAPTATION moves the durable
+        // checkpoint's anchor onto the LAST settlement event, which is the
+        // real store's NATURAL multi-iteration posture (the close-out
+        // anchor is the last boundary checkpoint's offset, above the
+        // earlier iterations' settlement events — the falsifier's cell-D2
+        // end-state, no anchor forgery there). Given damage here, exactly
+        // like the COR-R4-1 test's event plant; the natural shape through
+        // the real binary is the E2E leg's.
+        composed.state.drop_settlement_row("AK-9101");
+        let event_offset_of = |unit: &str| {
+            composed
+                .state
+                .events
+                .borrow()
                 .iter()
-                .find(|(unit, _)| unit == &owed)
-                .map(|(_, status)| *status),
-            Some(UnitStatus::Settled),
-            "the resumed projection carries the durable settlement"
+                .enumerate()
+                .find_map(|(index, event)| match &event.kind {
+                    gauntlet_ports::state_store::RunEventKind::SettlementCommitted {
+                        unit_id,
+                        ..
+                    } if event.run_id == run_id && unit_id.as_str() == unit => {
+                        Some((index as u64) + 1)
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{unit}'s settlement event is durable"))
+        };
+        let ak9101_offset = event_offset_of("AK-9101");
+        {
+            let mut checkpoints = composed.state.checkpoints.borrow_mut();
+            let checkpoint = checkpoints
+                .get_mut(&run_id)
+                .expect("the close-out checkpoint is durable");
+            // The anchor moves JUST ABOVE the damaged unit's settlement
+            // event (order-independent: whichever way the parallel units
+            // settled, the anchored replay now starts past AK-9101's
+            // event and cannot re-complete its row).
+            checkpoint.event_log_offset = gauntlet_domain::EventLogOffset::new(ak9101_offset + 1);
+        }
+        // THE RESUME: the certified settled no-op, WITH the honest pin.
+        let second = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the damaged settled run resumes");
+        assert_eq!(
+            second.terminal,
+            TerminalState::Settled,
+            "the below-anchor damage does not un-settle the run: the event is the durable \
+             truth and the projection is all-settled"
+        );
+        assert_eq!(
+            second.iterations, first.iterations,
+            "the forensic-only resume books no round"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            2,
+            "the resume re-dispatched nothing: {:?}",
+            composed.runner.prompts.borrow()
+        );
+        // THE PIN: exactly one settlement forensic record, naming the
+        // damaged unit, the anchor-bounded fact, and the checked-against-
+        // the-store posture; the intact sibling is never named; the row
+        // stays honestly missing (the replay cannot fabricate it).
+        let forensics = evidence_for_assert.records_containing("settlement_row_unrecoverable");
+        assert_eq!(
+            forensics.len(),
+            1,
+            "exactly the damaged row is pinned: {forensics:?}"
+        );
+        let record = &forensics[0];
+        assert!(
+            record.contains("AK-9101"),
+            "the missing row's unit is named: {record}"
+        );
+        assert!(
+            !record.contains("AK-9102"),
+            "the intact sibling is never named: {record}"
+        );
+        assert!(
+            record.contains("anchor-bounded"),
+            "the record states the anchor-bounded replay fact: {record}"
+        );
+        assert!(
+            record.contains("checked against the store's settlement rows"),
+            "the record names what was checked: {record}"
+        );
+        let rows = composed
+            .state
+            .settlements(&run_id, bound())
+            .expect("settlement rows readable");
+        assert_eq!(
+            rows.len(),
+            1,
+            "the replay is anchor-bounded: the row stays missing, never fabricated: {rows:?}"
+        );
+        assert_eq!(
+            rows[0].unit_id().as_str(),
+            "AK-9102",
+            "the intact sibling's row is untouched"
+        );
+        // The production arm completed nothing here, so it pins nothing —
+        // the only forensic record is the settlement row's own.
+        assert!(
+            evidence_for_assert
+                .records_containing("evidence_production_orphan_unrecoverable")
+                .is_empty(),
+            "undamaged arms pin nothing"
+        );
+        // The NEXT resume re-observes the same persistent damage and re-pins
+        // it (per-resume honesty, the production arm's own posture) while
+        // staying the settled no-op.
+        let third = composed
+            .controller
+            .resume_run(&run_id)
+            .expect("the second resume runs");
+        assert_eq!(third.terminal, TerminalState::Settled);
+        assert_eq!(
+            third.iterations, first.iterations,
+            "the second resume books nothing either"
+        );
+        assert_eq!(
+            evidence_for_assert
+                .records_containing("settlement_row_unrecoverable")
+                .len(),
+            2,
+            "each resume of the persistent damage records it honestly: one pin per resume"
         );
     }
 
@@ -6067,6 +7725,7 @@ mod tests {
             policy(),
             never_passing.clone(),
             meter_factory(),
+            None,
         )
         .expect("composes");
         let first_outcome = first
@@ -6089,6 +7748,7 @@ mod tests {
             policy(),
             never_passing,
             meter_factory(),
+            None,
         )
         .expect("composes");
         let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
@@ -6185,6 +7845,7 @@ mod tests {
             policy(),
             fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
             permissive_meter_factory(),
+            None,
         )
         .expect("composes");
         let outcome = composed
@@ -6272,19 +7933,19 @@ mod tests {
                 // model_dispatches >= 1: the count budget admits the
                 // critic; only the meter refuses it.
                 model_dispatches: 4,
+                role_deny: crate::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: fixture_ladder(&["ctrl-9101.json"]),
+            ladder_for: Arc::new(move |_| Ok(fixture_ladder(&["ctrl-9101.json"]))),
             reference: provider,
             answer_key: AnswerKeySource::Shared(key.clone()),
             escalation: Arc::new(FakeEscalation::default()),
             meter_factory: factory,
             budget: budget_shape(FIXTURE_ROUNDS),
             policy: policy(),
+            workspaces: None,
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
-            govern: crate::govern::GovernDeps::none_backend(
-                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
-            ),
+            govern: crate::govern::GovernDeps::none_backend(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -6374,19 +8035,21 @@ mod tests {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Single,
                 model_dispatches: 4,
+                role_deny: crate::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
+            ladder_for: Arc::new(move |_| {
+                Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))
+            }),
             reference: provider,
             answer_key: AnswerKeySource::Shared(key.clone()),
             escalation: Arc::new(FakeEscalation::default()),
             meter_factory: factory,
             budget: budget_shape(FIXTURE_ROUNDS),
             policy: policy(),
+            workspaces: None,
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
-            govern: crate::govern::GovernDeps::none_backend(
-                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
-            ),
+            govern: crate::govern::GovernDeps::none_backend(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -6878,6 +8541,7 @@ mod tests {
             policy(),
             fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json", "ctrl-9103.json"]),
             meter_factory(),
+            None,
         )
         .expect("composes");
         let outcome = composed
@@ -6976,6 +8640,7 @@ mod tests {
             policy_with_attempts(DIAGNOSIS_ATTEMPT_CEILING),
             ladder,
             meter_factory(),
+            None,
         )
         .expect("composes");
         let outcome = composed.controller.start_run().expect("the loop runs");
@@ -7040,6 +8705,7 @@ mod tests {
             policy_with_attempts(DIAGNOSIS_ATTEMPT_CEILING),
             fixture_ladder(&[]),
             meter_factory(),
+            None,
         )
         .expect("composes");
         let outcome = composed.controller.start_run().expect("the loop runs");
@@ -7312,19 +8978,19 @@ mod tests {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Single,
                 model_dispatches: 4,
+                role_deny: crate::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: fixture_ladder(&["ctrl-9101.json"]),
+            ladder_for: Arc::new(move |_| Ok(fixture_ladder(&["ctrl-9101.json"]))),
             reference: provider,
             answer_key: AnswerKeySource::Shared(key.clone()),
             escalation: Arc::new(FakeEscalation::default()),
             meter_factory: meter_factory(),
             budget: budget_shape(FIXTURE_ROUNDS),
             policy: policy(),
+            workspaces: None,
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
-            govern: crate::govern::GovernDeps::none_backend(
-                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
-            ),
+            govern: crate::govern::GovernDeps::none_backend(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -7395,8 +9061,11 @@ mod tests {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Single,
                 model_dispatches: 4,
+                role_deny: crate::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
+            ladder_for: Arc::new(move |_| {
+                Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))
+            }),
             reference: provider,
             answer_key: AnswerKeySource::Path(key_path.clone()),
             escalation: Arc::new(FakeEscalation::default()),
@@ -7406,11 +9075,10 @@ mod tests {
             // for the resume to finish the owed unit.
             budget: budget_shape(2),
             policy: policy(),
+            workspaces: None,
             workspace_root: scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
-            govern: crate::govern::GovernDeps::none_backend(
-                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
-            ),
+            govern: crate::govern::GovernDeps::none_backend(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -7472,19 +9140,21 @@ mod tests {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Single,
                 model_dispatches: 4,
+                role_deny: crate::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
+            ladder_for: Arc::new(move |_| {
+                Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))
+            }),
             reference: resumed_provider,
             answer_key: AnswerKeySource::Path(key_path.clone()),
             escalation: Arc::new(FakeEscalation::default()),
             meter_factory: meter_factory(),
             budget: budget_shape(FIXTURE_ROUNDS),
             policy: policy(),
+            workspaces: None,
             workspace_root: second_scratch.0.clone(),
             config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
-            govern: crate::govern::GovernDeps::none_backend(
-                gauntlet_domain::WorkspaceRef::new("ws-test-posture").expect("test workspace ref"),
-            ),
+            govern: crate::govern::GovernDeps::none_backend(),
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "controller fixture".to_owned(),
         };
@@ -7599,5 +9269,507 @@ mod tests {
 
     fn bound() -> Deadline {
         Deadline::at_epoch(EpochSeconds::new(u64::MAX / 2))
+    }
+
+    /// An in-test [`WorkspaceProvider`]: allocates a fresh ref per create,
+    /// records every create and cleanup. No filesystem — the controller
+    /// treats the workspace as an opaque ref; the fs-backed adapter's own
+    /// contract is proven in its own crate's suite.
+    struct FixtureWorkspaces {
+        seq: Cell<u32>,
+        created: Mutex<Vec<gauntlet_domain::WorkspaceRef>>,
+        cleaned: Mutex<Vec<gauntlet_domain::WorkspaceRef>>,
+    }
+
+    impl FixtureWorkspaces {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                seq: Cell::new(0),
+                created: Mutex::new(Vec::new()),
+                cleaned: Mutex::new(Vec::new()),
+            })
+        }
+    }
+
+    impl WorkspaceProvider for FixtureWorkspaces {
+        fn create(
+            &self,
+            _run_id: &RunId,
+            subject: WorkspaceSubject,
+            _deadline: Deadline,
+        ) -> Result<gauntlet_ports::workspace_provider::Workspace, WorkspaceProviderError> {
+            let n = self.seq.get();
+            self.seq.set(n + 1);
+            let subject_name = match subject {
+                WorkspaceSubject::Unit(unit) => unit.to_string(),
+                WorkspaceSubject::Slice(units) => units
+                    .iter()
+                    .map(|unit| unit.to_string())
+                    .collect::<Vec<_>>()
+                    .join("-"),
+            };
+            let reference =
+                gauntlet_domain::WorkspaceRef::new(&format!("ws-fixture-{n}-{subject_name}"))
+                    .expect("fixture workspace ref");
+            self.created
+                .lock()
+                .expect("fixture workspace ledger locks")
+                .push(reference.clone());
+            Ok(gauntlet_ports::workspace_provider::Workspace {
+                reference: reference.clone(),
+                root: std::env::temp_dir().join(format!("ws-fixture-{n}")),
+                key: format!("ws-fixture-{n}"),
+            })
+        }
+
+        fn cleanup(
+            &self,
+            workspace: &gauntlet_domain::WorkspaceRef,
+            _deadline: Deadline,
+        ) -> Result<(), WorkspaceProviderError> {
+            self.cleaned
+                .lock()
+                .expect("fixture workspace ledger locks")
+                .push(workspace.clone());
+            Ok(())
+        }
+
+        fn hooks(&self) -> Vec<gauntlet_ports::workspace_provider::WorkspaceHook> {
+            Vec::new()
+        }
+    }
+
+    /// Plan Task 20 / R-1b TEETH (spec §17.5.1 invariant 1): with a
+    /// `WorkspaceProvider` composed, two units of ONE run are dispatched
+    /// into DISTINCT workspaces — the invocation spec the runner receives
+    /// names the unit's own workspace, the gate validated against that same
+    /// ref (it is the only workspace fact the dispatch holds), and each
+    /// workspace is released after its invocation terminalizes.
+    ///
+    /// RED WHEN BYPASSED: with the old single-lifetime path restored (the
+    /// spec and facts naming the run-derived `run_workspace_ref(run_id)`
+    /// instead of a per-unit allocation), both specs carry ONE shared ref,
+    /// the provider's ledger stays EMPTY, and this test fails at the
+    /// distinctness assertion. The red run is recorded in
+    /// `.agents/reports/task20/b1-progress.md`.
+    #[test]
+    fn two_units_of_one_run_are_admitted_into_distinct_workspaces() {
+        let key = Rc::new(RefCell::new(answer_key(2)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
+        let workspaces = FixtureWorkspaces::new();
+        let composed = compose_full(
+            key,
+            state,
+            evidence,
+            runner.clone(),
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
+            meter_factory(),
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed
+            .controller
+            .start_run()
+            .expect("the loop runs with a workspace provider wired");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "per-unit workspaces neither break nor delay settlement"
+        );
+        let specs = runner.specs.borrow();
+        assert_eq!(specs.len(), 2, "both units were dispatched");
+        let spec_workspaces: std::collections::BTreeSet<String> = specs
+            .values()
+            .map(|spec| spec.workspace.as_str().to_owned())
+            .collect();
+        assert_eq!(
+            spec_workspaces.len(),
+            2,
+            "two units of one run must hold DISTINCT workspace refs at admission, got \
+             {spec_workspaces:?} — a shared ref is the R-1b defect this tooth exists to refuse"
+        );
+        let created = workspaces.created.lock().expect("ledger locks").clone();
+        assert_eq!(
+            created.len(),
+            2,
+            "the provider allocated exactly one fresh workspace per dispatch: {created:?}"
+        );
+        let created_set: std::collections::BTreeSet<String> = created
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        assert_eq!(
+            spec_workspaces, created_set,
+            "the dispatched specs name EXACTLY the provider's allocations — the gate validated \
+             against the workspaces the units actually run in"
+        );
+        // Both invocations terminalized (the run settled): both workspaces
+        // are released, best-effort, AFTER their completion pipelines.
+        let cleaned = workspaces.cleaned.lock().expect("ledger locks").clone();
+        let cleaned_set: std::collections::BTreeSet<String> = cleaned
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        assert_eq!(
+            cleaned_set, created_set,
+            "every allocated workspace is released once its invocation terminalizes: {cleaned:?}"
+        );
+    }
+
+    /// The provider-less composition keeps its pre-task20 shape: the
+    /// dispatch falls back to the run-derived workspace ref (the OLD
+    /// behavior, honest because no provider was promised).
+    #[test]
+    fn without_a_provider_the_dispatch_falls_back_to_the_run_derived_ref() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let composed =
+            compose(key, state, evidence, runner.clone(), 0, FIXTURE_ROUNDS).expect("composes");
+        composed
+            .controller
+            .start_run()
+            .expect("the loop runs without a provider");
+        let specs = runner.specs.borrow();
+        assert_eq!(specs.len(), 1);
+        let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
+        let fallback = run_workspace_ref(&run_id);
+        assert!(
+            specs
+                .values()
+                .any(|spec| spec.workspace.as_str() == fallback.as_str()),
+            "the provider-less dispatch names the run-derived ref: {:?}",
+            specs
+                .values()
+                .map(|spec| spec.workspace.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // COR-F1 (falsifier round 1, F-1): the instrument corroboration rule,
+    // pinned BOTH ways. The produced-artifact world settles an
+    // instrument-produced unit ONLY when this run's observation carries
+    // an executed passing test facet; the default compose() world never
+    // consults the gate.
+    // ------------------------------------------------------------------
+
+    use crate::observation::bundle::{
+        BundleContent, ClaimsFacet, FacetRecord, ObservationBundleDoc,
+    };
+
+    /// A sideband observer: a REAL-looking instrument facet of the wrong
+    /// CLASS — the filesystem instrument observed the workspace, but no
+    /// test execution ran. The uncorroborated half's lever.
+    struct SidebandObserver {
+        store: FakeEvidence,
+        clock: Arc<dyn Clock>,
+    }
+
+    impl Observer for SidebandObserver {
+        fn observe(
+            &self,
+            request: &ObservationRequest,
+            _: Deadline,
+        ) -> Result<ObservationFacet, ObserverError> {
+            let instrument = InstrumentIdentity::new(
+                gauntlet_domain::InstrumentName::new("gauntlet-controller-sideband")
+                    .expect("fixture instrument name"),
+                "1".to_owned(),
+            );
+            let started = self.clock.now();
+            let ended = EpochSeconds::new(started.get() + 1);
+            let command = "tree-walk --workspace".to_owned();
+            let doc = FacetEvidenceDoc::new(
+                instrument.name().as_str().to_owned(),
+                instrument.version().to_owned(),
+                ObservedRun {
+                    command: command.clone(),
+                    env_fingerprint:
+                        "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                            .to_owned(),
+                    exit_status: 0,
+                    started_at: started.get(),
+                    ended_at: ended.get(),
+                    stdout: format!("observed workspace {}", request.workspace.as_str()),
+                    stderr: String::new(),
+                },
+            )
+            .expect("the sideband evidence document is well formed");
+            let bound = Deadline::at_epoch(EpochSeconds::new(u64::MAX / 2));
+            let evidence_ref = self
+                .store
+                .put(doc.encode().as_bytes(), EvidenceKind::Log, bound)
+                .map_err(|error| ObserverError::Unavailable {
+                    kind: FacetKind::Filesystem,
+                    detail: error.to_string(),
+                })?;
+            Ok(
+                ObservationFacet::new(FacetKind::Filesystem, instrument, evidence_ref)
+                    .with_invocation(Some(command), Some(0))
+                    .with_window(Some(started), Some(ended))
+                    .with_summary(Some("sideband facet".to_owned())),
+            )
+        }
+        fn facet_kind(&self) -> FacetKind {
+            FacetKind::Filesystem
+        }
+    }
+
+    /// Builds one wire facet record for the corroboration-rule pin.
+    fn corroboration_facet(
+        kind: FacetKind,
+        command: Option<&str>,
+        exit: Option<i64>,
+    ) -> FacetRecord {
+        let instrument = InstrumentIdentity::new(
+            gauntlet_domain::InstrumentName::new("gauntlet-controller-fixture").expect("name"),
+            "1".to_owned(),
+        );
+        let evidence_ref = gauntlet_domain::EvidenceRef::new("evd-corroboration-facet")
+            .expect("the fixture ref parses");
+        FacetRecord::from_facet(
+            &ObservationFacet::new(kind, instrument, evidence_ref)
+                .with_invocation(command.map(str::to_owned), exit),
+        )
+    }
+
+    /// Builds one observation bundle document for the corroboration-rule
+    /// pin: `run`/`iteration` ownership plus the facet records.
+    fn corroboration_doc(
+        run: &RunId,
+        iteration: u32,
+        facets: Vec<FacetRecord>,
+    ) -> ObservationBundleDoc {
+        ObservationBundleDoc::new(BundleContent {
+            run_id: run.clone(),
+            iteration_no: gauntlet_domain::IterationNo::new(iteration).expect("iteration"),
+            observed_at: 0,
+            project_revision: "rev".to_owned(),
+            environment_fingerprint: "fp".to_owned(),
+            observation_digest: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            facets,
+            claims_facet: ClaimsFacet::new("claims".to_owned()),
+            unavailable_evidence: Vec::new(),
+            observation_failures: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn the_corroboration_rule_demands_this_runs_executed_passing_test_facet() {
+        let run = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("run id");
+        let iteration = gauntlet_domain::IterationNo::new(2).expect("iteration");
+        // Corroborated: a test facet that really executed and passed, in
+        // THIS run at THIS iteration.
+        let doc = corroboration_doc(
+            &run,
+            2,
+            vec![corroboration_facet(
+                FacetKind::Test,
+                Some("fixture-probe --corroboration"),
+                Some(0),
+            )],
+        );
+        assert!(RunController::produced_artifact_corroborated(
+            &doc, &run, iteration
+        ));
+        // A filesystem facet — however healthy — is not a test execution.
+        let doc = corroboration_doc(
+            &run,
+            2,
+            vec![corroboration_facet(
+                FacetKind::Filesystem,
+                Some("tree-walk"),
+                Some(0),
+            )],
+        );
+        assert!(!RunController::produced_artifact_corroborated(
+            &doc, &run, iteration
+        ));
+        // A test facet that FAILED contradicts the passing report.
+        let doc = corroboration_doc(
+            &run,
+            2,
+            vec![corroboration_facet(
+                FacetKind::Test,
+                Some("fixture-probe --corroboration"),
+                Some(1),
+            )],
+        );
+        assert!(!RunController::produced_artifact_corroborated(
+            &doc, &run, iteration
+        ));
+        // An attestation-shaped facet with no execution decides nothing.
+        let doc = corroboration_doc(
+            &run,
+            2,
+            vec![corroboration_facet(FacetKind::Test, None, None)],
+        );
+        assert!(!RunController::produced_artifact_corroborated(
+            &doc, &run, iteration
+        ));
+        // A different run's bundle is not THIS completion's fact source.
+        let other_run = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAB").expect("run id");
+        let doc = corroboration_doc(
+            &other_run,
+            2,
+            vec![corroboration_facet(
+                FacetKind::Test,
+                Some("fixture-probe --corroboration"),
+                Some(0),
+            )],
+        );
+        assert!(!RunController::produced_artifact_corroborated(
+            &doc, &run, iteration
+        ));
+        // Neither is a LATER iteration's bundle carried backward.
+        let doc = corroboration_doc(
+            &run,
+            3,
+            vec![corroboration_facet(
+                FacetKind::Test,
+                Some("fixture-probe --corroboration"),
+                Some(0),
+            )],
+        );
+        assert!(!RunController::produced_artifact_corroborated(
+            &doc, &run, iteration
+        ));
+        // An empty bundle corroborates nothing.
+        let doc = corroboration_doc(&run, 2, Vec::new());
+        assert!(!RunController::produced_artifact_corroborated(
+            &doc, &run, iteration
+        ));
+    }
+
+    /// Composes the controller in the OPTED-IN produced-artifact world
+    /// with the caller's observers — the COR-F1 world-test harness. The
+    /// shared `compose_full` keeps the default produce policy and
+    /// observer set, untouched.
+    fn compose_produced(
+        key: Rc<RefCell<String>>,
+        state: Arc<FakeState>,
+        evidence: FakeEvidence,
+        runner: Arc<ScriptedRunner>,
+        observers: Vec<Arc<dyn Observer>>,
+    ) -> Result<Composed, ControlError> {
+        let scratch = Scratch::new("compose-produced");
+        let clock = DeterministicClock::new();
+        let provider = Arc::new(FlakyProvider {
+            inner: FileReferenceProvider::from_sources(
+                AnswerKeySource::Shared(key.clone()),
+                ManifestSource::Inline(minimal_manifest()),
+                Rc::new(evidence.clone()),
+            ),
+            unavailable: Rc::new(Cell::new(false)),
+        });
+        let unavailable = provider.unavailable.clone();
+        let comparators = ScriptedComparators::new(0);
+        let deps = ControllerDeps {
+            state: state.clone(),
+            evidence: Arc::new(evidence.clone()),
+            ids: Arc::new(SeededIds(RefCell::new(0))),
+            clock,
+            runner: runner.clone(),
+            runner_identity: gauntlet_domain::RunnerIdentity::new("fixture-runner")
+                .expect("runner identity"),
+            observers,
+            comparison: ComparisonDeps {
+                contract: minimal_contract(),
+                deterministic: Arc::new(ComparatorsSource(comparators.clone())),
+                model: Arc::new(ComparatorsSource(comparators)),
+                adversarial: None,
+                review_mode: gauntlet_domain::ReviewMode::Single,
+                model_dispatches: 4,
+                role_deny: crate::roles::ContextDenySet::new(Vec::new()),
+            },
+            ladder_for: Arc::new(|_| Ok(fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]))),
+            reference: provider,
+            answer_key: AnswerKeySource::Shared(key.clone()),
+            escalation: Arc::new(FakeEscalation::default()),
+            meter_factory: meter_factory(),
+            budget: budget_shape(FIXTURE_ROUNDS),
+            policy: policy(),
+            workspaces: None,
+            workspace_root: scratch.0.clone(),
+            config_fingerprint: Digest::new("sha256", &"ab".repeat(32)).expect("digest"),
+            govern: crate::govern::GovernDeps::none_backend(),
+            environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
+            intent: "controller fixture".to_owned(),
+        };
+        std::mem::forget(scratch);
+        let controller = RunController::compose_binding_produced_artifacts(deps)?;
+        Ok(Composed {
+            controller,
+            state,
+            runner,
+            unavailable,
+        })
+    }
+
+    #[test]
+    fn a_corroborated_produced_artifact_settles_in_the_produced_world() {
+        // The positive half: the observation carries an executed, passing
+        // test facet (the FixtureObserver's shape), so the instrument-
+        // produced unit SETTLES in the produced-artifact world.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FixtureObserver {
+            store: evidence.clone(),
+            clock,
+        })];
+        let composed = compose_produced(key, state, evidence, runner, observers).expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let rows = composed
+            .state
+            .settlements(&outcome.run_id, bound())
+            .expect("settlements readable");
+        assert_eq!(rows.len(), 1, "the corroborated unit settled");
+    }
+
+    #[test]
+    fn an_uncorroborated_produced_artifact_never_settles_in_the_produced_world() {
+        // The negative half: the observation carries only a FILESYSTEM
+        // facet, the rung's decision over the locator bytes is PASS, and
+        // the settlement gate blocks it — the unit stays open, the run
+        // ends in a bounded non-settled terminal, and the block is pinned
+        // as typed evidence (never silence, never a downgrade).
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let evidence_for_assert = evidence.clone();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(SidebandObserver {
+            store: evidence.clone(),
+            clock,
+        })];
+        let composed = compose_produced(key, state, evidence, runner, observers).expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_ne!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "an uncorroborated instrument-produced unit never settles the run"
+        );
+        let rows = composed
+            .state
+            .settlements(&outcome.run_id, bound())
+            .expect("settlements readable");
+        assert!(rows.is_empty(), "no settlement row exists");
+        let pinned = evidence_for_assert.records_containing("producer_uncorroborated");
+        assert!(
+            !pinned.is_empty(),
+            "the producer_uncorroborated block is pinned evidence"
+        );
     }
 }

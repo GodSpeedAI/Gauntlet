@@ -1,0 +1,10 @@
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 22s
+────────────
+ Nextest run ID 629a6f1a-db0a-40f9-a92f-bc5c7f3e4dc6 with nextest profile: default
+    Starting 2 tests across 5 binaries (456 tests skipped)
+        PASS [   0.006s] (1/2) gauntlet-app control::controller::tests::without_a_provider_the_dispatch_falls_back_to_the_run_derived_ref
+        PASS [   0.008s] (2/2) gauntlet-app control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces
+────────────
+     Summary [   0.008s] 2 tests run: 2 passed, 456 skipped
+EXIT=0

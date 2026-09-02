@@ -21,6 +21,9 @@ members = [
     "crates/adapters/gauntlet-adapter-agent-cli",
     "crates/adapters/gauntlet-adapter-state-sqlite",
     "crates/adapters/gauntlet-adapter-evidence-fs",
+    "crates/adapters/gauntlet-adapter-workspace-fs",
+    "crates/adapters/gauntlet-adapter-escalation-fs",
+    "crates/adapters/gauntlet-adapter-id-entropy",
     "crates/adapters/gauntlet-adapter-meter-memory",
     "crates/adapters/gauntlet-adapter-observe-filesystem",
     "crates/adapters/gauntlet-adapter-observe-git",
@@ -57,6 +60,9 @@ gauntlet-adapter-agent-prime = { path = "crates/adapters/gauntlet-adapter-agent-
 gauntlet-adapter-agent-cli = { path = "crates/adapters/gauntlet-adapter-agent-cli" }
 gauntlet-adapter-state-sqlite = { path = "crates/adapters/gauntlet-adapter-state-sqlite" }
 gauntlet-adapter-evidence-fs = { path = "crates/adapters/gauntlet-adapter-evidence-fs" }
+gauntlet-adapter-workspace-fs = { path = "crates/adapters/gauntlet-adapter-workspace-fs" }
+gauntlet-adapter-escalation-fs = { path = "crates/adapters/gauntlet-adapter-escalation-fs" }
+gauntlet-adapter-id-entropy = { path = "crates/adapters/gauntlet-adapter-id-entropy" }
 gauntlet-adapter-meter-memory = { path = "crates/adapters/gauntlet-adapter-meter-memory" }
 gauntlet-adapter-observe-filesystem = { path = "crates/adapters/gauntlet-adapter-observe-filesystem" }
 gauntlet-adapter-observe-git = { path = "crates/adapters/gauntlet-adapter-observe-git" }

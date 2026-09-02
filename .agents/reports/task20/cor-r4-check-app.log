@@ -1,0 +1,73 @@
+cargo check -p gauntlet-app --all-targets
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `dev` profile [unoptimized] target(s) in 2m 33s
+exit=0
+cargo check -p gauntlet-cli --all-targets
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+error[E0277]: the trait bound `String: Copy` is not satisfied in `(u64, String, String, i64)`
+    --> crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:1226:10
+     |
+1226 |         .copied()
+     |          ^^^^^^ within `(u64, String, String, i64)`, the trait `Copy` is not implemented for `String`
+     |
+     = note: required because it appears within the type `(u64, String, String, i64)`
+note: required by a bound in `copied`
+    --> /rustc/88d9e12ae178fab0fb5cc050a94da85685d449ea/library/core/src/iter/traits/iterator.rs:3511:4
+
+error[E0599]: no method named `find` found for struct `Copied<I>` in the current scope
+    --> crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:1227:10
+     |
+1224 |       let produce = produced
+     |  ___________________-
+1225 | |         .iter()
+     | |          ------ method `find` is available on `std::slice::Iter<'_, (u64, String, String, i64)>`
+1226 | |         .copied()
+1227 | |         .find(|(_, _, locator, _)| locator == damaged.as_str())
+     | |         -^^^^ method not found in `Copied<std::slice::Iter<'_, (u64, String, String, i64)>>`
+     | |_________|
+     |
+
+Some errors have detailed explanations: E0277, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `gauntlet-cli` (test "e2e_full_loop_mock") due to 2 previous errors
+error: recipe `check-package` failed on line 74 with exit code 101
+exit=101
+cargo check -p gauntlet-adapter-state-sqlite --all-targets
+    Checking gauntlet-adapter-state-sqlite v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite)
+    Finished `dev` profile [unoptimized] target(s) in 1.07s
+exit=0
+Stopping sccache server...
+Compile requests                     37
+Compile requests executed             4
+Cache hits                            0
+Cache misses                          4
+Cache misses (Rust)                   4
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          4
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                  33
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.002 s
+Average compiler                  1.607 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                           33
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            3 GiB
+Max cache size                       10 GiB

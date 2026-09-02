@@ -43,6 +43,6 @@ pub use category::{CategoryClass, ContextCategory, ContextDenySet};
 pub use definition::{FilesystemMode, NetworkMode, RoleDefinition, RoleError, RolePermissions};
 pub use harness::{HarnessRegistry, RegistryError, RoleSurface};
 pub use install::{
-    DriftKind, DriftRecord, Enforcement, InstallInput, InstallReport, LockEntry, RolesError,
-    RolesLock, VerifyInput, VerifyReport, install, verify,
+    DriftKind, DriftRecord, Enforcement, InstallInput, InstallReport, ListReport, ListedRole,
+    LockEntry, RolesError, RolesLock, VerifyInput, VerifyReport, install, list, verify,
 };

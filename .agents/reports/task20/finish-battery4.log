@@ -1,0 +1,1558 @@
+=== boundaries ===
+cargo nextest run -p gauntlet-arch-tests
+    Finished `test` profile [unoptimized] target(s) in 0.04s
+────────────
+ Nextest run ID d7752a68-a2cc-4594-9271-29d09eccad20 with nextest profile: default
+    Starting 228 tests across 5 binaries
+        PASS [   0.012s] (  1/228) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_the_cli_rule_a_has_teeth
+        PASS [   0.016s] (  2/228) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_rule_a_has_teeth
+        PASS [   0.017s] (  3/228) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_rule_b_has_teeth
+        PASS [   0.018s] (  4/228) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_a_missing_cli_crate_cannot_pass_silently
+        PASS [   0.018s] (  5/228) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_a_missing_crate_cannot_pass_silently
+        PASS [   0.023s] (  6/228) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_rule_c_has_teeth
+        PASS [   0.021s] (  7/228) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_the_cli_rule_b_has_teeth
+        PASS [   0.020s] (  8/228) gauntlet-arch-tests delegation::delegation_tests::the_prime_adapter_derives_no_result_from_the_delegation_call
+        PASS [   0.021s] (  9/228) gauntlet-arch-tests delegation::delegation_tests::the_generic_cli_adapter_derives_no_result_outside_the_poll_path
+        PASS [   0.021s] ( 10/228) gauntlet-arch-tests denylist::scanner_tests::adapter_segments_are_flagged_as_whole_string_literals_only
+        PASS [   0.023s] ( 11/228) gauntlet-arch-tests denylist::scanner_tests::adapter_segments_survive_a_char_literal_quote
+        PASS [   0.031s] ( 12/228) gauntlet-arch-tests denylist::scanner_tests::a_vacuous_cli_adapter_scan_fails_rather_than_passing
+        PASS [   0.007s] ( 13/228) gauntlet-arch-tests denylist::scanner_tests::annex_b_wire_key_outside_key_access_still_reports_in_the_parser
+        PASS [   0.048s] ( 14/228) gauntlet-arch-tests denylist::repo::the_generic_cli_adapter_crate_carries_no_vendor_identifiers
+        PASS [   0.014s] ( 15/228) gauntlet-arch-tests denylist::scanner_tests::annex_b_mask_corners_are_pinned_to_the_documented_residual
+        PASS [   0.013s] ( 16/228) gauntlet-arch-tests denylist::scanner_tests::clean_manifest_produces_no_flags
+        PASS [   0.017s] ( 17/228) gauntlet-arch-tests denylist::scanner_tests::annex_b_wire_keys_are_masked_only_in_the_parser_in_key_access
+        PASS [   0.020s] ( 18/228) gauntlet-arch-tests denylist::scanner_tests::annex_b_wire_keys_are_masked_in_the_task9_codec_modules_too
+        PASS [   0.015s] ( 19/228) gauntlet-arch-tests denylist::scanner_tests::clean_source_produces_no_flags
+        PASS [   0.010s] ( 20/228) gauntlet-arch-tests denylist::scanner_tests::denied_terms_inventory_is_pinned
+        PASS [   0.019s] ( 21/228) gauntlet-arch-tests denylist::scanner_tests::derived_adapter_identifiers_are_flagged_in_inner_layers
+        PASS [   0.016s] ( 22/228) gauntlet-arch-tests denylist::scanner_tests::every_denied_term_is_flagged_in_source
+        PASS [   0.012s] ( 23/228) gauntlet-arch-tests denylist::scanner_tests::every_denied_term_is_flagged_in_the_cli_adapter_scan
+        PASS [   0.011s] ( 24/228) gauntlet-arch-tests denylist::scanner_tests::line_continuations_and_concat_fragments_are_flagged
+        PASS [   0.023s] ( 25/228) gauntlet-arch-tests denylist::scanner_tests::composition_root_may_name_adapters_but_not_bare_vendors
+        PASS [   0.015s] ( 26/228) gauntlet-arch-tests denylist::scanner_tests::manifest_keys_and_renames_are_flagged
+        PASS [   0.007s] ( 27/228) gauntlet-arch-tests denylist::scanner_tests::matching_is_case_insensitive_and_substring_based
+        PASS [   0.027s] ( 28/228) gauntlet-arch-tests denylist::scanner_tests::malformed_manifest_is_flagged_not_swallowed
+        PASS [   0.018s] ( 29/228) gauntlet-arch-tests denylist::scanner_tests::manifest_tables_outside_dependency_sections_are_scanned_as_text
+        PASS [   0.021s] ( 30/228) gauntlet-arch-tests denylist::scanner_tests::manifest_keys_use_the_substring_matcher
+        PASS [   0.006s] ( 31/228) gauntlet-arch-tests denylist::scanner_tests::the_cli_adapter_scan_is_case_insensitive_and_whole_file
+        PASS [   0.017s] ( 32/228) gauntlet-arch-tests denylist::scanner_tests::spec_named_backends_are_flagged
+        PASS [   0.026s] ( 33/228) gauntlet-arch-tests denylist::scanner_tests::non_rust_text_files_are_scanned_like_source
+        PASS [   0.022s] ( 34/228) gauntlet-arch-tests denylist::scanner_tests::spec_vocabulary_segments_are_pinned_and_the_spellings_still_deny
+        PASS [   0.012s] ( 35/228) gauntlet-arch-tests denylist::scanner_tests::the_composition_root_carve_out_masks_rather_than_skips
+        PASS [   0.006s] ( 36/228) gauntlet-arch-tests denylist::scanner_tests::workspace_dependencies_text_keeps_only_that_table
+        PASS [   0.032s] ( 37/228) gauntlet-arch-tests denylist::scanner_tests::the_maskable_wire_key_intersection_is_pinned
+        PASS [   0.029s] ( 38/228) gauntlet-arch-tests denylist::scanner_tests::workspace_inherited_renames_are_flagged_in_a_core_manifest
+        PASS [   0.006s] ( 39/228) gauntlet-arch-tests deps::scanner_tests::a_git_dependency_is_flagged_in_any_url_spelling
+        PASS [   0.029s] ( 40/228) gauntlet-arch-tests deps::repo::the_composition_feature_seal_holds
+        PASS [   0.015s] ( 41/228) gauntlet-arch-tests deps::scanner_tests::a_registry_dependency_compiling_into_the_domain_is_flagged
+        PASS [   0.033s] ( 42/228) gauntlet-arch-tests deps::repo::dependency_direction_holds
+        PASS [   0.019s] ( 43/228) gauntlet-arch-tests deps::scanner_tests::a_workspace_inherited_external_dependency_is_flagged
+        PASS [   0.015s] ( 44/228) gauntlet-arch-tests deps::scanner_tests::adapter_depending_on_domain_and_ports_is_accepted
+        PASS [   0.006s] ( 45/228) gauntlet-arch-tests deps::scanner_tests::an_allowlisted_name_from_a_non_default_source_is_flagged
+        PASS [   0.036s] ( 46/228) gauntlet-arch-tests deps::scanner_tests::adapter_depending_on_app_or_cli_is_flagged
+        PASS [   0.016s] ( 47/228) gauntlet-arch-tests deps::scanner_tests::an_external_dependency_is_flagged_in_every_section_kind
+        PASS [   0.039s] ( 48/228) gauntlet-arch-tests deps::scanner_tests::allowlist_entries_state_a_reason
+        PASS [   0.020s] ( 49/228) gauntlet-arch-tests deps::scanner_tests::an_unreadable_or_unparseable_declared_build_input_is_a_violation
+        PASS [   0.026s] ( 50/228) gauntlet-arch-tests deps::scanner_tests::cargo_config_source_replacement_and_rustflags_are_flagged
+        PASS [   0.040s] ( 51/228) gauntlet-arch-tests deps::scanner_tests::arch_tests_with_an_internal_dep_is_flagged
+        PASS [   0.071s] ( 52/228) gauntlet-arch-tests deps::scanner_tests::an_allowlisted_external_dependency_is_accepted_only_in_its_layer
+        PASS [   0.025s] ( 53/228) gauntlet-arch-tests deps::scanner_tests::cli_wiring_of_adapters_is_accepted_and_the_reverse_is_flagged
+        PASS [   0.021s] ( 54/228) gauntlet-arch-tests deps::scanner_tests::feature_specifiers_on_internal_edges_are_visible_in_both_spellings
+        PASS [   0.021s] ( 55/228) gauntlet-arch-tests deps::scanner_tests::compiler_affecting_env_entries_are_flagged_and_benign_ones_are_not
+        PASS [   0.021s] ( 56/228) gauntlet-arch-tests deps::scanner_tests::domain_with_any_internal_dep_is_flagged
+        PASS [   0.018s] ( 57/228) gauntlet-arch-tests deps::scanner_tests::forbidden_cargo_config_keys_state_a_reason
+        PASS [   0.029s] ( 58/228) gauntlet-arch-tests deps::scanner_tests::patch_entries_with_git_or_missing_sources_are_flagged
+        PASS [   0.040s] ( 59/228) gauntlet-arch-tests deps::scanner_tests::path_dependency_outside_the_member_set_is_flagged
+        PASS [   0.040s] ( 60/228) gauntlet-arch-tests deps::scanner_tests::forbidden_env_keys_state_a_reason
+        PASS [   0.037s] ( 61/228) gauntlet-arch-tests deps::scanner_tests::ports_and_app_layering_is_accepted
+        PASS [   0.022s] ( 62/228) gauntlet-arch-tests deps::scanner_tests::root_workspace_git_and_unallowlisted_registry_entries_are_flagged
+        PASS [   0.030s] ( 63/228) gauntlet-arch-tests deps::scanner_tests::renamed_and_path_dependencies_are_resolved
+        PASS [   0.022s] ( 64/228) gauntlet-arch-tests deps::scanner_tests::target_scoped_rustflags_and_other_compiler_channels_are_flagged
+        PASS [   0.024s] ( 65/228) gauntlet-arch-tests deps::scanner_tests::root_table_and_patch_entries_reject_alternate_registry_sources
+        PASS [   0.012s] ( 66/228) gauntlet-arch-tests deps::scanner_tests::the_external_policy_covers_build_and_target_scoped_sections
+        PASS [   0.025s] ( 67/228) gauntlet-arch-tests deps::scanner_tests::the_composition_seal_accepts_only_the_cli_dev_edge
+        PASS [   0.028s] ( 68/228) gauntlet-arch-tests deps::scanner_tests::the_external_allowlists_are_pinned
+        PASS [   0.014s] ( 69/228) gauntlet-arch-tests deps::scanner_tests::workspace_dependency_path_outside_the_member_set_is_flagged
+        PASS [   0.037s] ( 70/228) gauntlet-arch-tests deps::scanner_tests::unclassified_member_and_malformed_manifest_are_flagged
+        PASS [   0.031s] ( 71/228) gauntlet-arch-tests deps::scanner_tests::undeclared_package_directory_is_flagged
+        PASS [   0.014s] ( 72/228) gauntlet-arch-tests envfile::repo::env_example_matches_annex_e
+        PASS [   0.017s] ( 73/228) gauntlet-arch-tests envfile::scanner_tests::a_commented_out_credential_is_flagged
+        PASS [   0.027s] ( 74/228) gauntlet-arch-tests deps::scanner_tests::workspace_inherited_renames_resolve_to_the_real_crate
+        PASS [   0.009s] ( 75/228) gauntlet-arch-tests envfile::scanner_tests::a_deleted_variable_is_flagged
+        PASS [   0.009s] ( 76/228) gauntlet-arch-tests envfile::scanner_tests::a_line_without_equals_is_a_violation_not_a_skip
+        PASS [   0.025s] ( 77/228) gauntlet-arch-tests envfile::scanner_tests::a_credential_value_is_flagged_as_a_credential
+        PASS [   0.016s] ( 78/228) gauntlet-arch-tests envfile::scanner_tests::a_matching_pair_is_clean
+        PASS [   0.017s] ( 79/228) gauntlet-arch-tests envfile::scanner_tests::a_vacuous_parse_is_a_violation
+        PASS [   0.014s] ( 80/228) gauntlet-arch-tests envfile::scanner_tests::an_unknown_or_duplicated_key_is_flagged
+        PASS [   0.011s] ( 81/228) gauntlet-arch-tests envfile::scanner_tests::annex_e_is_parsed_and_bounded_to_the_annex
+        PASS [   0.016s] ( 82/228) gauntlet-arch-tests envfile::scanner_tests::runtime_injected_is_exactly_the_documented_singleton
+        PASS [   0.022s] ( 83/228) gauntlet-arch-tests envfile::scanner_tests::jwt_and_unprefixed_tokens_in_comments_are_flagged
+        PASS [   0.016s] ( 84/228) gauntlet-arch-tests envfile::scanner_tests::the_non_vacuity_floor_is_derived_from_the_spec_not_a_constant
+        PASS [   0.022s] ( 85/228) gauntlet-arch-tests envfile::scanner_tests::the_runtime_injected_exclusion_is_named_and_enforced_both_ways
+        PASS [   0.010s] ( 86/228) gauntlet-arch-tests envfile::scanner_tests::variable_names_are_not_mistaken_for_credentials
+        PASS [   0.008s] ( 87/228) gauntlet-arch-tests escapes::tests::a_bracket_inside_a_comment_does_not_close_the_attribute_body
+        PASS [   0.011s] ( 88/228) gauntlet-arch-tests escapes::tests::absolute_include_targets_are_flagged
+        PASS [   0.014s] ( 89/228) gauntlet-arch-tests escapes::tests::a_bracket_inside_a_literal_does_not_close_the_attribute_body
+        PASS [   0.020s] ( 90/228) gauntlet-arch-tests escapes::tests::a_directive_head_split_before_its_delimiter_is_still_seen
+        PASS [   0.016s] ( 91/228) gauntlet-arch-tests escapes::tests::attributes_without_a_path_key_are_not_flagged
+        PASS [   0.015s] ( 92/228) gauntlet-arch-tests escapes::tests::build_scripts_in_a_core_crate_are_violations
+        PASS [   0.017s] ( 93/228) gauntlet-arch-tests escapes::tests::cargo_target_paths_escaping_the_crate_are_flagged
+        PASS [   0.011s] ( 94/228) gauntlet-arch-tests escapes::tests::comment_tokens_between_a_directive_and_its_argument_are_skipped
+        PASS [   0.023s] ( 95/228) gauntlet-arch-tests escapes::tests::escapes_split_across_lines_are_flagged
+        PASS [   0.018s] ( 96/228) gauntlet-arch-tests escapes::tests::in_crate_cargo_target_paths_are_not_flagged
+        PASS [   0.021s] ( 97/228) gauntlet-arch-tests escapes::tests::every_rustc_spelling_of_the_path_attribute_is_flagged
+        PASS [   0.012s] ( 98/228) gauntlet-arch-tests escapes::tests::literals_and_lifetimes_do_not_produce_phantom_escapes
+        PASS [   0.016s] ( 99/228) gauntlet-arch-tests escapes::tests::in_crate_paths_and_includes_are_not_flagged
+        PASS [   0.019s] (100/228) gauntlet-arch-tests escapes::tests::include_forms_escaping_the_crate_are_flagged
+        PASS [   0.021s] (101/228) gauntlet-arch-tests escapes::tests::path_attribute_escaping_the_crate_is_flagged
+        PASS [   0.023s] (102/228) gauntlet-arch-tests escapes::tests::normalize_join_resolves_dot_segments
+        PASS [   0.020s] (103/228) gauntlet-arch-tests escapes::tests::the_target_path_exemption_is_exactly_the_boundary_suite
+        PASS [   0.013s] (104/228) gauntlet-arch-tests escapes::tests::unterminated_input_is_a_violation_not_a_skip
+        PASS [   0.026s] (105/228) gauntlet-arch-tests escapes::tests::unresolvable_include_targets_are_violations_not_passes
+        PASS [   0.022s] (106/228) gauntlet-arch-tests escapes::tests::whitespace_split_directive_spellings_are_flagged
+        PASS [   0.026s] (107/228) gauntlet-arch-tests evasion_tests::a_narrowed_denylist_or_literal_scope_fails_through_the_shared_scan_path
+        PASS [   0.017s] (108/228) gauntlet-arch-tests evasion_tests::a_walker_level_carve_out_fails_the_gate
+        PASS [   0.024s] (109/228) gauntlet-arch-tests evasion_tests::an_undeclared_call_site_exemption_fails_the_gate
+        PASS [   0.021s] (110/228) gauntlet-arch-tests evasion_tests::c2_an_allowlisted_name_from_a_hostile_source_fails_the_gate
+        PASS [   0.037s] (111/228) gauntlet-arch-tests evasion_tests::c1_target_scoped_cargo_config_channels_fail_the_gate
+        PASS [   0.045s] (112/228) gauntlet-arch-tests evasion_tests::c1_external_dependencies_compiling_into_the_domain_fail_the_gate
+        PASS [   0.010s] (113/228) gauntlet-arch-tests evasion_tests::c6c1_a_quote_that_is_data_does_not_hide_following_literals
+        PASS [   0.024s] (114/228) gauntlet-arch-tests evasion_tests::c3_a_bracket_in_a_literal_no_longer_hides_a_path_escape
+        PASS [   0.015s] (115/228) gauntlet-arch-tests evasion_tests::c7c2_a_directive_head_split_before_its_argument_fails_the_gate
+        PASS [   0.039s] (116/228) gauntlet-arch-tests evasion_tests::c7c1_the_defaults_exemption_is_setting_scoped_not_file_scoped
+        PASS [   0.040s] (117/228) gauntlet-arch-tests evasion_tests::critic5_literal_evasions_fail_the_gate
+        PASS [   0.032s] (118/228) gauntlet-arch-tests evasion_tests::e1_comment_tokens_between_directive_and_argument_fail_the_gate
+        PASS [   0.061s] (119/228) gauntlet-arch-tests evasion_tests::critic4_literal_evasions_fail_the_gate
+        PASS [   0.014s] (120/228) gauntlet-arch-tests evasion_tests::env_example_gaps_fail_through_the_root_entry_point
+        PASS [   0.035s] (121/228) gauntlet-arch-tests evasion_tests::e2_a_compiler_affecting_env_entry_fails_the_gate
+        PASS [   0.029s] (122/228) gauntlet-arch-tests evasion_tests::f2_the_defaults_exemption_covers_only_the_setting_declaration
+        PASS [   0.023s] (123/228) gauntlet-arch-tests evasion_tests::m5_patch_git_and_cargo_config_fail_the_gate
+        PASS [   0.015s] (124/228) gauntlet-arch-tests evasion_tests::scope_integrity_measures_its_own_scan
+        PASS [   0.021s] (125/228) gauntlet-arch-tests evasion_tests::v15_a_narrowed_adapter_identifier_scope_fails_the_gate
+        PASS [   0.029s] (126/228) gauntlet-arch-tests evasion_tests::the_clean_fixture_workspace_passes_every_check
+        PASS [   0.041s] (127/228) gauntlet-arch-tests evasion_tests::majors_that_defeated_a_class_fail_the_gate
+        PASS [   0.011s] (128/228) gauntlet-arch-tests evasion_tests::v1_a_cargo_target_path_leaving_the_crate_fails_the_gate
+        PASS [   0.014s] (129/228) gauntlet-arch-tests evasion_tests::v2_the_defaults_warrant_requires_declarations_not_mentions
+        PASS [   0.019s] (130/228) gauntlet-arch-tests evasion_tests::v2_a_cfg_attr_path_attribute_fails_the_gate
+        PASS [   0.014s] (131/228) gauntlet-arch-tests evasion_tests::v4_a_workspace_inherited_rename_fails_the_gate
+        PASS [   0.014s] (132/228) gauntlet-arch-tests evasion_tests::v5_an_adapter_comment_no_longer_launders_a_vendor_call
+        PASS [   0.024s] (133/228) gauntlet-arch-tests evasion_tests::v3_out_dir_codegen_and_build_scripts_fail_the_gate
+        PASS [   0.009s] (134/228) gauntlet-arch-tests evidence_locators::the_manifest_declares_exactly_the_four_answer_key_locators
+        PASS [   0.024s] (135/228) gauntlet-arch-tests evasion_tests::v5_undeclared_packages_and_root_paths_fail_through_the_entry_point
+        PASS [   0.011s] (136/228) gauntlet-arch-tests literals::repo::defaults_exemption_is_warranted_or_inactive
+        PASS [   0.026s] (137/228) gauntlet-arch-tests literals::scanner_tests::a_hash_in_a_comment_does_not_disable_the_tier_class
+        PASS [   0.023s] (138/228) gauntlet-arch-tests literals::scanner_tests::a_quote_that_is_data_no_longer_deletes_following_literals
+        PASS [   0.054s] (139/228) gauntlet-arch-tests literals::scanner_tests::a_declaration_split_past_the_old_window_is_still_seen
+        PASS [   0.007s] (140/228) gauntlet-arch-tests literals::scanner_tests::absolute_path_literals_outside_the_root_list_are_flagged
+        PASS [   0.012s] (141/228) gauntlet-arch-tests literals::scanner_tests::absolute_paths_without_a_trailing_slash_and_new_roots_are_flagged
+        PASS [   0.020s] (142/228) gauntlet-arch-tests literals::scanner_tests::absolute_paths_are_flagged
+        PASS [   0.018s] (143/228) gauntlet-arch-tests literals::scanner_tests::block_values_and_returns_introduce_a_timeout
+        PASS [   0.020s] (144/228) gauntlet-arch-tests literals::scanner_tests::arbitrary_host_port_endpoints_are_flagged
+        PASS [   0.015s] (145/228) gauntlet-arch-tests literals::scanner_tests::commands_and_tool_identities_are_flagged
+        PASS [   0.020s] (146/228) gauntlet-arch-tests literals::scanner_tests::clean_source_produces_no_flags
+        PASS [   0.008s] (147/228) gauntlet-arch-tests literals::scanner_tests::commands_carrying_shell_metacharacters_are_flagged
+        PASS [   0.014s] (148/228) gauntlet-arch-tests literals::scanner_tests::commands_carrying_stopwords_are_still_flagged
+        PASS [   0.017s] (149/228) gauntlet-arch-tests literals::scanner_tests::endpoint_exemptions_state_a_reason
+        PASS [   0.031s] (150/228) gauntlet-arch-tests literals::scanner_tests::defaults_settings_exempt_only_their_own_declarations
+        PASS [   0.006s] (151/228) gauntlet-arch-tests literals::scanner_tests::exemption_inventories_are_pinned
+        PASS [   0.011s] (152/228) gauntlet-arch-tests literals::scanner_tests::escaped_and_concatenated_literals_are_flagged
+        PASS [   0.019s] (153/228) gauntlet-arch-tests literals::scanner_tests::line_continuations_and_concat_fragments_are_flagged
+        PASS [   0.019s] (154/228) gauntlet-arch-tests literals::scanner_tests::model_families_outside_the_original_list_are_flagged
+        PASS [   0.013s] (155/228) gauntlet-arch-tests literals::scanner_tests::network_endpoints_are_flagged
+        PASS [   0.045s] (156/228) gauntlet-arch-tests literals::scanner_tests::model_ids_are_flagged_and_bare_words_are_not
+        PASS [   0.029s] (157/228) gauntlet-arch-tests literals::scanner_tests::non_rust_text_files_are_scanned
+        PASS [   0.008s] (158/228) gauntlet-arch-tests literals::scanner_tests::parent_directory_navigation_is_path_shaped_regardless_of_other_segments
+        PASS [   0.010s] (159/228) gauntlet-arch-tests literals::scanner_tests::ordinary_numbers_and_localhost_prose_are_not_flagged
+        PASS [   0.013s] (160/228) gauntlet-arch-tests literals::scanner_tests::path_shaped_relative_literals_are_flagged_and_vocabulary_is_not
+        PASS [   0.012s] (161/228) gauntlet-arch-tests literals::scanner_tests::ports_in_every_rust_spelling_are_flagged
+        PASS [   0.008s] (162/228) gauntlet-arch-tests literals::scanner_tests::prose_and_identifiers_are_not_commands
+        PASS [   0.013s] (163/228) gauntlet-arch-tests literals::scanner_tests::provider_identities_are_flagged
+        PASS [   0.018s] (164/228) gauntlet-arch-tests literals::scanner_tests::prose_with_a_duration_word_is_not_a_timeout
+        PASS [   0.017s] (165/228) gauntlet-arch-tests literals::scanner_tests::relative_path_exemptions_state_a_reason
+        PASS [   0.017s] (166/228) gauntlet-arch-tests literals::scanner_tests::scheme_less_provider_endpoints_are_flagged
+        PASS [   0.007s] (167/228) gauntlet-arch-tests literals::scanner_tests::struct_field_and_match_arm_values_introduce_a_timeout
+        PASS [   0.016s] (168/228) gauntlet-arch-tests literals::scanner_tests::single_token_command_heads_and_define_then_use_laundering_are_flagged
+        PASS [   0.013s] (169/228) gauntlet-arch-tests literals::scanner_tests::the_defaults_exemption_covers_only_the_setting_declaration
+        PASS [   0.020s] (170/228) gauntlet-arch-tests literals::scanner_tests::term_inventories_are_pinned
+        PASS [   0.010s] (171/228) gauntlet-arch-tests literals::scanner_tests::tier_policy_literals_are_flagged
+        PASS [   0.014s] (172/228) gauntlet-arch-tests literals::scanner_tests::timeout_and_tier_survive_a_split_before_the_equals
+        PASS [   0.014s] (173/228) gauntlet-arch-tests literals::scanner_tests::timeouts_and_tier_policy_survive_a_rustfmt_line_break
+        PASS [   0.009s] (174/228) gauntlet-arch-tests literals::scanner_tests::urls_of_any_scheme_are_flagged
+        PASS [   0.019s] (175/228) gauntlet-arch-tests literals::scanner_tests::timeouts_are_flagged
+        PASS [   0.007s] (176/228) gauntlet-arch-tests literals::scanner_tests::well_known_port_literals_are_flagged
+        PASS [   0.015s] (177/228) gauntlet-arch-tests role_tests::the_two_roles_enforce_different_term_sets
+        PASS [   0.020s] (178/228) gauntlet-arch-tests role_tests::every_scanned_file_gets_the_role_its_layer_requires
+        PASS [   0.015s] (179/228) gauntlet-arch-tests single_writer::tests::a_cfg_test_inside_a_string_is_not_an_attribute
+        PASS [   0.016s] (180/228) gauntlet-arch-tests single_writer::tests::a_format_constructed_surface_mention_escapes_rule_a
+        PASS [   0.018s] (181/228) gauntlet-arch-tests single_writer::tests::a_new_surface_file_fails_the_inventory
+        PASS [   0.026s] (182/228) gauntlet-arch-tests single_writer::tests::a_generic_helper_funnel_fires_on_the_helpers_token
+        PASS [   0.016s] (183/228) gauntlet-arch-tests single_writer::tests::a_removed_pinned_write_fails_as_stale
+        PASS [   0.012s] (184/228) gauntlet-arch-tests single_writer::tests::a_vanished_guard_fails_the_guard_clause
+        PASS [   0.016s] (185/228) gauntlet-arch-tests single_writer::tests::an_unwarranted_write_in_a_surface_module_has_no_escape
+        PASS [   0.027s] (186/228) gauntlet-arch-tests single_writer::tests::an_env_injected_path_still_fires_on_the_write_token
+        PASS [   0.011s] (187/228) gauntlet-arch-tests single_writer::tests::production_after_a_mid_file_test_module_stays_production
+        PASS [   0.007s] (188/228) gauntlet-arch-tests single_writer::tests::semicolon_gated_modules_are_reported_for_cross_file_exclusion
+        PASS [   0.017s] (189/228) gauntlet-arch-tests single_writer::tests::surface_tokens_match_case_insensitively
+        PASS [   0.016s] (190/228) gauntlet-arch-tests single_writer::tests::the_clean_fixture_passes_the_check
+        PASS [   0.007s] (191/228) gauntlet-arch-tests single_writer::tests::the_pinned_inventories_are_pinned
+        PASS [   0.013s] (192/228) gauntlet-arch-tests single_writer::tests::token_boundaries_distinguish_the_read_spellings
+        PASS [   0.022s] (193/228) gauntlet-arch-tests single_writer::tests::trait_object_indirection_from_an_adapter_escapes_entirely
+        PASS [   0.011s] (194/228) gauntlet-arch-tests single_writer::tests::unclassifiable_shapes_fail_closed
+        PASS [   0.026s] (195/228) gauntlet-arch-tests single_writer::tests::writes_inside_a_gated_module_are_not_production
+        PASS [   0.026s] (196/228) gauntlet-arch-tests text::tests::adjacent_literal_fragments_are_joined
+        PASS [   0.006s] (197/228) gauntlet-arch-tests text::tests::directive_heads_split_before_their_argument_are_joined
+        PASS [   0.050s] (198/228) gauntlet-arch-tests text::tests::attribute_spans_come_from_the_lexing_pass_not_substrings
+        PASS [   0.039s] (199/228) gauntlet-arch-tests text::tests::escaped_backslash_is_not_a_continuation
+        PASS [   0.017s] (200/228) gauntlet-arch-tests text::tests::numeric_and_unicode_escapes_are_decoded
+        PASS [   0.024s] (201/228) gauntlet-arch-tests text::tests::line_continuation_is_collapsed_at_the_first_fragments_line
+        PASS [   0.015s] (202/228) gauntlet-arch-tests text::tests::ordinary_files_have_identical_physical_and_logical_lines
+        PASS [   0.013s] (203/228) gauntlet-arch-tests text::tests::quotes_that_are_data_do_not_shift_the_extraction
+        PASS [   0.021s] (204/228) gauntlet-arch-tests text::tests::raw_string_and_comment_separated_fragments_are_joined
+        PASS [   0.012s] (205/228) gauntlet-arch-tests text::tests::statement_joining_does_not_weld_prose_together
+        PASS [   0.038s] (206/228) gauntlet-arch-tests text::tests::scan_units_keeps_both_forms_when_they_differ
+        PASS [   0.006s] (207/228) gauntlet-arch-tests text::tests::statements_split_before_the_equals_are_joined
+        PASS [   0.028s] (208/228) gauntlet-arch-tests text::tests::statements_split_across_lines_are_joined_to_the_semicolon
+        PASS [   0.009s] (209/228) gauntlet-arch-tests walk::scope_tests::annex_b_contract_parsers_are_pinned
+        PASS [   0.022s] (210/228) gauntlet-arch-tests walk::scope_tests::adapter_identifier_scope_is_the_inner_layers_only
+        PASS [   0.015s] (211/228) gauntlet-arch-tests walk::scope_tests::repo_root_reaches_the_workspace_manifest
+        PASS [   0.016s] (212/228) gauntlet-arch-tests walk::scope_tests::annex_b_wire_keys_are_pinned_to_their_spec_references
+        PASS [   0.015s] (213/228) gauntlet-arch-tests walk::scope_tests::symlinks_inside_a_core_crate_are_violations
+        PASS [   0.017s] (214/228) gauntlet-arch-tests walk::scope_tests::scope_decisions_match_the_declared_exclusions
+        PASS [   0.020s] (215/228) gauntlet-arch-tests walk::scope_tests::unscannable_files_are_violations_not_skips
+        PASS [   0.040s] (216/228) gauntlet-arch-tests walk::scope_tests::the_independent_listing_agrees_with_the_walker_on_the_real_repo
+        PASS [   6.718s] (217/228) gauntlet-arch-tests denylist::repo::adapter_selection_is_config_driven
+        PASS [   7.132s] (218/228) gauntlet-arch-tests::adapter_registry selection_is_config_driven
+        PASS [   0.038s] (219/228) gauntlet-arch-tests::architecture_boundaries dependency_direction
+        PASS [   9.946s] (220/228) gauntlet-arch-tests denylist::repo::core_crates_contain_no_denied_identifiers
+        PASS [   0.045s] (221/228) gauntlet-arch-tests::env_example_complete env_example_matches_annex_e
+        PASS [  17.665s] (222/228) gauntlet-arch-tests literals::repo::core_crates_contain_no_hardcoded_literals
+        PASS [   0.031s] (223/228) gauntlet-arch-tests::no_hardcoded_literals defaults_exemption_is_warranted_or_inactive
+        PASS [  14.457s] (224/228) gauntlet-arch-tests::architecture_boundaries denylist
+        PASS [  22.492s] (225/228) gauntlet-arch-tests::no_hardcoded_literals core_crates_contain_no_hardcoded_literals
+        PASS [  45.471s] (226/228) gauntlet-arch-tests::architecture_boundaries answer_key_single_writer
+        PASS [  52.844s] (227/228) gauntlet-arch-tests escapes::repo::core_crates_have_no_scope_escapes_or_unscannable_files
+        PASS [  50.006s] (228/228) gauntlet-arch-tests::architecture_boundaries scope_integrity
+────────────
+     Summary [  58.750s] 228 tests run: 228 passed, 0 skipped
+EXITB=0
+=== test ===
+cargo nextest run --workspace
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 54s
+────────────
+ Nextest run ID 570b0dbf-54be-4702-8451-437a70f409eb with nextest profile: default
+    Starting 1303 tests across 75 binaries
+        PASS [   0.025s] (   1/1303) gauntlet-adapter-agent-cli config::tests::defaults_are_conservative_and_the_probe_is_the_parse
+        PASS [   0.026s] (   2/1303) gauntlet-adapter-agent-cli clock::tests::the_system_clock_reads_epoch_seconds
+        PASS [   0.026s] (   3/1303) gauntlet-adapter-agent-cli config::tests::a_missing_env_var_is_a_typed_missing_command
+        PASS [   0.029s] (   4/1303) gauntlet-adapter-agent-cli prompt::tests::the_prompt_file_parses_back_and_the_body_is_verbatim
+        PASS [   0.031s] (   5/1303) gauntlet-adapter-agent-cli runner::tests::a_model_template_without_a_hint_refuses_admission_cleanly
+        PASS [   0.034s] (   6/1303) gauntlet-adapter-agent-cli runner::tests::a_matching_contract_beats_the_exit_status
+        PASS [   0.013s] (   7/1303) gauntlet-adapter-agent-cli runner::tests::classification_follows_the_total_order
+        PASS [   0.016s] (   8/1303) gauntlet-adapter-agent-cli runner::tests::capabilities_are_derived_from_configuration
+        PASS [   0.018s] (   9/1303) gauntlet-adapter-agent-cli runner::tests::an_unparseable_template_refuses_construction
+        PASS [   0.018s] (  10/1303) gauntlet-adapter-agent-cli template::tests::comments_and_newlines_flatten_and_hash_only_comments_at_word_start
+        PASS [   0.010s] (  11/1303) gauntlet-adapter-agent-cli template::tests::no_expansion_ever_happens
+        PASS [   0.022s] (  12/1303) gauntlet-adapter-agent-cli template::tests::every_refusal_shape_is_typed
+        PASS [   0.027s] (  13/1303) gauntlet-adapter-agent-cli template::tests::legal_but_odd_bare_prompt_template_parses_and_is_documented
+        PASS [   0.016s] (  14/1303) gauntlet-adapter-agent-cli template::tests::plain_words_quotes_and_placeholders_parse_into_argv
+        PASS [   0.022s] (  15/1303) gauntlet-adapter-agent-cli template::tests::substituted_values_stay_single_verbatim_words
+        PASS [   0.025s] (  16/1303) gauntlet-adapter-agent-cli transport::tests::stopping_an_already_exited_child_succeeds
+        PASS [   0.032s] (  17/1303) gauntlet-adapter-agent-cli transport::tests::the_child_sees_the_result_path_variable
+        PASS [   0.042s] (  18/1303) gauntlet-adapter-agent-cli transport::tests::a_live_child_stops_within_its_bound_and_is_reaped
+        PASS [   0.031s] (  19/1303) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_exit_without_result_suite
+        PASS [   0.052s] (  20/1303) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_unmodified_shared_contract_suite
+        PASS [   0.042s] (  21/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b15_deadline_boundary_is_exact
+        PASS [   0.049s] (  22/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b14_spawn_failure_is_transport
+        PASS [   0.057s] (  23/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4_wrong_path_exited_child_is_missing_result_before_deadline
+        PASS [   0.070s] (  24/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b1_contract_wins_over_exit7_and_process_is_never_consulted
+        PASS [   0.088s] (  25/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b2_garbage_and_empty_documents_are_malformed
+        PASS [   0.014s] (  26/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_forged_handle_is_unknown_everywhere
+        PASS [   0.046s] (  27/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b8_late_contract_never_resurrects_missing_result
+        PASS [   0.098s] (  28/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b5_foreign_identity_is_contract_mismatch
+        PASS [   0.112s] (  29/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b7_directory_at_contract_path_is_an_error_not_running
+        PASS [   0.091s] (  30/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_cancel_lifecycle_with_real_children
+        PASS [   0.090s] (  31/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_hang_after_write_completes_and_the_child_is_retired
+        PASS [   0.068s] (  32/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks d_env_and_prompt_channels_and_envelope_sibling_are_exact
+        PASS [   0.126s] (  33/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_two_invocations_no_cross_wiring
+        PASS [   0.097s] (  34/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks f_collect_serves_the_poll_snapshot_not_the_file
+        PASS [   0.039s] (  35/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks j_capabilities_derive_from_the_template
+        PASS [   0.072s] (  36/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks h_orphan_handle_file_survives_runtime_death_and_is_parseable
+        PASS [   0.092s] (  37/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a11_crlf_is_separator
+        PASS [   0.092s] (  38/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a10_duplicated_placeholders_bind_twice
+        PASS [   0.081s] (  39/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a13_hash_rules
+        PASS [   0.090s] (  40/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a12_backslash_inside_quotes_stays_literal
+        PASS [   0.017s] (  41/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a1_unknown_and_case_tricks_are_typed_refusals
+        PASS [   0.020s] (  42/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a3_quoted_placeholders_still_bind
+        PASS [   0.022s] (  43/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a4_empty_shapes_refuse
+        PASS [   0.007s] (  44/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a4b_comment_only_template_is_a_typed_parse_refusal
+        PASS [   0.028s] (  45/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a2_fused_placeholders_are_refusals
+        PASS [   0.030s] (  46/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a5_unbalanced_refuse
+        PASS [   0.026s] (  47/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a8_odd_argv0_shapes
+        PASS [   0.042s] (  48/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a7_hostile_values_stay_single_words
+        PASS [   0.057s] (  49/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a6_template_grammar_stays_data
+        PASS [   0.032s] (  50/1303) gauntlet-adapter-agent-cli::falsifier_round1_template_attacks a9_model_without_hint_refuses_at_render
+        PASS [   0.037s] (  51/1303) gauntlet-adapter-agent-cli::probe_template_honesty valid_template_with_all_placeholders_probes_ok
+        PASS [   0.054s] (  52/1303) gauntlet-adapter-agent-cli::probe_template_honesty parse_ok_render_impossible_template_is_refused
+        PASS [   0.044s] (  53/1303) gauntlet-adapter-agent-cli::probe_template_honesty unknown_placeholder_is_refused
+        PASS [   0.072s] (  54/1303) gauntlet-adapter-agent-cli::live_probe one_real_subprocess_completes_through_the_result_contract
+        PASS [   0.025s] (  55/1303) gauntlet-adapter-agent-mock deterministic_clock::tests::now_is_pure_until_something_sleeps
+        PASS [   0.040s] (  56/1303) gauntlet-adapter-agent-mock deterministic_clock::tests::concurrent_sleeps_settle_on_the_maximum_target_under_sharing
+        PASS [   0.048s] (  57/1303) gauntlet-adapter-agent-mock deterministic_clock::tests::sleeping_advances_to_the_target_instant
+        PASS [   0.050s] (  58/1303) gauntlet-adapter-agent-mock deterministic_clock::tests::repeated_sleeps_settle_on_the_maximum_target
+        PASS [   0.027s] (  59/1303) gauntlet-adapter-agent-mock deterministic_clock::tests::sleeping_never_moves_backwards
+        PASS [   0.015s] (  60/1303) gauntlet-adapter-agent-mock hooks::tests::an_absent_or_empty_seed_keeps_the_production_source
+        PASS [   0.024s] (  61/1303) gauntlet-adapter-agent-mock hooks::tests::the_clock_type_remains_directly_constructible
+        PASS [   0.028s] (  62/1303) gauntlet-adapter-agent-mock hooks::tests::an_absent_or_empty_clock_hook_keeps_the_production_clock
+        PASS [   0.040s] (  63/1303) gauntlet-adapter-agent-mock hooks::tests::a_seed_selects_the_seeded_generator_and_it_replays
+        PASS [   0.034s] (  64/1303) gauntlet-adapter-agent-mock hooks::tests::the_deterministic_token_selects_the_virtual_clock
+        PASS [   0.028s] (  65/1303) gauntlet-adapter-agent-mock hooks::tests::unknown_clock_tokens_are_typed_errors_never_fallbacks
+        PASS [   0.014s] (  66/1303) gauntlet-adapter-agent-mock runner::tests::capabilities_report_honest_containment_and_delivery
+        PASS [   0.035s] (  67/1303) gauntlet-adapter-agent-mock runner::tests::an_unwritable_workspace_maps_to_execution_failure
+        PASS [   0.035s] (  68/1303) gauntlet-adapter-agent-mock runner::tests::cancel_before_terminal_is_idempotent_and_typed
+        PASS [   0.015s] (  69/1303) gauntlet-adapter-agent-mock runner::tests::collect_before_completion_is_result_not_ready
+        PASS [   0.023s] (  70/1303) gauntlet-adapter-agent-mock runner::tests::invoke_admits_and_first_poll_reports_in_flight_work
+        PASS [   0.027s] (  71/1303) gauntlet-adapter-agent-mock runner::tests::repeated_collects_return_the_same_document
+        PASS [   0.032s] (  72/1303) gauntlet-adapter-agent-mock runner::tests::re_invoking_while_running_is_refused_too
+        PASS [   0.032s] (  73/1303) gauntlet-adapter-agent-mock runner::tests::re_invoking_a_completed_invocation_is_refused_and_terminal_state_survives
+        PASS [   0.006s] (  74/1303) gauntlet-adapter-agent-mock runner::tests::workspace_effects_resolve_under_the_provided_root
+        PASS [   0.027s] (  75/1303) gauntlet-adapter-agent-mock runner::tests::the_written_document_is_retrievable_by_contract_path
+        PASS [   0.016s] (  76/1303) gauntlet-adapter-agent-mock scenario::tests::a_dash_staircase_beyond_the_cap_is_a_typed_error
+        PASS [   0.036s] (  77/1303) gauntlet-adapter-agent-mock runner::tests::unknown_handles_are_refused_by_every_operation
+        PASS [   0.038s] (  78/1303) gauntlet-adapter-agent-mock scenario::tests::a_foreign_invocation_id_derailment_is_grammar_valid_but_mismatched
+        PASS [   0.032s] (  79/1303) gauntlet-adapter-agent-mock scenario::tests::a_missing_fixture_file_is_a_typed_error
+        PASS [   0.029s] (  80/1303) gauntlet-adapter-agent-mock scenario::tests::a_raw_malformed_derailment_is_not_json
+        PASS [   0.022s] (  81/1303) gauntlet-adapter-agent-mock scenario::tests::a_stale_digest_derailment_is_well_formed_but_mismatched
+        PASS [   0.022s] (  82/1303) gauntlet-adapter-agent-mock scenario::tests::a_stall_scenario_parses_with_its_own_keys
+        PASS [   0.009s] (  83/1303) gauntlet-adapter-agent-mock scenario::tests::a_write_result_scenario_parses_field_for_field
+        PASS [   0.015s] (  84/1303) gauntlet-adapter-agent-mock scenario::tests::artifact_items_need_both_fields_with_a_valid_ref
+        PASS [   0.020s] (  85/1303) gauntlet-adapter-agent-mock scenario::tests::an_empty_document_reports_its_first_missing_key
+        PASS [   0.011s] (  86/1303) gauntlet-adapter-agent-mock scenario::tests::child_declared_runtime_verdicts_are_refused_as_states
+        PASS [   0.031s] (  87/1303) gauntlet-adapter-agent-mock scenario::tests::attempted_ids_validate_against_the_domain_grammar
+        PASS [   0.020s] (  88/1303) gauntlet-adapter-agent-mock scenario::tests::duplicate_keys_are_refused_with_the_line
+        PASS [   0.012s] (  89/1303) gauntlet-adapter-agent-mock scenario::tests::nesting_at_the_cap_traverses_one_deeper_is_a_typed_error
+        PASS [   0.025s] (  90/1303) gauntlet-adapter-agent-mock scenario::tests::empty_flow_entries_are_refused
+        PASS [   0.039s] (  91/1303) gauntlet-adapter-agent-mock scenario::tests::effect_paths_are_contained_at_parse_time
+        PASS [   0.011s] (  92/1303) gauntlet-adapter-agent-mock scenario::tests::probe_knobs_are_bounded_integers
+        PASS [   0.014s] (  93/1303) gauntlet-adapter-agent-mock scenario::tests::self_check_exit_codes_are_integers
+        PASS [   0.035s] (  94/1303) gauntlet-adapter-agent-mock scenario::tests::payload_keys_are_required_and_closed
+        PASS [   0.027s] (  95/1303) gauntlet-adapter-agent-mock scenario::tests::probes_before_write_models_in_flight_work
+        PASS [   0.014s] (  96/1303) gauntlet-adapter-agent-mock scenario::tests::stall_cannot_carry_workspace_effects
+        PASS [   0.023s] (  97/1303) gauntlet-adapter-agent-mock scenario::tests::stall_cannot_carry_document_keys
+        PASS [   0.016s] (  98/1303) gauntlet-adapter-agent-mock scenario::tests::tabs_in_indentation_are_refused
+        PASS [   0.012s] (  99/1303) gauntlet-adapter-agent-mock scenario::tests::the_rendered_document_is_a_valid_result_contract
+        PASS [   0.033s] ( 100/1303) gauntlet-adapter-agent-mock scenario::tests::stall_requires_timeout_after_probes
+        PASS [   0.013s] ( 101/1303) gauntlet-adapter-agent-mock scenario::tests::timeout_after_probes_zero_is_refused_but_zero_write_probes_is_legal
+        PASS [   0.007s] ( 102/1303) gauntlet-adapter-agent-mock scenario::tests::unknown_tokens_report_their_vocabulary
+        PASS [   0.023s] ( 103/1303) gauntlet-adapter-agent-mock scenario::tests::unknown_root_keys_are_typed_line_errors
+        PASS [   0.018s] ( 104/1303) gauntlet-adapter-agent-mock scenario::tests::unplaceable_indentation_is_a_typed_error
+        PASS [   0.025s] ( 105/1303) gauntlet-adapter-agent-mock scenario::tests::unknown_field_derailments_render_strict_rejections
+        PASS [   0.008s] ( 106/1303) gauntlet-adapter-agent-mock seeded_ids::tests::an_empty_seed_is_a_typed_error
+        PASS [   0.016s] ( 107/1303) gauntlet-adapter-agent-mock scenario::tests::write_result_requires_state_and_payload
+        PASS [   0.010s] ( 108/1303) gauntlet-adapter-agent-mock seeded_ids::tests::every_minted_id_passes_the_domain_grammar
+        PASS [   0.021s] ( 109/1303) gauntlet-adapter-agent-mock seeded_ids::tests::different_seeds_diverge
+        PASS [   0.040s] ( 110/1303) gauntlet-adapter-agent-mock scenario::tests::write_result_cannot_carry_timeout_after_probes
+        PASS [   0.040s] ( 111/1303) gauntlet-adapter-agent-mock seeded_ids::tests::minted_ids_are_distinct_across_kinds_and_draws
+        PASS [   0.033s] ( 112/1303) gauntlet-adapter-agent-mock seeded_ids::tests::the_same_seed_replays_the_same_sequence
+        PASS [   0.101s] ( 113/1303) gauntlet-adapter-agent-mock::contract_suite the_mock_runner_passes_the_exit_without_result_suite
+        PASS [   0.104s] ( 114/1303) gauntlet-adapter-agent-mock::contract_suite the_mock_runner_passes_the_unmodified_shared_contract_suite
+        PASS [   0.130s] ( 115/1303) gauntlet-adapter-agent-mock::scenario_playback answer_key_write_attempt_is_observable_and_the_real_ruler_stays_untouched
+        PASS [   0.063s] ( 116/1303) gauntlet-adapter-agent-mock::scenario_playback critic_pass_without_evidence_pins_the_p11_shape_at_the_envelope_level
+        PASS [   0.032s] ( 117/1303) gauntlet-adapter-agent-mock::scenario_playback happy_completes_and_collects_echoing_dispatch_identity_exactly
+        PASS [   0.008s] ( 118/1303) gauntlet-adapter-agent-mock::scenario_playback no_result_times_out_and_never_completes
+        PASS [   0.025s] ( 119/1303) gauntlet-adapter-agent-mock::scenario_playback malformed_fails_and_is_never_collectible
+        PASS [   0.067s] ( 120/1303) gauntlet-adapter-agent-mock::scenario_playback lying_builder_divergence_is_observable
+        PASS [   0.482s] ( 121/1303) gauntlet-adapter-agent-mock scenario::tests::a_monstrous_staircase_on_a_small_stack_is_typed_not_an_abort
+        PASS [   0.044s] ( 122/1303) gauntlet-adapter-agent-mock::scenario_playback the_required_fixture_inventory_exists_and_parses
+        PASS [   0.016s] ( 123/1303) gauntlet-adapter-agent-mock::scenario_playback wrong_invocation_id_fails_contract_mismatch
+        PASS [   0.025s] ( 124/1303) gauntlet-adapter-agent-prime config::tests::defaults_are_conservative_and_typed
+        PASS [   0.029s] ( 125/1303) gauntlet-adapter-agent-prime clock::tests::the_system_clock_reads_epoch_seconds
+        PASS [   0.089s] ( 126/1303) gauntlet-adapter-agent-mock::scenario_playback stale_envelope_digest_fails_contract_mismatch
+        PASS [   0.009s] ( 127/1303) gauntlet-adapter-agent-prime probe::tests::error_display_names_the_locus_and_class
+        PASS [   0.014s] ( 128/1303) gauntlet-adapter-agent-prime probe::tests::an_unparseable_probe_carries_both_streams
+        PASS [   0.034s] ( 129/1303) gauntlet-adapter-agent-prime probe::tests::a_stderr_only_version_probes_clean
+        PASS [   0.008s] ( 130/1303) gauntlet-adapter-agent-prime probe::tests::version_parsing_is_strict_and_tolerates_the_v_prefix
+        PASS [   0.015s] ( 131/1303) gauntlet-adapter-agent-prime probe::tests::the_range_is_a_typed_injected_configuration
+        PASS [   0.027s] ( 132/1303) gauntlet-adapter-agent-prime probe::tests::a_stdout_only_version_probes_clean
+        PASS [   0.015s] ( 133/1303) gauntlet-adapter-agent-prime program::tests::the_child_prompt_preserves_the_role_body
+        PASS [   0.021s] ( 134/1303) gauntlet-adapter-agent-prime program::tests::hostile_prompt_text_survives_the_python_literal_round_trip
+        PASS [   0.016s] ( 135/1303) gauntlet-adapter-agent-prime program::tests::the_child_prompt_carries_the_whole_result_contract
+        PASS [   0.022s] ( 136/1303) gauntlet-adapter-agent-prime program::tests::a_model_hint_is_forwarded_as_the_model_kwarg
+        PASS [   0.031s] ( 137/1303) gauntlet-adapter-agent-prime runner::tests::invocation_names_are_role_run_invocation_short
+        PASS [   0.033s] ( 138/1303) gauntlet-adapter-agent-prime program::tests::the_rendered_program_is_byte_pinned
+        PASS [   0.033s] ( 139/1303) gauntlet-adapter-agent-prime program::tests::the_rendered_program_captures_the_admission_handle_only
+        PASS [   0.035s] ( 140/1303) gauntlet-adapter-agent-prime runner::tests::the_contract_token_is_a_leaf_inside_the_invocation_dir
+        PASS [   0.018s] ( 141/1303) gauntlet-adapter-agent-prime runner::tests::the_failure_classes_come_from_the_ports_mapping
+        PASS [   0.019s] ( 142/1303) gauntlet-adapter-agent-prime transport::handle_decode_teeth::the_answer_shaped_unknown_field_is_named_in_the_refusal
+        PASS [   0.026s] ( 143/1303) gauntlet-adapter-agent-prime transport::handle_decode_teeth::every_hostile_handle_class_is_refused
+        PASS [   0.028s] ( 144/1303) gauntlet-adapter-agent-prime transport::handle_decode_teeth::read_admission_refuses_a_hostile_file
+        PASS [   0.008s] ( 145/1303) gauntlet-adapter-agent-prime transport::tests::a_bare_array_listing_is_refused
+        PASS [   0.017s] ( 146/1303) gauntlet-adapter-agent-prime transport::tests::an_empty_sessions_array_is_an_empty_listing
+        PASS [   0.028s] ( 147/1303) gauntlet-adapter-agent-prime transport::handle_decode_teeth::the_valid_handle_document_parses
+        PASS [   0.018s] ( 148/1303) gauntlet-adapter-agent-prime transport::tests::missing_or_wrong_shaped_sessions_are_refused
+        PASS [   0.021s] ( 149/1303) gauntlet-adapter-agent-prime transport::tests::malformed_listings_are_typed_errors
+        PASS [   0.028s] ( 150/1303) gauntlet-adapter-agent-prime transport::tests::the_sessions_wrapper_is_the_accepted_listing_shape
+        PASS [   0.049s] ( 151/1303) gauntlet-adapter-agent-prime::contract_suite a_handle_absent_admission_sweeps_the_orphaned_child
+        PASS [   0.044s] ( 152/1303) gauntlet-adapter-agent-prime::contract_suite a_spawn_failure_is_the_transport_class
+        PASS [   0.024s] ( 153/1303) gauntlet-adapter-agent-prime::contract_suite an_answer_shaped_handle_field_refuses_admission_end_to_end
+        PASS [   0.048s] ( 154/1303) gauntlet-adapter-agent-prime::contract_suite a_late_identity_matching_writer_never_resurrects_a_timed_out_invocation
+        PASS [   0.014s] ( 155/1303) gauntlet-adapter-agent-prime::contract_suite cancel_issues_exactly_one_stop_ever
+        PASS [   0.021s] ( 156/1303) gauntlet-adapter-agent-prime::contract_suite an_unknown_handle_is_refused_by_every_operation
+        PASS [   0.024s] ( 157/1303) gauntlet-adapter-agent-prime::contract_suite the_prime_runner_passes_the_unmodified_shared_contract_suite
+        PASS [   0.026s] ( 158/1303) gauntlet-adapter-agent-prime::live_probe one_real_admission_completes_through_the_result_contract
+        PASS [   0.052s] ( 159/1303) gauntlet-adapter-compare-diff tests::a_bundle_that_misdeclares_its_own_observation_digest_is_refused
+        PASS [   0.029s] ( 160/1303) gauntlet-adapter-compare-diff tests::an_observation_that_is_not_this_runs_cannot_be_compared
+        PASS [   0.049s] ( 161/1303) gauntlet-adapter-compare-diff tests::a_failing_facet_yields_a_blocking_residual_from_the_instrument
+        PASS [   0.034s] ( 162/1303) gauntlet-adapter-compare-diff tests::clean_instruments_settle_nothing_and_scope_rules_hold
+        PASS [   0.008s] ( 163/1303) gauntlet-adapter-compare-diff tests::unknown_contract_versions_are_refused_and_output_is_deterministic
+        PASS [   0.018s] ( 164/1303) gauntlet-adapter-compare-diff tests::gaps_forward_as_major_residuals_and_inconclusive_verdicts
+        PASS [   0.027s] ( 165/1303) gauntlet-adapter-compare-diff tests::the_diff_comparator_passes_the_unmodified_shared_contract_suite
+        PASS [   0.054s] ( 166/1303) gauntlet-adapter-compare-model tests::an_iteration_the_run_never_observed_has_no_comparison_authority
+        PASS [   0.043s] ( 167/1303) gauntlet-adapter-compare-model tests::expired_deadline_cancels_before_the_first_poll
+        PASS [   0.036s] ( 168/1303) gauntlet-adapter-compare-model tests::forever_running_primary_is_actively_cancelled_by_direct_model_collection
+        PASS [   0.014s] ( 169/1303) gauntlet-adapter-compare-model tests::model_source_factory_distinguishes_normal_and_adversarial_prompts
+        PASS [   0.061s] ( 170/1303) gauntlet-adapter-compare-model tests::every_derailment_is_a_typed_error_and_never_a_pass
+        PASS [   0.019s] ( 171/1303) gauntlet-adapter-compare-model tests::the_bounded_probe_run_is_recorded
+        PASS [   0.018s] ( 172/1303) gauntlet-adapter-compare-model tests::the_critic_composition_couples_the_dispatch_and_the_record
+        PASS [   0.015s] ( 173/1303) gauntlet-adapter-compare-model tests::the_model_comparator_passes_the_unmodified_shared_contract_suite
+        PASS [   0.025s] ( 174/1303) gauntlet-adapter-evidence-fs store::tests::a_contradicting_kind_sidecar_is_a_typed_refusal
+        PASS [   0.024s] ( 175/1303) gauntlet-adapter-evidence-fs store::tests::a_directory_at_an_object_path_is_refused_with_its_kind_named
+        PASS [   0.016s] ( 176/1303) gauntlet-adapter-evidence-fs store::tests::a_symlink_at_an_object_path_is_refused_by_put_and_get
+        PASS [   0.042s] ( 177/1303) gauntlet-adapter-evidence-fs store::tests::a_colliding_digest_with_different_bytes_is_a_typed_refusal
+        PASS [   0.010s] ( 178/1303) gauntlet-adapter-evidence-fs store::tests::no_public_api_exposes_an_overwrite_or_delete_path
+        PASS [   0.011s] ( 179/1303) gauntlet-adapter-evidence-fs store::tests::a_symlinked_object_path_is_not_pinned_membership
+        PASS [   0.010s] ( 180/1303) gauntlet-adapter-evidence-fs store::tests::refs_outside_this_stores_grammar_resolve_to_none
+        PASS [   0.022s] ( 181/1303) gauntlet-adapter-evidence-fs store::tests::a_tampered_object_is_a_typed_integrity_error_on_get
+        PASS [   0.027s] ( 182/1303) gauntlet-adapter-meter-memory tests::a_reservation_serves_more_than_one_within_bounds_charge
+        PASS [   0.014s] ( 183/1303) gauntlet-adapter-meter-memory tests::reservations_hold_parallel_slots_until_charged
+        PASS [   0.021s] ( 184/1303) gauntlet-adapter-meter-memory tests::refused_charges_book_nothing
+        PASS [   0.033s] ( 185/1303) gauntlet-adapter-evidence-fs::contract_suite fs_evidence_store_passes_the_shared_contract_suite
+        PASS [   0.008s] ( 186/1303) gauntlet-adapter-meter-memory tests::the_metered_budget_passes_the_shared_contract_suite
+        PASS [   0.013s] ( 187/1303) gauntlet-adapter-meter-memory tests::reserve_agrees_with_would_breach_reserve_at_every_boundary
+        PASS [   0.009s] ( 188/1303) gauntlet-adapter-meter-memory tests::tool_calls_and_retries_are_tracked_as_adapter_counters
+        PASS [   0.031s] ( 189/1303) gauntlet-adapter-meter-memory::contract_suite metered_budget_passes_the_shared_budget_meter_suite
+        PASS [   0.041s] ( 190/1303) gauntlet-adapter-observe-build tests::an_expired_deadline_refuses_without_spawning
+        PASS [   0.018s] ( 191/1303) gauntlet-adapter-observe-build tests::captured_output_is_ceilinged_with_a_recorded_marker
+        PASS [   0.006s] ( 192/1303) gauntlet-adapter-observe-build tests::workspace_resolution_is_contained_inside_the_observer_root
+        PASS [   0.011s] ( 193/1303) gauntlet-adapter-observe-build tests::the_env_fingerprint_is_sorted_pairs_over_sha256
+        PASS [   0.035s] ( 194/1303) gauntlet-adapter-observe-build::shared_contract the_build_observer_passes_the_unmodified_shared_contract_suite
+        PASS [   0.040s] ( 195/1303) gauntlet-adapter-observe-build::shared_contract a_facet_carries_full_provenance_and_a_failing_exit_is_still_a_facet
+        PASS [   0.035s] ( 196/1303) gauntlet-adapter-observe-command tests::a_program_that_cannot_spawn_is_unavailable_not_a_failed_instrument
+        PASS [   0.014s] ( 197/1303) gauntlet-adapter-observe-command tests::an_expired_deadline_refuses_without_spawning
+        PASS [   0.038s] ( 198/1303) gauntlet-adapter-observe-command tests::captured_output_is_ceilinged_with_a_recorded_marker
+        PASS [   0.011s] ( 199/1303) gauntlet-adapter-observe-command tests::the_env_fingerprint_is_sorted_pairs_over_sha256
+        PASS [   0.007s] ( 200/1303) gauntlet-adapter-observe-command tests::the_facet_kind_is_the_callers_binding
+        PASS [   0.012s] ( 201/1303) gauntlet-adapter-observe-command tests::workspace_resolution_is_contained_inside_the_observer_root
+        PASS [   0.227s] ( 202/1303) gauntlet-adapter-observe-build tests::a_missing_program_classifies_as_unavailable
+        PASS [   0.038s] ( 203/1303) gauntlet-adapter-observe-command::shared_contract a_facet_carries_full_provenance_and_a_failing_exit_is_still_a_facet
+        PASS [   0.016s] ( 204/1303) gauntlet-adapter-observe-command::shared_contract the_command_observer_passes_the_unmodified_shared_contract_suite
+        PASS [   0.033s] ( 205/1303) gauntlet-adapter-observe-filesystem tests::lossy_colliding_names_get_distinct_deterministic_manifest_lines
+        PASS [   0.158s] ( 206/1303) gauntlet-adapter-observe-command::shared_contract a_missing_program_is_unavailable_never_a_facet
+        PASS [   0.006s] ( 207/1303) gauntlet-adapter-observe-filesystem tests::the_env_fingerprint_is_sorted_pairs_over_sha256
+        PASS [   0.008s] ( 208/1303) gauntlet-adapter-observe-filesystem tests::workspace_resolution_is_contained_inside_the_observer_root
+        PASS [   0.034s] ( 209/1303) gauntlet-adapter-observe-filesystem::shared_contract a_facet_carries_full_provenance_and_matching_evidence
+        PASS [   0.012s] ( 210/1303) gauntlet-adapter-observe-filesystem::shared_contract the_filesystem_observer_passes_the_unmodified_shared_contract_suite
+        PASS [   0.024s] ( 211/1303) gauntlet-adapter-observe-filesystem::shared_contract the_manifest_is_deterministic_and_never_follows_symlinks
+        PASS [   1.030s] ( 212/1303) gauntlet-adapter-observe-build tests::a_build_that_outlives_the_deadline_is_killed_and_reported_unavailable
+        PASS [   0.033s] ( 213/1303) gauntlet-adapter-observe-git tests::an_expired_deadline_refuses_without_spawning
+        PASS [   0.016s] ( 214/1303) gauntlet-adapter-observe-git tests::captured_output_is_ceilinged_with_a_recorded_marker
+        PASS [   0.017s] ( 215/1303) gauntlet-adapter-observe-git tests::the_env_fingerprint_is_sorted_pairs_over_sha256
+        PASS [   0.006s] ( 216/1303) gauntlet-adapter-observe-git tests::the_wrapped_command_line_is_the_recorded_query
+        PASS [   0.009s] ( 217/1303) gauntlet-adapter-observe-git tests::workspace_resolution_is_contained_inside_the_observer_root
+        PASS [   1.029s] ( 218/1303) gauntlet-adapter-observe-command tests::a_command_that_outlives_the_deadline_is_killed_and_reported_unavailable
+        PASS [   0.849s] ( 219/1303) gauntlet-adapter-observe-filesystem tests::manifest_error_lines_respect_the_entry_cap
+        PASS [   0.038s] ( 220/1303) gauntlet-adapter-observe-git::shared_contract a_non_repository_maps_to_instrument_failed_with_the_exit_code
+        PASS [   0.067s] ( 221/1303) gauntlet-adapter-observe-git::shared_contract a_facet_carries_full_provenance_and_matching_evidence
+        PASS [   0.043s] ( 222/1303) gauntlet-adapter-observe-git::shared_contract the_versioning_observer_passes_the_unmodified_shared_contract_suite
+        PASS [   0.024s] ( 223/1303) gauntlet-adapter-observe-test tests::an_expired_deadline_refuses_without_spawning
+        PASS [   0.050s] ( 224/1303) gauntlet-adapter-observe-test tests::captured_output_is_ceilinged_with_a_recorded_marker
+        PASS [   0.009s] ( 225/1303) gauntlet-adapter-observe-test tests::the_env_fingerprint_is_sorted_pairs_over_sha256
+        PASS [   0.032s] ( 226/1303) gauntlet-adapter-observe-test tests::workspace_resolution_is_contained_inside_the_observer_root
+        PASS [   0.059s] ( 227/1303) gauntlet-adapter-observe-test::shared_contract a_facet_carries_full_provenance_and_a_failing_exit_is_still_a_facet
+        PASS [   0.010s] ( 228/1303) gauntlet-adapter-observe-test::shared_contract the_test_observer_passes_the_unmodified_shared_contract_suite
+        PASS [   0.045s] ( 229/1303) gauntlet-adapter-policy-fs tests::a_missing_artifact_for_a_dispatchable_tier_is_no_policy_for_tier
+        PASS [   0.021s] ( 230/1303) gauntlet-adapter-policy-fs tests::a_path_that_does_not_exist_yet_still_resolves
+        PASS [   0.017s] ( 231/1303) gauntlet-adapter-policy-fs tests::a_relative_escape_through_the_workspace_segment_is_refused
+        PASS [   0.020s] ( 232/1303) gauntlet-adapter-policy-fs tests::a_symlink_out_of_the_anchor_is_an_escape
+        PASS [   1.038s] ( 233/1303) gauntlet-adapter-observe-git tests::a_versioning_run_that_outlives_the_deadline_is_killed_and_reported_unavailable
+        PASS [   0.032s] ( 234/1303) gauntlet-adapter-policy-fs tests::a_tier_mismatch_is_invalid
+        PASS [   0.009s] ( 235/1303) gauntlet-adapter-policy-fs tests::an_anchored_path_may_not_escape_its_anchor
+        PASS [   0.368s] ( 236/1303) gauntlet-adapter-observe-test tests::a_missing_program_classifies_as_unavailable
+        PASS [   0.020s] ( 237/1303) gauntlet-adapter-policy-fs tests::an_anchor_sibling_sharing_a_byte_prefix_is_not_contained
+        PASS [   0.017s] ( 238/1303) gauntlet-adapter-policy-fs tests::an_expired_deadline_refuses_without_reading
+        PASS [   0.007s] ( 239/1303) gauntlet-adapter-policy-fs tests::an_unknown_network_form_is_invalid_naming_what_was_found
+        PASS [   0.020s] ( 240/1303) gauntlet-adapter-policy-fs tests::an_unanchored_absolute_path_is_invalid_naming_the_entry
+        PASS [   0.017s] ( 241/1303) gauntlet-adapter-policy-fs tests::an_unsanitized_workspace_ref_is_refused
+        PASS [   0.015s] ( 242/1303) gauntlet-adapter-policy-fs tests::bom_and_non_strict_bodies_are_invalid_naming_the_file
+        PASS [   0.009s] ( 243/1303) gauntlet-adapter-policy-fs tests::empty_writable_roots_and_unknown_keys_are_invalid
+        PASS [   0.006s] ( 244/1303) gauntlet-adapter-policy-fs tests::interior_dot_segments_normalize_inside_the_anchor
+        PASS [   0.016s] ( 245/1303) gauntlet-adapter-policy-fs tests::every_non_irreversible_tier_resolves_from_its_artifact
+        PASS [   0.017s] ( 246/1303) gauntlet-adapter-policy-fs tests::permissions_for_refuses_honestly_instead_of_inventing_an_artifact
+        PASS [   0.013s] ( 247/1303) gauntlet-adapter-policy-fs tests::the_irreversible_tier_is_refused_structurally_even_when_a_file_exists
+        PASS [   0.010s] ( 248/1303) gauntlet-adapter-policy-fs tests::two_different_workspaces_resolve_to_disjoint_writable_roots
+        PASS [   0.015s] ( 249/1303) gauntlet-adapter-policy-fs tests::the_shipped_repo_policy_artifacts_resolve_for_every_dispatchable_tier
+        PASS [   0.017s] ( 250/1303) gauntlet-adapter-policy-fs tests::unanchored_entries_are_invalid_naming_the_entry
+        PASS [   0.031s] ( 251/1303) gauntlet-adapter-sandbox-bwrap tests::a_mask_target_that_cannot_exist_renders_no_mask_and_one_that_can_still_does
+        PASS [   0.035s] ( 252/1303) gauntlet-adapter-sandbox-bwrap tests::a_missing_binary_is_backend_unavailable_not_a_policy_opinion
+        PASS [   0.006s] ( 253/1303) gauntlet-adapter-sandbox-bwrap tests::adversarial_payloads_stay_inside_the_quoted_argument
+        PASS [   0.038s] ( 254/1303) gauntlet-adapter-sandbox-bwrap tests::a_policy_path_cannot_smuggle_a_backend_flag_and_a_spaced_path_still_binds
+        PASS [   0.020s] ( 255/1303) gauntlet-adapter-sandbox-bwrap tests::an_expired_deadline_refuses_without_spawning
+        PASS [   0.008s] ( 256/1303) gauntlet-adapter-sandbox-bwrap tests::every_mask_is_rendered_after_the_last_writable_bind
+        PASS [   0.016s] ( 257/1303) gauntlet-adapter-sandbox-bwrap tests::file_shaped_denied_paths_mask_with_dev_null_and_dirs_with_tmpfs
+        PASS [   3.238s] ( 258/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks b4b_running_silent_child_past_deadline_is_timed_out_and_stopped
+        PASS [   0.231s] ( 259/1303) gauntlet-adapter-sandbox-bwrap tests::an_allowlist_posture_is_an_honest_validation_finding
+        PASS [   1.020s] ( 260/1303) gauntlet-adapter-observe-test tests::a_test_run_that_outlives_the_deadline_is_killed_and_reported_unavailable
+        PASS [   0.009s] ( 261/1303) gauntlet-adapter-sandbox-bwrap tests::only_a_relocatable_ancestor_is_a_finding
+        PASS [   0.592s] ( 262/1303) gauntlet-adapter-sandbox-bwrap tests::live_confinement_holds_the_host_process_space
+        PASS [   0.007s] ( 263/1303) gauntlet-adapter-sandbox-bwrap tests::single_quote_escaping_round_trips_the_adversarial_probe
+        PASS [   0.385s] ( 264/1303) gauntlet-adapter-sandbox-bwrap tests::relative_roots_and_irreversible_tiers_are_refused
+        PASS [   0.750s] ( 265/1303) gauntlet-adapter-sandbox-bwrap tests::live_confinement_holds_the_writable_root_and_masks_denied_paths
+        PASS [   0.022s] ( 266/1303) gauntlet-adapter-sandbox-bwrap tests::the_identity_token_is_a_valid_backend_ref
+        PASS [   0.033s] ( 267/1303) gauntlet-adapter-sandbox-bwrap tests::the_rendered_command_starts_with_the_backend_and_carries_every_root
+        PASS [   0.336s] ( 268/1303) gauntlet-adapter-sandbox-bwrap tests::the_filesystem_root_as_a_writable_root_is_a_finding
+        PASS [   0.981s] ( 269/1303) gauntlet-adapter-sandbox-bwrap tests::live_confinement_denies_a_path_nested_inside_the_writable_root
+        PASS [   0.061s] ( 270/1303) gauntlet-adapter-sandbox-none tests::a_policy_naming_another_backend_is_refused
+        PASS [   0.007s] ( 271/1303) gauntlet-adapter-sandbox-none tests::a_well_formed_contained_policy_validates_clean_at_the_none_rung
+        PASS [   0.007s] ( 272/1303) gauntlet-adapter-sandbox-none tests::an_allowlist_posture_is_an_honest_finding_not_a_downgrade
+        PASS [   0.028s] ( 273/1303) gauntlet-adapter-sandbox-none tests::empty_writable_roots_is_refused
+        PASS [   0.078s] ( 274/1303) gauntlet-adapter-sandbox-none tests::every_tier_above_contained_is_refused_at_validate
+        PASS [   0.020s] ( 275/1303) gauntlet-adapter-sandbox-none tests::the_identity_token_is_a_valid_backend_ref
+        PASS [   0.021s] ( 276/1303) gauntlet-adapter-sandbox-none tests::the_identity_wrap_carries_the_command_policy_and_validation
+        PASS [   0.025s] ( 277/1303) gauntlet-adapter-sandbox-none tests::the_shared_contract_suite_is_clean
+        PASS [   0.019s] ( 278/1303) gauntlet-adapter-sandbox-none tests::wrap_rederives_eligibility_a_forged_clean_validation_authorizes_nothing
+        PASS [   0.010s] ( 279/1303) gauntlet-adapter-sandbox-none tests::wrap_refuses_a_findings_carrying_validation
+        PASS [   0.006s] ( 280/1303) gauntlet-adapter-sandbox-none tests::wrap_refuses_a_foreign_validation
+        PASS [   0.010s] ( 281/1303) gauntlet-adapter-sandbox-none tests::wrap_refuses_a_validation_claiming_a_higher_rung
+        PASS [   0.350s] ( 282/1303) gauntlet-adapter-sandbox-bwrap tests::wrap_gates_on_its_own_clean_process_rung_validation
+        PASS [   0.072s] ( 283/1303) gauntlet-adapter-state-sqlite encode::tests::a_mismatched_kind_column_is_a_typed_error
+        PASS [   0.033s] ( 284/1303) gauntlet-adapter-state-sqlite encode::tests::checkpoint_projections_round_trip
+        PASS [   0.012s] ( 285/1303) gauntlet-adapter-state-sqlite encode::tests::events_round_trip_through_the_canonical_payload
+        PASS [   0.012s] ( 286/1303) gauntlet-adapter-state-sqlite encode::tests::garbage_payloads_are_typed_errors_never_panics
+        PASS [   0.283s] ( 287/1303) gauntlet-adapter-state-sqlite migrations::tests::migrations_apply_in_order_and_reopening_applies_nothing_new
+        PASS [   0.312s] ( 288/1303) gauntlet-adapter-state-sqlite state_store::tests::a_commit_timestamp_disagreeing_with_the_durable_event_is_refused
+        PASS [   0.040s] ( 289/1303) gauntlet-adapter-state-sqlite state_store::tests::a_fully_applied_evidence_production_completes_nothing
+        PASS [   0.011s] ( 290/1303) gauntlet-adapter-state-sqlite state_store::tests::a_projected_run_still_refuses_charged_checkpoints_loudly
+        PASS [   4.871s] ( 291/1303) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks c_sigterm_ignoring_child_is_escalated_within_bound
+        PASS [   0.051s] ( 292/1303) gauntlet-adapter-state-sqlite state_store::tests::a_half_applied_evidence_production_is_completed_exactly_once
+        PASS [   0.038s] ( 293/1303) gauntlet-adapter-state-sqlite state_store::tests::a_settlement_row_at_its_own_event_offset_lands
+        PASS [   0.018s] ( 294/1303) gauntlet-adapter-state-sqlite state_store::tests::a_settlement_row_pointing_past_the_log_is_refused
+        PASS [   0.048s] ( 295/1303) gauntlet-adapter-state-sqlite state_store::tests::a_settlement_row_pointing_at_a_foreign_event_is_refused
+        PASS [   0.048s] ( 296/1303) gauntlet-adapter-state-sqlite state_store::tests::anchored_replay_skips_events_below_the_anchor_and_completes_the_rest
+        PASS [   0.063s] ( 297/1303) gauntlet-adapter-state-sqlite state_store::tests::a_tampered_checkpoint_offset_is_corrupt_never_a_silent_zero
+        PASS [   0.049s] ( 298/1303) gauntlet-adapter-state-sqlite state_store::tests::commit_settlement_is_the_spec_sequence_and_idempotent_by_key
+        PASS [   0.020s] ( 299/1303) gauntlet-adapter-state-sqlite state_store::tests::evidence_production_records_are_write_once_and_idempotent
+        PASS [   0.016s] ( 300/1303) gauntlet-adapter-state-sqlite state_store::tests::legacy_run_without_frozen_evidence_is_unavailable_not_rebound
+        PASS [   0.077s] ( 301/1303) gauntlet-adapter-state-sqlite state_store::tests::load_run_prefers_the_recorded_identity
+        PASS [   0.013s] ( 302/1303) gauntlet-adapter-state-sqlite state_store::tests::non_json_record_payloads_are_refused
+        PASS [   0.164s] ( 303/1303) gauntlet-adapter-state-sqlite state_store::tests::correction_selections_round_trip_with_alternatives_and_reasons
+        PASS [   0.147s] ( 304/1303) gauntlet-adapter-state-sqlite state_store::tests::export_is_the_pinned_golden_and_byte_identical
+        PASS [   0.028s] ( 305/1303) gauntlet-adapter-state-sqlite state_store::tests::productions_at_a_locator_are_ordered_by_their_anchors
+        PASS [   1.057s] ( 306/1303) gauntlet-adapter-sandbox-bwrap tests::validate_dry_runs_the_policys_own_binds_and_masks
+        PASS [   0.035s] ( 307/1303) gauntlet-adapter-state-sqlite state_store::tests::recording_a_moved_reference_is_refused
+        PASS [   0.034s] ( 308/1303) gauntlet-adapter-state-sqlite state_store::tests::recording_a_wrong_frozen_evidence_binding_is_refused
+        PASS [   0.025s] ( 309/1303) gauntlet-adapter-state-sqlite state_store::tests::resume_admits_charged_checkpoints_through_the_durable_run_budget
+        PASS [   0.030s] ( 310/1303) gauntlet-adapter-state-sqlite state_store::tests::resume_returns_the_latest_checkpoint_exactly
+        PASS [   0.032s] ( 311/1303) gauntlet-adapter-state-sqlite state_store::tests::the_production_content_digest_is_durable_and_write_once
+        PASS [   0.035s] ( 312/1303) gauntlet-adapter-state-sqlite state_store::tests::the_production_event_replays_through_the_event_log
+        PASS [   0.243s] ( 313/1303) gauntlet-adapter-state-sqlite::crash_recovery a_crash_before_the_packaged_commit_leaves_the_unit_retryable
+        PASS [   0.257s] ( 314/1303) gauntlet-adapter-state-sqlite::crash_recovery a_crash_before_the_event_append_leaves_the_unit_retryable
+        PASS [   0.323s] ( 315/1303) gauntlet-adapter-state-sqlite::contract_suite sqlite_event_log_passes_the_shared_contract_suite
+        PASS [   0.076s] ( 316/1303) gauntlet-adapter-state-sqlite::crash_recovery a_half_settled_run_completes_exactly_once_on_replay
+        PASS [   0.041s] ( 317/1303) gauntlet-adapter-state-sqlite::crash_recovery an_uninterrupted_settlement_is_complete_without_replay
+        PASS [   0.121s] ( 318/1303) gauntlet-adapter-state-sqlite::crash_recovery a_damaged_tail_is_a_typed_damaged_error
+        PASS [   0.125s] ( 319/1303) gauntlet-adapter-state-sqlite::crash_recovery a_mid_sequence_crash_leaves_the_log_readable_and_truncation_free
+        PASS [   0.092s] ( 320/1303) gauntlet-adapter-state-sqlite::crash_recovery the_packaged_commit_primitive_settles_completely_when_killed_after
+        PASS [   0.493s] ( 321/1303) gauntlet-adapter-state-sqlite::contract_suite sqlite_state_store_passes_the_shared_contract_suite
+        PASS [   0.164s] ( 322/1303) gauntlet-adapter-state-sqlite::settlement_append_gate the_event_log_append_surface_refuses_the_settlement_kind
+        PASS [   0.116s] ( 323/1303) gauntlet-adapter-state-sqlite::settlement_append_gate the_state_store_append_surface_refuses_the_settlement_kind
+        PASS [   0.126s] ( 324/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_created_at_is_corrupt_naming_the_run
+        PASS [   0.075s] ( 325/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_event_timestamp_is_damage_naming_the_offset
+        PASS [   0.076s] ( 326/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_projection_timestamp_is_corrupt_naming_the_run
+        PASS [   0.027s] ( 327/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_same_facts_duplicate_event_stays_the_idempotent_no_op
+        PASS [   0.183s] ( 328/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_half_settled_failure_names_the_durable_offset_and_the_recovery
+        PASS [   0.045s] ( 329/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_negative_record_timestamp_is_corrupt_naming_the_row
+        PASS [   0.059s] ( 330/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_same_key_divergent_event_is_loud_on_replay
+        PASS [   0.030s] ( 331/1303) gauntlet-adapter-state-sqlite::tamper_evidence an_offset_gap_is_damage_naming_the_hole
+        PASS [   0.024s] ( 332/1303) gauntlet-adapter-state-sqlite::tamper_evidence log_damage_surfaces_as_corrupt_through_the_store
+        PASS [   0.045s] ( 333/1303) gauntlet-adapter-state-sqlite::tamper_evidence a_tampered_settlement_offset_is_corrupt_never_a_silent_zero
+        PASS [   0.044s] ( 334/1303) gauntlet-adapter-state-sqlite::tamper_evidence record_run_refuses_a_changed_intent_on_the_same_digest
+        PASS [   0.045s] ( 335/1303) gauntlet-adapter-verify-command-exit-code::shared_contract the_command_exit_verifier_passes_the_unmodified_shared_contract_suite
+        PASS [   0.070s] ( 336/1303) gauntlet-adapter-verify-command-exit-code tests::a_zero_exit_passes_and_a_nonzero_exit_fails
+        PASS [   0.075s] ( 337/1303) gauntlet-adapter-verify-command-exit-code tests::a_transcript_without_an_exit_status_is_an_instrument_failure
+        PASS [   0.035s] ( 338/1303) gauntlet-adapter-verify-file-digest tests::a_malformed_manifest_is_an_instrument_failure_not_a_fake_outcome
+        PASS [   0.053s] ( 339/1303) gauntlet-adapter-verify-file-digest tests::a_locator_that_escapes_the_root_never_resolves
+        PASS [   0.049s] ( 340/1303) gauntlet-adapter-verify-file-digest tests::a_matching_digest_passes_and_a_mismatch_fails
+        PASS [   0.033s] ( 341/1303) gauntlet-adapter-verify-schema-check tests::a_document_that_is_not_json_is_an_instrument_failure
+        PASS [   0.036s] ( 342/1303) gauntlet-adapter-verify-schema-check tests::a_conforming_document_passes_and_a_missing_key_fails
+        PASS [   0.052s] ( 343/1303) gauntlet-adapter-verify-file-digest::shared_contract the_file_digest_verifier_passes_the_unmodified_shared_contract_suite
+        PASS [   0.012s] ( 344/1303) gauntlet-adapter-verify-schema-check tests::an_empty_required_keys_contract_is_refused_at_wiring
+        PASS [   0.017s] ( 345/1303) gauntlet-adapter-verify-test-report tests::an_empty_report_is_not_a_pass_and_not_even_a_decision
+        PASS [   0.030s] ( 346/1303) gauntlet-adapter-verify-test-report tests::a_clean_report_passes_and_a_failing_report_fails
+        PASS [   0.028s] ( 347/1303) gauntlet-adapter-verify-test-report tests::a_report_missing_a_total_is_an_instrument_failure
+        PASS [   0.028s] ( 348/1303) gauntlet-adapter-workspace-fs provider::tests::a_symlinked_workspace_escape_is_a_typed_refusal
+        PASS [   0.058s] ( 349/1303) gauntlet-adapter-verify-schema-check::shared_contract the_schema_check_verifier_passes_the_unmodified_shared_contract_suite
+        PASS [   0.030s] ( 350/1303) gauntlet-adapter-workspace-fs provider::tests::cleanup_is_idempotent_over_a_released_workspace
+        PASS [   0.009s] ( 351/1303) gauntlet-adapter-workspace-fs provider::tests::cleanup_refuses_a_ref_outside_the_key_class
+        PASS [   0.012s] ( 352/1303) gauntlet-adapter-workspace-fs provider::tests::every_created_key_is_one_sanitized_component_under_the_root
+        PASS [   0.045s] ( 353/1303) gauntlet-adapter-verify-test-report::shared_contract the_test_report_verifier_passes_the_unmodified_shared_contract_suite
+        PASS [   0.016s] ( 354/1303) gauntlet-adapter-workspace-fs provider::tests::keys_sanitize_everything_outside_the_key_class
+        PASS [   0.019s] ( 355/1303) gauntlet-adapter-workspace-fs::contract_suite fs_workspace_provider_passes_the_shared_contract_suite
+        PASS [   0.017s] ( 356/1303) gauntlet-app compare::aggregate::tests::any_blocking_residual_forces_fail_regardless_of_everything_else
+        PASS [   2.004s] ( 357/1303) gauntlet-adapter-sandbox-bwrap tests::the_shared_contract_suite_is_clean
+        PASS [   0.012s] ( 358/1303) gauntlet-app compare::aggregate::tests::empty_and_disagreeing_inputs_are_typed_errors
+        PASS [   0.007s] ( 359/1303) gauntlet-app compare::aggregate::tests::verdict_intents_flow_deterministically
+        PASS [   0.025s] ( 360/1303) gauntlet-app compare::aggregate::tests::deterministic_aggregation
+        PASS [   0.015s] ( 361/1303) gauntlet-app compare::aggregate::tests::omitted_hard_gate_is_not_held
+        PASS [   0.015s] ( 362/1303) gauntlet-app compare::aggregate::tests::hard_gates_hold_only_when_every_contributor_holds
+        PASS [   3.054s] ( 363/1303) gauntlet-adapter-sandbox-bwrap tests::a_nested_denial_survives_a_rename_between_sessions
+        PASS [   0.020s] ( 364/1303) gauntlet-app compare::aggregate::tests::preserves_an_already_disputed_residual
+        PASS [   0.008s] ( 365/1303) gauntlet-app compare::contract::tests::structural_defects_are_typed_errors_with_loci
+        PASS [   0.014s] ( 366/1303) gauntlet-app compare::contract::tests::rubric_and_dimension_vocabulary_is_enforced
+        PASS [   0.019s] ( 367/1303) gauntlet-app compare::contract::tests::a_minimal_contract_parses_and_the_view_round_trips
+        PASS [   0.015s] ( 368/1303) gauntlet-app compare::contract::tests::the_repository_artifact_parses_into_the_typed_view
+        PASS [   0.026s] ( 369/1303) gauntlet-app compare::contract::tests::unknown_versions_are_typed_errors_never_partially_adopted
+        PASS [   0.019s] ( 370/1303) gauntlet-app compare::envelope::tests::a_poisoned_serialization_fails_the_blindness_proof
+        PASS [   0.022s] ( 371/1303) gauntlet-app compare::envelope::tests::a_built_envelope_is_usable_by_the_ports_comparator_surface
+        PASS [   0.016s] ( 372/1303) gauntlet-app compare::envelope::tests::a_role_deny_set_naming_a_carried_category_refuses_the_input_set
+        PASS [   0.021s] ( 373/1303) gauntlet-app compare::envelope::tests::a_critic_role_invocation_carries_the_envelope_digest
+        PASS [   0.013s] ( 374/1303) gauntlet-app compare::envelope::tests::legitimate_frozen_prose_is_not_mistaken_for_an_injected_field
+        PASS [   0.014s] ( 375/1303) gauntlet-app compare::envelope::tests::the_envelope_digest_is_recomputable_and_coupling_friendly
+        PASS [   0.015s] ( 376/1303) gauntlet-app compare::envelope::tests::the_envelope_carries_facet_reality_and_none_of_the_claims
+        PASS [   0.019s] ( 377/1303) gauntlet-app compare::recording::tests::persistence_failure_cancels_the_already_admitted_child
+        PASS [   0.038s] ( 378/1303) gauntlet-app compare::envelope::tests::a_tampered_bundle_is_refused_at_the_consumption_boundary
+        PASS [   0.019s] ( 379/1303) gauntlet-app compare::review::tests::a_meter_refusal_truncates_the_dimension_with_the_typed_cause
+        PASS [   0.027s] ( 380/1303) gauntlet-app compare::review::tests::a_comparator_cannot_accept_a_document_bound_to_an_envelope_it_invented
+        PASS [   0.025s] ( 381/1303) gauntlet-app compare::review::tests::adaptive_inconclusive_probe_is_not_a_settlement
+        PASS [   0.018s] ( 382/1303) gauntlet-app compare::review::tests::concurrency_lease_releases_before_third_admission_without_a_clock
+        PASS [   0.027s] ( 383/1303) gauntlet-app compare::review::tests::cancellation_error_quarantines_every_unconfirmed_sibling
+        PASS [   0.019s] ( 384/1303) gauntlet-app compare::review::tests::every_mode_merges_into_one_coupled_record
+        PASS [   0.019s] ( 385/1303) gauntlet-app compare::review::tests::failed_collection_cancels_every_uncollected_sibling
+        PASS [   0.013s] ( 386/1303) gauntlet-app compare::review::tests::forever_running_primary_is_cancelled_before_its_permit_is_released
+        PASS [   0.044s] ( 387/1303) gauntlet-app compare::review::tests::adaptive_skips_settled_dimensions
+        PASS [   0.009s] ( 388/1303) gauntlet-app compare::review::tests::review_refuses_a_mutated_envelope_before_source_selection
+        PASS [   0.012s] ( 389/1303) gauntlet-app compare::review::tests::high_assurance_admits_every_job_before_its_first_collection
+        PASS [   0.024s] ( 390/1303) gauntlet-app compare::review::tests::forever_running_primary_cancel_refusal_quarantines_its_permit
+        PASS [   0.009s] ( 391/1303) gauntlet-app compare::review::tests::source_failure_after_admission_cancels_the_admitted_job
+        PASS [   0.019s] ( 392/1303) gauntlet-app compare::review::tests::high_assurance_requires_an_adversarial_source
+        PASS [   0.016s] ( 393/1303) gauntlet-app compare::review::tests::review_retains_contributor_records_for_verification
+        PASS [   0.010s] ( 394/1303) gauntlet-app config::canonical::tests::canonical_parsing_rejects_unknown_keys_and_foreign_shapes
+        PASS [   0.020s] ( 395/1303) gauntlet-app compare::review::tests::truncation_is_recorded
+        PASS [   0.016s] ( 396/1303) gauntlet-app config::canonical::tests::indirection_tokens_serialize_raw_and_values_never_appear
+        PASS [   0.013s] ( 397/1303) gauntlet-app config::canonical::tests::the_same_effective_configuration_serializes_identically_however_built
+        PASS [   0.019s] ( 398/1303) gauntlet-app config::canonical::tests::the_canonical_form_round_trips_exactly
+        PASS [   0.008s] ( 399/1303) gauntlet-app config::defaults::tests::the_four_policy_rows_pin_to_their_table_values
+        PASS [   0.012s] ( 400/1303) gauntlet-app config::defaults::tests::interactive_parses_every_documented_spelling
+        PASS [   0.010s] ( 401/1303) gauntlet-app config::defaults::tests::layout_names_compose_against_the_given_root
+        PASS [   0.012s] ( 402/1303) gauntlet-app config::defaults::tests::the_inline_11_4_default_pins_to_its_spec_value
+        PASS [   0.033s] ( 403/1303) gauntlet-app config::canonical::tests::keys_are_sorted_and_the_shape_is_two_space_indent
+        PASS [   0.009s] ( 404/1303) gauntlet-app config::defaults::tests::the_inline_11_5_default_pins_to_its_spec_value
+        PASS [   0.036s] ( 405/1303) gauntlet-app config::canonical::tests::secrets_never_leaked
+        PASS [   0.015s] ( 406/1303) gauntlet-app config::defaults::tests::the_six_numeric_rows_pin_to_their_table_values
+        PASS [   0.015s] ( 407/1303) gauntlet-app config::env_layer::tests::dotenv_parsing_strips_quotes_and_skips_comments
+        PASS [   0.010s] ( 408/1303) gauntlet-app config::env_layer::tests::unknown_gauntlet_names_are_collected_with_their_source
+        PASS [   0.009s] ( 409/1303) gauntlet-app config::fingerprint::tests::any_changed_value_moves_the_fingerprint
+        PASS [   0.014s] ( 410/1303) gauntlet-app config::env_layer::tests::export_prefixes_apply_and_inline_comments_strip_from_unquoted_values
+        PASS [   0.016s] ( 411/1303) gauntlet-app config::env_layer::tests::lowercase_gauntlet_names_are_reported_not_silently_inert
+        PASS [   0.021s] ( 412/1303) gauntlet-app config::env_layer::tests::the_process_environment_wins_over_the_dotenv_file
+        PASS [   0.018s] ( 413/1303) gauntlet-app config::fingerprint::tests::identical_configurations_digest_identically_however_built
+        PASS [   0.012s] ( 414/1303) gauntlet-app config::gauntlet_md::tests::empty_fences_parse_to_an_empty_map
+        PASS [   0.015s] ( 415/1303) gauntlet-app config::gauntlet_md::tests::a_leading_byte_order_mark_is_rejected_not_tolerated
+        PASS [   0.017s] ( 416/1303) gauntlet-app config::gauntlet_md::tests::duplicate_keys_in_flow_mappings_are_rejected_like_block_keys
+        PASS [   0.021s] ( 417/1303) gauntlet-app config::fingerprint::tests::the_digest_is_the_domain_shape_and_carries_no_secret_values
+        PASS [   0.013s] ( 418/1303) gauntlet-app config::gauntlet_md::tests::every_rejected_shape_is_its_own_typed_error
+        PASS [   0.012s] ( 419/1303) gauntlet-app config::gauntlet_md::tests::flow_mappings_and_indirection_tokens_survive_verbatim
+        PASS [   0.021s] ( 420/1303) gauntlet-app config::gauntlet_md::tests::entries_carry_physical_lines
+        PASS [   0.011s] ( 421/1303) gauntlet-app config::gauntlet_md::tests::the_spec_example_fixture_parses_with_flow_maps_and_indirections
+        PASS [   0.019s] ( 422/1303) gauntlet-app config::gauntlet_md::tests::nested_maps_scalars_and_comments_parse
+        PASS [   0.015s] ( 423/1303) gauntlet-app config::gauntlet_md::tests::no_fence_means_no_front_matter
+        PASS [   0.017s] ( 424/1303) gauntlet-app config::resolve::tests::a_bad_environment_number_is_its_own_typed_error
+        PASS [   0.012s] ( 425/1303) gauntlet-app config::resolve::tests::budget_money_parses_into_the_domain_newtype_and_zero_refuses
+        PASS [   0.010s] ( 426/1303) gauntlet-app config::resolve::tests::cli_flags_beat_the_environment
+        PASS [   0.015s] ( 427/1303) gauntlet-app config::resolve::tests::an_empty_world_resolves_to_the_defaults_table
+        PASS [   0.010s] ( 428/1303) gauntlet-app config::resolve::tests::control_settings_carry_one_spec_default_and_four_required_absences
+        PASS [   0.010s] ( 429/1303) gauntlet-app config::resolve::tests::gauntlet_md_beats_the_defaults_table
+        PASS [   0.010s] ( 430/1303) gauntlet-app config::resolve::tests::precedence
+        PASS [   0.020s] ( 431/1303) gauntlet-app config::resolve::tests::discovery_follows_the_spec_order
+        PASS [   0.011s] ( 432/1303) gauntlet-app config::resolve::tests::text_precedence_and_list_precedence_hold_too
+        PASS [   0.020s] ( 433/1303) gauntlet-app config::resolve::tests::indirections_expand_and_missing_ones_name_the_variable_only
+        PASS [   0.022s] ( 434/1303) gauntlet-app config::resolve::tests::role_runner_configs_merge_from_all_layers
+        PASS [   0.014s] ( 435/1303) gauntlet-app config::resolve::tests::the_environment_beats_gauntlet_md
+        PASS [   0.014s] ( 436/1303) gauntlet-app config::resolve::tests::the_full_chain_shows_each_layer_winning_in_turn
+        PASS [   0.015s] ( 437/1303) gauntlet-app config::resolve::tests::the_process_environment_beats_the_dotenv_file
+        PASS [   0.016s] ( 438/1303) gauntlet-app config::resolve::tests::unknown_keys_and_kind_mismatches_are_reported_not_guessed
+        PASS [   0.029s] ( 439/1303) gauntlet-app config::resolve::tests::the_nonconvergence_threshold_defaults_to_the_spec_three_and_overrides
+        PASS [   0.027s] ( 440/1303) gauntlet-app control::controller::tests::a_critic_reservation_releases_at_fan_in_so_a_later_iteration_still_dispatches
+        PASS [   0.032s] ( 441/1303) gauntlet-app control::controller::tests::a_dangling_depends_on_is_surfaced_from_the_scheduler
+        PASS [   0.028s] ( 442/1303) gauntlet-app control::controller::tests::a_drain_that_never_terminates_is_bounded_cancelled_and_escalated
+        PASS [   0.042s] ( 443/1303) gauntlet-app control::controller::tests::a_declared_attempted_other_unit_never_settles_and_is_recorded
+        PASS [   0.029s] ( 444/1303) gauntlet-app control::controller::tests::a_file_only_unit_is_never_dispatched_the_frozen_reference_bounds_membership
+        PASS [   0.050s] ( 445/1303) gauntlet-app control::controller::tests::a_crash_after_a_settlement_never_re_runs_settled_work
+        PASS [   0.018s] ( 446/1303) gauntlet-app control::controller::tests::a_full_iteration_settles_a_unit_through_the_composed_chain
+        PASS [   0.031s] ( 447/1303) gauntlet-app control::controller::tests::a_fresh_run_checkpoint_carries_a_real_event_log_offset
+        PASS [   0.017s] ( 448/1303) gauntlet-app control::controller::tests::a_governance_blocked_run_terminals_blocked_with_a_ticket_never_exhausted
+        PASS [   0.014s] ( 449/1303) gauntlet-app control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues
+        PASS [   0.016s] ( 450/1303) gauntlet-app control::controller::tests::a_mid_run_answer_key_edit_aborts_the_run_with_both_digests_as_evidence
+        PASS [   0.016s] ( 451/1303) gauntlet-app control::controller::tests::a_multi_member_slice_is_refused_rather_than_charged_for_and_dropped
+        PASS [   0.026s] ( 452/1303) gauntlet-app control::controller::tests::a_malformed_result_gets_one_reminder_re_dispatch_then_escalates
+        PASS [   0.017s] ( 453/1303) gauntlet-app control::controller::tests::a_result_whose_meter_charge_is_refused_is_recorded_not_dropped
+        PASS [   0.034s] ( 454/1303) gauntlet-app control::controller::tests::a_residual_retry_dispatch_carries_residual_text_only
+        PASS [   0.034s] ( 455/1303) gauntlet-app control::controller::tests::a_result_the_run_budget_refuses_is_recorded_not_dropped
+        PASS [   0.025s] ( 456/1303) gauntlet-app control::controller::tests::a_resume_completes_half_applied_settlements_and_reconciles_the_projection
+        PASS [   0.052s] ( 457/1303) gauntlet-app control::controller::tests::a_recurring_residual_routes_composed_diagnosis_to_correction_indicated
+        PASS [   0.022s] ( 458/1303) gauntlet-app control::controller::tests::a_stalled_attempt_cancels_retries_once_then_escalates
+        PASS [   0.009s] ( 459/1303) gauntlet-app control::controller::tests::an_empty_parsed_ruler_is_refused_at_composition
+        PASS [   0.037s] ( 460/1303) gauntlet-app control::controller::tests::a_settled_dependency_stays_in_the_graph_while_eligibility_filters_it
+        PASS [   0.029s] ( 461/1303) gauntlet-app control::controller::tests::a_surviving_hypothesis_ends_inconclusive_with_quarantine_composed
+        PASS [   0.031s] ( 462/1303) gauntlet-app control::controller::tests::an_answer_key_read_failure_degrades_the_iteration_and_stays_resumeable
+        PASS [   0.020s] ( 463/1303) gauntlet-app control::controller::tests::an_escalation_summary_with_quotes_and_backslashes_stays_parseable_evidence
+        PASS [   0.018s] ( 464/1303) gauntlet-app control::controller::tests::an_escaping_evidence_locator_is_refused_at_the_write_boundary
+        PASS [   0.018s] ( 465/1303) gauntlet-app control::controller::tests::an_over_capacity_fan_out_is_truncated_and_recorded_never_a_run_error
+        PASS [   0.015s] ( 466/1303) gauntlet-app control::controller::tests::reference_unavailability_is_a_recorded_gap_not_an_abort
+        PASS [   0.019s] ( 467/1303) gauntlet-app control::controller::tests::budget_exhaustion_drives_the_terminal_state_with_the_reserve_intact
+        PASS [   0.014s] ( 468/1303) gauntlet-app control::controller::tests::resume_restores_the_budget_from_the_checkpoint_watermark
+        PASS [   0.014s] ( 469/1303) gauntlet-app control::controller::tests::the_answer_key_cannot_express_a_cohort_on_any_shipped_surface
+        PASS [   0.012s] ( 470/1303) gauntlet-app control::controller::tests::the_answer_key_cannot_express_a_unit_status_on_any_shipped_surface
+        PASS [   0.014s] ( 471/1303) gauntlet-app control::controller::tests::the_pass_leg_settles_durably_through_the_service
+        PASS [   0.028s] ( 472/1303) gauntlet-app control::controller::tests::resume_restores_per_unit_attempts_from_durable_productions
+        PASS [   0.011s] ( 473/1303) gauntlet-app control::diagnosis::tests::a_measuring_apparatus_input_does_not_route_to_implementation_defect
+        PASS [   0.008s] ( 474/1303) gauntlet-app control::diagnosis::tests::a_surviving_hypothesis_is_inconclusive_never_re_asked
+        PASS [   0.012s] ( 475/1303) gauntlet-app control::diagnosis::tests::a_disconfirmed_hypothesis_completes_the_cycle_bounded
+        PASS [   0.022s] ( 476/1303) gauntlet-app control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces
+        PASS [   0.018s] ( 477/1303) gauntlet-app control::controller::tests::without_a_provider_the_dispatch_falls_back_to_the_run_derived_ref
+        PASS [   0.009s] ( 478/1303) gauntlet-app control::diagnosis::tests::a_zero_spend_engine_is_refused_and_the_cycle_is_forward_only
+        PASS [   0.008s] ( 479/1303) gauntlet-app control::diagnosis::tests::different_dimension_or_class_under_the_same_unit_does_not_accumulate
+        PASS [   0.013s] ( 480/1303) gauntlet-app control::diagnosis::tests::an_escalation_refusal_carries_the_quarantine_in_the_error
+        PASS [   0.013s] ( 481/1303) gauntlet-app control::diagnosis::tests::budget_exhaustion_yields_inconclusive_quarantine_and_escalation
+        PASS [   0.014s] ( 482/1303) gauntlet-app control::diagnosis::tests::a_zero_threshold_is_refused
+        PASS [   0.011s] ( 483/1303) gauntlet-app control::diagnosis::tests::different_observed_locators_do_not_accumulate_one_recurrence_count
+        PASS [   0.008s] ( 484/1303) gauntlet-app control::diagnosis::tests::evidence_with_no_hypothesis_is_inconclusive_without_inventing_one
+        PASS [   0.008s] ( 485/1303) gauntlet-app control::diagnosis::tests::nonconvergence_triggers_on_the_nth_occurrence_not_before
+        PASS [   0.014s] ( 486/1303) gauntlet-app control::diagnosis::tests::every_non_implementation_locus_outranks_implementation_defect
+        PASS [   0.011s] ( 487/1303) gauntlet-app control::diagnosis::tests::recurring_residuals_with_fresh_ids_still_trigger
+        PASS [   0.012s] ( 488/1303) gauntlet-app control::diagnosis::tests::the_locus_vocabulary_is_the_spec_sixteen
+        PASS [   0.014s] ( 489/1303) gauntlet-app control::diagnosis::tests::reference_integrity_outranks_every_hypothesis_and_empty_evidence_selects_none
+        PASS [   0.011s] ( 490/1303) gauntlet-app control::disposition::tests::a_malformed_result_gets_one_reminder_then_escalates
+        PASS [   0.010s] ( 491/1303) gauntlet-app control::disposition::tests::a_non_converging_residual_set_stops_correcting_and_enters_diagnosis
+        PASS [   0.011s] ( 492/1303) gauntlet-app control::disposition::tests::a_residual_with_attempts_left_re_dispatches_with_residual_text_only
+        PASS [   0.009s] ( 493/1303) gauntlet-app control::disposition::tests::a_residual_with_no_attempts_left_escalates_max_attempts_exceeded
+        PASS [   0.008s] ( 494/1303) gauntlet-app control::disposition::tests::a_sandbox_failure_escalates_and_the_table_has_no_unsandboxed_outcome
+        PASS [   0.016s] ( 495/1303) gauntlet-app control::disposition::tests::a_reference_digest_mismatch_aborts_with_both_digests_and_no_retry
+        PASS [   0.012s] ( 496/1303) gauntlet-app control::disposition::tests::a_timeout_cancels_preserves_the_session_and_retries_exactly_once
+        PASS [   0.014s] ( 497/1303) gauntlet-app control::disposition::tests::an_authority_gap_escalates_and_has_no_loop_disposition
+        PASS [   0.011s] ( 498/1303) gauntlet-app control::disposition::tests::required_settings_absent_from_the_config_layer_are_typed_errors
+        PASS [   0.010s] ( 499/1303) gauntlet-app control::disposition::tests::transient_backoff_grows_exponentially_and_is_capped_at_the_ceiling
+        PASS [   0.015s] ( 500/1303) gauntlet-app control::scheduler::tests::a_dangling_depends_on_is_a_typed_load_error
+        PASS [   0.011s] ( 501/1303) gauntlet-app control::scheduler::tests::a_depends_on_cycle_is_a_typed_error_naming_the_cycle
+        PASS [   0.018s] ( 502/1303) gauntlet-app control::disposition::tests::zero_policy_values_are_refused_setting_by_setting
+        PASS [   0.008s] ( 503/1303) gauntlet-app control::scheduler::tests::duplicate_units_are_refused_and_invalid_cohorts_are_refused
+        PASS [   0.015s] ( 504/1303) gauntlet-app control::scheduler::tests::an_open_irreversible_unit_is_never_eligible_and_never_sliced
+        PASS [   0.019s] ( 505/1303) gauntlet-app control::scheduler::tests::a_missing_estimate_is_a_typed_input_error_never_a_zero
+        PASS [   0.024s] ( 506/1303) gauntlet-app control::scheduler::tests::a_missing_runner_excludes_eligibility
+        PASS [   0.018s] ( 507/1303) gauntlet-app control::scheduler::tests::global_and_tier_concurrency_are_both_accounted
+        PASS [   0.015s] ( 508/1303) gauntlet-app control::scheduler::tests::ordering_follows_blast_then_depth_then_id_and_is_deterministic
+        PASS [   0.021s] ( 509/1303) gauntlet-app control::scheduler::tests::meter_refusal_excludes_eligibility
+        PASS [   0.008s] ( 510/1303) gauntlet-app control::scheduler::tests::the_durable_projection_decides_status_for_membership_and_dependencies
+        PASS [   0.021s] ( 511/1303) gauntlet-app control::scheduler::tests::slices_inherit_the_highest_blast_and_most_restrictive_authority
+        PASS [   0.010s] ( 512/1303) gauntlet-app control::select::tests::a_budget_block_records_the_meters_own_numbers
+        PASS [   0.022s] ( 513/1303) gauntlet-app control::scheduler::tests::status_and_claim_conjuncts_hold
+        PASS [   0.012s] ( 514/1303) gauntlet-app control::scheduler::tests::unsettled_dependencies_block_and_settled_or_out_of_scope_release
+        PASS [   0.021s] ( 515/1303) gauntlet-app control::scheduler::tests::the_authority_lattice_is_pinned_by_the_coupling_rules
+        PASS [   0.006s] ( 516/1303) gauntlet-app control::select::tests::governance_blocks_are_never_chosen_even_when_highest_impact
+        PASS [   0.014s] ( 517/1303) gauntlet-app control::select::tests::controller_records_alternatives
+        PASS [   0.008s] ( 518/1303) gauntlet-app doctor::tests::a_bom_prefixed_contract_fails_check_one_citing_the_byte_order_mark
+        PASS [   0.016s] ( 519/1303) gauntlet-app control::select::tests::empty_and_fully_blocked_inputs_are_typed_errors_carrying_their_evidence
+        PASS [   0.015s] ( 520/1303) gauntlet-app control::select::tests::tie_breaks_are_deterministic_and_the_priority_decides_in_order
+        PASS [   0.030s] ( 521/1303) gauntlet-app control::select::tests::bounded_corrections_beat_speculative_rewrites
+        PASS [   0.019s] ( 522/1303) gauntlet-app doctor::tests::a_forbidden_policy_in_the_default_dir_fails_even_when_policy_dir_is_overridden
+        PASS [   0.014s] ( 523/1303) gauntlet-app doctor::tests::a_live_backend_requires_tier_policy_files
+        PASS [   0.018s] ( 524/1303) gauntlet-app doctor::tests::a_healthy_scratch_project_passes_every_real_check
+        PASS [   0.019s] ( 525/1303) gauntlet-app doctor::tests::a_malformed_money_value_fails_under_config_values_not_indirections
+        PASS [   0.021s] ( 526/1303) gauntlet-app doctor::tests::a_malformed_block_fails_the_unit_schema_clause_with_its_locus
+        PASS [   0.018s] ( 527/1303) gauntlet-app doctor::tests::a_missing_contract_stays_the_honest_no_contract_pass
+        PASS [   0.008s] ( 528/1303) gauntlet-app doctor::tests::a_permission_denied_contract_fails_check_one_not_as_not_found
+        PASS [   0.027s] ( 529/1303) gauntlet-app doctor::tests::a_manifest_that_cannot_deep_parse_fails_check_two_as_a_reference_class_failure
+        PASS [   0.026s] ( 530/1303) gauntlet-app doctor::tests::a_moved_answer_key_fails_check_two_as_a_reference_class_failure
+        PASS [   0.014s] ( 531/1303) gauntlet-app doctor::tests::a_wrong_unit_count_fails_check_two
+        PASS [   0.011s] ( 532/1303) gauntlet-app doctor::tests::an_all_indented_manifest_is_not_a_mapping_and_fails_check_two
+        PASS [   0.024s] ( 533/1303) gauntlet-app doctor::tests::a_non_utf8_contract_fails_check_one_with_the_failure_class
+        PASS [   0.025s] ( 534/1303) gauntlet-app doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run
+        PASS [   0.039s] ( 535/1303) gauntlet-app doctor::tests::a_moved_manifest_fails_check_two_as_a_reference_class_failure
+        PASS [   0.015s] ( 536/1303) gauntlet-app doctor::tests::an_answer_key_inside_the_workspace_only_canonically_still_fails_check_seven
+        PASS [   0.022s] ( 537/1303) gauntlet-app doctor::tests::an_unknown_field_in_the_reference_record_is_a_finding
+        PASS [   0.016s] ( 538/1303) gauntlet-app doctor::tests::an_unreadable_policy_dir_fails_check_five_and_recovers_when_readable
+        PASS [   0.024s] ( 539/1303) gauntlet-app doctor::tests::an_explicit_config_override_to_a_missing_path_fails_check_one_naming_it
+        PASS [   0.017s] ( 540/1303) gauntlet-app doctor::tests::an_unparsable_contract_fails_check_one_and_degrades_the_rest
+        PASS [   0.033s] ( 541/1303) gauntlet-app doctor::tests::an_answer_key_inside_the_workspace_fails_check_seven
+        PASS [   0.019s] ( 542/1303) gauntlet-app doctor::tests::budget_violations_fail_check_eight_through_the_domain
+        PASS [   0.007s] ( 543/1303) gauntlet-app doctor::tests::check_four_fails_a_configured_backend_no_adapter_fronts
+        PASS [   0.016s] ( 544/1303) gauntlet-app doctor::tests::check_four_fails_an_unmeasured_or_mistokened_descriptor
+        PASS [   0.032s] ( 545/1303) gauntlet-app doctor::tests::check_three_fails_a_failed_measured_probe_and_so_does_check_four
+        PASS [   0.035s] ( 546/1303) gauntlet-app doctor::tests::check_three_reports_a_measured_runner_instead_of_the_blanket_unavailable
+        PASS [   0.046s] ( 547/1303) gauntlet-app doctor::tests::check_four_covers_the_dispatchable_tiers_with_the_measured_rung
+        PASS [   0.048s] ( 548/1303) gauntlet-app doctor::tests::check_four_passes_the_conservative_posture_and_names_the_dispatch_note
+        PASS [   0.049s] ( 549/1303) gauntlet-app doctor::tests::check_three_fails_a_mistokened_descriptor
+        PASS [   0.011s] ( 550/1303) gauntlet-app doctor::tests::generated_at_is_present_and_the_fingerprint_is_the_domain_shape
+        PASS [   0.044s] ( 551/1303) gauntlet-app doctor::tests::check_three_stays_unavailable_without_a_measurement_hook
+        PASS [   0.023s] ( 552/1303) gauntlet-app doctor::tests::duplicate_flow_mapping_keys_fail_the_run_at_parse
+        PASS [   0.038s] ( 553/1303) gauntlet-app doctor::tests::dotenv_inline_comments_no_longer_corrupt_directory_names
+        PASS [   0.026s] ( 554/1303) gauntlet-app doctor::tests::forbidden_tier_policies_under_any_spelling_or_link_fail_check_five
+        PASS [   0.015s] ( 555/1303) gauntlet-app doctor::tests::the_canary_secret_never_reaches_the_report_or_the_summary
+        PASS [   0.013s] ( 556/1303) gauntlet-app formation::tests::a_clean_pair_satisfies_every_invariant
+        PASS [   0.014s] ( 557/1303) gauntlet-app doctor::tests::unknown_capabilities_fail_and_unknown_names_are_reported
+        PASS [   0.007s] ( 558/1303) gauntlet-app formation::tests::an_invalid_answer_key_is_refused
+        PASS [   0.012s] ( 559/1303) gauntlet-app formation::tests::a_dangling_decision_reference_is_refused
+        PASS [   0.013s] ( 560/1303) gauntlet-app formation::tests::a_decision_without_a_unit_or_context_only_is_refused
+        PASS [   0.017s] ( 561/1303) gauntlet-app formation::tests::ak_reference_before_any_recognized_heading_is_refused
+        PASS [   0.015s] ( 562/1303) gauntlet-app formation::tests::fog_leak_under_case_variant_heading_is_refused
+        PASS [   0.017s] ( 563/1303) gauntlet-app formation::tests::fog_carrying_an_ak_reference_is_refused
+        PASS [   0.020s] ( 564/1303) gauntlet-app formation::tests::fog_leak_under_colon_suffixed_heading_is_refused
+        PASS [   0.017s] ( 565/1303) gauntlet-app formation::tests::fog_leak_via_ascii_arrow_is_refused
+        PASS [   0.015s] ( 566/1303) gauntlet-app formation::tests::out_of_scope_carrying_an_ak_reference_is_refused
+        PASS [   0.023s] ( 567/1303) gauntlet-app formation::tests::unrecognized_heading_with_no_ak_reference_is_not_over_rejected
+        PASS [   0.031s] ( 568/1303) gauntlet-app formation::tests::fog_leak_under_deeper_heading_after_decisions_is_refused
+        PASS [   0.019s] ( 569/1303) gauntlet-app govern::gate::tests::a_dispatch_fact_below_the_recorded_facts_is_refused_as_lattice_movement
+        PASS [   0.016s] ( 570/1303) gauntlet-app govern::gate::tests::a_real_backend_posture_admits_above_contained_with_the_validated_policy_carried
+        PASS [   0.032s] ( 571/1303) gauntlet-app formation::tests::out_of_scope_leak_under_colon_suffixed_deeper_heading_is_refused
+        PASS [   0.020s] ( 572/1303) gauntlet-app govern::gate::tests::a_none_isolation_runner_is_refused_for_any_tier_above_contained
+        PASS [   0.011s] ( 573/1303) gauntlet-app govern::gate::tests::a_validation_failure_escalates_and_never_falls_back
+        PASS [   0.012s] ( 574/1303) gauntlet-app govern::gate::tests::irreversible_is_refused_before_every_other_conjunct
+        PASS [   0.016s] ( 575/1303) gauntlet-app govern::gate::tests::authority_above_the_ceiling_escalates_before_any_transform
+        PASS [   0.014s] ( 576/1303) gauntlet-app govern::gate::tests::the_conservative_posture_admits_contained_critic_and_refuses_every_above_contained_tier
+        PASS [   0.012s] ( 577/1303) gauntlet-app govern::gate::tests::the_gate_anchors_policy_resolution_at_the_dispatch_workspace
+        PASS [   0.019s] ( 578/1303) gauntlet-app govern::gate::tests::construction_refuses_inconsistent_postures
+        PASS [   0.024s] ( 579/1303) gauntlet-app govern::gate::tests::an_admission_the_posture_did_not_earn_is_a_typed_refusal
+        PASS [   0.010s] ( 580/1303) gauntlet-app govern::posture::tests::an_operator_may_raise_and_may_not_lower
+        PASS [   0.011s] ( 581/1303) gauntlet-app observation::assembly::tests::a_failing_bundle_store_write_is_a_typed_assembly_error
+        PASS [   0.015s] ( 582/1303) gauntlet-app observation::assembly::tests::a_badly_shaped_environment_fingerprint_is_refused
+        PASS [   0.018s] ( 583/1303) gauntlet-app govern::posture::tests::an_agent_cannot_move_a_unit_in_any_direction
+        PASS [   0.018s] ( 584/1303) gauntlet-app govern::posture::tests::the_rung_table_is_the_spec_posture_and_monotone_with_blast_rank
+        PASS [   0.017s] ( 585/1303) gauntlet-app observation::assembly::tests::a_provenance_disagreement_is_recorded_not_fatal
+        PASS [   0.008s] ( 586/1303) gauntlet-app observation::assembly::tests::an_empty_observer_list_is_refused
+        PASS [   0.013s] ( 587/1303) gauntlet-app observation::assembly::tests::all_healthy_observers_leave_both_arrays_explicitly_empty
+        PASS [   0.012s] ( 588/1303) gauntlet-app observation::assembly::tests::an_empty_project_revision_is_refused
+        PASS [   0.013s] ( 589/1303) gauntlet-app observation::assembly::tests::an_exitless_facet_against_exited_evidence_is_a_provenance_mismatch
+        PASS [   0.008s] ( 590/1303) gauntlet-app observation::assembly::tests::cross_wired_evidence_with_equal_exits_is_a_provenance_mismatch
+        PASS [   0.011s] ( 591/1303) gauntlet-app observation::assembly::tests::assembly_is_deterministic_under_the_same_clock_and_environment
+        PASS [   0.009s] ( 592/1303) gauntlet-app observation::assembly::tests::garbage_evidence_populates_both_gap_arrays
+        PASS [   0.007s] ( 593/1303) gauntlet-app observation::assembly::tests::observer_failures_populate_both_gap_arrays_exactly_once
+        PASS [   0.018s] ( 594/1303) gauntlet-app observation::assembly::tests::an_observer_store_write_failure_surfaces_as_gap_entries
+        PASS [   0.008s] ( 595/1303) gauntlet-app observation::bundle::tests::as_domain_view_maps_gaps_and_the_digest
+        PASS [   0.007s] ( 596/1303) gauntlet-app observation::bundle::tests::claims_rendering_is_the_pinned_json_array_form
+        PASS [   0.013s] ( 597/1303) gauntlet-app observation::assembly::tests::the_assembled_document_round_trips_and_feeds_verification_inputs
+        PASS [   0.013s] ( 598/1303) gauntlet-app observation::bundle::tests::a_claims_facet_claiming_inclusion_does_not_decode
+        PASS [   0.015s] ( 599/1303) gauntlet-app observation::bundle::tests::every_facet_kind_token_is_a_valid_locator_and_instrument_name
+        PASS [   0.018s] ( 600/1303) gauntlet-app observation::bundle::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.015s] ( 601/1303) gauntlet-app observation::bundle::tests::from_facet_copies_verbatim_and_nulls_absent_optionals
+        PASS [   0.016s] ( 602/1303) gauntlet-app observation::bundle::tests::unknown_fields_are_rejected_at_every_level
+        PASS [   0.018s] ( 603/1303) gauntlet-app observation::bundle::tests::wrong_schema_tokens_and_unknown_kinds_are_refused_whole
+        PASS [   0.018s] ( 604/1303) gauntlet-app observation::digest::tests::facet_content_claims_and_gap_changes_each_change_the_digest
+        PASS [   0.012s] ( 605/1303) gauntlet-app observation::digest::tests::normalized_bytes_is_the_full_json_minus_the_timestamp_members
+        PASS [   0.010s] ( 606/1303) gauntlet-app observation::digest::tests::shifted_timestamps_do_not_change_the_digest
+        PASS [   0.011s] ( 607/1303) gauntlet-app observation::input::tests::a_claims_change_moves_the_digest_but_not_the_facet_inputs
+        PASS [   0.014s] ( 608/1303) gauntlet-app observation::digest::tests::the_digest_field_itself_is_pinned_away
+        PASS [   0.009s] ( 609/1303) gauntlet-app observation::input::tests::claims_text_never_reaches_verification_inputs
+        PASS [   0.011s] ( 610/1303) gauntlet-app observation::input::tests::the_facet_and_gap_inputs_are_identical_under_a_claims_swap
+        PASS [   0.010s] ( 611/1303) gauntlet-app reference::manifest::tests::a_non_null_digest_and_a_populated_units_section_are_loud_failures
+        PASS [   0.012s] ( 612/1303) gauntlet-app reference::manifest::tests::a_minimal_manifest_parses_its_fields
+        PASS [   0.015s] ( 613/1303) gauntlet-app observation::input::tests::gaps_are_inputs_not_noise
+        PASS [   0.012s] ( 614/1303) gauntlet-app reference::manifest::tests::build_definition_carries_the_deferred_sections_as_empty
+        PASS [   0.014s] ( 615/1303) gauntlet-app reference::manifest::tests::a_tab_in_the_indentation_is_typed_drift_wherever_it_sits
+        PASS [   0.011s] ( 616/1303) gauntlet-app reference::manifest::tests::duplicate_keys_are_refused_rather_than_last_won
+        PASS [   0.008s] ( 617/1303) gauntlet-app reference::manifest::tests::empty_flow_entries_are_refused
+        PASS [   0.009s] ( 618/1303) gauntlet-app reference::manifest::tests::folded_scalars_fold_lines_into_single_spaced_text
+        PASS [   0.015s] ( 619/1303) gauntlet-app reference::manifest::tests::missing_required_keys_and_bad_values_are_typed_errors
+        PASS [   0.009s] ( 620/1303) gauntlet-app reference::normalize::tests::a_whitespace_only_last_line_is_content_not_a_blank_line
+        PASS [   0.013s] ( 621/1303) gauntlet-app reference::manifest::tests::terminal_conditions_and_reliability_prose_fail_loudly_on_drift
+        PASS [   0.014s] ( 622/1303) gauntlet-app reference::manifest::tests::unknown_keys_and_roots_are_typed_errors_naming_the_line
+        PASS [   0.016s] ( 623/1303) gauntlet-app reference::manifest::tests::the_frozen_manifest_parses_with_its_fields_intact
+        PASS [   0.008s] ( 624/1303) gauntlet-app reference::normalize::tests::empty_and_all_blank_inputs_normalize_to_zero_bytes
+        PASS [   0.017s] ( 625/1303) gauntlet-app reference::manifest::tests::unknown_sub_keys_in_nested_sections_are_typed_errors
+        PASS [   0.016s] ( 626/1303) gauntlet-app reference::normalize::tests::invalid_utf8_is_a_typed_error_with_the_byte_locus
+        PASS [   0.011s] ( 627/1303) gauntlet-app reference::parse::tests::a_duplicate_block_id_fails_the_later_block
+        PASS [   0.023s] ( 628/1303) gauntlet-app reference::normalize::tests::normalization_is_deterministic_across_line_ending_and_final_newline_spellings
+        PASS [   0.024s] ( 629/1303) gauntlet-app reference::normalize::tests::short_inputs_pin_the_exact_normalized_output
+        PASS [   0.012s] ( 630/1303) gauntlet-app reference::parse::tests::a_tier_authority_coupling_violation_is_a_block_failure
+        PASS [   0.028s] ( 631/1303) gauntlet-app reference::normalize::tests::normalization_is_sensitive_to_content_edits
+        PASS [   0.014s] ( 632/1303) gauntlet-app reference::parse::tests::a_missing_required_field_is_a_block_failure
+        PASS [   0.007s] ( 633/1303) gauntlet-app reference::parse::tests::crlf_endings_are_tolerated_line_by_line
+        PASS [   0.014s] ( 634/1303) gauntlet-app reference::parse::tests::an_unknown_enum_value_names_field_value_and_block
+        PASS [   0.025s] ( 635/1303) gauntlet-app reference::parse::tests::a_well_formed_block_parses_into_a_unit
+        PASS [   0.014s] ( 636/1303) gauntlet-app reference::parse::tests::depends_on_parses_all_three_frozen_spellings
+        PASS [   0.021s] ( 637/1303) gauntlet-app reference::parse::tests::every_enum_field_reports_unknown_values_through_the_same_door
+        PASS [   0.020s] ( 638/1303) gauntlet-app reference::parse::tests::malformed_evidence_mappings_fail_the_block_not_the_file
+        PASS [   0.020s] ( 639/1303) gauntlet-app reference::parse::tests::non_ak_headings_and_wrong_depth_are_heading_failures
+        PASS [   0.015s] ( 640/1303) gauntlet-app reference::parse::tests::the_frozen_answer_key_parses_seventy_clean_units
+        PASS [   0.022s] ( 641/1303) gauntlet-app reference::parse::tests::one_malformed_block_fails_only_itself
+        PASS [   0.020s] ( 642/1303) gauntlet-app reference::parse::tests::parse_all_or_fail_is_all_or_nothing
+        PASS [   0.010s] ( 643/1303) gauntlet-app reference::provider::tests::a_missing_artifact_is_unavailable_not_reference_mutated
+        PASS [   0.007s] ( 644/1303) gauntlet-app reference::provider::tests::a_mutation_between_normalize_and_freeze_fires_the_tripwire_at_freeze
+        PASS [   0.016s] ( 645/1303) gauntlet-app reference::parse::tests::unknown_field_keys_and_stray_lines_are_typed_errors
+        PASS [   0.019s] ( 646/1303) gauntlet-app reference::provider::tests::a_broken_artifact_after_freeze_is_unavailable_not_reference_mutated
+        PASS [   0.011s] ( 647/1303) gauntlet-app reference::provider::tests::freeze_is_content_addressed_and_idempotent_for_the_same_run
+        PASS [   0.017s] ( 648/1303) gauntlet-app reference::provider::tests::the_production_provider_passes_the_shared_contract_suite
+        PASS [   0.020s] ( 649/1303) gauntlet-app reference::provider::tests::significance_of_the_digest_and_refusal_semantics
+        PASS [   0.015s] ( 650/1303) gauntlet-app report::tests::a_store_failure_is_typed
+        PASS [   0.019s] ( 651/1303) gauntlet-app reference::validate::tests::a_malformed_key_is_the_first_block_failure
+        PASS [   0.016s] ( 652/1303) gauntlet-app report::tests::an_empty_manifest_key_is_refused
+        PASS [   0.021s] ( 653/1303) gauntlet-app reference::validate::tests::a_well_formed_key_validates_into_units
+        PASS [   0.017s] ( 654/1303) gauntlet-app roles::install::tests::write_atomic_fsyncs_the_directory_entry
+        PASS [   0.011s] ( 655/1303) gauntlet-app settle::tests::a_disagreeing_durable_record_for_the_same_identity_refuses
+        PASS [   0.015s] ( 656/1303) gauntlet-app settle::tests::a_critic_unit_settles_durably_under_automatic_closure
+        PASS [   0.023s] ( 657/1303) gauntlet-app report::tests::the_six_category_tokens_are_exact
+        PASS [   0.017s] ( 658/1303) gauntlet-app settle::tests::a_blocking_residual_referencing_the_unit_refuses_settlement
+        PASS [   0.020s] ( 659/1303) gauntlet-app settle::tests::a_durably_blocked_projection_wins_over_a_clear_tracked_view
+        PASS [   0.010s] ( 660/1303) gauntlet-app settle::tests::a_fail_claim_refuses_at_service_entry_with_zero_durable_writes
+        PASS [   0.011s] ( 661/1303) gauntlet-app settle::tests::a_half_applied_evidence_production_completes_from_durable_facts_only
+        PASS [   0.013s] ( 662/1303) gauntlet-app settle::tests::a_half_applied_settlement_completes_exactly_once_from_the_anchor
+        PASS [   0.010s] ( 663/1303) gauntlet-app settle::tests::a_re_entry_diverging_on_evidence_is_a_typed_refusal_not_success
+        PASS [   0.022s] ( 664/1303) gauntlet-app settle::tests::a_human_authority_unit_refuses_automatic_closure_and_escalates
+        PASS [   0.014s] ( 665/1303) gauntlet-app settle::tests::a_settle_time_reference_mutation_aborts_with_both_digests_as_pinned_evidence
+        PASS [   0.022s] ( 666/1303) gauntlet-app settle::tests::a_lead_agent_unit_requires_a_recorded_rationale
+        PASS [   0.019s] ( 667/1303) gauntlet-app settle::tests::a_settle_time_unavailability_refuses_without_aborting_or_escalating
+        PASS [   0.009s] ( 668/1303) gauntlet-app settle::tests::an_operator_action_without_pass_evidence_hits_the_same_gate_as_the_loop
+        PASS [   0.016s] ( 669/1303) gauntlet-app settle::tests::an_inconclusive_claim_is_a_distinct_entry_refusal_from_fail
+        PASS [   0.026s] ( 670/1303) gauntlet-app settle::tests::a_re_entry_of_the_same_settlement_key_is_idempotent_success
+        PASS [   0.011s] ( 671/1303) gauntlet-app settle::tests::the_operator_identity_cannot_inject_members_into_the_decision_record
+        PASS [   0.017s] ( 672/1303) gauntlet-app settle::tests::each_refused_condition_is_a_distinct_typed_refusal
+        PASS [   0.013s] ( 673/1303) gauntlet-app settle::tests::the_fixture_key_parses_into_three_authority_levels
+        PASS [   0.014s] ( 674/1303) gauntlet-app settle::tests::operator_action_refusals_name_the_three_states_and_the_shared_gate_variant
+        PASS [   0.027s] ( 675/1303) gauntlet-app settle::tests::an_undurable_run_refuses_every_settlement
+        PASS [   0.040s] ( 676/1303) gauntlet-app settle::tests::an_unrecoverable_orphan_is_a_recorded_limitation_never_a_fabrication
+        PASS [   0.017s] ( 677/1303) gauntlet-app skills::tests::a_clean_skill_document_lints
+        PASS [   0.018s] ( 678/1303) gauntlet-app settle::tests::the_service_re_derives_conditions_one_and_two_over_the_claim_itself
+        PASS [   0.028s] ( 679/1303) gauntlet-app skills::tests::a_bare_control_word_in_ordinary_prose_is_not_over_rejected
+        PASS [   0.024s] ( 680/1303) gauntlet-app skills::tests::a_compound_auth_token_label_is_refused
+        PASS [   0.028s] ( 681/1303) gauntlet-app skills::tests::a_compound_api_key_label_is_refused
+        PASS [   0.015s] ( 682/1303) gauntlet-app skills::tests::a_decisive_control_phrase_is_refused
+        PASS [   0.007s] ( 683/1303) gauntlet-app skills::tests::a_document_without_disable_model_invocation_still_lints
+        PASS [   0.021s] ( 684/1303) gauntlet-app skills::tests::a_compound_client_secret_label_is_refused
+        PASS [   0.021s] ( 685/1303) gauntlet-app skills::tests::a_compound_secret_key_label_is_refused
+        PASS [   0.010s] ( 686/1303) gauntlet-app skills::tests::a_missing_required_field_is_refused
+        PASS [   0.015s] ( 687/1303) gauntlet-app skills::tests::a_name_field_mismatch_is_refused
+        PASS [   0.006s] ( 688/1303) gauntlet-app skills::tests::a_runtime_descriptive_sentence_settling_the_unit_is_not_over_rejected
+        PASS [   0.008s] ( 689/1303) gauntlet-app skills::tests::a_runtime_descriptive_sentence_granting_authority_is_not_over_rejected
+        PASS [   0.022s] ( 690/1303) gauntlet-app skills::tests::a_pem_block_marker_is_refused
+        PASS [   0.020s] ( 691/1303) gauntlet-app skills::tests::a_relative_path_is_not_over_rejected
+        PASS [   0.018s] ( 692/1303) gauntlet-app skills::tests::a_runtime_descriptive_sentence_authorizing_budget_is_not_over_rejected
+        PASS [   0.016s] ( 693/1303) gauntlet-app skills::tests::a_skill_claiming_to_settle_the_unit_itself_is_refused
+        PASS [   0.020s] ( 694/1303) gauntlet-app skills::tests::a_secret_shaped_literal_is_refused_and_never_echoed
+        PASS [   0.013s] ( 695/1303) gauntlet-app skills::tests::a_skill_instructing_budget_authorization_is_refused
+        PASS [   0.012s] ( 696/1303) gauntlet-app skills::tests::a_token_with_no_leading_slash_is_not_flagged_as_an_absolute_path
+        PASS [   0.006s] ( 697/1303) gauntlet-app skills::tests::an_absolute_path_in_the_body_is_refused
+        PASS [   0.027s] ( 698/1303) gauntlet-app skills::tests::a_skill_claiming_to_settle_the_unit_without_a_runtime_mention_is_still_refused
+        PASS [   0.022s] ( 699/1303) gauntlet-app skills::tests::a_word_merely_ending_in_a_label_is_not_flagged_as_a_secret
+        PASS [   0.015s] ( 700/1303) gauntlet-app skills::tests::an_exact_control_identifier_is_refused
+        PASS [   0.026s] ( 701/1303) gauntlet-app skills::tests::a_skill_instructing_authority_elevation_is_refused
+        PASS [   0.018s] ( 702/1303) gauntlet-app skills::tests::no_front_matter_fence_is_refused
+        PASS [   0.024s] ( 703/1303) gauntlet-app skills::tests::an_unknown_front_matter_key_is_refused
+        PASS [   0.010s] ( 704/1303) gauntlet-app state::export::deterministic::an_empty_history_exports_empty
+        PASS [   0.025s] ( 705/1303) gauntlet-app skills::tests::an_indirected_value_is_not_flagged_as_a_secret
+        PASS [   0.018s] ( 706/1303) gauntlet-app skills::tests::the_wayfinder_gauntlet_front_matter_shape_parses
+        PASS [   0.026s] ( 707/1303) gauntlet-app state::export::deterministic::duplicate_canonical_keys_are_refused
+        PASS [   0.019s] ( 708/1303) gauntlet-app state::export::deterministic::fields_outside_the_canonical_shape_are_refused
+        PASS [   0.019s] ( 709/1303) gauntlet-app state::export::deterministic::malformed_lines_are_typed_errors
+        PASS [   0.028s] ( 710/1303) gauntlet-app state::export::deterministic::mis_shaped_at_fields_are_typed_errors
+        PASS [   0.017s] ( 711/1303) gauntlet-app verify::authority::tests::a_hand_built_rung_cannot_mint_a_verified_claim
+        PASS [   0.036s] ( 712/1303) gauntlet-app state::export::deterministic::export_is_byte_identical_and_canonical_under_reordered_input
+        PASS [   0.010s] ( 713/1303) gauntlet-app verify::authority::tests::a_lying_request_cannot_make_stale_evidence_fresh
+        PASS [   0.023s] ( 714/1303) gauntlet-app state::export::deterministic::missing_canonical_fields_are_typed_errors
+        PASS [   0.020s] ( 715/1303) gauntlet-app verify::authority::tests::a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass
+        PASS [   0.022s] ( 716/1303) gauntlet-app state::export::deterministic::unknown_record_kinds_are_typed_errors
+        PASS [   0.010s] ( 717/1303) gauntlet-app verify::authority::tests::a_tampered_frozen_reference_refuses_authority
+        PASS [   0.010s] ( 718/1303) gauntlet-app verify::authority::tests::an_evidence_store_read_failure_is_a_typed_refusal_not_a_class
+        PASS [   0.013s] ( 719/1303) gauntlet-app verify::authority::tests::a_run_that_is_not_durable_refuses_authority
+        PASS [   0.015s] ( 720/1303) gauntlet-app verify::authority::tests::a_missing_instrument_artifact_is_inconclusive_unresolvable_p12
+        PASS [   0.013s] ( 721/1303) gauntlet-app verify::authority::tests::a_unit_absent_from_the_frozen_reference_is_refused
+        PASS [   0.017s] ( 722/1303) gauntlet-app verify::authority::tests::a_request_naming_another_run_is_refused
+        PASS [   0.008s] ( 723/1303) gauntlet-app verify::authority::tests::fresh_resolvable_evidence_passes_and_carries_the_instrument_identity
+        PASS [   0.012s] ( 724/1303) gauntlet-app verify::authority::tests::evidence_from_a_prior_iteration_is_inconclusive_stale
+        PASS [   0.016s] ( 725/1303) gauntlet-app verify::authority::tests::an_iteration_no_durable_checkpoint_supports_is_refused
+        PASS [   0.020s] ( 726/1303) gauntlet-app verify::authority::tests::an_instrument_returning_another_identity_is_refused
+        PASS [   0.014s] ( 727/1303) gauntlet-app verify::authority::tests::instrument_produced_evidence_never_satisfies_a_human_requirement
+        PASS [   0.022s] ( 728/1303) gauntlet-app verify::authority::tests::an_unresolvable_evidence_ref_is_inconclusive_unresolvable
+        PASS [   0.014s] ( 729/1303) gauntlet-app verify::authority::tests::no_production_record_at_the_locator_is_inconclusive_unresolvable
+        PASS [   0.012s] ( 730/1303) gauntlet-app verify::authority::tests::store_bytes_that_are_not_the_recorded_content_are_refused
+        PASS [   0.013s] ( 731/1303) gauntlet-app verify::authority::tests::the_freshest_passing_candidate_wins_and_ties_break_to_the_fresh_class
+        PASS [   0.015s] ( 732/1303) gauntlet-app verify::authority::tests::the_locator_check_bites_a_store_that_leaks_off_locator_productions
+        PASS [   0.014s] ( 733/1303) gauntlet-app verify::ladder::tests::a_foreign_invocation_id_is_refused
+        PASS [   0.009s] ( 734/1303) gauntlet-app verify::ladder::tests::a_model_result_at_another_iteration_is_refused
+        PASS [   0.008s] ( 735/1303) gauntlet-app verify::ladder::tests::a_model_result_under_another_role_is_refused
+        PASS [   0.025s] ( 736/1303) gauntlet-app verify::authority::tests::when_every_candidate_fails_the_freshest_class_is_recorded
+        PASS [   0.020s] ( 737/1303) gauntlet-app verify::ladder::tests::a_model_record_claiming_determinism_is_refused
+        PASS [   0.007s] ( 738/1303) gauntlet-app verify::ladder::tests::a_rung_declining_at_dispatch_falls_through_to_the_next_that_can_decide
+        PASS [   0.028s] ( 739/1303) gauntlet-app verify::content_digest_pins::the_ports_production_content_digest_is_this_layers_rule
+        PASS [   0.014s] ( 740/1303) gauntlet-app verify::ladder::tests::a_never_terminal_runner_is_a_bounded_instrument_failure
+        PASS [   0.013s] ( 741/1303) gauntlet-app verify::ladder::tests::a_requirement_no_rung_can_decide_is_a_typed_refusal
+        PASS [   0.008s] ( 742/1303) gauntlet-app verify::ladder::tests::a_rung_whose_kind_and_verifier_disagree_is_refused_at_construction
+        PASS [   0.013s] ( 743/1303) gauntlet-app verify::ladder::tests::a_rung_failing_as_an_instrument_is_a_typed_refusal_naming_it_not_an_outcome
+        PASS [   0.020s] ( 744/1303) gauntlet-app verify::ladder::tests::a_non_verification_payload_is_refused
+        PASS [   0.016s] ( 745/1303) gauntlet-app verify::ladder::tests::the_ladder_refuses_empty_and_duplicate_positions
+        PASS [   0.018s] ( 746/1303) gauntlet-app verify::ladder::tests::a_supported_broken_rung_terminates_selection_and_never_reaches_the_model
+        PASS [   0.017s] ( 747/1303) gauntlet-app verify::ladder::tests::the_model_rung_decides_only_where_no_deterministic_rung_can
+        PASS [   0.015s] ( 748/1303) gauntlet-app verify::ladder::tests::the_model_rung_dispatch_carries_the_governed_iteration
+        PASS [   0.014s] ( 749/1303) gauntlet-app verify::ladder::tests::the_model_rung_reports_non_deterministic_and_its_records_are_flagged
+        PASS [   0.015s] ( 750/1303) gauntlet-app verify::ladder::tests::the_verifier_envelope_is_serialized_json_even_with_hostile_text
+        PASS [   0.008s] ( 751/1303) gauntlet-app verify::precondition::tests::a_pass_record_from_another_run_is_refused
+        PASS [   0.018s] ( 752/1303) gauntlet-app verify::precondition::tests::a_chain_minted_model_record_carries_the_non_deterministic_flag
+        PASS [   0.021s] ( 753/1303) gauntlet-app verify::ladder::tests::when_a_deterministic_rung_and_the_model_rung_could_both_decide_the_deterministic_one_does
+        PASS [   0.014s] ( 754/1303) gauntlet-app verify::precondition::tests::an_inconclusive_record_is_refused_and_stays_distinct_from_fail
+        PASS [   0.016s] ( 755/1303) gauntlet-app verify::precondition::tests::a_stooge_store_cannot_satisfy_the_settlement_precondition
+        PASS [   0.018s] ( 756/1303) gauntlet-app verify::precondition::tests::a_pass_record_with_resolving_pinned_evidence_is_ready
+        PASS [   0.008s] ( 757/1303) gauntlet-app::report an_all_empty_store_populates_nothing
+        PASS [   0.025s] ( 758/1303) gauntlet-app verify::precondition::tests::an_unanswerable_pin_query_fails_closed
+        PASS [   0.017s] ( 759/1303) gauntlet-app::formation fog_not_in_answer_key
+        PASS [   0.020s] ( 760/1303) gauntlet-app::report a_settlement_without_a_durable_pass_record_is_never_proven
+        PASS [   0.023s] ( 761/1303) gauntlet-app verify::precondition::tests::unpinned_or_unresolvable_evidence_is_refused
+        PASS [   0.015s] ( 762/1303) gauntlet-app::report blocked_and_unknown_are_record_driven
+        PASS [   0.009s] ( 763/1303) gauntlet-app::report categories_populate_from_records
+        PASS [   0.010s] ( 764/1303) gauntlet-app::report capability_rows_follow_the_manifest_and_the_records
+        PASS [   0.029s] ( 765/1303) gauntlet-app::report an_inconclusive_record_is_provisional_never_proven
+        PASS [   0.006s] ( 766/1303) gauntlet-app::roles allow_naming_an_envelope_denied_category_is_refused
+        PASS [   0.017s] ( 767/1303) gauntlet-app::report duplicate_manifest_keys_are_a_typed_error
+        PASS [   0.019s] ( 768/1303) gauntlet-app::report removing_the_settlement_record_moves_the_unit_out_of_implemented_and_proven
+        PASS [   0.019s] ( 769/1303) gauntlet-app::report the_machine_rendering_is_deterministic_and_order_independent
+        PASS [   0.024s] ( 770/1303) gauntlet-app::roles advisory_harness_records_advisory_and_materializes_injectable_artifacts
+        PASS [   0.009s] ( 771/1303) gauntlet-app::roles deny_shadowing_allow_is_refused
+        PASS [   0.029s] ( 772/1303) gauntlet-app::roles critic_dimension_files_load_uniformly_and_mismatches_are_refused
+        PASS [   0.018s] ( 773/1303) gauntlet-app::roles deny_set_and_envelope_grant_are_consumable_data
+        PASS [   0.019s] ( 774/1303) gauntlet-app::roles duplicate_entry_lock_is_tamper
+        PASS [   0.037s] ( 775/1303) gauntlet-app::roles cross_harness_relabeled_relocated_lock_is_tamper
+        PASS [   0.040s] ( 776/1303) gauntlet-app::roles deleted_source_file_is_source_missing_drift
+        PASS [   0.020s] ( 777/1303) gauntlet-app::roles forged_empty_lock_with_recomputed_digest_is_tamper
+        PASS [   0.032s] ( 778/1303) gauntlet-app::roles forged_absolute_source_in_lock_is_tamper
+        PASS [   0.025s] ( 779/1303) gauntlet-app::roles forged_traversal_source_in_lock_is_tamper
+        PASS [   0.025s] ( 780/1303) gauntlet-app::roles full_lock_reforge_cannot_bless_installed_drift
+        PASS [   0.024s] ( 781/1303) gauntlet-app::roles full_lock_source_redirect_reforge_cannot_bless_drift
+        PASS [   0.050s] ( 782/1303) gauntlet-app::roles every_registered_harness_installs_and_verifies
+        PASS [   0.024s] ( 783/1303) gauntlet-app::roles hand_edited_lock_is_a_typed_tamper_failure
+        PASS [   0.012s] ( 784/1303) gauntlet-app::roles missing_indirection_is_a_typed_error_naming_the_variable
+        PASS [   0.020s] ( 785/1303) gauntlet-app::roles install_and_verify
+        PASS [   0.023s] ( 786/1303) gauntlet-app::roles legitimate_workspace_relative_write_path_passes
+        PASS [   0.016s] ( 787/1303) gauntlet-app::roles missing_installed_file_is_drift
+        PASS [   0.017s] ( 788/1303) gauntlet-app::roles out_of_band_installed_edit_is_drift
+        PASS [   0.022s] ( 789/1303) gauntlet-app::roles noncanonical_lock_with_recomputed_digest_is_tamper
+        PASS [   0.023s] ( 790/1303) gauntlet-app::roles reinstall_of_unchanged_tree_is_byte_identical_lock
+        PASS [   0.021s] ( 791/1303) gauntlet-app::roles repository_role_artifacts_load
+        PASS [   0.022s] ( 792/1303) gauntlet-app::roles reinstall_over_out_of_band_installed_drift_reports_the_repair
+        PASS [   0.038s] ( 793/1303) gauntlet-app::roles out_of_band_installed_addition_is_drift
+        PASS [   0.024s] ( 794/1303) gauntlet-app::roles resolved_indirection_value_never_echoes_into_error_text_mode_refusal
+        PASS [   0.025s] ( 795/1303) gauntlet-app::roles resolved_indirection_value_never_echoes_into_error_text_write_path_escape
+        PASS [   0.011s] ( 796/1303) gauntlet-app::roles unknown_context_category_is_refused
+        PASS [   0.019s] ( 797/1303) gauntlet-app::roles source_addition_after_install_is_drift
+        PASS [   0.023s] ( 798/1303) gauntlet-app::roles resolved_secrets_never_reach_the_lock_or_bytes_or_debug
+        PASS [   0.018s] ( 799/1303) gauntlet-app::roles unknown_filesystem_mode_is_refused
+        PASS [   0.012s] ( 800/1303) gauntlet-app::roles unknown_network_mode_is_refused
+        PASS [   0.011s] ( 801/1303) gauntlet-app::roles unknown_tool_token_is_refused
+        PASS [   0.035s] ( 802/1303) gauntlet-app::roles source_edit_after_install_is_drift
+        PASS [   0.024s] ( 803/1303) gauntlet-app::roles unknown_or_missing_harness_fails_closed
+        PASS [   0.035s] ( 804/1303) gauntlet-app::roles unknown_front_matter_key_is_refused
+        PASS [   0.022s] ( 805/1303) gauntlet-app::roles write_path_over_the_answer_key_is_refused
+        PASS [   0.032s] ( 806/1303) gauntlet-app::roles verify_without_install_is_a_configuration_failure
+        PASS [   0.034s] ( 807/1303) gauntlet-app::roles write_path_of_the_project_root_is_refused
+        PASS [   0.015s] ( 808/1303) gauntlet-app::roles write_path_resolving_outside_the_roots_is_refused
+        PASS [   0.040s] ( 809/1303) gauntlet-app::roles write_path_of_the_runtime_dir_is_refused
+        PASS [   0.015s] ( 810/1303) gauntlet-app::skills skills::lint_rejects_secret_like_value
+        PASS [   0.025s] ( 811/1303) gauntlet-app::skills skills::lint_rejects_absolute_path
+        PASS [   0.015s] ( 812/1303) gauntlet-app::skills skills::lint_rejects_unknown_front_matter_key
+        PASS [   0.020s] ( 813/1303) gauntlet-app::skills wayfinder_gauntlet_conformance
+        PASS [   0.035s] ( 814/1303) gauntlet-app::skills skills::lint_rejects_control_logic_fixture
+        PASS [   0.020s] ( 815/1303) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_a_missing_crate_cannot_pass_silently
+        PASS [   0.012s] ( 816/1303) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_rule_b_has_teeth
+        PASS [   0.024s] ( 817/1303) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_a_missing_cli_crate_cannot_pass_silently
+        PASS [   0.052s] ( 818/1303) gauntlet-app::skills skills::lint_passes_every_installed_skill
+        PASS [   0.025s] ( 819/1303) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_rule_a_has_teeth
+        PASS [   0.016s] ( 820/1303) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_rule_c_has_teeth
+        PASS [   0.010s] ( 821/1303) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_the_cli_rule_b_has_teeth
+        PASS [   0.015s] ( 822/1303) gauntlet-arch-tests delegation::delegation_tests::the_control_proves_the_cli_rule_a_has_teeth
+        PASS [   0.023s] ( 823/1303) gauntlet-arch-tests delegation::delegation_tests::the_generic_cli_adapter_derives_no_result_outside_the_poll_path
+        PASS [   0.022s] ( 824/1303) gauntlet-arch-tests delegation::delegation_tests::the_prime_adapter_derives_no_result_from_the_delegation_call
+        PASS [   0.019s] ( 825/1303) gauntlet-arch-tests denylist::scanner_tests::a_vacuous_cli_adapter_scan_fails_rather_than_passing
+        PASS [   0.019s] ( 826/1303) gauntlet-arch-tests denylist::scanner_tests::adapter_segments_are_flagged_as_whole_string_literals_only
+        PASS [   0.015s] ( 827/1303) gauntlet-arch-tests denylist::scanner_tests::annex_b_mask_corners_are_pinned_to_the_documented_residual
+        PASS [   0.029s] ( 828/1303) gauntlet-arch-tests denylist::scanner_tests::adapter_segments_survive_a_char_literal_quote
+        PASS [   0.054s] ( 829/1303) gauntlet-arch-tests denylist::repo::the_generic_cli_adapter_crate_carries_no_vendor_identifiers
+        PASS [   0.014s] ( 830/1303) gauntlet-arch-tests denylist::scanner_tests::annex_b_wire_keys_are_masked_in_the_task9_codec_modules_too
+        PASS [   0.011s] ( 831/1303) gauntlet-arch-tests denylist::scanner_tests::annex_b_wire_keys_are_masked_only_in_the_parser_in_key_access
+        PASS [   0.026s] ( 832/1303) gauntlet-arch-tests denylist::scanner_tests::annex_b_wire_key_outside_key_access_still_reports_in_the_parser
+        PASS [   0.013s] ( 833/1303) gauntlet-arch-tests denylist::scanner_tests::clean_manifest_produces_no_flags
+        PASS [   0.014s] ( 834/1303) gauntlet-arch-tests denylist::scanner_tests::clean_source_produces_no_flags
+        PASS [   0.011s] ( 835/1303) gauntlet-arch-tests denylist::scanner_tests::composition_root_may_name_adapters_but_not_bare_vendors
+        PASS [   0.011s] ( 836/1303) gauntlet-arch-tests denylist::scanner_tests::denied_terms_inventory_is_pinned
+        PASS [   0.010s] ( 837/1303) gauntlet-arch-tests denylist::scanner_tests::derived_adapter_identifiers_are_flagged_in_inner_layers
+        PASS [   0.010s] ( 838/1303) gauntlet-arch-tests denylist::scanner_tests::every_denied_term_is_flagged_in_source
+        PASS [   0.012s] ( 839/1303) gauntlet-arch-tests denylist::scanner_tests::line_continuations_and_concat_fragments_are_flagged
+        PASS [   0.017s] ( 840/1303) gauntlet-arch-tests denylist::scanner_tests::every_denied_term_is_flagged_in_the_cli_adapter_scan
+        PASS [   0.013s] ( 841/1303) gauntlet-arch-tests denylist::scanner_tests::malformed_manifest_is_flagged_not_swallowed
+        PASS [   0.012s] ( 842/1303) gauntlet-arch-tests denylist::scanner_tests::manifest_keys_and_renames_are_flagged
+        PASS [   0.008s] ( 843/1303) gauntlet-arch-tests denylist::scanner_tests::manifest_tables_outside_dependency_sections_are_scanned_as_text
+        PASS [   0.015s] ( 844/1303) gauntlet-arch-tests denylist::scanner_tests::manifest_keys_use_the_substring_matcher
+        PASS [   0.013s] ( 845/1303) gauntlet-arch-tests denylist::scanner_tests::non_rust_text_files_are_scanned_like_source
+        PASS [   0.017s] ( 846/1303) gauntlet-arch-tests denylist::scanner_tests::matching_is_case_insensitive_and_substring_based
+        PASS [   0.013s] ( 847/1303) gauntlet-arch-tests denylist::scanner_tests::spec_named_backends_are_flagged
+        PASS [   0.018s] ( 848/1303) gauntlet-arch-tests denylist::scanner_tests::spec_vocabulary_segments_are_pinned_and_the_spellings_still_deny
+        PASS [   0.014s] ( 849/1303) gauntlet-arch-tests denylist::scanner_tests::the_cli_adapter_scan_is_case_insensitive_and_whole_file
+        PASS [   0.014s] ( 850/1303) gauntlet-arch-tests denylist::scanner_tests::workspace_dependencies_text_keeps_only_that_table
+        PASS [   0.024s] ( 851/1303) gauntlet-arch-tests denylist::scanner_tests::the_composition_root_carve_out_masks_rather_than_skips
+        PASS [   0.023s] ( 852/1303) gauntlet-arch-tests denylist::scanner_tests::the_maskable_wire_key_intersection_is_pinned
+        PASS [   0.024s] ( 853/1303) gauntlet-arch-tests denylist::scanner_tests::workspace_inherited_renames_are_flagged_in_a_core_manifest
+        PASS [   0.016s] ( 854/1303) gauntlet-arch-tests deps::scanner_tests::a_git_dependency_is_flagged_in_any_url_spelling
+        PASS [   0.020s] ( 855/1303) gauntlet-arch-tests deps::scanner_tests::a_registry_dependency_compiling_into_the_domain_is_flagged
+        PASS [   0.016s] ( 856/1303) gauntlet-arch-tests deps::scanner_tests::a_workspace_inherited_external_dependency_is_flagged
+        PASS [   0.049s] ( 857/1303) gauntlet-arch-tests deps::repo::the_composition_feature_seal_holds
+        PASS [   0.017s] ( 858/1303) gauntlet-arch-tests deps::scanner_tests::adapter_depending_on_app_or_cli_is_flagged
+        PASS [   0.018s] ( 859/1303) gauntlet-arch-tests deps::scanner_tests::an_allowlisted_external_dependency_is_accepted_only_in_its_layer
+        PASS [   0.039s] ( 860/1303) gauntlet-arch-tests deps::scanner_tests::adapter_depending_on_domain_and_ports_is_accepted
+        PASS [   0.032s] ( 861/1303) gauntlet-arch-tests deps::scanner_tests::allowlist_entries_state_a_reason
+        PASS [   0.031s] ( 862/1303) gauntlet-arch-tests deps::scanner_tests::an_unreadable_or_unparseable_declared_build_input_is_a_violation
+        PASS [   0.033s] ( 863/1303) gauntlet-arch-tests deps::scanner_tests::an_external_dependency_is_flagged_in_every_section_kind
+        PASS [   0.021s] ( 864/1303) gauntlet-arch-tests deps::scanner_tests::arch_tests_with_an_internal_dep_is_flagged
+        PASS [   0.144s] ( 865/1303) gauntlet-arch-tests deps::repo::dependency_direction_holds
+        PASS [   0.078s] ( 866/1303) gauntlet-arch-tests deps::scanner_tests::an_allowlisted_name_from_a_non_default_source_is_flagged
+        PASS [   0.034s] ( 867/1303) gauntlet-arch-tests deps::scanner_tests::cargo_config_source_replacement_and_rustflags_are_flagged
+        PASS [   0.012s] ( 868/1303) gauntlet-arch-tests deps::scanner_tests::domain_with_any_internal_dep_is_flagged
+        PASS [   0.031s] ( 869/1303) gauntlet-arch-tests deps::scanner_tests::cli_wiring_of_adapters_is_accepted_and_the_reverse_is_flagged
+        PASS [   0.022s] ( 870/1303) gauntlet-arch-tests deps::scanner_tests::feature_specifiers_on_internal_edges_are_visible_in_both_spellings
+        PASS [   0.038s] ( 871/1303) gauntlet-arch-tests deps::scanner_tests::compiler_affecting_env_entries_are_flagged_and_benign_ones_are_not
+        PASS [   0.016s] ( 872/1303) gauntlet-arch-tests deps::scanner_tests::patch_entries_with_git_or_missing_sources_are_flagged
+        PASS [   0.028s] ( 873/1303) gauntlet-arch-tests deps::scanner_tests::forbidden_cargo_config_keys_state_a_reason
+        PASS [   0.033s] ( 874/1303) gauntlet-arch-tests deps::scanner_tests::forbidden_env_keys_state_a_reason
+        PASS [   0.018s] ( 875/1303) gauntlet-arch-tests deps::scanner_tests::path_dependency_outside_the_member_set_is_flagged
+        PASS [   0.013s] ( 876/1303) gauntlet-arch-tests deps::scanner_tests::ports_and_app_layering_is_accepted
+        PASS [   0.018s] ( 877/1303) gauntlet-arch-tests deps::scanner_tests::renamed_and_path_dependencies_are_resolved
+        PASS [   0.018s] ( 878/1303) gauntlet-arch-tests deps::scanner_tests::root_workspace_git_and_unallowlisted_registry_entries_are_flagged
+        PASS [   0.030s] ( 879/1303) gauntlet-arch-tests deps::scanner_tests::the_composition_seal_accepts_only_the_cli_dev_edge
+        PASS [   0.037s] ( 880/1303) gauntlet-arch-tests deps::scanner_tests::root_table_and_patch_entries_reject_alternate_registry_sources
+        PASS [   0.036s] ( 881/1303) gauntlet-arch-tests deps::scanner_tests::target_scoped_rustflags_and_other_compiler_channels_are_flagged
+        PASS [   0.023s] ( 882/1303) gauntlet-arch-tests deps::scanner_tests::the_external_allowlists_are_pinned
+        PASS [   0.006s] ( 883/1303) gauntlet-arch-tests deps::scanner_tests::the_external_policy_covers_build_and_target_scoped_sections
+        PASS [   0.019s] ( 884/1303) gauntlet-arch-tests deps::scanner_tests::undeclared_package_directory_is_flagged
+        PASS [   0.019s] ( 885/1303) gauntlet-arch-tests deps::scanner_tests::workspace_dependency_path_outside_the_member_set_is_flagged
+        PASS [   0.019s] ( 886/1303) gauntlet-arch-tests deps::scanner_tests::workspace_inherited_renames_resolve_to_the_real_crate
+        PASS [   0.030s] ( 887/1303) gauntlet-arch-tests deps::scanner_tests::unclassified_member_and_malformed_manifest_are_flagged
+        PASS [   0.053s] ( 888/1303) gauntlet-arch-tests envfile::scanner_tests::a_credential_value_is_flagged_as_a_credential
+        PASS [   0.062s] ( 889/1303) gauntlet-arch-tests envfile::repo::env_example_matches_annex_e
+        PASS [   0.060s] ( 890/1303) gauntlet-arch-tests envfile::scanner_tests::a_commented_out_credential_is_flagged
+        PASS [   0.037s] ( 891/1303) gauntlet-arch-tests envfile::scanner_tests::a_deleted_variable_is_flagged
+        PASS [   0.014s] ( 892/1303) gauntlet-arch-tests envfile::scanner_tests::a_matching_pair_is_clean
+        PASS [   0.018s] ( 893/1303) gauntlet-arch-tests envfile::scanner_tests::a_vacuous_parse_is_a_violation
+        PASS [   0.024s] ( 894/1303) gauntlet-arch-tests envfile::scanner_tests::a_line_without_equals_is_a_violation_not_a_skip
+        PASS [   0.008s] ( 895/1303) gauntlet-arch-tests envfile::scanner_tests::jwt_and_unprefixed_tokens_in_comments_are_flagged
+        PASS [   0.014s] ( 896/1303) gauntlet-arch-tests envfile::scanner_tests::annex_e_is_parsed_and_bounded_to_the_annex
+        PASS [   0.034s] ( 897/1303) gauntlet-arch-tests envfile::scanner_tests::the_non_vacuity_floor_is_derived_from_the_spec_not_a_constant
+        PASS [   0.046s] ( 898/1303) gauntlet-arch-tests envfile::scanner_tests::runtime_injected_is_exactly_the_documented_singleton
+        PASS [   0.052s] ( 899/1303) gauntlet-arch-tests envfile::scanner_tests::an_unknown_or_duplicated_key_is_flagged
+        PASS [   0.043s] ( 900/1303) gauntlet-arch-tests envfile::scanner_tests::the_runtime_injected_exclusion_is_named_and_enforced_both_ways
+        PASS [   0.013s] ( 901/1303) gauntlet-arch-tests envfile::scanner_tests::variable_names_are_not_mistaken_for_credentials
+        PASS [   0.022s] ( 902/1303) gauntlet-arch-tests escapes::tests::a_bracket_inside_a_comment_does_not_close_the_attribute_body
+        PASS [   0.023s] ( 903/1303) gauntlet-arch-tests escapes::tests::a_bracket_inside_a_literal_does_not_close_the_attribute_body
+        PASS [   0.015s] ( 904/1303) gauntlet-arch-tests escapes::tests::attributes_without_a_path_key_are_not_flagged
+        PASS [   0.039s] ( 905/1303) gauntlet-arch-tests escapes::tests::a_directive_head_split_before_its_delimiter_is_still_seen
+        PASS [   0.024s] ( 906/1303) gauntlet-arch-tests escapes::tests::build_scripts_in_a_core_crate_are_violations
+        PASS [   0.051s] ( 907/1303) gauntlet-arch-tests escapes::tests::absolute_include_targets_are_flagged
+        PASS [   0.013s] ( 908/1303) gauntlet-arch-tests escapes::tests::comment_tokens_between_a_directive_and_its_argument_are_skipped
+        PASS [   0.021s] ( 909/1303) gauntlet-arch-tests escapes::tests::every_rustc_spelling_of_the_path_attribute_is_flagged
+        PASS [   0.066s] ( 910/1303) gauntlet-arch-tests escapes::tests::cargo_target_paths_escaping_the_crate_are_flagged
+        PASS [   0.018s] ( 911/1303) gauntlet-arch-tests escapes::tests::in_crate_cargo_target_paths_are_not_flagged
+        PASS [   0.053s] ( 912/1303) gauntlet-arch-tests escapes::tests::escapes_split_across_lines_are_flagged
+        PASS [   0.032s] ( 913/1303) gauntlet-arch-tests escapes::tests::include_forms_escaping_the_crate_are_flagged
+        PASS [   0.021s] ( 914/1303) gauntlet-arch-tests escapes::tests::literals_and_lifetimes_do_not_produce_phantom_escapes
+        PASS [   0.041s] ( 915/1303) gauntlet-arch-tests escapes::tests::in_crate_paths_and_includes_are_not_flagged
+        PASS [   0.021s] ( 916/1303) gauntlet-arch-tests escapes::tests::path_attribute_escaping_the_crate_is_flagged
+        PASS [   0.022s] ( 917/1303) gauntlet-arch-tests escapes::tests::normalize_join_resolves_dot_segments
+        PASS [   0.059s] ( 918/1303) gauntlet-arch-tests escapes::tests::the_target_path_exemption_is_exactly_the_boundary_suite
+        PASS [   0.044s] ( 919/1303) gauntlet-arch-tests escapes::tests::unterminated_input_is_a_violation_not_a_skip
+        PASS [   0.049s] ( 920/1303) gauntlet-arch-tests escapes::tests::unresolvable_include_targets_are_violations_not_passes
+        PASS [   0.040s] ( 921/1303) gauntlet-arch-tests escapes::tests::whitespace_split_directive_spellings_are_flagged
+        PASS [   0.040s] ( 922/1303) gauntlet-arch-tests evasion_tests::a_narrowed_denylist_or_literal_scope_fails_through_the_shared_scan_path
+        PASS [   0.047s] ( 923/1303) gauntlet-arch-tests evasion_tests::a_walker_level_carve_out_fails_the_gate
+        PASS [   0.030s] ( 924/1303) gauntlet-arch-tests evasion_tests::an_undeclared_call_site_exemption_fails_the_gate
+        PASS [   0.027s] ( 925/1303) gauntlet-arch-tests evasion_tests::c1_target_scoped_cargo_config_channels_fail_the_gate
+        PASS [   0.068s] ( 926/1303) gauntlet-arch-tests evasion_tests::c1_external_dependencies_compiling_into_the_domain_fail_the_gate
+        PASS [   0.048s] ( 927/1303) gauntlet-arch-tests evasion_tests::c2_an_allowlisted_name_from_a_hostile_source_fails_the_gate
+        PASS [   0.046s] ( 928/1303) gauntlet-arch-tests evasion_tests::c3_a_bracket_in_a_literal_no_longer_hides_a_path_escape
+        PASS [   0.025s] ( 929/1303) gauntlet-arch-tests evasion_tests::c6c1_a_quote_that_is_data_does_not_hide_following_literals
+        PASS [   0.030s] ( 930/1303) gauntlet-arch-tests evasion_tests::c7c2_a_directive_head_split_before_its_argument_fails_the_gate
+        PASS [   0.027s] ( 931/1303) gauntlet-arch-tests evasion_tests::critic4_literal_evasions_fail_the_gate
+        PASS [   0.061s] ( 932/1303) gauntlet-arch-tests evasion_tests::c7c1_the_defaults_exemption_is_setting_scoped_not_file_scoped
+        PASS [   0.036s] ( 933/1303) gauntlet-arch-tests evasion_tests::critic5_literal_evasions_fail_the_gate
+        PASS [   0.023s] ( 934/1303) gauntlet-arch-tests evasion_tests::e2_a_compiler_affecting_env_entry_fails_the_gate
+        PASS [   0.041s] ( 935/1303) gauntlet-arch-tests evasion_tests::e1_comment_tokens_between_directive_and_argument_fail_the_gate
+        PASS [   0.017s] ( 936/1303) gauntlet-arch-tests evasion_tests::env_example_gaps_fail_through_the_root_entry_point
+        PASS [   0.015s] ( 937/1303) gauntlet-arch-tests evasion_tests::f2_the_defaults_exemption_covers_only_the_setting_declaration
+        PASS [   0.018s] ( 938/1303) gauntlet-arch-tests evasion_tests::m5_patch_git_and_cargo_config_fail_the_gate
+        PASS [   0.012s] ( 939/1303) gauntlet-arch-tests evasion_tests::scope_integrity_measures_its_own_scan
+        PASS [   0.026s] ( 940/1303) gauntlet-arch-tests evasion_tests::majors_that_defeated_a_class_fail_the_gate
+        PASS [   0.014s] ( 941/1303) gauntlet-arch-tests evasion_tests::v15_a_narrowed_adapter_identifier_scope_fails_the_gate
+        PASS [   0.023s] ( 942/1303) gauntlet-arch-tests evasion_tests::the_clean_fixture_workspace_passes_every_check
+        PASS [   0.047s] ( 943/1303) gauntlet-arch-tests evasion_tests::v2_a_cfg_attr_path_attribute_fails_the_gate
+        PASS [   0.026s] ( 944/1303) gauntlet-arch-tests evasion_tests::v3_out_dir_codegen_and_build_scripts_fail_the_gate
+        PASS [   0.079s] ( 945/1303) gauntlet-arch-tests evasion_tests::v1_a_cargo_target_path_leaving_the_crate_fails_the_gate
+        PASS [   0.085s] ( 946/1303) gauntlet-arch-tests evasion_tests::v2_the_defaults_warrant_requires_declarations_not_mentions
+        PASS [   0.039s] ( 947/1303) gauntlet-arch-tests evasion_tests::v4_a_workspace_inherited_rename_fails_the_gate
+        PASS [   0.036s] ( 948/1303) gauntlet-arch-tests evasion_tests::v5_an_adapter_comment_no_longer_launders_a_vendor_call
+        PASS [   0.021s] ( 949/1303) gauntlet-arch-tests evidence_locators::the_manifest_declares_exactly_the_four_answer_key_locators
+        PASS [   0.045s] ( 950/1303) gauntlet-arch-tests evasion_tests::v5_undeclared_packages_and_root_paths_fail_through_the_entry_point
+        PASS [   0.030s] ( 951/1303) gauntlet-arch-tests literals::repo::defaults_exemption_is_warranted_or_inactive
+        PASS [   0.035s] ( 952/1303) gauntlet-arch-tests literals::scanner_tests::a_declaration_split_past_the_old_window_is_still_seen
+        PASS [   0.007s] ( 953/1303) gauntlet-arch-tests literals::scanner_tests::a_hash_in_a_comment_does_not_disable_the_tier_class
+        PASS [   0.018s] ( 954/1303) gauntlet-arch-tests literals::scanner_tests::a_quote_that_is_data_no_longer_deletes_following_literals
+        PASS [   0.035s] ( 955/1303) gauntlet-arch-tests literals::scanner_tests::absolute_path_literals_outside_the_root_list_are_flagged
+        PASS [   0.018s] ( 956/1303) gauntlet-arch-tests literals::scanner_tests::absolute_paths_are_flagged
+        PASS [   0.021s] ( 957/1303) gauntlet-arch-tests literals::scanner_tests::arbitrary_host_port_endpoints_are_flagged
+        PASS [   0.026s] ( 958/1303) gauntlet-arch-tests literals::scanner_tests::absolute_paths_without_a_trailing_slash_and_new_roots_are_flagged
+        PASS [   0.025s] ( 959/1303) gauntlet-arch-tests literals::scanner_tests::block_values_and_returns_introduce_a_timeout
+        PASS [   0.020s] ( 960/1303) gauntlet-arch-tests literals::scanner_tests::clean_source_produces_no_flags
+        PASS [   0.016s] ( 961/1303) gauntlet-arch-tests literals::scanner_tests::commands_carrying_shell_metacharacters_are_flagged
+        PASS [   0.021s] ( 962/1303) gauntlet-arch-tests literals::scanner_tests::commands_and_tool_identities_are_flagged
+        PASS [   0.012s] ( 963/1303) gauntlet-arch-tests literals::scanner_tests::commands_carrying_stopwords_are_still_flagged
+        PASS [   0.015s] ( 964/1303) gauntlet-arch-tests literals::scanner_tests::endpoint_exemptions_state_a_reason
+        PASS [   0.031s] ( 965/1303) gauntlet-arch-tests literals::scanner_tests::defaults_settings_exempt_only_their_own_declarations
+        PASS [   0.014s] ( 966/1303) gauntlet-arch-tests literals::scanner_tests::exemption_inventories_are_pinned
+        PASS [   0.024s] ( 967/1303) gauntlet-arch-tests literals::scanner_tests::escaped_and_concatenated_literals_are_flagged
+        PASS [   0.020s] ( 968/1303) gauntlet-arch-tests literals::scanner_tests::line_continuations_and_concat_fragments_are_flagged
+        PASS [   0.029s] ( 969/1303) gauntlet-arch-tests literals::scanner_tests::model_families_outside_the_original_list_are_flagged
+        PASS [   0.012s] ( 970/1303) gauntlet-arch-tests literals::scanner_tests::model_ids_are_flagged_and_bare_words_are_not
+        PASS [   0.010s] ( 971/1303) gauntlet-arch-tests literals::scanner_tests::network_endpoints_are_flagged
+        PASS [   0.011s] ( 972/1303) gauntlet-arch-tests literals::scanner_tests::non_rust_text_files_are_scanned
+        PASS [   0.008s] ( 973/1303) gauntlet-arch-tests literals::scanner_tests::ordinary_numbers_and_localhost_prose_are_not_flagged
+        PASS [   0.022s] ( 974/1303) gauntlet-arch-tests literals::scanner_tests::parent_directory_navigation_is_path_shaped_regardless_of_other_segments
+        PASS [   0.019s] ( 975/1303) gauntlet-arch-tests literals::scanner_tests::path_shaped_relative_literals_are_flagged_and_vocabulary_is_not
+        PASS [   0.019s] ( 976/1303) gauntlet-arch-tests literals::scanner_tests::ports_in_every_rust_spelling_are_flagged
+        PASS [   0.019s] ( 977/1303) gauntlet-arch-tests literals::scanner_tests::prose_and_identifiers_are_not_commands
+        PASS [   0.007s] ( 978/1303) gauntlet-arch-tests literals::scanner_tests::provider_identities_are_flagged
+        PASS [   0.013s] ( 979/1303) gauntlet-arch-tests literals::scanner_tests::prose_with_a_duration_word_is_not_a_timeout
+        PASS [   0.016s] ( 980/1303) gauntlet-arch-tests literals::scanner_tests::relative_path_exemptions_state_a_reason
+        PASS [   0.030s] ( 981/1303) gauntlet-arch-tests literals::scanner_tests::scheme_less_provider_endpoints_are_flagged
+        PASS [   0.029s] ( 982/1303) gauntlet-arch-tests literals::scanner_tests::single_token_command_heads_and_define_then_use_laundering_are_flagged
+        PASS [   0.017s] ( 983/1303) gauntlet-arch-tests literals::scanner_tests::struct_field_and_match_arm_values_introduce_a_timeout
+        PASS [   0.010s] ( 984/1303) gauntlet-arch-tests literals::scanner_tests::term_inventories_are_pinned
+        PASS [   0.017s] ( 985/1303) gauntlet-arch-tests literals::scanner_tests::the_defaults_exemption_covers_only_the_setting_declaration
+        PASS [   0.014s] ( 986/1303) gauntlet-arch-tests literals::scanner_tests::tier_policy_literals_are_flagged
+        PASS [   0.011s] ( 987/1303) gauntlet-arch-tests literals::scanner_tests::timeout_and_tier_survive_a_split_before_the_equals
+        PASS [   0.015s] ( 988/1303) gauntlet-arch-tests literals::scanner_tests::timeouts_and_tier_policy_survive_a_rustfmt_line_break
+        PASS [   0.022s] ( 989/1303) gauntlet-arch-tests literals::scanner_tests::timeouts_are_flagged
+        PASS [   0.019s] ( 990/1303) gauntlet-arch-tests literals::scanner_tests::urls_of_any_scheme_are_flagged
+        PASS [   0.024s] ( 991/1303) gauntlet-arch-tests literals::scanner_tests::well_known_port_literals_are_flagged
+        PASS [   0.027s] ( 992/1303) gauntlet-arch-tests role_tests::the_two_roles_enforce_different_term_sets
+        PASS [   0.061s] ( 993/1303) gauntlet-arch-tests role_tests::every_scanned_file_gets_the_role_its_layer_requires
+        PASS [   0.020s] ( 994/1303) gauntlet-arch-tests single_writer::tests::a_cfg_test_inside_a_string_is_not_an_attribute
+        PASS [   0.021s] ( 995/1303) gauntlet-arch-tests single_writer::tests::a_format_constructed_surface_mention_escapes_rule_a
+        PASS [   0.028s] ( 996/1303) gauntlet-arch-tests single_writer::tests::a_generic_helper_funnel_fires_on_the_helpers_token
+        PASS [   0.018s] ( 997/1303) gauntlet-arch-tests single_writer::tests::a_new_surface_file_fails_the_inventory
+        PASS [   0.017s] ( 998/1303) gauntlet-arch-tests single_writer::tests::a_removed_pinned_write_fails_as_stale
+        PASS [   0.020s] ( 999/1303) gauntlet-arch-tests single_writer::tests::a_vanished_guard_fails_the_guard_clause
+        PASS [   0.012s] (1000/1303) gauntlet-arch-tests single_writer::tests::an_env_injected_path_still_fires_on_the_write_token
+        PASS [   0.010s] (1001/1303) gauntlet-arch-tests single_writer::tests::production_after_a_mid_file_test_module_stays_production
+        PASS [   0.018s] (1002/1303) gauntlet-arch-tests single_writer::tests::an_unwarranted_write_in_a_surface_module_has_no_escape
+        PASS [   0.009s] (1003/1303) gauntlet-arch-tests single_writer::tests::surface_tokens_match_case_insensitively
+        PASS [   0.017s] (1004/1303) gauntlet-arch-tests single_writer::tests::semicolon_gated_modules_are_reported_for_cross_file_exclusion
+        PASS [   0.009s] (1005/1303) gauntlet-arch-tests single_writer::tests::the_pinned_inventories_are_pinned
+        PASS [   0.016s] (1006/1303) gauntlet-arch-tests single_writer::tests::the_clean_fixture_passes_the_check
+        PASS [   0.010s] (1007/1303) gauntlet-arch-tests single_writer::tests::token_boundaries_distinguish_the_read_spellings
+        PASS [   0.007s] (1008/1303) gauntlet-arch-tests single_writer::tests::unclassifiable_shapes_fail_closed
+        PASS [   0.024s] (1009/1303) gauntlet-arch-tests single_writer::tests::trait_object_indirection_from_an_adapter_escapes_entirely
+        PASS [   0.009s] (1010/1303) gauntlet-arch-tests single_writer::tests::writes_inside_a_gated_module_are_not_production
+        PASS [   0.007s] (1011/1303) gauntlet-arch-tests text::tests::adjacent_literal_fragments_are_joined
+        PASS [   0.017s] (1012/1303) gauntlet-arch-tests text::tests::attribute_spans_come_from_the_lexing_pass_not_substrings
+        PASS [   0.014s] (1013/1303) gauntlet-arch-tests text::tests::directive_heads_split_before_their_argument_are_joined
+        PASS [   0.013s] (1014/1303) gauntlet-arch-tests text::tests::escaped_backslash_is_not_a_continuation
+        PASS [   0.012s] (1015/1303) gauntlet-arch-tests text::tests::line_continuation_is_collapsed_at_the_first_fragments_line
+        PASS [   0.008s] (1016/1303) gauntlet-arch-tests text::tests::numeric_and_unicode_escapes_are_decoded
+        PASS [   0.012s] (1017/1303) gauntlet-arch-tests text::tests::ordinary_files_have_identical_physical_and_logical_lines
+        PASS [   0.011s] (1018/1303) gauntlet-arch-tests text::tests::quotes_that_are_data_do_not_shift_the_extraction
+        PASS [   0.013s] (1019/1303) gauntlet-arch-tests text::tests::raw_string_and_comment_separated_fragments_are_joined
+        PASS [   0.016s] (1020/1303) gauntlet-arch-tests text::tests::scan_units_keeps_both_forms_when_they_differ
+        PASS [   0.014s] (1021/1303) gauntlet-arch-tests text::tests::statement_joining_does_not_weld_prose_together
+        PASS [   0.008s] (1022/1303) gauntlet-arch-tests text::tests::statements_split_across_lines_are_joined_to_the_semicolon
+        PASS [   0.016s] (1023/1303) gauntlet-arch-tests text::tests::statements_split_before_the_equals_are_joined
+        PASS [   0.007s] (1024/1303) gauntlet-arch-tests walk::scope_tests::annex_b_contract_parsers_are_pinned
+        PASS [   0.022s] (1025/1303) gauntlet-arch-tests walk::scope_tests::adapter_identifier_scope_is_the_inner_layers_only
+        PASS [   0.011s] (1026/1303) gauntlet-arch-tests walk::scope_tests::repo_root_reaches_the_workspace_manifest
+        PASS [   0.014s] (1027/1303) gauntlet-arch-tests walk::scope_tests::annex_b_wire_keys_are_pinned_to_their_spec_references
+        PASS [   0.024s] (1028/1303) gauntlet-arch-tests walk::scope_tests::scope_decisions_match_the_declared_exclusions
+        PASS [   0.033s] (1029/1303) gauntlet-arch-tests walk::scope_tests::symlinks_inside_a_core_crate_are_violations
+        PASS [   0.017s] (1030/1303) gauntlet-arch-tests walk::scope_tests::the_independent_listing_agrees_with_the_walker_on_the_real_repo
+        PASS [   0.020s] (1031/1303) gauntlet-arch-tests walk::scope_tests::unscannable_files_are_violations_not_skips
+        PASS [   9.430s] (1032/1303) gauntlet-arch-tests denylist::repo::adapter_selection_is_config_driven
+        PASS [  10.830s] (1033/1303) gauntlet-arch-tests::adapter_registry selection_is_config_driven
+        PASS [   0.107s] (1034/1303) gauntlet-arch-tests::architecture_boundaries dependency_direction
+        PASS [  14.977s] (1035/1303) gauntlet-arch-tests denylist::repo::core_crates_contain_no_denied_identifiers
+        PASS [   0.209s] (1036/1303) gauntlet-arch-tests::env_example_complete env_example_matches_annex_e
+        PASS [  22.904s] (1037/1303) gauntlet-arch-tests literals::repo::core_crates_contain_no_hardcoded_literals
+        PASS [   0.030s] (1038/1303) gauntlet-arch-tests::no_hardcoded_literals defaults_exemption_is_warranted_or_inactive
+        PASS [   0.059s] (1039/1303) gauntlet-cli::export_stack the_real_adapter_export_stack_is_deterministic_and_canonical
+        PASS [   0.120s] (1040/1303) gauntlet-cli::g10_builder_writes_answer_key a_builder_context_write_at_the_key_is_refused_by_containment
+        PASS [   0.190s] (1041/1303) gauntlet-cli::g10_builder_writes_answer_key a_midrun_key_tamper_aborts_with_both_digests_pinned
+        PASS [   0.428s] (1042/1303) gauntlet-cli::g6_hide_failed_observations a_failed_probe_is_recorded_in_both_arrays_and_covered_by_the_digest
+        PASS [   0.035s] (1043/1303) gauntlet-cli::g6_hide_failed_observations a_probe_store_write_failure_surfaces_as_gap_entries
+        PASS [   0.030s] (1044/1303) gauntlet-cli::g6_hide_failed_observations an_all_healthy_bundle_attests_empty_gap_arrays_explicitly
+        PASS [   0.008s] (1045/1303) gauntlet-cli::g7_tier_downgrade a_dispatch_fact_below_the_recorded_facts_is_refused_as_a_downgrade
+        PASS [   0.052s] (1046/1303) gauntlet-cli::g7_tier_downgrade a_mid_run_tier_downgrade_attempt_never_dispatches_at_the_lowered_tier
+        PASS [   0.018s] (1047/1303) gauntlet-cli::g7_tier_downgrade an_agent_role_cannot_move_a_units_lattice_in_any_direction
+        PASS [   0.068s] (1048/1303) gauntlet-cli::p11_critic_is_not_verifier a_broken_verifier_refuses_and_nothing_settles
+        PASS [   0.074s] (1049/1303) gauntlet-cli::p11_critic_is_not_verifier a_fail_verdict_never_settles_and_names_the_real_cause
+        PASS [   0.048s] (1050/1303) gauntlet-cli::p11_critic_is_not_verifier a_pass_verdict_settles_the_same_composition
+        PASS [   0.080s] (1051/1303) gauntlet-cli::p11_critic_is_not_verifier an_inconclusive_verdict_never_settles_and_names_itself
+        PASS [   0.084s] (1052/1303) gauntlet-cli::p11_critic_is_not_verifier no_rung_can_decide_and_nothing_settles
+        PASS [   0.073s] (1053/1303) gauntlet-cli::p12_missing_is_not_passing a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass
+        PASS [   0.060s] (1054/1303) gauntlet-cli::p12_missing_is_not_passing a_request_lying_about_recency_producer_and_locator_cannot_make_stale_fresh
+        PASS [   0.089s] (1055/1303) gauntlet-cli::p12_missing_is_not_passing absent_store_evidence_is_inconclusive_at_every_layer_never_pass
+        PASS [   0.043s] (1056/1303) gauntlet-cli::p12_missing_is_not_passing an_absent_artifact_at_a_resolving_production_is_inconclusive_p12
+        PASS [   0.046s] (1057/1303) gauntlet-cli::p12_missing_is_not_passing every_model_rung_record_is_flagged_non_deterministic
+        PASS [   0.084s] (1058/1303) gauntlet-cli::p12_missing_is_not_passing evidence_at_another_locator_is_unresolvable_not_the_required_evidence
+        PASS [   0.073s] (1059/1303) gauntlet-cli::p12_missing_is_not_passing fresh_resolving_pinned_evidence_passes_and_approaches_settlement
+        PASS [   0.032s] (1060/1303) gauntlet-cli::p12_missing_is_not_passing instrument_produced_evidence_never_satisfies_a_human_producer
+        PASS [   0.070s] (1061/1303) gauntlet-cli::p12_missing_is_not_passing stale_evidence_from_a_prior_iteration_is_inconclusive_stale
+        PASS [   0.058s] (1062/1303) gauntlet-cli::p12_missing_is_not_passing the_deterministic_rung_decides_when_the_model_rung_could_too
+        PASS [   0.024s] (1063/1303) gauntlet-cli::p12_missing_is_not_passing the_four_real_adapters_report_absent_evidence_as_a_typed_error
+        PASS [   0.096s] (1064/1303) gauntlet-cli::p12_missing_is_not_passing the_three_binding_classes_are_reachable_and_distinct
+        PASS [   0.030s] (1065/1303) gauntlet-cli::p1_reference_integrity builder_mutation_of_the_active_reference_aborts_with_reference_mutated
+        PASS [   0.051s] (1066/1303) gauntlet-cli::p1_reference_integrity digest_rechecked
+        PASS [   0.040s] (1067/1303) gauntlet-cli::p1_reference_integrity frozen_copy_outside_workspace
+        PASS [   0.063s] (1068/1303) gauntlet-cli::p1_reference_integrity the_run_carries_the_frozen_version
+        PASS [   0.087s] (1069/1303) gauntlet-cli::p2_context_isolation a_bound_observation_whose_bytes_are_absent_is_refused_never_treated_as_empty
+        PASS [   0.076s] (1070/1303) gauntlet-cli::p2_context_isolation a_stale_envelope_digest_is_unrepresentable_from_outside_the_port
+        PASS [   0.085s] (1071/1303) gauntlet-cli::p2_context_isolation an_iteration_with_no_durable_observation_binding_has_no_authority
+        PASS [   0.114s] (1072/1303) gauntlet-cli::p2_context_isolation an_observation_bundle_that_misdeclares_its_own_digest_is_refused
+        PASS [  17.256s] (1073/1303) gauntlet-arch-tests::architecture_boundaries denylist
+        PASS [   0.154s] (1074/1303) gauntlet-cli::p2_context_isolation an_unrecorded_substitute_observation_cannot_enter_comparison
+        PASS [   0.057s] (1075/1303) gauntlet-cli::p2_context_isolation comparison_authority_requires_a_durable_run
+        PASS [   0.153s] (1076/1303) gauntlet-cli::p2_context_isolation bytes_that_are_not_the_bound_observation_cannot_be_served_into_a_comparison
+        PASS [   0.105s] (1077/1303) gauntlet-cli::p2_context_isolation frozen_evidence_that_disagrees_with_the_durable_digest_yields_no_projection
+        PASS [   0.126s] (1078/1303) gauntlet-cli::p2_context_isolation durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_crosswire
+        PASS [   0.120s] (1079/1303) gauntlet-cli::p2_context_isolation mandatory_acceptance_failure_is_non_success_and_never_writes_a_comparison
+        PASS [   0.123s] (1080/1303) gauntlet-cli::p2_context_isolation teeth
+        PASS [   0.097s] (1081/1303) gauntlet-cli::p2_context_isolation the_issued_envelope_carries_the_durable_runs_own_frozen_digest
+        PASS [   0.139s] (1082/1303) gauntlet-cli::p2_context_isolation the_envelope_is_structurally_blind_and_carries_instrument_reality
+        PASS [   0.032s] (1083/1303) gauntlet-cli::p3_real_observation a_claims_swap_moves_the_digest_but_not_the_facet_inputs
+        PASS [   0.041s] (1084/1303) gauntlet-cli::p3_real_observation the_lying_builders_claim_diverges_from_reality_inside_the_bundle
+        PASS [   0.080s] (1085/1303) gauntlet-cli::p4_corrective_loop a_mid_run_answer_key_edit_cancels_the_in_flight_attempt_and_aborts
+        PASS [   0.107s] (1086/1303) gauntlet-cli::p4_corrective_loop an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction
+        PASS [   0.041s] (1087/1303) gauntlet-cli::p4_corrective_loop correction_selection_durably_carries_rejected_alternatives_with_reasons
+        PASS [   0.139s] (1088/1303) gauntlet-cli::p5_hard_gate a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_averaged
+        PASS [   0.194s] (1089/1303) gauntlet-cli::p5_hard_gate a_sandbox_validation_failure_escalates_without_falling_back
+        PASS [   1.080s] (1090/1303) gauntlet-cli::p4_corrective_loop a_recurring_residual_through_the_real_diff_comparator_enters_bounded_diagnosis
+        PASS [   0.053s] (1091/1303) gauntlet-cli::p5_hard_gate irreversible_never_dispatched
+        PASS [   0.166s] (1092/1303) gauntlet-cli::p6_budget_control a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact
+        PASS [   0.772s] (1093/1303) gauntlet-cli::p5_hard_gate containment_wraps_from_process_start_and_confines_the_session
+        PASS [   0.011s] (1094/1303) gauntlet-cli::p6_budget_control the_meter_refuses_the_reserve_consuming_slice_and_books_nothing
+        PASS [   0.794s] (1095/1303) gauntlet-cli::p7_recovery a_crash_after_the_durable_row_never_reruns_settled_work
+        PASS [   0.801s] (1096/1303) gauntlet-cli::p7_recovery a_crash_before_the_settlement_event_retries_as_if_never_verified
+        PASS [   0.149s] (1097/1303) gauntlet-cli::p7_recovery a_settled_run_reresumes_over_anchored_settlements_without_rescanning
+        PASS [   0.238s] (1098/1303) gauntlet-cli::p7_recovery a_crash_between_event_and_row_completes_exactly_once_through_resume
+        PASS [   0.034s] (1099/1303) gauntlet-cli::p8_adapter_substitution the_full_conformance_suite_passes_against_every_selected_adapter_unchanged
+        PASS [   0.018s] (1100/1303) gauntlet-cli::bin/gauntlet-cli spec_vocab::tests::the_vocabularies_are_complete
+        PASS [   0.130s] (1101/1303) gauntlet-cli::p7_recovery commit_order
+        PASS [   0.046s] (1102/1303) gauntlet-domain budget::tests::a_zero_spent_restores_to_a_fresh_budget
+        PASS [   0.055s] (1103/1303) gauntlet-domain budget::tests::a_charge_that_consumes_the_reserve_is_refused
+        PASS [   0.006s] (1104/1303) gauntlet-domain budget::tests::charges_book_every_dimension
+        PASS [   0.018s] (1105/1303) gauntlet-domain budget::tests::diagnostic_spend_never_touches_forward_work_or_the_reserve
+        PASS [   0.017s] (1106/1303) gauntlet-domain budget::tests::dispatch_scope_checks_parallelism_and_depth_instantaneously
+        PASS [   0.006s] (1107/1303) gauntlet-domain budget::tests::exhaustion_past_the_raw_limit_is_its_own_error
+        PASS [   0.012s] (1108/1303) gauntlet-domain budget::tests::restore_agrees_with_replaying_the_charges
+        PASS [   0.017s] (1109/1303) gauntlet-domain budget::tests::restore_refuses_spend_no_charge_sequence_can_produce
+        PASS [   0.016s] (1110/1303) gauntlet-domain budget::tests::restore_reuses_the_new_reserve_range_rule
+        PASS [   0.017s] (1111/1303) gauntlet-domain budget::tests::the_recovery_reserve_boundary_is_exact
+        PASS [   0.019s] (1112/1303) gauntlet-domain budget::tests::the_reserve_must_be_a_real_portion
+        PASS [   0.019s] (1113/1303) gauntlet-domain budget::tests::zero_ceilings_are_not_limits
+        PASS [   0.023s] (1114/1303) gauntlet-domain capability::tests::a_revision_enters_the_world_pending
+        PASS [   0.016s] (1115/1303) gauntlet-domain capability::tests::promotion_requires_evaluation_runs_and_all_three_results
+        PASS [   0.035s] (1116/1303) gauntlet-domain capability::tests::one_successful_run_does_not_promote_a_capability
+        PASS [   0.018s] (1117/1303) gauntlet-domain capability::tests::provisional_rests_on_evidence_and_rejection_on_a_rollback
+        PASS [   0.022s] (1118/1303) gauntlet-domain capability::tests::the_structural_floor_survives_lenient_arguments
+        PASS [   0.034s] (1119/1303) gauntlet-domain capability::tests::replaying_one_run_three_times_is_not_three_settlements
+        PASS [   0.020s] (1120/1303) gauntlet-domain comparison::tests::a_comparison_record_carries_all_three_digests
+        PASS [   0.031s] (1121/1303) gauntlet-domain comparison::tests::a_blocking_residual_forces_a_fail_verdict_at_construction
+        PASS [   0.018s] (1122/1303) gauntlet-domain correction::tests::a_selection_without_rejected_alternatives_is_unrepresentable
+        PASS [   0.017s] (1123/1303) gauntlet-domain correction::tests::a_trace_must_name_every_dimension_or_the_selection_does_not_exist
+        PASS [   0.012s] (1124/1303) gauntlet-domain correction::tests::descriptors_require_a_summary_and_a_unit
+        PASS [   0.017s] (1125/1303) gauntlet-domain correction::tests::every_class_pairs_with_exactly_its_reason
+        PASS [   0.015s] (1126/1303) gauntlet-domain correction::tests::the_dimension_vocabulary_is_the_spec_ten
+        PASS [   0.019s] (1127/1303) gauntlet-domain correction::tests::the_governance_classes_are_the_spec_four_plus_not_selected
+        PASS [   0.015s] (1128/1303) gauntlet-domain iteration::tests::invocations_belong_to_their_own_run_and_iteration
+        PASS [   0.017s] (1129/1303) gauntlet-domain iteration::tests::payment_accumulates_and_checkpoints_are_recorded
+        PASS [   0.016s] (1130/1303) gauntlet-domain iteration::tests::residual_ledgers_cannot_disagree
+        PASS [   0.015s] (1131/1303) gauntlet-domain observation::tests::a_bundle_carries_its_gaps_explicitly
+        PASS [   0.018s] (1132/1303) gauntlet-domain observation::tests::an_empty_gap_list_is_a_positive_statement
+        PASS [   0.017s] (1133/1303) gauntlet-domain reference::tests::a_blocking_dimension_must_be_individually_checkable
+        PASS [   0.027s] (1134/1303) gauntlet-domain reference::tests::a_reference_requires_its_narrative_fields
+        PASS [   0.019s] (1135/1303) gauntlet-domain reference::tests::a_weighted_score_never_absorbs_a_hard_requirement
+        PASS [   0.018s] (1136/1303) gauntlet-domain reference::tests::dimension_ids_are_unique
+        PASS [   0.015s] (1137/1303) gauntlet-domain reference::tests::every_hard_gate_unit_must_exist_in_the_answer_key
+        PASS [   0.013s] (1138/1303) gauntlet-domain reference::tests::freezing_carries_the_version_identity
+        PASS [   0.018s] (1139/1303) gauntlet-domain reference::tests::unit_ids_are_unique_within_a_reference
+        PASS [   0.031s] (1140/1303) gauntlet-domain reference::tests::minimum_reliability_below_one_pass_is_refused
+        PASS [   0.022s] (1141/1303) gauntlet-domain reference::tests::unknowns_are_named_and_never_settled_as_units
+        PASS [   0.021s] (1142/1303) gauntlet-domain role_invocation::tests::above_contained_tier_a_sandbox_policy_is_required
+        PASS [   0.019s] (1143/1303) gauntlet-domain role_invocation::tests::admission_records_the_dispatch_facts
+        PASS [   0.022s] (1144/1303) gauntlet-domain role_invocation::tests::payments_add_up
+        PASS [   0.014s] (1145/1303) gauntlet-domain role_invocation::tests::the_state_machine_has_no_shortcuts_or_resurrections
+        PASS [   0.024s] (1146/1303) gauntlet-domain run::tests::a_candidate_evaluation_run_names_its_parent
+        PASS [   0.033s] (1147/1303) gauntlet-domain run::tests::a_run_requires_the_operators_intent
+        PASS [   0.014s] (1148/1303) gauntlet-domain run::tests::definition_fingerprints_are_carried
+        PASS [   0.041s] (1149/1303) gauntlet-domain run::tests::a_terminal_state_is_recorded_exactly_once
+        PASS [   0.032s] (1150/1303) gauntlet-domain run::tests::iterations_from_other_runs_are_refused
+        PASS [   0.021s] (1151/1303) gauntlet-domain run::tests::no_public_surface_can_supply_a_reference_version_after_construction
+        PASS [   0.017s] (1152/1303) gauntlet-domain run::tests::the_frozen_reference_version_is_adopted_once_and_never_moved
+        PASS [   0.019s] (1153/1303) gauntlet-domain settlement::tests::a_settlement_record_names_the_event_that_made_it_durable
+        PASS [   0.014s] (1154/1303) gauntlet-domain unit::tests::a_draft_cannot_rehydrate_a_settled_unit
+        PASS [   0.023s] (1155/1303) gauntlet-domain unit::tests::a_pass_record_from_a_foreign_run_does_not_settle
+        PASS [   0.023s] (1156/1303) gauntlet-domain unit::tests::an_operator_may_raise_but_nobody_may_lower
+        PASS [   0.019s] (1157/1303) gauntlet-domain unit::tests::attempts_and_residuals_are_recorded_on_the_unit
+        PASS [   0.016s] (1158/1303) gauntlet-domain unit::tests::drafts_report_which_required_field_is_missing
+        PASS [   0.008s] (1159/1303) gauntlet-domain unit::tests::every_rank_lowering_move_is_refused_for_every_actor
+        PASS [   0.013s] (1160/1303) gauntlet-domain unit::tests::evidence_producer_must_be_instrument_unless_human_signoff
+        PASS [   0.027s] (1161/1303) gauntlet-domain unit::tests::exhaustive_tier_authority_coupling_holds_on_every_construction_path
+        PASS [   0.010s] (1162/1303) gauntlet-domain unit::tests::irreversible_work_requires_human_authority_on_every_path
+        PASS [   0.025s] (1163/1303) gauntlet-domain unit::tests::hard_gates_are_the_irreversible_tier
+        PASS [   0.011s] (1164/1303) gauntlet-domain unit::tests::settling_requires_evidence_and_a_pass_verification_record
+        PASS [   0.016s] (1165/1303) gauntlet-domain unit::tests::non_settling_status_transitions_follow_the_table
+        PASS [   0.017s] (1166/1303) gauntlet-domain unit::tests::tier_lowering_errors_carry_the_axis_and_both_ends
+        PASS [   0.019s] (1167/1303) gauntlet-domain values::tests::digest_carries_its_algorithm
+        PASS [   0.015s] (1168/1303) gauntlet-domain values::tests::digest_rejects_bare_hex_and_malformed_shapes
+        PASS [   0.015s] (1169/1303) gauntlet-domain values::tests::invocation_id_shares_the_ulid_grammar_but_not_the_type
+        PASS [   0.011s] (1170/1303) gauntlet-domain values::tests::iteration_no_is_one_based
+        PASS [   0.040s] (1171/1303) gauntlet-domain values::tests::every_fixed_value_set_enum_rejects_unknown_values
+        PASS [   0.024s] (1172/1303) gauntlet-domain values::tests::outcome_is_three_state_without_boolean_collapse
+        PASS [   0.046s] (1173/1303) gauntlet-domain values::tests::outcome_has_no_boolean_conversion_surface_in_this_crate
+        PASS [   0.013s] (1174/1303) gauntlet-domain values::tests::plain_refs_reject_empty_whitespace_and_rooted_values
+        PASS [   0.032s] (1175/1303) gauntlet-domain values::tests::outcome_wire_tokens_are_exact_and_case_sensitive
+        PASS [   0.022s] (1176/1303) gauntlet-domain values::tests::role_id_custom_names_follow_the_grammar
+        PASS [   0.006s] (1177/1303) gauntlet-domain values::tests::role_id_parses_the_six_named_roles
+        PASS [   0.046s] (1178/1303) gauntlet-domain values::tests::role_id_custom_construction_is_only_via_the_validating_paths
+        PASS [   0.012s] (1179/1303) gauntlet-domain values::tests::role_id_rejects_bad_and_reserved_custom_names
+        PASS [   0.016s] (1180/1303) gauntlet-domain values::tests::run_id_round_trips_a_valid_ulid
+        PASS [   0.014s] (1181/1303) gauntlet-domain values::tests::unit_id_rejects_off_pattern_ids
+        PASS [   0.035s] (1182/1303) gauntlet-domain values::tests::run_id_rejects_malformed_ulids
+        PASS [   0.018s] (1183/1303) gauntlet-domain values::tests::unit_id_round_trips_the_spec_pattern
+        PASS [   0.016s] (1184/1303) gauntlet-domain verification::tests::a_record_binds_one_claim_to_one_evidence_and_one_outcome
+        PASS [   0.019s] (1185/1303) gauntlet-domain verification::tests::the_three_outcomes_are_all_representable_and_distinct
+        PASS [   0.020s] (1186/1303) gauntlet-domain wire::tests::wire_case_matches_the_spec_token_shapes
+        PASS [   0.039s] (1187/1303) gauntlet-domain::settle_public_api settle_refuses_a_foreign_run_pass_record_and_accepts_a_same_run_one
+        PASS [   0.060s] (1188/1303) gauntlet-ports budget_meter::tests::remaining_is_forward_ceiling_minus_spent
+        PASS [   0.055s] (1189/1303) gauntlet-ports comparator::canonical_tests::canonical_envelope_ignores_semantically_unordered_input_order
+        PASS [   0.081s] (1190/1303) gauntlet-ports comparator::canonical_tests::an_envelope_whose_digest_does_not_label_its_bytes_is_refused
+        PASS [   0.026s] (1191/1303) gauntlet-ports comparison_record::tests::missing_members_are_named
+        PASS [   0.031s] (1192/1303) gauntlet-ports comparison_record::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.010s] (1193/1303) gauntlet-ports comparison_record::tests::the_payload_form_round_trips_without_the_schema_member
+        PASS [   0.015s] (1194/1303) gauntlet-ports comparison_record::tests::unknown_fields_are_rejected_at_every_level
+        PASS [   0.021s] (1195/1303) gauntlet-ports comparison_record::tests::wrong_schema_tokens_and_invalid_values_are_refused_whole
+        PASS [   0.015s] (1196/1303) gauntlet-ports contract::sandbox::tests::shell_words_reads_quoting_the_way_a_shell_does
+        PASS [   0.038s] (1197/1303) gauntlet-ports contract::suite_runs::agent_runner_broken_is_caught
+        PASS [   0.038s] (1198/1303) gauntlet-ports contract::suite_runs::agent_runner_caps_broken_is_caught
+        PASS [   0.013s] (1199/1303) gauntlet-ports contract::suite_runs::budget_meter_broken_is_caught
+        PASS [   0.017s] (1200/1303) gauntlet-ports contract::suite_runs::agent_runner_green_is_clean
+        PASS [   0.013s] (1201/1303) gauntlet-ports contract::suite_runs::budget_meter_green_is_clean
+        PASS [   0.018s] (1202/1303) gauntlet-ports contract::suite_runs::clock_broken_is_caught
+        PASS [   0.008s] (1203/1303) gauntlet-ports contract::suite_runs::clock_green_is_clean
+        PASS [   0.027s] (1204/1303) gauntlet-ports contract::suite_runs::comparator_facet_blind_is_caught
+        PASS [   0.030s] (1205/1303) gauntlet-ports contract::suite_runs::comparator_broken_is_caught
+        PASS [   0.014s] (1206/1303) gauntlet-ports contract::suite_runs::comparator_green_is_clean
+        PASS [   0.020s] (1207/1303) gauntlet-ports contract::suite_runs::event_log_broken_is_caught
+        PASS [   0.017s] (1208/1303) gauntlet-ports contract::suite_runs::event_log_green_is_clean
+        PASS [   0.015s] (1209/1303) gauntlet-ports contract::suite_runs::evidence_store_broken_is_caught
+        PASS [   0.020s] (1210/1303) gauntlet-ports contract::suite_runs::human_escalation_broken_is_caught
+        PASS [   0.032s] (1211/1303) gauntlet-ports contract::suite_runs::evidence_store_green_is_clean
+        PASS [   0.042s] (1212/1303) gauntlet-ports contract::suite_runs::human_escalation_green_is_clean
+        PASS [   0.046s] (1213/1303) gauntlet-ports contract::suite_runs::id_generator_broken_is_caught
+        PASS [   0.017s] (1214/1303) gauntlet-ports contract::suite_runs::id_generator_green_is_clean
+        PASS [   0.022s] (1215/1303) gauntlet-ports contract::suite_runs::observer_broken_is_caught
+        PASS [   0.026s] (1216/1303) gauntlet-ports contract::suite_runs::observer_green_is_clean
+        PASS [   0.019s] (1217/1303) gauntlet-ports contract::suite_runs::operator_surface_broken_is_caught
+        PASS [   0.020s] (1218/1303) gauntlet-ports contract::suite_runs::policy_provider_broken_is_caught
+        PASS [   0.031s] (1219/1303) gauntlet-ports contract::suite_runs::operator_surface_green_is_clean
+        PASS [   0.015s] (1220/1303) gauntlet-ports contract::suite_runs::policy_provider_green_is_clean
+        PASS [   0.021s] (1221/1303) gauntlet-ports contract::suite_runs::reference_provider_broken_is_caught
+        PASS [   0.020s] (1222/1303) gauntlet-ports contract::suite_runs::reference_provider_green_is_clean
+        PASS [   0.031s] (1223/1303) gauntlet-ports contract::suite_runs::sandbox_fallback_broken_is_caught
+        PASS [   0.059s] (1224/1303) gauntlet-ports contract::suite_runs::sandbox_broken_is_caught
+        PASS [   0.027s] (1225/1303) gauntlet-ports contract::suite_runs::sandbox_green_is_clean
+        PASS [   0.024s] (1226/1303) gauntlet-ports contract::suite_runs::sandbox_process_space_broken_is_caught
+        PASS [   0.028s] (1227/1303) gauntlet-ports contract::suite_runs::sandbox_process_start_broken_is_caught
+        PASS [   0.321s] (1228/1303) gauntlet-ports contract::suite_runs::sandbox_mask_order_broken_is_caught
+        PASS [   0.343s] (1229/1303) gauntlet-ports contract::suite_runs::sandbox_relocatable_denial_broken_is_caught
+        PASS [   0.031s] (1230/1303) gauntlet-ports contract::suite_runs::state_store_broken_is_caught
+        PASS [   0.015s] (1231/1303) gauntlet-ports contract::suite_runs::state_store_green_is_clean
+        PASS [   0.018s] (1232/1303) gauntlet-ports contract::suite_runs::state_store_settlement_lax_is_caught
+        PASS [   0.024s] (1233/1303) gauntlet-ports contract::suite_runs::the_comparator_suite_dispatches_only_contexts_it_earned
+        PASS [   0.015s] (1234/1303) gauntlet-ports contract::suite_runs::tool_provider_broken_is_caught
+        PASS [   0.017s] (1235/1303) gauntlet-ports contract::suite_runs::tool_provider_green_is_clean
+        PASS [   0.024s] (1236/1303) gauntlet-ports contract::suite_runs::verifier_broken_is_caught
+        PASS [   0.007s] (1237/1303) gauntlet-ports contract::suite_runs::verifier_green_is_clean
+        PASS [   0.016s] (1238/1303) gauntlet-ports contract::suite_runs::workspace_provider_broken_is_caught
+        PASS [   0.014s] (1239/1303) gauntlet-ports contract::suite_runs::workspace_provider_green_is_clean
+        PASS [   0.013s] (1240/1303) gauntlet-ports deadline::tests::a_deadline_is_a_point_and_expiry_is_exact
+        PASS [   0.282s] (1241/1303) gauntlet-ports contract::suite_runs::sandbox_shell_words_broken_is_caught
+        PASS [   0.018s] (1242/1303) gauntlet-ports json::tests::duplicate_keys_are_rejected
+        PASS [   0.022s] (1243/1303) gauntlet-ports json::tests::malformed_documents_are_typed_errors
+        PASS [   0.007s] (1244/1303) gauntlet-ports json::tests::scalars_and_shapes_parse_and_round_trip
+        PASS [   0.018s] (1245/1303) gauntlet-ports json::tests::nesting_past_the_bound_is_a_typed_error_not_a_crash
+        PASS [   0.018s] (1246/1303) gauntlet-ports json::tests::surrogate_pairs_decode_and_lone_surrogates_are_rejected
+        PASS [   0.015s] (1247/1303) gauntlet-ports observer_evidence::tests::a_wrong_schema_token_is_refused_whole
+        PASS [   0.018s] (1248/1303) gauntlet-ports observer_evidence::tests::an_empty_identity_field_is_rejected_on_decode_and_construction
+        PASS [   0.013s] (1249/1303) gauntlet-ports observer_evidence::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.036s] (1250/1303) gauntlet-ports observer_evidence::tests::command_line_quoting_is_pinned
+        PASS [   0.018s] (1251/1303) gauntlet-ports observer_evidence::tests::missing_fields_are_rejected
+        PASS [   0.014s] (1252/1303) gauntlet-ports observer_evidence::tests::wrong_shapes_are_typed_errors
+        PASS [   0.024s] (1253/1303) gauntlet-ports observer_evidence::tests::unknown_fields_are_rejected
+        PASS [   0.019s] (1254/1303) gauntlet-ports producer_authority::tests::a_foreign_run_pass_record_never_admits_even_under_a_run_blind_store
+        PASS [   0.024s] (1255/1303) gauntlet-ports producer_authority::tests::a_fresh_verification_key_cannot_re_settle_a_settled_unit
+        PASS [   0.013s] (1256/1303) gauntlet-ports producer_authority::tests::a_hand_built_pass_document_cannot_become_the_admission_substrate
+        PASS [   0.027s] (1257/1303) gauntlet-ports producer_authority::tests::a_key_hit_diverging_on_evidence_is_a_typed_refusal
+        PASS [   0.021s] (1258/1303) gauntlet-ports producer_authority::tests::a_settled_unit_re_attempted_under_a_fresh_honest_pass_refuses
+        PASS [   0.007s] (1259/1303) gauntlet-ports producer_authority::tests::a_settlement_admission_requires_a_durable_pass_record_for_the_unit
+        PASS [   0.018s] (1260/1303) gauntlet-ports producer_authority::tests::a_settlement_admission_requires_a_durable_run
+        PASS [   0.019s] (1261/1303) gauntlet-ports producer_authority::tests::an_absent_ref_refuses_because_there_are_no_bytes_to_digest
+        PASS [   0.033s] (1262/1303) gauntlet-ports producer_authority::tests::a_stale_or_ahead_declared_iteration_is_refused
+        PASS [   0.019s] (1263/1303) gauntlet-ports producer_authority::tests::an_already_committed_settlement_refuses_re_admission
+        PASS [   0.018s] (1264/1303) gauntlet-ports producer_authority::tests::an_earned_admission_commits_through_the_store_and_reads_back
+        PASS [   0.014s] (1265/1303) gauntlet-ports producer_authority::tests::an_earned_verification_record_reads_back
+        PASS [   0.020s] (1266/1303) gauntlet-ports producer_authority::tests::an_undurable_run_refuses_every_owner_write
+        PASS [   0.022s] (1267/1303) gauntlet-ports producer_authority::tests::an_unsupported_iteration_refuses_the_verification_record_write
+        PASS [   0.038s] (1268/1303) gauntlet-ports producer_authority::tests::bundle_bytes_that_are_not_json_refuse_the_bind
+        PASS [   0.048s] (1269/1303) gauntlet-ports producer_authority::tests::bytes_swapped_after_the_fact_are_refused_by_the_derived_digest
+        PASS [   0.027s] (1270/1303) gauntlet-ports producer_authority::tests::one_pass_record_cannot_settle_n_distinct_verification_refs
+        PASS [   0.010s] (1271/1303) gauntlet-ports producer_authority::tests::the_binding_digest_is_the_canonical_124_derivation_of_the_bytes
+        PASS [   0.017s] (1272/1303) gauntlet-ports producer_authority::tests::the_content_digest_is_derived_from_the_served_bytes
+        PASS [   0.015s] (1273/1303) gauntlet-ports producer_authority::tests::the_minted_settlement_admission_has_no_public_constructor
+        PASS [   0.011s] (1274/1303) gauntlet-ports producer_authority::tests::the_minted_types_have_no_public_constructor
+        PASS [   0.027s] (1275/1303) gauntlet-ports producer_authority::tests::the_minted_verification_record_has_no_public_constructor
+        PASS [   0.023s] (1276/1303) gauntlet-ports role_result::tests::a_conforming_document_decodes_field_for_field
+        PASS [   0.014s] (1277/1303) gauntlet-ports role_result::tests::a_critic_comparison_payload_decodes_into_the_comparison_variant
+        PASS [   0.020s] (1278/1303) gauntlet-ports role_result::tests::a_wrong_schema_token_is_refused_whole
+        PASS [   0.020s] (1279/1303) gauntlet-ports role_result::tests::an_unknown_payload_schema_is_never_partially_admitted
+        PASS [   0.019s] (1280/1303) gauntlet-ports role_result::tests::dispatch_identity_mismatches_are_detectable_and_classified
+        PASS [   0.018s] (1281/1303) gauntlet-ports role_result::tests::invalid_values_are_typed_errors_not_coerced_defaults
+        PASS [   0.026s] (1282/1303) gauntlet-ports role_result::tests::malformed_documents_never_partially_parse
+        PASS [   0.021s] (1283/1303) gauntlet-ports role_result::tests::unknown_artifact_claim_fields_are_mechanically_rejected
+        PASS [   0.011s] (1284/1303) gauntlet-ports role_result::tests::unknown_envelope_fields_are_mechanically_rejected
+        PASS [   0.030s] (1285/1303) gauntlet-ports role_result::tests::unknown_payload_fields_are_mechanically_rejected
+        PASS [   0.014s] (1286/1303) gauntlet-ports role_result::tests::unknown_payment_fields_are_mechanically_rejected
+        PASS [   0.022s] (1287/1303) gauntlet-ports role_result::tests::unknown_self_check_fields_are_mechanically_rejected
+        PASS [   0.028s] (1288/1303) gauntlet-ports role_result::tests::unknown_unavailable_evidence_fields_are_mechanically_rejected
+        PASS [   0.007s] (1289/1303) gauntlet-ports state_store::tests::settlement_surface_read_defaults_fail_closed
+        PASS [   0.015s] (1290/1303) gauntlet-ports tokens::tests::snake_token_matches_the_spec_token_shapes
+        PASS [   0.030s] (1291/1303) gauntlet-ports tokens::tests::tokens_round_trip_and_unknown_tokens_are_typed_errors
+        PASS [   0.021s] (1292/1303) gauntlet-ports verification_record::tests::a_class_on_a_settled_outcome_is_unrepresentable
+        PASS [   0.012s] (1293/1303) gauntlet-ports verification_record::tests::encode_decode_round_trip_is_lossless
+        PASS [   0.019s] (1294/1303) gauntlet-ports verification_record::tests::every_fourteen_three_class_round_trips_and_none_collapses
+        PASS [   0.024s] (1295/1303) gauntlet-ports verification_record::tests::missing_members_are_named
+        PASS [   0.007s] (1296/1303) gauntlet-ports verification_record::tests::the_verification_ref_member_is_required_and_valid
+        PASS [   0.023s] (1297/1303) gauntlet-ports verification_record::tests::the_payload_form_round_trips_without_the_schema_member
+        PASS [   0.019s] (1298/1303) gauntlet-ports verification_record::tests::unknown_fields_are_rejected_at_every_level
+        PASS [   0.031s] (1299/1303) gauntlet-ports verification_record::tests::wrong_schema_tokens_and_invalid_values_are_refused_whole
+        PASS [  19.381s] (1300/1303) gauntlet-arch-tests::no_hardcoded_literals core_crates_contain_no_hardcoded_literals
+        PASS [  40.019s] (1301/1303) gauntlet-arch-tests::architecture_boundaries answer_key_single_writer
+        PASS [  46.213s] (1302/1303) gauntlet-arch-tests escapes::repo::core_crates_have_no_scope_escapes_or_unscannable_files
+        PASS [  39.333s] (1303/1303) gauntlet-arch-tests::architecture_boundaries scope_integrity
+────────────
+     Summary [  59.820s] 1303 tests run: 1303 passed, 0 skipped
+EXITT=0
+=== lint ===
+EXITL=101
+=== ruler ===
+./scripts/verify-ruler.sh
+verify-ruler.sh: PASS — answer key and manifest digests match the frozen lock (/home/sprime01/projects/gauntlet/.gauntlet/reference.lock)
+EXITR=0
+B4_DONE=0

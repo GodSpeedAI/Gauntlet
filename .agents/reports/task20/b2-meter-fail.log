@@ -1,0 +1,29 @@
+    Starting 1 test across 6 binaries (459 tests skipped)
+        FAIL [   0.006s] (1/1) gauntlet-app control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues
+  stdout ───
+
+    running 1 test
+    test control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues ... FAILED
+
+    failures:
+
+    failures:
+        control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 400 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues' (159838) panicked at crates/gauntlet-app/src/control/controller.rs:6444:9:
+    the critic leg consulted the meter before dispatching (refusals: 0)
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.008s] 1 test run: 0 passed, 1 failed, 459 skipped
+        FAIL [   0.006s] (1/1) gauntlet-app control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues
+error: test run failed
+T_EXIT=0
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

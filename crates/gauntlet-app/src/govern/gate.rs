@@ -60,6 +60,15 @@ use super::posture::{self, ChangeOrigin, LatticeMovement};
 /// §8.6 conservative default REQUIRES both a sandbox and a policy provider,
 /// and the conservative token FORBIDS both — an optional gate would be an
 /// unsandboxed fallback wearing a type-system costume (task-14 prereg R1).
+///
+/// Task 20 (R-1b): a posture carries NO workspace anchor anymore. It used
+/// to hold ONE `WorkspaceRef` for its whole lifetime, which resolved every
+/// unit admitted through it to the SAME workspace-scoped directory — minor
+/// against task14's ruler, MAJOR under §17.5.1 invariant 1. The workspace
+/// is a PER-DISPATCH fact now: [`GateFacts::workspace`] names the fresh,
+/// per-unit workspace the dispatch will actually run in, created by the
+/// `WorkspaceProvider` the controller was composed with, and the gate
+/// validates against THAT.
 #[derive(Clone)]
 pub struct GovernDeps {
     /// The resolved `sandbox.backend` token. The §8.6 default token names
@@ -73,8 +82,6 @@ pub struct GovernDeps {
     /// Carried as a fact, not config: raising it is an operator composition
     /// decision this task does not expose.
     exercisable_authority: Authority,
-    /// The workspace the policy resolution anchors to.
-    workspace: WorkspaceRef,
 }
 
 /// Why a [`GovernDeps`] could not be built — composition-time failures,
@@ -122,22 +129,13 @@ impl GovernDeps {
     /// policy provider, critic-exercisable. Contained-tier dispatches run
     /// ungated by containment (which is legal ONLY at this tier); every
     /// above-contained tier refuses dispatch.
-    pub fn none_backend(workspace: WorkspaceRef) -> Self {
+    pub fn none_backend() -> Self {
         Self {
             backend_token: crate::config::defaults::SANDBOX_BACKEND.to_owned(),
             sandbox: None,
             policies: None,
             exercisable_authority: Authority::Critic,
-            workspace,
         }
-    }
-
-    /// The same conservative posture without a workspace anchor: under
-    /// this posture no policy ever resolves (the workspace field exists
-    /// for the real-backend posture's policy resolution), so the anchor is
-    /// never read and need not be supplied.
-    pub fn none_workspace() -> Self {
-        Self::none_backend(WorkspaceRef::new("none-posture").expect("valid workspace ref"))
     }
 
     /// A real-backend posture: the token names the backend, and BOTH the
@@ -153,7 +151,6 @@ impl GovernDeps {
         sandbox: Option<Arc<dyn Sandbox>>,
         policies: Option<Arc<dyn PolicyProvider>>,
         exercisable_authority: Authority,
-        workspace: WorkspaceRef,
     ) -> Result<Self, GovernError> {
         if backend_token == crate::config::defaults::SANDBOX_BACKEND {
             return Err(GovernError::NoneBackendWithInstances);
@@ -178,7 +175,6 @@ impl GovernDeps {
             sandbox: Some(sandbox),
             policies: Some(policies),
             exercisable_authority,
-            workspace,
         })
     }
 
@@ -211,6 +207,13 @@ pub struct GateFacts {
     /// harness that is not itself wrapped by a sandbox reports `none`, and
     /// that honesty is exactly what this conjunct consumes).
     pub runner_isolation: Isolation,
+    /// The workspace THIS dispatch will actually run in (plan Task 20,
+    /// R-1b): a fresh per-unit allocation from the run's `WorkspaceProvider`
+    /// — never a lifetime-scoped anchor. Containment is a per-dispatch
+    /// fact: the tier's policy resolves against THIS workspace, so two
+    /// units of one run can never share a workspace-scoped directory
+    /// through one posture (§17.5.1 invariant 1).
+    pub workspace: WorkspaceRef,
 }
 
 /// A dispatch the gate admitted: the containment facts that authorize the
@@ -611,9 +614,11 @@ impl AuthorityGate {
             }
         };
         // Conjunct 6 — the tier's policy resolves and validates CLEAN
-        // (AK-047: a failure escalates, never falls back).
+        // (AK-047: a failure escalates, never falls back). The resolution
+        // anchors at THIS dispatch's workspace (the fact the caller named
+        // in `GateFacts::workspace`) — never a posture-lifetime anchor.
         let policy = policies
-            .policy_for(facts.tier, &deps.workspace, deadline)
+            .policy_for(facts.tier, &facts.workspace, deadline)
             .map_err(|cause| GateRefusal::PolicyUnresolved {
                 unit: facts.unit.clone(),
                 tier: facts.tier,
@@ -732,6 +737,7 @@ mod tests {
             tier,
             authority,
             runner_isolation: isolation,
+            workspace: workspace(),
         }
     }
 
@@ -806,15 +812,32 @@ mod tests {
 
     struct StaticPolicies {
         refuse_top_tier: bool,
+        /// The workspaces `policy_for` was asked to anchor at, in call
+        /// order — the gate's R-1b tooth: the anchor must be the FACTS'
+        /// per-dispatch workspace, never a posture-lifetime one.
+        asked_for_workspaces: std::sync::Mutex<Vec<WorkspaceRef>>,
+    }
+
+    impl StaticPolicies {
+        fn new(refuse_top_tier: bool) -> Self {
+            Self {
+                refuse_top_tier,
+                asked_for_workspaces: std::sync::Mutex::new(Vec::new()),
+            }
+        }
     }
 
     impl PolicyProvider for StaticPolicies {
         fn policy_for(
             &self,
             tier: BlastRadius,
-            _workspace: &WorkspaceRef,
+            workspace: &WorkspaceRef,
             _deadline: Deadline,
         ) -> Result<SandboxPolicy, PolicyProviderError> {
+            self.asked_for_workspaces
+                .lock()
+                .expect("the test policy provider's ledger locks")
+                .push(workspace.clone());
             if tier == BlastRadius::Irreversible && self.refuse_top_tier {
                 return Err(PolicyProviderError::NoPolicyForTier { tier });
             }
@@ -851,18 +874,15 @@ mod tests {
             Some(Arc::new(RecordingSandbox {
                 refuse_validation: false,
             })),
-            Some(Arc::new(StaticPolicies {
-                refuse_top_tier: true,
-            })),
+            Some(Arc::new(StaticPolicies::new(true))),
             exercisable,
-            workspace(),
         )
         .expect("a consistent backend posture composes")
     }
 
     #[test]
     fn the_conservative_posture_admits_contained_critic_and_refuses_every_above_contained_tier() {
-        let deps = GovernDeps::none_backend(workspace());
+        let deps = GovernDeps::none_backend();
         let gate = AuthorityGate::new();
         // Contained + critic + any runner isolation: admitted with NO
         // policy (the §5.3.5-legal shape).
@@ -1043,11 +1063,8 @@ mod tests {
             Some(Arc::new(RecordingSandbox {
                 refuse_validation: true,
             })),
-            Some(Arc::new(StaticPolicies {
-                refuse_top_tier: true,
-            })),
+            Some(Arc::new(StaticPolicies::new(true))),
             Authority::Critic,
-            workspace(),
         )
         .expect("composes");
         let request = facts(1, BlastRadius::Local, Authority::Critic, Isolation::Process);
@@ -1109,7 +1126,7 @@ mod tests {
     fn an_admission_the_posture_did_not_earn_is_a_typed_refusal() {
         let gate = AuthorityGate::new();
         let backend = backend_deps(Authority::Critic);
-        let unbacked = GovernDeps::none_backend(workspace());
+        let unbacked = GovernDeps::none_backend();
         // A validated admission, earned under the REAL backend...
         let validated = gate
             .admit(
@@ -1179,17 +1196,14 @@ mod tests {
         let sandbox: Arc<dyn Sandbox> = Arc::new(RecordingSandbox {
             refuse_validation: false,
         });
-        let policies: Arc<dyn PolicyProvider> = Arc::new(StaticPolicies {
-            refuse_top_tier: true,
-        });
+        let policies: Arc<dyn PolicyProvider> = Arc::new(StaticPolicies::new(true));
         // A backend token without the sandbox instance.
         assert!(matches!(
             GovernDeps::with_backend(
                 "some-backend",
                 None,
                 Some(policies.clone()),
-                Authority::Critic,
-                workspace()
+                Authority::Critic
             ),
             Err(GovernError::BackendWithoutSandbox { .. })
         ));
@@ -1199,8 +1213,7 @@ mod tests {
                 "some-backend",
                 Some(sandbox.clone()),
                 None,
-                Authority::Critic,
-                workspace()
+                Authority::Critic
             ),
             Err(GovernError::BackendWithoutPolicies { .. })
         ));
@@ -1210,15 +1223,66 @@ mod tests {
                 crate::config::defaults::SANDBOX_BACKEND,
                 Some(sandbox),
                 Some(policies),
-                Authority::Critic,
-                workspace()
+                Authority::Critic
             ),
             Err(GovernError::NoneBackendWithInstances)
         ));
         // An empty token is not a backend at all.
         assert!(matches!(
-            GovernDeps::with_backend("  ", None, None, Authority::Critic, workspace()),
+            GovernDeps::with_backend("  ", None, None, Authority::Critic),
             Err(GovernError::BackendWithoutSandbox { .. })
         ));
+    }
+
+    /// Plan Task 20 / R-1b (§17.5.1 invariant 1): the gate's policy
+    /// resolution anchors at the PER-DISPATCH workspace the facts name —
+    /// never a posture-lifetime anchor. Two admissions through ONE posture,
+    /// each naming its own workspace, must ask the policy provider for
+    /// those two DIFFERENT anchors, in order.
+    #[test]
+    fn the_gate_anchors_policy_resolution_at_the_dispatch_workspace() {
+        let policies = Arc::new(StaticPolicies::new(false));
+        let deps = GovernDeps::with_backend(
+            "test-rung",
+            Some(Arc::new(RecordingSandbox {
+                refuse_validation: false,
+            })),
+            Some(policies.clone()),
+            Authority::Critic,
+        )
+        .expect("a consistent backend posture composes");
+        let gate = AuthorityGate::new();
+        let first_workspace = WorkspaceRef::new("ws-dispatch-first").expect("valid workspace ref");
+        let second_workspace =
+            WorkspaceRef::new("ws-dispatch-second").expect("valid workspace ref");
+        let first = GateFacts {
+            unit: unit(1),
+            tier: BlastRadius::Local,
+            authority: Authority::Critic,
+            runner_isolation: Isolation::Process,
+            workspace: first_workspace.clone(),
+        };
+        let second = GateFacts {
+            unit: unit(2),
+            tier: BlastRadius::Local,
+            authority: Authority::Critic,
+            runner_isolation: Isolation::Process,
+            workspace: second_workspace.clone(),
+        };
+        for request in [&first, &second] {
+            gate.admit(
+                &deps,
+                request,
+                Some((BlastRadius::Local, Authority::Critic)),
+                far_deadline(),
+            )
+            .expect("local/critic/process under a real backend admits");
+        }
+        assert_eq!(
+            *policies.asked_for_workspaces.lock().expect("ledger locks"),
+            vec![first_workspace, second_workspace],
+            "the policy provider is anchored at the FACTS' per-dispatch workspace, once per \
+             dispatch, in order — a posture-lifetime anchor would repeat one workspace"
+        );
     }
 }

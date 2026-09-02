@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.04s
+────────────
+ Nextest run ID 4c70302c-01ab-40c4-9088-be0a4d99e723 with nextest profile: default
+    Starting 1 test across 6 binaries (57 tests skipped)
+        PASS [   0.063s] (1/1) gauntlet-adapter-agent-cli::falsifier_round1_live_attacks f_collect_serves_the_poll_snapshot_not_the_file
+────────────
+     Summary [   0.064s] 1 test run: 1 passed, 57 skipped
+exit=0

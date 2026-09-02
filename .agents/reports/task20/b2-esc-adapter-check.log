@@ -1,0 +1,53 @@
+cargo check -p gauntlet-adapter-escalation-fs --all-targets
+    Checking gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Finished `dev` profile [unoptimized] target(s) in 2m 15s
+cargo nextest run -p gauntlet-adapter-escalation-fs
+   Compiling gauntlet-adapter-escalation-fs v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-escalation-fs)
+    Finished `test` profile [unoptimized] target(s) in 0.86s
+────────────
+ Nextest run ID a6cbe5e0-3b4f-455a-be42-343263a4d235 with nextest profile: default
+    Starting 7 tests across 2 binaries
+        PASS [   0.005s] (1/7) gauntlet-adapter-escalation-fs::contract_suite the_list_is_total_ordered_oldest_first_and_complete
+        PASS [   0.006s] (2/7) gauntlet-adapter-escalation-fs::contract_suite a_completed_write_leaves_no_temp_file_behind
+        PASS [   0.006s] (3/7) gauntlet-adapter-escalation-fs::contract_suite a_hand_forged_record_is_a_typed_refusal_not_a_silent_member
+        PASS [   0.006s] (4/7) gauntlet-adapter-escalation-fs::contract_suite a_resolved_ticket_reports_resolved_stably_and_carries_the_operator
+        PASS [   0.007s] (5/7) gauntlet-adapter-escalation-fs::contract_suite a_lost_ticket_is_a_typed_refusal_on_the_read_surface
+        PASS [   0.008s] (6/7) gauntlet-adapter-escalation-fs::contract_suite a_second_resolve_on_a_ticket_is_a_typed_refusal_never_an_overwrite
+        PASS [   0.004s] (7/7) gauntlet-adapter-escalation-fs::contract_suite the_shared_human_escalation_suite_passes
+────────────
+     Summary [   0.015s] 7 tests run: 7 passed, 0 skipped
+ADAPTER_EXIT=0
+Stopping sccache server...
+Compile requests                      8
+Compile requests executed             2
+Cache hits                            0
+Cache misses                          2
+Cache misses (Rust)                   2
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          2
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   6
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.146 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            4
+-                                     2
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            2 GiB
+Max cache size                       10 GiB

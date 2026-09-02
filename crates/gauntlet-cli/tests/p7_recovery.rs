@@ -1139,6 +1139,7 @@ impl World {
                     .expect("the provider's real evidence store opens"),
             ),
         ));
+        let ladder_root = self.workspace_root.clone();
         #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
         let deps = ControllerDeps {
             state: state.clone(),
@@ -1159,14 +1160,17 @@ impl World {
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Adaptive,
                 model_dispatches: 0,
+                role_deny: gauntlet_app::roles::ContextDenySet::new(Vec::new()),
             },
-            ladder: gauntlet_app::verify::ladder::Ladder::new(vec![
-                gauntlet_app::verify::ladder::LadderRung::new(
-                    gauntlet_app::verify::ladder::RungKind::TestReport,
-                    Arc::new(FacetExitVerifier::new(&self.workspace_root)),
-                ),
-            ])
-            .expect("the single-rung focused-test ladder composes"),
+            ladder_for: Arc::new(move |_| {
+                Ok(gauntlet_app::verify::ladder::Ladder::new(vec![
+                    gauntlet_app::verify::ladder::LadderRung::new(
+                        gauntlet_app::verify::ladder::RungKind::TestReport,
+                        Arc::new(FacetExitVerifier::new(&ladder_root)),
+                    ),
+                ])
+                .expect("the single-rung focused-test ladder composes"))
+            }),
             reference: provider,
             answer_key: AnswerKeySource::Path(self.key_path.clone()),
             escalation: Arc::new(RecordingEscalation::default()),
@@ -1179,7 +1183,8 @@ impl World {
             // critic-tier dispatches run ungated by containment; the mock
             // runner's honest none isolation makes above-contained refusal
             // the correct posture here.
-            govern: gauntlet_app::govern::GovernDeps::none_workspace(),
+            govern: gauntlet_app::govern::GovernDeps::none_backend(),
+            workspaces: None,
             environment_fingerprint: Digest::new("sha256", &"cd".repeat(32)).expect("digest"),
             intent: "p7 recovery proof".to_owned(),
         };
@@ -1606,24 +1611,55 @@ fn a_crash_between_event_and_row_completes_exactly_once_through_resume() {
         &[(UNIT_A, 1), (UNIT_B, 1)],
         &[UNIT_A],
     );
-    // The resumed projection carries the durable settlement: the restart's
-    // OWN last written checkpoint (recorded by the probe as it forwarded
-    // the write — the honest observation of what the restart projected)
-    // carries the owed unit Settled alongside the pre-crash one.
+    // The resumed projection carries the durable settlement. COR-R5-1
+    // (falsifier round 5, F-R5-1) — MECHANICAL ADAPTATION, reason recorded:
+    // the resume's close is now the settled NO-OP (zero booked rounds), so
+    // the restart writes NO checkpoint of its own anymore; the
+    // pre-correction shape pinned the restart's own reconciliation boundary
+    // checkpoint here, which is exactly the booked-round behavior the
+    // round-5 reproduction burned into `budget_exhausted` on an all-settled
+    // run. The durable truth of the completion is the keyed row at the
+    // event's own offset, and the projection every later resume actually
+    // derives — the §5.3.3 event-ordered rebuild, the pre-crash
+    // checkpoint's word upgraded by the durable settlement rows above the
+    // anchor — carries the owed unit Settled alongside the pre-crash one.
+    // Assertion strength is preserved (both settlements must be durably
+    // re-derivable, never re-dispatched) and the no-op's zero-write shape
+    // is newly pinned.
     let restart_checkpoints = second_state.checkpoints.borrow().clone();
-    let last = restart_checkpoints
-        .last()
-        .expect("the resumed run wrote checkpoints");
-    assert_eq!(
-        unit_status_of(last, UNIT_B),
-        Some(UnitStatus::Settled),
-        "the resumed projection carries the durable settlement: {last:?}"
+    assert!(
+        restart_checkpoints.is_empty(),
+        "the settled no-op books no round: the restart writes no checkpoint: \
+         {restart_checkpoints:?}"
     );
-    assert_eq!(
-        unit_status_of(last, UNIT_A),
-        Some(UnitStatus::Settled),
-        "the pre-crash settlement stands in the resumed projection: {last:?}"
-    );
+    {
+        let store = EmbeddedStateStore::open(&world.db).expect("the crashed store reopens");
+        let checkpoint = store
+            .resume(&run_id, bound())
+            .expect("checkpoint readable")
+            .expect("the pre-crash checkpoint is durable");
+        let rows = store.settlements(&run_id, bound()).expect("rows read");
+        let mut projected: std::collections::BTreeMap<gauntlet_domain::UnitId, UnitStatus> =
+            checkpoint.unit_states.iter().cloned().collect();
+        for row in rows
+            .iter()
+            .filter(|row| row.event_log_offset().get() > checkpoint.event_log_offset.get())
+        {
+            projected.insert(row.unit_id().clone(), UnitStatus::Settled);
+        }
+        assert!(
+            projected
+                .iter()
+                .any(|(unit, status)| unit.as_str() == UNIT_B && status == &UnitStatus::Settled),
+            "the §5.3.3 event-ordered projection carries the durable settlement: {projected:?}"
+        );
+        assert!(
+            projected
+                .iter()
+                .any(|(unit, status)| unit.as_str() == UNIT_A && status == &UnitStatus::Settled),
+            "the pre-crash settlement stands in the event-ordered projection: {projected:?}"
+        );
+    }
     assert_eq!(
         second_state
             .settlements(&run_id, bound())

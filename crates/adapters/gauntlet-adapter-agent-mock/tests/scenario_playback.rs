@@ -22,6 +22,11 @@ use gauntlet_ports::role_result::{RolePayload, RoleResultState};
 const ULID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const DIGEST: &str = "sha256:a1b2c3d4e5f6a7b8";
 
+/// The dispatch workspace ref (below): since COR-D3 the effects anchor at
+/// `<root>/<spec.workspace>/` — the admitted per-unit workspace segment —
+/// so the playback assertions read the effects through it.
+const WS_REF: &str = "ws-playback";
+
 /// The eight REQUIRED scenario names, pinned: the fixture inventory is
 /// part of the locator AK-059 spells.
 const REQUIRED: &[&str] = &[
@@ -296,7 +301,8 @@ fn lying_builder_divergence_is_observable() {
         )
         .expect("collectible: the envelope itself is valid");
     // Side A — the artifact on disk fails the check (instrument view).
-    let artifact = std::fs::read_to_string(root.path.join("out/check-target.txt"))
+    // COR-D3: the effect resolves under the admitted per-unit workspace.
+    let artifact = std::fs::read_to_string(root.path.join(WS_REF).join("out/check-target.txt"))
         .expect("the scripted effect wrote the artifact");
     assert!(
         artifact.contains("FAIL") && !artifact.contains("PASS"),
@@ -325,8 +331,10 @@ fn answer_key_write_attempt_is_observable_and_the_real_ruler_stays_untouched() {
     let root = Scratch::new("answer-key");
     let runner = runner_for("answer-key-write-attempt", &root.path);
     // The stand-in ruler the scenario targets, pre-seeded inside the
-    // test-provided workspace root — the fixture names relative paths only.
-    let standin = root.path.join("ruler-standin/answer-key.md");
+    // test-provided workspace root's PER-UNIT SEGMENT (COR-D3: effects
+    // resolve under <root>/<spec.workspace>/) — the fixture names relative
+    // paths only.
+    let standin = root.path.join(WS_REF).join("ruler-standin/answer-key.md");
     std::fs::create_dir_all(standin.parent().expect("the stand-in has a parent"))
         .expect("stand-in directory is creatable");
     const SENTINEL: &str = "the frozen ruler's original bytes";

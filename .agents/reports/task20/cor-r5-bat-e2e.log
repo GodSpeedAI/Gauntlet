@@ -1,0 +1,23 @@
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+────────────
+ Nextest run ID efe79a5e-57ff-4f01-9d18-31573fb4d172 with nextest profile: default
+    Starting 16 tests across 2 binaries
+        PASS [   0.008s] ( 1/16) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.008s] ( 2/16) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.017s] ( 3/16) gauntlet-cli::e2e_full_loop_mock the_dry_run_preflight_writes_nothing
+        PASS [   0.041s] ( 4/16) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+        PASS [   0.043s] ( 5/16) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.099s] ( 6/16) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+        PASS [   0.091s] ( 7/16) gauntlet-cli::e2e_full_loop_mock the_report_forging_liar_is_never_settled
+        PASS [   0.133s] ( 8/16) gauntlet-cli::e2e_full_loop_mock parallel_completions_carry_and_never_collide
+        PASS [   0.144s] ( 9/16) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+        PASS [   0.137s] (10/16) gauntlet-cli::e2e_full_loop_mock the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+        PASS [   0.123s] (11/16) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_names_exactly_the_damaged_locator
+        PASS [   0.121s] (12/16) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_a_recovery_completed_production_is_the_settled_noop
+        PASS [   0.116s] (13/16) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_all_production_rows_deleted_is_honest
+        PASS [   0.114s] (14/16) gauntlet-cli::e2e_full_loop_mock the_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row
+        PASS [   0.130s] (15/16) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_a_recovery_completed_settlement_is_the_settled_noop
+        PASS [   0.117s] (16/16) gauntlet-cli::e2e_full_loop_mock the_single_writer_guard_bounds_the_concurrent_double_resume_attack
+────────────
+     Summary [   0.265s] 16 tests run: 16 passed, 0 skipped
+rc=0

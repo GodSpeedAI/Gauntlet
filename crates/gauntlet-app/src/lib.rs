@@ -19,6 +19,7 @@ pub mod formation;
 pub mod govern;
 pub mod observation;
 pub mod reference;
+pub mod report;
 pub mod roles;
 pub mod settle;
 pub mod skills;

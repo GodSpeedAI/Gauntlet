@@ -39,6 +39,14 @@ Do not add speculative rules for failures that have never occurred.
   documented recovery procedure instead of re-dispatching; write an IN-FLIGHT line at
   dispatch time. Full guidance:
   `.agents/lessons/session-interruption-recovery.md`.
+* Task 20 (2026-08-31→09-01): the orchestrating session kept the task-local
+  IN-FLIGHT.md ledger current through four sub-agent interruptions but let
+  `.agents/CURRENT_STATUS.yml` go stale — a day into the work it still said
+  "task20 unstarted" (corrected by the operator). Rule: CURRENT_STATUS.yml's
+  metadata / execution / active / next_action lines are updated at every phase
+  transition (dispatch, correction round landed, interruption recovery), not only
+  at settlement. IN-FLIGHT.md is the per-slice contract; CURRENT_STATUS.yml is the
+  cross-session anchor; neither substitutes for the other.
 
 ## Delegation and role boundaries
 

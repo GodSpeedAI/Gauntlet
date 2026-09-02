@@ -1,0 +1,247 @@
+Diff in /home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-state-sqlite/src/state_store.rs:2559:
+             if entry.event.run_id != *run_id {
+                 continue;
+             }
+-            let RunEventKind::EvidenceProduced { evidence, locator: event_locator } =
+-                &entry.event.kind
++            let RunEventKind::EvidenceProduced {
++                evidence,
++                locator: event_locator,
++            } = &entry.event.kind
+             else {
+                 continue;
+             };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:5088:
+                 bind_calls: Cell::new(0),
+                 production_calls: Cell::new(0),
+                 accepted_comparisons: Cell::new(0),
+-            on_first_settlement: RefCell::new(None),
+-        })
+-    }
++                on_first_settlement: RefCell::new(None),
++            })
++        }
+ 
+-    /// Out-of-band DAMAGE (the COR-R3-1 test): drops the production row at
+-    /// one locator while every durable event and evidence byte stays —
+-    /// LESS damage than any real crash, exactly the falsifier's round-3
+-    /// reproduction shape.
+-    pub fn drop_production_at(&self, locator: &str) {
+-        self.productions
+-            .borrow_mut()
+-            .retain(|binding| binding.production().locator().as_str() != locator);
++        /// Out-of-band DAMAGE (the COR-R3-1 test): drops the production row at
++        /// one locator while every durable event and evidence byte stays —
++        /// LESS damage than any real crash, exactly the falsifier's round-3
++        /// reproduction shape.
++        pub fn drop_production_at(&self, locator: &str) {
++            self.productions
++                .borrow_mut()
++                .retain(|binding| binding.production().locator().as_str() != locator);
++        }
+     }
+-}
+ 
+     impl StateStore for FakeState {
+         fn append_event(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/control/controller.rs:5435:
+             else {
+                 return Ok(None);
+             };
+-            let gauntlet_ports::state_store::RunEventKind::EvidenceProduced {
+-                evidence, locator,
+-            } = event.kind
++            let gauntlet_ports::state_store::RunEventKind::EvidenceProduced { evidence, locator } =
++                event.kind
+             else {
+                 return Ok(None);
+             };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/settle/mod.rs:2332:
+                 if offset < anchor.get() || &event.run_id != run_id {
+                     continue;
+                 }
+-                let RunEventKind::EvidenceProduced { evidence, locator: event_locator } =
+-                    &event.kind
++                let RunEventKind::EvidenceProduced {
++                    evidence,
++                    locator: event_locator,
++                } = &event.kind
+                 else {
+                     continue;
+                 };
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/settle/mod.rs:3691:
+     /// Produces one locator's world-B production row (row + event) over
+     /// freshly stored artifact bytes, through the authority the produce
+     /// step itself earns its write through.
+-    fn produce_world_b_row(
+-        f: &Fixture,
+-        ref_name: &str,
+-        body: &[u8],
+-        locator: &str,
+-    ) -> EvidenceRef {
++    fn produce_world_b_row(f: &Fixture, ref_name: &str, body: &[u8], locator: &str) -> EvidenceRef {
+         let produced_ref = f.evidence.insert(ref_name, body);
+         gauntlet_ports::producer_authority::EvidenceProductionAuthority::new(
+             f.state.clone(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/settle/mod.rs:3729:
+         f.state.checkpoint_at(1, Vec::new());
+         // The locator artifact's bytes ARE in the store (the produce step
+         // ingested them before the crash window opened).
+-        let produced_ref =
+-            f.evidence.insert("evd-produced-artifact", b"the locator artifact bytes");
++        let produced_ref = f
++            .evidence
++            .insert("evd-produced-artifact", b"the locator artifact bytes");
+         let orphan_offset = f
+             .state
+             .append_event(
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/settle/mod.rs:3819:
+         // §18.3 replay correctly refuses to rewrite history and records
+         // the damage instead.
+         let f = fixture();
+-        produce_world_b_row(&f, "evd-artifact-a", b"the artifact bytes a", "settle-9501.json");
+-        produce_world_b_row(&f, "evd-artifact-b", b"the artifact bytes b", "settle-9502.json");
+-        produce_world_b_row(&f, "evd-artifact-c", b"the artifact bytes c", "settle-9503.json");
++        produce_world_b_row(
++            &f,
++            "evd-artifact-a",
++            b"the artifact bytes a",
++            "settle-9501.json",
++        );
++        produce_world_b_row(
++            &f,
++            "evd-artifact-b",
++            b"the artifact bytes b",
++            "settle-9502.json",
++        );
++        produce_world_b_row(
++            &f,
++            "evd-artifact-c",
++            b"the artifact bytes c",
++            "settle-9503.json",
++        );
+         let facet_ref = f.evidence.insert("evd-bundle-facet", b"the facet bytes");
+         bind_one_facet_bundle(&f, &facet_ref);
+         // The SETTLED checkpoint: its anchor sits above every production
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-app/src/settle/mod.rs:3959:
+                 bound(),
+             )
+             .expect("the completion runs");
+-        assert!(completion.productions_completed.is_empty(), "nothing is fabricated");
++        assert!(
++            completion.productions_completed.is_empty(),
++            "nothing is fabricated"
++        );
+         assert_eq!(completion.limitations.len(), 1, "the gap is recorded");
+         assert!(
+             completion.limitations[0].contains(&ghost.to_string())
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/skills_cmd.rs:368:
+             Ok(bytes) => Some(bytes),
+             Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+             Err(error) => {
+-                eprintln!(
+-                    "gauntlet skills verify: '{name}' source is unreadable: {error}"
+-                );
++                eprintln!("gauntlet skills verify: '{name}' source is unreadable: {error}");
+                 drift += 1;
+                 continue;
+             }
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/src/writer_lock.rs:153:
+         std::fs::create_dir_all(&root).expect("the scratch root is creatable");
+         let guard = WriterLock::acquire(&root).expect("the first writer takes the lock");
+         let path = root.join(WRITER_LOCK_NAME);
+-        assert_eq!(guard.path(), path, "the lock lives where the refusal names it");
++        assert_eq!(
++            guard.path(),
++            path,
++            "the lock lives where the refusal names it"
++        );
+         let held = std::fs::read_to_string(&path).expect("the lock file reads");
+         assert_eq!(
+             held.trim(),
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:1000:
+ 
+     // THE DAMAGE: every production row deleted; every durable event and
+     // evidence byte left in place (LESS damage than any real crash).
+-    let deleted = delete_production_rows(
+-        &world.state_dir().join("gauntlet-state.db"),
+-        None,
++    let deleted = delete_production_rows(&world.state_dir().join("gauntlet-state.db"), None);
++    assert_eq!(
++        deleted, 3,
++        "the damage deleted exactly the run's three rows"
+     );
+-    assert_eq!(deleted, 3, "the damage deleted exactly the run's three rows");
+ 
+     // THE RESUME: honest settled terminal, zero burned iterations, honest
+     // per-locator forensics, never a budget_exhausted lie.
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/e2e_full_loop_mock.rs:1187:
+     let recovered = world.run(&env, &["resume", &run_id]);
+     let recovered_stdout = String::from_utf8_lossy(&recovered.stdout).into_owned();
+     assert!(
+-        recovered.status.success()
+-            && recovered_stdout.contains("terminal=settled"),
++        recovered.status.success() && recovered_stdout.contains("terminal=settled"),
+         "after the manual recovery the resume is the honest settled no-op: \
+          {recovered_stdout}",
+     );
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:350:
+     let installed = world.installed(victim);
+     let tampered = {
+         let mut text = std::fs::read_to_string(&installed).expect("the installed skill reads");
+-        text.push_str("\nThis closing paragraph documents the installed skill for readers \
+-                       of the tree and carries no operational content.\n");
++        text.push_str(
++            "\nThis closing paragraph documents the installed skill for readers \
++                       of the tree and carries no operational content.\n",
++        );
+         text
+     };
+     std::fs::write(&installed, &tampered).expect("the swapped body is written");
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:401:
+             .join(victim)
+             .join("SKILL.md");
+         gauntlet_app::reference::normalize::digest_of(
+-            std::fs::read(&source).expect("the canonical source reads").as_slice(),
++            std::fs::read(&source)
++                .expect("the canonical source reads")
++                .as_slice(),
+         )
+         .expect("the canonical source digests")
+         .to_string()
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:415:
+     // rewritten from the CANONICAL SOURCE, so the tampered installed body
+     // is overwritten and verify cleans only after the real repair.
+     let (stdout, stderr, ok) = world.output(&["install"]);
+-    assert!(ok, "re-install repairs from the canonical source: {stdout} {stderr}");
+-    let repaired = std::fs::read_to_string(&world.installed(victim)).expect("the repaired body reads");
+     assert!(
++        ok,
++        "re-install repairs from the canonical source: {stdout} {stderr}"
++    );
++    let repaired =
++        std::fs::read_to_string(&world.installed(victim)).expect("the repaired body reads");
++    assert!(
+         !repaired.contains("no operational content"),
+         "the repair overwrote the tampered body from the canonical source"
+     );
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:424:
+     let (stdout, stderr, ok) = world.output(&["verify"]);
+-    assert!(
+-        ok,
+-        "verify is clean after the repair: {stdout} {stderr}"
+-    );
++    assert!(ok, "verify is clean after the repair: {stdout} {stderr}");
+ 
+     // SHAPE 2 — the stale install: the SOURCE is edited after install,
+     // installed body + lock untouched. Roles names this class typed
+Diff in /home/sprime01/projects/gauntlet/crates/gauntlet-cli/tests/skills_roundtrip.rs:436:
+         .join("skills")
+         .join(victim)
+         .join("SKILL.md");
+-    let honest_source =
+-        std::fs::read_to_string(&source).expect("the canonical source reads");
++    let honest_source = std::fs::read_to_string(&source).expect("the canonical source reads");
+     let mut edited = honest_source.clone();
+     edited.push_str("\nA later repository-side revision of this skill's prose.\n");
+     std::fs::write(&source, &edited).expect("the source edit is written");
