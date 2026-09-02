@@ -22,6 +22,7 @@ pub mod doctor_cmd;
 pub mod escalations_cmd;
 pub mod improve_cmd;
 pub mod init_cmd;
+pub mod operator_action;
 pub mod reference_cmd;
 pub mod reference_lock;
 pub mod report_manifest;
@@ -32,6 +33,15 @@ pub mod spec_vocab;
 pub mod state_cmd;
 pub mod verify_cmd;
 pub mod writer_lock;
+
+// Plan Task 21 (charter D9): the §20.2 JSON operator surface — compiled
+// ONLY under the `surfaces` feature. The DEFAULT build stays CLI-only
+// (AK-061): `serve` is an unknown command there and the frozen help
+// snapshot is byte-identical.
+#[cfg(feature = "surfaces")]
+pub mod durable_surface;
+#[cfg(feature = "surfaces")]
+pub mod serve_cmd;
 
 use std::process::ExitCode;
 
@@ -56,6 +66,8 @@ pub fn run_cli(args: &[String]) -> ExitCode {
         Some("verify") => verify_cmd::verify(&args[1..]),
         Some("resume") => run_cmd::resume(&args[1..]),
         Some("escalations") => escalations_cmd::escalations(&args[1..]),
+        #[cfg(feature = "surfaces")]
+        Some("serve") => serve_cmd::serve(&args[1..]),
         Some("roles") => roles_cmd::run(&args[1..]),
         Some("skills") => skills_cmd::run(&args[1..]),
         Some("improve") => improve_cmd::run(&args[1..]),
@@ -94,6 +106,8 @@ fn usage() {
     println!("       gauntlet verify --run <run-id> [--unit <unit-id>]");
     println!("       gauntlet resume <run-id>");
     println!("       gauntlet escalations list | resolve | retry");
+    #[cfg(feature = "surfaces")]
+    println!("       gauntlet serve                  (surfaces build; bind: GAUNTLET_API_BIND)");
     println!("       gauntlet roles install --harness <id>");
     println!("       gauntlet roles verify");
     println!("       gauntlet roles list");

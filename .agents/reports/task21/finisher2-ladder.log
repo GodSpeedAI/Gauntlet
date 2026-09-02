@@ -1,0 +1,75 @@
+=== CHECK surfaces --all-targets ===
+    Checking gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Checking gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 25s
+CHECK_SURFACES_EXIT=0
+=== PLAN_GATE RUN 1 ===
+        PASS [   0.042s] (1/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+     Summary [   0.123s] 5 tests run: 5 passed, 0 skipped
+RUN1_EXIT=0
+=== PLAN_GATE RUN 2 ===
+        PASS [   0.032s] (1/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+     Summary [   0.092s] 5 tests run: 5 passed, 0 skipped
+RUN2_EXIT=0
+=== PLAN_GATE RUN 3 ===
+        PASS [   0.104s] (4/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+     Summary [   0.127s] 5 tests run: 5 passed, 0 skipped
+RUN3_EXIT=0
+=== PLAN_GATE RUN 4 ===
+        PASS [   0.110s] (5/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+     Summary [   0.111s] 5 tests run: 5 passed, 0 skipped
+RUN4_EXIT=0
+=== PLAN_GATE RUN 5 ===
+        PASS [   0.034s] (1/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+     Summary [   0.111s] 5 tests run: 5 passed, 0 skipped
+RUN5_EXIT=0
+=== PLAN_GATE RUN 6 ===
+        PASS [   0.088s] (4/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+     Summary [   0.101s] 5 tests run: 5 passed, 0 skipped
+RUN6_EXIT=0
+=== BUILD no-default ===
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 1.50s
+BUILD_NODEFAULT_EXIT=0
+=== NEXTEST default cli_surface + escalations_cli ===
+        PASS [   0.042s] (6/7) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+        PASS [   0.043s] (7/7) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+     Summary [   0.043s] 7 tests run: 7 passed, 0 skipped
+NEXTEST_DEFAULT_EXIT=0
+=== E2E WITH surfaces ===
+     Summary [   0.356s] 12 tests run: 12 passed, 0 skipped
+E2E_SURFACES_EXIT=0
+=== E2E WITHOUT surfaces ===
+     Summary [   0.328s] 12 tests run: 12 passed, 0 skipped
+E2E_DEFAULT_EXIT=0
+=== APP PACKAGE ===
+        PASS [   0.009s] (  3/477) gauntlet-app compare::aggregate::tests::empty_and_disagreeing_inputs_are_typed_errors
+        PASS [   0.009s] (  8/477) gauntlet-app compare::contract::tests::structural_defects_are_typed_errors_with_loci
+        PASS [   0.011s] ( 13/477) gauntlet-app compare::contract::tests::unknown_versions_are_typed_errors_never_partially_adopted
+        PASS [   0.013s] ( 26/477) gauntlet-app compare::review::tests::cancellation_error_quarantines_every_unconfirmed_sibling
+        PASS [   0.013s] ( 64/477) gauntlet-app config::gauntlet_md::tests::every_rejected_shape_is_its_own_typed_error
+        PASS [   0.007s] ( 65/477) gauntlet-app config::resolve::tests::a_bad_environment_number_is_its_own_typed_error
+        PASS [   0.024s] (115/477) gauntlet-app control::controller::tests::an_over_capacity_fan_out_is_truncated_and_recorded_never_a_run_error
+        PASS [   0.007s] (132/477) gauntlet-app control::diagnosis::tests::an_escalation_refusal_carries_the_quarantine_in_the_error
+        PASS [   0.007s] (149/477) gauntlet-app control::disposition::tests::required_settings_absent_from_the_config_layer_are_typed_errors
+        PASS [   0.006s] (153/477) gauntlet-app control::scheduler::tests::a_depends_on_cycle_is_a_typed_error_naming_the_cycle
+        PASS [   0.007s] (154/477) gauntlet-app control::scheduler::tests::a_dangling_depends_on_is_a_typed_load_error
+        PASS [   0.010s] (155/477) gauntlet-app control::scheduler::tests::a_missing_estimate_is_a_typed_input_error_never_a_zero
+        PASS [   0.011s] (170/477) gauntlet-app control::select::tests::empty_and_fully_blocked_inputs_are_typed_errors_carrying_their_evidence
+        PASS [   0.017s] (239/477) gauntlet-app observation::assembly::tests::a_failing_bundle_store_write_is_a_typed_assembly_error
+        PASS [   0.017s] (270/477) gauntlet-app reference::manifest::tests::missing_required_keys_and_bad_values_are_typed_errors
+        PASS [   0.018s] (273/477) gauntlet-app reference::manifest::tests::unknown_keys_and_roots_are_typed_errors_naming_the_line
+        PASS [   0.010s] (274/477) gauntlet-app reference::normalize::tests::invalid_utf8_is_a_typed_error_with_the_byte_locus
+        PASS [   0.028s] (278/477) gauntlet-app reference::manifest::tests::unknown_sub_keys_in_nested_sections_are_typed_errors
+        PASS [   0.017s] (294/477) gauntlet-app reference::parse::tests::unknown_field_keys_and_stray_lines_are_typed_errors
+        PASS [   0.011s] (370/477) gauntlet-app state::export::deterministic::mis_shaped_at_fields_are_typed_errors
+        PASS [   0.007s] (371/477) gauntlet-app state::export::deterministic::missing_canonical_fields_are_typed_errors
+        PASS [   0.012s] (372/477) gauntlet-app state::export::deterministic::malformed_lines_are_typed_errors
+        PASS [   0.011s] (374/477) gauntlet-app state::export::deterministic::unknown_record_kinds_are_typed_errors
+        PASS [   0.007s] (427/477) gauntlet-app::report duplicate_manifest_keys_are_a_typed_error
+        PASS [   0.009s] (444/477) gauntlet-app::roles missing_indirection_is_a_typed_error_naming_the_variable
+        PASS [   0.012s] (454/477) gauntlet-app::roles resolved_indirection_value_never_echoes_into_error_text_mode_refusal
+        PASS [   0.019s] (457/477) gauntlet-app::roles resolved_indirection_value_never_echoes_into_error_text_write_path_escape
+     Summary [   1.048s] 477 tests run: 477 passed, 0 skipped
+APP_EXIT=0
+PHASE1_DONE

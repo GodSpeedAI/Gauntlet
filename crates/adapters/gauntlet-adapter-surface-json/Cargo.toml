@@ -1,0 +1,12 @@
+[package]
+name = "gauntlet-adapter-surface-json"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+
+[dependencies]
+gauntlet-domain.workspace = true
+gauntlet-ports.workspace = true

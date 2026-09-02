@@ -250,6 +250,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-surface-json"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-adapter-verify-command-exit-code"
 version = "0.1.0"
 dependencies = [
@@ -327,6 +335,7 @@ dependencies = [
  "gauntlet-adapter-policy-fs",
  "gauntlet-adapter-sandbox-bwrap",
  "gauntlet-adapter-state-sqlite",
+ "gauntlet-adapter-surface-json",
  "gauntlet-adapter-verify-command-exit-code",
  "gauntlet-adapter-verify-file-digest",
  "gauntlet-adapter-verify-schema-check",

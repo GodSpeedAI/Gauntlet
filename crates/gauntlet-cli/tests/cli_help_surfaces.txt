@@ -1,0 +1,23 @@
+gauntlet <version> — see spec 20.1 for the full surface
+usage: gauntlet doctor [--config <path>]
+       gauntlet init
+       gauntlet reference digest --path <path>
+       gauntlet reference validate --path <path>
+       gauntlet reference form [--path <path>]
+       gauntlet reference freeze [--run <run-id>]
+       gauntlet reference show
+       gauntlet reference diff --path <path> --against <path>
+       gauntlet reference verify
+       gauntlet run [--dry-run] [--config <path>] "<intent>"
+       gauntlet status --run <run-id>
+       gauntlet inspect --run <run-id> [--iteration <n>] [--unit <unit-id>] [--verifications] [--settlements]
+       gauntlet verify --run <run-id> [--unit <unit-id>]
+       gauntlet resume <run-id>
+       gauntlet escalations list | resolve | retry
+       gauntlet serve                  (surfaces build; bind: GAUNTLET_API_BIND)
+       gauntlet roles install --harness <id>
+       gauntlet roles verify
+       gauntlet roles list
+       gauntlet skills install | verify | list
+       gauntlet improve <subcommand>   (not wired: plan Task 23)
+       gauntlet export --run <run-id> [--out <path>]

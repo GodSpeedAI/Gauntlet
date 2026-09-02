@@ -8,18 +8,14 @@ metadata:
                                        # drives multiple plans
   spec_version: "2.0.0"
   initialized: true                   # false only before the very first burst
-  last_updated: "2026-09-01"
+  last_updated: "2026-09-02"
   updated_by: >-
-    orchestrator (task20 SETTLED 2026-09-01 — CLI surface + first full loop
-    on the mock. Design critic NOT_CONFIRM (4M/6m/5i) -> COR-D1..D10;
-    falsifier rounds 1-5 NOT_CONFIRM -> COR-F/COR-R2/COR-R3/COR-R4/COR-R5;
-    round 6 CONFIRM (0 blocking/0 major/0 minor/3 informational).
-    Settlement battery personally run: 1377/1377, boundaries 228/228,
-    lint/deny 0, ruler PASS, doctor OK, e2e+cli_surface 16/16, dry-run
-    zero-writes proven. Corroboration-gate teeth re-verified personally
-    RED -> byte-identical restore -> GREEN. Arch-suite standing trigger
-    discharged (4 HOLD / 0 AMEND / 0 REOPEN). Self-hosting begins: remaining
-    tasks run through `gauntlet run` (dogfooding, plan Task 20 step 6).
+    orchestrator (task21 DISPATCHED 2026-09-02 — operator surfaces B1 in
+    flight; charter .agents/reports/task21/charter.md D1-D12; dogfooding
+    through `gauntlet run` blocked on UNK-003, recorded as fog). Prior:
+    task20 SETTLED 2026-09-01 — CLI surface + first full loop on the mock
+    (falsifier round 6 CONFIRM; settlement battery 1377/1377 personally
+    run; corroboration teeth RED -> restore -> GREEN).
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
@@ -27,8 +23,10 @@ metadata:
 execution:
   last_settled_task: task20           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: null                # task20 settled; see
-                                       # .agents/reports/task20/closure.md
+  in_flight_task: task21              # operator surfaces (D1-D12 charter at
+                                       # .agents/reports/task21/charter.md;
+                                       # ledger IN-FLIGHT.md; builder B1
+                                       # dispatched 2026-09-02)
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
@@ -51,10 +49,10 @@ execution:
 # ACTIVE TASK
 # ─────────────────────────────────────────────────────────────────────────
 active:
-  task: null
-  phase: idle                        # task20 settled; next dispatch is task21
-                                     # (plan order; dogfooding through
-                                     # `gauntlet run` per plan Task 20 step 6)
+  task: task21
+  phase: dispatched                   # B1 builder in flight (charter D1-D12);
+                                     # AK-062 positive half + §20.2 JSON API
+                                     # + feature-gated surfaces
   blocker: null
 
 # ─────────────────────────────────────────────────────────────────────────

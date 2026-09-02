@@ -28,6 +28,52 @@ fn binary() -> Command {
     Command::new(exe)
 }
 
+// The help snapshot is per configuration (Task 21, charter D9): the
+// DEFAULT build's frozen snapshot is byte-identical to the pre-Task-21
+// surface (`cli_help.txt`); the surfaces build serves one extra command
+// (`gauntlet serve`) and freezes its OWN snapshot. Each is updated only
+// deliberately, with the surface change recorded in the task report.
+#[cfg(not(feature = "surfaces"))]
+const GOLDEN_HELP: &str = include_str!("cli_help.txt");
+#[cfg(feature = "surfaces")]
+const GOLDEN_HELP: &str = include_str!("cli_help_surfaces.txt");
+
+/// The §20.1 commands, per configuration: `serve` exists ONLY in the
+/// surfaces build.
+#[cfg(not(feature = "surfaces"))]
+const COMMANDS: &[&str] = &[
+    "doctor",
+    "init",
+    "reference",
+    "run",
+    "status",
+    "inspect",
+    "verify",
+    "resume",
+    "escalations",
+    "roles",
+    "skills",
+    "improve",
+    "export",
+];
+#[cfg(feature = "surfaces")]
+const COMMANDS: &[&str] = &[
+    "doctor",
+    "init",
+    "reference",
+    "run",
+    "status",
+    "inspect",
+    "verify",
+    "resume",
+    "escalations",
+    "serve",
+    "roles",
+    "skills",
+    "improve",
+    "export",
+];
+
 /// The whole-tree help, byte-for-byte against the committed snapshot.
 #[test]
 fn the_whole_tree_help_snapshot_holds() {
@@ -41,9 +87,8 @@ fn the_whole_tree_help_snapshot_holds() {
         output.status
     );
     let stdout = String::from_utf8(output.stdout).expect("help output is UTF-8");
-    let golden = include_str!("cli_help.txt");
     assert_eq!(
-        stdout, golden,
+        stdout, GOLDEN_HELP,
         "the help surface moved without a deliberate, recorded change"
     );
 }
@@ -66,6 +111,25 @@ fn every_surface_command_dispatches_and_unknown_commands_are_usage_errors() {
         "improve",
         "export",
     ];
+    #[cfg(not(feature = "surfaces"))]
+    {
+        // Charter D9: `serve` is an unknown command in the DEFAULT build
+        // (exit 2, named as unknown) — the surfaces are opt-in.
+        let output = binary()
+            .arg("serve")
+            .output()
+            .expect("the gauntlet binary runs");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "serve is unknown in the default build"
+        );
+        let stderr = String::from_utf8(output.stderr).expect("stderr is UTF-8");
+        assert!(
+            stderr.contains("unknown command"),
+            "the default build names serve as unknown: {stderr}"
+        );
+    }
     for command in COMMANDS {
         // A command that takes NO further required arguments is invoked
         // as-is; commands with required arguments answer their usage
@@ -157,21 +221,6 @@ fn unknown_and_missing_arguments_are_usage_errors_with_exit_two() {
 fn usage_dispatch_and_manifest_name_the_same_command_set() {
     let output = binary().arg("--help").output().expect("runs");
     let stdout = String::from_utf8(output.stdout).expect("UTF-8");
-    const COMMANDS: &[&str] = &[
-        "doctor",
-        "init",
-        "reference",
-        "run",
-        "status",
-        "inspect",
-        "verify",
-        "resume",
-        "escalations",
-        "roles",
-        "skills",
-        "improve",
-        "export",
-    ];
     for command in COMMANDS {
         assert!(
             stdout.contains(&format!("gauntlet {command}")),

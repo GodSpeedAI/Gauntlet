@@ -10,7 +10,6 @@ use std::process::ExitCode;
 
 use gauntlet_ports::deadline::Deadline;
 
-use crate::compose::open_operator_surface;
 use crate::context::resolve_context;
 
 fn bound() -> Deadline {
@@ -134,12 +133,12 @@ fn list(args: &[String]) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// The operator action path (D9): through the settlement service's
-/// operator request, with the operator's identity. The service refuses
-/// exactly what the automatic path refuses (AK-062's class); only an
-/// ACCEPTED action resolves the ticket — a refused action leaves the
-/// queue untouched and exits non-zero with the typed refusal.
-#[allow(clippy::arc_with_non_send_sync)] // single-threaded surface; the service stores the same Arcs
+/// The operator action path (charter D3, Task 21): ONE shared
+/// execution — [`crate::operator_action::execute_operator_action`] — for
+/// the CLI commands AND the JSON surface's action endpoints. The service
+/// refuses exactly what the automatic path refuses (AK-062's class);
+/// only an ACCEPTED action resolves the ticket — a refused action leaves
+/// the queue untouched and exits non-zero with the typed refusal.
 fn operator_action(
     args: &[String],
     action: gauntlet_adapter_escalation_fs::OperatorAction,
@@ -217,36 +216,6 @@ fn operator_action(
         eprintln!("gauntlet escalations {action_word}: {unit} is not a valid unit id");
         return ExitCode::FAILURE;
     };
-    let context = match resolve_context(None) {
-        Ok(context) => context,
-        Err(error) => {
-            eprintln!("gauntlet escalations: the configuration did not resolve: {error}");
-            return ExitCode::FAILURE;
-        }
-    };
-    let surface = match open_operator_surface(&context) {
-        Ok(surface) => surface,
-        Err(error) => {
-            eprintln!("gauntlet escalations: {error}");
-            return ExitCode::FAILURE;
-        }
-    };
-    let root = &surface.escalation_root;
-    let queue: std::sync::Arc<gauntlet_adapter_escalation_fs::FsEscalationQueue> =
-        match gauntlet_adapter_escalation_fs::FsEscalationQueue::open(root) {
-            Ok(queue) => std::sync::Arc::new(queue),
-            Err(error) => {
-                eprintln!("gauntlet escalations: {error}");
-                return ExitCode::FAILURE;
-            }
-        };
-    let record = match queue.record(&ticket_id) {
-        Ok(record) => record,
-        Err(error) => {
-            eprintln!("gauntlet escalations {action_word}: {error}");
-            return ExitCode::FAILURE;
-        }
-    };
     let identity = match gauntlet_app::settle::OperatorIdentity::new(&operator) {
         Ok(identity) => identity,
         Err(error) => {
@@ -257,67 +226,42 @@ fn operator_action(
             return ExitCode::FAILURE;
         }
     };
-    let request = gauntlet_app::settle::OperatorActionRequest {
-        run_id: record.run_id.clone(),
-        unit_id,
-        identity: Some(identity),
+    let context = match resolve_context(None) {
+        Ok(context) => context,
+        Err(error) => {
+            eprintln!("gauntlet escalations: the configuration did not resolve: {error}");
+            return ExitCode::FAILURE;
+        }
     };
-    // The SAME settlement service construction the run composition uses
-    // (§16.3's single write path; D9). Two handles into the SAME stores:
-    // the service settles, and the queue handle — used only AFTER the
-    // service accepted — records the operator action on the ticket.
-    let evidence =
-        match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(&context.resolved.evidence_dir) {
-            Ok(store) => store,
-            Err(error) => {
-                eprintln!("gauntlet escalations: {error}");
-                return ExitCode::FAILURE;
-            }
-        };
-    let evidence_for_provider =
-        match gauntlet_adapter_evidence_fs::FsEvidenceStore::open(&context.resolved.evidence_dir) {
-            Ok(store) => store,
-            Err(error) => {
-                eprintln!("gauntlet escalations: {error}");
-                return ExitCode::FAILURE;
-            }
-        };
-    let reference = gauntlet_app::reference::provider::FileReferenceProvider::from_paths(
-        surface.answer_key.clone(),
-        surface.manifest.clone(),
-        std::rc::Rc::new(evidence_for_provider),
-    );
-    let clock: std::sync::Arc<dyn gauntlet_ports::clock::Clock> =
-        std::sync::Arc::new(gauntlet_adapter_agent_prime::SystemClock::new());
-    let service = gauntlet_app::settle::SettlementService::new(
-        surface.state.clone(),
-        std::sync::Arc::new(evidence),
-        std::sync::Arc::new(reference),
-        queue.clone(),
-        clock,
-    );
-    match service.settle_operator_action(request, bound()) {
-        Ok(()) => {
-            // The service accepted: NOW the queue record resolves.
-            if let Err(error) = queue.resolve(&ticket_id, &operator, &note, action) {
-                eprintln!(
-                    "gauntlet escalations: the settle committed but the queue write \
-                           failed: {error}"
-                );
-                return ExitCode::FAILURE;
-            }
+    match crate::operator_action::execute_operator_action(
+        &context,
+        action,
+        Some(ticket_id.as_str()),
+        &unit_id,
+        &identity,
+        &note,
+        None,
+        bound(),
+    ) {
+        Ok(crate::operator_action::ActionDecision::Accepted(acceptance)) => {
             println!(
                 "escalations: ticket={} action={} operator={:?} — settled through the \
                  settlement service's operator path",
                 ticket, action_word, operator
             );
+            let _ = acceptance;
             ExitCode::SUCCESS
         }
-        Err(error) => {
+        Ok(crate::operator_action::ActionDecision::Refused(refusal)) => {
             eprintln!(
                 "gauntlet escalations {action_word}: the settlement service refused — the \
-                 ticket stays open: {error}"
+                 ticket stays open: {}",
+                refusal.message
             );
+            ExitCode::FAILURE
+        }
+        Err(detail) => {
+            eprintln!("gauntlet escalations {action_word}: {detail}");
             ExitCode::FAILURE
         }
     }

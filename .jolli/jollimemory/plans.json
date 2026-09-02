@@ -150,80 +150,90 @@
 			"title": "Task 19 closure — companion + repo-owned skills",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task19/closure.md",
 			"addedAt": "2026-08-31T12:08:40.155Z",
-			"updatedAt": "2026-08-31T12:08:40.155Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.197Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "108371b118c93d4272baf117987ac6653dde0de211c0db0edf7bf47c94b1a1db"
 		},
 		"SKILL": {
 			"slug": "SKILL",
 			"title": "SKILL.md",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/grilling/SKILL.md",
 			"addedAt": "2026-08-31T13:32:14.060Z",
-			"updatedAt": "2026-08-31T13:32:14.060Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.200Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "9eac2d9c00ba81878f9c5dedd7aec35804dbb051b98bbafbf43d8f3bb256fae4"
 		},
 		"SKILL-7fec3982": {
 			"slug": "SKILL-7fec3982",
 			"title": "SKILL.md",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/wayfinder-gauntlet/SKILL.md",
 			"addedAt": "2026-08-31T13:32:14.060Z",
-			"updatedAt": "2026-08-31T13:32:14.060Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.204Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "55269eb785671fb51bb8ba5258806db250cf23ee7360da21c1966204a7ca7c9c"
 		},
 		"SKILL-d1df3495": {
 			"slug": "SKILL-d1df3495",
 			"title": "SKILL.md",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/prototype/SKILL.md",
 			"addedAt": "2026-08-31T13:32:14.060Z",
-			"updatedAt": "2026-08-31T13:32:14.060Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.207Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "4445f993a78f9c81bae86d26300e777ca4fe8d8aa7febe9086a658d77e08c062"
 		},
 		"SKILL-d9d30cc7": {
 			"slug": "SKILL-d9d30cc7",
 			"title": "SKILL.md",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/research/SKILL.md",
 			"addedAt": "2026-08-31T13:32:14.060Z",
-			"updatedAt": "2026-08-31T13:32:14.060Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.209Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "5cf8aa6a7ff602e351be1f06791a39e98c7e851ba3de49c23a956c98dece847b"
 		},
 		"Core-spec": {
 			"slug": "Core-spec",
 			"title": "GAUNTLET RUNTIME SPECIFICATION",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/specs/Core-spec.md",
 			"addedAt": "2026-08-31T13:32:14.060Z",
-			"updatedAt": "2026-08-31T13:32:14.060Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.212Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "c0497c8061639fd4b2b7abcd8cc47425f637660d4e0fd0299e8e2f52b090b039"
 		},
 		"SKILL-700a4f06": {
 			"slug": "SKILL-700a4f06",
 			"title": "DomainForge SEA — Gauntlet Integration",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/domainforge-sea/SKILL.md",
 			"addedAt": "2026-08-31T13:32:14.060Z",
-			"updatedAt": "2026-08-31T14:03:56.490Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.214Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "5226d9226cd7155aaaccf619b86b2682e6df1aede495e9bea70fa15545e1b14d"
 		},
 		"SKILL-931e34bf": {
 			"slug": "SKILL-931e34bf",
 			"title": "Domain Formation",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/domain-formation/SKILL.md",
 			"addedAt": "2026-08-31T13:32:14.060Z",
-			"updatedAt": "2026-08-31T13:32:14.060Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.216Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "cdf70f08cce37a53c4e7c97aa57be4d0f11f9b61726eecd01c9dbb88770773c3"
 		},
 		"gauntlet-domain-model-layout": {
 			"slug": "gauntlet-domain-model-layout",
 			"title": "Gauntlet Project Domain Model Layout",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/domainforge-sea/references/gauntlet-domain-model-layout.md",
 			"addedAt": "2026-08-31T14:03:56.490Z",
-			"updatedAt": "2026-08-31T14:03:56.490Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.219Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "dbe237c73b18e12b93ea7ffe56840b42e848076451b24119ab5373cfcfb783b7"
 		},
 		"SKILL-996c09f4": {
 			"slug": "SKILL-996c09f4",
 			"title": "NeatCode",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/skills/neatcode/SKILL.md",
 			"addedAt": "2026-08-31T14:12:58.379Z",
-			"updatedAt": "2026-08-31T14:12:58.379Z",
-			"commitHash": null
+			"updatedAt": "2026-08-31T14:20:24.223Z",
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "2efccb52b5bb4341bc390fb8b53671027749092c7491439440ed04cf15fe2ec7"
 		}
 	},
 	"skills": {
@@ -259,7 +269,25 @@
 				}
 			},
 			"sourcePath": "/home/sprime01/projects/gauntlet/.jolli/jollimemory/skills/claude/skill-creator-39f2ccd5.md",
-			"commitHash": null
+			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
+			"contentHashAtCommit": "a4ce2719d861932f4f1490ec278d79b2b4992663b58af1216c77ece39bbbcc9b",
+			"archivedTotals": {
+				"invocationCount": 1,
+				"usage": {
+					"input": 102,
+					"cached": 163642,
+					"output": 32224,
+					"confidence": "attributed"
+				},
+				"usageBySession": {
+					"claude:f4ce910f-1452-4b1f-a51c-0245cef0c22b": {
+						"input": 102,
+						"cached": 163642,
+						"output": 32224,
+						"confidence": "attributed"
+					}
+				}
+			}
 		}
 	}
 }

@@ -1,0 +1,48 @@
+    |             ^^^^^ expected `Child`, found `Command`
+
+Some errors have detailed explanations: E0308, E0599, E0615.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `gauntlet-cli` (test "operator_actions_no_bypass") due to 4 previous errors
+CHECK_EXIT=101
+    Finished `test` profile [unoptimized] target(s) in 0.58s
+────────────
+ Nextest run ID 0c29987a-3449-4b09-aecf-ceec15b15361 with nextest profile: default
+    Starting 1 test across 5 binaries (227 tests skipped)
+        PASS [  12.036s] (1/1) gauntlet-arch-tests literals::repo::core_crates_contain_no_hardcoded_literals
+────────────
+     Summary [  12.050s] 1 test run: 1 passed, 227 skipped
+LIT_EXIT=0
+Stopping sccache server...
+Compile requests                      6
+Compile requests executed             1
+Cache hits                            0
+Cache misses                          1
+Cache misses (Rust)                   1
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          1
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   5
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.002 s
+Average compiler                  1.401 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            5
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            3 GiB
+Max cache size                       10 GiB
+LOOP_DONE

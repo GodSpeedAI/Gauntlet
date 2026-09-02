@@ -7,10 +7,24 @@ publish.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Plan Task 21 (charter D1): the DEFAULT build is byte-for-byte today's
+# CLI-only build (AK-061). `surfaces` is the ONLY feature edge in the
+# workspace: it enables the JSON operator surface adapter (spec 20.2)
+# and, with it, the `gauntlet serve` command. A non-default,
+# feature-gated dependency — never a default one.
+default = []
+surfaces = ["dep:gauntlet-adapter-surface-json"]
 
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
+# Plan Task 21 (charter D2): the JSON operator surface adapter — the
+# §20.2 HTTP surface over the OperatorSurface port, served by
+# `gauntlet serve`. OPTIONAL: enabled only by the `surfaces` feature
+# above; the adapter's deps are ports + domain (it must not reach the
+# application layer).
+gauntlet-adapter-surface-json = { workspace = true, optional = true }
 # Plan Task 20 (the audited §7.1 seam, widened from the dev-only edge by
 # THIS manifest act — see crates/gauntlet-arch-tests/src/deps.rs's
 # composition seal, which admits exactly this production edge and the

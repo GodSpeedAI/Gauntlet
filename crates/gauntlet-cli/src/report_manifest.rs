@@ -82,21 +82,50 @@ const COMMAND_TABLE: &[CommandRow] = &[
 
 /// The manifest entries handed to `gauntlet_app::report::build_report`.
 /// No command binds an evidence unit here — capability evidence is a
-/// run-record fact, not a surface claim.
+/// run-record fact, not a surface claim. Under the `surfaces` feature
+/// the §20.2 JSON surface's `serve` command joins the table (Task 21,
+/// charter D9) — the DEFAULT build's table stays byte-identical.
 pub fn cli_capability_manifest() -> Vec<CapabilityManifestEntry> {
-    COMMAND_TABLE
+    let entries: Vec<CapabilityManifestEntry> = COMMAND_TABLE
         .iter()
         .map(|row| {
             CapabilityManifestEntry::new(row.name.to_owned(), row.wired, None)
                 .expect("the command table carries no empty keys")
         })
-        .collect()
+        .chain(surfaces_rows())
+        .collect();
+    entries
+}
+
+/// The surfaces feature's extra row count (the `serve` command), so the
+/// pinned length and the manifest cannot drift per configuration.
+#[cfg(feature = "surfaces")]
+fn surfaces_rows() -> Option<CapabilityManifestEntry> {
+    Some(
+        CapabilityManifestEntry::new("serve".to_owned(), true, None)
+            .expect("the command table carries no empty keys"),
+    )
+}
+
+#[cfg(not(feature = "surfaces"))]
+fn surfaces_rows() -> Option<CapabilityManifestEntry> {
+    None
+}
+
+#[cfg(feature = "surfaces")]
+const fn surfaces_extra_rows() -> usize {
+    1
+}
+
+#[cfg(not(feature = "surfaces"))]
+const fn surfaces_extra_rows() -> usize {
+    0
 }
 
 /// The table's size and shape, pinned so a drift between the dispatch,
 /// the usage text, and this manifest fails a test instead of shrinking
 /// the report's scope silently.
-pub const COMMAND_TABLE_LEN: usize = COMMAND_TABLE.len();
+pub const COMMAND_TABLE_LEN: usize = COMMAND_TABLE.len() + surfaces_extra_rows();
 
 /// Whether the named command is wired (the `improve` command's own help
 /// reads this so the exit and the manifest cannot disagree).
@@ -118,7 +147,7 @@ const _: () = {
 // this check makes it a unit-test failure at build time instead.
 #[cfg(test)]
 mod tests {
-    use super::{COMMAND_TABLE, COMMAND_TABLE_LEN, is_wired};
+    use super::{COMMAND_TABLE, COMMAND_TABLE_LEN, is_wired, surfaces_extra_rows};
     use gauntlet_app::report::ReportError;
 
     #[test]
@@ -128,7 +157,10 @@ mod tests {
         let before = names.len();
         names.dedup();
         assert_eq!(names.len(), before, "duplicate command row");
-        assert_eq!(COMMAND_TABLE_LEN, COMMAND_TABLE.len());
+        assert_eq!(
+            COMMAND_TABLE_LEN,
+            COMMAND_TABLE.len() + surfaces_extra_rows()
+        );
         assert!(
             !is_wired("improve"),
             "the manifest's not-wired fact and the command's exit agree"

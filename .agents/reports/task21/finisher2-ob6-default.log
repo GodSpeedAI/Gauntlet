@@ -1,0 +1,21 @@
+=== BUILD no-default-features ===
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `dev` profile [unoptimized] target(s) in 2m 15s
+BUILD_EXIT=0
+=== NEXTEST default cli_surface + escalations_cli ===
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 1.45s
+────────────
+ Nextest run ID bb8cda2a-542e-48db-aad7-c04e9932b3fc with nextest profile: default
+    Starting 7 tests across 2 binaries
+        PASS [   0.007s] (1/7) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.007s] (2/7) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.018s] (3/7) gauntlet-cli::escalations_cli even_an_earned_pass_record_never_settles_without_the_governed_chain_s_readiness
+        PASS [   0.019s] (4/7) gauntlet-cli::escalations_cli resolve_without_any_verification_record_refuses_and_the_ticket_stays_open
+        PASS [   0.015s] (5/7) gauntlet-cli::escalations_cli retry_with_a_non_pass_record_hits_the_same_gate
+        PASS [   0.034s] (6/7) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.034s] (7/7) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+────────────
+     Summary [   0.035s] 7 tests run: 7 passed, 0 skipped
+NEXTEST_EXIT=0
+OB6_DONE

@@ -91,6 +91,13 @@ impl World {
         copy_tree(&fixture_target(), &root.join("target"));
         std::fs::create_dir_all(root.join("evidence")).expect("evidence dir");
         std::fs::create_dir_all(root.join("state")).expect("state dir");
+        // The workspace root every REAL composed run has (compose_run opens
+        // the workspace provider, which creates it): the governed re-mint
+        // composes its §14.2 instruments over this root, and a world
+        // seeding a durable checkpoint claims the loop already ran here.
+        // Without it the action dies at instrument composition (an
+        // infrastructure failure) before the governed open can speak.
+        std::fs::create_dir_all(root.join("state").join("workspaces")).expect("workspaces dir");
 
         let run_id = RunId::new(RUN_ULID).expect("a valid run id");
         let run = Run::new(RunDefinition {
@@ -329,13 +336,14 @@ fn retry_with_a_non_pass_record_hits_the_same_gate() {
 }
 
 #[test]
-fn even_an_earned_pass_record_never_lets_the_operator_shape_settle() {
-    // AK-062's structural boundary, composed through the REAL CLI glue:
-    // with a durable PASS record present the operator action is STILL
-    // refused — readiness is earned through the governed verification
-    // chain, never re-derived from an operator's request (the full
-    // operator surface is plan Task 21). D9's single writer holds: zero
-    // settlement rows afterwards.
+fn even_an_earned_pass_record_never_settles_without_the_governed_chain_s_readiness() {
+    // AK-062's structural boundary, composed through the REAL CLI glue
+    // (Task 21's positive path): with a durable PASS record present the
+    // shared path re-mints readiness THROUGH the governed verification
+    // chain — and this world's reference was never frozen, so the
+    // chain's governed open refuses. Readiness is earned by the chain
+    // over a frozen ruler, never re-derived from an operator's request.
+    // D9's single writer holds: zero settlement rows afterwards.
     let world = World::new("earned-pass");
     world.seed_anchor_and_record(true);
     let output = world.run_cli(&[
@@ -355,8 +363,13 @@ fn even_an_earned_pass_record_never_lets_the_operator_shape_settle() {
         String::from_utf8_lossy(&output.stdout)
     );
     assert!(
-        stderr.contains("carries no chain-earned readiness"),
-        "the AK-062 boundary is the refusal: {stderr}"
+        stderr.contains("the settlement service refused")
+            && stderr.contains("the ticket stays open"),
+        "the CLI names the service refusal: {stderr}"
+    );
+    assert!(
+        stderr.contains("the governed verification open refused"),
+        "the refusal is the governed chain's own (AK-062 through the chain): {stderr}"
     );
     assert!(world.ticket_is_open(), "the ticket is untouched");
     let state = EmbeddedStateStore::open(&world.state_dir().join("gauntlet-state.db"))

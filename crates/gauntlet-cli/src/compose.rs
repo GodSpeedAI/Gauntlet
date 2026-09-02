@@ -660,6 +660,18 @@ pub struct OperatorSurface {
     pub manifest: std::path::PathBuf,
 }
 
+impl Clone for OperatorSurface {
+    fn clone(&self) -> Self {
+        Self {
+            state: self.state.clone(),
+            workspace_root: self.workspace_root.clone(),
+            escalation_root: self.escalation_root.clone(),
+            answer_key: self.answer_key.clone(),
+            manifest: self.manifest.clone(),
+        }
+    }
+}
+
 impl OperatorSurface {
     /// Why a read command refuses: the state database does not exist.
     pub fn state_exists(state_dir: &std::path::Path) -> bool {

@@ -777,13 +777,71 @@ impl SettlementService {
     /// the request hits the SAME durable-PASS gate first — lacking PASS
     /// evidence it is refused with the SAME
     /// [`SettleError::VerificationNotPass`] the automatic path's admission
-    /// produces — and with PASS evidence present it STILL cannot settle,
-    /// because settlement requires the chain-minted readiness this request
-    /// shape cannot carry (the full operator surface is Task 21). There is
-    /// no operator bypass at this layer, structurally.
+    /// produces — and with PASS evidence present it STILL cannot settle
+    /// through THIS bare entry point, because settlement requires the
+    /// chain-minted readiness this request shape cannot carry. The full
+    /// operator surface (Task 21) composes the positive arm
+    /// [`Self::settle_operator_action_earned`], which re-enters through
+    /// the governed chain; there is no operator bypass at this layer,
+    /// structurally.
     pub fn settle_operator_action(
         &self,
         request: OperatorActionRequest,
+        deadline: Deadline,
+    ) -> Result<(), SettleError> {
+        self.settle_operator_action_gate(&request, deadline)?;
+        Err(SettleError::OperatorActionRequiresEarnedReadiness {
+            run_id: request.run_id,
+            unit_id: request.unit_id,
+        })
+    }
+
+    /// The operator action's positive arm (§20.2, Task 21 charter D4):
+    /// the SAME gate [`Self::settle_operator_action`] performs — durable
+    /// PASS records first, then the identity requirement, refusal BEFORE
+    /// any chain work is trusted — and then the ONE settle path
+    /// ([`Self::settle`]) over the chain-minted claim the composition
+    /// root earned through the governed verification chain. The operator
+    /// request shape itself still carries NO claim and NO readiness; the
+    /// readiness is re-derived inside `settle` over the claim (COR-2) and
+    /// the §16.3 commit is performed by the service. The gate lives HERE,
+    /// inside the one method that pairs the gate with the settle, so no
+    /// caller composition can settle an operator action past it — the
+    /// no-bypass gate is never relaxed or duplicated.
+    pub fn settle_operator_action_earned(
+        &self,
+        request: OperatorActionRequest,
+        claim: &VerifiedClaim,
+        deadline: Deadline,
+    ) -> Result<SettlementOutcome, SettleError> {
+        self.settle_operator_action_gate(&request, deadline)?;
+        self.settle(
+            SettleRequest {
+                claim,
+                actor: ClosingActor::Operator {
+                    identity: request.identity,
+                },
+                tracked_residuals: &[],
+            },
+            deadline,
+        )
+    }
+
+    /// The operator-action gate (AK-062's service-level half): the run
+    /// must be durable, a PASS verification record must exist for the
+    /// (run, unit) — the SAME typed
+    /// [`SettleError::VerificationNotPass`] the automatic path's
+    /// admission produces — and the operator identity must be recorded.
+    /// Public so the composition root can let the gate speak BEFORE the
+    /// (more expensive) governed re-mint — refusal parity with the
+    /// automatic path, in the service's own words; the earned arm
+    /// ([`Self::settle_operator_action_earned`]) runs this gate again
+    /// inside the one method that pairs it with the settle, so no caller
+    /// composition can settle past it. Shared verbatim by
+    /// [`Self::settle_operator_action`] and the earned arm.
+    pub fn settle_operator_action_gate(
+        &self,
+        request: &OperatorActionRequest,
         deadline: Deadline,
     ) -> Result<(), SettleError> {
         self.state
@@ -796,42 +854,39 @@ impl SettlementService {
             .iter()
             .filter(|record| record.unit_id() == &request.unit_id)
             .collect();
-        let detail = if unit_records.is_empty() {
-            format!(
-                "the run holds no verification record for unit {} at all",
-                request.unit_id
-            )
-        } else {
-            let outcomes: Vec<String> = unit_records
-                .iter()
-                .map(|record| record.outcome().to_string())
-                .collect();
-            format!(
-                "the run's records for unit {} hold outcomes {} — none is PASS",
-                request.unit_id,
-                outcomes.join(", ")
-            )
-        };
         if !unit_records
             .iter()
             .any(|record| record.outcome() == gauntlet_domain::Outcome::Pass)
         {
+            let detail = if unit_records.is_empty() {
+                format!(
+                    "the run holds no verification record for unit {} at all",
+                    request.unit_id
+                )
+            } else {
+                let outcomes: Vec<String> = unit_records
+                    .iter()
+                    .map(|record| record.outcome().to_string())
+                    .collect();
+                format!(
+                    "the run's records for unit {} hold outcomes {} — none is PASS",
+                    request.unit_id,
+                    outcomes.join(", ")
+                )
+            };
             return Err(SettleError::VerificationNotPass {
-                run_id: request.run_id,
-                unit_id: request.unit_id,
+                run_id: request.run_id.clone(),
+                unit_id: request.unit_id.clone(),
                 detail,
             });
         }
         if request.identity.is_none() {
             return Err(SettleError::OperatorIdentityRequired {
-                run_id: request.run_id,
-                unit_id: request.unit_id,
+                run_id: request.run_id.clone(),
+                unit_id: request.unit_id.clone(),
             });
         }
-        Err(SettleError::OperatorActionRequiresEarnedReadiness {
-            run_id: request.run_id,
-            unit_id: request.unit_id,
-        })
+        Ok(())
     }
 
     /// §18.3 step 1: complete the half-applied durable writes at or after
@@ -4081,6 +4136,130 @@ mod tests {
             f.state.settlements(&run_id(), bound()).unwrap().is_empty(),
             "the operator shape never settles by itself"
         );
+    }
+
+    #[test]
+    fn the_earned_arm_refuses_past_the_gate_even_holding_a_chain_minted_pass_claim() {
+        // Task 21 charter D4's no-bypass tooth at the service level: the
+        // positive arm gates on the DURABLE PASS record FIRST. A caller
+        // holding a chain-minted PASS claim (governed chain, real
+        // production row, real checkpoint anchor) still cannot settle an
+        // operator action while no PASS record is durable — the gate
+        // speaks before any settle work runs, and nothing is written.
+        let f = fixture();
+        let claim = earned_claim(&f, "AK-9501", 1);
+        assert_eq!(claim.record().outcome(), Outcome::Pass);
+        let refused = f.service.settle_operator_action_earned(
+            OperatorActionRequest {
+                run_id: run_id(),
+                unit_id: unit_id("AK-9501"),
+                identity: Some(OperatorIdentity::new("operator-one").expect("identity")),
+            },
+            &claim,
+            bound(),
+        );
+        match refused {
+            Err(SettleError::VerificationNotPass { unit_id: gated, .. }) => {
+                assert_eq!(gated, unit_id("AK-9501"));
+            }
+            other => panic!("the earned arm keeps the durable-PASS gate, got {other:?}"),
+        }
+        assert!(
+            f.state.settlements(&run_id(), bound()).unwrap().is_empty(),
+            "a claim in hand is not a durable record: nothing settled"
+        );
+    }
+
+    #[test]
+    fn the_earned_arm_settles_through_the_same_commit_with_the_operator_identity() {
+        // Task 21 charter D4's positive half: with the durable PASS
+        // record present AND the identity recorded, the earned arm walks
+        // the ONE settle path — conditions re-derived inside, the §16.3
+        // commit performed by the service, the operator identity on the
+        // B.6 authority decision. The gate's substrate record carries its
+        // OWN evidence ref, so it coexists with the settling claim's
+        // document instead of disagreeing over one identity.
+        let f = fixture();
+        let gate_record = gauntlet_ports::verification_record::VerificationRecordDoc::new(
+            gauntlet_ports::verification_record::VerificationContent {
+                verification: gauntlet_domain::VerificationRef::new("vrf-settle-gate-substrate")
+                    .expect("valid verification ref"),
+                run_id: run_id(),
+                iteration_no: IterationNo::new(1).expect("1-based"),
+                unit_id: unit_id("AK-9501"),
+                claim: "the gate's substrate claim".to_owned(),
+                requirement: gauntlet_ports::verification_record::RequirementDoc::new(
+                    EvidenceKind::TestReport,
+                    EvidenceLocator::new("settle-gate-9501.json").expect("locator"),
+                    gauntlet_domain::Producer::Instrument,
+                ),
+                instrument: gauntlet_ports::verification_record::VerifyingInstrument::new(
+                    "settle-fixture-verifier".to_owned(),
+                    "1".to_owned(),
+                    true,
+                ),
+                evidence: EvidenceRef::new("evd-gate-AK-9501").expect("ref"),
+                produced_at: EpochSeconds::new(BASE_INSTANT),
+                outcome: Outcome::Pass,
+                class: None,
+                detail: "the durable PASS substrate".to_owned(),
+            },
+        )
+        .expect("the gate substrate is well formed");
+        gauntlet_ports::VerificationRecordAuthority::new(f.state.clone())
+            .record(&gate_record, bound())
+            .expect("the gate substrate lands");
+        let claim = earned_claim(&f, "AK-9501", 1);
+        let settled = f.service.settle_operator_action_earned(
+            OperatorActionRequest {
+                run_id: run_id(),
+                unit_id: unit_id("AK-9501"),
+                identity: Some(OperatorIdentity::new("operator-two").expect("identity")),
+            },
+            &claim,
+            bound(),
+        );
+        let outcome = settled.expect("the earned arm settles through the one settle path");
+        assert!(outcome.committed_now, "this call performed the commit");
+        assert_eq!(outcome.authority_decision.exercised_by, ActorKind::Operator);
+        assert_eq!(
+            outcome
+                .authority_decision
+                .operator_identity
+                .as_ref()
+                .expect("the identity is recorded on the decision")
+                .as_str(),
+            "operator-two"
+        );
+        let rows = f.state.settlements(&run_id(), bound()).expect("reads");
+        assert_eq!(rows.len(), 1, "exactly the §16.3 commit's row");
+    }
+
+    #[test]
+    fn the_earned_arm_keeps_the_identity_requirement_inside_the_gate() {
+        // The identity requirement lives in the gate the earned arm runs
+        // FIRST: an anonymous operator action is refused before any
+        // settle work, even with the gate's PASS record durable and a
+        // chain-minted claim in hand (spec 16.1 condition 3).
+        let f = fixture();
+        gauntlet_ports::VerificationRecordAuthority::new(f.state.clone())
+            .record(&claim_document(&f, "AK-9501"), bound())
+            .expect("the PASS record lands");
+        let claim = earned_claim(&f, "AK-9501", 1);
+        let refused = f.service.settle_operator_action_earned(
+            OperatorActionRequest {
+                run_id: run_id(),
+                unit_id: unit_id("AK-9501"),
+                identity: None,
+            },
+            &claim,
+            bound(),
+        );
+        assert!(matches!(
+            refused,
+            Err(SettleError::OperatorIdentityRequired { .. })
+        ));
+        assert!(f.state.settlements(&run_id(), bound()).unwrap().is_empty());
     }
 
     #[test]

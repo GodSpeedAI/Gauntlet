@@ -1,0 +1,43 @@
+=== E2E WITH surfaces ===
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 17s
+────────────
+ Nextest run ID 6f4d6cc4-7964-4134-9f6b-2bd8e8b23ab9 with nextest profile: default
+    Starting 12 tests across 1 binary
+        PASS [   0.100s] ( 1/12) gauntlet-cli::e2e_full_loop_mock the_dry_run_preflight_writes_nothing
+        PASS [   0.273s] ( 2/12) gauntlet-cli::e2e_full_loop_mock the_report_forging_liar_is_never_settled
+        PASS [   0.282s] ( 3/12) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+        PASS [   0.288s] ( 4/12) gauntlet-cli::e2e_full_loop_mock parallel_completions_carry_and_never_collide
+        PASS [   0.196s] ( 5/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_names_exactly_the_damaged_locator
+        PASS [   0.300s] ( 6/12) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+        PASS [   0.304s] ( 7/12) gauntlet-cli::e2e_full_loop_mock the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+        PASS [   0.164s] ( 8/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_all_production_rows_deleted_is_honest
+        PASS [   0.164s] ( 9/12) gauntlet-cli::e2e_full_loop_mock the_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row
+        PASS [   0.186s] (10/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_a_recovery_completed_settlement_is_the_settled_noop
+        PASS [   0.207s] (11/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_a_recovery_completed_production_is_the_settled_noop
+        PASS [   0.212s] (12/12) gauntlet-cli::e2e_full_loop_mock the_single_writer_guard_bounds_the_concurrent_double_resume_attack
+────────────
+     Summary [   0.514s] 12 tests run: 12 passed, 0 skipped
+E2E_SURFACES_EXIT=0
+=== E2E WITHOUT surfaces ===
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 19s
+────────────
+ Nextest run ID 66acf130-c269-428b-ba60-b15bef572af5 with nextest profile: default
+    Starting 12 tests across 1 binary
+        PASS [   0.156s] ( 1/12) gauntlet-cli::e2e_full_loop_mock the_dry_run_preflight_writes_nothing
+        PASS [   0.360s] ( 2/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_names_exactly_the_damaged_locator
+        PASS [   0.525s] ( 3/12) gauntlet-cli::e2e_full_loop_mock parallel_completions_carry_and_never_collide
+        PASS [   0.525s] ( 4/12) gauntlet-cli::e2e_full_loop_mock the_report_forging_liar_is_never_settled
+        PASS [   0.544s] ( 5/12) gauntlet-cli::e2e_full_loop_mock the_lying_builder_is_never_settled
+        PASS [   0.613s] ( 6/12) gauntlet-cli::e2e_full_loop_mock the_composed_loop_settles_every_unit_and_pins_the_artifacts
+        PASS [   0.629s] ( 7/12) gauntlet-cli::e2e_full_loop_mock the_first_resume_of_a_fully_settled_run_is_a_settled_noop
+        PASS [   0.265s] ( 8/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_all_production_rows_deleted_is_honest
+        PASS [   0.283s] ( 9/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_a_recovery_completed_settlement_is_the_settled_noop
+        PASS [   0.271s] (10/12) gauntlet-cli::e2e_full_loop_mock the_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row
+        PASS [   0.301s] (11/12) gauntlet-cli::e2e_full_loop_mock the_resume_of_a_settled_run_with_a_recovery_completed_production_is_the_settled_noop
+        PASS [   0.246s] (12/12) gauntlet-cli::e2e_full_loop_mock the_single_writer_guard_bounds_the_concurrent_double_resume_attack
+────────────
+     Summary [   0.867s] 12 tests run: 12 passed, 0 skipped
+E2E_DEFAULT_EXIT=0
+OB7_DONE
