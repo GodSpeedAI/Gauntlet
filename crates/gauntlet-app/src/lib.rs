@@ -17,6 +17,7 @@ pub mod control;
 pub mod doctor;
 pub mod formation;
 pub mod govern;
+pub mod memory;
 pub mod observation;
 pub mod reference;
 pub mod report;

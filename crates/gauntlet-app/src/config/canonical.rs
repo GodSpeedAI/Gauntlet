@@ -267,6 +267,12 @@ pub fn effective_tree(config: &EffectiveConfig) -> CanonValue {
         "nonconvergence_n".to_owned(),
         CanonValue::Uint(u64::from(config.nonconvergence_n)),
     );
+    let mut promotion = BTreeMap::new();
+    promotion.insert(
+        "min_settlements".to_owned(),
+        CanonValue::Uint(u64::from(config.promotion_min_settlements)),
+    );
+    root.insert("promotion".to_owned(), CanonValue::Object(promotion));
     let mut evidence = BTreeMap::new();
     evidence.insert(
         "dir".to_owned(),
@@ -427,6 +433,7 @@ impl EffectiveConfig {
             "nonconvergence_n",
             "observation",
             "operator",
+            "promotion",
             "reference",
             "report_dir",
             "review",
@@ -588,6 +595,9 @@ impl EffectiveConfig {
                 .ok_or_else(wrong_shape)?,
         )
         .map_err(|_| wrong_shape())?;
+        let promotion = section(root, "promotion")?;
+        config.promotion_min_settlements =
+            u32::try_from(uint_of(&promotion, "min_settlements")?).map_err(|_| wrong_shape())?;
         let control = section(root, "control")?;
         let required_control_uint =
             |map: &BTreeMap<String, CanonValue>, key: &str| -> Result<Option<u64>, ConfigError> {

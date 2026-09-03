@@ -146,6 +146,15 @@ pub const MAX_COST_USD: &str = "25";
 /// deliberately absent from the boundary suite's pinned ten-row inventory.
 /// Addressed by the Annex E variable of the same name.
 pub const NONCONVERGENCE_N: u32 = 3;
+/// §19.2 promotion threshold, inline spec default (Core-spec §19.2:
+/// "Promote a capability only with ≥ `GAUNTLET_PROMOTION_MIN_SETTLEMENTS`
+/// (default 3) settlements across recorded variation axes") — an inline
+/// default, NOT a §8.6 defaults-table row, so it is deliberately absent
+/// from the boundary suite's pinned ten-row inventory. Addressed by the
+/// Annex E variable of the same name. A configured 0 is a typed
+/// configuration error at resolution: §19.2's floor (one successful run is
+/// not capability) cannot hold below 1.
+pub const PROMOTION_MIN_SETTLEMENTS: u32 = 3;
 /// §11.4 reconciliation tick window, inline spec default (Core-spec §11.4
 /// names the Annex E variable `GAUNTLET_POLL_INTERVAL_MS` with an inline
 /// five-second default) — an inline default, NOT a §8.6 defaults-table
@@ -347,6 +356,14 @@ mod tests {
         // §11.5: "N = GAUNTLET_NONCONVERGENCE_N, default 3" — an inline
         // default, not a §8.6 row; the citation lives on the constant.
         assert_eq!(NONCONVERGENCE_N, 3);
+    }
+
+    #[test]
+    fn the_inline_19_2_default_pins_to_its_spec_value() {
+        // §19.2: "≥ GAUNTLET_PROMOTION_MIN_SETTLEMENTS (default 3)
+        // settlements across recorded variation axes" — an inline default,
+        // not a §8.6 row; the citation lives on the constant.
+        assert_eq!(PROMOTION_MIN_SETTLEMENTS, 3);
     }
 
     #[test]

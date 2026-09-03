@@ -22,7 +22,6 @@
 use super::ContractFinding;
 use super::agent_runner::ProbeBudget;
 use super::stubs::*;
-
 fn assert_green(label: &'static str, findings: Vec<ContractFinding>) {
     assert!(
         findings.is_empty(),
@@ -94,6 +93,40 @@ fn budget_meter_broken_is_caught() {
         "BudgetMeterBroken",
         "reserve_consuming_the_recovery_reserve_is_refused",
         super::budget_meter::budget_meter_suite(&BudgetMeterBroken),
+    );
+}
+
+/// The `CapabilityLedger` reference stub runs its suite clean — the floor
+/// every adapter must clear (plan Task 22, charter D1).
+#[test]
+fn capability_ledger_green_is_clean() {
+    assert_green(
+        "CapabilityLedgerGreen",
+        super::capability_ledger::capability_ledger_suite(&CapabilityLedgerGreenFactory),
+    );
+}
+
+/// The broken stub inflates the observation log on re-append — exactly the
+/// defect that would let a replayed import inflate a promotion's
+/// settlement count. Caught on the idempotency case specifically.
+#[test]
+fn capability_ledger_broken_is_caught() {
+    assert_caught(
+        "CapabilityLedgerBroken",
+        "observation_appends_are_idempotent_on_identity",
+        super::capability_ledger::capability_ledger_suite(&CapabilityLedgerBrokenFactory),
+    );
+}
+
+/// The caps-broken stub hands back observations whose typed facts differ
+/// from the rows appended — the facts a §19.2 decision reads are not the
+/// facts recorded. Caught on the exactness case specifically.
+#[test]
+fn capability_ledger_caps_broken_is_caught() {
+    assert_caught(
+        "CapabilityLedgerCapsBroken",
+        "observations_read_back_exactly_as_appended",
+        super::capability_ledger::capability_ledger_suite(&CapabilityLedgerCapsBrokenFactory),
     );
 }
 

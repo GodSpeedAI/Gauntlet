@@ -55,6 +55,11 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "correction_selection_records",
         sql: include_str!("../migrations/0008_correction_selection_records.sql"),
     },
+    Migration {
+        version: 9,
+        name: "capability_ledger",
+        sql: include_str!("../migrations/0009_capability_ledger.sql"),
+    },
 ];
 
 /// Why a migration could not be applied — typed, carrying the version.
@@ -195,14 +200,15 @@ mod tests {
         apply(&conn).expect("the set applies");
         // 0008 (correction-selection records) widened the records CHECK by
         // rebuilding the table — a recorded act, pinned here with the rest.
+        // 0009 (capability ledger) added the two §19.1 tables.
         assert_eq!(
             applied_versions(&conn).unwrap(),
-            vec![1, 2, 3, 4, 5, 6, 7, 8]
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9]
         );
         apply(&conn).expect("an up-to-date database is a no-op");
         assert_eq!(
             applied_versions(&conn).unwrap(),
-            vec![1, 2, 3, 4, 5, 6, 7, 8]
+            vec![1, 2, 3, 4, 5, 6, 7, 8, 9]
         );
         // Every migration in the set is numbered strictly ascending, and the
         // versions recorded are exactly the set's versions — the append-only

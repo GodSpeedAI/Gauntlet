@@ -1421,3 +1421,70 @@ through the normal spec process, never a builder's direct edit.
   by a correction.
 - **Not changed by this entry:** the answer key, the spec, the frozen
   reference, and the frozen lock.
+
+## 2026-09-03 — AK-055 evidence locator names an unmaterializable test target (Task 22)
+
+- **Unit:** AK-055 (`.wayfinder/answer-key.md` lines 383–388): "One
+  successful run does not promote a capability; promotion requires the
+  configured minimum settlements under recorded variation plus a recovery
+  event." (`verify_by: test`, `authority: critic`,
+  `evidence_required: {kind: test_report, locator:
+  tests/proofs/p10_no_false_learning, producer: instrument}`.)
+- **Defect (evidence declaration only):** the locator
+  `tests/proofs/p10_no_false_learning` matches no file or cargo target —
+  `tests/proofs/` does not exist in the repository, and the architecture
+  boundary suite's Cargo-target-path rule forbids a core crate from
+  declaring a repo-level test target. Identical class to the recorded
+  AK-060/061/062/063 divergences.
+- **Materialization:** the proof lives at
+  `crates/gauntlet-cli/tests/p10_no_false_learning.rs` (the composed-proof
+  convention: integration tests of the composition root, plan gate
+  `cargo nextest run --test p10_no_false_learning`), which proves the
+  claim's content: single success stays `observed`; ≥N settlements under
+  identical content axes are refused (`insufficient_variation` recorded,
+  never promoted); the §19.2 positive path is the only road to `promoted`
+  with a durable decision record; revoke is sticky.
+- **Not changed by this entry:** the answer key, the spec, and the frozen
+  lock (digests still match; `just ruler` PASS at slice start; re-run at
+  slice close). Settlement of this candidate belongs to the ruler's
+  owner, not the builder.
+
+## 2026-09-03 — CandidateRevision question against §19.1/I6: may the N settlements backing a promotion come from a SINGLE run? (Task 22 falsifier round 2, F2-3 — orchestrator adjudication, operator's call)
+
+**The tension (both texts verbatim):** spec §19.1: "Tool access is not
+capability. One successful run is not capability. Capability is repeated
+reliable settlement under relevant variation, with recovery and
+decreasing orchestration burden." Plan Task 22 / charter D4
+commissioned the promotion gate's variation condition mechanically:
+"≥ N settlements … must differ on at least one CONTENT axis" — with
+axes typed as durable content facts (unit, reference digest, evidence
+kind, locator class) and run ids/timestamps EXPLICITLY excluded (they
+always differ; excluding them is what makes the AK-055 run-id trap
+unpassable).
+
+**The executed case (falsifier round 2, NH-5b, real adapters):** three
+settlement-class observations from a SINGLE run over three DISTINCT
+units (plus a rooted recovery and passing attempts) promote —
+witnesses=3, content-only axes, every commissioned refusal silent. This
+is charter-conformant: the variation is real content variation, and the
+plan's Done-when teeth ("three settlements with *identical* variation
+axes also do not promote") are not implicated. But under a run-counted
+reading of §19.1's sentence, one successful run should never promote a
+capability, whatever its internal variation — the N settlements should
+span ≥ 2 distinct runs.
+
+**Disposition:** recorded, NOT patched. The charter is this task's
+commission and was implemented as commissioned; tightening the gate to a
+run-counted minimum is a product decision about §19.2's meaning (a
+CandidateRevision against the spec), the ruler owner's call between
+runs. Until adjudicated: the mechanism refuses all-identical content
+axes (proven) and promotes genuinely varied single-run windows (proven);
+a consumer needing the stricter reading (task23's optimizer is the
+likely first) should either wait for the operator's adjudication or
+record the stricter requirement at ITS call site. Trigger: task23
+promotion consumption, or the next reference revision. Falsifier
+evidence: `.agents/reports/task22/falsifier-round2.md` (NH-5b, F2-3).
+
+- **Not changed by this entry:** the answer key, the spec, and the
+  frozen lock (`just ruler` PASS at entry time; the entry is a recorded
+  question for the ruler's owner, not the builder).

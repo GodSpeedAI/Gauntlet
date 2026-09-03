@@ -20,11 +20,12 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use gauntlet_domain::{
-    BlastRadius, Budget, BudgetDimension, BudgetError, ComparisonRecord, DiagnosticAllowance,
-    Digest, EpochSeconds, EventLogOffset, EvidenceKind, EvidenceLocator, EvidenceRef,
-    InstrumentName, InvocationId, InvocationState, Limits, MicroUsd, Outcome, Payment, Reference,
-    ReferenceDefinition, ReferenceId, ReferenceVersion, ResultContractPath, RoleId, Run,
-    RunDefinition, RunId, SettlementCriteria, UnitId, Verdict, VerificationRecord, WorkspaceRef,
+    BlastRadius, Budget, BudgetDimension, BudgetError, CapabilityId, CapabilityStatus,
+    ComparisonRecord, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind,
+    EvidenceLocator, EvidenceRef, InstrumentName, InvocationId, InvocationState, Limits, MicroUsd,
+    Outcome, Payment, Reference, ReferenceDefinition, ReferenceId, ReferenceVersion,
+    ResultContractPath, RoleId, Run, RunDefinition, RunId, SettlementCriteria, UnitId, Verdict,
+    VerificationRecord, WorkspaceRef,
 };
 
 use crate::agent_runner::{
@@ -32,6 +33,10 @@ use crate::agent_runner::{
     Isolation, ResultDelivery, RoleInvocationSpec, RunnerCapabilities,
 };
 use crate::budget_meter::{BudgetMeter, BudgetMeterError, BudgetSlice, Remaining, Reservation};
+use crate::capability_ledger::{
+    CapabilityEntry, CapabilityLedger, CapabilityLedgerError, ObservationAppend, ObservationRecord,
+    StatusTransition, TransitionReason,
+};
 use crate::clock::{Clock, ClockError};
 use crate::comparator::{Comparator, ComparatorError, TrustedComparisonContext};
 use crate::deadline::Deadline;
@@ -3568,5 +3573,383 @@ impl WorkspaceProviderFactory for WorkspaceProviderBroken {
 
     fn build(&self) -> Result<Box<dyn WorkspaceProvider>, String> {
         Ok(Box::new(SharedWorkspaces))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// CapabilityLedger (plan Task 22) — the reference in-memory stub, one
+// deliberately broken stub (idempotency), and one caps-broken stub
+// (read-back integrity).
+// ---------------------------------------------------------------------------
+
+/// One stored observation: the record plus its ledger-wide sequence.
+#[derive(Clone)]
+struct LedgerObservation {
+    sequence: u64,
+    record: ObservationRecord,
+}
+
+/// One stored transition (the Vec's order IS the apply order).
+#[derive(Clone)]
+struct LedgerTransition {
+    transition: StatusTransition,
+}
+
+/// The reference in-memory stub of the `CapabilityLedger` port: the
+/// observation log is identity-keyed and append-ordered; the register's
+/// current status is derived from the transition history; every rule the
+/// shared suite pins is honored here — this is the floor every adapter
+/// must clear.
+pub struct CapabilityLedgerGreen {
+    observations: RefCell<Vec<LedgerObservation>>,
+    transitions: RefCell<Vec<LedgerTransition>>,
+    sequence: Cell<u64>,
+}
+
+impl CapabilityLedgerGreen {
+    fn next_sequence(&self) -> u64 {
+        let sequence = self.sequence.get() + 1;
+        self.sequence.set(sequence);
+        sequence
+    }
+
+    fn current_status(&self, capability: &CapabilityId) -> Option<CapabilityStatus> {
+        self.transitions
+            .borrow()
+            .iter()
+            .rev()
+            .find(|entry| entry.transition.capability() == capability)
+            .map(|entry| entry.transition.to())
+            // With observations but no transition, the register reads
+            // Observed; with none, the capability is unknown.
+            .or(Some(CapabilityStatus::Observed))
+    }
+}
+
+impl CapabilityLedgerGreen {
+    fn entry(&self, capability: &CapabilityId) -> Option<CapabilityEntry> {
+        let observations = self.observations.borrow();
+        let registered_at = observations
+            .iter()
+            .find(|stored| stored.record.identity().capability() == capability)
+            .map(|stored| stored.record.at())?;
+        let last_transition_at = self
+            .transitions
+            .borrow()
+            .iter()
+            .rev()
+            .find(|entry| entry.transition.capability() == capability)
+            .map(|entry| entry.transition.at());
+        Some(CapabilityEntry {
+            capability: capability.clone(),
+            status: self.current_status(capability)?,
+            registered_at,
+            last_transition_at,
+        })
+    }
+}
+
+impl CapabilityLedger for CapabilityLedgerGreen {
+    fn append_observation(
+        &self,
+        observation: ObservationRecord,
+        _deadline: Deadline,
+    ) -> Result<ObservationAppend, CapabilityLedgerError> {
+        let identity = observation.identity().clone();
+        let mut observations = self.observations.borrow_mut();
+        if let Some(stored) = observations
+            .iter()
+            .find(|stored| stored.record.identity() == &identity)
+        {
+            if stored.record.facts_agree(&observation) {
+                return Ok(ObservationAppend {
+                    sequence: stored.sequence,
+                    idempotent: true,
+                });
+            }
+            return Err(CapabilityLedgerError::ObservationConflict { identity });
+        }
+        let sequence = self.next_sequence();
+        observations.push(LedgerObservation {
+            sequence,
+            record: observation,
+        });
+        Ok(ObservationAppend {
+            sequence,
+            idempotent: false,
+        })
+    }
+
+    fn observations(
+        &self,
+        capability: &CapabilityId,
+        _deadline: Deadline,
+    ) -> Result<Vec<ObservationRecord>, CapabilityLedgerError> {
+        Ok(self
+            .observations
+            .borrow()
+            .iter()
+            .filter(|stored| stored.record.identity().capability() == capability)
+            .map(|stored| stored.record.clone())
+            .collect())
+    }
+
+    fn capability(
+        &self,
+        capability: &CapabilityId,
+        _deadline: Deadline,
+    ) -> Result<Option<CapabilityEntry>, CapabilityLedgerError> {
+        Ok(self.entry(capability))
+    }
+
+    fn apply_transition(
+        &self,
+        transition: StatusTransition,
+        _deadline: Deadline,
+    ) -> Result<CapabilityEntry, CapabilityLedgerError> {
+        let capability = transition.capability().clone();
+        let has_observations = self
+            .observations
+            .borrow()
+            .iter()
+            .any(|stored| stored.record.identity().capability() == &capability);
+        let current = if has_observations {
+            self.current_status(&capability)
+        } else {
+            None
+        };
+        let Some(current) = current else {
+            return Err(CapabilityLedgerError::UnknownCapability {
+                capability: capability.clone(),
+            });
+        };
+        if transition.from() != current {
+            return Err(CapabilityLedgerError::StaleTransition {
+                capability,
+                current,
+            });
+        }
+        // Log-rooting (COR-1 C3): an elevating transition is an earned
+        // write — every witness in its evidence must resolve, in THIS
+        // ledger's own observation log, to a Settlement observation of the
+        // same capability with matching (run, unit, verification, evidence)
+        // facts. Pure provenance, not §19.2 logic: the promotion's
+        // witnesses must be memories that exist.
+        if let TransitionReason::Promoted(evidence) = transition.reason() {
+            let log: Vec<ObservationRecord> = self
+                .observations
+                .borrow()
+                .iter()
+                .map(|stored| stored.record.clone())
+                .collect();
+            for witness in &evidence.settlements {
+                if !crate::capability_ledger::promotion_witness_is_rooted(
+                    &log,
+                    &capability,
+                    witness,
+                ) {
+                    return Err(CapabilityLedgerError::UnrootedPromotion {
+                        capability,
+                        witness: witness.clone(),
+                    });
+                }
+            }
+        }
+        self.transitions
+            .borrow_mut()
+            .push(LedgerTransition { transition });
+        Ok(self
+            .entry(&capability)
+            .expect("the capability just transitioned"))
+    }
+
+    fn transitions(
+        &self,
+        capability: &CapabilityId,
+        _deadline: Deadline,
+    ) -> Result<Vec<StatusTransition>, CapabilityLedgerError> {
+        Ok(self
+            .transitions
+            .borrow()
+            .iter()
+            .filter(|stored| stored.transition.capability() == capability)
+            .map(|stored| stored.transition.clone())
+            .collect())
+    }
+}
+
+impl CapabilityLedgerGreen {
+    pub fn new() -> Self {
+        Self {
+            observations: RefCell::new(Vec::new()),
+            transitions: RefCell::new(Vec::new()),
+            sequence: Cell::new(0),
+        }
+    }
+}
+
+impl Default for CapabilityLedgerGreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct CapabilityLedgerGreenFactory;
+
+impl super::capability_ledger::CapabilityLedgerFactory for CapabilityLedgerGreenFactory {
+    fn label(&self) -> &'static str {
+        "capability-ledger-green"
+    }
+
+    fn build(&self) -> Result<Box<dyn CapabilityLedger>, String> {
+        Ok(Box::new(CapabilityLedgerGreen::new()))
+    }
+}
+
+/// Deliberately broken: the observation append is NOT idempotent — the
+/// same identity re-appended with agreeing facts appends a second row, so
+/// a replayed import inflates the settlement count a promotion rests on.
+pub struct CapabilityLedgerBroken {
+    inner: CapabilityLedgerGreen,
+}
+
+impl CapabilityLedger for CapabilityLedgerBroken {
+    fn append_observation(
+        &self,
+        observation: ObservationRecord,
+        deadline: Deadline,
+    ) -> Result<ObservationAppend, CapabilityLedgerError> {
+        self.inner.append_observation(observation, deadline)?;
+        let sequence = self.inner.sequence.get();
+        Ok(ObservationAppend {
+            sequence,
+            idempotent: false,
+        })
+    }
+
+    fn observations(
+        &self,
+        capability: &CapabilityId,
+        deadline: Deadline,
+    ) -> Result<Vec<ObservationRecord>, CapabilityLedgerError> {
+        // The duplicate the inner store refused is absent, but the BROKEN
+        // stub never refuses: it duplicates every append.
+        let existing = self.inner.observations(capability, deadline)?;
+        let mut duplicated = existing.clone();
+        duplicated.extend(existing);
+        Ok(duplicated)
+    }
+
+    fn capability(
+        &self,
+        capability: &CapabilityId,
+        deadline: Deadline,
+    ) -> Result<Option<CapabilityEntry>, CapabilityLedgerError> {
+        self.inner.capability(capability, deadline)
+    }
+
+    fn apply_transition(
+        &self,
+        transition: StatusTransition,
+        deadline: Deadline,
+    ) -> Result<CapabilityEntry, CapabilityLedgerError> {
+        self.inner.apply_transition(transition, deadline)
+    }
+
+    fn transitions(
+        &self,
+        capability: &CapabilityId,
+        deadline: Deadline,
+    ) -> Result<Vec<StatusTransition>, CapabilityLedgerError> {
+        self.inner.transitions(capability, deadline)
+    }
+}
+
+pub struct CapabilityLedgerBrokenFactory;
+
+impl super::capability_ledger::CapabilityLedgerFactory for CapabilityLedgerBrokenFactory {
+    fn label(&self) -> &'static str {
+        "capability-ledger-broken"
+    }
+
+    fn build(&self) -> Result<Box<dyn CapabilityLedger>, String> {
+        Ok(Box::new(CapabilityLedgerBroken {
+            inner: CapabilityLedgerGreen::new(),
+        }))
+    }
+}
+
+/// Deliberately caps-broken: observations read back CORRUPTED — the
+/// instrument-determinism fact and the detail flip on the way out, so the
+/// typed facts a promotion decision reads are not the facts appended (the
+/// `AgentRunnerCapsBroken` class: the typed surface lies).
+pub struct CapabilityLedgerCapsBroken {
+    inner: CapabilityLedgerGreen,
+}
+
+impl CapabilityLedger for CapabilityLedgerCapsBroken {
+    fn append_observation(
+        &self,
+        observation: ObservationRecord,
+        deadline: Deadline,
+    ) -> Result<ObservationAppend, CapabilityLedgerError> {
+        self.inner.append_observation(observation, deadline)
+    }
+
+    fn observations(
+        &self,
+        capability: &CapabilityId,
+        deadline: Deadline,
+    ) -> Result<Vec<ObservationRecord>, CapabilityLedgerError> {
+        let stored = self.inner.observations(capability, deadline)?;
+        Ok(stored
+            .into_iter()
+            .map(|record| {
+                let corrupted = format!("{} (corrupted on read)", record.detail());
+                let flipped = match record.instrument_deterministic() {
+                    Some(flag) => record.with_instrument_deterministic(!flag),
+                    None => record,
+                };
+                flipped.with_detail(corrupted)
+            })
+            .collect())
+    }
+
+    fn capability(
+        &self,
+        capability: &CapabilityId,
+        deadline: Deadline,
+    ) -> Result<Option<CapabilityEntry>, CapabilityLedgerError> {
+        self.inner.capability(capability, deadline)
+    }
+
+    fn apply_transition(
+        &self,
+        transition: StatusTransition,
+        deadline: Deadline,
+    ) -> Result<CapabilityEntry, CapabilityLedgerError> {
+        self.inner.apply_transition(transition, deadline)
+    }
+
+    fn transitions(
+        &self,
+        capability: &CapabilityId,
+        deadline: Deadline,
+    ) -> Result<Vec<StatusTransition>, CapabilityLedgerError> {
+        self.inner.transitions(capability, deadline)
+    }
+}
+
+pub struct CapabilityLedgerCapsBrokenFactory;
+
+impl super::capability_ledger::CapabilityLedgerFactory for CapabilityLedgerCapsBrokenFactory {
+    fn label(&self) -> &'static str {
+        "capability-ledger-caps-broken"
+    }
+
+    fn build(&self) -> Result<Box<dyn CapabilityLedger>, String> {
+        Ok(Box::new(CapabilityLedgerCapsBroken {
+            inner: CapabilityLedgerGreen::new(),
+        }))
     }
 }

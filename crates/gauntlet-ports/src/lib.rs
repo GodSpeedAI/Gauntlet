@@ -30,6 +30,7 @@
 
 pub mod agent_runner;
 pub mod budget_meter;
+pub mod capability_ledger;
 pub mod clock;
 pub mod comparator;
 pub mod comparison_record;
@@ -62,6 +63,12 @@ pub use agent_runner::{
     RunnerCapabilities,
 };
 pub use budget_meter::{BudgetMeter, BudgetMeterError, BudgetSlice, Remaining, Reservation};
+pub use capability_ledger::{
+    CapabilityEntry, CapabilityLedger, CapabilityLedgerError, ObservationAppend, ObservationClass,
+    ObservationIdentity, ObservationIdentityError, ObservationRecord, PromotionEvidence,
+    PromotionRefusal, SettlementWitness, StatusTransition, StatusTransitionError, TransitionReason,
+    VariationAxis, is_legal_transition,
+};
 pub use clock::{Clock, ClockError};
 pub use comparator::{
     AdversarialComparator, AdversarialComparatorSource, ApplicableConstraint, Comparator,

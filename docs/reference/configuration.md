@@ -92,6 +92,7 @@ If any configuration setting is omitted, the runtime falls back to these hardcod
 | `sandbox.backend` | `"none"` | §8.6, §17.2 | Fails closed: refuses execution above `contained`. |
 | `reference.digest_algo` | `"sha256"` | §8.6, §9.3 | Standard cryptographic normalization digest. |
 | `control.nonconvergence_n` | `3` | §8.6, §15.2 | Triggers diagnostic engine after 3 identical residuals. |
+| `promotion.min_settlements` | `3` | §19.2 (inline default) | Minimum settlements under recorded variation a capability promotion requires; a configured 0 is refused. |
 
 ---
 

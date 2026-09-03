@@ -86,6 +86,7 @@ impl std::error::Error for SuiteSetupError {}
 
 pub mod agent_runner;
 pub mod budget_meter;
+pub mod capability_ledger;
 pub mod clock;
 pub mod comparator;
 pub mod event_log;

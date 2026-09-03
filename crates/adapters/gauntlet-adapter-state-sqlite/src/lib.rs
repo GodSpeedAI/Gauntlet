@@ -26,6 +26,7 @@
 //! database"). The vendor-named paths above remain canonical inside the
 //! adapter layer, where vendor names belong.
 
+mod capability_ledger;
 mod encode;
 mod event_log;
 mod migrations;
@@ -40,6 +41,10 @@ mod state_store;
 /// literal outside it.
 pub const STATE_BACKEND_TOKEN: &str = "sqlite";
 
+/// The capability name of [`SqliteCapabilityLedger`] for the composition
+/// root — the §19.1 developmental-memory and capability-register store
+/// (plan Task 22).
+pub use capability_ledger::SqliteCapabilityLedger as EmbeddedCapabilityLedger;
 /// The capability name of [`SqliteEventLog`] for the composition root —
 /// see the module docs.
 pub use event_log::SqliteEventLog as EmbeddedEventLog;
@@ -47,6 +52,7 @@ pub use event_log::SqliteEventLog as EmbeddedEventLog;
 /// see the module docs.
 pub use state_store::SqliteStateStore as EmbeddedStateStore;
 
+pub use capability_ledger::SqliteCapabilityLedger;
 pub use event_log::SqliteEventLog;
 pub use state_store::{RecordKind, SqliteStateStore};
 

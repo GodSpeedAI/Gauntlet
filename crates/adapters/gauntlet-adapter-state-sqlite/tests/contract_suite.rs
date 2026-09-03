@@ -7,7 +7,11 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use gauntlet_adapter_state_sqlite::{SqliteEventLog, SqliteStateStore};
+use gauntlet_adapter_state_sqlite::{SqliteCapabilityLedger, SqliteEventLog, SqliteStateStore};
+use gauntlet_ports::capability_ledger::CapabilityLedger;
+use gauntlet_ports::contract::capability_ledger::{
+    CapabilityLedgerFactory, capability_ledger_suite,
+};
 use gauntlet_ports::contract::event_log::{EventLogFactory, event_log_suite};
 use gauntlet_ports::contract::state_store::{StateStoreFactory, state_store_suite};
 use gauntlet_ports::event_log::EventLog;
@@ -82,6 +86,23 @@ impl EventLogFactory for SqliteEventLogFactory {
     }
 }
 
+struct SqliteCapabilityLedgerFactory;
+
+impl CapabilityLedgerFactory for SqliteCapabilityLedgerFactory {
+    fn label(&self) -> &'static str {
+        "sqlite-capability-ledger"
+    }
+
+    fn build(&self) -> Result<Box<dyn CapabilityLedger>, String> {
+        let scratch = Scratch::new("ledger");
+        let path = scratch.path.clone();
+        std::mem::forget(scratch);
+        SqliteCapabilityLedger::open(&path)
+            .map(|ledger| Box::new(ledger) as Box<dyn CapabilityLedger>)
+            .map_err(|error| error.to_string())
+    }
+}
+
 #[test]
 fn sqlite_state_store_passes_the_shared_contract_suite() {
     let findings = state_store_suite(&SqliteStateFactory);
@@ -102,6 +123,20 @@ fn sqlite_event_log_passes_the_shared_contract_suite() {
     assert!(
         findings.is_empty(),
         "the event log must pass the shared suite:\n{}",
+        findings
+            .iter()
+            .map(|finding| finding.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
+fn sqlite_capability_ledger_passes_the_shared_contract_suite() {
+    let findings = capability_ledger_suite(&SqliteCapabilityLedgerFactory);
+    assert!(
+        findings.is_empty(),
+        "the capability ledger must pass the shared suite:\n{}",
         findings
             .iter()
             .map(|finding| finding.to_string())

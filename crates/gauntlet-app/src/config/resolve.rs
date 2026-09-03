@@ -94,6 +94,10 @@ pub enum ConfigKey {
     /// Environment-only (Annex E Limits group; no §8.2 front-matter key):
     /// the §11.5 non-convergence threshold.
     NonconvergenceN,
+    /// The §19.2 promotion threshold (`promotion.min_settlements`, Annex E
+    /// `GAUNTLET_PROMOTION_MIN_SETTLEMENTS`): the settlement count a
+    /// capability's promotion requires under recorded variation.
+    PromotionMinSettlements,
     /// Environment-only (Annex E Limits group): the §11.4 reconciliation
     /// tick window.
     ControlPollIntervalMs,
@@ -151,6 +155,7 @@ impl ConfigKey {
             Self::BudgetRecoveryReservePct => "budget.recovery_reserve_pct".to_owned(),
             Self::BudgetDiagnosticBudget => "budget.diagnostic_budget".to_owned(),
             Self::NonconvergenceN => "nonconvergence_n".to_owned(),
+            Self::PromotionMinSettlements => "promotion.min_settlements".to_owned(),
             Self::ControlPollIntervalMs => "poll_interval_ms".to_owned(),
             Self::ControlStallTimeoutMs => "stall_timeout_ms".to_owned(),
             Self::ControlRetryBaseMs => "retry_base_ms".to_owned(),
@@ -196,6 +201,7 @@ impl ConfigKey {
             Self::BudgetRecoveryReservePct => Some("GAUNTLET_RECOVERY_RESERVE_PCT"),
             Self::BudgetDiagnosticBudget => Some("GAUNTLET_DIAGNOSTIC_BUDGET"),
             Self::NonconvergenceN => Some("GAUNTLET_NONCONVERGENCE_N"),
+            Self::PromotionMinSettlements => Some("GAUNTLET_PROMOTION_MIN_SETTLEMENTS"),
             Self::ControlPollIntervalMs => Some("GAUNTLET_POLL_INTERVAL_MS"),
             Self::ControlStallTimeoutMs => Some("GAUNTLET_STALL_TIMEOUT_MS"),
             Self::ControlRetryBaseMs => Some("GAUNTLET_RETRY_BASE_MS"),
@@ -247,6 +253,7 @@ impl ConfigKey {
             | Self::BudgetRecoveryReservePct
             | Self::BudgetDiagnosticBudget
             | Self::NonconvergenceN
+            | Self::PromotionMinSettlements
             | Self::ControlPollIntervalMs
             | Self::ControlStallTimeoutMs
             | Self::ControlRetryBaseMs
@@ -332,6 +339,10 @@ const STATIC_ENV_KEYS: &[(&str, ConfigKey)] = &[
         ConfigKey::BudgetDiagnosticBudget,
     ),
     ("GAUNTLET_NONCONVERGENCE_N", ConfigKey::NonconvergenceN),
+    (
+        "GAUNTLET_PROMOTION_MIN_SETTLEMENTS",
+        ConfigKey::PromotionMinSettlements,
+    ),
     (
         "GAUNTLET_POLL_INTERVAL_MS",
         ConfigKey::ControlPollIntervalMs,
@@ -458,6 +469,11 @@ pub struct EffectiveConfig {
     /// The §11.5 non-convergence threshold (environment-only; Annex E
     /// `GAUNTLET_NONCONVERGENCE_N`, default 3 — the inline spec default).
     pub nonconvergence_n: u32,
+    /// The §19.2 promotion threshold (Annex E
+    /// `GAUNTLET_PROMOTION_MIN_SETTLEMENTS`, §8.2 key
+    /// `promotion.min_settlements`, default 3 — the inline spec default;
+    /// a configured 0 is a typed configuration error).
+    pub promotion_min_settlements: u32,
     /// The §11.4/§11.5 control-loop settings (environment-only; one inline
     /// default, four REQUIRED settings that stay unset until supplied).
     pub control: ControlSettings,
@@ -515,6 +531,7 @@ impl EffectiveConfig {
                 diagnostic_budget: defaults::DIAGNOSTIC_BUDGET,
             },
             nonconvergence_n: defaults::NONCONVERGENCE_N,
+            promotion_min_settlements: defaults::PROMOTION_MIN_SETTLEMENTS,
             control: ControlSettings::from_defaults(),
             workspace_root: raw(defaults::workspace_root_default()),
             workspace_use_worktrees: defaults::WORKSPACE_USE_WORKTREES,
@@ -665,6 +682,12 @@ fn apply_front_matter(
                     ("backend", ConfigKey::SandboxBackend),
                     ("policy_dir", ConfigKey::SandboxPolicyDir),
                 ],
+                effective,
+                unknown,
+            )?,
+            "promotion" => walk_section(
+                entry,
+                &[("min_settlements", ConfigKey::PromotionMinSettlements)],
                 effective,
                 unknown,
             )?,
@@ -987,6 +1010,15 @@ impl EffectiveConfig {
                 }
                 self.nonconvergence_n = as_u32?;
             }
+            ConfigKey::PromotionMinSettlements => {
+                // §19.2's floor is that one successful run is not
+                // capability; a zero minimum cannot hold it and is a typed
+                // refusal, never a coerced one.
+                if n == 0 {
+                    return Err(overflow());
+                }
+                self.promotion_min_settlements = as_u32?;
+            }
             ConfigKey::ControlPollIntervalMs => {
                 // A zero tick window is a busy-spin, not a tick; refused.
                 if n == 0 {
@@ -1174,6 +1206,8 @@ pub struct ResolvedConfig {
     pub budget: ResolvedBudget,
     /// The §11.5 non-convergence threshold (`GAUNTLET_NONCONVERGENCE_N`).
     pub nonconvergence_n: u32,
+    /// The §19.2 promotion threshold (`GAUNTLET_PROMOTION_MIN_SETTLEMENTS`).
+    pub promotion_min_settlements: u32,
     /// The §11.4/§11.5 control-loop settings — plain numbers, carried
     /// through unchanged (nothing in the group is an indirection or path).
     pub control: ControlSettings,
@@ -1296,6 +1330,7 @@ impl EffectiveConfig {
             diagnostic_budget: self.budget.diagnostic_budget,
         };
         let nonconvergence_n = self.nonconvergence_n;
+        let promotion_min_settlements = self.promotion_min_settlements;
         let control = self.control.clone();
         let mut runners_by_role = BTreeMap::new();
         for (role, runner) in &self.runners_by_role {
@@ -1436,6 +1471,7 @@ impl EffectiveConfig {
             sandbox_policy_dir,
             budget,
             nonconvergence_n,
+            promotion_min_settlements,
             control,
             workspace_root,
             workspace_use_worktrees: self.workspace_use_worktrees,
@@ -1929,6 +1965,80 @@ mod tests {
                 .iter()
                 .any(|entry| entry.path == "nonconvergence_n")
         );
+    }
+
+    #[test]
+    fn the_promotion_minimum_defaults_to_the_spec_three_and_overrides() {
+        // §19.2: "≥ GAUNTLET_PROMOTION_MIN_SETTLEMENTS (default 3)
+        // settlements across recorded variation axes" — the default
+        // surfaces through resolution, the Annex E variable overrides it,
+        // and a configured 0 is a typed configuration error (one
+        // successful run is not capability; the floor cannot hold below 1).
+        let env = env_layer(&[]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.promotion_min_settlements, 3);
+        assert_eq!(
+            resolved
+                .effective
+                .resolve_against(&env, Path::new("proj-root"))
+                .expect("expands")
+                .promotion_min_settlements,
+            3
+        );
+        let env = env_layer(&[("GAUNTLET_PROMOTION_MIN_SETTLEMENTS", "5")]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.promotion_min_settlements, 5);
+        let env = env_layer(&[("GAUNTLET_PROMOTION_MIN_SETTLEMENTS", "0")]);
+        let err = resolve(&input(None, &env, FlagOverrides::new()))
+            .expect_err("a configured zero is typed-refused");
+        assert!(matches!(
+            err,
+            ConfigError::ValueOutOfRange { ref key } if key == "promotion.min_settlements"
+        ));
+        // The GAUNTLET.md key resolves too, and the zero refusal covers the
+        // front-matter layer and the flag layer alike.
+        let doc = "---\npromotion:\n  min_settlements: 4\n---\n";
+        let resolved =
+            resolve(&input(Some(doc), &env_layer(&[]), FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.promotion_min_settlements, 4);
+        let doc = "---\npromotion:\n  min_settlements: 0\n---\n";
+        let err = resolve(&input(Some(doc), &env_layer(&[]), FlagOverrides::new()))
+            .expect_err("a zero front-matter minimum is typed-refused");
+        assert!(matches!(
+            err,
+            ConfigError::ValueOutOfRange { ref key } if key == "promotion.min_settlements"
+        ));
+        let mut flags = FlagOverrides::new();
+        flags.set(
+            ConfigKey::PromotionMinSettlements,
+            FlagValue::WholeNumber(0),
+        );
+        let err = resolve(&input(None, &env_layer(&[]), flags))
+            .expect_err("a zero flag minimum is typed-refused");
+        assert!(matches!(
+            err,
+            ConfigError::ValueOutOfRange { ref key } if key == "promotion.min_settlements"
+        ));
+        // A non-zero flag overrides the file, and the setting is covered by
+        // the canonical fingerprint (a digest is only meaningful over the
+        // whole configuration).
+        let doc = "---\npromotion:\n  min_settlements: 4\n---\n";
+        let mut flags = FlagOverrides::new();
+        flags.set(
+            ConfigKey::PromotionMinSettlements,
+            FlagValue::WholeNumber(6),
+        );
+        let base = resolve(&input(Some(doc), &env_layer(&[]), FlagOverrides::new()))
+            .expect("resolves")
+            .effective;
+        let top = resolve(&input(Some(doc), &env_layer(&[]), flags))
+            .expect("resolves")
+            .effective;
+        assert_eq!(top.promotion_min_settlements, 6);
+        let fp = |config: &EffectiveConfig| {
+            crate::config::fingerprint::config_fingerprint(config).to_string()
+        };
+        assert_ne!(fp(&base), fp(&top));
     }
 
     #[test]
