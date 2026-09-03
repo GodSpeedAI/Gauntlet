@@ -9,10 +9,10 @@ workspace = true
 
 [features]
 # Plan Task 21 (charter D1): the DEFAULT build is byte-for-byte today's
-# CLI-only build (AK-061). `surfaces` is the ONLY feature edge in the
-# workspace: it enables the JSON operator surface adapter (spec 20.2)
-# and, with it, the `gauntlet serve` command. A non-default,
-# feature-gated dependency — never a default one.
+# CLI-only build (AK-061). `surfaces` is the only feature edge THIS task
+# adds: it enables the JSON operator surface adapter (spec 20.2) and,
+# with it, the `gauntlet serve` command. A non-default, feature-gated
+# dependency — never a default one.
 default = []
 surfaces = ["dep:gauntlet-adapter-surface-json"]
 

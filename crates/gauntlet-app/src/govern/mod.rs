@@ -16,7 +16,7 @@ pub mod posture;
 
 pub use gate::{
     AuthorityGate, BuilderCommand, GateAdmission, GateFacts, GateRefusal, GovernDeps, GovernError,
-    WrapRefusal,
+    WrapRefusal, containment_summary_matches,
 };
 pub use posture::{
     ChangeOrigin, LatticeMovement, dispatchable_posture, required_isolation,

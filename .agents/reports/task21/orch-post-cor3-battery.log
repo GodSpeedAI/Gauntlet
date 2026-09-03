@@ -1,0 +1,41 @@
+=== PLAN GATE (surfaces) ===
+     Summary [   0.152s] 13 tests run: 13 passed, 0 skipped
+=== cli_surface + escalations (default) ===
+     Summary [   0.049s] 7 tests run: 7 passed, 0 skipped
+=== ADAPTER PACKAGE ===
+     Summary [   0.208s] 11 tests run: 11 passed, 0 skipped
+=== NO-DEFAULT BUILD ===
+0
+=== E2E both configs ===
+     Summary [   0.236s] 12 tests run: 12 passed, 0 skipped
+     Summary [   0.279s] 12 tests run: 12 passed, 0 skipped
+Stopping sccache server...
+Compile requests                      2
+Compile requests executed             0
+Cache hits                            0
+Cache misses                          0
+Cache hits rate                       -
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          0
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   2
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.000 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            2
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Max cache size                       10 GiB

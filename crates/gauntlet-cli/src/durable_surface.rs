@@ -14,11 +14,16 @@
 //! newest run); none is an honest absence. The rule AND the sources are
 //! served with every snapshot, never a silent guess.
 //!
-//! `sandbox_denials` derives from queue tickets whose summary names the
-//! sandbox vocabulary the runtime's own governance gate escalates with
-//! ("sandbox policy ... failed validation", runner isolation below the
-//! tier's rung). When nothing durable names a denial the field is EMPTY
-//! — no denial log is invented.
+//! `sandbox_denials` derives from queue tickets whose summary carries
+//! the governance gate's OWN containment vocabulary —
+//! `gauntlet_app::govern::containment_summary_matches` over the
+//! gate-exported token list: the §21.3 escalate-never-unsandboxed family
+//! (sandbox policy validation, the sandbox backend probe, the tier's
+//! missing backend, the runner's capability rung below the tier's, the
+//! tier's unresolved policy). The vocabulary is SHARED with the gate
+//! (`govern::gate::CONTAINMENT_SUMMARY_TOKENS`), so the filter cannot
+//! drift from the gate's own spellings. When nothing durable names a
+//! denial the field is EMPTY — no denial log is invented.
 //!
 //! The action handler is the ONE operator-action path
 //! ([`crate::operator_action::execute_operator_action`], charter D3) —
@@ -223,8 +228,10 @@ impl OperatorSurface for DurableSurface {
                 cost_usd: MicroUsd::new(0),
             },
         };
-        // Sandbox denials: the tickets whose summary names the runtime's
-        // own sandbox-refusal vocabulary; EMPTY when nothing names one.
+        // Sandbox denials: the tickets whose summary carries the
+        // governance gate's OWN containment vocabulary (the shared
+        // `govern` token list — the matcher cannot drift from the gate);
+        // EMPTY when nothing names one.
         let queue = self
             .queue()
             .map_err(|error| OperatorSurfaceError::SnapshotFailed { detail: error })?;
@@ -236,7 +243,7 @@ impl OperatorSurface for DurableSurface {
         let sandbox_denials = listing
             .records
             .iter()
-            .filter(|record| record.summary.contains("sandbox"))
+            .filter(|record| gauntlet_app::govern::containment_summary_matches(&record.summary))
             .map(|record| record.summary.clone())
             .collect();
         // Open residuals: no durable read in the read surface names
@@ -384,7 +391,22 @@ impl RunScopedReader for DurableSurface {
         unit: &UnitId,
         deadline: Deadline,
     ) -> Result<UnitView, RunScopedError> {
-        // The run must be durable (the unit reads are run-anchored).
+        // The run must be durable (the unit reads are run-anchored): the
+        // run view's OWN refusal for a run the store never recorded, so
+        // a foreign or stale anchor cannot serve the default `open`
+        // projection as a durable answer (COR-1 C5, read-parity with
+        // `run_view`; the derived-run path's ids come from open tickets
+        // and are durable).
+        let _recorded = self
+            .surface
+            .state
+            .load_run(run, deadline)
+            .map_err(|error| RunScopedError::ReadFailed {
+                detail: error.to_string(),
+            })?
+            .ok_or_else(|| RunScopedError::NotFound {
+                detail: format!("run {run} is not durable in this state store"),
+            })?;
         let checkpoint = self.surface.state.resume(run, deadline).map_err(|error| {
             RunScopedError::ReadFailed {
                 detail: error.to_string(),

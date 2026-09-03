@@ -1,0 +1,72 @@
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+warning: unused variable: `wire_claimed`
+    --> crates/gauntlet-cli/tests/operator_actions_no_bypass.rs:1653:9
+     |
+1653 |     let wire_claimed = "\u{1b}[31mwire-claimed";
+     |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_wire_claimed`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `gauntlet-cli` (test "operator_actions_no_bypass") generated 1 warning (run `cargo fix --test "operator_actions_no_bypass" -p gauntlet-cli` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 2m 16s
+────────────
+ Nextest run ID 6bd80d74-93f7-4f7f-b211-0dc19fce3216 with nextest profile: default
+    Starting 1 test across 1 binary (12 tests skipped)
+        FAIL [   0.054s] (1/1) gauntlet-cli::operator_actions_no_bypass no_hostile_record_or_argument_can_escape_the_family_s_output_discipline
+  stdout ───
+
+    running 1 test
+    test no_hostile_record_or_argument_can_escape_the_family_s_output_discipline ... FAILED
+
+    failures:
+
+    failures:
+        no_hostile_record_or_argument_can_escape_the_family_s_output_discipline
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.05s
+
+  stderr ───
+
+    thread 'no_hostile_record_or_argument_can_escape_the_family_s_output_discipline' (3903041) panicked at crates/gauntlet-cli/tests/operator_actions_no_bypass.rs:1833:5:
+    THE FAMILY OUTPUT INVARIANT IS BROKEN (4 violation(s)):
+    (a) raw control byte 0x1b at offset 275 in the stderr of [boundary-missing]
+    (a) raw control byte 0x1b at offset 398 in the stderr of [boundary-crosswired]
+    (a) raw control byte 0x1b at offset 469 in the stderr of [boundary-crosswired]
+    (a) raw control byte 0x1b at offset 271 in the stderr of [boundary-corrupt]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.065s] 1 test run: 0 passed, 1 failed, 12 skipped
+        FAIL [   0.054s] (1/1) gauntlet-cli::operator_actions_no_bypass no_hostile_record_or_argument_can_escape_the_family_s_output_discipline
+error: test run failed
+Stopping sccache server...
+Compile requests                      1
+Compile requests executed             0
+Cache hits                            0
+Cache misses                          0
+Cache hits rate                       -
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          0
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   1
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.000 s
+Average compiler                  0.000 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            1
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Max cache size                       10 GiB

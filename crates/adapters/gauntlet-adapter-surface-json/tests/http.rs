@@ -307,6 +307,29 @@ fn malformed_requests_are_typed_400s() {
             ),
             "the missing identity names itself: {body}"
         );
+
+        // COR-1 C8: a non-string note is a TYPED 400 — untrusted input is
+        // never silently coerced to an empty note. (Unknown fields stay
+        // ignored, the documented posture.)
+        let payload = "{\"note\": 123}";
+        let raw = format!(
+            "POST /api/v1/units/AK-001/resolve HTTP/1.1\r\nHost: x\r\nX-Gauntlet-Operator: o\r\n\
+         Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+            payload.len()
+        );
+        let (head, body) = request(address, &raw);
+        assert!(
+            head.contains("400"),
+            "a non-string note is 400: {head} {body}"
+        );
+        let parsed = gauntlet_ports::json::parse(&body).expect("the body parses");
+        assert!(
+            matches!(
+                parsed.get("error").and_then(|error| error.get("code")),
+                Some(JsonValue::Str(code)) if code == "body_unparsable"
+            ),
+            "the non-string note names itself: {body}"
+        );
     });
 }
 

@@ -27,6 +27,22 @@ use gauntlet_ports::verifier::VerificationRequest;
 use crate::compose::{self, open_operator_surface};
 use crate::context::RuntimeContext;
 
+/// COR-3 (falsifier round 3, R3-F-1/2/3): the ONE log-sink escaping
+/// discipline for the escalations/operator-action command family. Every
+/// dynamic untrusted string (argv remnants, ticket ids, operator
+/// identities, queue-file stems, error details) reaches a stderr/stdout
+/// line through this helper: hostile bytes land in their Rust Debug
+/// escapes — a newline can no longer forge a following line, a control
+/// byte can no longer ride raw — while already-clean text passes through
+/// BYTE-IDENTICAL, keeping every dynamic field greppable and
+/// human-readable (the falsifier-confirmed property). Fields already
+/// Debug-quoted at their sink (`{:?}`: the operator identity, the list
+/// summary, the failed-arm detail, the pre-parse refusals) are the same
+/// discipline at those sites and stay as they are.
+pub(crate) fn log_quote(value: &str) -> String {
+    value.escape_debug().collect()
+}
+
 /// An accepted action: the service settled, and (only then) the queue
 /// ticket(s) resolved.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,6 +66,16 @@ pub struct Acceptance {
 pub struct Refusal {
     pub code: String,
     pub message: String,
+}
+
+/// The §20.3 log context (charter D7's field parity): the run and the
+/// tickets the action addressed, carried out of the decision body so
+/// EVERY outcome's log line names them. Empty until the durable reads
+/// resolve them — the log never invents a run or a ticket.
+#[derive(Debug, Clone, Default)]
+struct ActionLogContext {
+    run_id: Option<RunId>,
+    tickets: Vec<String>,
 }
 
 /// The decision the shared path reached.
@@ -79,6 +105,7 @@ pub fn execute_operator_action(
     deadline: Deadline,
 ) -> Result<ActionDecision, String> {
     let action_word = action.token();
+    let mut log = ActionLogContext::default();
     let decision = decide_operator_action(
         context,
         action,
@@ -88,10 +115,20 @@ pub fn execute_operator_action(
         note,
         run_override,
         deadline,
+        &mut log,
     );
     // The §20.3 action log (charter D7): EVERY action — accepted AND
-    // refused AND failed — logs a key=value line to the command's stderr.
+    // refused AND failed — logs the SAME key=value field set to the
+    // command's stderr. The run and the tickets ride on the log context
+    // so the refused and failed arms name them exactly like the accepted
+    // arm (empty until the durable reads resolve them — never invented).
     // The note is NOT logged (it travels into the ticket record only).
+    let run_field = log
+        .run_id
+        .as_ref()
+        .map(|run| run.to_string())
+        .unwrap_or_default();
+    let tickets_field = log.tickets.join(",");
     match &decision {
         Ok(ActionDecision::Accepted(acceptance)) => eprintln!(
             "operator-action: action={action_word} run_id={} unit={} operator={:?} \
@@ -99,20 +136,35 @@ pub fn execute_operator_action(
             acceptance.run_id,
             unit,
             operator.as_str(),
-            acceptance.tickets_resolved.join(",")
+            // COR-3 (falsifier round 3, R3-F-1): the ids are grammar-valid
+            // but control bytes ride the grammar (the planted ESC id) —
+            // the accepted line carried them raw. The family's ONE
+            // escaping discipline; clean ids byte-identical.
+            log_quote(&acceptance.tickets_resolved.join(","))
         ),
         Ok(ActionDecision::Refused(refusal)) => eprintln!(
-            "operator-action: action={action_word} unit={} operator={:?} outcome=refused \
-             code={} — the ticket stays open",
+            "operator-action: action={action_word} run_id={run_field} unit={} operator={:?} \
+             outcome=refused tickets={} code={} — the ticket stays open",
             unit,
             operator.as_str(),
+            log_quote(&tickets_field),
             refusal.code
         ),
+        // COR-2 (falsifier round 2, R2-F-1): `detail` embeds queue/store
+        // error Displays that can carry attacker-shaped strings (a raw ESC
+        // ticket id was proven). The LOG sink takes it DEBUG-ESCAPED, like
+        // the operator identity beside it; the typed `Err` return — the
+        // CLI's human-readable failure line and the JSON surface's 500
+        // body — stays the verbatim detail (recorded decision: escape in
+        // the log, keep the non-log path unchanged).
         Err(detail) => eprintln!(
-            "operator-action: action={action_word} unit={} operator={:?} outcome=failed \
-             code=action_failed — {detail}",
+            "operator-action: action={action_word} run_id={run_field} unit={} operator={:?} \
+             outcome=failed tickets={} code=action_failed — {detail:?}",
             unit,
-            operator.as_str()
+            operator.as_str(),
+            // COR-3: the same grammar-rides-control-bytes class as the
+            // accepted arm above — the family's ONE discipline.
+            log_quote(&tickets_field)
         ),
     }
     decision
@@ -129,6 +181,7 @@ fn decide_operator_action(
     note: &str,
     run_override: Option<RunId>,
     deadline: Deadline,
+    log: &mut ActionLogContext,
 ) -> Result<ActionDecision, String> {
     let surface = open_operator_surface(context).map_err(|error| error.to_string())?;
     let queue: Arc<gauntlet_adapter_escalation_fs::FsEscalationQueue> = Arc::new(
@@ -138,7 +191,8 @@ fn decide_operator_action(
 
     // The run + tickets the action addresses: the CLI names its ticket
     // (the record's own run anchors the action); the API anchors at the
-    // explicit `?run=` or the D6 derivation over the open tickets.
+    // explicit `?run=` or the D6 derivation over the open tickets. Both
+    // land in the log context the moment the durable reads name them.
     let (run_id, tickets) = match ticket {
         Some(explicit) => {
             let ticket_id = gauntlet_ports::human_escalation::TicketId::new(explicit)
@@ -146,6 +200,8 @@ fn decide_operator_action(
             let record = queue
                 .record(&ticket_id)
                 .map_err(|error| error.to_string())?;
+            log.run_id = Some(record.run_id.clone());
+            log.tickets = vec![ticket_id.to_string()];
             (record.run_id.clone(), vec![ticket_id])
         }
         None => {
@@ -153,6 +209,7 @@ fn decide_operator_action(
                 Some(ref explicit) => explicit.clone(),
                 None => derived_run(&queue)?,
             };
+            log.run_id = Some(run.clone());
             let listing = queue.list().map_err(|error| error.to_string())?;
             let open: Vec<_> = listing
                 .records
@@ -161,7 +218,10 @@ fn decide_operator_action(
                 .map(|record| record.ticket.clone())
                 .collect();
             match open.len() {
-                1 => (run, vec![open[0].clone()]),
+                1 => {
+                    log.tickets = vec![open[0].to_string()];
+                    (run, vec![open[0].clone()])
+                }
                 // An explicitly-anchored action proceeds even with no
                 // open ticket: the settle is the action's effect; the
                 // (empty, disclosed) ticket list records that there was
@@ -246,8 +306,13 @@ fn decide_operator_action(
         let mut resolved = Vec::new();
         for ticket_id in &tickets {
             if let Err(error) = queue.resolve(ticket_id, operator.as_str(), note, action) {
+                // The re-entry branch performed NO settle on this call —
+                // the settlement was already durable when the branch
+                // found it. The failure names that durable truth, never
+                // "the settle committed" (COR-1 C2; the fresh-accept
+                // path's failure below keeps its commit wording).
                 return Err(format!(
-                    "the settle committed but the queue write failed: {error}"
+                    "the settlement is already durable; the queue write failed: {error}"
                 ));
             }
             resolved.push(ticket_id.to_string());

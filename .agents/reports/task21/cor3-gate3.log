@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+────────────
+ Nextest run ID fcd6c5e7-b61f-465b-99c6-2de30b77c257 with nextest profile: default
+    Starting 11 tests across 3 binaries
+        PASS [   0.008s] ( 1/11) gauntlet-adapter-surface-json::contract_suite the_json_surface_passes_the_unmodified_shared_contract_suite
+        PASS [   0.010s] ( 2/11) gauntlet-adapter-surface-json http::accept_and_log::the_access_log_line_escapes_the_request_target
+        PASS [   0.010s] ( 3/11) gauntlet-adapter-surface-json http::accept_and_log::transient_accept_errors_continue_and_listener_fatal_ones_break
+        PASS [   0.005s] ( 4/11) gauntlet-adapter-surface-json::http the_snapshot_json_carries_the_2022_field_vocabulary_in_order
+        PASS [   0.026s] ( 5/11) gauntlet-adapter-surface-json::http malformed_requests_are_typed_400s
+        PASS [   0.031s] ( 6/11) gauntlet-adapter-surface-json::http the_bind_refuses_non_loopback_hosts_before_opening_a_socket
+        PASS [   0.039s] ( 7/11) gauntlet-adapter-surface-json::http the_state_route_serves_the_snapshot_in_the_2022_priority_order
+        PASS [   0.043s] ( 8/11) gauntlet-adapter-surface-json::http wrong_methods_405_with_allow_and_unknown_routes_404_in_the_error_shape
+        PASS [   0.085s] ( 9/11) gauntlet-adapter-surface-json::http action_outcomes_map_to_typed_statuses_and_the_refusal_carries_code_and_message
+        PASS [   0.113s] (10/11) gauntlet-adapter-surface-json http::accept_and_log::the_serve_loop_continues_past_transient_errors_and_stops_on_a_listener_fatal_one
+        PASS [   0.210s] (11/11) gauntlet-adapter-surface-json http::accept_and_log::consecutive_transient_accept_errors_cannot_hot_spin_the_loop
+────────────
+     Summary [   0.210s] 11 tests run: 11 passed, 0 skipped
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Connection refused (os error 111)

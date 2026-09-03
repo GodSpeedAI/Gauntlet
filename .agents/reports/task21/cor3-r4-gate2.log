@@ -1,0 +1,16 @@
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+────────────
+ Nextest run ID bdb31200-8a9b-4b2d-9d56-f74f59e4a78b with nextest profile: default
+    Starting 7 tests across 2 binaries
+        PASS [   0.027s] (1/7) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.026s] (2/7) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.128s] (3/7) gauntlet-cli::escalations_cli resolve_without_any_verification_record_refuses_and_the_ticket_stays_open
+        PASS [   0.108s] (4/7) gauntlet-cli::escalations_cli retry_with_a_non_pass_record_hits_the_same_gate
+        PASS [   0.142s] (5/7) gauntlet-cli::escalations_cli even_an_earned_pass_record_never_settles_without_the_governed_chain_s_readiness
+        PASS [   0.150s] (6/7) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.157s] (7/7) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+────────────
+     Summary [   0.162s] 7 tests run: 7 passed, 0 skipped
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Connection refused (os error 111)

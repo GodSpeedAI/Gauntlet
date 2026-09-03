@@ -1,0 +1,61 @@
+=== just check ===
+    Checking gauntlet-adapter-surface-json v0.1.0 (/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-surface-json)
+    Finished `dev` profile [unoptimized] target(s) in 2m 22s
+=== just test ===
+     Summary [  46.029s] 1392 tests run: 1392 passed, 0 skipped
+=== just lint ===
+    Finished `dev` profile [unoptimized] target(s) in 0.58s
+cargo fmt --check
+=== just deny ===
+
+advisories ok, bans ok, licenses ok, sources ok
+=== just boundaries ===
+     Summary [  37.108s] 228 tests run: 228 passed, 0 skipped
+=== just ruler ===
+verify-ruler.sh: PASS — answer key and manifest digests match the frozen lock (/home/sprime01/projects/gauntlet/.gauntlet/reference.lock)
+=== PLAN GATE (surfaces) ===
+     Summary [   0.190s] 13 tests run: 13 passed, 0 skipped
+=== NO-DEFAULT BUILD ===
+0
+=== E2E both configs ===
+     Summary [   0.202s] 12 tests run: 12 passed, 0 skipped
+     Summary [   0.239s] 12 tests run: 12 passed, 0 skipped
+=== cli_surface+escalations both configs ===
+     Summary [   0.033s] 7 tests run: 7 passed, 0 skipped
+     Summary [   0.047s] 7 tests run: 7 passed, 0 skipped
+Stopping sccache server...
+Compile requests                     56
+Compile requests executed             2
+Cache hits                            0
+Cache misses                          2
+Cache misses (Rust)                   2
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          2
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                  54
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.002 s
+Average compiler                  0.487 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                           47
+-                                     4
+missing output_dir                    2
+missing input                         1
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            3 GiB
+Max cache size                       10 GiB

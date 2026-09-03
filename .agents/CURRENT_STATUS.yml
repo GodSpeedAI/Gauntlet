@@ -10,12 +10,16 @@ metadata:
   initialized: true                   # false only before the very first burst
   last_updated: "2026-09-02"
   updated_by: >-
-    orchestrator (task21 DISPATCHED 2026-09-02 — operator surfaces B1 in
-    flight; charter .agents/reports/task21/charter.md D1-D12; dogfooding
-    through `gauntlet run` blocked on UNK-003, recorded as fog). Prior:
-    task20 SETTLED 2026-09-01 — CLI surface + first full loop on the mock
-    (falsifier round 6 CONFIRM; settlement battery 1377/1377 personally
-    run; corroboration teeth RED -> restore -> GREEN).
+    orchestrator (task21 in confirmation: B1 slice complete and committed
+    in a71eba9 — an out-of-band actor bundled it with out-of-scope docs/
+    + .jolli under a misleading message, deviation recorded in the task21
+    ledger; orchestrator personally re-ran the gate battery ALL GREEN and
+    proved both D11 teeth RED -> byte-identical restore -> GREEN;
+    blind design-as-built critic + blind executing falsifier r1 dispatched
+    in parallel 2026-09-02). Prior: task20 SETTLED 2026-09-01 — CLI
+    surface + first full loop on the mock (falsifier round 6 CONFIRM;
+    settlement battery 1377/1377 personally run; corroboration teeth
+    RED -> restore -> GREEN).
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE

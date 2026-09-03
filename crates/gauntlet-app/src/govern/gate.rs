@@ -512,6 +512,38 @@ impl GateRefusal {
     }
 }
 
+/// The summary vocabulary the governance gate's containment-class
+/// refusals escalate with (§21.3's escalate-never-unsandboxed family).
+/// One token per containment arm of [`GateRefusal::summary`]:
+///
+/// - `"sandbox policy"` — `ValidationEscalated` (AK-047);
+/// - `"sandbox backend"` — `BackendUnusable`;
+/// - `"runner reports isolation"` — `CapabilityMismatch` (AK-050);
+/// - `"without a backend"` — `NoBackendForTier` (§8.6);
+/// - `"policy could not be resolved"` — `PolicyUnresolved`.
+///
+/// The operator surface's denial view filters with
+/// [`containment_summary_matches`] over THIS list, and the gate's own
+/// tests pin every containment variant's summary against it — the two
+/// cannot drift.
+pub const CONTAINMENT_SUMMARY_TOKENS: &[&str] = &[
+    "sandbox policy",
+    "sandbox backend",
+    "runner reports isolation",
+    "without a backend",
+    "policy could not be resolved",
+];
+
+/// Whether a durable escalation summary names a containment-class
+/// governance refusal: it carries one of the gate's own
+/// [`CONTAINMENT_SUMMARY_TOKENS`]. The authority-class refusals
+/// (irreversible, authority ceiling, lattice movement) never match.
+pub fn containment_summary_matches(summary: &str) -> bool {
+    CONTAINMENT_SUMMARY_TOKENS
+        .iter()
+        .any(|token| summary.contains(token))
+}
+
 /// The §17.1 authority gate (plan Task 14). Stateless: every fact arrives
 /// per admission, fresh.
 #[derive(Debug, Clone)]
@@ -1083,6 +1115,74 @@ mod tests {
             other => panic!("expected ValidationEscalated, got {other:?}"),
         }
         assert!(refusal.summary().contains("never an unsandboxed fallback"));
+    }
+
+    #[test]
+    fn every_containment_summary_carries_the_shared_vocabulary_and_authority_ones_do_not() {
+        // The drift pin for CONTAINMENT_SUMMARY_TOKENS: each containment
+        // arm's OWN summary matches the shared matcher; the
+        // authority-class arms never do. Change a summary's words without
+        // the token list (or the list without the words) and this fails.
+        let unit = UnitId::new("AK-902").expect("unit id");
+        let containment = [
+            GateRefusal::CapabilityMismatch {
+                unit: unit.clone(),
+                tier: BlastRadius::Contained,
+                runner_isolation: Isolation::None,
+                required: Isolation::Process,
+            },
+            GateRefusal::NoBackendForTier {
+                unit: unit.clone(),
+                tier: BlastRadius::Local,
+            },
+            GateRefusal::PolicyUnresolved {
+                unit: unit.clone(),
+                tier: BlastRadius::Local,
+                cause: PolicyProviderError::NoPolicyForTier {
+                    tier: BlastRadius::Local,
+                },
+            },
+            GateRefusal::ValidationEscalated {
+                unit: unit.clone(),
+                policy: SandboxPolicyRef::new("sandbox-strict").expect("valid policy ref"),
+                findings: vec!["a finding".to_owned()],
+            },
+            GateRefusal::BackendUnusable {
+                unit: unit.clone(),
+                backend: "the-backend".to_owned(),
+                detail: "the probe failed".to_owned(),
+            },
+        ];
+        for refusal in &containment {
+            let summary = refusal.summary();
+            assert!(
+                super::containment_summary_matches(&summary),
+                "the containment summary carries the shared vocabulary: {summary}"
+            );
+        }
+        let authority = [
+            GateRefusal::Irreversible { unit: unit.clone() },
+            GateRefusal::AuthorityAboveCeiling {
+                unit: unit.clone(),
+                required: Authority::Human,
+                exercisable: Authority::Critic,
+            },
+            GateRefusal::LatticeMovementRefused {
+                movement: LatticeMovement::Refused {
+                    unit: unit.clone(),
+                    blast_movement: Some((BlastRadius::Local, BlastRadius::Contained)),
+                    authority_movement: None,
+                    rule: "AK-046",
+                },
+            },
+        ];
+        for refusal in &authority {
+            let summary = refusal.summary();
+            assert!(
+                !super::containment_summary_matches(&summary),
+                "an authority-class refusal never matches the containment vocabulary: {summary}"
+            );
+        }
     }
 
     #[test]

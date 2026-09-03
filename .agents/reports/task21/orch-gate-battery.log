@@ -1,0 +1,34 @@
+=== PLAN GATE: operator_actions_no_bypass (features=surfaces) ===
+    Finished `test` profile [unoptimized] target(s) in 0.10s
+────────────
+ Nextest run ID a78ffb82-d8c8-4e36-9022-c83d750bcda2 with nextest profile: default
+    Starting 5 tests across 1 binary
+        PASS [   0.054s] (1/5) gauntlet-cli::operator_actions_no_bypass a_corrupt_ticket_stays_the_queue_s_own_typed_refusal
+        PASS [   0.074s] (2/5) gauntlet-cli::operator_actions_no_bypass an_action_outside_the_frozen_ruler_is_refused_and_the_ticket_stays_open
+        PASS [   0.096s] (3/5) gauntlet-cli::operator_actions_no_bypass resolve_without_a_durable_pass_record_refuses_with_the_gate_the_cli_hits
+        PASS [   0.123s] (4/5) gauntlet-cli::operator_actions_no_bypass resolve_with_an_earned_pass_record_settles_once_and_resolves_the_ticket
+        PASS [   0.144s] (5/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+────────────
+     Summary [   0.146s] 5 tests run: 5 passed, 0 skipped
+GATE1_EXIT=0
+=== NO-DEFAULT BUILD ===
+    Finished `dev` profile [unoptimized] target(s) in 0.03s
+GATE2_EXIT=0
+=== MOCK E2E default ===
+        PASS [   0.106s] (12/12) gauntlet-cli::e2e_full_loop_mock the_single_writer_guard_bounds_the_concurrent_double_resume_attack
+────────────
+     Summary [   0.232s] 12 tests run: 12 passed, 0 skipped
+GATE3_EXIT=0
+=== MOCK E2E surfaces ===
+        PASS [   0.122s] (12/12) gauntlet-cli::e2e_full_loop_mock the_single_writer_guard_bounds_the_concurrent_double_resume_attack
+────────────
+     Summary [   0.245s] 12 tests run: 12 passed, 0 skipped
+GATE4_EXIT=0
+=== cli_surface + escalations_cli (default) ===
+        PASS [   0.056s] (7/7) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+────────────
+     Summary [   0.056s] 7 tests run: 7 passed, 0 skipped
+GATE5_EXIT=0
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

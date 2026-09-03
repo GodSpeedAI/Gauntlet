@@ -1,0 +1,26 @@
+=== PLAN GATE (surfaces) ===
+        PASS [   0.102s] (8/8) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+     Summary [   0.178s] 8 tests run: 8 passed, 0 skipped
+GATE1_EXIT=0
+=== ADAPTER PACKAGE ===
+        PASS [   0.007s] ( 1/10) gauntlet-adapter-surface-json http::accept_and_log::transient_accept_errors_continue_and_listener_fatal_ones_break
+        PASS [   0.015s] ( 5/10) gauntlet-adapter-surface-json http::accept_and_log::the_serve_loop_continues_past_transient_errors_and_stops_on_a_listener_fatal_one
+        PASS [   0.054s] ( 9/10) gauntlet-adapter-surface-json::http wrong_methods_405_with_allow_and_unknown_routes_404_in_the_error_shape
+     Summary [   0.090s] 10 tests run: 10 passed, 0 skipped
+GATE2_EXIT=0
+=== APP settle tests ===
+     Summary [   0.090s] 52 tests run: 52 passed, 426 skipped
+GATE3_EXIT=0
+=== NO-DEFAULT BUILD ===
+    Finished `dev` profile [unoptimized] target(s) in 0.03s
+GATE4_EXIT=0
+=== E2E both configs ===
+     Summary [   0.213s] 12 tests run: 12 passed, 0 skipped
+     Summary [   0.214s] 12 tests run: 12 passed, 0 skipped
+GATE5_EXIT=0
+=== cli_surface + escalations (default) ===
+     Summary [   0.034s] 7 tests run: 7 passed, 0 skipped
+GATE6_EXIT=0
+Stopping sccache server...
+sccache: error: couldn't connect to server
+sccache: caused by: Operation timed out (os error 110)

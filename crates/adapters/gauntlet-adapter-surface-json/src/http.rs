@@ -3,8 +3,14 @@
 //! no external dependency. The §20.2 routes, the §20.2 error body shape,
 //! `405` (+ `Allow`) for unsupported methods, `404` for unknown routes,
 //! `400` for malformed requests. The surface is additional
-//! observability, never load-bearing (§21.3): a connection error is
-//! reported and the serve loop continues; nothing here writes run state.
+//! observability, never load-bearing (§21.3): a per-connection failure
+//! is reported and the serve loop continues; a LISTENER-level accept
+//! failure is classified — the transient classes (interrupted call,
+//! client abort/reset, fd-table exhaustion) are reported and the loop
+//! continues (rate-bounded by a short constant backoff, COR-2's R2-F-3),
+//! while a listener-fatal class (the listener itself gone or
+//! unusable) is reported and ends the loop, honestly, with no
+//! "continuing" claim. Nothing here writes run state.
 
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
@@ -123,10 +129,14 @@ impl SurfaceHttp {
                 detail: format!("{text} resolves to no address"),
             });
         };
-        if !addrs.iter().any(|candidate| candidate.ip().is_loopback()) {
+        // EVERY resolved address must be loopback (COR-1 C6): a name
+        // resolving to a non-loopback address plus a loopback one would
+        // otherwise open the surface on whichever address the resolver
+        // lists first — the loopback rule holds for the whole set.
+        if let Some(offender) = addrs.iter().find(|candidate| !candidate.ip().is_loopback()) {
             return Err(SurfaceHttpError::BindRefused {
                 detail: format!(
-                    "{addr} is not a loopback address — the operator surface serves the local \
+                    "{offender} is not a loopback address — the operator surface serves the local \
                      operator only (spec 20.2); bind a 127.0.0.0/8 or ::1 address"
                 ),
             });
@@ -165,9 +175,23 @@ impl SurfaceHttp {
         listener: TcpListener,
         running: std::sync::Arc<std::sync::atomic::AtomicBool>,
     ) {
+        self.serve_accept_loop(&listener, running);
+    }
+
+    /// The accept loop over any accept source (the `TcpListener` in
+    /// production, an injected script in the tests). Per §21.3 the loop
+    /// reports and continues through every accept failure the listener
+    /// itself survives — the transient classes — and ends only when the
+    /// listener is no longer usable (reported honestly; no "continuing"
+    /// is printed on the break).
+    fn serve_accept_loop(
+        &self,
+        source: &dyn AcceptSource,
+        running: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    ) {
         use std::net::Shutdown;
         while running.load(std::sync::atomic::Ordering::SeqCst) {
-            match listener.accept() {
+            match source.accept() {
                 Ok((mut stream, _)) => {
                     if running.load(std::sync::atomic::Ordering::SeqCst) {
                         self.handle(&mut stream);
@@ -176,7 +200,19 @@ impl SurfaceHttp {
                     }
                 }
                 Err(error) => {
-                    eprintln!("surface: the accept loop observed {error}; continuing");
+                    if accept_error_is_transient(&error) {
+                        eprintln!("surface: the accept loop observed {error}; continuing");
+                        // COR-2 (falsifier round 2, R2-F-3): bound the
+                        // continue's rate — a persistent transient class
+                        // (EMFILE under a stuck fd ceiling) must not
+                        // hot-spin this loop. See TRANSIENT_ACCEPT_BACKOFF.
+                        std::thread::sleep(TRANSIENT_ACCEPT_BACKOFF);
+                        continue;
+                    }
+                    eprintln!(
+                        "surface: the accept loop failed: {error} — the listener is no longer \
+                         usable; the surface stops"
+                    );
                     break;
                 }
             }
@@ -210,8 +246,8 @@ impl SurfaceHttp {
             response.allow.as_deref(),
         );
         eprintln!(
-            "surface: {} {} -> {}",
-            request.method, request.target, response.status
+            "{}",
+            access_log_line(&request.method, &request.target, response.status)
         );
     }
 
@@ -350,15 +386,31 @@ impl SurfaceHttp {
                 if trimmed.is_empty() {
                     String::new()
                 } else {
+                    // Untrusted input is parsed, validated, and narrowed
+                    // — never silently coerced (COR-1 C8): the `note`
+                    // value must be a JSON string (a non-string is a
+                    // typed 400). Unknown fields stay ignored — the
+                    // documented posture: the body contributes ONLY an
+                    // optional note, so no other field can reach the
+                    // action path.
                     match gauntlet_ports::json::parse(trimmed) {
-                        Ok(JsonValue::Object(entries)) => entries
-                            .iter()
-                            .find(|(key, _)| key == "note")
-                            .and_then(|(_, value)| match value {
-                                JsonValue::Str(text) => Some(text.clone()),
-                                _ => None,
-                            })
-                            .unwrap_or_default(),
+                        Ok(JsonValue::Object(entries)) => {
+                            let mut note = String::new();
+                            for (key, value) in entries {
+                                if key == "note" {
+                                    match value {
+                                        JsonValue::Str(text) => note = text,
+                                        _ => {
+                                            return Response::bad_request(
+                                                "body_unparsable",
+                                                "the action body's 'note' must be a JSON string",
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                            note
+                        }
                         Ok(_) => {
                             return Response::bad_request(
                                 "body_unparsable",
@@ -445,6 +497,53 @@ impl SurfaceHttp {
             }),
             Err(error) => Err(Box::new(Response::read_failed(error.to_string()))),
         }
+    }
+}
+
+/// The accept source (COR-1 C3's seam): one accepted connection, or one
+/// accept failure. `TcpListener` is the production source; the tests
+/// inject a scripted one.
+trait AcceptSource {
+    fn accept(&self) -> std::io::Result<(TcpStream, SocketAddr)>;
+}
+
+impl AcceptSource for TcpListener {
+    fn accept(&self) -> std::io::Result<(TcpStream, SocketAddr)> {
+        TcpListener::accept(self)
+    }
+}
+
+/// The transient-accept backoff (COR-2, falsifier round 2 R2-F-3): a
+/// PERSISTENT transient condition — the executed repro held
+/// RLIMIT_NOFILE so every accept returned EMFILE — would otherwise spin
+/// the accept loop at full CPU, flooding stderr with "continuing" lines
+/// (~37 MB/s measured). The transient branch sleeps this long before it
+/// continues; the classification itself is unchanged (transient
+/// continues, fatal breaks).
+const TRANSIENT_ACCEPT_BACKOFF: Duration = Duration::from_millis(50);
+
+/// Whether the listener itself survives this accept failure (§21.3's
+/// report-and-continue posture, COR-1 C3). Transient — continue: the
+/// interrupted call, a client that aborted or reset before the accept
+/// completed, the pipe a peer already closed, momentary resource
+/// exhaustion (EAGAIN, ENOMEM-class, and the fd/table exhaustion
+/// EMFILE/ENFILE, whose dedicated `ErrorKind` variant is unstable to
+/// name in this toolchain — the raw numbers are matched under the
+/// catch-all). Fatal — break: every other class, because it names the
+/// LISTENER as gone or unusable (EBADF-class, EINVAL-class, a NotFound
+/// after a deliberate close).
+fn accept_error_is_transient(error: &std::io::Error) -> bool {
+    use std::io::ErrorKind;
+    match error.kind() {
+        ErrorKind::Interrupted
+        | ErrorKind::ConnectionAborted
+        | ErrorKind::ConnectionReset
+        | ErrorKind::BrokenPipe
+        | ErrorKind::WouldBlock
+        | ErrorKind::TimedOut
+        | ErrorKind::OutOfMemory
+        | ErrorKind::StorageFull => true,
+        _ => matches!(error.raw_os_error(), Some(23 | 24)), // ENFILE | EMFILE
     }
 }
 
@@ -721,6 +820,18 @@ impl Response {
     }
 }
 
+/// The access log line (COR-1 C4): the request target is attacker-
+/// controlled untrusted input, so it lands DEBUG-ESCAPED — the same
+/// posture the §20.3 action log applies to the operator identity — and
+/// no raw control byte can reach the operator's diagnostics. COR-2
+/// (falsifier round 2, R2-F-2): the METHOD is attacker-controlled the
+/// same way (the head parser applies no token grammar to it), so it
+/// lands DEBUG-ESCAPED too. Log-sink only: parser method handling and
+/// all 405/404 semantics are unchanged.
+fn access_log_line(method: &str, target: &str, status: u16) -> String {
+    format!("surface: {method:?} {target:?} -> {status}")
+}
+
 /// Writes one response with `Connection: close` (the surface serves one
 /// request per connection — small, boring, bounded).
 fn write_response<W: Write>(
@@ -763,4 +874,294 @@ fn port_deadline() -> Deadline {
 /// The socket timeout span for one request.
 fn request_deadline() -> Duration {
     Duration::from_secs(REQUEST_SPAN_SECONDS)
+}
+
+#[cfg(test)]
+mod accept_and_log {
+    use super::*;
+    use std::collections::VecDeque;
+
+    /// COR-1 C4: the access log debug-escapes the attacker-controlled
+    /// request target — exactly how the §20.3 action log escapes the
+    /// operator identity — so no raw control byte reaches the operator's
+    /// diagnostics. COR-2 (falsifier round 2, R2-F-2): the METHOD is
+    /// attacker-controlled too (the parser applies no token grammar to
+    /// it), so it gets the same escape treatment.
+    #[test]
+    fn the_access_log_line_escapes_the_request_target() {
+        let line = access_log_line("GET", "/api/v1/\u{1b}[31mred-alert", 404);
+        assert!(
+            !line.contains('\u{1b}'),
+            "no raw escape byte reaches the log: {line:?}"
+        );
+        assert!(
+            line.contains("\\u{1b}"),
+            "the target lands in its escaped form: {line:?}"
+        );
+        let plain = access_log_line("GET", "/api/v1/state", 200);
+        assert!(
+            plain.contains("/api/v1/state"),
+            "a plain target reads as itself: {plain}"
+        );
+        // COR-2 (R2-F-2): control bytes riding the METHOD (ESC + BEL, the
+        // falsifier's executed 405 probe) land escaped, never raw.
+        let hostile_method = access_log_line("\u{1b}[31mFORGED\u{7}", "/api/v1/state", 405);
+        assert!(
+            !hostile_method.contains('\u{1b}') && !hostile_method.contains('\u{7}'),
+            "no raw control byte from the method reaches the log: {hostile_method:?}"
+        );
+        assert!(
+            hostile_method.contains("\\u{1b}[31mFORGED\\u{7}"),
+            "the method lands in its escaped form: {hostile_method:?}"
+        );
+        let plain_method = access_log_line("GET", "/api/v1/state", 200);
+        assert!(
+            plain_method.contains("\"GET\""),
+            "a plain method reads as itself, quoted like the target: {plain_method}"
+        );
+    }
+
+    /// COR-1 C3: the classification — the transient accept-failure
+    /// classes continue; the listener-fatal classes (EBADF/INVAL-class,
+    /// a NotFound after a deliberate close) break the loop honestly.
+    #[test]
+    fn transient_accept_errors_continue_and_listener_fatal_ones_break() {
+        let transient = [
+            std::io::Error::from_raw_os_error(4),   // EINTR
+            std::io::Error::from_raw_os_error(103), // ECONNABORTED
+            std::io::Error::from_raw_os_error(104), // ECONNRESET
+            std::io::Error::from_raw_os_error(32),  // EPIPE
+            std::io::Error::from_raw_os_error(24),  // EMFILE
+            std::io::Error::from_raw_os_error(23),  // ENFILE
+            std::io::Error::new(std::io::ErrorKind::WouldBlock, "eagain"),
+            std::io::Error::new(std::io::ErrorKind::OutOfMemory, "enomem"),
+            std::io::Error::new(std::io::ErrorKind::StorageFull, "table full"),
+        ];
+        for error in &transient {
+            assert!(
+                accept_error_is_transient(error),
+                "{error} is a continue class"
+            );
+        }
+        let fatal = [
+            std::io::Error::from_raw_os_error(9), // EBADF: the listener is gone
+            std::io::Error::from_raw_os_error(22), // EINVAL
+            std::io::Error::from_raw_os_error(2), // ENOENT (a closed listener's shape)
+            std::io::Error::new(std::io::ErrorKind::NotFound, "after a deliberate close"),
+        ];
+        for error in &fatal {
+            assert!(
+                !accept_error_is_transient(error),
+                "{error} is a break class"
+            );
+        }
+    }
+
+    /// The injected accept source: one scripted result per `accept`
+    /// call, then a plain error if the loop keeps going past the script.
+    struct ScriptedAccept {
+        steps: std::sync::Mutex<VecDeque<std::io::Result<TcpStream>>>,
+    }
+
+    impl AcceptSource for ScriptedAccept {
+        fn accept(&self) -> std::io::Result<(TcpStream, SocketAddr)> {
+            let mut steps = self.steps.lock().expect("the accept script locks");
+            match steps.pop_front() {
+                Some(step) => {
+                    let addr: SocketAddr = "127.0.0.1:0".parse().expect("a socket addr");
+                    step.map(|stream| (stream, addr))
+                }
+                None => Err(std::io::Error::other("the accept script is exhausted")),
+            }
+        }
+    }
+
+    /// The read seam the loop test needs: every read fails, so the one
+    /// accepted step answers with the typed 500 (proof the step was
+    /// served) without any snapshot plumbing.
+    struct FailingSurface;
+
+    impl gauntlet_ports::operator_surface::OperatorSurface for FailingSurface {
+        fn snapshot(
+            &self,
+            _deadline: Deadline,
+        ) -> Result<
+            gauntlet_ports::operator_surface::RuntimeSnapshot,
+            gauntlet_ports::operator_surface::OperatorSurfaceError,
+        > {
+            Err(
+                gauntlet_ports::operator_surface::OperatorSurfaceError::SnapshotFailed {
+                    detail: "the loop test's read seam".to_owned(),
+                },
+            )
+        }
+
+        fn actions(&self) -> Vec<gauntlet_ports::operator_surface::OperatorAction> {
+            Vec::new()
+        }
+    }
+
+    struct NoReaderSeam;
+
+    impl crate::views::RunScopedReader for NoReaderSeam {
+        fn run_view(
+            &self,
+            _run: &RunId,
+            _deadline: Deadline,
+        ) -> Result<crate::views::RunView, crate::views::RunScopedError> {
+            Err(crate::views::RunScopedError::NotFound {
+                detail: "unused".to_owned(),
+            })
+        }
+
+        fn unit_view(
+            &self,
+            _run: &RunId,
+            _unit: &UnitId,
+            _deadline: Deadline,
+        ) -> Result<crate::views::UnitView, crate::views::RunScopedError> {
+            Err(crate::views::RunScopedError::NotFound {
+                detail: "unused".to_owned(),
+            })
+        }
+    }
+
+    struct NoActions;
+
+    impl OperatorActionHandler for NoActions {
+        fn perform(&self, _command: ActionCommand, _deadline: Deadline) -> ActionOutcome {
+            ActionOutcome::Failed(crate::action::ActionFailure {
+                code: "unused".to_owned(),
+                message: "unused".to_owned(),
+            })
+        }
+    }
+
+    struct NoDisclosure;
+
+    impl SnapshotDisclosure for NoDisclosure {
+        fn run_derivation(&self) -> String {
+            "unused".to_owned()
+        }
+    }
+
+    /// COR-1 C3's behavioral half: the loop CONTINUES past transient
+    /// accept errors (the accepted step is still served) and BREAKS on
+    /// the listener-fatal one — consuming exactly through it, with the
+    /// `running` flag never falling (the break is the error's, not the
+    /// flag's).
+    #[test]
+    fn the_serve_loop_continues_past_transient_errors_and_stops_on_a_listener_fatal_one() {
+        // A real connected pair for the one accepted step: the request
+        // is pre-written; the answer is read on its own thread (the
+        // serial server runs on this one).
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the pair binds");
+        let addr = listener.local_addr().expect("the pair's address");
+        let mut client = TcpStream::connect(addr).expect("the pair connects");
+        client
+            .write_all(b"GET /api/v1/state HTTP/1.1\r\nHost: t\r\n\r\n")
+            .expect("the request writes");
+        let (server_side, _) = listener.accept().expect("the pair accepts");
+        let reader = std::thread::spawn(move || {
+            let mut buffer = Vec::new();
+            let _ = client.take(64 * 1024).read_to_end(&mut buffer);
+            buffer
+        });
+
+        let steps: VecDeque<std::io::Result<TcpStream>> = VecDeque::from(vec![
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Interrupted,
+                "eintr",
+            )),
+            Err(std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "aborted",
+            )),
+            Ok(server_side),
+            Err(std::io::Error::from_raw_os_error(9)), // EBADF: the listener died
+            Err(std::io::Error::other(
+                "never reached if the fatal error breaks",
+            )),
+        ]);
+        let source = ScriptedAccept {
+            steps: std::sync::Mutex::new(steps),
+        };
+        let server = SurfaceHttp::new(
+            Box::new(FailingSurface),
+            Box::new(NoReaderSeam),
+            Box::new(NoActions),
+            Box::new(NoDisclosure),
+        );
+        let running = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        server.serve_accept_loop(&source, std::sync::Arc::clone(&running));
+        assert!(
+            running.load(std::sync::atomic::Ordering::SeqCst),
+            "the flag never fell — the loop ended on the fatal accept, not the flag"
+        );
+        {
+            let steps = source.steps.lock().expect("the accept script locks");
+            assert_eq!(
+                steps.len(),
+                1,
+                "the loop consumed exactly through the listener-fatal error"
+            );
+        }
+        let response = reader.join().expect("the reader joins");
+        assert!(
+            response.starts_with(b"HTTP/1.1 "),
+            "the accepted step was served AFTER the transient errors: {}",
+            String::from_utf8_lossy(&response)
+        );
+    }
+
+    /// COR-2 (falsifier round 2, R2-F-3): the transient branch pays the
+    /// bounded backoff between continues — N consecutive transient errors
+    /// cost at least N × (backoff − slack) — so a PERSISTENT transient
+    /// condition (the executed repro held RLIMIT_NOFILE: every accept
+    /// returned EMFILE, ~3.1M "continuing" lines in 3 s at 100% of a
+    /// core) cannot hot-spin the accept loop. Generous-slack LOWER bound:
+    /// the sleep itself is at-least semantics, only the measured floor
+    /// carries slack, and the loop's consumption is asserted exactly, so
+    /// the timing cannot pass by exiting early.
+    #[test]
+    fn consecutive_transient_accept_errors_cannot_hot_spin_the_loop() {
+        const CONSECUTIVE: usize = 4;
+        let mut steps: VecDeque<std::io::Result<TcpStream>> = VecDeque::new();
+        for _ in 0..CONSECUTIVE {
+            // EMFILE: the persistent fd-exhaustion class from the repro.
+            steps.push_back(Err(std::io::Error::from_raw_os_error(24)));
+        }
+        // EBADF: the listener-fatal class that honestly ends the loop.
+        steps.push_back(Err(std::io::Error::from_raw_os_error(9)));
+        let source = ScriptedAccept {
+            steps: std::sync::Mutex::new(steps),
+        };
+        let server = SurfaceHttp::new(
+            Box::new(FailingSurface),
+            Box::new(NoReaderSeam),
+            Box::new(NoActions),
+            Box::new(NoDisclosure),
+        );
+        let started = std::time::Instant::now();
+        server.serve_accept_loop(
+            &source,
+            std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+        );
+        let elapsed = started.elapsed();
+        let floor = (TRANSIENT_ACCEPT_BACKOFF - Duration::from_millis(20)) * CONSECUTIVE as u32;
+        assert!(
+            elapsed >= floor,
+            "{CONSECUTIVE} transient continues cost at least the bounded backoff \
+             ({floor:?}): {elapsed:?}"
+        );
+        {
+            let steps = source.steps.lock().expect("the accept script locks");
+            assert!(
+                steps.is_empty(),
+                "the loop consumed exactly through the listener-fatal error, not short: \
+                 {} steps left",
+                steps.len()
+            );
+        }
+    }
 }

@@ -33,9 +33,12 @@
 //! failure never crashes the run).
 //!
 //! JSON follows the in-tree hand-rolled precedent: strings escaped,
-//! canonical field order = the port's §20.2 priority order (escalation
-//! queue FIRST — [`RuntimeSnapshot`]'s field order), no external
-//! serialization dependency.
+//! canonical field order = the run preamble first, then the §20.2
+//! sections in their priority order (the escalation queue first among
+//! them — this is also the port's own field order), the `run_derivation`
+//! disclosure last; no external serialization dependency. (Recorded
+//! charter tension: D2's "escalated FIRST" holds among the §20.2
+//! sections, not over the whole body — the run preamble precedes them.)
 
 pub mod action;
 pub mod http;
@@ -78,10 +81,12 @@ use gauntlet_ports::json::JsonValue;
 use gauntlet_ports::operator_surface::{RuntimeSnapshot, UnitSnapshot};
 
 /// Encodes a [`RuntimeSnapshot`] as the `/api/v1/state` response body.
-/// Field order is the port's §20.2 priority order (the snapshot's own
-/// declaration order: the escalation queue first); `run_derivation` is
+/// Field order: the run preamble first (the port's own first field — not
+/// a §20.2 priority section), then the §20.2 sections in their priority
+/// order (the escalation queue first among them), and `run_derivation`
 /// appended last as the D6 disclosure (the derivation is never a silent
-/// guess — the response names how the active run was derived).
+/// guess — the response names how the active run was derived). The
+/// tests pin this order.
 pub fn snapshot_json(snapshot: &RuntimeSnapshot, run_derivation: &str) -> JsonValue {
     JsonValue::Object(vec![
         (

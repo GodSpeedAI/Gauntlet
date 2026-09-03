@@ -1,0 +1,46 @@
+=== TEETH RED RUN: no-bypass leg (expect FAILURE in refusal-parity/no-settlement leg) ===
+        PASS [   0.039s] (1/5) gauntlet-cli::operator_actions_no_bypass a_corrupt_ticket_stays_the_queue_s_own_typed_refusal
+        PASS [   0.045s] (2/5) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+        PASS [   0.062s] (3/5) gauntlet-cli::operator_actions_no_bypass an_action_outside_the_frozen_ruler_is_refused_and_the_ticket_stays_open
+        PASS [   0.086s] (4/5) gauntlet-cli::operator_actions_no_bypass resolve_with_an_earned_pass_record_settles_once_and_resolves_the_ticket
+        PASS [   0.099s] (5/5) gauntlet-cli::operator_actions_no_bypass resolve_without_a_durable_pass_record_refuses_with_the_gate_the_cli_hits
+     Summary [   0.101s] 5 tests run: 5 passed, 0 skipped
+=== TEETH RED RUN: in-crate earned-arm gate test (expect FAILURE) ===
+        FAIL [   0.006s] (1/1) gauntlet-app settle::tests::the_earned_arm_refuses_past_the_gate_even_holding_a_chain_minted_pass_claim
+    test settle::tests::the_earned_arm_refuses_past_the_gate_even_holding_a_chain_minted_pass_claim ... FAILED
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 417 filtered out; finished in 0.00s
+    the earned arm keeps the durable-PASS gate, got Ok(SettlementOutcome { event_log_offset: EventLogOffset { offset: 2 }, committed_now: true, authority_decision: AuthorityDecision { required: Critic, exercised_by: Operator, operator_identity: Some(OperatorIdentity("operator-one")), rationale_recorded: false }, settled_unit: Unit { id: UnitId { raw: "AK-9501" }, claim: "the critic fixture claim", verify_by: Test, blast_radius: Contained, authority: Critic, evidence_required: EvidenceRequirement { kind: TestReport, locator: EvidenceLocator { raw: "settle-9501.json" }, producer: Instrument }, evidence: Some(EvidenceRef { raw: "evd-AK-9501" }), verification: Some(VerificationRef { raw: "vrf-01ARZ3NDEKTSV4RRFFQ69G5F01" }), status: Settled, depends_on: [], attempt: 0, last_residual_ref: None, notes: None } })
+        FAIL [   0.006s] (1/1) gauntlet-app settle::tests::the_earned_arm_refuses_past_the_gate_even_holding_a_chain_minted_pass_claim
+Stopping sccache server...
+Compile requests                     11
+Compile requests executed             3
+Cache hits                            0
+Cache misses                          3
+Cache misses (Rust)                   3
+Cache hits rate                    0.00 %
+Cache hits rate (Rust)             0.00 %
+Cache timeouts                        0
+Cache read errors                     0
+Forced recaches                       0
+Cache write errors                    0
+Cache errors                          0
+Compilations                          3
+Compilation failures                  0
+Non-cacheable compilations            0
+Non-cacheable calls                   8
+Non-compilation calls                 0
+Unsupported compiler calls            0
+Average cache write               0.013 s
+Average compiler                  4.526 s
+Average cache read hit            0.000 s
+Failed distributed compilations       0
+
+Non-cacheable reasons:
+crate-type                            8
+
+Cache location                  Local disk: "/home/sprime01/.cache/sccache"
+Base directories                (none)
+Use direct/preprocessor mode?   yes
+Version (client)                0.17.0
+Cache size                            3 GiB
+Max cache size                       10 GiB
