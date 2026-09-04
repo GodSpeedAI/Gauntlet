@@ -8,33 +8,33 @@ metadata:
                                        # drives multiple plans
   spec_version: "2.0.0"
   initialized: true                   # false only before the very first burst
-  last_updated: "2026-09-03"
+  last_updated: "2026-09-04"
   updated_by: >-
-    orchestrator (task22 SETTLED 2026-09-03 — developmental memory +
-    capability ledger P10: CapabilityLedger port + contract suite +
-    sqlite adapter, gauntlet_app::memory import/promotion services,
-    p10_no_false_learning proof; blind critic CONFIRM + falsifier r1
-    NOT_CONFIRM (1 blocking: import-order window inversion promoted a
-    deteriorating trajectory) -> COR-1 (RED-first x4) -> fresh falsifier
-    r2 CONFIRM (all 4 holes closed, every correction tooth proven
-    load-bearing) -> COR-2 -> focused falsifier r3 CONFIRM (0 findings);
-    closure battery personally run: 1436/1436 x3 consecutive, boundaries
-    228/228, ruler PASS; both plan Done-when teeth personally RED ->
-    byte-identical sha256 restore -> GREEN). Ready set now task23 (newly
-    unblocked) + task24 + task25. Prior: task21 SETTLED 2026-09-03.
+    orchestrator (task23 SETTLED 2026-09-04 — process optimizer +
+    self-improvement gate P9: RevisionLedger port + contract suite +
+    sqlite adapter 0010, candidate_revision@v1 codec, gauntlet_app::
+    promote {proposal, evaluate, gate, rollback, delta, metrics},
+    promotion.margin config, improve CLI wiring, p9 proof + AK-057
+    candidate_only + optimizer containment scan; blind critic r1
+    NOT_CONFIRM (1 blocking sentinel defect) -> COR-1 C1-C11 ->
+    falsifier r1 NOT_CONFIRM (F-1..F-6, two executed MAJORs) -> COR-2
+    R1-R6 -> fresh falsifier r2 CONFIRM (all holes closed, 7 teeth
+    load-bearing); closure battery personally run TWICE: 1507/1507,
+    boundaries 235/235, ruler PASS x3, p9 4/4, promote:: 46/46,
+    candidate_only 1/1; the plan's Done-when tooth personally RED ->
+    byte-identical sha256 restore -> GREEN). Ready set now task24 +
+    task25. Prior: task22 SETTLED 2026-09-03.
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
 # ─────────────────────────────────────────────────────────────────────────
 execution:
-  last_settled_task: task22           # most recent task with a CONFIRM in
+  last_settled_task: task23           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: null                # nothing in flight; task22 settled
+  in_flight_task: null                # nothing in flight; task23 settled
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
-    - task23                          # optimizer + self-improvement gate (P9;
-                                       # blocker task22 settled 2026-09-03)
     - task24                          # anti-gaming suite G1-G16 + mutation teeth
     - task25                          # E2E real runner + recovery + budget
                                        # (P5-P7)
@@ -52,25 +52,36 @@ execution:
 # ACTIVE TASK
 # ─────────────────────────────────────────────────────────────────────────
 active:
-  task: null                          # nothing in flight; task22 settled
-  phase: settled                      # ready set: task23 + task24 + task25
+  task: null                          # nothing in flight; task23 settled
+  phase: settled                      # ready set: task24 + task25
   blocker: null
 
 # ─────────────────────────────────────────────────────────────────────────
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task23
+  task: task24
   action: >-
-    Dispatch task23 (process optimizer + self-improvement gate, P9) in a
-    FRESH session, chartering first from plan §Task 23 + spec §19.3/§19.4
-    + the settled task22 surface (PromotionService/revoke are the
-    promotion path; record_recovery is the recovery-observation seam;
-    the sealed-mint ports-revision candidate and the F2-3
-    CandidateRevision — may the N settlements come from one run? — are
-    the operator's open calls). task24 (anti-gaming G1-G16 + mutation
-    teeth) and task25 (E2E real runner + recovery + budget) are also
-    ready and parallelizable as separate slices.
+    Dispatch task24 (anti-gaming suite G1-G16 + mutation teeth; one
+    test per strategy under tests/antigaming/, a (test, defended
+    mechanism, source location) teeth manifest, cargo-mutants scoped
+    to defended mechanisms, results to .agents/reports/mutation.json)
+    in a FRESH session, and/or task25 (E2E real runner + recovery +
+    budget; P5-P7) as a separate parallel slice. Task23's falsifier
+    left two recorded minors with triggers (arch-scan token escapes;
+    by-unit join order sensitivity) and task24 owns the G-suite
+    surface where the cherry-picking re-evaluation lead (i1) lands.
+    The loop-economics finding (no inert key improves per-settlement
+    economics; binding re-key = ruler owner) bounds what task24's
+    G4/G13 fixtures can honestly vary.
+  reason: >-
+    Task23 settled on a fresh blind executing falsifier round 2
+    CONFIRM (all six round-1 holes re-attacked and closed over real
+    adapters; extension attacks found no new hole). Closure battery
+    personally run twice on the settled tree: 1507/1507, boundaries
+    235/235, ruler PASS at every transition, plan gates green, the
+    Done-when tooth RED -> byte-identical sha256 restore -> GREEN in
+    my own hands. Ready set recomputed: task24 + task25.
   reason: >-
     Task22 settled on blind critic CONFIRM + falsifier r1 NOT_CONFIRM
     (1 blocking) -> COR-1 -> fresh falsifier r2 CONFIRM (all holes
@@ -84,6 +95,41 @@ next_action:
 # EVIDENCE LOG (current state per task, not a history)
 # ─────────────────────────────────────────────────────────────────────────
 latest_evidence:
+  task23:
+    report: ".agents/reports/task23/"
+    confirmation: >-
+      Builder B1 -> blind design-as-built critic r1 NOT_CONFIRM (1
+      blocking: u64::MAX sentinel for incomplete arms broke the §19.4
+      verdict contract both directions — promotion over an incomplete
+      control arm DEMONSTRATED on the real binary; the p9 honest-road
+      legs were built on the defect; 4 major: moving-clock admission
+      idempotency, unverified parent_run, condition-4 fail-open,
+      infra-error-as-Rejection) -> COR-1 C1-C11 RED-first (sentinel
+      deleted, gaps refuse; legs 2/3 to gate-level composition over
+      earned StateStore facts after the loop-economics finding — no
+      inert key improves per-settlement economics on this loop;
+      C2 decision recorded mid-flight) -> blind EXECUTING falsifier r1
+      NOT_CONFIRM (F-1 executed through the real binary: condition 2
+      saw 2 of 4 arms, a moved regression ruler adjudicated cleanly;
+      F-2 executed: positional instrument pairing shielded a weakened
+      unit — real-adapters PROMOTED; F-3..F-6) -> COR-2 R1-R6
+      RED-first (all four arms' digests recorded+checked+refused at
+      evaluate time over a re-verified lock; by-unit instrument join;
+      margin ceiling typed at both layers; idempotency covers
+      metric/protected; case-normalized classification; scan covers
+      raw writes) -> FRESH blind falsifier r2 CONFIRM (all six holes
+      re-attacked and closed; extension attacks found only 2 minors;
+      all 7 teeth neutralization-proven load-bearing). Two builder
+      deaths + a nested-flock compile-lock self-deadlock + a
+      two-builder interleave (disclosed; the combined tree failed the
+      repo-wide scanners the slice batteries skipped) recovered with
+      zero work lost. Orchestrator personally: gate batteries at every
+      transition, the closure battery TWICE (1507/1507, boundaries
+      235/235, lint/deny clean, ruler PASS x3, p9 4/4, promote:: 46/46,
+      candidate_only 1/1, settle-path zero diff), and the Done-when
+      tooth RED -> byte-identical sha256 restore -> GREEN. 51 units
+      provisional through Task 23.
+    commit: "task23 closure commit (this tree)"
   task0:
     report: ".agents/reports/environment.md"
     confirmation: "peer CONFIRM"
@@ -427,6 +473,29 @@ observations:
   # --- OBSERVED: directly verified this session/burst, evidence attached ---
   - status: OBSERVED
     statement: >-
+      Task 23 settled (2026-09-04): answer-key unit status is 51
+      provisional through Task 23 (49 through Task 22 + AK-056 +
+      AK-057 — the self-improvement loop is contained end to end: the
+      optimizer's only output is a strictly-validated candidate
+      revision with no write path into the active loop's configuration
+      or roles (behaviorally proven byte-identical + arch scan with
+      negative controls), and a revision becomes active only through
+      the full §19.4 eight-condition conjunction adjudicated over a
+      durable four-arm evaluation record whose reference digests are
+      all checked against a re-verified lock — insufficient evidence
+      rests at Provisional, never promoted; AK-056's
+      weakening-candidate rejection is executed over the REAL composed
+      loop with the refusal reason itself as the tooth). 37 proposed,
+      0 blocked. Recorded finding: NO inert candidate key can improve
+      per-settlement economics on the current loop (write-once
+      per-iteration observation binding + carry pins
+      iterations/settlement at N/N; mock payment zero) — p9 legs 2/3
+      compose the positive path at the gate level over earned
+      StateStore facts (the p10 pattern); loop-level promotion awaits
+      the ruler owner's binding re-key (reference-candidates 2026-09-04).
+    evidence: ".agents/reports/task23/closure.md"
+  - status: OBSERVED
+    statement: >-
       Task 22 settled (2026-09-03): answer-key unit status is 49
       provisional through Task 22 (48 through Task 21 + AK-055 — both
       halves delivered over the REAL composed ledger: a single
@@ -634,12 +703,14 @@ handoff:
     - "T20 CLI surface + first full loop on the mock (AK-060/AK-061 provisional — 47 units provisional through Task 20; SELF-HOSTING BEGINS): full §20.1 surface over a thin-lib composition root (run + --dry-run D1, status, inspect, verify, resume, escalations list/resolve/retry through settle_operator_action D9, skills install/verify/list with content-anchored SkillsLock, roles list, init, export, improve typed not-wired naming task23); fail-closed runner selection over three fronted tokens (D2 — UNK-003 forced, still operator's); R-1b CLOSED both halves (FsWorkspaceProvider + execution anchored at the admitted per-unit workspace, ladder-factory per anchored workspace); R-3 partially discharged (wrap_builder_command production caller, fail-closed live-backend deferral to task25); R17-F4/R17-note-1/R2-N1 closed; production adapters workspace-fs/escalation-fs/id-entropy; six-category report from durable records; E2E fixture project + 16-leg real-binary suite incl. lying-builder AND report-forging-liar non-settlement teeth, parallel-carry, kill-9 resume, settled no-op, dry-run content-hash zero-write. Confirmation history: design critic NOT_CONFIRM (4M/6m/5i) -> COR-D1..D10 -> falsifier rounds 1-5 NOT_CONFIRM, each -> corrections (COR-F: producer-corroboration gate — the round-1 BLOCKING report-forging settle; COR-R2: ONE production key surface + escalation cross-wiring defense + strict skills reader; COR-R3: per-world recovery mint + skills content-verify vs sources + writer.lock; COR-R4/COR-R5: settled no-op after recovery-completion in both arms) -> round 6 CONFIRM 0/0/0/3i with full prior-arm regression sweep and clean over-rejection leg. The E2E itself found the evidence-path collision (ProducePolicy two-world seam, default world byte-identical, proofs unmodified) and the wrap teeth found ContractDirPolicy's unmaterialized contract dir; the charter's load-flaky class CLOSED as a torn-read classification race in ProcessChildTransport (parse failures decidable only at child terminal; b6/b9 teeth). Arch-suite standing trigger discharged: 4 HOLD / 0 AMEND / 0 REOPEN (arch-relitigation-task20.md; 3 prose-staleness notes next-touch). Settlement battery personally run: 1377/1377, boundaries 228/228, e2e+cli_surface 16/16, dry-run zero-write, corroboration teeth RED->restore->GREEN."
     - "T21 operator surfaces, feature-gated (AK-061 re-evidenced + AK-062 BOTH halves — 48 units provisional through Task 21): gauntlet-adapter-surface-json (std-only OperatorSurface adapter: §20.2 HTTP/1.1 JSON over TcpListener, loopback-only bind, bounded requests, per-request deadline, escalated-first section order with run-derivation disclosure; unmodified shared contract suite passes); `gauntlet serve` under the single `surfaces` feature edge (typed fail-closed bind config, §21.3 surface-failure isolation executed: dead store at startup fails closed, corrupt store at runtime = quiet reads + loud actions + surviving server); ONE operator-action path (execute_operator_action) for CLI and API with the durable-PASS gate at the composition root AND inside settle_operator_action_earned (the one method pairing gate + the ONE §16.1/§16.3 settle; §16.3 idempotent re-entry; no second settlement/queue write path — rg-verified and executed zero-write audits every round); the positive path is EARNED only (forgery ladder refused at every stage: recency, live instrument FAIL, digest binding, record-identity integrity); default build byte-identical CLI-only (frozen help snapshot untouched), mock E2E 12/12 in both configs. Confirmation: blind design-as-built critic CONFIRM (0/0/5m/6i) -> falsifier r1 NOT_CONFIRM (0/0/3m) -> COR-1 (13 items) -> r2 CONFIRM (0/0/3m) -> COR-2+addendum -> r3 CONFIRM (0/0/3m; accept-loop backoff proven ~1M lines/s -> 19.9/s) -> COR-3 class-closing sweep (log_quote discipline + enumeration-free invariant teeth, RED 11 -> GREEN) -> r4 CONFIRM (0/0/1m teeth-declaration) -> r4 addendum (boundary pinned BY CONSTRUCTION, RED-first). Orchestrator personally ran gate batteries at every transition and the closure battery (1392/1392, boundaries 228/228, lint/deny clean, ruler PASS, plan gate 13/13, no-default build clean, E2E + cli_surface both configs) and re-verified both D11 teeth RED -> byte-identical sha256 restore -> GREEN. Tree history note: the implementation + reports were committed by the operator in a71eba9 bundled with their own docs (provenance operator-confirmed)."
     - "T22 developmental memory + capability ledger (AK-055 both halves — 49 units provisional through Task 22): CapabilityLedger port (append-only ungated identity-idempotent observation log across all seven §19.1 classes + transition-history-derived capability register, no status column, Revoked terminal) with a shared contract suite (green/broken/caps legs, grown to log-rooting + zero-reason cases), SqliteCapabilityLedger over migration 0009 (INSERT-only, cross-run), gauntlet_app::memory::{developmental,promotion} (substrate read-only import with occurred_at chronology + rooted record_recovery; PromotionService with all five §19.2 typed conditions), promotion.min_settlements config (default 3, 0 refused at every layer, GAUNTLET_PROMOTION_MARGIN still vocabulary-only for task23), composed proof p10_no_false_learning (4 legs, real adapters, earned authorities, real §18.3 damage+replay recovery seam). Confirmation: blind critic CONFIRM (0/0/4m/4i) -> blind executing falsifier r1 NOT_CONFIRM (1 blocking import-order inversion + 3 major) -> COR-1 C1-C5 (RED-first x4) -> fresh falsifier r2 CONFIRM (all holes closed, teeth load-bearing) -> COR-2 C6/C7 -> focused falsifier r3 CONFIRM (0 findings). F2-3 single-run-promotion CandidateRevision recorded for the ruler owner. Closure battery personally run (1436/1436 x3, boundaries 228/228, ruler PASS, p10 4/4, memory:: 34/34); both Done-when teeth personally RED -> byte-identical restore -> GREEN."
+    - "T23 process optimizer + self-improvement gate (AK-056 + AK-057 — 51 units provisional through Task 23): RevisionLedger port + shared contract suite + sqlite migration 0010 (content-derived proposal identity, four-arm evaluation records with digests+metric+protected inside the idempotency agreement, write-once decisions validated against derived state, append-only restores, no status column); candidate_revision@v1 codec validator (nine §19.3 fields; decision/evaluation claims mechanically refused); gauntlet_app::promote {proposal (service struct holds ONLY ledger+clock; dispatched propose through the real AgentRunner), evaluate (harness verifies the durable parent_run fact before recording; identical metric derivation both arms; import via the task-22 service post-terminal), gate (all EIGHT §19.4 conditions, typed refusals; failed⇒Rejected with every reason+rollback; gaps⇒Provisional never promoted/rejected; infra⇒typed abort), rollback (one-way, ledger-validated, reopen-durable), delta (fail-closed total classification), metrics (lower-is-better fixed-point; incomplete arms refuse)}; promotion.margin consumed (bps, default 0 = strict improvement, >10 000 bps typed refusal at resolution+constructor); improve propose|evaluate|promote|rollback wired (manifest+snapshots deliberately; validate_delta refuses unappliable entries before any arm runs; moved-ruler task sets refused at evaluate over a re-verified lock); p9 proof leg 1 real-loop (weakening candidate REJECTED, settlement_access_weakened recorded, the reason is the tooth) + legs 2/3 gate-level over earned StateStore facts (loop-economics finding: no inert key improves per-settlement economics on this loop — recorded for the ruler owner) + leg 4 provisional floor; promotion::candidate_only behavioral containment + optimizer arch scan (raw-write classes covered). Confirmation: blind critic r1 NOT_CONFIRM (1 blocking sentinel) -> COR-1 C1-C11 -> falsifier r1 NOT_CONFIRM (F-1 moved-regression-ruler executed through the real binary; F-2 positional instrument-pairing shield executed over real adapters) -> COR-2 R1-R6 -> fresh falsifier r2 CONFIRM (all holes closed, 7 teeth load-bearing, 2 minors trigger-recorded). Closure battery TWICE (1507/1507, boundaries 235/235, ruler PASS x3, p9 4/4, promote:: 46/46, candidate_only 1/1, settle-path zero diff); Done-when tooth personally RED -> byte-identical restore -> GREEN. Incidents disclosed: nested-flock compile-lock self-deadlock (unwedged), a revived 'dead' builder interleaving with its replacement (combined tree failed repo-wide scanners; swept+reconciled)."
 
 
   unresolved_summary:
     # Every open thread not captured elsewhere: outstanding confirmations,
     # deferred scope, stale docs owed a refresh, known follow-ups tied
     # to a later task ID.
+    - "Task 23 residuals with triggers (closure.md): E-1 falsifier-r2 minor — the optimizer containment scan's token list misses fs::rename/fs::copy/File::options/fs::hard_link/fs::remove_file/write! spellings (behavioral AK-057 leg + ledger+clock-only service structs are the real containment; trigger: next arch-suite touch or task24); E-2 falsifier-r2 minor — the by-unit instrument join takes the FIRST treatment row per unit, order-sensitive for duplicated unit rows (unreachable through the shipped loop: settlement commits idempotent by run+unit; trigger: next gate touch); re-evaluation cherry-picking (evaluations.last()) recorded for task24; governance-target prefix check advisory against adversarial spellings; optimizer dispatch budget = whole configured run budget; runners.by_role.<role>.model classified Inert is a latent policy question (unreachable through the binary — validate_delta refuses by_role keys; ruler owner before any composition applies them); loop-economics finding + binding re-key = ruler owner (reference-candidates 2026-09-04); the §19.4 positive path is gate-level-composition (p10 pattern) until the re-key; AK-056/AK-057 locator materializations + the space-joined nextest invocation note recorded in reference-candidates (2026-09-03/04); falsifier not-attacked list (cross-process double-adjudication beyond one probe, full-battery re-runs post-restore, real-runner optimizer dispatch = task25, JSON codec fuzzing)."
     - "Task 22 residuals with triggers (closure.md): F2-3 CandidateRevision OPEN (three settlements from ONE run over distinct units promote — charter-conformant, tension with §19.1's verbatim one-run sentence; reference-candidates 2026-09-03; the operator's call; task23 promotion consumption is the likely first consumer); production call sites deferred (import/evaluate wiring into the loop is task23's; composition is proof-composition until then); log-rooted-not-sealed elevation (forged-log writer boundary documented; sealed-mint ports-revision candidate, BudgetMeter::mint class); record_recovery's completed count is caller-supplied (typed receipt mint is a ports-revision candidate; production caller = the recovery-completion call site); occurred_at lies undetectable in-ledger; occurred_at ties order-dependent by construction (documented, F2-1/C7); evolving-run re-import wedges fail-closed on ObservationConflict (RES-03; trigger task23 wiring); tracked-dimension gaps — performance/settlement-reliability recorded-not-decided, transfer/stability absent (RES-05; trigger task23); PromotionEvidence.settlements_observed == witnesses.len() now structural (I-2 closed); first unexplained battery fail recorded honestly (truncated test name, 3 consecutive full re-runs green, matches recorded task20 load-flaky class)."
     - "Task 21 residuals with triggers (closure.md): other-subcommand usage errors still interpolate raw arguments (CLI-wide style question; trigger: next CLI-surface touch); ticket↔unit binding on escalation records is a ports revision (acceptance output discloses both ids as separate facts; trigger: next escalation-schema touch); open_residuals structurally empty on the wire until the typed durable residual read lands (existing ports deferral); gate-side matcher drift-pin is hand-enumerated (compiler-enforced summary→token association is the recorded shape; trigger: next govern touch); serial HTTP serving is a recorded mechanism choice (no Send/Sync on the port traits); AK-062 frozen locator divergence restated (reference-candidates 2026-08-28; settlement belongs to the ruler's owner); D10 leg-3 substitution recorded (identified operators are closable at every authority level — if AK-062's intent requires otherwise it is a CandidateRevision, operator's call); D12 dogfood fog on UNK-003 restated."
     - "Task 18 residuals with triggers (closure.md): formation::parse_bullet doesn't shape-validate an AK- id (cosmetic DanglingReference mislabel on e.g. 'AK-abc') and treats any non-context-only arrow trailer under a tracked section as an id-list even when it isn't AK-shaped prose (spurious FogPromoted false positive, not exercised by real fixtures) — both bias toward over-rejection, never toward letting a leak through; trigger: next formation module touch or first real-agent-authored map.md at task20 composition. Gate-command locator note: the plan's literal `skills::wayfinder`/`formation::` nextest filters don't match nextest's space-joined syntax (same class as task17's roles:: gate); the bare test names are the correct invocation."
