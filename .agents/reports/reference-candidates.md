@@ -1488,3 +1488,129 @@ evidence: `.agents/reports/task22/falsifier-round2.md` (NH-5b, F2-3).
 - **Not changed by this entry:** the answer key, the spec, and the
   frozen lock (`just ruler` PASS at entry time; the entry is a recorded
   question for the ruler's owner, not the builder).
+
+## 2026-09-03 — AK-056 evidence locator names a repo-root test path (Task 23; the AK-049 class)
+
+- **Unit:** AK-056 (`.wayfinder/answer-key.md`; `verify_by: test`,
+  `evidence_required.locator: tests/proofs/p9_self_improvement_containment`).
+- **Defect (evidence declaration only; the claim itself is satisfied):** the
+  locator `tests/proofs/p9_self_improvement_containment` names a repo-root
+  test directory. The architecture boundary suite's Cargo-target-path rule
+  (`gauntlet-arch-tests` `escapes.rs` `scan_cargo_target_paths`, exemption
+  list exactly `["crates/gauntlet-arch-tests"]`) forbids a core crate from
+  declaring a repo-level test target, so the locator cannot materialize as
+  spelled — the AK-049 class (the p4/p7/p10 precedent).
+- **Materialization (recorded, not a ruler edit):** the proof lives in the
+  crate that owns the mechanism, with the target name verbatim:
+  `crates/gauntlet-cli/tests/p9_self_improvement_containment.rs` (the
+  composed-loop proof for the §19.3/§19.4 self-improvement gate). The
+  sibling unit AK-057's locator `tests/contract/promotion::candidate_only`
+  materializes as the `candidate_only` test of the `promotion` test
+  target (`crates/gauntlet-app/tests/promotion.rs`, declared test
+  target of the crate that owns the promotion services — the
+  `tests/contract/architecture_boundaries` precedent). Invocation note
+  (the task17/task18 recorded class): nextest ids are space-joined
+  between binary and test, so the literal substring filter
+  `promotion::candidate_only` matches zero tests; the correct focused
+  invocation is `cargo nextest run -p gauntlet-app --test promotion
+  candidate_only` (orchestrator-verified 2026-09-03).
+- **Ruler untouched:** `.wayfinder/answer-key.md`,
+  `.gauntlet/reference.lock`, and `.wayfinder/reference.yaml` are
+  unmodified; this entry is the record.
+
+## 2026-09-04 — Loop-economics: NO candidate key can improve a per-settlement metric between two COMPLETE arms on the current loop (Task 23, COR-1)
+
+- **Unit:** AK-056 (and §19.4's positive road: "target metric improves by
+  the declared margin" proven between two complete arms over the REAL
+  composed loop).
+- **Tension (ruler-owner question, NOT implemented):** the §19.4
+  self-improvement gate's promotion path requires two comparable,
+  COMPLETE evaluation arms whose per-settlement figures genuinely differ
+  via a candidate's INERT change. On the loop as bound, that difference
+  is unreachable for ANY key — inert or otherwise:
+  - The COR-D2 observation binding is write-once per (run, iteration),
+    and the controller's carry absorbs surplus completions one per
+    iteration, so N units settle in exactly N iterations at ANY
+    `budget.max_parallel` — iterations_per_settlement is pinned at
+    N/N (fixed-point 10 000) for every complete arm.
+  - The mock loop books ZERO payment, so payment_per_settlement is
+    scale-invariant (identically 0) between arms; a real payment
+    difference cannot be composed on the mock.
+  - Every cost lever that would genuinely move per-settlement economics
+    (verification strength, review mode/critic count, observation
+    facets) is verification-bearing and is rightly refused by gate
+    condition 3 — the refusal is correct; the point is that nothing
+    inert remains.
+  - The only inert keys are ceilings; a binding ceiling produces an
+    INCOMPLETE arm, which COR-1's C1 completion gate rightly adjudicates
+    Provisional (never a promotion, never a rejection).
+- **Empirical finding (two independent probes over the real binary, real
+  composed loop, real sqlite ledger):** baseline `max_parallel: 1` vs
+  treatment delta `max_parallel: 2` → REJECTED, `control 10000 vs
+  treatment 10000`, all four runs' checkpoints byte-identical; a
+  `review.mode` downgrade over complete arms → REJECTED with
+  `control 10000 vs treatment 10000` beside AK-056's
+  `settlement_access_weakened`.
+- **Consequence for the Task 23 proof (recorded deviation from charter
+  D7's all-real-loop composition, coordinator decision 2026-09-04):**
+  p9's promotion legs (2/3) prove the positive path at the GATE level —
+  REAL harness, REAL embedded sqlite revision+capability+run-state
+  stores, REAL gate and rollback — with the executor seam authored over
+  REAL StateStore EARNED authorities (the p10 substrate-seed class) and
+  the payment economy honestly modeled as runner-cost with proof-authored
+  per-invocation costs (the mock books nothing to compose a real one
+  from). Leg 1 stays on the real loop in its honest CONTAINMENT form;
+  the strongest form (genuine improvement AND rejection on the real
+  loop) awaits the resolution below. See the p9
+  `p9_self_improvement_containment.rs` header for the leg-by-leg
+  declaration.
+- **What would close it (ruler owner):** the binding-granularity
+  candidate revisions in the 2026-08-31 entry above — re-key the
+  observation bundle per INVOCATION (multi-settlement iterations), or
+  otherwise let one booked iteration carry >1 settlement — plus a
+  runner-cost surface the mock loop actually books. Until then the
+  §19.4 positive path is loop-unreachable BY CONSTRUCTION, not by gate
+  weakness.
+- **Ruler untouched:** `.wayfinder/answer-key.md`,
+  `.gauntlet/reference.lock`, and `.wayfinder/reference.yaml` are
+  unmodified; this entry is the record.
+
+## 2026-09-04 — No inert candidate key can improve per-settlement economics on the current loop (Task 23 COR-1, the C2 finding)
+
+- **Unit:** AK-056/AK-057 (§19.4 self-improvement gate), exercised at the
+  loop's economics seam.
+- **Finding (empirical, real binary + real composed loop):** NO inert
+  candidate key can improve per-settlement economics between two COMPLETE
+  arms. The COR-D2 observation binding is write-once per (run, iteration)
+  and carried completions absorb ONE per iteration, so N units settle in
+  exactly N iterations at ANY `budget.max_parallel` — serial dispatch
+  pipelines perfectly at that cap, and higher parallelism only ties
+  (probe: baseline `max_parallel: 1` vs candidate delta `max_parallel: 2`
+  over complete arms → `control 10000 vs treatment 10000`, all four runs'
+  checkpoints byte-identical: 3 iterations / 3 rounds / zero payment).
+  Every other inert key is a CEILING (binding ⇒ INCOMPLETE arm, which the
+  §19.4 verdict contract rightly rests at Provisional), and the loop's
+  only cost levers are verification-bearing keys the gate's condition 3
+  rightly refuses. The §19.4 positive path is therefore structurally
+  unreachable on the current loop.
+- **Demonstrated instead (task23 p9 legs 2/3, COR-1):** the positive path
+  is proven at the GATE level — REAL `EvaluationHarness`, REAL embedded
+  sqlite revision+capability+state stores, REAL `PromotionGate`, the
+  executor seam authored over the REAL StateStore EARNED authorities (the
+  p10 composition pattern: durable run identity with `parent_run` on the
+  treatment runs, per-iteration boundary checkpoints,
+  verification-record authority mints, settlement-commit authority
+  admits + §16.3 commits — never hand-built rows), with the
+  per-invocation payment economy authored the same way (the mock loop
+  itself charges nothing). Inert improvement carrier: `runners.default`
+  to a runner whose authored per-settlement cost is genuinely lower —
+  control 30 000 000 vs treatment 20 000 000 per-10 000 payment figure,
+  both derived from durable checkpoints.
+- **The ruler-owner's path:** loop-level promotion demonstration awaits
+  the observation-binding re-key recorded above (2026-08-31 entry,
+  candidate revision (a): re-key the observation binding per INVOCATION).
+  Leg 1 meanwhile proves the CONTAINMENT form over the real loop: the
+  verification-weakening candidate is REJECTED with
+  `settlement_access_weakened` durably recorded, both arms complete.
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock.

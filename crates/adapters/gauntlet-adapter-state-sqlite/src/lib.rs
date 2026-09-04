@@ -30,6 +30,7 @@ mod capability_ledger;
 mod encode;
 mod event_log;
 mod migrations;
+mod revision_ledger;
 mod state_store;
 
 /// The configuration token that selects this persistence adapter
@@ -48,12 +49,16 @@ pub use capability_ledger::SqliteCapabilityLedger as EmbeddedCapabilityLedger;
 /// The capability name of [`SqliteEventLog`] for the composition root —
 /// see the module docs.
 pub use event_log::SqliteEventLog as EmbeddedEventLog;
+/// The capability name of [`SqliteRevisionLedger`] for the composition
+/// root — the §19.3/§19.4 candidate-revision store (plan Task 23).
+pub use revision_ledger::SqliteRevisionLedger as EmbeddedRevisionLedger;
 /// The capability name of [`SqliteStateStore`] for the composition root —
 /// see the module docs.
 pub use state_store::SqliteStateStore as EmbeddedStateStore;
 
 pub use capability_ledger::SqliteCapabilityLedger;
 pub use event_log::SqliteEventLog;
+pub use revision_ledger::SqliteRevisionLedger;
 pub use state_store::{RecordKind, SqliteStateStore};
 
 /// OUT-OF-BAND DAMAGE INJECTION (COR-R3-1, falsifier round 3; test-support

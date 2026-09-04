@@ -130,6 +130,41 @@ fn capability_ledger_caps_broken_is_caught() {
     );
 }
 
+/// The `RevisionLedger` reference stub runs its suite clean — the floor
+/// every adapter must clear (plan Task 23, charter D2).
+#[test]
+fn revision_ledger_green_is_clean() {
+    assert_green(
+        "RevisionLedgerGreen",
+        super::revision_ledger::revision_ledger_suite(&RevisionLedgerGreenFactory),
+    );
+}
+
+/// The broken stub duplicates the proposal admission on re-admit — exactly
+/// the defect that would let a replayed admission multiply a revision's
+/// durable subject. Caught on the idempotency case specifically.
+#[test]
+fn revision_ledger_broken_is_caught() {
+    assert_caught(
+        "RevisionLedgerBroken",
+        "proposals_are_idempotent_on_revision",
+        super::revision_ledger::revision_ledger_suite(&RevisionLedgerBrokenFactory),
+    );
+}
+
+/// The caps-broken stub hands back proposals whose declared facts differ
+/// from the rows admitted — the record the §19.4 gate adjudicates is not
+/// the record the optimizer declared. Caught on the exactness case
+/// specifically.
+#[test]
+fn revision_ledger_caps_broken_is_caught() {
+    assert_caught(
+        "RevisionLedgerCapsBroken",
+        "proposals_read_back_exactly_as_admitted",
+        super::revision_ledger::revision_ledger_suite(&RevisionLedgerCapsBrokenFactory),
+    );
+}
+
 #[test]
 fn clock_green_is_clean() {
     assert_green("ClockGreen", super::clock::clock_suite(&ClockGreen));

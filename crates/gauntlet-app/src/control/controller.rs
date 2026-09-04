@@ -1008,6 +1008,19 @@ impl RunController {
     /// Starts a run: freeze/verify the reference, create the durable run,
     /// drive the loop to a terminal state (§11.1).
     pub fn start_run(&self) -> Result<RunOutcome, ControlError> {
+        self.start(None)
+    }
+
+    /// Starts a candidate-revision EVALUATION run (plan Task 23, charter
+    /// D4): the §5.3.3 isolated-evaluation shape — `RunDefinition.parent_run`
+    /// names the control run the treatment arm is isolated under. Nothing
+    /// else differs from [`Self::start_run`]: same freeze, same loop, same
+    /// durable writes.
+    pub fn start_run_with_parent(&self, parent: &RunId) -> Result<RunOutcome, ControlError> {
+        self.start(Some(parent.clone()))
+    }
+
+    fn start(&self, parent_run: Option<RunId>) -> Result<RunOutcome, ControlError> {
         let run_id = self.ids.run_id();
         let deadline = self.operation_bound();
         let draft = self
@@ -1039,7 +1052,7 @@ impl RunController {
             config_fingerprint: self.config_fingerprint.clone(),
             environment_fingerprint: self.environment_fingerprint.clone(),
             budget: budget.clone(),
-            parent_run: None,
+            parent_run,
         })?;
         self.state.record_run(&run, deadline)?;
         let frozen_membership = self.frozen_membership(&run)?;

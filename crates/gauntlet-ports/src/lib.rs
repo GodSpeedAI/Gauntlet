@@ -48,6 +48,7 @@ pub mod operator_surface;
 pub mod policy_provider;
 pub mod producer_authority;
 pub mod reference_provider;
+pub mod revision_ledger;
 pub mod role_result;
 pub mod sandbox;
 pub mod state_store;
@@ -109,9 +110,16 @@ pub use producer_authority::{
     VerificationRecordAuthority, evidence_content_digest,
 };
 pub use reference_provider::{ReferenceDraft, ReferenceProvider, ReferenceProviderError};
+pub use revision_ledger::{
+    DecisionKind, DecisionRecordError, EvaluationAppend, EvaluationRecord, GateDecision,
+    GateDecisionError, GateRefusal, RestoreRecord, RevisionDecisionRecord, RevisionEntry,
+    RevisionLedger, RevisionLedgerError, RevisionPromotionEvidence, RevisionProposal, RunMetrics,
+    SettlementFact,
+};
 pub use role_result::{
-    ArtifactClaim, BUILDER_RESULT_SCHEMA, BuilderResultPayload, ROLE_RESULT_SCHEMA, ResultPayment,
-    RolePayload, RoleResult, RoleResultError, RoleResultState, SelfCheck, UnavailableEvidenceEntry,
+    ArtifactClaim, BUILDER_RESULT_SCHEMA, BuilderResultPayload, CANDIDATE_REVISION_SCHEMA,
+    CandidateRevisionPayload, ROLE_RESULT_SCHEMA, ResultPayment, RolePayload, RoleResult,
+    RoleResultError, RoleResultState, SelfCheck, UnavailableEvidenceEntry,
 };
 pub use sandbox::{
     NetworkPosture, PolicyValidation, Sandbox, SandboxBackendRef, SandboxError, SandboxPolicy,

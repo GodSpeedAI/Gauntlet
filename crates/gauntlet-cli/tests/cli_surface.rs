@@ -233,7 +233,7 @@ fn usage_dispatch_and_manifest_name_the_same_command_set() {
         "the dispatch and the report manifest agree on the command count"
     );
     assert!(
-        !gauntlet_cli::report_manifest::is_wired("improve"),
-        "improve stays honestly not-wired in the manifest"
+        gauntlet_cli::report_manifest::is_wired("improve"),
+        "improve is wired in the manifest (plan Task 23)"
     );
 }

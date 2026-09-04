@@ -93,6 +93,7 @@ If any configuration setting is omitted, the runtime falls back to these hardcod
 | `reference.digest_algo` | `"sha256"` | §8.6, §9.3 | Standard cryptographic normalization digest. |
 | `control.nonconvergence_n` | `3` | §8.6, §15.2 | Triggers diagnostic engine after 3 identical residuals. |
 | `promotion.min_settlements` | `3` | §19.2 (inline default) | Minimum settlements under recorded variation a capability promotion requires; a configured 0 is refused. |
+| `promotion.margin` | `0` | §19.4 via Annex E (`GAUNTLET_PROMOTION_MARGIN`) | Declared margin for a candidate revision's target metric, in basis points relative to control; 0 keeps the §19.4 floor at strict improvement; the domain is 0–10000 (a value above 100% is refused at resolution, never clamped). |
 
 ---
 

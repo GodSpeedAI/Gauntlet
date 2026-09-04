@@ -35,6 +35,10 @@ use crate::json::{JsonError, JsonNumber, JsonValue};
 pub const ROLE_RESULT_SCHEMA: &str = "role_result@v1";
 /// The builder payload schema token (spec Annex B.2).
 pub const BUILDER_RESULT_SCHEMA: &str = "builder_result@v1";
+/// The optimizer payload schema token (spec §19.3 via Annex B.7; plan
+/// Task 23): the typed candidate-revision proposal. The codec's registry
+/// learns exactly one new schema token this revision.
+pub const CANDIDATE_REVISION_SCHEMA: &str = "candidate_revision@v1";
 
 /// The envelope's declared fields (spec Annex B.1), exactly. Any other key
 /// in a decoded envelope object is rejected as unknown.
@@ -63,6 +67,28 @@ const BUILDER_PAYLOAD_FIELDS: &[&str] = &[
     "claims",
     "self_checks",
     "blocked_on",
+];
+
+/// The `candidate_revision@v1` payload's declared fields — §19.3's nine
+/// declared proposal fields, exactly (plan Task 23, charter D1):
+/// claimed problem · supporting evidence · affected component · predicted
+/// improvement · potential regression · candidate change · test ·
+/// held-out evaluation · rollback. Any other key is rejected as unknown —
+/// which is precisely how a payload that claims a `decision`, evaluation
+/// results, or evaluation run ids is REFUSED: the optimizer proposes; it
+/// never decides and never grades itself, so those keys are outside its
+/// schema (spec §19.3: "It produces proposals. It may not modify the
+/// active loop.").
+const CANDIDATE_REVISION_PAYLOAD_FIELDS: &[&str] = &[
+    "claimed_problem",
+    "supporting_evidence",
+    "affected_component",
+    "predicted_improvement",
+    "potential_regression",
+    "candidate_change",
+    "evaluation_plan",
+    "held_out_evaluation",
+    "rollback",
 ];
 
 /// Result-contract decode/validation failures — typed, with the schema locus
@@ -495,6 +521,7 @@ pub enum RolePayload {
     BuilderResult(Box<BuilderResultPayload>),
     Comparison(Box<crate::comparison_record::ComparisonRecordDoc>),
     Verification(Box<crate::verification_record::VerificationRecordDoc>),
+    CandidateRevision(Box<CandidateRevisionPayload>),
 }
 
 impl RolePayload {
@@ -521,6 +548,10 @@ impl RolePayload {
                 })?;
             return Ok(Self::Verification(Box::new(payload)));
         }
+        if declared == CANDIDATE_REVISION_SCHEMA {
+            let payload = CandidateRevisionPayload::from_json(value)?;
+            return Ok(Self::CandidateRevision(Box::new(payload)));
+        }
         Err(RoleResultError::PayloadSchemaUnknown {
             schema: declared.to_owned(),
         })
@@ -532,6 +563,7 @@ impl RolePayload {
             Self::BuilderResult(_) => BUILDER_RESULT_SCHEMA,
             Self::Comparison(_) => crate::comparison_record::COMPARISON_RECORD_SCHEMA,
             Self::Verification(_) => crate::verification_record::VERIFICATION_RECORD_SCHEMA,
+            Self::CandidateRevision(_) => CANDIDATE_REVISION_SCHEMA,
         }
     }
 }
@@ -684,6 +716,215 @@ fn payload_string_array(
             .collect(),
         Some(_) => Err(payload_type_invalid(field, "an array of strings")),
         None => Err(payload_missing(field)),
+    }
+}
+
+/// The `candidate_revision@v1` payload (spec §19.3 via Annex B.7; plan
+/// Task 23), field for field over the nine declared §19.3 proposal
+/// fields, mapped onto the domain record's fields:
+///
+/// | wire field | §19.3 declaration | domain record field |
+/// |---|---|---|
+/// | `claimed_problem` | claimed problem | `claimed_problem` |
+/// | `supporting_evidence` | supporting evidence | `supporting_evidence` |
+/// | `affected_component` | affected component (the target) | `target` |
+/// | `predicted_improvement` | predicted improvement | `predicted_improvement` |
+/// | `potential_regression` | potential regression | `predicted_regression_risk` |
+/// | `candidate_change` | candidate change (the diff) | `diff_ref` |
+/// | `evaluation_plan` | test (the evaluation plan) | the evaluation plan |
+/// | `held_out_evaluation` | held-out evaluation (the plan) | the held-out plan |
+/// | `rollback` | rollback | `rollback_ref` |
+///
+/// The payload carries NO decision and NO evaluation results: a payload
+/// that claims a `decision`, evaluation results, or evaluation run ids
+/// carries keys outside this schema and is mechanically refused (the
+/// strict decode rejects unknown fields) — the optimizer proposes; it
+/// never decides, never grades itself (§19.4: "The optimizer never
+/// modifies itself in production and then grades its own modification.").
+#[derive(Debug, Clone, PartialEq)]
+pub struct CandidateRevisionPayload {
+    claimed_problem: String,
+    supporting_evidence: Vec<EvidenceRef>,
+    affected_component: String,
+    predicted_improvement: String,
+    potential_regression: Vec<String>,
+    candidate_change: EvidenceRef,
+    evaluation_plan: String,
+    held_out_evaluation: String,
+    rollback: EvidenceRef,
+}
+
+impl CandidateRevisionPayload {
+    pub fn claimed_problem(&self) -> &str {
+        &self.claimed_problem
+    }
+
+    pub fn supporting_evidence(&self) -> &[EvidenceRef] {
+        &self.supporting_evidence
+    }
+
+    /// The affected component — the domain record's `target` (§5.3.8, an
+    /// open vocabulary).
+    pub fn affected_component(&self) -> &str {
+        &self.affected_component
+    }
+
+    pub fn predicted_improvement(&self) -> &str {
+        &self.predicted_improvement
+    }
+
+    pub fn potential_regression(&self) -> &[String] {
+        &self.potential_regression
+    }
+
+    /// The candidate change — the domain record's `diff_ref`.
+    pub fn candidate_change(&self) -> &EvidenceRef {
+        &self.candidate_change
+    }
+
+    /// The declared evaluation plan (§19.3's `test` declaration).
+    pub fn evaluation_plan(&self) -> &str {
+        &self.evaluation_plan
+    }
+
+    /// The declared held-out evaluation plan (§19.3).
+    pub fn held_out_evaluation(&self) -> &str {
+        &self.held_out_evaluation
+    }
+
+    /// The declared rollback — the domain record's `rollback_ref`.
+    pub fn rollback(&self) -> &EvidenceRef {
+        &self.rollback
+    }
+
+    fn from_json(value: &JsonValue) -> Result<Self, RoleResultError> {
+        let object = match value {
+            JsonValue::Object(_) => value,
+            _ => {
+                return Err(RoleResultError::TypeInvalid {
+                    schema: CANDIDATE_REVISION_SCHEMA,
+                    field: "<root>",
+                    expected: "an object",
+                });
+            }
+        };
+        reject_unknown_fields(
+            CANDIDATE_REVISION_SCHEMA,
+            object,
+            CANDIDATE_REVISION_PAYLOAD_FIELDS,
+        )?;
+        let claimed_problem = revision_non_empty(object, "claimed_problem")?;
+        let supporting_evidence = match object
+            .get("supporting_evidence")
+            .ok_or_else(|| revision_missing("supporting_evidence"))?
+        {
+            JsonValue::Array(items) => items
+                .iter()
+                .map(|item| match item {
+                    JsonValue::Str(s) => EvidenceRef::new(s)
+                        .map_err(|source| revision_value_invalid("supporting_evidence", source)),
+                    _ => Err(revision_type_invalid(
+                        "supporting_evidence",
+                        "an array of evidence refs",
+                    )),
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            _ => {
+                return Err(revision_type_invalid(
+                    "supporting_evidence",
+                    "an array of evidence refs",
+                ));
+            }
+        };
+        let affected_component = revision_non_empty(object, "affected_component")?;
+        let predicted_improvement = revision_non_empty(object, "predicted_improvement")?;
+        let potential_regression = revision_string_array(object, "potential_regression")?;
+        let candidate_change = revision_evidence_ref(object, "candidate_change")?;
+        let evaluation_plan = revision_non_empty(object, "evaluation_plan")?;
+        let held_out_evaluation = revision_non_empty(object, "held_out_evaluation")?;
+        let rollback = revision_evidence_ref(object, "rollback")?;
+        Ok(Self {
+            claimed_problem,
+            supporting_evidence,
+            affected_component,
+            predicted_improvement,
+            potential_regression,
+            candidate_change,
+            evaluation_plan,
+            held_out_evaluation,
+            rollback,
+        })
+    }
+}
+
+/// A declared §19.3 field must be present, a string, and non-empty — an
+/// empty declaration is not a proposal (§19.3: every proposal DECLARES
+/// these; absence is refusal, never a default).
+fn revision_non_empty(object: &JsonValue, field: &'static str) -> Result<String, RoleResultError> {
+    let raw = match object.get(field) {
+        Some(JsonValue::Str(s)) => s,
+        Some(_) => return Err(revision_type_invalid(field, "a string")),
+        None => return Err(revision_missing(field)),
+    };
+    if raw.trim().is_empty() {
+        return Err(RoleResultError::ValueInvalid {
+            schema: CANDIDATE_REVISION_SCHEMA,
+            field,
+            source: "a declared field must not be empty".to_owned(),
+        });
+    }
+    Ok(raw.clone())
+}
+
+fn revision_string_array(
+    object: &JsonValue,
+    field: &'static str,
+) -> Result<Vec<String>, RoleResultError> {
+    match object.get(field) {
+        Some(JsonValue::Array(items)) => items
+            .iter()
+            .map(|item| match item {
+                JsonValue::Str(s) => Ok(s.clone()),
+                _ => Err(revision_type_invalid(field, "an array of strings")),
+            })
+            .collect(),
+        Some(_) => Err(revision_type_invalid(field, "an array of strings")),
+        None => Err(revision_missing(field)),
+    }
+}
+
+fn revision_evidence_ref(
+    object: &JsonValue,
+    field: &'static str,
+) -> Result<EvidenceRef, RoleResultError> {
+    let raw = match object.get(field) {
+        Some(JsonValue::Str(s)) => s,
+        Some(_) => return Err(revision_type_invalid(field, "a string")),
+        None => return Err(revision_missing(field)),
+    };
+    EvidenceRef::new(raw).map_err(|source| revision_value_invalid(field, source))
+}
+
+fn revision_missing(field: &'static str) -> RoleResultError {
+    RoleResultError::MissingField {
+        schema: CANDIDATE_REVISION_SCHEMA,
+        field,
+    }
+}
+
+fn revision_type_invalid(field: &'static str, expected: &'static str) -> RoleResultError {
+    RoleResultError::TypeInvalid {
+        schema: CANDIDATE_REVISION_SCHEMA,
+        field,
+        expected,
+    }
+}
+
+fn revision_value_invalid(field: &'static str, source: ValueError) -> RoleResultError {
+    RoleResultError::ValueInvalid {
+        schema: CANDIDATE_REVISION_SCHEMA,
+        field,
+        source: source.to_string(),
     }
 }
 
@@ -1386,5 +1627,189 @@ mod tests {
             result.context_envelope_digest(),
         )
         .expect("identity matches dispatch");
+    }
+
+    /// A conforming optimizer document: the §19.3 nine-field payload under
+    /// its own schema token, role `optimizer`, iteration 1 (the plan Task
+    /// 23 fixture shape the admission service decodes).
+    fn revision_document() -> String {
+        let payload = revision_payload_json();
+        let head = format!(
+            "{{\"schema\":\"{ROLE_RESULT_SCHEMA}\",\"invocation_id\":\"{ULID}\",\
+             \"run_id\":\"{ULID}\",\"iteration_no\":1,\"role\":\"optimizer\",\
+             \"context_envelope_digest\":\"{DIGEST}\",\"state\":\"completed\",\
+             \"payload_schema\":\"{CANDIDATE_REVISION_SCHEMA}\",\"payload\":"
+        );
+        let tail = ",\"payment\":{\"input_tokens\":0,\"output_tokens\":0,\"tool_calls\":0,\
+             \"WALL\":0,\"cost_usd\":0.0},\"unavailable_evidence\":[],\"errors\":[]}";
+        head + &payload + &tail.replace("WALL", WALL_KEY)
+    }
+
+    fn revision_payload_json() -> String {
+        JsonValue::Object(vec![
+            (
+                "claimed_problem".to_owned(),
+                JsonValue::Str("correction loops burn two rounds on known-good units".to_owned()),
+            ),
+            (
+                "supporting_evidence".to_owned(),
+                JsonValue::Array(vec![JsonValue::Str("sha256:feed0000face1111".to_owned())]),
+            ),
+            (
+                "affected_component".to_owned(),
+                JsonValue::Str("correction.selection".to_owned()),
+            ),
+            (
+                "predicted_improvement".to_owned(),
+                JsonValue::Str("one fewer correction round per settled unit".to_owned()),
+            ),
+            (
+                "potential_regression".to_owned(),
+                JsonValue::Array(vec![JsonValue::Str(
+                    "a residual may be re-opened once".to_owned(),
+                )]),
+            ),
+            (
+                "candidate_change".to_owned(),
+                JsonValue::Str("sha256:cafef00dfeed2222".to_owned()),
+            ),
+            (
+                "evaluation_plan".to_owned(),
+                JsonValue::Str("held-out set e2e-happy against the frozen reference".to_owned()),
+            ),
+            (
+                "held_out_evaluation".to_owned(),
+                JsonValue::Str("regression set AK-901..AK-903 replay".to_owned()),
+            ),
+            (
+                "rollback".to_owned(),
+                JsonValue::Str("sha256:beef0000dead3333".to_owned()),
+            ),
+        ])
+        .to_json_text()
+    }
+
+    #[test]
+    fn a_candidate_revision_payload_decodes_field_for_field() {
+        let result = RoleResult::decode(&revision_document()).expect("the proposal decodes");
+        assert_eq!(result.role(), &RoleId::Optimizer);
+        let RolePayload::CandidateRevision(payload) = result.payload() else {
+            panic!("the optimizer document carries the candidate-revision payload")
+        };
+        assert_eq!(
+            payload.claimed_problem(),
+            "correction loops burn two rounds on known-good units"
+        );
+        assert_eq!(payload.supporting_evidence().len(), 1);
+        assert_eq!(payload.affected_component(), "correction.selection");
+        assert_eq!(payload.potential_regression().len(), 1);
+        assert_eq!(
+            payload.candidate_change().as_str(),
+            "sha256:cafef00dfeed2222"
+        );
+        assert!(!payload.evaluation_plan().is_empty());
+        assert!(!payload.held_out_evaluation().is_empty());
+        assert_eq!(payload.rollback().as_str(), "sha256:beef0000dead3333");
+        assert_eq!(result.payload().schema_token(), CANDIDATE_REVISION_SCHEMA);
+    }
+
+    #[test]
+    fn a_decision_claiming_candidate_payload_is_refused_whole() {
+        // The optimizer proposes; it never decides and never grades itself.
+        // Every key outside the nine declared fields — a decision, the
+        // evaluation results, the evaluation run ids — is mechanically
+        // refused, so no decision-bearing shape can even decode.
+        for (key, value) in [
+            ("decision", "\"promoted\""),
+            ("evaluation_run_ids", "[\"01ARZ3NDEKTSV4RRFFQ69G5FAV\"]"),
+            ("held_out_result", "\"pass\""),
+            ("regression_result", "\"pass\""),
+            ("protected_capabilities_result", "\"non-inferior\""),
+        ] {
+            let body = revision_payload_json();
+            let body = body.trim_end_matches('}').to_owned();
+            let smuggled_payload = format!("{body},\"{key}\":{value}}}");
+            let document = revision_document().replace(&revision_payload_json(), &smuggled_payload);
+            let error = RoleResult::decode(&document)
+                .expect_err("a decision- or evidence-claiming payload is refused");
+            assert!(
+                matches!(
+                    &error,
+                    RoleResultError::UnknownField { schema, field }
+                        if *schema == CANDIDATE_REVISION_SCHEMA && field == key
+                ),
+                "smuggled key {key:?} must be refused, got {error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_incomplete_candidate_payload_is_refused_with_the_schema_locus() {
+        // Every one of the nine declared fields is required; dropping any
+        // one refuses with the schema locus.
+        let fields = [
+            "claimed_problem",
+            "supporting_evidence",
+            "affected_component",
+            "predicted_improvement",
+            "potential_regression",
+            "candidate_change",
+            "evaluation_plan",
+            "held_out_evaluation",
+            "rollback",
+        ];
+        for dropped in fields {
+            let body = JsonValue::Object(
+                match crate::json::parse(&revision_payload_json()).expect("the payload parses") {
+                    JsonValue::Object(entries) => entries
+                        .into_iter()
+                        .filter(|(key, _)| key != dropped)
+                        .collect(),
+                    other => panic!("the payload fixture is an object: {other:?}"),
+                },
+            )
+            .to_json_text();
+            let document = revision_document().replace(&revision_payload_json(), &body);
+            let error = RoleResult::decode(&document)
+                .expect_err("a payload missing a declared field is refused");
+            assert!(
+                matches!(
+                    &error,
+                    RoleResultError::MissingField { schema, field: missing }
+                        if *schema == CANDIDATE_REVISION_SCHEMA && *missing == dropped
+                ),
+                "dropping {dropped} must refuse with the schema locus, got {error:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_candidate_declaration_is_refused_not_coerced() {
+        let body = revision_payload_json().replace(
+            "correction loops burn two rounds on known-good units",
+            "   ",
+        );
+        let document = revision_document().replace(&revision_payload_json(), &body);
+        assert!(matches!(
+            RoleResult::decode(&document),
+            Err(RoleResultError::ValueInvalid {
+                schema: CANDIDATE_REVISION_SCHEMA,
+                field: "claimed_problem",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn an_unknown_candidate_field_is_mechanically_rejected() {
+        let body = revision_payload_json();
+        let body = body.trim_end_matches('}').to_owned();
+        let extended = format!("{body},\"fabricated\":true}}");
+        let document = revision_document().replace(&revision_payload_json(), &extended);
+        assert!(matches!(
+            RoleResult::decode(&document),
+            Err(RoleResultError::UnknownField { schema, field, .. })
+                if schema == CANDIDATE_REVISION_SCHEMA && field == "fabricated"
+        ));
     }
 }

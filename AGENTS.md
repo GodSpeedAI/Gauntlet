@@ -47,6 +47,18 @@ Do not add speculative rules for failures that have never occurred.
   transition (dispatch, correction round landed, interruption recovery), not only
   at settlement. IN-FLIGHT.md is the per-slice contract; CURRENT_STATUS.yml is the
   cross-session anchor; neither substitutes for the other.
+* Task 23 (2026-09-04): a builder wrapped an entire compound command (containing a
+  second `flock` on the same lock file) inside one outer `flock` and self-deadlocked
+  the repository compile lock — no compile was running; the lock was held against
+  itself. Rule: every `flock` invocation is its OWN top-level shell command, never
+  nested inside another flock's `-c` string. Same task, same day: a "dead" builder
+  REVIVED when messaged while a replacement continuation builder was already
+  dispatched — two builders interleaved on one tree, and the combined state failed
+  the repo-wide scanners that neither slice-scoped battery covered. Rule: after
+  clearing a wedge, message the agent and WAIT for observable progress (file mtime
+  or process change) before dispatching a replacement; and the orchestrator runs a
+  FULL battery, not slice-scoped suites, whenever more than one agent has touched
+  the tree since the last full run.
 
 ## Delegation and role boundaries
 

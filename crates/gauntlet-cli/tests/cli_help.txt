@@ -18,5 +18,9 @@ usage: gauntlet doctor [--config <path>]
        gauntlet roles verify
        gauntlet roles list
        gauntlet skills install | verify | list
-       gauntlet improve <subcommand>   (not wired: plan Task 23)
+       gauntlet improve propose [--from-result <path>] [--from-run <run-id>]
+       gauntlet improve evaluate <revision> --held-out <dir> --regression <dir> \
+                    [--protected <cap,cap>] [--metric <token>]
+       gauntlet improve promote <revision>
+       gauntlet improve rollback <revision>
        gauntlet export --run <run-id> [--out <path>]

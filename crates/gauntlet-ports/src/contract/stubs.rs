@@ -24,8 +24,8 @@ use gauntlet_domain::{
     ComparisonRecord, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind,
     EvidenceLocator, EvidenceRef, InstrumentName, InvocationId, InvocationState, Limits, MicroUsd,
     Outcome, Payment, Reference, ReferenceDefinition, ReferenceId, ReferenceVersion,
-    ResultContractPath, RoleId, Run, RunDefinition, RunId, SettlementCriteria, UnitId, Verdict,
-    VerificationRecord, WorkspaceRef,
+    ResultContractPath, RevisionId, RoleId, Run, RunDefinition, RunId, SettlementCriteria, UnitId,
+    Verdict, VerificationRecord, WorkspaceRef,
 };
 
 use crate::agent_runner::{
@@ -56,6 +56,10 @@ use crate::operator_surface::{
 };
 use crate::policy_provider::{PermissionSet, PolicyProvider, PolicyProviderError};
 use crate::reference_provider::{ReferenceDraft, ReferenceProvider, ReferenceProviderError};
+use crate::revision_ledger::{
+    DecisionKind, EvaluationAppend, EvaluationRecord, ProposalAdmission, RestoreRecord,
+    RevisionDecisionRecord, RevisionEntry, RevisionLedger, RevisionLedgerError, RevisionProposal,
+};
 use crate::role_result::{
     BUILDER_RESULT_SCHEMA, ROLE_RESULT_SCHEMA, RoleResult, read_result_contract,
 };
@@ -3950,6 +3954,505 @@ impl super::capability_ledger::CapabilityLedgerFactory for CapabilityLedgerCapsB
     fn build(&self) -> Result<Box<dyn CapabilityLedger>, String> {
         Ok(Box::new(CapabilityLedgerCapsBroken {
             inner: CapabilityLedgerGreen::new(),
+        }))
+    }
+}
+
+// ---------------------------------------------------------------------------
+// RevisionLedger (plan Task 23, charter D2)
+// ---------------------------------------------------------------------------
+
+/// The in-memory revision ledger: the reference semantics the port pins —
+/// idempotent proposals, idempotent run-set-keyed evaluations, the
+/// transition-derived decision (no mutable decision field), the one-way
+/// restore. Locks so the double is `Send + Sync` like the adapters.
+pub struct RevisionLedgerGreen {
+    proposals: std::sync::Mutex<Vec<RevisionProposal>>,
+    evaluations: std::sync::Mutex<Vec<EvaluationRecord>>,
+    decisions: std::sync::Mutex<Vec<RevisionDecisionRecord>>,
+    restores: std::sync::Mutex<Vec<RestoreRecord>>,
+    sequence: std::sync::atomic::AtomicU64,
+}
+
+impl Default for RevisionLedgerGreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RevisionLedgerGreen {
+    pub fn new() -> Self {
+        Self {
+            proposals: std::sync::Mutex::new(Vec::new()),
+            evaluations: std::sync::Mutex::new(Vec::new()),
+            decisions: std::sync::Mutex::new(Vec::new()),
+            restores: std::sync::Mutex::new(Vec::new()),
+            sequence: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    fn next_sequence(&self) -> u64 {
+        self.sequence
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            + 1
+    }
+
+    fn derived(&self, revision: &RevisionId) -> Option<RevisionEntry> {
+        let admitted_at = self
+            .proposals
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .iter()
+            .find(|proposal| proposal.revision() == revision)
+            .map(|proposal| proposal.admitted_at())?;
+        let decisions = self
+            .decisions
+            .lock()
+            .expect("the ledger lock is not poisoned");
+        let decision = decisions
+            .iter()
+            .rev()
+            .find(|record| record.revision() == revision);
+        let rolled_back = self
+            .restores
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .iter()
+            .any(|record| record.revision() == revision);
+        Some(RevisionEntry {
+            revision: revision.clone(),
+            decision: decision.map(|record| record.writes()),
+            rolled_back,
+            evaluations: self
+                .evaluations
+                .lock()
+                .expect("the ledger lock is not poisoned")
+                .iter()
+                .filter(|record| record.revision == *revision)
+                .count(),
+            admitted_at,
+            last_decision_at: decision.map(|record| record.at()),
+        })
+    }
+
+    fn require_known(&self, revision: &RevisionId) -> Result<(), RevisionLedgerError> {
+        if self
+            .proposals
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .iter()
+            .any(|proposal| proposal.revision() == revision)
+        {
+            Ok(())
+        } else {
+            Err(RevisionLedgerError::UnknownRevision {
+                revision: revision.clone(),
+            })
+        }
+    }
+}
+
+impl RevisionLedger for RevisionLedgerGreen {
+    fn admit_proposal(
+        &self,
+        proposal: RevisionProposal,
+        _deadline: Deadline,
+    ) -> Result<ProposalAdmission, RevisionLedgerError> {
+        let mut proposals = self
+            .proposals
+            .lock()
+            .expect("the ledger lock is not poisoned");
+        if let Some(stored) = proposals
+            .iter()
+            .find(|stored| stored.revision() == proposal.revision())
+        {
+            if stored.facts_agree(&proposal) {
+                return Ok(ProposalAdmission { idempotent: true });
+            }
+            return Err(RevisionLedgerError::ProposalConflict {
+                revision: proposal.revision().clone(),
+            });
+        }
+        proposals.push(proposal);
+        Ok(ProposalAdmission { idempotent: false })
+    }
+
+    fn proposal(
+        &self,
+        revision: &RevisionId,
+        _deadline: Deadline,
+    ) -> Result<Option<RevisionProposal>, RevisionLedgerError> {
+        Ok(self
+            .proposals
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .iter()
+            .find(|proposal| proposal.revision() == revision)
+            .cloned())
+    }
+
+    fn append_evaluation(
+        &self,
+        record: EvaluationRecord,
+        _deadline: Deadline,
+    ) -> Result<EvaluationAppend, RevisionLedgerError> {
+        self.require_known(&record.revision)?;
+        let mut evaluations = self
+            .evaluations
+            .lock()
+            .expect("the ledger lock is not poisoned");
+        if let Some(stored) = evaluations
+            .iter()
+            .find(|stored| stored.identity() == record.identity())
+        {
+            if stored.facts_agree(&record) {
+                return Ok(EvaluationAppend {
+                    sequence: 0,
+                    idempotent: true,
+                });
+            }
+            return Err(RevisionLedgerError::EvaluationConflict {
+                revision: record.revision.clone(),
+            });
+        }
+        let sequence = self.next_sequence();
+        evaluations.push(record);
+        Ok(EvaluationAppend {
+            sequence,
+            idempotent: false,
+        })
+    }
+
+    fn evaluations(
+        &self,
+        revision: &RevisionId,
+        _deadline: Deadline,
+    ) -> Result<Vec<EvaluationRecord>, RevisionLedgerError> {
+        Ok(self
+            .evaluations
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .iter()
+            .filter(|record| record.revision == *revision)
+            .cloned()
+            .collect())
+    }
+
+    fn apply_decision(
+        &self,
+        record: RevisionDecisionRecord,
+        _deadline: Deadline,
+    ) -> Result<RevisionEntry, RevisionLedgerError> {
+        self.require_known(record.revision())?;
+        let current = self
+            .derived(record.revision())
+            .ok_or_else(|| RevisionLedgerError::UnknownRevision {
+                revision: record.revision().clone(),
+            })?
+            .decision
+            .unwrap_or(DecisionKind::Pending);
+        if record.claimed() != current {
+            return Err(RevisionLedgerError::StaleDecision {
+                revision: record.revision().clone(),
+                current,
+            });
+        }
+        let revision = record.revision().clone();
+        self.decisions
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .push(record);
+        self.derived(&revision)
+            .ok_or_else(|| RevisionLedgerError::ReadFailed {
+                detail: "the derived entry vanished mid-decision".to_owned(),
+            })
+    }
+
+    fn decisions(
+        &self,
+        revision: &RevisionId,
+        _deadline: Deadline,
+    ) -> Result<Vec<RevisionDecisionRecord>, RevisionLedgerError> {
+        Ok(self
+            .decisions
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .iter()
+            .filter(|record| record.revision() == revision)
+            .cloned()
+            .collect())
+    }
+
+    fn record_restore(
+        &self,
+        record: RestoreRecord,
+        _deadline: Deadline,
+    ) -> Result<RevisionEntry, RevisionLedgerError> {
+        let entry = self.derived(record.revision()).ok_or_else(|| {
+            RevisionLedgerError::UnknownRevision {
+                revision: record.revision().clone(),
+            }
+        })?;
+        let current = entry.decision.unwrap_or(DecisionKind::Pending);
+        if current != DecisionKind::Promoted || entry.rolled_back {
+            return Err(RevisionLedgerError::StaleRestore {
+                revision: record.revision().clone(),
+                current,
+                rolled_back: entry.rolled_back,
+            });
+        }
+        let revision = record.revision().clone();
+        self.restores
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .push(record);
+        self.derived(&revision)
+            .ok_or_else(|| RevisionLedgerError::ReadFailed {
+                detail: "the derived entry vanished mid-restore".to_owned(),
+            })
+    }
+
+    fn restores(
+        &self,
+        revision: &RevisionId,
+        _deadline: Deadline,
+    ) -> Result<Vec<RestoreRecord>, RevisionLedgerError> {
+        Ok(self
+            .restores
+            .lock()
+            .expect("the ledger lock is not poisoned")
+            .iter()
+            .filter(|record| record.revision() == revision)
+            .cloned()
+            .collect())
+    }
+
+    fn revision(
+        &self,
+        revision: &RevisionId,
+        _deadline: Deadline,
+    ) -> Result<Option<RevisionEntry>, RevisionLedgerError> {
+        Ok(self.derived(revision))
+    }
+}
+
+pub struct RevisionLedgerGreenFactory;
+
+impl super::revision_ledger::RevisionLedgerFactory for RevisionLedgerGreenFactory {
+    fn label(&self) -> &'static str {
+        "revision-ledger-green"
+    }
+
+    fn build(&self) -> Result<Box<dyn RevisionLedger>, String> {
+        Ok(Box::new(RevisionLedgerGreen::new()))
+    }
+}
+
+/// Deliberately broken: the proposal admission is NOT idempotent — the
+/// same revision re-admitted with agreeing facts appends a second row, so
+/// a replayed admission could displace the durable decision history's
+/// subject.
+pub struct RevisionLedgerBroken {
+    inner: RevisionLedgerGreen,
+}
+
+impl RevisionLedger for RevisionLedgerBroken {
+    fn admit_proposal(
+        &self,
+        proposal: RevisionProposal,
+        deadline: Deadline,
+    ) -> Result<ProposalAdmission, RevisionLedgerError> {
+        self.inner.admit_proposal(proposal, deadline)?;
+        Ok(ProposalAdmission { idempotent: false })
+    }
+
+    fn proposal(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Option<RevisionProposal>, RevisionLedgerError> {
+        self.inner.proposal(revision, deadline)
+    }
+
+    fn append_evaluation(
+        &self,
+        record: EvaluationRecord,
+        deadline: Deadline,
+    ) -> Result<EvaluationAppend, RevisionLedgerError> {
+        self.inner.append_evaluation(record, deadline)
+    }
+
+    fn evaluations(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Vec<EvaluationRecord>, RevisionLedgerError> {
+        self.inner.evaluations(revision, deadline)
+    }
+
+    fn apply_decision(
+        &self,
+        record: RevisionDecisionRecord,
+        deadline: Deadline,
+    ) -> Result<RevisionEntry, RevisionLedgerError> {
+        self.inner.apply_decision(record, deadline)
+    }
+
+    fn decisions(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Vec<RevisionDecisionRecord>, RevisionLedgerError> {
+        self.inner.decisions(revision, deadline)
+    }
+
+    fn record_restore(
+        &self,
+        record: RestoreRecord,
+        deadline: Deadline,
+    ) -> Result<RevisionEntry, RevisionLedgerError> {
+        self.inner.record_restore(record, deadline)
+    }
+
+    fn restores(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Vec<RestoreRecord>, RevisionLedgerError> {
+        self.inner.restores(revision, deadline)
+    }
+
+    fn revision(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Option<RevisionEntry>, RevisionLedgerError> {
+        self.inner.revision(revision, deadline)
+    }
+}
+
+pub struct RevisionLedgerBrokenFactory;
+
+impl super::revision_ledger::RevisionLedgerFactory for RevisionLedgerBrokenFactory {
+    fn label(&self) -> &'static str {
+        "revision-ledger-broken"
+    }
+
+    fn build(&self) -> Result<Box<dyn RevisionLedger>, String> {
+        Ok(Box::new(RevisionLedgerBroken {
+            inner: RevisionLedgerGreen::new(),
+        }))
+    }
+}
+
+/// Deliberately caps-broken: proposals read back CORRUPTED — the claimed
+/// problem flips on the way out, so the record the gate adjudicates is not
+/// the record the optimizer declared (the typed surface lies).
+pub struct RevisionLedgerCapsBroken {
+    inner: RevisionLedgerGreen,
+}
+
+impl RevisionLedger for RevisionLedgerCapsBroken {
+    fn admit_proposal(
+        &self,
+        proposal: RevisionProposal,
+        deadline: Deadline,
+    ) -> Result<ProposalAdmission, RevisionLedgerError> {
+        self.inner.admit_proposal(proposal, deadline)
+    }
+
+    fn proposal(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Option<RevisionProposal>, RevisionLedgerError> {
+        let stored = self.inner.proposal(revision, deadline)?;
+        Ok(stored.map(|proposal| {
+            RevisionProposal::new(
+                proposal.revision().clone(),
+                proposal.target().to_owned(),
+                format!("{} (corrupted on read)", proposal.claimed_problem()),
+                proposal.supporting_evidence().to_vec(),
+                proposal.predicted_improvement().to_owned(),
+                proposal.predicted_regression_risk().to_vec(),
+                proposal.diff_ref().clone(),
+                proposal.evaluation_plan().to_owned(),
+                proposal.held_out_plan().to_owned(),
+                proposal.rollback_ref().clone(),
+                proposal.admitted_at(),
+                proposal.source_run().cloned(),
+                proposal.detail().to_owned(),
+            )
+        }))
+    }
+
+    fn append_evaluation(
+        &self,
+        record: EvaluationRecord,
+        deadline: Deadline,
+    ) -> Result<EvaluationAppend, RevisionLedgerError> {
+        self.inner.append_evaluation(record, deadline)
+    }
+
+    fn evaluations(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Vec<EvaluationRecord>, RevisionLedgerError> {
+        self.inner.evaluations(revision, deadline)
+    }
+
+    fn apply_decision(
+        &self,
+        record: RevisionDecisionRecord,
+        deadline: Deadline,
+    ) -> Result<RevisionEntry, RevisionLedgerError> {
+        self.inner.apply_decision(record, deadline)
+    }
+
+    fn decisions(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Vec<RevisionDecisionRecord>, RevisionLedgerError> {
+        self.inner.decisions(revision, deadline)
+    }
+
+    fn record_restore(
+        &self,
+        record: RestoreRecord,
+        deadline: Deadline,
+    ) -> Result<RevisionEntry, RevisionLedgerError> {
+        self.inner.record_restore(record, deadline)
+    }
+
+    fn restores(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Vec<RestoreRecord>, RevisionLedgerError> {
+        self.inner.restores(revision, deadline)
+    }
+
+    fn revision(
+        &self,
+        revision: &RevisionId,
+        deadline: Deadline,
+    ) -> Result<Option<RevisionEntry>, RevisionLedgerError> {
+        self.inner.revision(revision, deadline)
+    }
+}
+
+pub struct RevisionLedgerCapsBrokenFactory;
+
+impl super::revision_ledger::RevisionLedgerFactory for RevisionLedgerCapsBrokenFactory {
+    fn label(&self) -> &'static str {
+        "revision-ledger-caps-broken"
+    }
+
+    fn build(&self) -> Result<Box<dyn RevisionLedger>, String> {
+        Ok(Box::new(RevisionLedgerCapsBroken {
+            inner: RevisionLedgerGreen::new(),
         }))
     }
 }

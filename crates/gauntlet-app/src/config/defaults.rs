@@ -155,6 +155,20 @@ pub const NONCONVERGENCE_N: u32 = 3;
 /// configuration error at resolution: §19.2's floor (one successful run is
 /// not capability) cannot hold below 1.
 pub const PROMOTION_MIN_SETTLEMENTS: u32 = 3;
+/// §19.4's declared margin for the target-metric condition, addressed by
+/// the Annex E variable `GAUNTLET_PROMOTION_MARGIN` (§8.2 key
+/// `promotion.margin`, unit: BASIS POINTS relative to control) — an Annex
+/// E variable the spec vocabulary names but §8.6 tables NO default for.
+/// The shipped default is 0 with an HONEST meaning, not a guessed figure:
+/// condition 7's floor stays at STRICT improvement (treatment must beat
+/// control outright), which is fail-closed by construction — a larger
+/// configured margin only raises the bar. The domain is 0..=10 000 basis
+/// points: a value ABOVE 10 000 (above 100%) cannot be an improvement
+/// requirement at all, so it is a typed configuration error at resolution
+/// and the gate constructor refuses it too — never a silent clamp
+/// (COR-2, R3). Like the other inline/absent defaults, deliberately
+/// absent from the boundary suite's pinned ten-row inventory.
+pub const PROMOTION_MARGIN_BPS: u64 = 0;
 /// §11.4 reconciliation tick window, inline spec default (Core-spec §11.4
 /// names the Annex E variable `GAUNTLET_POLL_INTERVAL_MS` with an inline
 /// five-second default) — an inline default, NOT a §8.6 defaults-table

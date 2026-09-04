@@ -6,9 +6,8 @@
 //! records alone (`capability rows never upgrade a not-wired
 //! declaration`).
 //!
-//! The honest row: `improve` is NOT wired (plan Task 23 owns the
-//! optimizer) — `gauntlet improve` says so in its exit, and the manifest
-//! says so here. Every other §20.1 command fronts a backing service.
+//! Every §20.1 command fronts a backing service — `improve` included
+//! since plan Task 23 wired the optimizer surface.
 
 use gauntlet_app::report::CapabilityManifestEntry;
 
@@ -67,12 +66,13 @@ const COMMAND_TABLE: &[CommandRow] = &[
         name: "skills",
         wired: true,
     },
-    // D8's honest exposure: the optimizer is plan Task 23's slice. The
-    // command parses its subcommands and returns a typed not-wired
-    // failure; the manifest records the same fact.
+    // Plan Task 23 wired the optimizer surface: `improve
+    // propose|evaluate|promote|rollback` fronts the §19.3/§19.4 services
+    // (the manifest row and the command agree by construction; the
+    // `cli_surface` pins it).
     CommandRow {
         name: "improve",
-        wired: false,
+        wired: true,
     },
     CommandRow {
         name: "export",
@@ -162,8 +162,8 @@ mod tests {
             COMMAND_TABLE.len() + surfaces_extra_rows()
         );
         assert!(
-            !is_wired("improve"),
-            "the manifest's not-wired fact and the command's exit agree"
+            is_wired("improve"),
+            "the manifest's wired fact and the command's backing services agree"
         );
         let _ = ReportError::ManifestKeyEmpty; // the typed shape this table must never trip
     }

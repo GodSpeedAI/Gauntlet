@@ -98,7 +98,7 @@ use crate::context::RuntimeContext;
 
 /// The state store file name under the state dir (the composition's one
 /// choice; single-segment by intent).
-const STATE_DB_NAME: &str = "gauntlet-state.db";
+pub(crate) const STATE_DB_NAME: &str = "gauntlet-state.db";
 
 /// The mock token's scenario hook (see the module docs).
 pub const MOCK_SCENARIO_VAR: &str = "GAUNTLET_MOCK_SCENARIO";
@@ -222,7 +222,7 @@ pub fn select_runner_token(context: &RuntimeContext) -> Result<String, Compositi
 
 /// Which runner token a runner was built from (for the identity record).
 #[allow(clippy::arc_with_non_send_sync)] // the loop is single-threaded; the adapters carry interior mutability (the p6 fixture precedent, now in production)
-fn runner_for(
+pub(crate) fn runner_for(
     token: &str,
     context: &RuntimeContext,
     clock: &Arc<dyn Clock>,

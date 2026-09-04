@@ -97,6 +97,7 @@ pub mod observer;
 pub mod operator_surface;
 pub mod policy_provider;
 pub mod reference_provider;
+pub mod revision_ledger;
 pub mod sandbox;
 pub mod state_store;
 pub mod tool_provider;

@@ -98,6 +98,11 @@ pub enum ConfigKey {
     /// `GAUNTLET_PROMOTION_MIN_SETTLEMENTS`): the settlement count a
     /// capability's promotion requires under recorded variation.
     PromotionMinSettlements,
+    /// The §19.4 declared margin (`promotion.margin`, Annex E
+    /// `GAUNTLET_PROMOTION_MARGIN`): the improvement in basis points
+    /// relative to control the target metric must show before a candidate
+    /// revision's promotion condition 7 holds.
+    PromotionMargin,
     /// Environment-only (Annex E Limits group): the §11.4 reconciliation
     /// tick window.
     ControlPollIntervalMs,
@@ -156,6 +161,7 @@ impl ConfigKey {
             Self::BudgetDiagnosticBudget => "budget.diagnostic_budget".to_owned(),
             Self::NonconvergenceN => "nonconvergence_n".to_owned(),
             Self::PromotionMinSettlements => "promotion.min_settlements".to_owned(),
+            Self::PromotionMargin => "promotion.margin".to_owned(),
             Self::ControlPollIntervalMs => "poll_interval_ms".to_owned(),
             Self::ControlStallTimeoutMs => "stall_timeout_ms".to_owned(),
             Self::ControlRetryBaseMs => "retry_base_ms".to_owned(),
@@ -202,6 +208,7 @@ impl ConfigKey {
             Self::BudgetDiagnosticBudget => Some("GAUNTLET_DIAGNOSTIC_BUDGET"),
             Self::NonconvergenceN => Some("GAUNTLET_NONCONVERGENCE_N"),
             Self::PromotionMinSettlements => Some("GAUNTLET_PROMOTION_MIN_SETTLEMENTS"),
+            Self::PromotionMargin => Some("GAUNTLET_PROMOTION_MARGIN"),
             Self::ControlPollIntervalMs => Some("GAUNTLET_POLL_INTERVAL_MS"),
             Self::ControlStallTimeoutMs => Some("GAUNTLET_STALL_TIMEOUT_MS"),
             Self::ControlRetryBaseMs => Some("GAUNTLET_RETRY_BASE_MS"),
@@ -254,6 +261,7 @@ impl ConfigKey {
             | Self::BudgetDiagnosticBudget
             | Self::NonconvergenceN
             | Self::PromotionMinSettlements
+            | Self::PromotionMargin
             | Self::ControlPollIntervalMs
             | Self::ControlStallTimeoutMs
             | Self::ControlRetryBaseMs
@@ -268,6 +276,34 @@ impl ConfigKey {
             Self::Interactive => ValueKind::Text,
             Self::ReportDir => ValueKind::Text,
         }
+    }
+
+    /// The key a §8.2 dotted path addresses — the vocabulary walk's exact
+    /// inverse (plan Task 23, charter D11: the candidate delta's declared
+    /// keys validate against the config schema). Static leaves are matched
+    /// against the same table [`EffectiveConfig`]'s section walk uses; the
+    /// dynamic `runners.by_role.<role>.{runner,model}` leaves parse by
+    /// shape with the role name validated against the §5.2 grammar.
+    pub fn from_path(path: &str) -> Option<ConfigKey> {
+        if let Some(rest) = path.strip_prefix("runners.by_role.") {
+            let (role, leaf) = rest.split_once('.')?;
+            let valid_role = !role.is_empty()
+                && role
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
+            if !valid_role {
+                return None;
+            }
+            return match leaf {
+                "runner" => Some(Self::RunnersByRoleRunner(role.to_owned())),
+                "model" => Some(Self::RunnersByRoleModel(role.to_owned())),
+                _ => None,
+            };
+        }
+        ALL_STATIC_KEYS
+            .iter()
+            .find(|key| key.path() == path)
+            .cloned()
     }
 
     /// The key an Annex E variable addresses, when the table maps it.
@@ -343,6 +379,7 @@ const STATIC_ENV_KEYS: &[(&str, ConfigKey)] = &[
         "GAUNTLET_PROMOTION_MIN_SETTLEMENTS",
         ConfigKey::PromotionMinSettlements,
     ),
+    ("GAUNTLET_PROMOTION_MARGIN", ConfigKey::PromotionMargin),
     (
         "GAUNTLET_POLL_INTERVAL_MS",
         ConfigKey::ControlPollIntervalMs,
@@ -365,6 +402,51 @@ const STATIC_ENV_KEYS: &[(&str, ConfigKey)] = &[
     ("GAUNTLET_VERSIONING_STRATEGY", ConfigKey::GitStrategy),
     ("GAUNTLET_MCP_REQUIRED", ConfigKey::McpRequired),
     ("GAUNTLET_REPORT_DIR", ConfigKey::ReportDir),
+];
+
+/// Every STATIC §8.2 key path (the `runners.by_role` leaves are dynamic and
+/// parse by shape in [`ConfigKey::from_path`]). The candidate-delta
+/// validator's vocabulary (plan Task 23, charter D11).
+const ALL_STATIC_KEYS: &[ConfigKey] = &[
+    ConfigKey::ReferenceManifest,
+    ConfigKey::ReferenceAnswerKey,
+    ConfigKey::ReferenceMap,
+    ConfigKey::ReferenceComparisonContract,
+    ConfigKey::ReferenceDigestAlgo,
+    ConfigKey::RolesDir,
+    ConfigKey::RunnersDefault,
+    ConfigKey::ObservationFacets,
+    ConfigKey::ReviewMode,
+    ConfigKey::ReviewMaxCritics,
+    ConfigKey::VerificationPreferDeterministic,
+    ConfigKey::SandboxBackend,
+    ConfigKey::SandboxPolicyDir,
+    ConfigKey::BudgetMaxRounds,
+    ConfigKey::BudgetMaxParallel,
+    ConfigKey::BudgetMaxDepth,
+    ConfigKey::BudgetMaxWallSeconds,
+    ConfigKey::BudgetMaxTokens,
+    ConfigKey::BudgetMaxCostUsd,
+    ConfigKey::BudgetRecoveryReservePct,
+    ConfigKey::BudgetDiagnosticBudget,
+    ConfigKey::NonconvergenceN,
+    ConfigKey::PromotionMinSettlements,
+    ConfigKey::PromotionMargin,
+    ConfigKey::ControlPollIntervalMs,
+    ConfigKey::ControlStallTimeoutMs,
+    ConfigKey::ControlRetryBaseMs,
+    ConfigKey::ControlRetryMaxMs,
+    ConfigKey::ControlMaxAttemptsPerUnit,
+    ConfigKey::WorkspaceRoot,
+    ConfigKey::WorkspaceUseWorktrees,
+    ConfigKey::StateBackend,
+    ConfigKey::StateDir,
+    ConfigKey::EvidenceDir,
+    ConfigKey::OperatorSurfaces,
+    ConfigKey::Interactive,
+    ConfigKey::GitStrategy,
+    ConfigKey::McpRequired,
+    ConfigKey::ReportDir,
 ];
 
 // ---------------------------------------------------------------------------
@@ -474,6 +556,11 @@ pub struct EffectiveConfig {
     /// `promotion.min_settlements`, default 3 — the inline spec default;
     /// a configured 0 is a typed configuration error).
     pub promotion_min_settlements: u32,
+    /// The §19.4 declared margin (Annex E `GAUNTLET_PROMOTION_MARGIN`,
+    /// §8.2 key `promotion.margin`, unit: basis points relative to
+    /// control). §8.6 tables no default; the shipped 0 keeps the §19.4
+    /// floor at strict improvement (see [`crate::config::defaults`]).
+    pub promotion_margin_bps: u64,
     /// The §11.4/§11.5 control-loop settings (environment-only; one inline
     /// default, four REQUIRED settings that stay unset until supplied).
     pub control: ControlSettings,
@@ -532,6 +619,7 @@ impl EffectiveConfig {
             },
             nonconvergence_n: defaults::NONCONVERGENCE_N,
             promotion_min_settlements: defaults::PROMOTION_MIN_SETTLEMENTS,
+            promotion_margin_bps: defaults::PROMOTION_MARGIN_BPS,
             control: ControlSettings::from_defaults(),
             workspace_root: raw(defaults::workspace_root_default()),
             workspace_use_worktrees: defaults::WORKSPACE_USE_WORKTREES,
@@ -687,7 +775,10 @@ fn apply_front_matter(
             )?,
             "promotion" => walk_section(
                 entry,
-                &[("min_settlements", ConfigKey::PromotionMinSettlements)],
+                &[
+                    ("min_settlements", ConfigKey::PromotionMinSettlements),
+                    ("margin", ConfigKey::PromotionMargin),
+                ],
                 effective,
                 unknown,
             )?,
@@ -1019,6 +1110,20 @@ impl EffectiveConfig {
                 }
                 self.promotion_min_settlements = as_u32?;
             }
+            ConfigKey::PromotionMargin => {
+                // Basis points relative to control. A configured 0 is the
+                // HONEST shipped default — the §19.4 floor at strict
+                // improvement. The domain is 0..=10 000: a margin ABOVE
+                // 10 000 bps is above 100%, which no positive figure can
+                // satisfy as an improvement requirement — the gate would
+                // clamp it, enforcing a declared 150% bar as exactly 100%
+                // (COR-2, R3) — so it is a typed refusal at resolution,
+                // never a coerced one.
+                if n > 10_000 {
+                    return Err(overflow());
+                }
+                self.promotion_margin_bps = n;
+            }
             ConfigKey::ControlPollIntervalMs => {
                 // A zero tick window is a busy-spin, not a tick; refused.
                 if n == 0 {
@@ -1208,6 +1313,9 @@ pub struct ResolvedConfig {
     pub nonconvergence_n: u32,
     /// The §19.2 promotion threshold (`GAUNTLET_PROMOTION_MIN_SETTLEMENTS`).
     pub promotion_min_settlements: u32,
+    /// The §19.4 declared margin (`GAUNTLET_PROMOTION_MARGIN`, basis
+    /// points relative to control; 0 = strict improvement).
+    pub promotion_margin_bps: u64,
     /// The §11.4/§11.5 control-loop settings — plain numbers, carried
     /// through unchanged (nothing in the group is an indirection or path).
     pub control: ControlSettings,
@@ -1331,6 +1439,7 @@ impl EffectiveConfig {
         };
         let nonconvergence_n = self.nonconvergence_n;
         let promotion_min_settlements = self.promotion_min_settlements;
+        let promotion_margin_bps = self.promotion_margin_bps;
         let control = self.control.clone();
         let mut runners_by_role = BTreeMap::new();
         for (role, runner) in &self.runners_by_role {
@@ -1472,6 +1581,7 @@ impl EffectiveConfig {
             budget,
             nonconvergence_n,
             promotion_min_settlements,
+            promotion_margin_bps,
             control,
             workspace_root,
             workspace_use_worktrees: self.workspace_use_worktrees,
@@ -1924,6 +2034,76 @@ mod tests {
             products.budget.limits(),
             Err(gauntlet_domain::BudgetError::LimitZero { .. })
         ));
+    }
+
+    #[test]
+    fn the_promotion_margin_defaults_to_zero_overrides_and_enters_the_fingerprint() {
+        // §19.4's declared margin, in basis points relative to control.
+        // §8.6 tables no default; the shipped 0 keeps condition 7's floor
+        // at strict improvement — accepted, unlike the §19.2 minimum,
+        // because 0 is the honest fail-closed posture, not a refusal
+        // figure. The Annex E variable overrides, the §8.2 key resolves,
+        // and a changed margin moves the config fingerprint (the
+        // candidate-evaluation runs must carry the same fingerprint both
+        // arms, so a margin change is a configuration change).
+        let env = env_layer(&[]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.promotion_margin_bps, 0);
+        assert_eq!(
+            resolved
+                .effective
+                .resolve_against(&env, Path::new("proj-root"))
+                .expect("expands")
+                .promotion_margin_bps,
+            0
+        );
+        let env = env_layer(&[("GAUNTLET_PROMOTION_MARGIN", "250")]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.promotion_margin_bps, 250);
+        let doc = "---\npromotion:\n  margin: 750\n---\n";
+        let env = env_layer(&[]);
+        let resolved = resolve(&input(Some(doc), &env, FlagOverrides::new())).expect("resolves");
+        assert_eq!(resolved.effective.promotion_margin_bps, 750);
+        // Fingerprint coverage: two configurations differing ONLY in the
+        // margin digest differently.
+        let base = resolve(&input(None, &env, FlagOverrides::new())).expect("resolves");
+        let mut flags = FlagOverrides::new();
+        flags.set(ConfigKey::PromotionMargin, FlagValue::WholeNumber(100));
+        let changed = resolve(&input(None, &env, flags)).expect("resolves");
+        assert_ne!(
+            crate::config::fingerprint::config_fingerprint(&base.effective),
+            crate::config::fingerprint::config_fingerprint(&changed.effective),
+            "a margin-only change must move the config fingerprint"
+        );
+    }
+
+    #[test]
+    fn a_margin_above_ten_thousand_bps_is_a_typed_configuration_error() {
+        // COR-2 (R3): a margin above 10 000 bps is above 100% — no
+        // positive figure can satisfy it as an improvement requirement,
+        // and the gate's former silent clamp enforced a declared 150%
+        // bar as exactly 100%. Resolution refuses it where it enters,
+        // through both layers that address the key, never coerces it;
+        // the ceiling itself stays legal.
+        let env = env_layer(&[("GAUNTLET_PROMOTION_MARGIN", "15000")]);
+        let error = resolve(&input(None, &env, FlagOverrides::new()))
+            .expect_err("a 150% margin is not an improvement requirement");
+        assert!(
+            matches!(
+                error,
+                ConfigError::ValueOutOfRange { ref key } if key == "promotion.margin"
+            ),
+            "the refusal names the key: {error:?}"
+        );
+        let doc = "---\npromotion:\n  margin: 10001\n---\n";
+        let env = env_layer(&[]);
+        let error = resolve(&input(Some(doc), &env, FlagOverrides::new()))
+            .expect_err("the §8.2 key refuses at the same bound");
+        assert!(matches!(error, ConfigError::ValueOutOfRange { .. }));
+        let env = env_layer(&[("GAUNTLET_PROMOTION_MARGIN", "10000")]);
+        let resolved = resolve(&input(None, &env, FlagOverrides::new()))
+            .expect("the 10 000 bps ceiling is inside the domain");
+        assert_eq!(resolved.effective.promotion_margin_bps, 10_000);
     }
 
     #[test]

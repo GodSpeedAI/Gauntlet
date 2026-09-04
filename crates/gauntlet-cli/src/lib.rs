@@ -12,9 +12,10 @@
 //! (form/freeze/show/diff/verify + the existing digest/validate),
 //! `run`, `status`, `inspect`, `verify`, `resume`, `escalations`
 //! (list/resolve/retry), `roles` (install/verify/list), `skills`
-//! (install/verify/list), `improve`, `export`. Commands whose backing
-//! services exist are real; `improve` is an honest typed not-wired
-//! failure naming plan Task 23 (charter D8) — never a fake success.
+//! (install/verify/list), `improve`
+//! (propose/evaluate/promote/rollback), `export`. Every §20.1 command
+//! fronts a backing service; the optimizer surface landed with plan
+//! Task 23 (spec §19.3/§19.4).
 
 pub mod compose;
 pub mod context;
@@ -112,6 +113,10 @@ fn usage() {
     println!("       gauntlet roles verify");
     println!("       gauntlet roles list");
     println!("       gauntlet skills install | verify | list");
-    println!("       gauntlet improve <subcommand>   (not wired: plan Task 23)");
+    println!("       gauntlet improve propose [--from-result <path>] [--from-run <run-id>]");
+    println!("       gauntlet improve evaluate <revision> --held-out <dir> --regression <dir> \\");
+    println!("                    [--protected <cap,cap>] [--metric <token>]");
+    println!("       gauntlet improve promote <revision>");
+    println!("       gauntlet improve rollback <revision>");
     println!("       gauntlet export --run <run-id> [--out <path>]");
 }

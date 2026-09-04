@@ -269,6 +269,10 @@ pub fn effective_tree(config: &EffectiveConfig) -> CanonValue {
     );
     let mut promotion = BTreeMap::new();
     promotion.insert(
+        "margin".to_owned(),
+        CanonValue::Uint(config.promotion_margin_bps),
+    );
+    promotion.insert(
         "min_settlements".to_owned(),
         CanonValue::Uint(u64::from(config.promotion_min_settlements)),
     );
@@ -598,6 +602,7 @@ impl EffectiveConfig {
         let promotion = section(root, "promotion")?;
         config.promotion_min_settlements =
             u32::try_from(uint_of(&promotion, "min_settlements")?).map_err(|_| wrong_shape())?;
+        config.promotion_margin_bps = uint_of(&promotion, "margin")?;
         let control = section(root, "control")?;
         let required_control_uint =
             |map: &BTreeMap<String, CanonValue>, key: &str| -> Result<Option<u64>, ConfigError> {
