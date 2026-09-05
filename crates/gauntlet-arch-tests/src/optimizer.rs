@@ -17,7 +17,12 @@
 //!   `fs::write(`, `File::create` / `OpenOptions`, `set_var(`,
 //!   `Command::new`; COR-2, falsifier F-6 probe H: the raw classes
 //!   reached the same active-loop surfaces while reporting zero
-//!   violations). The promote module may
+//!   violations). Task 24 E-1 extends the raw classes to the remaining
+//!   file-mutation spellings — `fs::rename`, `fs::copy`, `File::options`,
+//!   `fs::hard_link`, `fs::remove_file` — and adds the `write!` macro as
+//!   a TARGET rule (a `write!` to any non-formatter sink is banned; the
+//!   Display/Error formatter shape `write!(f, …)` is the documented
+//!   exemption). The promote module may
 //!   READ the config vocabulary ([`crate::optimizer`]'s subject is the
 //!   candidate DELTA, which validates keys against it); it may never
 //!   WRITE effective configuration — through the typed surface or around
@@ -71,6 +76,22 @@ const CONFIG_WRITE_TOKENS: &[&str] = &[
     "fs::write(",
     "File::create",
     "OpenOptions",
+    // Task 24 E-1 (the remaining raw file-mutation classes): a file can
+    // be created, replaced, linked, or destroyed without ever spelling
+    // `fs::write` — rename, copy, hard-link, options-opened handles, and
+    // removal each reach the same active-loop surfaces the raw-write ban
+    // exists for. Each class carries its std-spelling token (which also
+    // matches `use` imports) and its glob-imported call spelling, exactly
+    // as the original write classes do.
+    "std::fs::rename",
+    "fs::rename(",
+    "std::fs::copy",
+    "fs::copy(",
+    "File::options",
+    "std::fs::hard_link",
+    "fs::hard_link(",
+    "std::fs::remove_file",
+    "fs::remove_file(",
     // Environment mutation.
     "set_var(",
     // Process spawn.
@@ -85,6 +106,45 @@ const ROLES_INSTALL_TOKENS: &[&str] = &[
     "::install",
     "install::",
 ];
+
+/// Task 24 E-1: the `write!` macro is a file/sink-write vector (`write!(
+/// file_handle, amended)` rewrites a file through an already-opened
+/// handle) — but the SAME macro spells every Display/Error impl's
+/// formatter call (`write!(f, …)`), which the promote module legitimately
+/// carries. The rule is therefore the TARGET, not the macro: a `write!`
+/// whose first argument is the std fmt convention's formatter binding `f`
+/// is the formatting shape; a `write!` targeting ANY other expression is
+/// a sink write and is banned. The target is read past the paren, joining
+/// one line break so the wrapped-call shape (`write!(\n f, …)`) is not a
+/// hole.
+fn write_macro_sink_lines(text: &str) -> Vec<(usize, String)> {
+    let mut violations = Vec::new();
+    let lines: Vec<&str> = text.lines().collect();
+    for (index, line) in lines.iter().enumerate() {
+        let mut search_from = 0;
+        while let Some(offset) = line[search_from..].find("write!(") {
+            let paren = search_from + offset + "write!(".len();
+            // The target: the text after the paren up to the first comma,
+            // spilling onto the NEXT line when this line ends first.
+            let rest = &line[paren..];
+            let target = match rest.split_once(',') {
+                Some((target, _)) => target.trim().to_owned(),
+                None => {
+                    let next = lines.get(index + 1).copied().unwrap_or("");
+                    match next.split_once(',') {
+                        Some((target, _)) => target.trim().to_owned(),
+                        None => next.trim().to_owned(),
+                    }
+                }
+            };
+            if target != "f" {
+                violations.push((index + 1, target));
+            }
+            search_from = paren;
+        }
+    }
+    violations
+}
 
 pub fn scan_optimizer_containment(files: &BTreeMap<String, String>) -> Vec<String> {
     let mut violations = Vec::new();
@@ -117,6 +177,17 @@ pub fn scan_optimizer_containment(files: &BTreeMap<String, String>) -> Vec<Strin
                     }
                 }
             }
+        }
+        // Task 24 E-1: the `write!` sink-write rule (rule A's macro
+        // class) — a `write!` targeting anything but the fmt formatter is
+        // a file/sink write into the active loop's surfaces.
+        for (line, target) in write_macro_sink_lines(text) {
+            violations.push(format!(
+                "optimizer-containment (rule A): {path}:{line}: the promote module writes \
+                 through the write! macro to a non-formatter target {target:?} — the \
+                 optimizer has no write path into the active loop's configuration or roles \
+                 (plan Task 23 D8a/D10, spec 19.3: \"It may not modify the active loop\")"
+            ));
         }
     }
     violations.sort();
@@ -349,6 +420,106 @@ mod optimizer_containment_tests {
                  {violations:?}"
             );
         }
+    }
+
+    #[test]
+    fn every_task24_file_mutation_token_is_reported_individually() {
+        // Task 24 E-1: each NEW raw file-mutation class has its own
+        // planted shape — rename/copy/hard-link rewrite the active loop's
+        // files without ever spelling `fs::write`; an options-opened
+        // handle is a write path `File::create` does not cover; removal
+        // destroys state. A token no fixture exercises is decoration.
+        const SHAPES: &[(&str, &str)] = &[
+            ("fs::rename(", "    std::fs::rename(from, to).unwrap();"),
+            ("fs::copy(", "    std::fs::copy(from, to).unwrap();"),
+            (
+                "File::options",
+                "    let handle = std::fs::File::options().append(true).open(p).unwrap();",
+            ),
+            (
+                "fs::hard_link(",
+                "    std::fs::hard_link(target, link).unwrap();",
+            ),
+            (
+                "fs::remove_file(",
+                "    std::fs::remove_file(path).unwrap();",
+            ),
+        ];
+        for (token, line) in SHAPES {
+            let source = format!("fn sneak(project: &std::path::Path) {{\n{line}\n}}\n");
+            let files = fixture_map(&[(
+                "crates/gauntlet-app/src/promote/metrics.rs",
+                source.as_str(),
+            )]);
+            let violations = scan_optimizer_containment(&files);
+            assert!(
+                violations.iter().any(|violation| violation.contains(token)),
+                "the file-mutation token {token:?} must be REPORTED in the promote module: \
+                 {violations:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_write_macro_to_a_sink_is_reported_and_the_formatter_shape_is_not() {
+        // Task 24 E-1: the write! rule is the TARGET, not the macro. A
+        // sink write (`write!(file, …)` — any non-formatter target) is
+        // REPORTED; the Display/Error formatter call (`write!(f, …)`,
+        // same line AND wrapped onto the next line — the module's real
+        // shapes) is legitimate and must stay unflagged, or the scan
+        // would outlaw the module's own error rendering.
+        let sink = "\
+        fn sneak(path: &std::path::Path) {\n\
+        \x20   let mut file = std::fs::File::create(path).unwrap();\n\
+        \x20   write!(file, \"amended criteria\").unwrap();\n\
+        }\n";
+        let files = fixture_map(&[("crates/gauntlet-app/src/promote/metrics.rs", sink)]);
+        let violations = scan_optimizer_containment(&files);
+        assert!(
+            violations
+                .iter()
+                .any(|violation| violation.contains("write!")),
+            "a write! to a file handle must be REPORTED: {violations:?}"
+        );
+        // The wrapped sink shape: target on the next line.
+        let wrapped_sink = "\
+        fn sneak(path: &std::path::Path) {\n\
+        \x20   let mut out = std::fs::File::create(path).unwrap();\n\
+        \x20   write!(\n\
+        \x20       out,\n\
+        \x20       \"amended\"\n\
+        \x20   )\n\
+        \x20   .unwrap();\n\
+        }\n";
+        let files = fixture_map(&[("crates/gauntlet-app/src/promote/metrics.rs", wrapped_sink)]);
+        let violations = scan_optimizer_containment(&files);
+        assert!(
+            violations
+                .iter()
+                .any(|violation| violation.contains("write!")),
+            "a wrapped write! to a sink must be REPORTED too: {violations:?}"
+        );
+        // The formatter shapes are NOT violations: same line and wrapped.
+        let formatter = "\
+        impl core::fmt::Display for Error {\n\
+        \x20   fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {\n\
+        \x20       match self {\n\
+        \x20           Self::One => write!(f, \"one\"),\n\
+        \x20           Self::Two => write!(\n\
+        \x20               f,\n\
+        \x20               \"two\"\n\
+        \x20           ),\n\
+        \x20       }\n\
+        \x20   }\n\
+        }\n";
+        let files = fixture_map(&[("crates/gauntlet-app/src/promote/metrics.rs", formatter)]);
+        let violations = scan_optimizer_containment(&files);
+        assert!(
+            violations
+                .iter()
+                .all(|violation| !violation.contains("write!")),
+            "the Display formatter shape is legitimate and must not be REPORTED: {violations:?}"
+        );
     }
 
     #[test]

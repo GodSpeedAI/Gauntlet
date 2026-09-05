@@ -1614,3 +1614,44 @@ evidence: `.agents/reports/task22/falsifier-round2.md` (NH-5b, F2-3).
   `settlement_access_weakened` durably recorded, both arms complete.
 - **Not changed by this entry:** the answer key, the spec, the frozen
   reference, and the frozen lock.
+
+## 2026-09-04 — AK-058's locator `tests/antigaming` materializes as the cargo target `antigaming`; the task-24 plan-gate spellings diverge from the real tools (Task 24; the AK-049 class + the task-18 nextest class)
+
+- **Unit:** AK-058 (`.wayfinder/answer-key.md` lines 404–409).
+- **Claim under review (unchanged):** "Each of the sixteen anti-gaming
+  strategies has a test that fails when its defense is removed."
+- **Defect (evidence declaration only):** `evidence_required.locator`
+  is `tests/antigaming`; the repo-root directory holds only `.gitkeep`,
+  and no repo-root test target can exist under the same
+  cargo-target-path rule as the AK-049/AK-025/AK-030/AK-046 entries.
+  **Additional instance of the existing locator-materialization class
+  (first recorded 2026-08-17, AK-049)** — not a new defect class.
+- **Materialization:** the composition-root integration test target
+  `antigaming` — `crates/gauntlet-cli/tests/antigaming.rs`, 19 tests
+  (one per strategy G1–G16, a two-leg G16 split across two fns' legs,
+  the E-2 order-independence regression, and the manifest validator).
+  The machine-readable teeth map is
+  `.agents/reports/defended-mechanisms.txt`
+  (test_id | G-ID | mechanism | source_location), enforced by the
+  in-suite validator; `scripts/run-mutation.sh` scopes cargo-mutants
+  to the manifest's loci and produces `.agents/reports/mutation.json`.
+- **Plan-gate spelling divergences (both recorded classes, neither a
+  silent weakening):**
+  1. `cargo mutants --file-list .agents/reports/defended-mechanisms.txt`
+     — cargo-mutants 27.1.0 has **no `--file-list` option**; the real
+     surface is repeatable `-f` file globs plus `-F` span / `-E`
+     justified-exclusion regexes, driven by `scripts/run-mutation.sh`
+     from the manifest's loci. `--no-default-features` is a first-class
+     cargo-mutants flag (before `--`), not a cargo-test arg.
+  2. `cargo nextest run --test-threads 4 antigaming::` — nextest parses
+     a `::`-containing positional as the filter DSL's PACKAGE selector;
+     it matches zero tests and exits 4 (fails closed, never passes
+     vacuously — same mechanism class as the task-18 "space-joined
+     nextest filters" note). The working suite gate is
+     `cargo nextest run --test-threads 4 --test antigaming`.
+- **Mutation evidence:** `.agents/reports/mutation.json` (regenerated
+  by `scripts/run-mutation.sh` on the final tree at closure;
+  `missed == 0` asserted by the plan's python check). AK-070's
+  locator `.agents/reports/mutation.json` is materialized verbatim.
+- **Not changed by this entry:** the answer key, the spec, the frozen
+  reference, and the frozen lock.

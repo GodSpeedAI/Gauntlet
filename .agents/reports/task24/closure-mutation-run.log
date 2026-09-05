@@ -1,0 +1,71 @@
+== shard 1: crates/gauntlet-app/src/compare/contract.rs [307:360]  ==
+Found 3 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+3 mutants tested in 3m: 3 caught
+shard 1 cargo-mutants exit: 0
+== shard 2: crates/gauntlet-app/src/reference/provider.rs [260:325]  ==
+Found 3 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+3 mutants tested in 41s: 3 caught
+shard 2 cargo-mutants exit: 0
+== shard 3: crates/gauntlet-ports/src/producer_authority.rs [681:790]  ==
+Found 13 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+13 mutants tested in 83s: 12 caught, 1 unviable
+shard 3 cargo-mutants exit: 0
+== shard 4: crates/gauntlet-app/src/memory/promotion.rs [489:501] (excluding: settled_with_real_variation -> bool with false) ==
+Found 2 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+2 mutants tested in 27s: 2 caught
+shard 4 cargo-mutants exit: 0
+== shard 5: crates/gauntlet-app/src/promote/gate.rs [799:818]  ==
+Found 4 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+4 mutants tested in 45s: 4 caught
+shard 5 cargo-mutants exit: 0
+== shard 6: crates/gauntlet-ports/src/observation_digest.rs [29:80]  ==
+Found 10 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+10 mutants tested in 57s: 8 caught, 2 unviable
+shard 6 cargo-mutants exit: 0
+== shard 7: crates/gauntlet-app/src/govern/posture.rs [130:150] (excluding: posture.rs:136:42: replace < with <=|posture.rs:139:50: replace < with <=) ==
+Found 11 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+11 mutants tested in 2m: 10 caught, 1 unviable
+shard 7 cargo-mutants exit: 0
+== shard 8: crates/gauntlet-app/src/compare/aggregate.rs [383:390] (excluding: compare/aggregate.rs:38[15]:) ==
+Found 1 mutant to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+1 mutant tested in 18s: 1 caught
+shard 8 cargo-mutants exit: 0
+== shard 9: crates/gauntlet-ports/src/comparator.rs [1487:1510]  ==
+Found 7 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+7 mutants tested in 49s: 7 caught
+shard 9 cargo-mutants exit: 0
+== shard 10: crates/gauntlet-app/src/promote/delta.rs [160:180]  ==
+Found 2 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+2 mutants tested in 26s: 2 caught
+shard 10 cargo-mutants exit: 0
+== shard 11: crates/gauntlet-app/src/memory/developmental.rs [304:306]  ==
+Found 2 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+2 mutants tested in 28s: 2 caught
+shard 11 cargo-mutants exit: 0
+== shard 12: crates/gauntlet-app/src/report/mod.rs [491:495] (excluding: mod.rs:493:57) ==
+Found 4 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+4 mutants tested in 30s: 2 caught, 2 unviable
+shard 12 cargo-mutants exit: 0
+== shard 13: crates/gauntlet-app/src/promote/gate.rs [280:292]  ==
+Found 2 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+2 mutants tested in 29s: 2 caught
+shard 13 cargo-mutants exit: 0
+== shard 14: crates/gauntlet-app/src/promote/gate.rs [860:930]  ==
+Found 9 mutants to test
+ WARN An explicit test timeout is recommended when using --baseline=skip; using 300 seconds by default
+9 mutants tested in 58s: 5 caught, 4 unviable
+shard 14 cargo-mutants exit: 0
+mutation run: total=73 caught=63 missed=0 unviable=10 timeout=0

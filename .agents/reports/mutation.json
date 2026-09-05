@@ -1,0 +1,161 @@
+{
+  "total": 73,
+  "missed": 0,
+  "caught": 63,
+  "unviable": 10,
+  "timeout": 0,
+  "skipped": 0,
+  "not_covered": 0,
+  "shards": [
+    {
+      "file": "crates/gauntlet-app/src/compare/contract.rs",
+      "span": "307:360",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 3,
+      "statuses": {
+        "caught": 3
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/reference/provider.rs",
+      "span": "260:325",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 3,
+      "statuses": {
+        "caught": 3
+      }
+    },
+    {
+      "file": "crates/gauntlet-ports/src/producer_authority.rs",
+      "span": "681:790",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 13,
+      "statuses": {
+        "unviable": 1,
+        "caught": 12
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/memory/promotion.rs",
+      "span": "489:501",
+      "exclude": "settled_with_real_variation -> bool with false",
+      "shard_exit": 0,
+      "examined": 2,
+      "statuses": {
+        "caught": 2
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/promote/gate.rs",
+      "span": "799:818",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 4,
+      "statuses": {
+        "caught": 4
+      }
+    },
+    {
+      "file": "crates/gauntlet-ports/src/observation_digest.rs",
+      "span": "29:80",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 10,
+      "statuses": {
+        "caught": 8,
+        "unviable": 2
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/govern/posture.rs",
+      "span": "130:150",
+      "exclude": "posture.rs:136:42: replace < with <=|posture.rs:139:50: replace < with <=",
+      "shard_exit": 0,
+      "examined": 11,
+      "statuses": {
+        "unviable": 1,
+        "caught": 10
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/compare/aggregate.rs",
+      "span": "383:390",
+      "exclude": "compare/aggregate.rs:38[15]:",
+      "shard_exit": 0,
+      "examined": 1,
+      "statuses": {
+        "caught": 1
+      }
+    },
+    {
+      "file": "crates/gauntlet-ports/src/comparator.rs",
+      "span": "1487:1510",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 7,
+      "statuses": {
+        "caught": 7
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/promote/delta.rs",
+      "span": "160:180",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 2,
+      "statuses": {
+        "caught": 2
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/memory/developmental.rs",
+      "span": "304:306",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 2,
+      "statuses": {
+        "caught": 2
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/report/mod.rs",
+      "span": "491:495",
+      "exclude": "mod.rs:493:57",
+      "shard_exit": 0,
+      "examined": 4,
+      "statuses": {
+        "unviable": 2,
+        "caught": 2
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/promote/gate.rs",
+      "span": "280:292",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 2,
+      "statuses": {
+        "caught": 2
+      }
+    },
+    {
+      "file": "crates/gauntlet-app/src/promote/gate.rs",
+      "span": "860:930",
+      "exclude": "",
+      "shard_exit": 0,
+      "examined": 9,
+      "statuses": {
+        "unviable": 4,
+        "caught": 5
+      }
+    }
+  ],
+  "missed_mutants": [],
+  "manifest_sha256": "e43a42f4043af7aeceae168d7a2862e679031d20f45e15cbed68b9d59d9f481b",
+  "generated_at": "2026-09-05T10:30:25Z",
+  "invocation": "scripts/run-mutation.sh (cargo-mutants 27.1.0, --no-config --baseline skip -j 2 --test-tool nextest --no-default-features -f <defended file> -F <scope span> [-E <justified exclusion>] -- -p gauntlet-cli --test antigaming)",
+  "scope_note": "Examined mutants are the defended loci from .agents/reports/defended-mechanisms.txt (span table in scripts/run-mutation.sh); advisory entries (G9) have no mutation scope by the honest-boundary rule. Justified exclusions are recorded next to their entries in the manifest and applied as -E regexes."
+}

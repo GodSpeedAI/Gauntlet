@@ -1,0 +1,77 @@
+# Task 24 — defended mechanisms: the machine-readable teeth map (AK-058/AK-070)
+#
+# Format (one line per defended mechanism, pipe-delimited):
+#   test_id | G-ID | mechanism | source_location
+#
+# - test_id: the full nextest test id (the `antigaming` cargo test target
+#   of crates/gauntlet-cli; every id therefore contains `antigaming::`).
+#   RECORDED DIVERGENCE (fails closed): the plan gate's literal
+#   `cargo nextest run --test-threads 4 antigaming::` positional parses
+#   as a nextest PACKAGE selector and matches ZERO tests on this nextest
+#   (exit 4 — it halts the gate, it never passes vacuously). The working
+#   suite gate is `cargo nextest run --test-threads 4 --test antigaming`.
+# - G-ID: the spec §23.2 strategy the entry defends against (G1..G16).
+# - mechanism: a short stable name; `advisory:<reason>` marks an
+#   advisory-only entry (no mutation scope — the honest-boundary rule).
+# - source_location: `path:line` of the defended code — the line whose
+#   mutation must turn the named test RED. scripts/run-mutation.sh reads
+#   these files as the cargo-mutants scope and fails on any survivor.
+#
+# Enforced by `the_defended_mechanisms_manifest_covers_all_sixteen_strategies`
+# in crates/gauntlet-cli/tests/antigaming.rs.
+#
+# Deep composed proofs cited (settled work, not duplicated):
+# G6 -> g6_hide_failed_observations.rs; G7 -> g7_tier_downgrade.rs;
+# G10 -> g10_builder_writes_answer_key.rs; G2 (loop leg) ->
+# g7_tier_downgrade.rs leg 3 + p1_reference_integrity.rs; G11 (composed
+# envelope) -> p2_context_isolation.rs; G3 (composed chain) ->
+# p11_critic_is_not_verifier.rs; G12 (operator parity, every layer) ->
+# p12_missing_is_not_passing.rs; G4 (full conjunction) ->
+# p10_no_false_learning.rs leg 3; G14 (crash/resume) -> p7_recovery.rs.
+
+# Mutant-scope exclusions (recorded justifications; applied by
+# scripts/run-mutation.sh as -E regexes, and enforced as "examined" only
+# where no exclusion is recorded):
+# - G7, exactly two mutants are EQUIVALENT — `posture.rs:136:42` and
+#   `:139:50`, replacement `<` -> `<=` only (list names: "replace < with
+#   <="): each rank-decrease arm evaluates only when its own axis MOVED
+#   (`!=`), so on every evaluation `to != from` and `to <= from` coincide
+#   with `to < from`; the no-movement side is guarded by
+#   `unwrap_or(false)`. The other four mutants at those positions are NOT
+#   equivalent and are examined (no exclusion): `<` -> `==` at 136:42 is
+#   caught by the operator blast-decrease leg (AK-9505), `<` -> `>` at
+#   both positions by the operator-raise leg (AK-9504), and `<` -> `==`
+#   at 139:50 by the operator authority-decrease leg (AK-9506) — all in
+#   antigaming::g7_an_agent_role_cannot_downgrade_a_units_tier.
+# - G8, `aggregate.rs:381` and `:385` (the dispute/incomplete-gate
+#   bookkeeping around the verdict rule): OUTSIDE the G8 claim (drop hard
+#   residuals — the blocking-forces-fail rule at :383, which IS examined
+#   and caught). The dispute/incompleteness routing is §13.5's
+#   completeness concern and is covered by the compare module's own
+#   aggregate unit tests (task10 scope).
+# - G4, `settled_with_real_variation -> bool with false`: the always-refuse
+#   direction can only OVER-refuse variation (fail-safe) — it can never
+#   admit a false promotion, which is the G4 gaming direction.
+# - G15, `report/mod.rs:493:57` (`&&` -> `||` in the proven predicate):
+#   distinguishable only in a store state the settlement authority cannot
+#   produce (COR-3 moors every committed row's verification ref to a
+#   durable PASS record), so no honest fixture can turn it RED.
+
+antigaming::g1_a_weakened_comparison_contract_is_refused_at_the_boundary | G1 | comparison-contract rubric coverage and structure validation | crates/gauntlet-app/src/compare/contract.rs:347
+antigaming::g2_a_reference_changed_after_the_freeze_fires_the_mutation_tripwire | G2 | reference verify_unchanged digest tripwire (both digests) | crates/gauntlet-app/src/reference/provider.rs:318
+antigaming::g3_a_settlement_with_no_verification_record_is_refused | G3 | settlement admission refuses a unit with no verification record at all | crates/gauntlet-ports/src/producer_authority.rs:701
+antigaming::g4_identical_content_axes_are_refused_as_insufficient_variation | G4 | recorded-variation content-axis comparison (run ids are not variation) | crates/gauntlet-app/src/memory/promotion.rs:486
+antigaming::g5_a_regression_set_regression_is_rejected_while_the_metric_improves | G5 | promotion-gate regression-suite condition (held-out gain cannot hide a regression-set regression) | crates/gauntlet-app/src/promote/gate.rs:798
+antigaming::g6_a_hidden_failed_observation_changes_the_observation_digest | G6 | observation-digest normalization covers both gap arrays | crates/gauntlet-ports/src/observation_digest.rs:29
+antigaming::g7_an_agent_role_cannot_downgrade_a_units_tier | G7 | lattice movement review (no agent downgrade, operator raise-only) | crates/gauntlet-app/src/govern/posture.rs:124
+antigaming::g8_a_blocking_residual_forces_the_aggregate_verdict_to_fail | G8 | aggregate verdict rule (blocking residual forces fail, no model in the merge path) | crates/gauntlet-app/src/compare/aggregate.rs:383
+antigaming::g9_the_critic_write_surface_posture_is_advisory_and_recorded | G9 | advisory:no runtime write-scope enforcement for a critic context exists; only the recorded typed posture (closed read-only vocabulary, refusal to widen) and the roles lock's Enforcement::Advisory recorded-weakness class | crates/gauntlet-app/src/roles/install.rs:113
+antigaming::g10_a_builder_rewrite_of_the_answer_key_is_refused_at_freeze | G10 | answer-key freeze-boundary digest tripwire (builder rewrite never freezes as the ruler) | crates/gauntlet-app/src/reference/provider.rs:267
+antigaming::g11_the_comparison_envelope_is_structurally_blind_to_builder_context | G11 | structural blindness over serialized envelope bytes (deny-listed field names) | crates/gauntlet-ports/src/comparator.rs:1486
+antigaming::g12_a_non_pass_outcome_never_admits_a_settlement | G12 | settlement admission refuses when no durable record is PASS (missing/failing is never pass) | crates/gauntlet-ports/src/producer_authority.rs:715
+antigaming::g13_a_metric_gain_never_outranks_weakened_settlement_access | G13 | delta settlement-access classification precedes the margin (AK-056) | crates/gauntlet-app/src/promote/delta.rs:159
+antigaming::g14_recovery_credit_with_no_completed_recovery_is_refused | G14 | recovery-credit completed-count floor and run-durability check | crates/gauntlet-app/src/memory/developmental.rs:304
+antigaming::g15_a_budget_ended_run_is_never_reported_implemented_and_proven | G15 | report proven classification demands the settlement row AND durable PASS record pair | crates/gauntlet-app/src/report/mod.rs:485
+antigaming::g16_a_failing_evaluation_cannot_be_laundered_by_a_rerun | G16 | re-ask floor: every earlier evaluation record's failed conditions are durable evidence (the gate adjudicates all records, not only the last) | crates/gauntlet-app/src/promote/gate.rs:263
+antigaming::g1_a_weakened_comparison_contract_is_refused_at_the_boundary | G1 | comparison-contract version gate (a contract outside the supported version is refused, the valid one parses) | crates/gauntlet-app/src/compare/contract.rs:307
+antigaming::g16_a_failing_evaluation_cannot_be_laundered_by_a_rerun | G16 | re-ask floor: the earlier-record sweep fn derives each record-derived condition independently from the record's arm facts (the mutation span is this fn's body) | crates/gauntlet-app/src/promote/gate.rs:855

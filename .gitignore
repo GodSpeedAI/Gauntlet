@@ -30,3 +30,8 @@ Cargo.lock.bak
 # committed artifact; `just doctor` and tests create their own under
 # temp roots.
 .gauntlet/roles.lock
+# cargo-mutants scratch (task24): outcomes land in .agents/reports/mutation.json
+mutants.out/
+# task24 mutation-run scratch: per-shard outcomes land in .agents/reports/mutation.json
+.agents/reports/task24/mutation-scratch/
+.agents/reports/task24/compile.lock

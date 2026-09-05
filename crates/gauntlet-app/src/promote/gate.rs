@@ -57,6 +57,13 @@
 //! Every condition is evaluated: a FAILED condition never hides behind an
 //! evidence gap elsewhere, and an evidence gap never upgrades to a
 //! failure.
+//!
+//! The re-ask floor (task24 i1; spec §23.2 G16): the adjudication covers
+//! EVERY evaluation record's FAILED conditions, not only the newest
+//! record's. A failing evaluation followed by a passing re-run
+//! adjudicates REJECTED — a re-run supersedes an earlier record's
+//! evidence GAPS (the honest road stays open) and never launders its
+//! failures ([`earlier_record_failures`]).
 
 use std::sync::Arc;
 
@@ -266,6 +273,23 @@ impl PromotionGate {
         let mut failed: Vec<GateRefusal> = Vec::new();
         let mut gaps: Vec<GateRefusal> = Vec::new();
         let mut series_non_weaker = true;
+
+        // The re-ask floor (task24 i1; spec §23.2 G16 "Re-ask a model
+        // until it returns `pass`"): EVERY evaluation record's FAILED
+        // conditions are durable contrary evidence. A later, cleaner
+        // re-run supersedes an earlier record's evidence GAPS (the honest
+        // road — an incomplete arm, re-evaluated — stays open below), but
+        // it can never LAUNDER a failure: a failing evaluation followed
+        // by a passing one adjudicates REJECTED, never promoted. The
+        // gate used to read `evaluations.last()` alone, which adjudicated
+        // exactly the re-rolled record.
+        for earlier in evaluations.iter().take(evaluations.len() - 1) {
+            failed.extend(earlier_record_failures(
+                earlier,
+                proposal.target(),
+                self.margin_bps,
+            ));
+        }
 
         // Condition 1 — governance preserved.
         if let Err(refusal) = governance_verdict(
@@ -694,12 +718,20 @@ pub fn target_is_governance_bearing(target: &str) -> bool {
 
 /// Condition 3's instrument-series half, typed (COR-2, R2). The arms are
 /// JOINED BY UNIT — the same join the regression condition uses — never by
-/// list position: for every unit the CONTROL arm settled, the treatment
-/// settlement of the SAME unit must carry an instrument at least as strong
-/// (the deterministic rung is the strong one). Settlement order and list
-/// shape are irrelevant: an extra deterministic treatment settlement can
-/// never shield a genuinely weakened unit (the falsifier's probe A
-/// promoted a model-rung-weakened unit positionally), and a
+/// list position: for every unit the CONTROL arm settled, EVERY treatment
+/// settlement row of the SAME unit must carry an instrument at least as
+/// strong (the deterministic rung is the strong one), so ANY weaker
+/// counterpart row weakens the series at whichever position it sits. The
+/// any-weaker rule is what makes the verdict ORDER-INDEPENDENT under
+/// duplicated unit rows (residual E-2, task23 closure): an arm may carry
+/// SEVERAL rows for one unit — distinct instruments over re-settlements —
+/// and the earlier first-match join let whichever row sorted first decide,
+/// an ordering-controlled row shielding a weakened counterpart. It is
+/// strictly fail-safe: an extra treatment row can only ever hurt the
+/// treatment arm, never shield it, and the honest single-row road is
+/// unchanged. A counterpart row that names no instrument is an evidence
+/// gap, but a DEMONSTRATED weakness outranks the gap — a failed condition
+/// is never demoted to undecidable by another row's position. A
 /// treatment-settled unit with no control counterpart is not compared —
 /// the series runs over the shared unit set. Treatment settling a
 /// control-settled unit NOT AT ALL, or either side of a pair missing its
@@ -713,22 +745,21 @@ enum SeriesVerdict {
 
 fn instrument_series_verdict(control: &RunMetrics, treatment: &RunMetrics) -> SeriesVerdict {
     for control_fact in &control.settlements {
-        let treatment_fact = treatment
+        let counterparts: Vec<_> = treatment
             .settlements
             .iter()
-            .find(|fact| fact.unit == control_fact.unit)
-            .ok_or_else(|| SeriesVerdict::Undecidable {
+            .filter(|fact| fact.unit == control_fact.unit)
+            .collect();
+        if counterparts.is_empty() {
+            return SeriesVerdict::Undecidable {
                 detail: format!(
                     "unit {} settled under control but the treatment arm carries no \
                      settlement for the SAME unit — the instrument series is joined by \
                      unit and cannot decide over a missing counterpart",
                     control_fact.unit
                 ),
-            });
-        let treatment_fact = match treatment_fact {
-            Ok(fact) => fact,
-            Err(undecidable) => return undecidable,
-        };
+            };
+        }
         let Some(control_deterministic) = control_fact.instrument_deterministic else {
             return SeriesVerdict::Undecidable {
                 detail: "a control settlement names no verifying instrument — the series \
@@ -736,15 +767,26 @@ fn instrument_series_verdict(control: &RunMetrics, treatment: &RunMetrics) -> Se
                     .to_owned(),
             };
         };
-        let Some(treatment_deterministic) = treatment_fact.instrument_deterministic else {
+        // The any-weaker join (E-2): EVERY counterpart row must be at
+        // least as strong. Weakness is looked for over ALL rows before
+        // the missing-instrument gap is reported, so the verdict never
+        // depends on which row comes first.
+        let mut missing_instrument = false;
+        for treatment_fact in counterparts {
+            let Some(treatment_deterministic) = treatment_fact.instrument_deterministic else {
+                missing_instrument = true;
+                continue;
+            };
+            if control_deterministic && !treatment_deterministic {
+                return SeriesVerdict::Weakened;
+            }
+        }
+        if missing_instrument {
             return SeriesVerdict::Undecidable {
                 detail: "a treatment settlement names no verifying instrument — the series \
                          cannot decide"
                     .to_owned(),
             };
-        };
-        if control_deterministic && !treatment_deterministic {
-            return SeriesVerdict::Weakened;
         }
     }
     SeriesVerdict::NonWeaker
@@ -792,6 +834,99 @@ fn regression_verdict(control: &RunMetrics, treatment: &RunMetrics) -> Result<()
         }
     }
     Ok(())
+}
+
+/// One EARLIER evaluation record's record-derived FAILED conditions (the
+/// re-ask floor's sweep, task24 i1): governance (condition 1), the
+/// instrument series (condition 3's record half), the regression suite
+/// (condition 5), the target margin (condition 7), and payment
+/// (condition 8) — each derived ONLY from the record's own durable arm
+/// facts. Evidence gaps are deliberately NOT collected here
+/// (`EvaluationIncomplete`, the series' `Undecidable`, the regression
+/// condition's incomplete arm): a gap is undecidability, and the freshest
+/// record's evidence supersedes it — that is the honest road the floor
+/// must keep open. Input- and ledger-derived conditions are not swept
+/// either: condition 2 compares against the CURRENT frozen digest and
+/// condition 4 against the current input, and condition 6 reads the
+/// capability ledger as it stands NOW — re-derived below over the
+/// freshest record, which is the only honest comparison they admit. A
+/// failure, by contrast, is a derived comparison over derivable figures —
+/// durable evidence, never superseded by a re-roll.
+fn earlier_record_failures(
+    evaluation: &EvaluationRecord,
+    target: &str,
+    margin_bps: u64,
+) -> Vec<GateRefusal> {
+    let named = |detail: String| {
+        format!(
+            "an earlier evaluation (held-out control run {}, held-out treatment run {}) \
+             recorded a failure a later re-run does not launder: {detail}",
+            evaluation.held_out_control, evaluation.held_out_treatment
+        )
+    };
+    let mut failed = Vec::new();
+    if let Err(refusal) = governance_verdict(
+        &evaluation.control_held_out_metrics,
+        &evaluation.treatment_held_out_metrics,
+        target,
+    ) {
+        failed.push(match refusal {
+            GateRefusal::GovernanceAltered { detail } => GateRefusal::GovernanceAltered {
+                detail: named(detail),
+            },
+            other => other,
+        });
+    }
+    if let SeriesVerdict::Weakened = instrument_series_verdict(
+        &evaluation.control_held_out_metrics,
+        &evaluation.treatment_held_out_metrics,
+    ) {
+        failed.push(GateRefusal::SettlementAccessWeakened {
+            detail: named(
+                "the earlier evaluation's instrument series is weaker than its control's — \
+                 verification got weaker exactly where the candidate claims improvement"
+                    .to_owned(),
+            ),
+        });
+    }
+    if let Err(GateRefusal::RegressionSuiteFailed { detail }) = regression_verdict(
+        &evaluation.control_regression_metrics,
+        &evaluation.treatment_regression_metrics,
+    ) {
+        failed.push(GateRefusal::RegressionSuiteFailed {
+            detail: named(detail),
+        });
+    }
+    // Condition 7's margin arithmetic needs the record's DECLARED metric;
+    // condition 8's payment floor does not. The checks derive
+    // independently: an unparseable declaration leaves the margin
+    // undecidable from this record and skips only the margin check — it
+    // must not skip the payment floor below.
+    if let Ok(declared) = TargetMetric::parse(&evaluation.metric)
+        && let (Some(control), Some(treatment)) = (
+            declared.figure(&evaluation.control_held_out_metrics),
+            declared.figure(&evaluation.treatment_held_out_metrics),
+        )
+        && !margin_holds(control, treatment, margin_bps)
+    {
+        failed.push(GateRefusal::MarginNotMet {
+            metric: declared.token().to_owned(),
+            control_figure: control,
+            treatment_figure: treatment,
+            margin_bps,
+        });
+    }
+    if let (Some(control), Some(treatment)) = (
+        TargetMetric::PaymentPerSettlement.figure(&evaluation.control_held_out_metrics),
+        TargetMetric::PaymentPerSettlement.figure(&evaluation.treatment_held_out_metrics),
+    ) && treatment > control
+    {
+        failed.push(GateRefusal::PaymentIncreased {
+            control_figure: control,
+            treatment_figure: treatment,
+        });
+    }
+    failed
 }
 
 /// Condition 7's margin arithmetic, in fixed-point per-10 000 figures
