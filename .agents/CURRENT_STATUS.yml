@@ -8,34 +8,35 @@ metadata:
                                        # drives multiple plans
   spec_version: "2.0.0"
   initialized: true                   # false only before the very first burst
-  last_updated: "2026-09-04"
+  last_updated: "2026-09-05"
   updated_by: >-
-    orchestrator (task23 SETTLED 2026-09-04 — process optimizer +
-    self-improvement gate P9: RevisionLedger port + contract suite +
-    sqlite adapter 0010, candidate_revision@v1 codec, gauntlet_app::
-    promote {proposal, evaluate, gate, rollback, delta, metrics},
-    promotion.margin config, improve CLI wiring, p9 proof + AK-057
-    candidate_only + optimizer containment scan; blind critic r1
-    NOT_CONFIRM (1 blocking sentinel defect) -> COR-1 C1-C11 ->
-    falsifier r1 NOT_CONFIRM (F-1..F-6, two executed MAJORs) -> COR-2
-    R1-R6 -> fresh falsifier r2 CONFIRM (all holes closed, 7 teeth
-    load-bearing); closure battery personally run TWICE: 1507/1507,
-    boundaries 235/235, ruler PASS x3, p9 4/4, promote:: 46/46,
-    candidate_only 1/1; the plan's Done-when tooth personally RED ->
-    byte-identical sha256 restore -> GREEN). Ready set now task24 +
-    task25. Prior: task22 SETTLED 2026-09-03.
+    orchestrator (task24 SETTLED 2026-09-05 — anti-gaming suite G1-G16
+    + mutation teeth: antigaming target 19 tests over real adapters,
+    defended-mechanisms manifest + in-suite validator, G9 advisory
+    recorded honestly, scripts/run-mutation.sh + .agents/reports/
+    mutation.json 73 examined / 63 caught / 10 unviable / missed 0 on
+    the final tree, E-1 arch-scan tokens discharged, the G16 i1 lead
+    confirmed a REAL defect (evaluations.last() adjudicated the
+    re-rolled record) and fixed RED-first with the earlier-record
+    failure sweep, E-2 discharged (any-weaker by-unit instrument
+    join), blind critic r1 NOT_CONFIRM (1 MAJOR false G7 equivalence)
+    -> COR-1 C1-C5 -> executing falsifier r1 CONFIRM (16/16 strategies
+    attacked via 17 neutralizations, every named defense load-bearing)
+    -> COR-2 -> orchestrator line-shift re-pin + mutation re-run +
+    full closure battery green + Done-when tooth personally RED ->
+    byte-identical sha256 restore -> GREEN). Ready set now task25.
+    Prior: task23 SETTLED 2026-09-04.
 
 # ─────────────────────────────────────────────────────────────────────────
 # EXECUTION STATE
 # ─────────────────────────────────────────────────────────────────────────
 execution:
-  last_settled_task: task23           # most recent task with a CONFIRM in
+  last_settled_task: task24           # most recent task with a CONFIRM in
                                        # latest_evidence; null if none yet
-  in_flight_task: null                # nothing in flight; task23 settled
+  in_flight_task: null                # nothing in flight; task24 settled
 
   ready_tasks:                        # deps all settled, not yet started.
                                        # Recompute every time a task settles.
-    - task24                          # anti-gaming suite G1-G16 + mutation teeth
     - task25                          # E2E real runner + recovery + budget
                                        # (P5-P7)
 
@@ -52,28 +53,50 @@ execution:
 # ACTIVE TASK
 # ─────────────────────────────────────────────────────────────────────────
 active:
-  task: null                          # nothing in flight; task23 settled
-  phase: settled                      # ready set: task24 + task25
+  task: null                          # nothing in flight; task24 settled
+  phase: settled                      # ready set: task25
   blocker: null
 
 # ─────────────────────────────────────────────────────────────────────────
 # NEXT ACTION
 # ─────────────────────────────────────────────────────────────────────────
 next_action:
-  task: task24
+  task: task25
   action: >-
-    Dispatch task24 (anti-gaming suite G1-G16 + mutation teeth; one
-    test per strategy under tests/antigaming/, a (test, defended
-    mechanism, source location) teeth manifest, cargo-mutants scoped
-    to defended mechanisms, results to .agents/reports/mutation.json)
-    in a FRESH session, and/or task25 (E2E real runner + recovery +
-    budget; P5-P7) as a separate parallel slice. Task23's falsifier
-    left two recorded minors with triggers (arch-scan token escapes;
-    by-unit join order sensitivity) and task24 owns the G-suite
-    surface where the cherry-picking re-evaluation lead (i1) lands.
-    The loop-economics finding (no inert key improves per-settlement
-    economics; binding re-key = ruler owner) bounds what task24's
-    G4/G13 fixtures can honestly vary.
+    Dispatch task25 (E2E with a real runner, recovery, and budget:
+    seed a bounded fixture reference with at least one Unit per tier up
+    to cross_cutting plus one irreversible Unit that must escalate
+    rather than dispatch; run with the real adapter and a real
+    containment backend preserving the full evidence bundle; interrupt
+    mid-settlement and resume with exactly-once settlement; force
+    budget exhaustion on a non-converging Unit with the recovery
+    reserve intact; report to .agents/reports/e2e-real.md) in a FRESH
+    session. Task24 residuals carry in: F-2 (manifest validator
+    bindings are prefix/bounds not identity — trigger next
+    manifest/tooling touch), the G9 CandidateRevision (runtime
+    write-scope enforcement for role contexts — ruler owner), I-2a
+    leftovers (conditions 2/4/6 sweep only the freshest record —
+    ports-revision candidate), and the R16-F2 contract-path-poisoning
+    liveness class whose recorded trigger is task25's recovery E2E.
+    Plan-gate note: the plan's task25 gate names e2e_full_loop_real_runner
+    / e2e_recovery / e2e_budget test targets; reconcile spellings
+    against the tree at dispatch (the recorded locator-divergence
+    class). Runners.default (UNK-003) is forced again: a real-runner
+    E2E needs the operator's runner selection or an explicit
+    operator-delegated choice recorded in the charter.
+  reason: >-
+    Task24 settled on blind critic r1 NOT_CONFIRM (1 MAJOR: the G7
+    mutant exclusion claimed six equivalents, four were catchable) ->
+    COR-1 (C1-C5) -> blind EXECUTING falsifier r1 CONFIRM (16/16
+    strategies attacked through 17 neutralizations; every named
+    non-advisory defense load-bearing; pipeline honesty attack-proven;
+    G9 advisory honest) -> COR-2 (E-2 trigger discharge) -> closure.
+    The orchestrator personally: full transition + closure batteries,
+    the cor2 line-shift desync catch (F-2 class live) with manifest/
+    span re-pin, the mutation re-run on the final tree (73/63/10,
+    missed 0, pin verified), and the Done-when tooth RED ->
+    byte-identical sha256 restore -> GREEN. Ready set recomputed:
+    task25.
   reason: >-
     Task23 settled on a fresh blind executing falsifier round 2
     CONFIRM (all six round-1 holes re-attacked and closed over real
@@ -95,6 +118,43 @@ next_action:
 # EVIDENCE LOG (current state per task, not a history)
 # ─────────────────────────────────────────────────────────────────────────
 latest_evidence:
+  task24:
+    report: ".agents/reports/task24/"
+    confirmation: >-
+      Builder B1 (antigaming target 19 tests, manifest + validator,
+      run-mutation.sh, E-1 arch-scan tokens, G16 i1 REAL defect fixed
+      RED-first: evaluations.last() adjudicated the re-rolled record —
+      the failing-then-passing laundering shape PROMOTED verbatim;
+      first mutation run 61/54/7/missed 0 with two bogus-evidence
+      pipeline defects found and fixed en route) -> blind design-as-
+      built critic r1 NOT_CONFIRM (1 MAJOR: the G7 exclusion claimed
+      six equivalent mutants, only the two <= are — four were
+      catchable by the shipped g7 test; 3 minor: plan-gate shape-1
+      spelling vacuous [exit 4, fails closed], mutation.json stale vs
+      delivered suite, unexamined catchable interior mutants) -> COR-1
+      C1-C5 (operator authority-decrease leg RED-first; -E shrunk to
+      true equivalents; header honesty; spans widened; let-chain
+      restructure; mutation re-certified 73/63/10/missed 0) -> blind
+      EXECUTING falsifier r1 CONFIRM (16/16 strategies attacked via 17
+      neutralizations, EVERY named non-advisory defense load-bearing —
+      named test RED under neutralization with byte-identical sha256
+      restores; G9 advisory judged honest; pipeline honesty proven:
+      a deliberate survivor prints MISSED and exits 2, zero-test
+      caught class defended; G16 sweep held poisoned-record/
+      post-final/duplicate/earlier-failure+fresh-gap shapes; 1 MINOR:
+      manifest validator bindings are prefix/bounds not identity) ->
+      COR-2 (E-2 trigger discharge: any-weaker by-unit instrument
+      join, order-independent under duplicated rows, RED-first, suite
+      19/19) -> orchestrator closure: cor2's edit shifted gate.rs +18
+      below itself desyncing two manifest entries and two script
+      spans (the F-2 class caught live) — re-pinned, mutation re-run
+      on the final tree 73 examined / 63 caught / 10 unviable /
+      missed 0 with pin verified, closure battery green (1528/1528,
+      boundaries 237/237, lint/deny clean, ruler PASS, promote:: 46/46,
+      p9 4/4, improve_promote_gates 1/1), Done-when tooth personally
+      RED (G8 blocking-forces-fail neutralized) -> byte-identical
+      sha256 restore -> GREEN. 53 units provisional through Task 24.
+    commit: "task24 closure commit (this tree)"
   task23:
     report: ".agents/reports/task23/"
     confirmation: >-
@@ -473,6 +533,28 @@ observations:
   # --- OBSERVED: directly verified this session/burst, evidence attached ---
   - status: OBSERVED
     statement: >-
+      Task 24 settled (2026-09-05): answer-key unit status is 53
+      provisional through Task 24 (51 through Task 23 + AK-058 +
+      AK-070 — all sixteen §23.2 gaming strategies have tests that
+      fail when their defense is removed: sixteen strategy tests in
+      the `antigaming` target over real adapters, each bound through a
+      machine-readable manifest to a mutable source locus, with the
+      scoped mutation run (cargo-mutants over the manifest's loci,
+      per-mutant tests pinned to the suite) finding ZERO survivors on
+      the final tree, and a blind executing falsifier independently
+      neutralizing every named defense — 16/16 went RED — plus an
+      attack on the evidence pipeline itself. Two promotion-gate
+      integrity corrections landed with the suite: the G16 re-ask
+      floor (an earlier evaluation record's FAILED conditions are
+      durable evidence a passing re-run cannot launder; the honest
+      gap-superseding road stays open) and the any-weaker by-unit
+      instrument join (order-independent under duplicated rows).
+      G9 remains honestly advisory (no mechanical critic write-scope
+      enforcement exists; CandidateRevision candidate recorded for
+      the ruler owner).
+    evidence: ".agents/reports/task24/closure.md"
+  - status: OBSERVED
+    statement: >-
       Task 23 settled (2026-09-04): answer-key unit status is 51
       provisional through Task 23 (49 through Task 22 + AK-056 +
       AK-057 — the self-improvement loop is contained end to end: the
@@ -682,6 +764,7 @@ handoff:
     # One line per settled task or logical group. Prior groups can be
     # batched; the most recently settled task gets enough detail that a
     # resuming agent doesn't need to open its evidence dir.
+    - "T24 anti-gaming suite + mutation teeth (AK-058 + AK-070 BOTH halves — 53 units provisional through Task 24): crates/gauntlet-cli/tests/antigaming.rs (target `antigaming`, 19 tests: G1-G15 one each, two G16 legs, the E-2 order-independence regression, the manifest validator) over real adapters at the composition root (p10/g7 pattern; deep proofs g6/g7/g10/p1-p12 cited not duplicated); .agents/reports/defended-mechanisms.txt (test_id | G-ID | mechanism | source_location; G9 advisory with honest reason; recorded exclusion justifications G4/G7/G8/G15); scripts/run-mutation.sh (cargo-mutants scoped to manifest loci via -f/-F/-E, --test-tool nextest, -j 2, per-mutant tests pinned to -p gauntlet-cli --test antigaming — the D4 zero-test-caught class defended) producing .agents/reports/mutation.json (73 examined / 63 caught / 10 unviable / missed 0 on the final tree, manifest_sha256-pinned); E-1 discharged (arch-scan rename/copy/options/hard-link/remove_file/write!-sink tokens with positive fixtures); G16 i1 REAL defect fixed RED-first (gate adjudicated evaluations.last(); failing evaluation + passing re-run PROMOTED; now every earlier record's record-derived FAILED conditions 1/3-series/5/7/8 sweep into Rejected, gaps stay superseded, AlreadyFinal holds); E-2 discharged (any-weaker by-unit instrument join). Confirmation: blind critic r1 NOT_CONFIRM (1 MAJOR false G7 equivalence + 3 minors) -> COR-1 C1-C5 -> blind EXECUTING falsifier r1 CONFIRM (16/16 neutralizations RED, pipeline honesty attack-proven, G9 advisory honest) -> COR-2 -> orchestrator closure (line-shift re-pin + mutation re-run + full battery + Done-when tooth RED -> sha256-identical restore -> GREEN). Residuals: F-2 validator-identity hardening (trigger next manifest/tooling touch), G9 write-scope CandidateRevision (ruler owner), I-2a conditions-2/4/6 freshest-record-only (ports-revision candidate), plan-gate spelling divergences recorded in reference-candidates (no --file-list in cargo-mutants 27.1.0; nextest ::-positional is a package selector, exit 4 fails closed; working gates: scripts/run-mutation.sh and --test antigaming)."
     - "T00 baseline & delegation spike (76e491a); T01 frozen ruler & digest lock (bf09a30); T02 16-crate workspace skeleton, justfile, boundaries suite 183/183 (1578dde)"
     - "T03 full §5.2/§5.3 domain model, zero dependencies, typed errors (cb2f4ac)"
     - "T04 17 port traits with typed errors, role_result@v1 envelope, 17 shared contract suites with teeth (b27b152)"
@@ -710,7 +793,8 @@ handoff:
     # Every open thread not captured elsewhere: outstanding confirmations,
     # deferred scope, stale docs owed a refresh, known follow-ups tied
     # to a later task ID.
-    - "Task 23 residuals with triggers (closure.md): E-1 falsifier-r2 minor — the optimizer containment scan's token list misses fs::rename/fs::copy/File::options/fs::hard_link/fs::remove_file/write! spellings (behavioral AK-057 leg + ledger+clock-only service structs are the real containment; trigger: next arch-suite touch or task24); E-2 falsifier-r2 minor — the by-unit instrument join takes the FIRST treatment row per unit, order-sensitive for duplicated unit rows (unreachable through the shipped loop: settlement commits idempotent by run+unit; trigger: next gate touch); re-evaluation cherry-picking (evaluations.last()) recorded for task24; governance-target prefix check advisory against adversarial spellings; optimizer dispatch budget = whole configured run budget; runners.by_role.<role>.model classified Inert is a latent policy question (unreachable through the binary — validate_delta refuses by_role keys; ruler owner before any composition applies them); loop-economics finding + binding re-key = ruler owner (reference-candidates 2026-09-04); the §19.4 positive path is gate-level-composition (p10 pattern) until the re-key; AK-056/AK-057 locator materializations + the space-joined nextest invocation note recorded in reference-candidates (2026-09-03/04); falsifier not-attacked list (cross-process double-adjudication beyond one probe, full-battery re-runs post-restore, real-runner optimizer dispatch = task25, JSON codec fuzzing)."
+    - "Task 24 residuals with triggers (closure.md): F-2 falsifier-r1 MINOR — the manifest validator's bindings are prefix/bounds checks, not identity (a wrong-content source_location or cross-wired test_id passes silently; the script's span table is hand-maintained; the class was caught LIVE at closure by cor2's +18 line shift and re-pinned by the orchestrator) — hardening candidates: content-hash or span derivation from manifest lines (trigger: next manifest/tooling touch); G9 advisory (no mechanical critic write-scope enforcement exists) — CandidateRevision candidate 'runtime write-scope enforcement for role contexts' recorded in the g9 test header + manifest, ruler owner's call; I-2a — the G16 sweep covers conditions 1/3-series/5/7/8 only; conditions 2/4/6 are re-derived over the freshest record by design (input/ledger-derived); earlier records' digests vs their own freeze-time digests is a separate ports-revision candidate (ruler owner); F-3 INFORMATIONAL — mutation scope is exactly the manifest loci (declared in mutation.json scope_note); between-shard gate lines (governance_verdict interior, margin_holds, protected_verdict) are unexamined by the mutation gate though partially covered by other suites; falsifier not-attacked list: full-workspace mutation sweep, adversarial shapes against the E-1 write!-sink rule's parser (line-join reading), cross-crate mutant detection via non-cli test packages."
+    - "Task 23 residuals with triggers (closure.md): E-1 DISCHARGED by task24 (arch-scan token extension with positive fixtures; 237/237); E-2 DISCHARGED by task24 COR-2 (any-weaker by-unit join, order-independent, RED-first regression test in the antigaming suite); re-evaluation cherry-picking (evaluations.last()) DISCHARGED by task24's G16 i1 fix (earlier-record failure sweep, falsifier-executed laundering RED pinned); governance-target prefix check advisory against adversarial spellings (unchanged); optimizer dispatch budget = whole configured run budget (unchanged); runners.by_role.<role>.model classified Inert is a latent policy question (unreachable through the binary — validate_delta refuses by_role keys; ruler owner before any composition applies them); loop-economics finding + binding re-key = ruler owner (reference-candidates 2026-09-04); the §19.4 positive path is gate-level-composition (p10 pattern) until the re-key; AK-056/AK-057 locator materializations + the space-joined nextest invocation note recorded in reference-candidates (2026-09-03/04); falsifier not-attacked list (cross-process double-adjudication beyond one probe, full-battery re-runs post-restore, real-runner optimizer dispatch = task25, JSON codec fuzzing)."
     - "Task 22 residuals with triggers (closure.md): F2-3 CandidateRevision OPEN (three settlements from ONE run over distinct units promote — charter-conformant, tension with §19.1's verbatim one-run sentence; reference-candidates 2026-09-03; the operator's call; task23 promotion consumption is the likely first consumer); production call sites deferred (import/evaluate wiring into the loop is task23's; composition is proof-composition until then); log-rooted-not-sealed elevation (forged-log writer boundary documented; sealed-mint ports-revision candidate, BudgetMeter::mint class); record_recovery's completed count is caller-supplied (typed receipt mint is a ports-revision candidate; production caller = the recovery-completion call site); occurred_at lies undetectable in-ledger; occurred_at ties order-dependent by construction (documented, F2-1/C7); evolving-run re-import wedges fail-closed on ObservationConflict (RES-03; trigger task23 wiring); tracked-dimension gaps — performance/settlement-reliability recorded-not-decided, transfer/stability absent (RES-05; trigger task23); PromotionEvidence.settlements_observed == witnesses.len() now structural (I-2 closed); first unexplained battery fail recorded honestly (truncated test name, 3 consecutive full re-runs green, matches recorded task20 load-flaky class)."
     - "Task 21 residuals with triggers (closure.md): other-subcommand usage errors still interpolate raw arguments (CLI-wide style question; trigger: next CLI-surface touch); ticket↔unit binding on escalation records is a ports revision (acceptance output discloses both ids as separate facts; trigger: next escalation-schema touch); open_residuals structurally empty on the wire until the typed durable residual read lands (existing ports deferral); gate-side matcher drift-pin is hand-enumerated (compiler-enforced summary→token association is the recorded shape; trigger: next govern touch); serial HTTP serving is a recorded mechanism choice (no Send/Sync on the port traits); AK-062 frozen locator divergence restated (reference-candidates 2026-08-28; settlement belongs to the ruler's owner); D10 leg-3 substitution recorded (identified operators are closable at every authority level — if AK-062's intent requires otherwise it is a CandidateRevision, operator's call); D12 dogfood fog on UNK-003 restated."
     - "Task 18 residuals with triggers (closure.md): formation::parse_bullet doesn't shape-validate an AK- id (cosmetic DanglingReference mislabel on e.g. 'AK-abc') and treats any non-context-only arrow trailer under a tracked section as an id-list even when it isn't AK-shaped prose (spurious FogPromoted false positive, not exercised by real fixtures) — both bias toward over-rejection, never toward letting a leak through; trigger: next formation module touch or first real-agent-authored map.md at task20 composition. Gate-command locator note: the plan's literal `skills::wayfinder`/`formation::` nextest filters don't match nextest's space-joined syntax (same class as task17's roles:: gate); the bare test names are the correct invocation."
@@ -731,7 +815,7 @@ handoff:
     - "Task 14 ruler divergence: AK-049's frozen locator tests/e2e/doctor::irreversible_policy_is_error matches no file and no function; the existing 2026-08-17 reference-candidates entry already names the three real doctor/mod.rs tests, so no new entry was owed. Settlement belongs to the ruler's owner"
     - "Tasks 15-17 deferrals: child env fingerprint vs live process env / tool binding (AK-028), concrete runners.default (UNK-003 — narrowed by task17: doctor MEASURES the harness registry + both real runners; the selection remains explicitly the operator's, task20 forces the question). DONE by task15: the doctor check-3 runner-resolution half for prime. DONE by task16: the cli runner's measured-descriptor leg + P8/AK-013 substitution proof + AK-014; DONE by task17: the roles AK-063 with drift detection (pending composition, task20)"
     - "Task 20 deferrals: payment unification (critic costs into run budget_spent), model-rung dispatch unmetered, workspace-root pairing library seam, L4 cohort non-separability fixture, evidence production binding first-facet bytes"
-    - "Task 22/24 deferrals: reference candidate recording / mutation teeth"
+    - "Task 22 deferrals: reference candidate recording (F2-3 single-run promotion remains the one OPEN candidate-revision question; the G9 write-scope candidate added by task24). Task 24 deferrals: mutation teeth DELIVERED (AK-070) — remaining teeth backlog lives in the per-task not-attacked lists above."
     - "Task 25 deferrals: evidence-fs crash injection E2E"
     - "Ports revision deferrals: BudgetMeter::mint type-level seal, checkpoint-only run projection enum surface, Option facet fields, ladder rungs 5-9/11, locator contract-defined matching for non-deterministic kinds, factory-level crash-window injector (COR3 coverage-delegation trigger), admission seeing pending settlement events (round2-F-1), chain-shaped in-process authority earning (FC2-A3/OBS-1), admit digest re-validation (FC2-A2), a typed durable residual-row read, ReferenceVersion.evidence_ref - plus the checkpoint() forged-row projection class (planning-layer)"
     - "Arch-suite standing trigger REBIRTHS at the next arch-suite touch (discharged 2026-08-27 at Task 13 B3): E4/F1/F3, B.5a masked spellings, A5.2 allowlist granularity, B-F16 shapes must be re-litigated and re-recorded when touched again"
