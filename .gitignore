@@ -35,3 +35,5 @@ mutants.out/
 # task24 mutation-run scratch: per-shard outcomes land in .agents/reports/mutation.json
 .agents/reports/task24/mutation-scratch/
 .agents/reports/task24/compile.lock
+# task25 compile-lock scratch: same discipline as task24
+.agents/reports/task25/compile.lock

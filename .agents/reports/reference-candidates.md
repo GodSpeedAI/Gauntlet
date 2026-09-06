@@ -1655,3 +1655,106 @@ evidence: `.agents/reports/task22/falsifier-round2.md` (NH-5b, F2-3).
   locator `.agents/reports/mutation.json` is materialized verbatim.
 - **Not changed by this entry:** the answer key, the spec, the frozen
   reference, and the frozen lock.
+
+## 2026-09-06 — Task 25 settlement batch (five dated entries, none a silent edit)
+
+### 1. AK-066 evidence locator divergence (materialization class)
+
+- **Unit:** AK-066 ("An end-to-end run against a seeded bounded task
+  settles with preserved evidence for every blocking Unit, using a real
+  AgentRunner adapter.").
+- **Divergence:** the frozen locator `tests/e2e/full_loop_real_runner`
+  cannot be a cargo target at that path (same class as the AK-049/AK-063
+  entries). The claim's evidence materializes as three integration
+  targets of the composition root:
+  `crates/gauntlet-cli/tests/e2e_full_loop_real_runner.rs` (the wrap/settle
+  leg + the AK-047 governance leg),
+  `crates/gauntlet-cli/tests/e2e_recovery.rs` (kill/resume legs), and
+  `crates/gauntlet-cli/tests/e2e_budget.rs` (the non-convergence leg);
+  the plan's gate runs `cargo nextest run --test e2e_full_loop_real_runner
+  --test e2e_recovery --test e2e_budget` verbatim (9/9 at closure).
+- **Proposed correction (ruler owner):** re-declare the locator to the
+  three target spellings.
+
+### 2. AK-066 "every blocking Unit settles" vs the frozen authority semantics (settleability tension)
+
+- **Observed, record-derived:** §5.3.2's coupling forbids `critic`
+  authority on `cross_cutting`; §16.1 condition 3 forbids the runtime's
+  Automatic actor to close `lead_agent` work. A seeded reference
+  containing a `cross_cutting` unit (as the plan's own Task-25 step 1
+  requires) therefore contains a unit that can NEVER settle in an
+  unattended run: the composed loop dispatches it wrapped, verifies it,
+  and routes its closure to the operator (§11.5 row 6). The task's E2E
+  pins exactly that honest behavior (`e2e_full_loop_real_runner`), and
+  the run's terminal is the loop's bounded honest non-settlement.
+- **Tension:** AK-066's claim ("settles … for every blocking Unit") is
+  unattainable as worded for any reference that satisfies the plan's
+  step-1 fixture requirement — unless "blocking" excludes
+  operator-routed units by definition, which the ruler does not
+  currently say.
+- **Proposed correction (ruler owner):** either define `blocking` to
+  exclude operator-routed closures, or amend the claim to "settles for
+  every unit whose closure the run's own actor may exercise; every
+  other unit is durably routed to the operator with its evidence
+  preserved."
+
+### 3. F2-7 — operator-routed tickets are unresolvable through the shipped surface (§16.1 evidence question)
+
+- **Executed finding (falsifier round 2, MAJOR; pinned by
+  `e2e_budget::resolving_a_governance_routed_ticket_is_refused_typed_no_pass_record_exists`):**
+  both operator actions (`escalations resolve`/`retry`) demand a
+  durable-PASS verification record (§16.1 condition 1, AK-062's class
+  — the refusal is CORRECT). The operator-routed ticket classes this
+  loop actually mints (§11.5-row-6 lead_agent closure; irreversible
+  never-dispatched) can never carry one: the row-6 class's proof would
+  only materialize at the settlement that is itself routed to the
+  operator; the irreversible class never dispatches. So the run can
+  never reach `settled` through the designed surface.
+- **Question for the ruler owner:** how does an operator-routed Unit
+  ever acquire the §16.1 PASS evidence its closure requires?
+  Candidate levers: an operator-instrumented verification intake (the
+  operator runs the instrument out-of-band and records chain-minted
+  evidence), or an explicit §16.1 operator-closure clause for
+  governance-routed units with recorded identity. The task deliberately
+  built nothing here.
+
+### 4. §18.3 recovery adoption vs §14.3 staleness (the produce-window adjudication)
+
+- **Executed finding (orchestrator closure battery; COR-4's verified
+  STOP case):** a crash landing after a production row is durable leads
+  the resume to re-dispatch (per p7's settled retry pin) and re-produce
+  (§14.3 staleness makes the pre-crash iteration's evidence unusable);
+  the locator then holds two production rows (one per iteration). The
+  task's recovery legs were re-scoped to pin these spec-honest
+  semantics; no production change was made.
+- **Cost, recorded:** F-C4-1 — the resume's first re-dispatch inherits
+  the crashed attempt's workspace (the WorkspaceProvider's counter
+  restarts with the process), rewrites byte-identical bytes, dedupes
+  onto the pre-crash row, and is classes stale: a wasted attempt before
+  the settling one. With an attempts ceiling of 2, this crash class
+  escalates instead of settling. Lever: the workspace provider's
+  resume-time counter (ports/production revision), or a recovery-time
+  counter continuation.
+- **Deeper question (ruler owner):** should §18.3 recovery ADOPT
+  pre-crash productions into the resumed iteration (changing the §14.3
+  staleness economics and p7's retry pin), or is re-production the
+  intended semantics? The shipped system says re-production; this
+  entry records that the choice is a design decision with a measurable
+  payment (the wasted attempt), not an accident.
+
+### 5. The live-posture exercisable-authority ceiling raise (Critic → LeadAgent) — recorded for ratification
+
+- **Posture change (plan-forced, disclosed in code and e2e-real.md):**
+  retiring the task-20 live-containment deferral required the gate's
+  exercisable ceiling under a live sandbox posture to rise from Critic
+  to LeadAgent — otherwise the §5.3.2 coupling (cross_cutting can never
+  be critic) makes every cross_cutting unit undispatchable under the
+  very posture that exists to carry it. The `none` posture keeps its
+  Critic ceiling and behavior byte-for-byte; closure authority is
+  unchanged (the unattended loop still cannot close lead_agent work —
+  entry 2 above).
+- **For ratification:** this is a posture-level governance change
+  shipped by task 25's composed path. The operator should ratify it
+  (or narrow it) in the configuration that names a live backend —
+  today the repository root's shipped default stays `sandbox.backend:
+  none`, so the raise is latent until a live posture is configured.
