@@ -3039,6 +3039,8 @@ impl StateStore for DurableStore {
                     crate::state_store::RunEventKind::EvidenceProduced { .. } => {
                         "evidence_produced"
                     }
+                    crate::state_store::RunEventKind::UnitDispatch { .. } => "unit_dispatch",
+                    crate::state_store::RunEventKind::RunTerminal { .. } => "run_terminal",
                 };
                 format!(
                     "{{\"offset\":{},\"at\":{},\"kind\":\"{kind}\"}}",

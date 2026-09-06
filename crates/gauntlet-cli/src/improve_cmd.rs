@@ -245,8 +245,12 @@ fn dispatch_proposal(
             Some(deterministic) => Arc::new(deterministic),
             None => Arc::new(gauntlet_adapter_agent_prime::SystemClock::new()),
         };
-    let runner =
-        crate::compose::runner_for(&token, context, &clock).map_err(|error| error.to_string())?;
+    // The `gauntlet improve` composition fronts no live-containment
+    // posture of its own: the optimizer proposes; it never dispatches a
+    // policy-carrying builder dispatch (plan Task 25's seam is a
+    // composed-run fact).
+    let runner = crate::compose::runner_for(&token, context, &clock, None)
+        .map_err(|error| error.to_string())?;
     // The allowlisted envelope: the role body from the roles dir, plus the
     // projected run history when the operator named a run.
     let roles_path = context.roles_dir().join("optimizer.md");

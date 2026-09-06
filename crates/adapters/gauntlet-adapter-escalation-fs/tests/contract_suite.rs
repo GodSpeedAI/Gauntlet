@@ -101,6 +101,18 @@ fn escalation_item(run: &RunId) -> EscalationItem {
     }
 }
 
+/// The same fact with a DISTINGUISHING token: the fixture for the tests
+/// that need two co-existing tickets (corrections round 2, F-R5: two
+/// escalations of the IDENTICAL (run, summary) fact are ONE ticket —
+/// the dedup — so a second ticket is a second fact).
+fn escalation_item_titled(run: &RunId, token: &str) -> EscalationItem {
+    EscalationItem {
+        run_id: run.clone(),
+        summary: format!("unit AK-042 needs an operator decision ({token})"),
+        context: EvidenceRef::new("evd-000042").expect("the fixture evidence ref parses"),
+    }
+}
+
 fn fixture_run() -> RunId {
     RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("the fixture run id is a ULID")
 }
@@ -175,8 +187,16 @@ fn the_list_is_total_ordered_oldest_first_and_complete() {
     let first = queue
         .escalate(escalation_item(&fixture_run()), bound())
         .expect("the first escalation is recorded");
+    // (F-R5 mechanical adaptation: two co-existing tickets are two FACTS
+    // now — an identical (run, summary) re-escalation re-affirms the
+    // first ticket instead of minting a second — so the second ticket is
+    // a distinct fact. The property under test, the total order and
+    // completeness of the listing, is unchanged.)
     let second = queue
-        .escalate(escalation_item(&fixture_run()), bound())
+        .escalate(
+            escalation_item_titled(&fixture_run(), "the second fact"),
+            bound(),
+        )
         .expect("the second escalation is recorded");
     let listed = queue.list().expect("the queue lists");
     // (COR-F4 mechanical adaptation: `list` now returns the quarantine
@@ -452,8 +472,15 @@ fn a_lying_ticket_file_cannot_clobber_another_tickets_record() {
     let a = queue
         .escalate(escalation_item(&fixture_run()), bound())
         .expect("ticket A mints");
+    // (F-R5 mechanical adaptation: B is a distinct fact — identical
+    // (run, summary) escalations re-affirm one ticket now — so the
+    // cross-wiring attack has its two-ticket victim. The defense under
+    // test is unchanged.)
     let b = queue
-        .escalate(escalation_item(&fixture_run()), bound())
+        .escalate(
+            escalation_item_titled(&fixture_run(), "the second fact"),
+            bound(),
+        )
         .expect("ticket B mints");
     // THE ATTACK (the falsifier's exact reproduction): A's FILE is
     // rewritten out-of-band to a well-formed `gauntlet-escalation-ticket@v1`
@@ -531,4 +558,205 @@ fn a_lying_ticket_file_cannot_clobber_another_tickets_record() {
     let resolved = queue.record(b.id()).expect("B's resolved record reads");
     assert!(resolved.state.is_resolved());
     assert_eq!(resolved.action, Some(OperatorAction::Resolve));
+}
+
+/// F-R5 (corrections round 2): the durable per-run ticket dedup — an
+/// OPEN ticket for the same run carrying the same fact is RE-AFFIRMED,
+/// never minted twice (the operator's listing shows ONE); a DIFFERENT
+/// fact on the same run mints its own ticket; and a RESOLVED ticket
+/// never dedups — the operator acted on it, so a re-observation after
+/// the action is a new fact instance.
+#[test]
+fn the_same_open_fact_reaffirms_one_ticket_and_a_resolved_one_never_dedups() {
+    let scratch = Scratch::new("dedup");
+    let queue = scratch.queue();
+    let first = queue
+        .escalate(escalation_item(&fixture_run()), bound())
+        .expect("the first escalation mints");
+    let reaffirmed = queue
+        .escalate(escalation_item(&fixture_run()), bound())
+        .expect("the identical re-escalation is a re-affirmation");
+    assert_eq!(
+        first.id(),
+        reaffirmed.id(),
+        "the same open fact re-affirms ONE ticket"
+    );
+    let listed = queue.list().expect("the queue lists");
+    assert_eq!(
+        listed.records.len(),
+        1,
+        "the listing shows ONE ticket for the one fact"
+    );
+    // A different fact on the same run mints its own ticket.
+    let other = queue
+        .escalate(
+            escalation_item_titled(&fixture_run(), "a different fact"),
+            bound(),
+        )
+        .expect("the different fact mints");
+    assert_ne!(first.id(), other.id(), "a different fact is its own ticket");
+    assert_eq!(queue.list().expect("the queue lists").records.len(), 2);
+    // The operator resolves the first ticket; the SAME fact re-observed
+    // afterwards is a NEW fact instance — a new open ticket, never a
+    // silent dedup against the resolved one.
+    queue
+        .resolve(first.id(), "operator-7", "", OperatorAction::Resolve)
+        .expect("the operator resolves");
+    let again = queue
+        .escalate(escalation_item(&fixture_run()), bound())
+        .expect("the re-observed fact after resolution mints anew");
+    assert_ne!(
+        first.id(),
+        again.id(),
+        "a resolved ticket never dedups — the re-observation is a new fact"
+    );
+    let listed = queue.list().expect("the queue lists");
+    assert_eq!(listed.records.len(), 3);
+    let open: Vec<&EscalationRecord> = listed.records.iter().filter(|r| r.is_open()).collect();
+    assert_eq!(
+        open.len(),
+        2,
+        "one resolved ticket stands beside two open ones"
+    );
+}
+
+/// F2-1 (falsifier round 2, MAJOR — COR-3): the dedup is PER-RUN. The SAME
+/// summary escalated under TWO DIFFERENT run ids is TWO facts and mints TWO
+/// tickets — run B's genuinely new hard residual must never be silently
+/// re-affirmed onto run A's open ticket (a dropped hard residual,
+/// G8-adjacent). This is the executed tooth for the dedup's
+/// `record.run_id == item.run_id` conjunct: the falsifier demonstrated the
+/// exact one-clause deletion of that conjunct leaves every delivered test
+/// green, because no delivered suite ever escalated one summary under two
+/// runs. RED under the falsifier's mutant; GREEN on the real tree.
+#[test]
+fn the_same_summary_under_two_different_runs_is_two_facts_and_mints_two_tickets() {
+    let scratch = Scratch::new("dedup-per-run");
+    let queue = scratch.queue();
+    let run_a = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("the fixture run id is a ULID");
+    let run_b = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAW").expect("the fixture run id is a ULID");
+    // `escalation_item` fixes ONE summary; only the run id differs.
+    let first = queue
+        .escalate(escalation_item(&run_a), bound())
+        .expect("run A's escalation mints");
+    let second = queue
+        .escalate(escalation_item(&run_b), bound())
+        .expect("run B's escalation mints its own ticket");
+    assert_ne!(
+        first.id(),
+        second.id(),
+        "the same summary under a DIFFERENT run is a new fact — its own ticket, never a \
+         re-affirmation of another run's open ticket"
+    );
+    let listed = queue.list().expect("the queue lists");
+    assert_eq!(
+        listed.records.len(),
+        2,
+        "the operator's listing shows BOTH runs' tickets: {:?}",
+        listed.records
+    );
+    let mut listed_runs: Vec<&str> = listed
+        .records
+        .iter()
+        .map(|record| record.run_id.as_str())
+        .collect();
+    listed_runs.sort();
+    assert_eq!(
+        listed_runs,
+        vec![run_a.as_str(), run_b.as_str()],
+        "each ticket carries its own run's id"
+    );
+}
+
+/// F2-2's queue-level companion (COR-3): the composed loop's two-units,
+/// same-refusal-class, same-run ticket claim. With the producer fixed
+/// UNIT-BEARING (govern/gate.rs's `LatticeMovementRefused` now names its
+/// unit — the RED-first half of this fix is the gauntlet-app gate test),
+/// two units' refusals in ONE run arrive as two DISTINCT summaries, and
+/// the dedup mints TWO tickets, one per unit. The summaries below are
+/// shaped exactly like the fixed producer's mint (controller
+/// `record_gate_refusal` over the corrected `summary()`).
+#[test]
+fn two_unit_bearing_summaries_in_one_run_mint_two_tickets() {
+    let scratch = Scratch::new("dedup-unit-bearing");
+    let queue = scratch.queue();
+    let item = |unit: &str| EscalationItem {
+        run_id: fixture_run(),
+        summary: format!(
+            "dispatch refused by the governance gate: lattice movement refused: the dispatch \
+             facts may not rank below the recorded facts (AK-046) — unit {unit}"
+        ),
+        context: EvidenceRef::new("evd-lattice-refusal").expect("the fixture evidence ref parses"),
+    };
+    let first = queue
+        .escalate(item("AK-001"), bound())
+        .expect("the first unit's refusal mints");
+    let second = queue
+        .escalate(item("AK-002"), bound())
+        .expect("the second unit's refusal mints its own ticket");
+    assert_ne!(
+        first.id(),
+        second.id(),
+        "two units' refusals are two facts — one ticket per unit, never a collision"
+    );
+    let listed = queue.list().expect("the queue lists");
+    assert_eq!(
+        listed.records.len(),
+        2,
+        "the listing shows BOTH units' tickets: {:?}",
+        listed.records
+    );
+}
+
+// ---------------------------------------------------------------------------
+// F2-3 (falsifier round 2, MINOR — COR-3): concurrent escalations of ONE
+// fact through ONE queue mint ONE ticket. The dedup was a scan-then-mint
+// with no serialization between the scan and the write — the falsifier's
+// P2 probe (8 threads, one fact) minted 2 tickets for one fact (the
+// failure direction is noise, not suppression — hence MINOR). The mutate
+// path is serialized by the queue's own lock; this stress binds it,
+// bounded (named thread/round figures, fresh queue per round, no unbounded
+// waiting anywhere).
+// ---------------------------------------------------------------------------
+
+const RACE_THREADS: usize = 8;
+const RACE_ROUNDS: usize = 12;
+
+#[test]
+fn concurrent_escalations_of_one_fact_mint_one_ticket() {
+    for round in 0..RACE_ROUNDS {
+        let scratch = Scratch::new("dedup-race");
+        let queue = std::sync::Arc::new(scratch.queue());
+        let handles: Vec<_> = (0..RACE_THREADS)
+            .map(|_| {
+                let queue = queue.clone();
+                std::thread::spawn(move || {
+                    queue
+                        .escalate(escalation_item(&fixture_run()), bound())
+                        .expect("the concurrent escalation is recorded")
+                })
+            })
+            .collect();
+        let mut tickets = Vec::new();
+        for handle in handles {
+            tickets.push(handle.join().expect("the escalator thread finishes"));
+        }
+        let listed = queue.list().expect("the queue lists");
+        let distinct: std::collections::BTreeSet<String> = tickets
+            .iter()
+            .map(|ticket| ticket.id().as_str().to_owned())
+            .collect();
+        assert_eq!(
+            distinct.len(),
+            1,
+            "round {round}: every concurrent escalator of ONE fact gets THE one ticket: \
+             {tickets:?}"
+        );
+        assert_eq!(
+            listed.records.len(),
+            1,
+            "round {round}: the operator's listing shows ONE ticket for the one fact: {:?}",
+            listed.records
+        );
+    }
 }

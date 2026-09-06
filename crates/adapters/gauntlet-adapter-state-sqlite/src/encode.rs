@@ -12,7 +12,7 @@
 use gauntlet_domain::{
     Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceLocator,
     EvidenceRef, InvocationId, InvocationState, IterationNo, Limits, MicroUsd, ResultContractPath,
-    RunId, Spent, UnitId, UnitStatus, VerificationRef,
+    RunId, Spent, TerminalState, UnitId, UnitStatus, VerificationRef,
 };
 use gauntlet_ports::json::{self, JsonNumber, JsonValue};
 use gauntlet_ports::state_store::{RunEvent, RunEventKind};
@@ -23,6 +23,8 @@ pub(crate) const KIND_INVOCATION_ADMITTED: &str = "invocation_admitted";
 pub(crate) const KIND_INVOCATION_TERMINAL: &str = "invocation_terminal";
 pub(crate) const KIND_CHECKPOINT_WRITTEN: &str = "checkpoint_written";
 pub(crate) const KIND_EVIDENCE_PRODUCED: &str = "evidence_produced";
+pub(crate) const KIND_UNIT_DISPATCH: &str = "unit_dispatch";
+pub(crate) const KIND_RUN_TERMINAL: &str = "run_terminal";
 
 /// A payload did not decode into the domain types — typed (spec §21.2).
 /// Details carry field names, ids, and digests; never record payloads.
@@ -175,6 +177,18 @@ pub(crate) fn encode_event(kind: &RunEventKind) -> (String, String) {
             ("evidence", text(evidence.as_str())),
             ("locator", text(locator.as_str())),
         ]),
+        RunEventKind::UnitDispatch {
+            unit,
+            invocation_id,
+        } => obj(vec![
+            ("kind", text(KIND_UNIT_DISPATCH)),
+            ("unit_id", text(unit.as_str())),
+            ("invocation_id", text(invocation_id.as_str())),
+        ]),
+        RunEventKind::RunTerminal { state } => obj(vec![
+            ("kind", text(KIND_RUN_TERMINAL)),
+            ("state", text(&state.wire())),
+        ]),
     };
     let tag = match kind {
         RunEventKind::SettlementCommitted { .. } => KIND_SETTLEMENT,
@@ -182,6 +196,8 @@ pub(crate) fn encode_event(kind: &RunEventKind) -> (String, String) {
         RunEventKind::InvocationTerminal { .. } => KIND_INVOCATION_TERMINAL,
         RunEventKind::CheckpointWritten { .. } => KIND_CHECKPOINT_WRITTEN,
         RunEventKind::EvidenceProduced { .. } => KIND_EVIDENCE_PRODUCED,
+        RunEventKind::UnitDispatch { .. } => KIND_UNIT_DISPATCH,
+        RunEventKind::RunTerminal { .. } => KIND_RUN_TERMINAL,
     };
     (tag.to_owned(), value.to_json_text())
 }
@@ -281,6 +297,28 @@ pub(crate) fn decode_event(
             locator: EvidenceLocator::new(&get_str(&parsed, "locator")?).map_err(|err| {
                 DecodeError::ValueInvalid {
                     field: "locator",
+                    detail: err.to_string(),
+                }
+            })?,
+        },
+        KIND_UNIT_DISPATCH => RunEventKind::UnitDispatch {
+            unit: UnitId::new(&get_str(&parsed, "unit_id")?).map_err(|err| {
+                DecodeError::ValueInvalid {
+                    field: "unit_id",
+                    detail: err.to_string(),
+                }
+            })?,
+            invocation_id: InvocationId::new(&get_str(&parsed, "invocation_id")?).map_err(
+                |err| DecodeError::ValueInvalid {
+                    field: "invocation_id",
+                    detail: err.to_string(),
+                },
+            )?,
+        },
+        KIND_RUN_TERMINAL => RunEventKind::RunTerminal {
+            state: TerminalState::parse(&get_str(&parsed, "state")?).map_err(|err| {
+                DecodeError::ValueInvalid {
+                    field: "state",
                     detail: err.to_string(),
                 }
             })?,

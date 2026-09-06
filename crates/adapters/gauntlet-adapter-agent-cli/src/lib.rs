@@ -34,6 +34,16 @@
 //!   to the same verdict on purpose); only a still-RUNNING silent child
 //!   reaches the deadline verdict `TimedOut` (rule 5); otherwise
 //!   `Running`. Process liveness is never completion evidence.
+//! - [`runner::CommandContainment`] is the containment wrap seam (plan
+//!   Task 25, R-2 posture re-adjudication recorded for the operator):
+//!   when the composition root installs it (exactly when the posture
+//!   fronts a LIVE sandbox backend), a dispatch carrying an admitted
+//!   sandbox policy spawns the gate's WRAPPED command — the sandbox is
+//!   the child's first process (AK-048) — and the runner honestly
+//!   reports `Isolation::Process`. A policy-carrying dispatch with no
+//!   seam installed is a typed admission refusal, never an unwrapped
+//!   run (§21.3, AK-047) — teeth:
+//!   `fr1_a_policy_carrying_dispatch_without_the_seam_is_a_typed_refusal_that_spawns_nothing`.
 //! - [`config`] is the typed configuration; there is NO default command
 //!   template — a missing `GAUNTLET_CLI_AGENT_CMD` is a typed error.
 //! - [`clock`] is the production wall-clock binding; the runner always
@@ -84,8 +94,16 @@ pub const RESULT_PATH_ENV_VAR: &str = "GAUNTLET_RESULT_PATH";
 /// The prompt file format identifier (`prompt.rs` documents the grammar).
 pub const PROMPT_FORMAT: &str = "gauntlet-cli-agent-prompt@1";
 
+/// The shell the runner uses to execute a WRAPPED command (plan Task 25):
+/// a [`SandboxedCommand`](gauntlet_ports::sandbox::SandboxedCommand) is by
+/// definition ONE shell-invocable string whose FIRST word is the sandbox
+/// binary (spec §17.5.4, AK-048), so executing it through `sh -c` starts
+/// the sandbox as the first real process (a POSIX shell replaces itself
+/// with a single simple command).
+pub const WRAPPED_SHELL: &str = "sh";
+
 pub use config::{CliAgentConfig, ConfigError};
-pub use runner::{CliAgentRunner, CliForensics};
+pub use runner::{CliAgentRunner, CliForensics, CommandContainment, ContainmentRefusal};
 pub use template::{
     PLACEHOLDER_MODEL, PLACEHOLDER_PROMPT_FILE, PLACEHOLDER_RESULT_PATH, PLACEHOLDER_WORKSPACE,
     Template, TemplateError, TemplateValues, parse_template, probe_template, render,

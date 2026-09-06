@@ -43,8 +43,8 @@ use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::json::{self, JsonNumber, JsonValue};
 use gauntlet_ports::producer_authority::AdmittedSettlement;
 use gauntlet_ports::state_store::{
-    Checkpoint, ObservationBinding, RunEvent, RunEventKind, SettlementCommit, StateStore,
-    StateStoreError,
+    Checkpoint, ObservationBinding, RunEvent, RunEventKind, RunLifecycleFacts, SettlementCommit,
+    StateStore, StateStoreError,
 };
 use gauntlet_ports::verification_record::VerificationRecordDoc;
 use rusqlite::Connection;
@@ -1928,6 +1928,45 @@ impl StateStore for SqliteStateStore {
             })?);
         }
         Ok(records)
+    }
+
+    /// The run's lifecycle facts (corrections round 2, F-R4): one ordered
+    /// scan of the run's durable event log, projected onto the three
+    /// kinds the §26 report classifies from — the unit-attributed
+    /// dispatches, the invocation terminals, and the run's own
+    /// append-only terminals. The entries decode through the SAME strict
+    /// codec every reader uses (`read_entries`), so a damaged event is a
+    /// typed `Corrupt`, never a silent skip: the report classifies from
+    /// records, and a damaged record is not a record.
+    fn run_lifecycle_facts(
+        &self,
+        run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<RunLifecycleFacts, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let entries = read_entries(&conn, EventLogOffset::new(0)).map_err(map_log_error)?;
+        let mut facts = RunLifecycleFacts::default();
+        for entry in entries {
+            if entry.event.run_id != *run_id {
+                continue;
+            }
+            match entry.event.kind {
+                RunEventKind::UnitDispatch {
+                    unit,
+                    invocation_id,
+                } => facts.unit_dispatches.push((unit, invocation_id)),
+                RunEventKind::InvocationTerminal {
+                    invocation_id,
+                    state,
+                } => facts.invocation_terminals.push((invocation_id, state)),
+                RunEventKind::RunTerminal { state } => facts.run_terminals.push(state),
+                _ => {}
+            }
+        }
+        Ok(facts)
     }
 
     /// The §16.3 atomic commit sequence behind the earned admission (the

@@ -12,7 +12,10 @@
 //! targets the REQUESTED id, never the decoded record's say-so.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    Mutex,
+    atomic::{AtomicU64, Ordering},
+};
 
 use gauntlet_domain::{EpochSeconds, EvidenceRef, RunId};
 use gauntlet_ports::deadline::Deadline;
@@ -187,6 +190,22 @@ impl EscalationRecord {
 /// composition root passes `<state_dir>/escalations`).
 pub struct FsEscalationQueue {
     root: PathBuf,
+    /// F2-3 (falsifier round 2, COR-3): the mutate path's single-holder
+    /// lock, held from BEFORE the dedup scan until the write lands. The
+    /// dedup was a scan-then-mint with nothing between them — the
+    /// falsifier's P2 probe (8 threads, one fact) minted 4 tickets for one
+    /// fact. The repository's writer-lock PATTERN (one holder, fail
+    /// closed) at the queue's own grain: acquired TOP-LEVEL as the first
+    /// statement of the two mutate methods (`escalate`, `resolve`) and
+    /// NEVER nested (neither method calls the other, and the read helpers
+    /// they use — `list`, `record` — take no lock; the task-23 lesson).
+    /// Cross-process exclusion is not this lock's job: the state dir's
+    /// writer lock (spec §20.1) already refuses a second writer for the
+    /// whole state dir, so the only concurrent mutators are threads of
+    /// the one writer process. A poisoned lock (a thread panicked inside
+    /// a mutate section) refuses subsequent mutations TYPED — never
+    /// silently unlocked.
+    mutate_lock: Mutex<()>,
 }
 
 impl FsEscalationQueue {
@@ -197,6 +216,7 @@ impl FsEscalationQueue {
         })?;
         Ok(Self {
             root: root.to_path_buf(),
+            mutate_lock: Mutex::new(()),
         })
     }
 
@@ -312,6 +332,14 @@ impl FsEscalationQueue {
         note: &str,
         action: OperatorAction,
     ) -> Result<EscalationRecord, EscalationQueueError> {
+        // F2-3: the mutate path's lock — top-level, before the read that
+        // decides the write, never nested (see the field's doc).
+        let _writer =
+            self.mutate_lock
+                .lock()
+                .map_err(|error| EscalationQueueError::WriteFailed {
+                    detail: format!("the queue's mutate lock is poisoned: {error}"),
+                })?;
         let mut record = self.record(ticket)?;
         if record.state.is_resolved() {
             return Err(EscalationQueueError::AlreadyResolved {
@@ -409,9 +437,45 @@ impl HumanEscalation for FsEscalationQueue {
         item: EscalationItem,
         _deadline: Deadline,
     ) -> Result<EscalationTicket, HumanEscalationError> {
+        // F2-3: the mutate path's lock — top-level, so the dedup scan and
+        // the mint are one critical section (a concurrent escalator of the
+        // same fact sees the minted ticket and re-affirms it, never mints
+        // a duplicate). Never nested: the scan's `list` takes no lock (see
+        // the field's doc).
+        let _writer =
+            self.mutate_lock
+                .lock()
+                .map_err(|error| HumanEscalationError::SubmitFailed {
+                    detail: format!("the queue's mutate lock is poisoned: {error}"),
+                })?;
         // The same convention as the fs evidence store: the Deadline is
         // noted and not consulted — there is no waiting code here to
         // bound.
+        //
+        // F-R5 (corrections round 2): durable per-run ticket dedup. An
+        // OPEN ticket for the SAME run carrying the SAME fact (the
+        // summary is the fact-class carrier the port's record shape
+        // holds; byte-identical summaries are the same fact) is
+        // RE-AFFIRMED, never minted twice: a resumed pass re-observing
+        // the same unresolved fact returns the existing ticket, and the
+        // operator's listing shows ONE. A resolved ticket never dedups —
+        // the operator acted on it, and a re-observation after the action
+        // is a new fact instance. Identification is per-run by
+        // construction: every record carries its run_id, and the key
+        // compares it.
+        if let Some(existing) = self
+            .list()
+            .map_err(|error| HumanEscalationError::SubmitFailed {
+                detail: error.to_string(),
+            })?
+            .records
+            .into_iter()
+            .find(|record| {
+                record.is_open() && record.run_id == item.run_id && record.summary == item.summary
+            })
+        {
+            return Ok(EscalationTicket::new(existing.ticket, existing.created_at));
+        }
         let created_at = wall_now();
         let mut attempt = 0;
         loop {

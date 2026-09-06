@@ -59,6 +59,17 @@ Do not add speculative rules for failures that have never occurred.
   or process change) before dispatching a replacement; and the orchestrator runs a
   FULL battery, not slice-scoped suites, whenever more than one agent has touched
   the tree since the last full run.
+* Task 25 (2026-09-06): a corrections builder ran `git restore` on a path
+  carrying uncommitted task work and clobbered it mid-round; the round's
+  sha256 discipline caught it and the work was reconstructed byte-exactly.
+  Rule: never `git restore` / `git checkout --` a tracked path during a
+  task round without first `git status`-ing it and recording its sha256 —
+  until the orchestrator's settlement commit, uncommitted work is the only
+  copy. Same task: an E2E leg whose kill lands in a sub-millisecond window
+  passed every slice battery for six rounds and failed only under
+  full-workspace load. Rule: a leg that races a real window needs a
+  deterministic boundary variant pinning each branch, or its green runs
+  prove only the branch that always wins.
 
 ## Delegation and role boundaries
 

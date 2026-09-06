@@ -25,21 +25,42 @@
 //! ## Cancellation (correction RES-D12)
 //!
 //! `stop` is SIGTERM, then a bounded wait, then SIGKILL: the graceful leg
-//! sends `kill -TERM` to the child's pid through a FIXED-ARGV helper
-//! (`sh -c 'kill -TERM "$1"' sh <pid>` — the pid is an argv argument, no
-//! operator data is ever in the command; std exposes no signal API, and a
-//! `libc`/`nix` dependency remains an ask-first decision — RECORDED). A
-//! child that already exited makes stop a success (the goal is achieved);
-//! reaping after the SIGKILL has a dedicated grace of its own (COR-F1 —
-//! the graceful leg may have consumed the caller's bound, and a landed
-//! kill with a pending reap is a SUCCESS, not a failure), and the
-//! deadline rule of §6 preamble applies to every blocking leg.
+//! sends `kill -TERM` through a FIXED-ARGV helper (`sh -c 'kill -TERM
+//! "$1"' sh <pid>` — the pid is an argv argument, no operator data is
+//! ever in the command; std exposes no signal API, and a `libc`/`nix`
+//! dependency remains an ask-first decision — RECORDED). A child that
+//! already exited makes stop a success (the goal is achieved); reaping
+//! after the SIGKILL has a dedicated grace of its own (COR-F1 — the
+//! graceful leg may have consumed the caller's bound, and a landed kill
+//! with a pending reap is a SUCCESS, not a failure), and the deadline
+//! rule of §6 preamble applies to every blocking leg.
+//!
+//! ## The child's process group (corrections round 2, F-R3)
+//!
+//! A WRAPPED child is a TREE, not a process: the sandbox (or its driver
+//! shell) is the first process and forks the actual payload underneath
+//! it. The round-1 falsifier's budget world leaked a live sandbox-driver pair +
+//! in-sandbox shell past a cancel whose signals reached only the direct
+//! child (`--die-with-parent` does not reap it). Every spawned child is
+//! therefore its own process-group leader (`process_group(0)`), and BOTH
+//! stop legs address the WHOLE GROUP (`kill -TERM -- -<pid>` /
+//! `kill -KILL -- -<pid>`): one bounded signal retires the driver AND
+//! everything it forked that has not escaped the group. The stop's
+//! contract is unchanged otherwise: bounded legs, a landed kill with a
+//! pending reap is `Ok(None)`, never a fire-and-forget signal. (A
+//! grandchild that both ignores TERM and outlives its driver's own TERM
+//! death — or escapes the group via `setsid` — is beyond this bounded
+//! claim; the driver's own death then ends the observable handle. That
+//! boundary is recorded in the round-2 report, not papered over here.)
 
 use core::cell::RefCell;
 use core::fmt;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 
 use gauntlet_ports::deadline::Deadline;
 
@@ -131,9 +152,11 @@ pub trait ProcessTransport: fmt::Debug {
     /// side effect of observing it (no zombies).
     fn state(&self, child: ChildId) -> Result<ProcessState, TransportError>;
 
-    /// Stops the child: SIGTERM, a bounded wait, then SIGKILL. A child
-    /// that already exited maps to SUCCESS (the goal is achieved) with
-    /// its exit code when known. `Ok(None)` (COR-F1): the SIGKILL
+    /// Stops the child: SIGTERM, a bounded wait, then SIGKILL — each leg
+    /// addressed to the child's WHOLE process group (F-R3: the wrapped
+    /// child is a tree; one group signal retires driver and payload). A
+    /// child that already exited maps to SUCCESS (the goal is achieved)
+    /// with its exit code when known. `Ok(None)` (COR-F1): the SIGKILL
     /// LANDED but the exit code was not observed within the stop's
     /// dedicated reap grace — the child IS stopped; a later state probe
     /// reaps it. `Err(StopFailed)` is reserved for a failed kill or a
@@ -177,6 +200,13 @@ impl ProcessTransport for ProcessChildTransport {
             // environment is inherited verbatim (the std default) plus
             // exactly this one variable.
             .env(RESULT_PATH_ENV_VAR, &spec.result_path);
+        // F-R3: the child is its OWN process-group leader, so the stop
+        // path can retire the whole wrapped tree (the driver AND its
+        // forked payload) with one bounded group signal — a child that
+        // shares the parent's group could only ever be signaled one pid
+        // at a time, which is exactly the round-1 leak.
+        #[cfg(unix)]
+        command.process_group(0);
         let child = command
             .spawn()
             .map_err(|error| TransportError::SpawnFailed {
@@ -229,11 +259,16 @@ impl ProcessTransport for ProcessChildTransport {
             // Raced between the probe and the borrow: an exit is a success.
             return Ok(None);
         };
-        // Graceful leg: SIGTERM to the pid through a fixed-argv helper.
-        // The pid is an argv ARGUMENT; no operator data is ever part of
-        // the helper's command words (see the module docs for the std
-        // signal-API gap this works around).
-        let pid = inner.id().to_string();
+        // Graceful leg: SIGTERM to the child's WHOLE PROCESS GROUP
+        // through a fixed-argv helper. The (negated) pid is an argv
+        // ARGUMENT; no operator data is ever part of the helper's command
+        // words (see the module docs for the std signal-API gap this
+        // works around, and for the F-R3 group mechanics: the wrapped
+        // child is a tree, and one group signal retires it).
+        let pid = format!("-{}", inner.id());
+        // (The negated pid is passed as ONE argv word; dash's kill
+        // builtin rejects a `--` separator, so the negated form IS the
+        // portable group-pid spelling.)
         let _ = Command::new("sh")
             .args(["-c", "kill -TERM \"$1\"", "sh", &pid])
             .stdin(Stdio::null())
@@ -257,7 +292,8 @@ impl ProcessTransport for ProcessChildTransport {
                 }
             }
         }
-        // Escalation leg: SIGKILL, then a bounded reap. COR-F1: SIGKILL
+        // Escalation leg: SIGKILL to the WHOLE GROUP (F-R3), the direct
+        // pid as the backstop, then a bounded reap. COR-F1: SIGKILL
         // cannot be caught — once the kill lands the child IS stopped,
         // and only the reap observation is pending. The graceful leg may
         // have consumed the caller's whole bound, so the reap gets its
@@ -265,6 +301,12 @@ impl ProcessTransport for ProcessChildTransport {
         // expiring it is `Ok(None)` (stopped; exit code unobserved — a
         // later state probe reaps), never `StopFailed`, whose honest
         // scope is a failed kill or a broken wait.
+        let _ = Command::new("sh")
+            .args(["-c", "kill -KILL \"$1\" 2>/dev/null || true", "sh", &pid])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
         if let Err(error) = inner.kill() {
             return Err(TransportError::StopFailed {
                 child,

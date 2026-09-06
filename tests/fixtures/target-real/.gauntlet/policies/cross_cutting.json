@@ -1,0 +1,13 @@
+{
+  "reference": "tier-cross-cutting-real-v1",
+  "tier": "cross_cutting",
+  "backend": "bwrap",
+  "network": "deny_by_default",
+  "writable_roots": ["$WORKSPACE_ROOT"],
+  "denied_paths": [
+    "$PROJECT_ROOT/.git",
+    "$HOME/.ssh",
+    "$HOME/.aws",
+    "$HOME/.gnupg"
+  ]
+}

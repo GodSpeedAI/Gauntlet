@@ -1,0 +1,77 @@
+# Reference manifest for the E2E real-runner fixture target project
+# (spec §5.3.1, §9). The checkable-Unit projection lives separately in
+# .wayfinder/answer-key.md (AK-951..AK-953); `units` below stays empty so
+# the two never become competing copies — the same discipline the
+# task-20 fixture and the repository's own reference manifest hold. The
+# field set is the strict closed manifest shape.
+reference:
+  id: gauntlet-e2e-fixture-target-real
+  version: 1
+  digest: null
+
+  source_refs:
+    - src/gadget.rs
+
+  purpose: >
+    A minimal, self-contained target project the composed Gauntlet loop
+    can run against end to end on the real generic CLI adapter under a
+    live containment backend: one source file, one real check command,
+    one deterministic child agent, and four blocking units — one
+    contained, one local, one cross_cutting (dispatched wrapped), one
+    irreversible (escalated, never dispatched).
+
+  desired_state: >
+    Every blocking dispatchable unit of the fixture reference settles
+    with pinned, instrument-produced evidence — the cross_cutting unit
+    dispatched WRAPPED from process start — and the irreversible unit
+    appears in the escalation queue without ever being dispatched — or
+    the runtime honestly reports the non-settlement — when `gauntlet
+    run` completes a loop over this reference from freeze to report.
+
+  invariants:
+    - id: I1
+      statement: The builder never modifies the standard its work is evaluated against.
+    - id: I8
+      statement: Missing evidence is not passing evidence.
+    - id: I9
+      statement: Authority gates whether something runs; containment gates how contained it is if it does.
+
+  constraints:
+    - The fixture is copied to a per-test scratch world before any run;
+      the fixture tree itself is never written at test time.
+    - The live bwrap posture is exercised; tier policies resolve from the
+      fixture's own .gauntlet/policies directory.
+    - The irreversible unit is never an automatic dispatch candidate
+      (AK-044); its evidence requirement exists so a violation would be
+      observable, not because a dispatch is expected.
+
+  anti_goals:
+    - A settlement whose evidence is the builder's claim rather than an
+      instrument's record.
+    - An unsandboxed dispatch of the cross_cutting unit under the live
+      backend posture (AK-047/AK-048).
+    - A frontier-model claim — the child agent is a deterministic fixture
+      script under the real adapter, never a model.
+
+  units: []
+
+  quality_dimensions: []
+
+  settlement:
+    success_criteria:
+      - every blocking dispatchable unit of the fixture reference is
+        settled with PASS verification and pinned instrument evidence
+      - the irreversible unit stands in the escalation queue, never
+        dispatched
+    required_evidence:
+      - the fixture check script's real exit status, observed by an
+        instrument the runtime composes
+      - the wrapped dispatch's own recorded containment facts (the child's
+        confinement observations, pinned in the evidence store)
+    minimum_reliability: >
+      fixture posture: >= 2 settlements (the auto-closable dispatchable
+      units — the contained and the local unit; the cross_cutting unit's
+      closure routes to the operator and never settles unattended) is
+      the smallest loop the E2E can observe end to end; a single clean
+      run never promotes anything.
+    terminal_conditions: [settled, blocked, budget_exhausted, escalated, aborted, inconclusive]

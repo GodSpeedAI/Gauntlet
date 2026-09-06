@@ -13,7 +13,7 @@ use core::fmt;
 use gauntlet_domain::{
     CorrectionSelection, Digest, EpochSeconds, EventLogOffset, EvidenceLocator, EvidenceRef,
     InvocationId, InvocationState, IterationNo, ResultContractPath, RoleInvocation, Run, RunId,
-    SettlementRecord, Spent, UnitId, UnitStatus, VerificationRef,
+    SettlementRecord, Spent, TerminalState, UnitId, UnitStatus, VerificationRef,
 };
 
 use crate::comparator::AdmittedComparison;
@@ -116,6 +116,23 @@ pub enum RunEventKind {
         evidence: EvidenceRef,
         locator: EvidenceLocator,
     },
+    /// A UNIT-ATTRIBUTED dispatch was admitted (corrections round 2,
+    /// F-R4): the unit the invocation was FOR — the fact the §26 report's
+    /// record-derived classification needs and the §5.3.5 invocation
+    /// record itself cannot carry (its field set is spec-frozen and names
+    /// no unit; the workspace ref is provider-shaped, never parsed) —
+    /// plus the invocation identity. Appended by the runtime at dispatch,
+    /// after the runner admitted the invocation.
+    UnitDispatch {
+        unit: UnitId,
+        invocation_id: InvocationId,
+    },
+    /// The run recorded a terminal state (corrections round 2, F-R4 and
+    /// F-R5). APPEND-ONLY by design: a resumed pass that re-terminalizes
+    /// appends the new terminal beside the old one — the transition is
+    /// visible in the record (and in every export), never a silent
+    /// rewrite; the latest entry is the run's real final state.
+    RunTerminal { state: TerminalState },
 }
 
 /// A durable checkpoint (spec §18, quoted: "Every iteration boundary writes
@@ -348,6 +365,25 @@ pub struct SettlementCommit {
     pub verification: VerificationRef,
     pub reference_digest: Digest,
     pub at: EpochSeconds,
+}
+
+/// The run's lifecycle facts the §26 report classifies from (corrections
+/// round 2, F-R4): every unit-attributed dispatch the run recorded, every
+/// invocation terminal, and the run's own recorded terminals in append
+/// order. All of it is READ-side projection over the durable event log —
+/// the report classifies from records, never from claims.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RunLifecycleFacts {
+    /// Every `(unit, invocation)` dispatch pair, in append order — the
+    /// record-derived join the §5.3.5 invocation record cannot carry.
+    pub unit_dispatches: Vec<(UnitId, InvocationId)>,
+    /// Every `(invocation, terminal state)` the run recorded, in append
+    /// order.
+    pub invocation_terminals: Vec<(InvocationId, InvocationState)>,
+    /// The run's own recorded terminals, in append order; the LAST entry
+    /// is the run's real final state (a resumed pass that re-terminalizes
+    /// appends — the transition stays visible in the record).
+    pub run_terminals: Vec<TerminalState>,
 }
 
 /// The run-state port (spec §6.2). Every method performs durable IO, so
@@ -642,6 +678,24 @@ pub trait StateStore {
     ) -> Result<Vec<VerificationRecordDoc>, StateStoreError> {
         Err(StateStoreError::ReadFailed {
             detail: "this state store does not implement durable verification records".to_owned(),
+        })
+    }
+
+    /// The run's lifecycle facts (corrections round 2, F-R4) — see
+    /// [`RunLifecycleFacts`]. A run with none of them reads as the empty
+    /// projection, never as an error.
+    ///
+    /// Fails closed (the COR-7 posture this trait's report-critical reads
+    /// share): a store that does not implement this read refuses with the
+    /// typed not-implemented error — never a silent empty, which would
+    /// let the §26 report describe an ATTEMPTED unit as never-attempted.
+    fn run_lifecycle_facts(
+        &self,
+        _run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<RunLifecycleFacts, StateStoreError> {
+        Err(StateStoreError::ReadFailed {
+            detail: "this state store does not implement the run lifecycle facts read".to_owned(),
         })
     }
 

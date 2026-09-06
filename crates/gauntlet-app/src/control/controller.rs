@@ -685,6 +685,12 @@ struct LoopState {
     /// iterations re-refuse the same unit (honestly, as pinned evidence)
     /// without opening a second ticket for the same fact.
     governance_refused: BTreeMap<UnitId, String>,
+    /// First SCHEDULER-level governance refusal per unit (corrections
+    /// round 1, F9): the §11.2 conjunct-3 class — irreversible work is
+    /// never an automatic dispatch candidate, unconditionally — skipped
+    /// by every plan. The ticket dedup works exactly like
+    /// `governance_refused`: one ticket per unit for one fact.
+    scheduler_governance_blocked: BTreeMap<UnitId, String>,
 }
 
 impl LoopState {
@@ -1081,6 +1087,7 @@ impl RunController {
             last_offset: 0,
             frozen_membership,
             governance_refused: BTreeMap::new(),
+            scheduler_governance_blocked: BTreeMap::new(),
         };
         self.seed_unit_states(&mut state)?;
         self.drive(state)
@@ -1318,6 +1325,7 @@ impl RunController {
             last_offset: checkpoint.event_log_offset.get(),
             frozen_membership,
             governance_refused: BTreeMap::new(),
+            scheduler_governance_blocked: BTreeMap::new(),
         };
         self.seed_unit_states(&mut state)?;
         // §18.3/C8.3 (correction): per-unit attempts are reconstructed
@@ -1538,6 +1546,7 @@ impl RunController {
             // mutation ends the run terminally; unavailability records a
             // gap and the loop continues (Task-7 m3's typed policy).
             if let Some(outcome) = self.boundary_verify(&mut state)? {
+                self.seal_terminal(&state, outcome.terminal)?;
                 return Ok(outcome);
             }
             // COR-D2: absorb ONE carried completion per iteration, at THIS
@@ -1578,6 +1587,7 @@ impl RunController {
             if state.terminal.is_none()
                 && let Some(outcome) = self.decide_progress(&mut state)?
             {
+                self.seal_terminal(&state, outcome.terminal)?;
                 return Ok(outcome);
             }
         }
@@ -1591,6 +1601,7 @@ impl RunController {
         }
         let terminal = state.terminal.unwrap_or(TerminalState::Settled);
         self.checkpoint(&mut state)?;
+        self.seal_terminal(&state, terminal)?;
         Ok(RunOutcome {
             run_id: state.run.id().clone(),
             terminal,
@@ -1598,6 +1609,30 @@ impl RunController {
             reference_breach: state.reference_breach,
             escalation_summary: state.escalation_summary,
         })
+    }
+
+    /// The run's terminal made DURABLE (corrections round 2, F-R4/F-R5):
+    /// one append-only `RunTerminal` event per pass that reaches a
+    /// terminal, written after the pass's final durable work. The record
+    /// is the report's terminal (never the in-memory outcome alone), and
+    /// a resumed pass that re-terminalizes APPENDS its terminal beside
+    /// the earlier one — the transition is visible in the export, never a
+    /// silent rewrite. A failed append surfaces typed: a pass that could
+    /// not record its terminal does not claim one.
+    fn seal_terminal(
+        &self,
+        state: &LoopState,
+        terminal: TerminalState,
+    ) -> Result<(), ControlError> {
+        self.state.append_event(
+            RunEvent {
+                run_id: state.run.id().clone(),
+                kind: RunEventKind::RunTerminal { state: terminal },
+                at: self.clock.now(),
+            },
+            self.operation_bound(),
+        )?;
+        Ok(())
     }
 
     /// §11.4 step 4 at one boundary. `Ok(Some(outcome))` ⇒ the run is
@@ -1817,6 +1852,36 @@ impl RunController {
             estimates,
         };
         let dispatches = self.scheduler.plan(&input, state.meter.as_ref())?;
+        // Corrections round 1 (F9): a unit the scheduler refuses for a
+        // GOVERNANCE reason — the §11.2 conjunct-3 class: irreversible
+        // work is never an automatic dispatch candidate, unconditionally
+        // — still OWES the operator its ticket the first time a plan
+        // skips it (§11.6: the queue is the operator's window; AK-044's
+        // "appears in the escalation queue" is a fact about the run, not
+        // about one terminal's close-out). The owed-unit filter and the
+        // one-ticket-per-unit ledger are exactly
+        // `classify_no_admission`'s discipline. The TERMINAL decision is
+        // untouched: this mints a ticket, never a terminal.
+        for reason in self
+            .scheduler
+            .ineligibility_report(&input, state.meter.as_ref())?
+        {
+            if !reason.is_governance_block() {
+                continue;
+            }
+            let unit = reason.unit().clone();
+            if !matches!(state.unit_states.get(&unit), None | Some(UnitStatus::Open))
+                || state.in_flight.iter().any(|flight| flight.unit == unit)
+            {
+                continue;
+            }
+            if state.scheduler_governance_blocked.contains_key(&unit) {
+                continue;
+            }
+            let summary = format!("dispatch not scheduled: {reason}");
+            self.submit_ticket(state, &unit, summary.clone())?;
+            state.scheduler_governance_blocked.insert(unit, summary);
+        }
         // §11.4 step 5's rounds gate (C2): the run budget is the single
         // rounds authority — with the NEXT iteration's round unaffordable,
         // no forward dispatch at all. In-flight work drains to completion
@@ -2033,7 +2098,7 @@ impl RunController {
                     .expect("fixed cancellation reason");
                 match self
                     .runner
-                    .cancel(&flight.handle, reason, self.operation_bound())
+                    .cancel(&flight.handle, reason, self.cancel_operation_bound())
                 {
                     Ok(()) | Err(AgentError::AlreadyTerminal { .. }) => {}
                     Err(error) => return Err(ControlError::Agent(error)),
@@ -2226,7 +2291,35 @@ impl RunController {
             // about.
             budget_slice: state.budget.clone(),
         };
+        // The dispatch's REAL tier for the durable invocation record
+        // (corrections round 1, F3): the gate admission knows the tier at
+        // admission time — exactly the dispatch fact the record must
+        // state — so it is registered here, typed, and consumed when the
+        // recording runner builds the durable record.
+        self.runner
+            .record_dispatch_tier(invocation_id.clone(), admission.tier());
         let handle = self.runner.invoke(spec.clone())?;
+        // The UNIT-ATTRIBUTED dispatch fact (corrections round 2, F-R4):
+        // the durable event the §26 report classifies from — the §5.3.5
+        // invocation record carries no unit (its field set is spec-frozen)
+        // and the workspace ref is provider-shaped, so the join is
+        // recorded HERE, once, where the unit is known. Appended AFTER the
+        // admission took effect: an attempted dispatch that was refused at
+        // admission never enters this record.
+        state.last_offset = self
+            .state
+            .append_event(
+                RunEvent {
+                    run_id: state.run.id().clone(),
+                    kind: RunEventKind::UnitDispatch {
+                        unit: unit.clone(),
+                        invocation_id: invocation_id.clone(),
+                    },
+                    at: now,
+                },
+                self.operation_bound(),
+            )?
+            .get();
         *state.attempts.entry(unit.clone()).or_insert(0) = attempt;
         state.pending_attachments.remove(&unit);
         state.in_flight.push(InFlight {
@@ -2534,7 +2627,7 @@ impl RunController {
                     .expect("fixed reason");
                 match self
                     .runner
-                    .cancel(&flight.handle, reason, self.operation_bound())
+                    .cancel(&flight.handle, reason, self.cancel_operation_bound())
                 {
                     Ok(()) | Err(AgentError::AlreadyTerminal { .. }) => {}
                     Err(error) => return Err(ControlError::Agent(error)),
@@ -2552,6 +2645,66 @@ impl RunController {
                 Err(ControlError::Reference(ReferenceProviderError::Unavailable { .. })) => {}
                 Err(other) => return Err(other),
             }
+        }
+        // Corrections round 1 (F6): the drain exits with work still in
+        // flight ONLY when a terminal was decided mid-drain (the loop's
+        // own condition requires an empty flight set otherwise). A
+        // terminal run leaves NO runner invocation behind: each stranded
+        // invocation is cancelled through the port (§7.3, idempotent —
+        // the typed no-op when the runner already retired it), its
+        // Cancelled terminal event is durable, and its reservation is
+        // released — the same retirement `bound_the_drain` performs for
+        // its own bound trip, and the retirement itself is PINNED
+        // evidence naming every stranded unit.
+        let mut retired: Vec<UnitId> = Vec::new();
+        let mut already_terminal: Vec<UnitId> = Vec::new();
+        while let Some(flight) = state.in_flight.pop() {
+            let reason = CancelReason::new(
+                "the run reached its terminal with the invocation still in \
+                                   flight (spec 11.6)",
+            )
+            .expect("fixed cancellation reason");
+            match self
+                .runner
+                .cancel(&flight.handle, reason, self.cancel_operation_bound())
+            {
+                Ok(()) => retired.push(flight.unit.clone()),
+                Err(AgentError::AlreadyTerminal { .. }) => {
+                    already_terminal.push(flight.unit.clone())
+                }
+                Err(error) => return Err(ControlError::Agent(error)),
+            }
+            self.release_flight(state, &flight);
+            state.last_offset = self
+                .append_terminal_event(
+                    state.run.id(),
+                    &flight.spec.invocation_id,
+                    gauntlet_domain::InvocationState::Cancelled,
+                )?
+                .get();
+        }
+        if !retired.is_empty() || !already_terminal.is_empty() {
+            let record = format!(
+                "{{\"class\":\"terminal_stranded_invocations_retired\",\"run\":\"{}\",\
+                  \"iteration\":{},\"cancelled\":[{}],\"already_terminal\":[{}]}}",
+                state.run.id(),
+                state.iteration,
+                retired
+                    .iter()
+                    .map(|unit| format!("\"{unit}\""))
+                    .collect::<Vec<_>>()
+                    .join(","),
+                already_terminal
+                    .iter()
+                    .map(|unit| format!("\"{unit}\""))
+                    .collect::<Vec<_>>()
+                    .join(","),
+            );
+            let evidence =
+                self.evidence
+                    .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())?;
+            self.evidence
+                .pin(state.run.id(), &evidence, self.operation_bound())?;
         }
         Ok(())
     }
@@ -2573,7 +2726,7 @@ impl RunController {
                 .expect("fixed cancellation reason");
             match self
                 .runner
-                .cancel(&flight.handle, reason, self.operation_bound())
+                .cancel(&flight.handle, reason, self.cancel_operation_bound())
             {
                 Ok(()) | Err(AgentError::AlreadyTerminal { .. }) => {}
                 Err(error) => return Err(ControlError::Agent(error)),
@@ -2762,6 +2915,49 @@ impl RunController {
         };
         match disposition::dispose(cause, &self.policy) {
             Disposition::RetryAfterBackoff { delay_ms, .. } => {
+                // Corrections round 1 (F6): the poll failed, so this
+                // invocation's fate is UNKNOWN — and the §11.5 rows give
+                // a re-dispatch no right to overlap a possibly-alive
+                // prior invocation (the R16-F2 hostile-child shape: a
+                // child that stays alive while its poll channel errors
+                // forever outlives its replacement unless retired). The
+                // port's own idempotent cancel (§7.3) retires the prior
+                // BEFORE the re-dispatch; a prior the runner already
+                // retired is the typed no-op. The retirement is PINNED
+                // evidence — a durable fact, never silence. (A prior
+                // observed terminal at the runner — Failed/TimedOut —
+                // takes the row-3/row-4 paths, which the runner has
+                // already retired; this arm is the unknown-fate path.)
+                let reason = CancelReason::new(
+                    "the invocation's fate is unknown; the row-2 retry must not overlap a \
+                     possibly-alive prior invocation (spec 11.5 row 2, 7.3)",
+                )
+                .expect("fixed cancellation reason");
+                let how =
+                    match self
+                        .runner
+                        .cancel(&flight.handle, reason, self.cancel_operation_bound())
+                    {
+                        Ok(()) => "cancelled",
+                        Err(AgentError::AlreadyTerminal { .. }) => "already_terminal",
+                        Err(error) => return Err(ControlError::Agent(error)),
+                    };
+                let retired = format!(
+                    "{{\"class\":\"prior_invocation_retired_before_retry\",\"run\":\"{}\",\
+                      \"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\",\"how\":\"{}\"}}",
+                    state.run.id(),
+                    state.iteration,
+                    flight.unit,
+                    flight.spec.invocation_id,
+                    how,
+                );
+                let evidence = self.evidence.put(
+                    retired.as_bytes(),
+                    EvidenceKind::Log,
+                    self.operation_bound(),
+                )?;
+                self.evidence
+                    .pin(state.run.id(), &evidence, self.operation_bound())?;
                 self.release_flight(state, flight);
                 // Virtual-time backoff: advance the clock to the retry
                 // instant — no wall-clock wait exists here.
@@ -4112,6 +4308,24 @@ impl RunController {
         Deadline::at_epoch(EpochSeconds::new(horizon))
     }
 
+    /// The bound for ONE CANCEL's blocking stop (corrections round 1, F6;
+    /// §6 preamble: bounded blocking control operations, never unbounded
+    /// ones). A cancel must not hold the loop for the run's remaining
+    /// wall horizon: the §11.4 stall window is the loop's own "how long a
+    /// quiet child gets" setting, so it is the graceful leg's bound here
+    /// too, and the backend's stop escalates past it (SIGKILL + bounded
+    /// reap) inside the same call. The deadline parameter of the port's
+    /// cancel exists to bound exactly this operation.
+    fn cancel_operation_bound(&self) -> Deadline {
+        let window = self
+            .policy
+            .stall_timeout_ms()
+            .div_ceil(MILLIS_PER_SECOND)
+            .max(1);
+        let horizon = self.clock.now().get().saturating_add(window);
+        Deadline::at_epoch(EpochSeconds::new(horizon))
+    }
+
     /// §5.3.7/§11.4 (C2): books the iteration's ONE round on the run
     /// budget — the single rounds authority. A refused booking (the next
     /// round would consume the recovery reserve, or the raw limit is
@@ -4779,6 +4993,7 @@ mod tests {
         prompts: RefCell<Vec<(gauntlet_domain::InvocationId, String)>>,
         specs: RefCell<HashMap<gauntlet_domain::InvocationId, RoleInvocationSpec>>,
         polls: RefCell<HashMap<gauntlet_domain::InvocationId, u32>>,
+        cancels: RefCell<Vec<gauntlet_domain::InvocationId>>,
         on_invoke: RefCell<Option<Box<dyn Fn()>>>,
     }
 
@@ -4789,8 +5004,15 @@ mod tests {
                 prompts: RefCell::new(Vec::new()),
                 specs: RefCell::new(HashMap::new()),
                 polls: RefCell::new(HashMap::new()),
+                cancels: RefCell::new(Vec::new()),
                 on_invoke: RefCell::new(None),
             })
+        }
+
+        /// The invocation ids whose cancel was requested, in order — the
+        /// corrections-round-1 (F6) cancel-teeth lever.
+        fn cancels(&self) -> Vec<gauntlet_domain::InvocationId> {
+            self.cancels.borrow().clone()
         }
 
         fn set_hook(&self, hook: impl Fn() + 'static) {
@@ -5014,10 +5236,13 @@ mod tests {
 
         fn cancel(
             &self,
-            _: &InvocationHandle,
+            handle: &InvocationHandle,
             _: CancelReason,
             _: Deadline,
         ) -> Result<(), AgentError> {
+            self.cancels
+                .borrow_mut()
+                .push(handle.invocation_id().clone());
             Ok(())
         }
 
@@ -6518,6 +6743,46 @@ mod tests {
         let evidence = FakeEvidence::new();
         let runner = ScriptedRunner::new(behaviors);
         compose(key, state, evidence, runner, residual_first, rounds)
+    }
+
+    /// The fixture composition with a LONG quiet window: the default
+    /// fixture policy's quiet window is so short that a still-in-flight
+    /// invocation is stall-caught on the drain's FIRST pass, which would
+    /// mask (by cancelling for a different, earlier reason) exactly the
+    /// stranded-at-terminal shape the corrections-round-1 F6 test
+    /// isolates. Sixty virtual seconds of quiet means the stall rule can
+    /// never fire inside the test's bounded drain.
+    fn fixture_composed_quiet(
+        behaviors: Vec<Behavior>,
+        units: usize,
+        rounds: u32,
+    ) -> Result<Composed, ControlError> {
+        const QUIET_WINDOW_EXTENDED: u64 = 60_000;
+        let quiet = ControlPolicy::new(
+            TICK_WINDOW,
+            QUIET_WINDOW_EXTENDED,
+            FLOOR,
+            CEILING,
+            ATTEMPT_CAP,
+            THRESHOLD,
+        )
+        .expect("the fixture control policy is usable");
+        let key = Rc::new(RefCell::new(answer_key(units)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(behaviors);
+        compose_full(
+            key,
+            state,
+            evidence,
+            runner,
+            0,
+            rounds,
+            quiet,
+            fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json"]),
+            meter_factory(),
+            None,
+        )
     }
 
     // ------------------------------------------------------------------
@@ -8272,6 +8537,73 @@ mod tests {
                 .contains("session reference session-fixture preserved"),
             "the retry prompt carries the preserved session note: {}",
             prompts[1].1
+        );
+    }
+
+    #[test]
+    fn the_transient_retry_cancels_the_prior_invocation_through_the_port() {
+        // Corrections round 1, F6: the §11.5 row-2 transient disposition
+        // retries a dispatch whose fate is UNKNOWN (the poll channel
+        // failed) — and the §11.5 rows leave a re-dispatch no right to
+        // overlap a possibly-alive prior invocation. The port's own
+        // idempotent cancel (§7.3) retires the prior BEFORE the
+        // re-dispatch. The R16-F2 hostile-child shape is exactly this: a
+        // child that stays alive while its poll channel errors forever;
+        // a retry that does not cancel the prior leaves the hostile
+        // child running beside its replacement.
+        let composed = fixture_composed(
+            vec![Behavior::PollError, Behavior::Complete],
+            0,
+            1,
+            FIXTURE_ROUNDS,
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let prompts = composed.runner.prompts.borrow().clone();
+        assert_eq!(prompts.len(), 2, "exactly one transient retry");
+        let first_invocation = prompts[0].0.clone();
+        assert!(
+            !outcome.escalation_summary.is_some(),
+            "the healthy retry settles; nothing escalates"
+        );
+        assert_eq!(
+            composed.runner.cancels(),
+            vec![first_invocation],
+            "the prior invocation was cancelled through the port before the retry"
+        );
+    }
+
+    #[test]
+    fn a_terminal_reached_with_work_in_flight_cancels_the_stranded_invocation() {
+        // Corrections round 1, F6: a terminal decided mid-drain (here the
+        // contract-mismatch abort) must leave NO runner invocation
+        // behind — the still-in-flight invocation is cancelled through
+        // the port, its Cancelled terminal event is durable, and its
+        // reservation is released. The run's end retires its own work;
+        // the port's cancel is the only mechanism that does so. The LONG
+        // quiet-window fixture keeps the §11.4 stall rule out of the
+        // way: without the terminal cleanup this stranded invocation is
+        // simply never cancelled, which is the RED this test starts
+        // from.
+        let composed = fixture_composed_quiet(
+            vec![
+                Behavior::Fail(InvocationFailure::ContractMismatch),
+                Behavior::StallForever,
+            ],
+            2,
+            FIXTURE_ROUNDS,
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Aborted);
+        let prompts = composed.runner.prompts.borrow().clone();
+        assert_eq!(prompts.len(), 2, "both units dispatched before the abort");
+        let stranded = prompts[1].0.clone();
+        assert_eq!(
+            composed.runner.cancels(),
+            vec![stranded],
+            "the invocation still in flight at the terminal was cancelled"
         );
     }
 

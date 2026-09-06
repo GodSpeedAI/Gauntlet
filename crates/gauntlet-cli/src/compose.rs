@@ -20,16 +20,20 @@
 //!   hook stays OUT of `.env.example`/Annex E lockstep on purpose (the
 //!   AK-019 instrument refuses undocumented variables; this is a
 //!   test-division hook, not operator configuration).
-//! - **Wrap caller (charter D3, R-3):** for the process-backed
-//!   `cli-agent` token the composition calls
+//! - **Wrap caller (charter D3, R-3; plan Task 25's routing):** for the
+//!   process-backed `cli-agent` token the composition calls
 //!   `AuthorityGate::admit` + `AuthorityGate::wrap_builder_command`
 //!   before any run starts, over the FIRST planned dispatch's real
 //!   facts. Under the shipped `none` backend posture the verdict is
-//!   `BuilderCommand::Unwrapped` and the run proceeds; a LIVE backend
-//!   verdict (`BuilderCommand::Sandboxed`) refuses the run HERE —
-//!   fail-closed — because routing a wrapped command through the
-//!   controller's runner seam is plan Task 25's composed E2E leg.
-//!   Never a silent unwrap (§21.3, AK-047).
+//!   `BuilderCommand::Unwrapped` and the run proceeds. Under a LIVE
+//!   backend the `BuilderCommand::Sandboxed` verdict is ROUTED, not
+//!   refused (the Task-25 leg): the composition installs the SAME
+//!   posture's sandbox + policy resolution as the runner's containment
+//!   seam, so every policy-carrying dispatch spawns the gate's wrapped
+//!   command with the sandbox as its first process (AK-048), and the
+//!   pre-composition verdict proves the posture CAN wrap before any run
+//!   starts. A wrap/admission REFUSAL still fails the composition
+//!   fail-closed. Never a silent unwrap (§21.3, AK-047).
 //! - **Deny-set wiring (R2-N1):** the critic role's typed
 //!   `context.deny` set is loaded from the installed roles and threaded
 //!   through `ComparisonDeps.role_deny` into the governed comparison
@@ -135,10 +139,6 @@ pub enum CompositionError {
     Store { detail: String },
     /// The plan preview refused (the ruler's unit graph is invalid).
     Plan { detail: String },
-    /// A LIVE backend wrap verdict refuses the run (charter D3): the
-    /// fully-composed live-containment leg is plan Task 25's E2E. The
-    /// command is never run unwrapped instead.
-    LiveContainmentDeferred { unit: String },
     /// The composition-time wrap was refused by the gate.
     WrapRefused { detail: String },
 }
@@ -166,12 +166,6 @@ impl core::fmt::Display for CompositionError {
             Self::Roles { detail } => write!(f, "the roles could not be loaded: {detail}"),
             Self::Store { detail } => write!(f, "a durable store could not be opened: {detail}"),
             Self::Plan { detail } => write!(f, "the plan preview refused: {detail}"),
-            Self::LiveContainmentDeferred { unit } => write!(
-                f,
-                "unit {unit} needs a live-sandbox wrap verdict; routing a wrapped builder \
-                 command through the composed loop is plan Task 25's leg — refusing here \
-                 rather than running unwrapped (spec 21.3, AK-047)"
-            ),
             Self::WrapRefused { detail } => {
                 write!(f, "the composition-time wrap was refused: {detail}")
             }
@@ -226,6 +220,7 @@ pub(crate) fn runner_for(
     token: &str,
     context: &RuntimeContext,
     clock: &Arc<dyn Clock>,
+    containment: Option<Arc<dyn generic_cli_runner::CommandContainment>>,
 ) -> Result<Arc<dyn AgentRunner>, CompositionError> {
     match token {
         recursive_runner::RUNNER_TOKEN => {
@@ -264,6 +259,16 @@ pub(crate) fn runner_for(
             .map_err(|error| CompositionError::RunnerConstruction {
                 detail: error.to_string(),
             })?;
+            // The task-25 wrap routing: under a live posture the SAME
+            // sandbox + policy instances the gate holds back the runner's
+            // containment seam, so the gate's Sandboxed verdict reaches
+            // the actually-spawned child (AK-048). Under the conservative
+            // `none` posture there is no seam and no policy ever rides a
+            // dispatch — the historical template-only world, unchanged.
+            let runner = match containment {
+                Some(seam) => runner.with_containment(seam),
+                None => runner,
+            };
             Ok(Arc::new(runner))
         }
         mock_runner::RUNNER_TOKEN => {
@@ -437,11 +442,13 @@ fn host_pairs() -> Vec<(String, String)> {
 /// live process-isolation posture (whose policy provider resolves tier
 /// policies from the configured policy dir). Any other token is a typed
 /// configuration failure.
-fn govern_posture(context: &RuntimeContext) -> Result<GovernDeps, CompositionError> {
+fn govern_posture(
+    context: &RuntimeContext,
+) -> Result<(GovernDeps, Option<LivePosture>), CompositionError> {
     use gauntlet_ports::sandbox::Sandbox;
     let token = context.resolved.sandbox_backend.clone();
     if token == defaults::SANDBOX_BACKEND {
-        return Ok(GovernDeps::none_backend());
+        return Ok((GovernDeps::none_backend(), None));
     }
     let binary =
         gauntlet_adapter_sandbox_bwrap::locate().ok_or_else(|| CompositionError::Store {
@@ -469,15 +476,117 @@ fn govern_posture(context: &RuntimeContext) -> Result<GovernDeps, CompositionErr
         ),
         context.state_dir().join(RUN_IO_DIR_NAME),
     );
-    GovernDeps::with_backend(
+    // The live posture exercises LEAD-AGENT authority (the §17.1
+    // ceiling): the §5.3.2 tier/authority coupling forbids critic
+    // authority on cross_cutting units outright, so a live posture that
+    // could not exercise lead-agent authority could never dispatch the
+    // tier it fronts a backend for. The conservative `none` posture keeps
+    // its critic ceiling (task-20's world, unchanged). Recorded as the
+    // task-25 operator delegation for the real-runner E2E.
+    let policies_arc: Arc<ContractDirPolicy> = Arc::new(policies);
+    let sandbox_arc: Arc<ProcessIsolationBackend> = Arc::new(backend);
+    let govern = GovernDeps::with_backend(
         &token,
-        Some(Arc::new(backend)),
-        Some(Arc::new(policies)),
-        gauntlet_domain::Authority::Critic,
+        Some(sandbox_arc.clone()),
+        Some(policies_arc.clone()),
+        gauntlet_domain::Authority::LeadAgent,
     )
     .map_err(|error| CompositionError::Store {
         detail: error.to_string(),
-    })
+    })?;
+    Ok((
+        govern,
+        Some(LivePosture {
+            token,
+            sandbox: sandbox_arc,
+            policies: policies_arc,
+        }),
+    ))
+}
+
+/// The live-backend parts the govern posture is built from, kept so the
+/// SAME sandbox and policy instances can back the runner's containment
+/// seam — one posture, one set of facts, no bypass copy.
+#[derive(Clone)]
+struct LivePosture {
+    token: String,
+    sandbox: Arc<ProcessIsolationBackend>,
+    policies: Arc<ContractDirPolicy>,
+}
+
+/// The task-25 wrap routing (deliverable 2): the containment seam the
+/// composition installs into the process-backed runner over the live
+/// posture. Every dispatch whose spec carries the gate-admitted policy
+/// ref is wrapped HERE — through the SAME policy resolution and sandbox
+/// the gate admits against, with validation re-earned at the spawn
+/// boundary (validation precedes use, spec §6.2) — so the sandbox is the
+/// FIRST process the runner starts (AK-048). A refusal from any leg is
+/// the typed `ContainmentRefusal`: the dispatch does not run, and
+/// nothing ever falls back to the unwrapped command (§21.3, AK-047).
+#[derive(Debug)]
+struct LiveContainment {
+    token: String,
+    sandbox: Arc<ProcessIsolationBackend>,
+    policies: Arc<ContractDirPolicy>,
+}
+
+impl generic_cli_runner::CommandContainment for LiveContainment {
+    fn wrap(
+        &self,
+        workspace: &gauntlet_domain::WorkspaceRef,
+        policy_ref: &gauntlet_domain::SandboxPolicyRef,
+        command: &str,
+    ) -> Result<String, generic_cli_runner::ContainmentRefusal> {
+        use gauntlet_ports::policy_provider::PolicyProvider;
+        use gauntlet_ports::sandbox::Sandbox;
+        let refused = |detail: String| {
+            generic_cli_runner::ContainmentRefusal::new(format!(
+                "the '{token}' posture refused to wrap the dispatch under policy {policy_ref}: \
+                 {detail} — not executed unwrapped (spec 21.3, AK-047)",
+                token = self.token,
+                policy_ref = policy_ref.as_str(),
+            ))
+        };
+        // Resolve the admitted policy BY REF over the dispatchable tiers
+        // (the ref the durable admission record names resolves to exactly
+        // one tier policy; the §5.3.5 top tier resolves none by design).
+        for tier in [
+            gauntlet_domain::BlastRadius::Contained,
+            gauntlet_domain::BlastRadius::Local,
+            gauntlet_domain::BlastRadius::CrossCutting,
+        ] {
+            let Ok(policy) =
+                self.policies
+                    .policy_for(tier, workspace, crate::context::doctor_bound())
+            else {
+                continue;
+            };
+            if policy.reference.as_str() != policy_ref.as_str() {
+                continue;
+            }
+            // Validation precedes use — AGAIN, at the spawn boundary: a
+            // policy that stopped validating between the gate's admission
+            // and this spawn must refuse the dispatch, never wrap stale.
+            let validation = self
+                .sandbox
+                .validate(&policy, crate::context::doctor_bound())
+                .map_err(|error| refused(error.to_string()))?;
+            let wrapped = self
+                .sandbox
+                .wrap(
+                    command,
+                    &policy,
+                    &validation,
+                    crate::context::doctor_bound(),
+                )
+                .map_err(|error| refused(error.to_string()))?;
+            return Ok(wrapped.command);
+        }
+        Err(refused(
+            "the admitted policy resolves to no dispatchable-tier policy under this posture"
+                .to_owned(),
+        ))
+    }
 }
 
 /// The state dir's per-run invocation-IO directory name — where the
@@ -490,6 +599,7 @@ pub const RUN_IO_DIR_NAME: &str = "runs";
 /// policy's writable roots (idempotently). Composition-level glue — the
 /// runtime owns the contract dir, so the runtime's composition owns the
 /// extension.
+#[derive(Debug)]
 struct ContractDirPolicy {
     inner: PolicyFs,
     contract_dir: std::path::PathBuf,
@@ -783,15 +893,27 @@ pub fn compose_run(
 
     // Runners (D2): the builder dispatches through the default token; the
     // critic dispatches through `runners.by_role.critic` when configured,
-    // falling back to the same default.
+    // falling back to the same default. The govern posture is composed
+    // FIRST: a live backend backs the process-backed runner's containment
+    // seam (the task-25 wrap routing) from the SAME sandbox + policy
+    // instances the gate holds.
+    let (govern, live_posture) = govern_posture(context)?;
+    let containment: Option<Arc<dyn generic_cli_runner::CommandContainment>> =
+        live_posture.as_ref().map(|posture| {
+            Arc::new(LiveContainment {
+                token: posture.token.clone(),
+                sandbox: posture.sandbox.clone(),
+                policies: posture.policies.clone(),
+            }) as Arc<dyn generic_cli_runner::CommandContainment>
+        });
     let critic_token = context
         .resolved
         .runners_by_role
         .get("critic")
         .map(|role| role.runner.clone())
         .unwrap_or_else(|| token.clone());
-    let builder_runner = runner_for(&token, context, &clock)?;
-    let critic_runner = runner_for(&critic_token, context, &clock)?;
+    let builder_runner = runner_for(&token, context, &clock, containment.clone())?;
+    let critic_runner = runner_for(&critic_token, context, &clock, containment)?;
     let runner_isolation = builder_runner.capabilities().isolation;
 
     // Observation.
@@ -916,10 +1038,12 @@ pub fn compose_run(
         config_fingerprint: gauntlet_app::config::fingerprint::config_fingerprint(
             &context.effective,
         ),
-        // R-3 / D3: the wrap caller runs BEFORE any dispatch when the
-        // process-backed token is selected — after this composition
-        // point, before the controller's first invocation.
-        govern: wrap_checked_posture(context, &token, runner_isolation)?,
+        // R-3 / D3 / plan Task 25: the wrap caller runs BEFORE any
+        // dispatch when the process-backed token is selected — after this
+        // composition point, before the controller's first invocation. A
+        // LIVE `Sandboxed` verdict is ROUTED (the containment seam is
+        // already installed on the runner); only a refusal stops the run.
+        govern: wrap_checked_posture(context, &token, runner_isolation, govern)?,
         workspaces: Some(Arc::new(workspaces)),
         environment_fingerprint: environment_fingerprint(),
         intent: intent.to_owned(),
@@ -953,14 +1077,18 @@ fn environment_fingerprint() -> gauntlet_domain::Digest {
 /// The D3 wrap caller (module docs): admits the run's FIRST builder
 /// dispatch shape and routes through the wrap verdict BEFORE any run
 /// starts. Under the shipped none posture this is the composition-level
-/// `BuilderCommand::Unwrapped` leg; a live-backend `Sandboxed` verdict
-/// refuses the run (recorded for plan Task 25), never unwraps.
+/// `BuilderCommand::Unwrapped` leg. Under a live backend the
+/// `BuilderCommand::Sandboxed` verdict is the task-25 ROUTING proof — the
+/// posture CAN wrap, and the seam that wraps the first dispatch wraps
+/// every dispatch — so the run proceeds; only a typed refusal (an
+/// unadmittable dispatch shape, a failed validation, an unusable backend)
+/// fails the composition, fail-closed, never unwrapped (§21.3, AK-047).
 fn wrap_checked_posture(
     context: &RuntimeContext,
     token: &str,
     runner_isolation: gauntlet_ports::agent_runner::Isolation,
+    govern: GovernDeps,
 ) -> Result<GovernDeps, CompositionError> {
-    let govern = govern_posture(context)?;
     if token != generic_cli_runner::RUNNER_TOKEN {
         // The wrap caller fronts the process-backed token only (D3).
         return Ok(govern);
@@ -1001,11 +1129,12 @@ fn wrap_checked_posture(
     let command = std::env::var(generic_cli_runner::COMMAND_ENV_VAR).unwrap_or_default();
     match gate.wrap_builder_command(&govern, &admission, &command, deadline) {
         Ok(gauntlet_app::govern::BuilderCommand::Unwrapped { .. }) => Ok(govern),
-        Ok(gauntlet_app::govern::BuilderCommand::Sandboxed(_)) => {
-            Err(CompositionError::LiveContainmentDeferred {
-                unit: unit.id().to_string(),
-            })
-        }
+        // The task-25 routing: the verdict is `Sandboxed` — the posture
+        // wraps, the runner's installed containment seam performs the
+        // same wrap per dispatch, and the run proceeds. Refusing here was
+        // the recorded task-20 deferral; retiring that deferral IS this
+        // task's production correction.
+        Ok(gauntlet_app::govern::BuilderCommand::Sandboxed(_)) => Ok(govern),
         Err(refusal) => Err(CompositionError::WrapRefused {
             detail: refusal.to_string(),
         }),

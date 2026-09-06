@@ -471,8 +471,15 @@ impl GateRefusal {
                  escalating before any transform (spec 17.1)"
             ),
             Self::LatticeMovementRefused { movement } => match movement {
-                LatticeMovement::Refused { rule, .. } => {
-                    format!("lattice movement refused: {rule}")
+                // F2-2 (falsifier round 2, COR-3): the summary is
+                // UNIT-BEARING. It was the only unit-free variant, so two
+                // units refused by the same rule minted byte-identical
+                // ticket summaries and the queue's (run, summary) dedup
+                // re-affirmed the first unit's ticket with the second
+                // unit's fact — a dropped hard residual. The unit rides
+                // the summary like every other refusal arm's.
+                LatticeMovement::Refused { unit, rule, .. } => {
+                    format!("lattice movement refused: {rule} — unit {unit}")
                 }
                 LatticeMovement::Allowed => unreachable!("checked by unit()"),
             },
@@ -1081,6 +1088,56 @@ mod tests {
             refusal.summary().contains("agent role"),
             "the recorded event names the AK-046 rule: {}",
             refusal.summary()
+        );
+    }
+
+    /// F2-2 (falsifier round 2, MINOR+ — COR-3): every escalation summary
+    /// the composed loop mints is UNIT-BEARING. `LatticeMovementRefused`
+    /// was the only [`GateRefusal`] variant whose summary dropped the unit,
+    /// so two units refused by the SAME lattice rule in one run minted
+    /// BYTE-IDENTICAL ticket summaries — and the queue's per-(run, summary)
+    /// dedup then re-affirmed the first unit's ticket with the second
+    /// unit's fact, dropping the second hard residual (the falsifier's
+    /// A4-P1 collision probe executed the mechanism live). RED under the
+    /// shipped producer; GREEN once the summary names its unit. The mint
+    /// expression below is the controller's exact ticket-summary mint
+    /// (`record_gate_refusal`, `control/controller.rs`) wrapping
+    /// `summary()` verbatim — the defect lived in the producer, so the
+    /// regression binds the producer's content through the real mint.
+    #[test]
+    fn a_lattice_refusal_summary_is_unit_bearing_two_units_same_rule_mint_two_facts() {
+        let mint = |refusal: &GateRefusal| {
+            format!(
+                "dispatch refused by the governance gate: {}",
+                refusal.summary()
+            )
+        };
+        let rule = "the dispatch facts may not rank below the recorded facts (AK-046)";
+        let unit_a = unit(1);
+        let unit_b = unit(2);
+        let refusal_for = |unit: UnitId| GateRefusal::LatticeMovementRefused {
+            movement: LatticeMovement::Refused {
+                unit,
+                blast_movement: Some((BlastRadius::Local, BlastRadius::Contained)),
+                authority_movement: Some((Authority::LeadAgent, Authority::Critic)),
+                rule,
+            },
+        };
+        let summary_a = mint(&refusal_for(unit_a.clone()));
+        let summary_b = mint(&refusal_for(unit_b));
+        assert_ne!(
+            summary_a, summary_b,
+            "two units refused by the same rule mint TWO facts — distinct ticket \
+             summaries, never one shared fact colliding into one ticket: {summary_a:?}"
+        );
+        assert!(
+            summary_a.contains(&unit_a.to_string()),
+            "the first unit's minted summary names its own unit: {summary_a:?}"
+        );
+        let unit_b = unit(2);
+        assert!(
+            summary_b.contains(&unit_b.to_string()),
+            "the second unit's minted summary names its own unit: {summary_b:?}"
         );
     }
 

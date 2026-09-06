@@ -5,10 +5,13 @@
 //! the exact domain invocation after runner admission and accepts a comparison
 //! only after the adapter has completed those checks.
 
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use gauntlet_domain::{
-    BlastRadius, EpochSeconds, RoleInvocation, RoleInvocationDefinition, RunnerIdentity,
+    BlastRadius, EpochSeconds, InvocationId, RoleInvocation, RoleInvocationDefinition,
+    RunnerIdentity,
 };
 use gauntlet_ports::agent_runner::{
     AgentError, AgentRunner, CancelReason, InvocationHandle, InvocationStatus, RoleInvocationSpec,
@@ -22,6 +25,16 @@ use gauntlet_ports::state_store::{RunEvent, RunEventKind, StateStore};
 /// The runner injected into a model comparator at the application composition
 /// boundary. It never permits polling of a child whose admitted aggregate was
 /// not made durable.
+///
+/// The tier channel (corrections round 1, F3): the durable role_invocation
+/// record's `tier` field must state the dispatch's REAL tier, never a
+/// hardcoded default. The dispatch facts live with the caller that knows the
+/// unit's tier at admission time (the gate admission), so the channel is a
+/// typed per-invocation registration consumed exactly once, at the durable
+/// record's construction. The [`AgentRunner`] port itself is NOT widened:
+/// the port's specs carry no tier and stay that way. Single-threaded loop
+/// posture (`RefCell` interior, the composed controller's own recorded
+/// posture).
 #[derive(Clone)]
 pub struct RecordingAgentRunner {
     inner: Arc<dyn AgentRunner>,
@@ -29,6 +42,7 @@ pub struct RecordingAgentRunner {
     evidence: Arc<dyn EvidenceStore>,
     runner_identity: RunnerIdentity,
     admitted_at: EpochSeconds,
+    dispatch_tiers: RefCell<BTreeMap<InvocationId, BlastRadius>>,
 }
 
 impl RecordingAgentRunner {
@@ -45,7 +59,16 @@ impl RecordingAgentRunner {
             evidence,
             runner_identity,
             admitted_at,
+            dispatch_tiers: RefCell::new(BTreeMap::new()),
         }
+    }
+
+    /// Records the dispatch's tier fact — the tier the gate admitted the
+    /// unit at — for the invocation about to be dispatched. Consumed by
+    /// the durable record's construction ([`Self::admitted`]); a fact the
+    /// caller knows at admission time, typed end to end.
+    pub fn record_dispatch_tier(&self, invocation_id: InvocationId, tier: BlastRadius) {
+        self.dispatch_tiers.borrow_mut().insert(invocation_id, tier);
     }
 
     /// The acceptance port to inject into `ModelComparator` alongside this
@@ -69,6 +92,29 @@ impl RecordingAgentRunner {
                 ),
             });
         }
+        // The dispatch's REAL tier (corrections round 1, F3): the fact the
+        // admitting composition recorded, consumed exactly once here. A
+        // no-policy dispatch is the §5.3.5-legal shape ONLY at the
+        // contained tier under the conservative no-backend posture, so an
+        // absent tier fact there is that dispatch and no other. A
+        // policy-carrying dispatch whose tier fact never arrived is a
+        // composition defect: the record must not guess — the admission
+        // is refused and the child is cancelled for recovery by the
+        // invoke path's existing persistence-failure arm.
+        let tier = match self.dispatch_tiers.borrow_mut().remove(&spec.invocation_id) {
+            Some(tier) => tier,
+            None if spec.sandbox_policy.is_none() => BlastRadius::Contained,
+            None => {
+                return Err(AgentError::AdmissionRefused {
+                    detail: format!(
+                        "no dispatch tier fact was recorded for policy-carrying invocation {} — \
+                         the admitting composition must record the gate-admitted tier before \
+                         the dispatch (the durable record must not guess a tier)",
+                        spec.invocation_id
+                    ),
+                });
+            }
+        };
         RoleInvocation::admit(RoleInvocationDefinition {
             id: spec.invocation_id.clone(),
             run_id: spec.run_id.clone(),
@@ -79,7 +125,7 @@ impl RecordingAgentRunner {
             permissions: spec.permissions.clone(),
             context_envelope_digest: spec.context_envelope.digest().clone(),
             workspace_ref: spec.workspace.clone(),
-            tier: BlastRadius::Contained,
+            tier,
             sandbox_policy_ref: spec.sandbox_policy.clone(),
             result_contract_path: spec.result_contract_path.clone(),
             admitted_at: Some(self.admitted_at),

@@ -63,6 +63,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -79,6 +80,77 @@ use crate::config::CliAgentConfig;
 use crate::prompt::render_prompt;
 use crate::template::{Template, TemplateValues, render as render_argv};
 use crate::transport::{ProcessSpec, ProcessTransport};
+
+/// Why the containment seam refused to wrap a dispatch (plan Task 25).
+/// Every refusal means the dispatch MUST NOT run — the runner maps it to
+/// a typed admission refusal, never an unwrapped execution (§21.3,
+/// AK-047).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContainmentRefusal {
+    detail: String,
+}
+
+impl ContainmentRefusal {
+    pub fn new(detail: impl Into<String>) -> Self {
+        Self {
+            detail: detail.into(),
+        }
+    }
+}
+
+impl fmt::Display for ContainmentRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.detail)
+    }
+}
+
+impl std::error::Error for ContainmentRefusal {}
+
+/// The containment wrap seam (plan Task 25; spec §17.5.4, AK-048): the
+/// ONE channel through which a dispatch's admitted sandbox policy becomes
+/// the command actually executed. Installed by the composition root when
+/// the posture fronts a LIVE sandbox backend; never set otherwise.
+///
+/// R-2 posture re-adjudication (recorded for the operator): this adapter
+/// historically consumed ONLY a command template and reported
+/// `isolation: none`. With the seam installed, a dispatch whose spec
+/// carries a live-backend policy ref is WRAPPED through this seam — the
+/// wrapped command's FIRST process is the sandbox — and the runner
+/// honestly reports `Isolation::Process`, derived from that
+/// configuration exactly the way `supports_model_selection` derives from
+/// the template. A dispatch carrying a policy with NO seam installed is
+/// a typed admission refusal: fail-closed, never an unwrapped run.
+pub trait CommandContainment: fmt::Debug + Send + Sync {
+    /// Wraps ONE rendered child command for ONE admitted dispatch under
+    /// the policy the gate admitted (`policy` — the ref the controller's
+    /// durable admission record names). Returns the ONE shell-invocable
+    /// command to execute, or a typed refusal. There is no arm that means
+    /// "run it unwrapped instead" — that arm is the unsandboxed fallback
+    /// AK-047 forbids.
+    fn wrap(
+        &self,
+        workspace: &gauntlet_domain::WorkspaceRef,
+        policy: &gauntlet_domain::SandboxPolicyRef,
+        command: &str,
+    ) -> Result<String, ContainmentRefusal>;
+}
+
+/// POSIX single-word quoting: the rendered argv words must survive ONE
+/// shell evaluation round-trip exactly (the wrapped command string is
+/// evaluated by the sandbox's own `sh -c` payload). Single quotes with
+/// the standard `'\' escape keep every byte verbatim.
+fn shell_word(word: &str) -> String {
+    format!("'{}'", word.replace('\'', "'\\''"))
+}
+
+/// Joins rendered argv words into ONE shell command string — the input
+/// shape the gate's wrap (and every `SandboxedCommand`) is defined over.
+fn shell_join(argv: &[String]) -> String {
+    argv.iter()
+        .map(|word| shell_word(word))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 /// One admitted invocation's live state.
 struct CliEntry {
@@ -242,6 +314,11 @@ pub struct CliAgentRunner<T: ProcessTransport> {
     workspace_root: PathBuf,
     transport: T,
     clock: Arc<dyn Clock>,
+    /// The containment wrap seam (plan Task 25), installed by the
+    /// composition root exactly when the posture fronts a LIVE sandbox
+    /// backend. `None` is the historical template-only posture (§8.6's
+    /// conservative world, whose dispatches carry no policy).
+    containment: Option<Arc<dyn CommandContainment>>,
     entries: RefCell<HashMap<InvocationId, CliEntry>>,
 }
 
@@ -265,8 +342,18 @@ impl<T: ProcessTransport> CliAgentRunner<T> {
             workspace_root,
             transport,
             clock,
+            containment: None,
             entries: RefCell::new(HashMap::new()),
         })
+    }
+
+    /// Installs the containment wrap seam (plan Task 25). The composition
+    /// root calls this exactly when its posture fronts a LIVE sandbox
+    /// backend; the same posture's wrap then routes into every spawned
+    /// child. Builder-style: `CliAgentRunner::new(...)?.with_containment(..)`.
+    pub fn with_containment(mut self, containment: Arc<dyn CommandContainment>) -> Self {
+        self.containment = Some(containment);
+        self
     }
 
     /// The configured runner capabilities' source configuration.
@@ -440,6 +527,39 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
         .map_err(|error| AgentError::AdmissionRefused {
             detail: format!("the configured command template refused this dispatch: {error}"),
         })?;
+        // THE CONTAINMENT WRAP (plan Task 25, AK-048): between admission
+        // and process start, a dispatch the gate admitted WITH a live
+        // sandbox policy spawns the gate's wrapped command — the sandbox
+        // is the FIRST process — and one without a seam installed is a
+        // typed refusal, never an unwrapped run (§21.3, AK-047). A
+        // no-policy dispatch (the §8.6 contained/no-backend shape) spawns
+        // the rendered argv verbatim, exactly as before this seam
+        // existed. The wrap runs BEFORE any filesystem effect: a refusal
+        // leaves nothing behind (fail-closed at admission).
+        let spawn_argv = match (&self.containment, spec.sandbox_policy.as_ref()) {
+            (Some(containment), Some(policy_ref)) => {
+                let command = shell_join(&argv);
+                let wrapped = containment
+                    .wrap(&spec.workspace, policy_ref, &command)
+                    .map_err(|error| AgentError::AdmissionRefused {
+                        detail: format!(
+                            "the containment wrap refused this dispatch: {error} — not \
+                             executed unwrapped (spec 21.3, AK-047)"
+                        ),
+                    })?;
+                vec![crate::WRAPPED_SHELL.to_owned(), "-c".to_owned(), wrapped]
+            }
+            (None, Some(policy_ref)) => {
+                return Err(AgentError::AdmissionRefused {
+                    detail: format!(
+                        "the dispatch carries the admitted sandbox policy {policy_ref} but \
+                         this runner has no containment seam installed — refusing to run it \
+                         unwrapped (spec 21.3, AK-047)"
+                    ),
+                });
+            }
+            (_, None) => argv,
+        };
         // §10.3 rule 1: the invocation directory, the envelope BODY
         // sibling (RES-D2), and the prompt file (§10.3 rule 1's prompt
         // channel).
@@ -467,15 +587,15 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
         .map_err(|error| AgentError::AdmissionRefused {
             detail: format!("the prompt file for {invocation_id} could not be written ({error})"),
         })?;
-        // SPAWN: the child gets the rendered argv, the ADMITTED PER-UNIT
-        // workspace as its cwd, and the environment channel (parent env
-        // verbatim + GAUNTLET_RESULT_PATH, RES-D3). A spawn failure is the
-        // port's Transport class (the environment may be fixable and the
-        // dispatch retryable).
+        // SPAWN: the child gets the (possibly wrapped) argv, the ADMITTED
+        // PER-UNIT workspace as its cwd, and the environment channel
+        // (parent env verbatim + GAUNTLET_RESULT_PATH, RES-D3). A spawn
+        // failure is the port's Transport class (the environment may be
+        // fixable and the dispatch retryable).
         let child = self
             .transport
             .spawn(&ProcessSpec {
-                argv,
+                argv: spawn_argv,
                 cwd: execution_root,
                 result_path: files.contract_file.to_string_lossy().into_owned(),
             })
@@ -668,18 +788,26 @@ impl<T: ProcessTransport> AgentRunner for CliAgentRunner<T> {
     }
 
     fn capabilities(&self) -> RunnerCapabilities {
-        // Honest by construction (§7.3, RES-D7): no containment — the
-        // child runs with this process's permissions and external
-        // wrapping is the Sandbox port's job; file delivery — the
+        // Honest by construction (§7.3, RES-D7): file delivery — the
         // contract is the file; no native subagents — this adapter spawns
         // exactly one child and no more; model selection is a capability
-        // ONLY when the configured template actually uses {model};
-        // depth is the configured value.
+        // ONLY when the configured template actually uses {model}; depth
+        // is the configured value. The isolation rung is DERIVED from the
+        // composition, never aspirational: with the containment seam
+        // installed every policy-carrying child starts INSIDE the sandbox
+        // (its first process — plan Task 25, AK-048), which is the
+        // process-isolation rung; without the seam the child runs with
+        // this process's permissions (isolation none), exactly as the
+        // §8.6 conservative posture assumes.
         RunnerCapabilities {
             supports_native_subagents: false,
             supports_streaming_events: false,
             supports_model_selection: self.template.uses_model(),
-            isolation: Isolation::None,
+            isolation: if self.containment.is_some() {
+                Isolation::Process
+            } else {
+                Isolation::None
+            },
             result_delivery: ResultDelivery::File,
             max_depth: self.config.max_depth,
         }

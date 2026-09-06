@@ -16,16 +16,23 @@
 //! - `implemented-and-proven` — a durable settlement row for the unit AND a
 //!   durable verification record whose ref is the settlement's and whose
 //!   outcome is PASS. The pair is the proof; either half alone is not.
-//! - `provisional` — recorded attempt without recorded proof: a settlement
+//! - `provisional` — recorded work without recorded proof: a settlement
 //!   row with no durable PASS record carrying its ref (missing evidence is
 //!   not passing evidence); a FAIL or INCONCLUSIVE verification record; a
 //!   PASS record no settlement commits; a checkpoint projection of
-//!   `in_progress`; or a checkpoint projection of `settled` with no
-//!   settlement row (the projection's claim never outruns the durable row).
+//!   `in_progress`; a checkpoint projection of `settled` with no
+//!   settlement row (the projection's claim never outruns the durable row)
+//!   — and, since corrections round 2 (F-R4), a unit whose dispatch
+//!   ATTEMPTS the records show (the run's `unit_dispatch` /
+//!   `invocation_terminal` events): an attempted unit is never described
+//!   as never-attempted, and its basis names the attempt disposition the
+//!   records hold (attempted-and-timed-out, attempted-and-failed,
+//!   attempted-and-open, …).
 //! - `blocked` — the latest durable checkpoint projects the unit `blocked`
 //!   (units never dispatched because of budget or governance land here).
-//! - `configured-but-untested` — the checkpoint names the unit `open`:
-//!   configured into the run, never attempted on record.
+//! - `configured-but-untested` — the checkpoint names the unit `open` AND
+//!   no dispatch attempt for it is on record: configured into the run,
+//!   the durable record holds no invocation for it.
 //! - `proposed` — capability-scope only: the caller's manifest declares the
 //!   capability not wired. The report never upgrades the declaration.
 //! - `unknown` — the caller's manifest binds a unit that NO durable record
@@ -69,10 +76,12 @@
 
 use core::fmt;
 
-use gauntlet_domain::{Outcome, RunId, SettlementRecord, TerminalState, UnitId, UnitStatus};
+use gauntlet_domain::{
+    InvocationState, Outcome, RunId, SettlementRecord, TerminalState, UnitId, UnitStatus,
+};
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::json::JsonValue;
-use gauntlet_ports::state_store::{StateStore, StateStoreError};
+use gauntlet_ports::state_store::{RunLifecycleFacts, StateStore, StateStoreError};
 use gauntlet_ports::verification_record::VerificationRecordDoc;
 
 /// The six §26 categories, in report order. The tokens are the plan Task 20
@@ -402,6 +411,15 @@ pub fn build_report(
         .into_iter()
         .filter(|record| record.run_id() == run_id)
         .collect();
+    // The run's lifecycle facts (corrections round 2, F-R4): the
+    // unit-attributed dispatches, the invocation terminals, and the run's
+    // own recorded terminals — the records the attempt-honest
+    // classification and the REAL terminal are derived from. A store that
+    // does not implement the read fails closed here, exactly like the
+    // settlement/verification reads: a report that could not see the
+    // attempts must not render, because a rendered report that could not
+    // see them would call attempted units never-attempted.
+    let lifecycle: RunLifecycleFacts = store.run_lifecycle_facts(run_id, deadline)?;
 
     // The unit universe: every id the durable records name. Sorted — the
     // report is a function of the records, not of the store's hand-over
@@ -441,7 +459,10 @@ pub fn build_report(
             .iter()
             .filter(|record| record.unit_id() == unit)
             .collect();
-        let (category, basis) = classify_unit(status, settlement, &records);
+        // The unit's own attempt facts, from the lifecycle records (F-R4):
+        // how many dispatches, and the LATEST dispatch's recorded terminal.
+        let attempts = attempt_summary(unit, &lifecycle);
+        let (category, basis) = classify_unit(status, settlement, &records, attempts.as_ref());
         // Out-of-scope units that were never attempted are surfaced
         // separately; recorded activity keeps the classified category (the
         // projection never hides activity).
@@ -473,19 +494,93 @@ pub fn build_report(
     Ok(RunReport {
         run_id: run_id.clone(),
         run_present: run.is_some(),
-        terminal_state: run.as_ref().and_then(|run| run.terminal_state()),
+        // The run's REAL terminal (F-R4): the latest recorded `RunTerminal`
+        // event — the append-only log the runtime seals every pass with —
+        // and, for a store whose run aggregate carries the terminal
+        // itself, that aggregate. A run with neither on record has no
+        // terminal to report; the field stays null rather than guessing.
+        terminal_state: lifecycle
+            .run_terminals
+            .last()
+            .copied()
+            .or_else(|| run.as_ref().and_then(|run| run.terminal_state())),
         units,
         capabilities,
         out_of_scope,
     })
 }
 
+/// One unit's dispatch-attempt facts, from the lifecycle records (F-R4):
+/// the count of unit-attributed dispatches and the LATEST dispatch's
+/// recorded terminal (`None` when the latest dispatch has no terminal on
+/// record — attempted and still open). `None` altogether when the run
+/// never dispatched the unit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AttemptSummary {
+    dispatches: usize,
+    latest_terminal: Option<InvocationState>,
+}
+
+fn attempt_summary(unit: &UnitId, lifecycle: &RunLifecycleFacts) -> Option<AttemptSummary> {
+    let own: Vec<&gauntlet_domain::InvocationId> = lifecycle
+        .unit_dispatches
+        .iter()
+        .filter(|(candidate, _)| candidate == unit)
+        .map(|(_, invocation)| invocation)
+        .collect();
+    let latest = own.last()?;
+    let latest_terminal = lifecycle
+        .invocation_terminals
+        .iter()
+        .rev()
+        .find(|(invocation, _)| invocation == *latest)
+        .map(|(_, state)| *state);
+    Some(AttemptSummary {
+        dispatches: own.len(),
+        latest_terminal,
+    })
+}
+
+/// The attempt disposition token + citation for an attempted unit's
+/// basis (F-R4): the lead token names the LATEST dispatch's recorded
+/// terminal — `attempted-and-timed-out`, `attempted-and-failed`,
+/// `attempted-and-completed` (completed without proof), `attempted-and-
+/// cancelled` — or `attempted-and-open` when no terminal is on record.
+fn attempt_basis(summary: &AttemptSummary) -> String {
+    let plural = if summary.dispatches == 1 {
+        "dispatch"
+    } else {
+        "dispatches"
+    };
+    match summary.latest_terminal {
+        Some(state @ (InvocationState::Admitted | InvocationState::Running)) => format!(
+            "attempted-and-open: {} {plural} on record, the latest recorded as {} with no \
+             terminal",
+            summary.dispatches,
+            state.wire()
+        ),
+        Some(state) => format!(
+            "attempted-and-{}: {} {plural} on record, the latest invocation terminal is {}",
+            state.wire().replace('_', "-"),
+            summary.dispatches,
+            state.wire()
+        ),
+        None => format!(
+            "attempted-and-open: {} {plural} on record, the latest with no recorded terminal",
+            summary.dispatches
+        ),
+    }
+}
+
 /// The run-scope classification for one unit, from its records. See the
-/// module docs for the rules and their precedence.
+/// module docs for the rules and their precedence. `attempts` carries the
+/// unit's dispatch facts from the lifecycle records (F-R4): present, the
+/// unit is ATTEMPTED — recorded work, never described as never-attempted.
 fn classify_unit(
     status: Option<UnitStatus>,
     settlement: Option<&SettlementRecord>,
     records: &[&VerificationRecordDoc],
+    attempts: Option<&AttemptSummary>,
 ) -> (StatusCategory, String) {
     // 1. The proof pair: settlement row + the durable PASS record it names.
     if let Some(row) = settlement {
@@ -504,9 +599,13 @@ fn classify_unit(
         }
     }
     // 2. The run's actual recorded decision: blocked. An INCONCLUSIVE-blocked
-    // unit lands here — the status the run recorded decides.
+    // unit lands here — the status the run recorded decides. Attempt facts
+    // still surface in the basis when the run dispatched before blocking.
     if status == Some(UnitStatus::Blocked) {
         let mut basis = "the latest checkpoint projects blocked".to_owned();
+        if let Some(summary) = attempts {
+            basis.push_str(&format!("; {}", attempt_basis(summary)));
+        }
         if let Some(row) = settlement {
             basis.push_str(&format!(
                 "; a settlement row names verification {} without a durable PASS record, which cannot upgrade the recorded status",
@@ -515,8 +614,15 @@ fn classify_unit(
         }
         return (StatusCategory::Blocked, basis);
     }
-    // 3. Recorded attempt without recorded proof.
+    // 3. Recorded work without recorded proof.
     let mut reasons: Vec<String> = Vec::new();
+    // The attempt facts LEAD the reasons (F-R4): a unit with dispatches on
+    // record is attempted — attempted-and-timed-out / attempted-and-failed /
+    // attempted-and-completed / attempted-and-open, from the records — and
+    // is provisional until a settlement commits proof.
+    if let Some(summary) = attempts {
+        reasons.push(attempt_basis(summary));
+    }
     if let Some(row) = settlement {
         reasons.push(format!(
             "settlement row names verification {} but no durable PASS record carries that ref",
@@ -549,10 +655,15 @@ fn classify_unit(
     if !reasons.is_empty() {
         return (StatusCategory::Provisional, reasons.join("; "));
     }
-    // 4. Named by the run, never attempted on record.
+    // 4. Named by the run, never dispatched: the checkpoint names the unit
+    // open and the lifecycle records hold no dispatch for it. The basis
+    // says exactly what the records say — no more, no less (F-R4: the
+    // report never claims "never attempted" without having read the
+    // attempt records).
     (
         StatusCategory::ConfiguredButUntested,
-        "the latest checkpoint names the unit open — configured into the run, never attempted on record"
+        "the latest checkpoint names the unit open; no dispatch attempt for this unit is on \
+         record"
             .to_owned(),
     )
 }

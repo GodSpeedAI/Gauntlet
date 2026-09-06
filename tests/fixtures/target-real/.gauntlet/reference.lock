@@ -1,0 +1,13 @@
+{
+  "answer_key_path": ".wayfinder/answer-key.md",
+  "answer_key_digest": "sha256:5295e0215f0c228179378d501ef7edf0ef72bab09abaa28eb49c73714c799e81",
+  "manifest_path": ".wayfinder/reference.yaml",
+  "manifest_digest": "sha256:d36fc22baf863639e8fc1dc41bb961f852f190c8028177f2270d23b85a9325fe",
+  "algo": "sha256",
+  "frozen_at": "2026-09-05T00:00:00Z",
+  "spec_source": "src/gadget.rs",
+  "spec_annex": "E2E real-runner fixture target answer key (AK-951..AK-954)",
+  "unit_count": 4,
+  "digest_tool": "scripts/reference-digest.sh",
+  "note": "Fixture freeze record for the task-25 real-runner E2E (e2e_full_loop_real_runner / e2e_recovery / e2e_budget). Committed as part of the fixture; the E2E never writes here. The digests are the scripts/reference-digest.sh normalization over the two frozen artifacts. Re-frozen by corrections round 1 (F8): the `local` tier joined the fixture as AK-954 — the repo ruler was never touched."
+}

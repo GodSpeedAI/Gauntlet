@@ -12,7 +12,9 @@ use gauntlet_domain::{
 };
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::json;
-use gauntlet_ports::state_store::{Checkpoint, RunEvent, StateStore, StateStoreError};
+use gauntlet_ports::state_store::{
+    Checkpoint, RunEvent, RunLifecycleFacts, StateStore, StateStoreError,
+};
 use gauntlet_ports::verification_record::{
     RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
 };
@@ -130,13 +132,17 @@ fn settlement(unit_token: &str, vrf: &str, evd: &str) -> SettlementRecord {
 
 /// A read-only scripted store. When `reversed` is set, the settlement and
 /// verification rows are handed over in reverse order — adapters differ;
-/// the report must not.
+/// the report must not. `facts` scripts the run's lifecycle records
+/// (corrections round 2, F-R4): the unit-attributed dispatches, the
+/// invocation terminals, and the run's own recorded terminals the
+/// attempt-honest classification and the real terminal derive from.
 #[derive(Clone)]
 struct ScriptedStore {
     run: Option<Run>,
     checkpoint: Option<Checkpoint>,
     settlements: Vec<SettlementRecord>,
     verifications: Vec<VerificationRecordDoc>,
+    facts: RunLifecycleFacts,
     reversed: bool,
 }
 
@@ -201,6 +207,14 @@ impl StateStore for ScriptedStore {
         Ok(rows)
     }
 
+    fn run_lifecycle_facts(
+        &self,
+        _run_id: &RunId,
+        _deadline: Deadline,
+    ) -> Result<RunLifecycleFacts, StateStoreError> {
+        Ok(self.facts.clone())
+    }
+
     fn export_jsonl(
         &self,
         _run_id: &RunId,
@@ -240,6 +254,7 @@ fn categories_populate_from_records() {
             verification("vrf-000002", "AK-002", Outcome::Inconclusive),
         ],
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let report = build_report(&store, &run_id(), &[], bound()).expect("the report builds");
     assert_eq!(report.count(StatusCategory::ImplementedAndProven), 1);
@@ -278,6 +293,7 @@ fn removing_the_settlement_record_moves_the_unit_out_of_implemented_and_proven()
         settlements: Vec::new(),
         verifications: vec![verification("vrf-000001", "AK-001", Outcome::Pass)],
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let report = build_report(&store, &run_id(), &[], bound()).expect("the report builds");
     assert_eq!(
@@ -309,6 +325,7 @@ fn blocked_and_unknown_are_record_driven() {
         settlements: Vec::new(),
         verifications: Vec::new(),
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let report =
         build_report(&blocked_projection, &run_id(), &[], bound()).expect("the report builds");
@@ -360,6 +377,7 @@ fn the_machine_rendering_is_deterministic_and_order_independent() {
         settlements: vec![settlement("AK-001", "vrf-000001", "evd-000001")],
         verifications: vec![verification("vrf-000001", "AK-001", Outcome::Pass)],
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let reversed = ScriptedStore {
         run: forward.run.clone(),
@@ -376,6 +394,7 @@ fn the_machine_rendering_is_deterministic_and_order_independent() {
             rows
         },
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let first = build_report(&forward, &run_id(), &[], bound()).expect("builds");
     let second = build_report(&forward, &run_id(), &[], bound()).expect("builds again");
@@ -416,6 +435,7 @@ fn an_all_empty_store_populates_nothing() {
         settlements: Vec::new(),
         verifications: Vec::new(),
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let report = build_report(&store, &run_id(), &[], bound()).expect("the report builds");
     for category in StatusCategory::ALL {
@@ -471,6 +491,7 @@ fn a_settlement_without_a_durable_pass_record_is_never_proven() {
         settlements: vec![settlement("AK-001", "vrf-000001", "evd-000001")],
         verifications: Vec::new(),
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let report = build_report(&store, &run_id(), &[], bound()).expect("the report builds");
     assert_eq!(report.count(StatusCategory::ImplementedAndProven), 0);
@@ -492,6 +513,7 @@ fn an_inconclusive_record_is_provisional_never_proven() {
         settlements: Vec::new(),
         verifications: vec![verification("vrf-000002", "AK-002", Outcome::Inconclusive)],
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let report = build_report(&store, &run_id(), &[], bound()).expect("the report builds");
     assert_eq!(report.count(StatusCategory::ImplementedAndProven), 0);
@@ -515,6 +537,7 @@ fn capability_rows_follow_the_manifest_and_the_records() {
         settlements: vec![settlement("AK-001", "vrf-000001", "evd-000001")],
         verifications: vec![verification("vrf-000001", "AK-001", Outcome::Pass)],
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let manifest = vec![
         manifest_entry("run", true, Some("AK-001")),
@@ -558,6 +581,7 @@ fn capability_rows_follow_the_manifest_and_the_records() {
         )],
         verifications: Vec::new(),
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let report = build_report(&foreign, &run_id(), &[], bound()).expect("the report builds");
     assert_eq!(
@@ -581,6 +605,7 @@ fn duplicate_manifest_keys_are_a_typed_error() {
         settlements: Vec::new(),
         verifications: Vec::new(),
         reversed: false,
+        facts: RunLifecycleFacts::default(),
     };
     let manifest = vec![
         manifest_entry("run", true, None),
@@ -593,5 +618,86 @@ fn duplicate_manifest_keys_are_a_typed_error() {
             gauntlet_app::report::ReportError::DuplicateManifestKey { ref key } if key.as_str() == "run"
         ),
         "{error}"
+    );
+}
+
+/// F-R4 (corrections round 2): an ATTEMPTED unit is provisional with its
+/// record-derived attempt basis — never configured-but-untested, never
+/// "never attempted" — even though the checkpoint still projects it open;
+/// a unit with NO dispatch on record says exactly that; and the report's
+/// terminal is the run's RECORDED terminal (the latest `RunTerminal`
+/// event), not a null.
+#[test]
+fn an_attempted_unit_is_provisional_with_the_record_derived_attempt_basis() {
+    let invocation =
+        |token: &str| gauntlet_domain::InvocationId::new(token).expect("valid invocation id");
+    let store = ScriptedStore {
+        run: None,
+        checkpoint: Some(checkpoint(vec![
+            (unit("AK-001"), UnitStatus::Open),
+            (unit("AK-003"), UnitStatus::Open),
+        ])),
+        settlements: Vec::new(),
+        verifications: Vec::new(),
+        facts: RunLifecycleFacts {
+            unit_dispatches: vec![
+                (unit("AK-001"), invocation("01ARZ3NDEKTSV4RRFFQ69G5FB1")),
+                (unit("AK-001"), invocation("01ARZ3NDEKTSV4RRFFQ69G5FB2")),
+            ],
+            invocation_terminals: vec![
+                (
+                    invocation("01ARZ3NDEKTSV4RRFFQ69G5FB1"),
+                    gauntlet_domain::InvocationState::TimedOut,
+                ),
+                (
+                    invocation("01ARZ3NDEKTSV4RRFFQ69G5FB2"),
+                    gauntlet_domain::InvocationState::TimedOut,
+                ),
+            ],
+            run_terminals: vec![gauntlet_domain::TerminalState::Escalated],
+        },
+        reversed: false,
+    };
+    let report = build_report(&store, &run_id(), &[], bound()).expect("the report builds");
+    assert_eq!(report.count(StatusCategory::Provisional), 1);
+    assert_eq!(report.count(StatusCategory::ConfiguredButUntested), 1);
+    let attempted = report
+        .units
+        .iter()
+        .find(|row| row.unit == unit("AK-001"))
+        .expect("the attempted unit is classified");
+    assert_eq!(
+        attempted.category,
+        StatusCategory::Provisional,
+        "recorded dispatches without a settlement are provisional, never \
+         configured-but-untested"
+    );
+    assert!(
+        attempted.basis.contains("attempted-and-timed-out")
+            && attempted.basis.contains("timed_out"),
+        "the basis names the records' attempt disposition: {}",
+        attempted.basis
+    );
+    assert!(
+        !attempted.basis.contains("never attempted"),
+        "an attempted unit is never described as never-attempted: {}",
+        attempted.basis
+    );
+    let unattempted = report
+        .units
+        .iter()
+        .find(|row| row.unit == unit("AK-003"))
+        .expect("the never-dispatched unit is classified");
+    assert_eq!(unattempted.category, StatusCategory::ConfiguredButUntested);
+    assert!(
+        unattempted.basis.contains("no dispatch attempt"),
+        "the basis states the unit's own record truth: {}",
+        unattempted.basis
+    );
+    // The run's REAL terminal: the latest recorded RunTerminal — a run
+    // whose pass ended escalated reports escalated, never a null.
+    assert_eq!(
+        report.terminal_state,
+        Some(gauntlet_domain::TerminalState::Escalated)
     );
 }

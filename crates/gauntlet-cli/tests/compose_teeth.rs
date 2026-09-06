@@ -13,10 +13,13 @@
 //!    typed configuration failure names the hook (the mock is
 //!    fail-closed on its scenario seam).
 //! 4. the process-backed `cli-agent` token under a LIVE sandbox backend
-//!    ⇒ the composition-level wrap verdict is `Sandboxed` and the run
-//!    REFUSES (`LiveContainmentDeferred`, plan Task 25's recorded leg) —
-//!    never a silent unwrap (RES-05; §21.3, AK-047). Honestly skipped on
-//!    hosts without the process-isolation binary.
+//!    ⇒ the composition-level wrap verdict is `Sandboxed` and the
+//!    composition ROUTES it (plan Task 25: the wrap seam is installed on
+//!    the runner, the dispatch runs, and the durable invocation record
+//!    carries the admitted sandbox policy) — never a silent unwrap
+//!    (RES-05; §21.3, AK-047). Honestly skipped on hosts without the
+//!    process-isolation binary. (RE-PINNED for Task 25: this leg
+//!    originally pinned the task-20 deferral the same task retired.)
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -337,10 +340,27 @@ fn the_mock_token_without_its_scenario_hook_refuses() {
 }
 
 #[test]
-fn a_live_backend_wrap_verdict_refuses_the_run_never_unwraps() {
+fn a_live_backend_wrap_verdict_is_routed_to_the_spawned_child_never_unwrapped() {
     // Honest skip: the leg needs the REAL process-isolation binary; on a
-    // host without it the refusal-under-proof cannot be composed and the
+    // host without it the routed dispatch cannot be composed and the
     // skip is the recorded fact, not a pass claim.
+    //
+    // RE-PINNED for plan Task 25 (recorded deviation): this leg pinned the
+    // task-20 composition DEFERRAL (`LiveContainmentDeferred` — "routing a
+    // wrapped builder command through the composed loop is plan Task 25's
+    // leg"). Task 25 IS that leg: the deferral is retired and the
+    // composition now routes the gate's `Sandboxed` verdict into the
+    // spawned child through the runner's containment seam. The invariant
+    // the old leg guarded — never a silent unwrap — is pinned here
+    // DIFFERENTLY, not stronger (corrections round 1, F4): the coverage
+    // moved to the routed dispatch — the composition proceeds, the
+    // dispatch runs, and the durable invocation record carries the
+    // ADMITTED SANDBOX POLICY (the wrap verdict) for the dispatched unit
+    // — but this record-level pin cannot by itself distinguish a wrapped
+    // from an unwrapped SPAWN; that at-locus strength lives in the
+    // real-runner E2E, where the confinement evidence is bound to the
+    // dispatched unit's own artifact. A composition-time wrap/admission
+    // REFUSAL still fails the run fail-closed (the other teeth).
     let Some(binary) = gauntlet_adapter_sandbox_bwrap::locate() else {
         eprintln!("skipped: the process-isolation binary is not locatable on this host");
         return;
@@ -385,35 +405,67 @@ fn a_live_backend_wrap_verdict_refuses_the_run_never_unwraps() {
         &["run", "seeded bounded task"],
     );
     let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(
+        !stderr.contains("live-sandbox wrap verdict"),
+        "the composition no longer refuses the live wrap verdict — task 25 routed it: \
+         stdout={stdout}\nstderr={stderr}"
+    );
+    // The run itself is an honest bounded non-settlement: the leg's child
+    // program does not exist, so the WRAPPED child starts (the sandbox
+    // spawns), writes no contract, and the loop terminates under its own
+    // budget/attempt machinery — never a crash, never a settlement.
     assert!(
         !output.status.success(),
-        "the LIVE wrap verdict refuses the run: stdout={}",
-        String::from_utf8_lossy(&output.stdout)
+        "a nonexistent child program never settles: stdout={stdout}\nstderr={stderr}"
     );
     assert!(
-        stderr.contains("live-sandbox wrap verdict"),
-        "the refusal is the composition's LiveContainmentDeferred: {stderr}"
+        stdout.contains("terminal=") && !stdout.contains("terminal=settled"),
+        "the run ends in a bounded honest non-settled terminal: {stdout}\n{stderr}"
+    );
+    let run_id = stdout
+        .lines()
+        .find(|line| line.starts_with("run: run_id="))
+        .and_then(|line| line.strip_prefix("run: run_id="))
+        .expect("the run started (the composition routed the wrap) and prints its id")
+        .to_owned();
+
+    // THE ROUTED WRAP, on the durable record: the dispatched invocation
+    // carries the ADMITTED SANDBOX POLICY — the wrap verdict — for the
+    // unit whose composition-time verdict was live. The dispatch ran
+    // wrapped from process start (AK-048); an unwrapped run would carry
+    // no policy ref at all.
+    let export = run(
+        &world,
+        &[
+            (
+                "GAUNTLET_CLI_AGENT_CMD",
+                "cli-probe {prompt_file} {workspace} {result_path}",
+            ),
+            ("GAUNTLET_STALL_TIMEOUT_MS", "60000"),
+            ("GAUNTLET_RETRY_BASE_MS", "100"),
+            ("GAUNTLET_RETRY_MAX_MS", "2000"),
+            ("GAUNTLET_MAX_ATTEMPTS_PER_UNIT", "3"),
+        ],
+        &["export", "--run", &run_id],
     );
     assert!(
-        stderr.contains("AK-901"),
-        "the refusal names the unit whose wrap verdict was live: {stderr}"
+        export.status.success(),
+        "the export leg succeeds: {}",
+        String::from_utf8_lossy(&export.stderr)
+    );
+    let exported = String::from_utf8_lossy(&export.stdout).into_owned();
+    let dispatch = exported
+        .lines()
+        .find(|line| line.contains("\"record\":\"role_invocation\""))
+        .unwrap_or_else(|| panic!("the routed dispatch is on the durable record: {exported}"));
+    assert!(
+        dispatch.contains("AK-901"),
+        "the dispatched unit is the one whose wrap verdict was live: {dispatch}"
     );
     assert!(
-        stderr.contains("Task 25") && stderr.contains("never a silent unwrap")
-            || stderr.contains("rather than running unwrapped"),
-        "the refusal records the deferral locus and the never-unwrap rule: {stderr}"
-    );
-    // The refusal fires BEFORE any dispatch: the runtime materializes its
-    // own result-contract root at wrap time (R17-F4 — the policy names it
-    // a writable root, so the runtime must provide it), but no invocation
-    // was ever anchored inside it. An empty root is the durable record of
-    // nothing dispatched, unwrapped or otherwise.
-    let runs_dir = world.state_dir().join("runs");
-    let anchored_invocations = std::fs::read_dir(&runs_dir)
-        .map(|entries| entries.count() > 0)
-        .unwrap_or(false);
-    assert!(
-        !anchored_invocations,
-        "the refusal fires BEFORE any dispatch — no invocation is ever anchored unwrapped"
+        dispatch.contains("tier-contained-compose-teeth"),
+        "the dispatch ran under the admitted sandbox policy — wrapped, never unwrapped: \
+         {dispatch}"
     );
 }
