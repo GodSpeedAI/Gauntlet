@@ -26,7 +26,7 @@ units:
     bounded: false
     status_hint: none
     basis: the domain values wire-enum suite (each fixed vocabulary a distinct typed enum) over gauntlet-domain
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-004
     kind: test_report
     frozen_locator: tests/contract/answer_key_parse::unknown_enum_is_error
@@ -35,7 +35,7 @@ units:
     bounded: false
     status_hint: none
     basis: the strict answer-key parser suite (unknown enum values are typed errors never coerced)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-005
     kind: test_report
     frozen_locator: tests/proofs/p12_missing_is_not_passing
@@ -53,7 +53,7 @@ units:
     bounded: false
     status_hint: none
     basis: the parser suite (irreversible-without-human is a UnitInvalid block failure)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-007
     kind: test_report
     frozen_locator: tests/contract/answer_key_parse::tier_authority_coupling
@@ -62,7 +62,7 @@ units:
     bounded: false
     status_hint: none
     basis: the exhaustive tier x authority x verify_by coupling matrix over both construction paths
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-008
     kind: test_report
     frozen_locator: tests/contract/agent_runner::invoke_is_non_blocking
@@ -71,7 +71,7 @@ units:
     bounded: false
     status_hint: none
     basis: the shared agent-runner suite on the real cli adapter (admission before completion)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-009
     kind: test_report
     frozen_locator: tests/contract/agent_runner::completion_requires_result_contract
@@ -80,7 +80,7 @@ units:
     bounded: false
     status_hint: none
     basis: the shared suite (Completed only with a schema-valid result at the contract path)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-010
     kind: test_report
     frozen_locator: tests/contract/agent_runner::no_result_is_timeout
@@ -89,7 +89,7 @@ units:
     bounded: false
     status_hint: none
     basis: the shared suite (missing result is TimedOut never Completed)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-011
     kind: test_report
     frozen_locator: tests/contract/agent_runner::malformed_result_rejected
@@ -98,7 +98,7 @@ units:
     bounded: false
     status_hint: none
     basis: the shared suite (malformed result document is Failed malformed_result)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-012
     kind: test_report
     frozen_locator: tests/contract/agent_runner::contract_mismatch
@@ -107,7 +107,7 @@ units:
     bounded: false
     status_hint: none
     basis: the shared suite (foreign invocation id or stale digest is Failed contract_mismatch)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-013
     kind: test_report
     frozen_locator: tests/proofs/p8_adapter_substitution
@@ -134,7 +134,7 @@ units:
     bounded: false
     status_hint: none
     basis: the config resolve precedence suite (defaults below GAUNTLET.md below env below flags)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-016
     kind: test_report
     frozen_locator: tests/contract/no_hardcoded_literals
@@ -152,7 +152,7 @@ units:
     bounded: false
     status_hint: none
     basis: the doctor check suite (every preflight check; required failures exit non-zero)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-018
     kind: test_report
     frozen_locator: tests/contract/secrets::never_leaked
@@ -161,7 +161,7 @@ units:
     bounded: false
     status_hint: none
     basis: the secrets never-leaked case (indirection resolves; values never surface)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-019
     kind: test_report
     frozen_locator: tests/contract/env_example_complete
@@ -179,7 +179,7 @@ units:
     bounded: false
     status_hint: none
     basis: the empty-world resolution onto the conservative defaults table (config absent)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-021
     kind: test_report
     frozen_locator: tests/contract/reference::normalization_is_deterministic
@@ -530,7 +530,7 @@ units:
     bounded: false
     status_hint: none
     basis: fixture playback in the mock adapter (the frozen locator holds the scenario fixtures)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-060
     kind: test_report
     frozen_locator: tests/e2e/cli_surface
@@ -548,7 +548,7 @@ units:
     bounded: false
     status_hint: none
     basis: the mock full loop through the CLI-only default build (task-21 re-evidence)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-062
     kind: test_report
     frozen_locator: tests/contract/operator_actions::no_bypass
@@ -575,7 +575,7 @@ units:
     bounded: false
     status_hint: none
     basis: the wayfinder-gauntlet conformance suite (provenance; semantics preserved)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-065
     kind: test_report
     frozen_locator: tests/contract/formation::fog_not_in_answer_key
@@ -584,7 +584,7 @@ units:
     bounded: false
     status_hint: none
     basis: the formation fog invariant (fog recorded; no fog entry reaches the answer key)
-    divergence: unrecorded
+    divergence: reference-candidates 2026-09-07
   - id: AK-066
     kind: test_report
     frozen_locator: tests/e2e/full_loop_real_runner

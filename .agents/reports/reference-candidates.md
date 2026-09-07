@@ -1806,3 +1806,223 @@ evidence: `.agents/reports/task22/falsifier-round2.md` (NH-5b, F2-3).
   metric (e.g. instrument EXECUTIONS across all profiles) is a
   candidate for the ruler owner before any payment comparison is
   promoted to a tracked dimension.
+
+## 2026-09-07 — Task 27 conformance-sweep divergence batch (eight entries covering the seventeen units the committed manifest carried as `unrecorded`; task 27 B3, single writer)
+
+Recorded while authoring the task-27 conformance manifest
+(`.agents/reports/conformance-manifest.yaml`): seventeen units whose
+frozen `evidence_required.locator` diverges from the real evidence
+target WITHOUT a dedicated dated entry here (found by B1, recorded by
+B3 per the charter's single-writer rule). Every one of the seventeen
+units was executed PASS by the committed sweep
+(`.agents/reports/conformance.json`, 2026-09-07: 70 units = 69 PASS /
+1 INCONCLUSIVE (AK-067 `no_artifact`, wave 2) / 0 FAIL) under the repo
+compile lock; per-command logs and digests:
+`.agents/reports/conformance-evidence/20260907T211936Z/`. In the same
+edit the manifest's seventeen `divergence: unrecorded` flags flip to
+`divergence: reference-candidates 2026-09-07` — the manifest cites
+these entries; the ruler itself never moves.
+
+### 1. AK-003 locator `tests/contract/typed_enums` materializes as the in-crate domain suite
+
+- **Unit:** AK-003 (`.wayfinder/answer-key.md` lines 15–20): "Every
+  fixed-value-set field (VerifyBy, BlastRadius, Authority, UnitStatus,
+  Verdict, Outcome, InvocationState, TerminalState, Severity,
+  ReviewMode, EvidenceKind) is a distinct type, not a string."
+  (`verify_by: static_check`, `evidence_required: {kind: test_report,
+  locator: tests/contract/typed_enums, producer: instrument}`.)
+- **Defect (evidence declaration only; the claim is satisfied):** the
+  locator names a repo-root `tests/contract/typed_enums` cargo target;
+  no such target exists, and the architecture boundary suite's
+  Cargo-target-path rule (`gauntlet-arch-tests` `escapes.rs`
+  `scan_cargo_target_paths`, exemption list exactly
+  `["crates/gauntlet-arch-tests"]`) forbids any core crate from
+  declaring a repo-level test target. This is an **additional instance
+  of the existing locator-materialization class (first recorded
+  2026-08-17, AK-049)** — not a new defect class.
+- **Materialization:** `gauntlet-domain` lib test
+  `every_fixed_value_set_enum_rejects_unknown_values`
+  (`crates/gauntlet-domain/src/values.rs`) — each fixed vocabulary a
+  distinct typed enum with wire-level unknown-value rejection. Sweep
+  evidence: `03-gauntlet-domain-lib-every-fixed-value-set-enum-rejects-unkno.log`
+  (exit 0, sha256 `42d737a5…e804d4`).
+- **Proposed correction (ruler's owner):** re-declare the locator to
+  `gauntlet-domain --lib every_fixed_value_set_enum_rejects_unknown_values`.
+
+### 2. AK-004/AK-006 locators `tests/contract/answer_key_parse::*` materialize as the app's reference parser suite
+
+- **Units:** AK-004 (`.wayfinder/answer-key.md` lines 22–27): "Parsing
+  an unknown enum value in a Unit produces a parse error rather than a
+  coerced default." AK-006 (lines 36–41): "A Unit with blast_radius
+  irreversible and authority other than human fails validation."
+- **Defect (evidence declaration only; both claims satisfied):** the
+  locators name repo-root `tests/contract/answer_key_parse::*` targets;
+  unmaterializable as spelled under the same Cargo-target-path rule —
+  the **AK-049 locator-materialization class**.
+- **Materialization:** the `gauntlet-app` lib `reference::parse` suite
+  (`crates/gauntlet-app/src/reference/parse.rs` + `validate.rs`):
+  unknown enum values are typed parse errors never coerced defaults
+  (AK-004); irreversible-without-human is a `UnitInvalid` block failure
+  (AK-006). Sweep evidence: `04-gauntlet-app-lib-reference--parse.log`
+  (exit 0, sha256 `0c6dfae0…52e5e787d` — one grouped run fans out to
+  both units).
+- **Proposed correction (ruler's owner):** re-declare both locators to
+  `gauntlet-app --lib reference::parse` (per-behavior assertions live
+  inside the suite).
+
+### 3. AK-007's locator (shared with AK-006) materializes as the domain's exhaustive coupling matrix
+
+- **Unit:** AK-007 (`.wayfinder/answer-key.md` lines 43–48): "A Unit
+  with blast_radius cross_cutting or irreversible cannot have authority
+  critic, regardless of verify_by." (Frozen locator
+  `tests/contract/answer_key_parse::tier_authority_coupling` — the same
+  string as AK-006's.)
+- **Defect (evidence declaration only; claim satisfied):** same
+  unmaterializable repo-root target — the **AK-049 class**.
+- **Materialization:** `gauntlet-domain` lib test
+  `exhaustive_tier_authority_coupling_holds_on_every_construction_path`
+  (`crates/gauntlet-domain/src/unit.rs`) — the exhaustive
+  tier × authority × verify_by coupling matrix over both construction
+  paths, a STRICTER instrument than the locator's parser-suite scope
+  (every construction path, not just parsing). Sweep evidence:
+  `06-gauntlet-domain-lib-exhaustive-tier-authority-coupling-holds.log`
+  (exit 0, sha256 `5534ac60…dac0cb6`).
+- **Proposed correction (ruler's owner):** re-declare the locator to
+  `gauntlet-domain --lib exhaustive_tier_authority_coupling_holds_on_every_construction_path`.
+
+### 4. AK-008–AK-012 locators `tests/contract/agent_runner::*` materialize as the shared §7.3 suite in ports, run as adapter targets
+
+- **Units:** AK-008 (lines 50–55, admission handle non-blocking),
+  AK-009 (57–62, Completed only with a schema-valid result at the
+  contract path), AK-010 (64–69, no result ⇒ TimedOut never Completed),
+  AK-011 (71–76, malformed result ⇒ `Failed{malformed_result}`),
+  AK-012 (78–83, id/digest mismatch ⇒ `Failed{contract_mismatch}`).
+- **Defect (evidence declaration only; all five claims satisfied):**
+  the locators name repo-root `tests/contract/agent_runner::*` targets.
+  This is the **AK-063 class** (dependency architecture, not merely an
+  empty directory): the shared agent-runner contract suite lives
+  UNMODIFIED in `gauntlet_ports::contract::agent_runner` and must run
+  against an adapter; `gauntlet-arch-tests` — the only crate allowed
+  repo-root test targets — depends on no internal crate (enforced by
+  `just boundaries`), so it cannot host a suite over `AgentRunner`.
+- **Materialization:** each adapter's `tests/contract_suite.rs` runs
+  the unmodified shared suite against its own factory (the "adding an
+  adapter means running the existing suite" rule); the manifest maps
+  the five units to `gauntlet-adapter-agent-cli --test contract_suite`
+  (the real cli adapter; adapter substitution itself is AK-013's p8
+  proof). Sweep evidence: `07-gauntlet-adapter-agent-cli-contract-suite.log`
+  (exit 0, sha256 `7de3d43d…aff9a9b4`).
+- **Scope honesty:** the five per-behavior locator suffixes correspond
+  to findings asserted INSIDE the one suite run, not five
+  separately-named targets; the same suite also runs green against the
+  mock and prime adapters (their `contract_suite` targets).
+- **Proposed correction (ruler's owner):** re-declare the five locators
+  to the adapters' `contract_suite` targets (or one locator per finding
+  inside the shared ports module).
+
+### 5. AK-015/AK-017/AK-018/AK-020 locators materialize as in-crate gauntlet-app suites
+
+- **Units:** AK-015 (lines 100–105, configuration precedence order +
+  digest onto the run), AK-017 (114–119, doctor performs every preflight
+  check, non-zero on required failure), AK-018 (121–126, secrets by
+  indirection, never leaked), AK-020 (135–140, bounded run from the
+  conservative defaults table when configuration is absent).
+- **Defect (evidence declaration only; all four claims satisfied):**
+  the locators name repo-root `tests/contract/config::precedence`,
+  `tests/e2e/doctor`, `tests/contract/secrets::never_leaked`,
+  `tests/e2e/bounded_without_config` — unmaterializable as spelled
+  under the Cargo-target-path rule: the **AK-049 class** (for AK-017,
+  the nearest recorded precedent is the 2026-08-17 AK-049 entry's own
+  doctor-family discussion).
+- **Materialization (one lib suite each, all sweep-executed exit 0):**
+  - AK-015 → `gauntlet-app --lib precedence`
+    (`crates/gauntlet-app/src/config/resolve.rs`; log
+    `10-gauntlet-app-lib-precedence.log`, sha256 `1dc94bb7…2488e3b7`);
+  - AK-017 → `gauntlet-app --lib doctor`
+    (`crates/gauntlet-app/src/doctor/`; log
+    `12-gauntlet-app-lib-doctor.log`, sha256 `3221e522…6b0891d`);
+  - AK-018 → `gauntlet-app --lib secrets_never_leaked`
+    (`crates/gauntlet-app/src/config/canonical.rs`; log
+    `13-gauntlet-app-lib-secrets-never-leaked.log`, sha256
+    `31887d23…ad19d5a`);
+  - AK-020 → `gauntlet-app --lib an_empty_world_resolves_to_the_defaults_table`
+    (`crates/gauntlet-app/src/config/resolve.rs`; log
+    `15-gauntlet-app-lib-an-empty-world-resolves-to-the-defaults-tab.log`,
+    sha256 `a182ceb4…84ece88f04b2`).
+- **Proposed correction (ruler's owner):** re-declare the four locators
+  to the in-crate lib filters above.
+
+### 6. AK-059's locator `tests/fixtures/mock_runner_scenarios` holds the fixture DATA; the test_report comes from the mock adapter
+
+- **Unit:** AK-059 (`.wayfinder/answer-key.md` lines 411–416): "The
+  mock AgentRunner can replay scripted results including malformed
+  output, timeout, and a reference-mutation attempt."
+- **Divergence (evidence declaration only; claim satisfied):** the
+  frozen locator IS materialized — `tests/fixtures/mock_runner_scenarios`
+  exists and holds the scenario fixtures — but the unit's kind is
+  `test_report`, and no test target exists at that path (fixture data
+  only; the Cargo-target-path rule forbids one there). The report is
+  produced by `gauntlet-adapter-agent-mock`'s `scenario_playback`
+  target, which plays the frozen fixtures back through the real mock
+  adapter. An **additional instance of the AK-049 class** with the
+  fixture nuance: data at the locator, evidence one crate away.
+- **Sweep evidence:** `37-gauntlet-adapter-agent-mock-scenario-playback.log`
+  (exit 0).
+- **Proposed correction (ruler's owner):** re-declare the locator to
+  `gauntlet-adapter-agent-mock --test scenario_playback` (keeping the
+  fixtures' path recorded as the data source), or split the unit's
+  evidence declaration into fixture + report.
+
+### 7. AK-061's locator `build/cli-only-profile` (kind log) was never materialized; the real evidence is task-21's re-evidence
+
+- **Unit:** AK-061 (`.wayfinder/answer-key.md` lines 425–430): "The
+  core builds and completes a full loop with operator surfaces limited
+  to the CLI." (`verify_by: build`, `evidence_required: {kind: log,
+  locator: build/cli-only-profile, producer: instrument}`.)
+- **Divergence (evidence declaration only; claim satisfied):** the log
+  path `build/cli-only-profile` has never existed in the repository —
+  no build step writes it, and no gate reads it. The delivered evidence
+  is task-21's re-evidence of the same claim: the mock full-loop E2E
+  through the CLI-only default build
+  (`crates/gauntlet-cli/tests/e2e_full_loop_mock.rs` — a real loop over
+  the composition root, operator surface = the CLI alone) plus the
+  `cli_surface` whole-tree freeze of the shipped command surface. The
+  task-27 sweep adjudicates over the E2E target (log
+  `39-gauntlet-cli-e2e-full-loop-mock.log`, exit 0).
+- **Class:** the **AK-049 locator-materialization class** with its own
+  nuance — the spelled locator is a LOG path (kind `log`), not a test
+  target, and was never bound to any producer at all.
+- **Proposed correction (ruler's owner):** re-declare the locator (and
+  kind) to `gauntlet-cli --test e2e_full_loop_mock`, or bind a real
+  build-log producer at the spelled path.
+
+### 8. AK-064/AK-065 locators `tests/contract/skills|formation::*` materialize as the owning crate's test targets
+
+- **Units:** AK-064 (`.wayfinder/answer-key.md` lines 446–451,
+  wayfinder-gauntlet skill conformance), AK-065 (lines 453–458,
+  formation records fog rather than inventing answers; no fog entry in
+  the answer key).
+- **Defect (evidence declaration only; both claims satisfied):** the
+  locators name repo-root `tests/contract/skills::*` and
+  `tests/contract/formation::*` targets; the mechanisms' suites are
+  declared test targets of the crate that owns them
+  (`crates/gauntlet-app/tests/skills.rs`,
+  `crates/gauntlet-app/tests/formation.rs`), recorded in the task-18/20
+  closures — the **AK-063 class** (a repo-root host would need a
+  dependency-direction exception the layering forbids), with no
+  dedicated dated entry of their own until now.
+- **Sweep evidence:** `42-gauntlet-app-skills-wayfinder-gauntlet-conformance.log`
+  and `43-gauntlet-app-formation-fog-not-in-answer-key.log` (both
+  exit 0).
+- **Proposed correction (ruler's owner):** re-declare the locators to
+  `gauntlet-app --test skills wayfinder_gauntlet_conformance` and
+  `gauntlet-app --test formation fog_not_in_answer_key` (the
+  task17/18 recorded nextest-filter class: binary and filter are
+  separate arguments, never `::`-joined).
+
+Not changed by this batch: the answer key, the spec, and the frozen
+lock (`just ruler` PASS at slice start; re-run at phase boundaries —
+the digests in `.gauntlet/reference.lock` are the authority). The
+committed conformance manifest gains dated citations to this batch;
+settlement of these candidates belongs to the ruler's owner, not the
+builder.
