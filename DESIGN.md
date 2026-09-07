@@ -5,7 +5,7 @@
 > **Design authority:** This file governs how the Gauntlet TUI should look, compose, navigate, expose state, and lower semantic interaction into terminal presentation. It does **not** redefine Gauntlet's normative execution, authority, evidence, or settlement semantics.
 >
 > **Source hierarchy:**
-> 1. `visual-language.md` — GodSpeed visual philosophy and cross-product visual authority.
+> 1. `../godspeed-growth/brand/visual/visual-language.md` — GodSpeed visual philosophy and cross-product visual authority.
 > 2. `gauntlet-tui-prime-workbench.spec.yaml` — normative behavioral/system contract.
 > 3. `DESIGN.md` — normative TUI visual/interaction design contract.
 > 4. `gauntlet-tui-prime-workbench.plan.yaml` — settlement path for implementing and proving the above.
