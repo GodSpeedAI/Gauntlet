@@ -1,0 +1,6 @@
+command: cargo nextest run -p gauntlet-adapter-agent-mock --test scenario_playback
+exit: 69
+--- stdout ---
+
+--- stderr ---
+flock: failed to execute -w: No such file or directory

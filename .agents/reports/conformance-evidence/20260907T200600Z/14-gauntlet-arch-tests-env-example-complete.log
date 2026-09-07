@@ -1,0 +1,12 @@
+command: cargo nextest run -p gauntlet-arch-tests --test env_example_complete
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+────────────
+ Nextest run ID 10630086-4785-4b9e-9971-5baddf6f6bf5 with nextest profile: default
+    Starting 1 test across 1 binary
+        PASS [   0.009s] (1/1) gauntlet-arch-tests::env_example_complete env_example_matches_annex_e
+────────────
+     Summary [   0.009s] 1 test run: 1 passed, 0 skipped

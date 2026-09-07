@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-arch-tests --test no_hardcoded_literals
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.04s
+────────────
+ Nextest run ID f332d06d-4a39-464f-acb3-d4dcefcfb430 with nextest profile: default
+    Starting 2 tests across 1 binary
+        PASS [   0.028s] (1/2) gauntlet-arch-tests::no_hardcoded_literals defaults_exemption_is_warranted_or_inactive
+        PASS [   7.599s] (2/2) gauntlet-arch-tests::no_hardcoded_literals core_crates_contain_no_hardcoded_literals
+────────────
+     Summary [   7.599s] 2 tests run: 2 passed, 0 skipped

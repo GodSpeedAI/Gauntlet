@@ -1,0 +1,48 @@
+command: cargo nextest run -p gauntlet-app --lib doctor
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+────────────
+ Nextest run ID 66a2eb3d-6ae9-4933-b00a-ff21c8f5ebd2 with nextest profile: default
+    Starting 37 tests across 1 binary (523 tests skipped)
+        PASS [   0.006s] ( 1/37) gauntlet-app doctor::tests::a_malformed_block_fails_the_unit_schema_clause_with_its_locus
+        PASS [   0.006s] ( 2/37) gauntlet-app doctor::tests::a_bom_prefixed_contract_fails_check_one_citing_the_byte_order_mark
+        PASS [   0.006s] ( 3/37) gauntlet-app doctor::tests::a_malformed_money_value_fails_under_config_values_not_indirections
+        PASS [   0.007s] ( 4/37) gauntlet-app doctor::tests::a_healthy_scratch_project_passes_every_real_check
+        PASS [   0.008s] ( 5/37) gauntlet-app doctor::tests::a_forbidden_policy_in_the_default_dir_fails_even_when_policy_dir_is_overridden
+        PASS [   0.009s] ( 6/37) gauntlet-app doctor::tests::a_live_backend_requires_tier_policy_files
+        PASS [   0.006s] ( 7/37) gauntlet-app doctor::tests::a_moved_manifest_fails_check_two_as_a_reference_class_failure
+        PASS [   0.006s] ( 8/37) gauntlet-app doctor::tests::a_missing_contract_stays_the_honest_no_contract_pass
+        PASS [   0.007s] ( 9/37) gauntlet-app doctor::tests::a_permission_denied_contract_fails_check_one_not_as_not_found
+        PASS [   0.009s] (10/37) gauntlet-app doctor::tests::a_manifest_that_cannot_deep_parse_fails_check_two_as_a_reference_class_failure
+        PASS [   0.008s] (11/37) gauntlet-app doctor::tests::a_non_utf8_contract_fails_check_one_with_the_failure_class
+        PASS [   0.010s] (12/37) gauntlet-app doctor::tests::a_moved_answer_key_fails_check_two_as_a_reference_class_failure
+        PASS [   0.007s] (13/37) gauntlet-app doctor::tests::a_wrong_unit_count_fails_check_two
+        PASS [   0.006s] (14/37) gauntlet-app doctor::tests::an_explicit_config_override_to_a_missing_path_fails_check_one_naming_it
+        PASS [   0.008s] (15/37) gauntlet-app doctor::tests::an_all_indented_manifest_is_not_a_mapping_and_fails_check_two
+        PASS [   0.008s] (16/37) gauntlet-app doctor::tests::an_answer_key_inside_the_workspace_only_canonically_still_fails_check_seven
+        PASS [   0.011s] (17/37) gauntlet-app doctor::tests::an_answer_key_inside_the_workspace_fails_check_seven
+        PASS [   0.014s] (18/37) gauntlet-app doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run
+        PASS [   0.006s] (19/37) gauntlet-app doctor::tests::an_unparsable_contract_fails_check_one_and_degrades_the_rest
+        PASS [   0.009s] (20/37) gauntlet-app doctor::tests::an_unknown_field_in_the_reference_record_is_a_finding
+        PASS [   0.006s] (21/37) gauntlet-app doctor::tests::an_unreadable_policy_dir_fails_check_five_and_recovers_when_readable
+        PASS [   0.007s] (22/37) gauntlet-app doctor::tests::budget_violations_fail_check_eight_through_the_domain
+        PASS [   0.007s] (23/37) gauntlet-app doctor::tests::check_four_fails_a_configured_backend_no_adapter_fronts
+        PASS [   0.006s] (24/37) gauntlet-app doctor::tests::check_four_passes_the_conservative_posture_and_names_the_dispatch_note
+        PASS [   0.009s] (25/37) gauntlet-app doctor::tests::check_four_covers_the_dispatchable_tiers_with_the_measured_rung
+        PASS [   0.005s] (26/37) gauntlet-app doctor::tests::check_three_fails_a_failed_measured_probe_and_so_does_check_four
+        PASS [   0.009s] (27/37) gauntlet-app doctor::tests::check_four_fails_an_unmeasured_or_mistokened_descriptor
+        PASS [   0.006s] (28/37) gauntlet-app doctor::tests::check_three_fails_a_mistokened_descriptor
+        PASS [   0.006s] (29/37) gauntlet-app doctor::tests::check_three_reports_a_measured_runner_instead_of_the_blanket_unavailable
+        PASS [   0.005s] (30/37) gauntlet-app doctor::tests::generated_at_is_present_and_the_fingerprint_is_the_domain_shape
+        PASS [   0.007s] (31/37) gauntlet-app doctor::tests::check_three_stays_unavailable_without_a_measurement_hook
+        PASS [   0.008s] (32/37) gauntlet-app doctor::tests::dotenv_inline_comments_no_longer_corrupt_directory_names
+        PASS [   0.010s] (33/37) gauntlet-app doctor::tests::duplicate_flow_mapping_keys_fail_the_run_at_parse
+        PASS [   0.010s] (34/37) gauntlet-app doctor::tests::forbidden_tier_policies_under_any_spelling_or_link_fail_check_five
+        PASS [   0.005s] (35/37) gauntlet-app doctor::tests::unknown_capabilities_fail_and_unknown_names_are_reported
+        PASS [   0.005s] (36/37) gauntlet-app verify::authority::tests::a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass
+        PASS [   0.008s] (37/37) gauntlet-app doctor::tests::the_canary_secret_never_reaches_the_report_or_the_summary
+────────────
+     Summary [   0.049s] 37 tests run: 37 passed, 523 skipped

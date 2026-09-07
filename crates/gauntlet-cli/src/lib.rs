@@ -106,6 +106,7 @@ fn usage() {
          [--verifications] [--settlements]"
     );
     println!("       gauntlet verify --run <run-id> [--unit <unit-id>]");
+    println!("       gauntlet verify --all [--report <path>] [--manifest <path>]");
     println!("       gauntlet resume <run-id>");
     println!("       gauntlet escalations list | resolve | retry");
     #[cfg(feature = "surfaces")]

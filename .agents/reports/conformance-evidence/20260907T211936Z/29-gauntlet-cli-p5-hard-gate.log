@@ -1,0 +1,16 @@
+command: cargo nextest run -p gauntlet-cli --test p5_hard_gate
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 16s
+────────────
+ Nextest run ID 3addbac0-e791-4bcc-ad0d-37a34c4ed03f with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.022s] (1/4) gauntlet-cli::p5_hard_gate irreversible_never_dispatched
+        PASS [   0.057s] (2/4) gauntlet-cli::p5_hard_gate a_high_quality_dispatch_violating_one_hard_requirement_is_refused_not_averaged
+        PASS [   0.099s] (3/4) gauntlet-cli::p5_hard_gate a_sandbox_validation_failure_escalates_without_falling_back
+        PASS [   0.287s] (4/4) gauntlet-cli::p5_hard_gate containment_wraps_from_process_start_and_confines_the_session
+────────────
+     Summary [   0.288s] 4 tests run: 4 passed, 0 skipped

@@ -1,0 +1,72 @@
+command: cargo nextest run -p gauntlet-app --lib settle
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.07s
+────────────
+ Nextest run ID 8e0b1f87-cb3f-4047-8ce2-7c474f7c6cd8 with nextest profile: default
+    Starting 61 tests across 1 binary (499 tests skipped)
+        PASS [   0.036s] ( 1/61) gauntlet-app baseline::metrics::tests::t1_settlement_reliability_is_the_pooled_ratio_or_none
+        PASS [   0.043s] ( 2/61) gauntlet-app baseline::metrics::tests::totals_pool_d_settlements_across_legs
+        PASS [   0.070s] ( 3/61) gauntlet-app baseline::metrics::tests::a_model_instrument_settlement_is_not_deterministically_backed
+        PASS [   0.075s] ( 4/61) gauntlet-app compare::review::tests::adaptive_skips_settled_dimensions
+        PASS [   0.075s] ( 5/61) gauntlet-app compare::review::tests::adaptive_inconclusive_probe_is_not_a_settlement
+        PASS [   0.064s] ( 6/61) gauntlet-app control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop
+        PASS [   0.138s] ( 7/61) gauntlet-app control::controller::tests::a_corroborated_produced_artifact_settles_in_the_produced_world
+        PASS [   0.065s] ( 8/61) gauntlet-app control::controller::tests::a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop
+        PASS [   0.071s] ( 9/61) gauntlet-app control::controller::tests::a_full_iteration_settles_a_unit_through_the_composed_chain
+        PASS [   0.106s] (10/61) gauntlet-app control::controller::tests::a_crash_after_a_settlement_never_re_runs_settled_work
+        PASS [   0.102s] (11/61) gauntlet-app control::controller::tests::a_declared_attempted_other_unit_never_settles_and_is_recorded
+        PASS [   0.016s] (12/61) gauntlet-app control::controller::tests::a_settled_dependency_stays_in_the_graph_while_eligibility_filters_it
+        PASS [   0.029s] (13/61) gauntlet-app control::controller::tests::a_resume_completes_half_applied_settlements_and_reconciles_the_projection
+        PASS [   0.020s] (14/61) gauntlet-app control::controller::tests::resuming_an_all_settled_run_is_a_settled_noop_in_the_produced_world
+        PASS [   0.029s] (15/61) gauntlet-app control::controller::tests::damaged_production_bookkeeping_on_a_settled_produced_world_run_resumes_settled
+        PASS [   0.016s] (16/61) gauntlet-app control::controller::tests::the_pass_leg_settles_durably_through_the_service
+        PASS [   0.029s] (17/61) gauntlet-app control::controller::tests::resuming_an_all_settled_run_is_an_honest_settled_no_op
+        PASS [   0.045s] (18/61) gauntlet-app control::controller::tests::a_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row
+        PASS [   0.020s] (19/61) gauntlet-app control::scheduler::tests::unsettled_dependencies_block_and_settled_or_out_of_scope_release
+        PASS [   0.053s] (20/61) gauntlet-app control::controller::tests::an_uncorroborated_produced_artifact_never_settles_in_the_produced_world
+        PASS [   0.032s] (21/61) gauntlet-app memory::promotion::tests::fewer_settlements_than_the_minimum_refuse_and_write_provisional
+        PASS [   0.043s] (22/61) gauntlet-app memory::developmental::tests::a_settlement_observation_carries_the_content_axes
+        PASS [   0.041s] (23/61) gauntlet-app memory::promotion::tests::sparse_settlement_rows_never_promote_and_never_credit_variation_b2a
+        PASS [   0.019s] (24/61) gauntlet-app promote::tests::an_extra_deterministic_settlement_cannot_shield_a_weakened_unit
+        PASS [   0.051s] (25/61) gauntlet-app memory::promotion::tests::all_sparse_identical_settlements_still_refuse_b2b
+        PASS [   0.013s] (26/61) gauntlet-app promote::tests::an_instrument_downgrade_is_rejected_as_settlement_access_weakened
+        PASS [   0.043s] (27/61) gauntlet-app promote::tests::an_arm_that_settled_nothing_makes_the_margin_undecidable_not_failed
+        PASS [   0.054s] (28/61) gauntlet-app promote::tests::a_weakening_candidate_improves_the_metric_yet_is_rejected_with_settlement_access_weakened
+        PASS [   0.013s] (29/61) gauntlet-app settle::tests::a_durably_blocked_projection_wins_over_a_clear_tracked_view
+        PASS [   0.023s] (30/61) gauntlet-app settle::tests::a_disagreeing_durable_record_for_the_same_identity_refuses
+        PASS [   0.035s] (31/61) gauntlet-app settle::tests::a_blocking_residual_referencing_the_unit_refuses_settlement
+        PASS [   0.034s] (32/61) gauntlet-app settle::tests::a_critic_unit_settles_durably_under_automatic_closure
+        PASS [   0.034s] (33/61) gauntlet-app settle::tests::a_fail_claim_refuses_at_service_entry_with_zero_durable_writes
+        PASS [   0.031s] (34/61) gauntlet-app settle::tests::a_half_applied_settlement_completes_exactly_once_from_the_anchor
+        PASS [   0.043s] (35/61) gauntlet-app settle::tests::a_half_applied_evidence_production_completes_from_durable_facts_only
+        PASS [   0.030s] (36/61) gauntlet-app settle::tests::a_human_authority_unit_refuses_automatic_closure_and_escalates
+        PASS [   0.033s] (37/61) gauntlet-app settle::tests::a_lead_agent_unit_requires_a_recorded_rationale
+        PASS [   0.033s] (38/61) gauntlet-app settle::tests::a_settle_time_unavailability_refuses_without_aborting_or_escalating
+        PASS [   0.036s] (39/61) gauntlet-app settle::tests::a_settle_time_reference_mutation_aborts_with_both_digests_as_pinned_evidence
+        PASS [   0.059s] (40/61) gauntlet-app settle::tests::a_produced_world_completion_reads_produced_from_the_locator_key_surface
+        PASS [   0.037s] (41/61) gauntlet-app settle::tests::a_re_entry_of_the_same_settlement_key_is_idempotent_success
+        PASS [   0.051s] (42/61) gauntlet-app settle::tests::a_re_entry_diverging_on_evidence_is_a_typed_refusal_not_success
+        PASS [   0.068s] (43/61) gauntlet-app settle::tests::a_produced_world_orphan_whose_bytes_are_absent_is_an_honest_limitation
+        PASS [   0.014s] (44/61) gauntlet-app settle::tests::an_unrecoverable_orphan_is_a_recorded_limitation_never_a_fabrication
+        PASS [   0.025s] (45/61) gauntlet-app settle::tests::an_open_units_missing_row_is_never_pinned_as_damage
+        PASS [   0.008s] (46/61) gauntlet-app settle::tests::damaged_produced_world_rows_are_honest_per_locator_forensics
+        PASS [   0.053s] (47/61) gauntlet-app settle::tests::an_undurable_run_refuses_every_settlement
+        PASS [   0.065s] (48/61) gauntlet-app settle::tests::an_inconclusive_claim_is_a_distinct_entry_refusal_from_fail
+        PASS [   0.043s] (49/61) gauntlet-app settle::tests::operator_action_refusals_name_the_three_states_and_the_shared_gate_variant
+        PASS [   0.086s] (50/61) gauntlet-app settle::tests::an_operator_action_without_pass_evidence_hits_the_same_gate_as_the_loop
+        PASS [   0.038s] (51/61) gauntlet-app settle::tests::the_earned_arm_settles_through_the_same_commit_with_the_operator_identity
+        PASS [   0.092s] (52/61) gauntlet-app settle::tests::the_earned_arm_keeps_the_identity_requirement_inside_the_gate
+        PASS [   0.064s] (53/61) gauntlet-app settle::tests::the_earned_arm_refuses_past_the_gate_even_holding_a_chain_minted_pass_claim
+        PASS [   0.047s] (54/61) gauntlet-app settle::tests::the_operator_identity_cannot_inject_members_into_the_decision_record
+        PASS [   0.111s] (55/61) gauntlet-app settle::tests::each_refused_condition_is_a_distinct_typed_refusal
+        PASS [   0.071s] (56/61) gauntlet-app settle::tests::the_fixture_key_parses_into_three_authority_levels
+        PASS [   0.038s] (57/61) gauntlet-app settle::tests::the_produced_world_crash_window_completes_from_the_orphan_events_ref
+        PASS [   0.023s] (58/61) gauntlet-app settle::tests::the_service_re_derives_conditions_one_and_two_over_the_claim_itself
+        PASS [   0.035s] (59/61) gauntlet-app skills::tests::a_skill_claiming_to_settle_the_unit_itself_is_refused
+        PASS [   0.021s] (60/61) gauntlet-app skills::tests::a_skill_claiming_to_settle_the_unit_without_a_runtime_mention_is_still_refused
+        PASS [   0.064s] (61/61) gauntlet-app verify::precondition::tests::a_stooge_store_cannot_satisfy_the_settlement_precondition
+────────────
+     Summary [   0.529s] 61 tests run: 61 passed, 499 skipped

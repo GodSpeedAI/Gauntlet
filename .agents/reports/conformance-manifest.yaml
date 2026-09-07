@@ -1,0 +1,632 @@
+schema: gauntlet.conformance-manifest@v1
+units:
+  - id: AK-001
+    kind: test_report
+    frozen_locator: tests/contract/architecture_boundaries
+    evidence:
+      execute: {package: gauntlet-arch-tests, target: architecture_boundaries}
+    bounded: false
+    status_hint: none
+    basis: the boundary suite at its verbatim locator (dependency direction + scope escapes)
+    divergence: none
+  - id: AK-002
+    kind: test_report
+    frozen_locator: tests/contract/architecture_boundaries::denylist
+    evidence:
+      execute: {package: gauntlet-arch-tests, target: architecture_boundaries, filter: denylist}
+    bounded: false
+    status_hint: none
+    basis: the denylist case of the same target (no adapter identifier in domain or app source)
+    divergence: none
+  - id: AK-003
+    kind: test_report
+    frozen_locator: tests/contract/typed_enums
+    evidence:
+      execute: {package: gauntlet-domain, lib: true, filter: every_fixed_value_set_enum_rejects_unknown_values}
+    bounded: false
+    status_hint: none
+    basis: the domain values wire-enum suite (each fixed vocabulary a distinct typed enum) over gauntlet-domain
+    divergence: unrecorded
+  - id: AK-004
+    kind: test_report
+    frozen_locator: tests/contract/answer_key_parse::unknown_enum_is_error
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: reference::parse}
+    bounded: false
+    status_hint: none
+    basis: the strict answer-key parser suite (unknown enum values are typed errors never coerced)
+    divergence: unrecorded
+  - id: AK-005
+    kind: test_report
+    frozen_locator: tests/proofs/p12_missing_is_not_passing
+    evidence:
+      execute: {package: gauntlet-cli, target: p12_missing_is_not_passing}
+    bounded: false
+    status_hint: none
+    basis: the P12 composition-root proof (absent or stale evidence is INCONCLUSIVE at every layer)
+    divergence: reference-candidates 2026-08-21
+  - id: AK-006
+    kind: test_report
+    frozen_locator: tests/contract/answer_key_parse::tier_authority_coupling
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: reference::parse}
+    bounded: false
+    status_hint: none
+    basis: the parser suite (irreversible-without-human is a UnitInvalid block failure)
+    divergence: unrecorded
+  - id: AK-007
+    kind: test_report
+    frozen_locator: tests/contract/answer_key_parse::tier_authority_coupling
+    evidence:
+      execute: {package: gauntlet-domain, lib: true, filter: exhaustive_tier_authority_coupling_holds_on_every_construction_path}
+    bounded: false
+    status_hint: none
+    basis: the exhaustive tier x authority x verify_by coupling matrix over both construction paths
+    divergence: unrecorded
+  - id: AK-008
+    kind: test_report
+    frozen_locator: tests/contract/agent_runner::invoke_is_non_blocking
+    evidence:
+      execute: {package: gauntlet-adapter-agent-cli, target: contract_suite}
+    bounded: false
+    status_hint: none
+    basis: the shared agent-runner suite on the real cli adapter (admission before completion)
+    divergence: unrecorded
+  - id: AK-009
+    kind: test_report
+    frozen_locator: tests/contract/agent_runner::completion_requires_result_contract
+    evidence:
+      execute: {package: gauntlet-adapter-agent-cli, target: contract_suite}
+    bounded: false
+    status_hint: none
+    basis: the shared suite (Completed only with a schema-valid result at the contract path)
+    divergence: unrecorded
+  - id: AK-010
+    kind: test_report
+    frozen_locator: tests/contract/agent_runner::no_result_is_timeout
+    evidence:
+      execute: {package: gauntlet-adapter-agent-cli, target: contract_suite}
+    bounded: false
+    status_hint: none
+    basis: the shared suite (missing result is TimedOut never Completed)
+    divergence: unrecorded
+  - id: AK-011
+    kind: test_report
+    frozen_locator: tests/contract/agent_runner::malformed_result_rejected
+    evidence:
+      execute: {package: gauntlet-adapter-agent-cli, target: contract_suite}
+    bounded: false
+    status_hint: none
+    basis: the shared suite (malformed result document is Failed malformed_result)
+    divergence: unrecorded
+  - id: AK-012
+    kind: test_report
+    frozen_locator: tests/contract/agent_runner::contract_mismatch
+    evidence:
+      execute: {package: gauntlet-adapter-agent-cli, target: contract_suite}
+    bounded: false
+    status_hint: none
+    basis: the shared suite (foreign invocation id or stale digest is Failed contract_mismatch)
+    divergence: unrecorded
+  - id: AK-013
+    kind: test_report
+    frozen_locator: tests/proofs/p8_adapter_substitution
+    evidence:
+      execute: {package: gauntlet-cli, target: p8_adapter_substitution}
+    bounded: false
+    status_hint: none
+    basis: the P8 proof (full unmodified suite over mock and cli through one loop body)
+    divergence: reference-candidates 2026-08-29
+  - id: AK-014
+    kind: test_report
+    frozen_locator: tests/contract/adapter_registry::selection_is_config_driven
+    evidence:
+      execute: {package: gauntlet-arch-tests, target: adapter_registry, filter: selection_is_config_driven}
+    bounded: false
+    status_hint: none
+    basis: the registry case at its verbatim locator (selection resolves from configuration only)
+    divergence: none
+  - id: AK-015
+    kind: test_report
+    frozen_locator: tests/contract/config::precedence
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: precedence}
+    bounded: false
+    status_hint: none
+    basis: the config resolve precedence suite (defaults below GAUNTLET.md below env below flags)
+    divergence: unrecorded
+  - id: AK-016
+    kind: test_report
+    frozen_locator: tests/contract/no_hardcoded_literals
+    evidence:
+      execute: {package: gauntlet-arch-tests, target: no_hardcoded_literals}
+    bounded: false
+    status_hint: none
+    basis: the literal scanner at its verbatim locator (plus its vacuous-exemption warrant test)
+    divergence: none
+  - id: AK-017
+    kind: test_report
+    frozen_locator: tests/e2e/doctor
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: doctor}
+    bounded: false
+    status_hint: none
+    basis: the doctor check suite (every preflight check; required failures exit non-zero)
+    divergence: unrecorded
+  - id: AK-018
+    kind: test_report
+    frozen_locator: tests/contract/secrets::never_leaked
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: secrets_never_leaked}
+    bounded: false
+    status_hint: none
+    basis: the secrets never-leaked case (indirection resolves; values never surface)
+    divergence: unrecorded
+  - id: AK-019
+    kind: test_report
+    frozen_locator: tests/contract/env_example_complete
+    evidence:
+      execute: {package: gauntlet-arch-tests, target: env_example_complete}
+    bounded: false
+    status_hint: none
+    basis: the env example completeness target at its verbatim locator
+    divergence: none
+  - id: AK-020
+    kind: test_report
+    frozen_locator: tests/e2e/bounded_without_config
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: an_empty_world_resolves_to_the_defaults_table}
+    bounded: false
+    status_hint: none
+    basis: the empty-world resolution onto the conservative defaults table (config absent)
+    divergence: unrecorded
+  - id: AK-021
+    kind: test_report
+    frozen_locator: tests/contract/reference::normalization_is_deterministic
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: reference::normalize}
+    bounded: false
+    status_hint: none
+    basis: the normalization determinism suite (one digest across spellings; edits move it)
+    divergence: reference-candidates 2026-08-18
+  - id: AK-022
+    kind: test_report
+    frozen_locator: tests/proofs/p1_reference_integrity::frozen_copy_outside_workspace
+    evidence:
+      execute: {package: gauntlet-cli, target: p1_reference_integrity}
+    bounded: false
+    status_hint: none
+    basis: the P1 composed proof (frozen copy outside every builder-writable path)
+    divergence: reference-candidates 2026-08-18
+  - id: AK-023
+    kind: test_report
+    frozen_locator: tests/proofs/p1_reference_integrity
+    evidence:
+      execute: {package: gauntlet-cli, target: p1_reference_integrity}
+    bounded: false
+    status_hint: none
+    basis: the P1 composed proof (builder mutation aborts the run with reference_mutated)
+    divergence: reference-candidates 2026-08-18
+  - id: AK-024
+    kind: test_report
+    frozen_locator: tests/proofs/p1_reference_integrity::digest_rechecked
+    evidence:
+      execute: {package: gauntlet-cli, target: p1_reference_integrity}
+    bounded: false
+    status_hint: none
+    basis: the P1 composed proof (digest re-verified at boundaries and before settlement)
+    divergence: reference-candidates 2026-08-18
+  - id: AK-025
+    kind: test_report
+    frozen_locator: tests/antigaming/g2_change_reference
+    evidence:
+      execute: {package: gauntlet-cli, target: antigaming}
+    bounded: false
+    status_hint: none
+    basis: the antigaming suite (the G2 reference-change tripwire among its nineteen tests)
+    divergence: reference-candidates 2026-08-18
+  - id: AK-026
+    kind: test_report
+    frozen_locator: tests/proofs/p2_context_isolation
+    evidence:
+      execute: {package: gauntlet-cli, target: p2_context_isolation}
+    bounded: false
+    status_hint: none
+    basis: the P2 composed proof (allowlist envelope; six canaries absent from canonical bytes)
+    divergence: reference-candidates 2026-08-20
+  - id: AK-027
+    kind: test_report
+    frozen_locator: tests/proofs/p2_context_isolation::teeth
+    evidence:
+      execute: {package: gauntlet-cli, target: p2_context_isolation}
+    bounded: false
+    status_hint: none
+    basis: the P2 teeth leg (a deny-listed field fails the blindness proof and names itself)
+    divergence: reference-candidates 2026-08-20
+  - id: AK-028
+    kind: test_report
+    frozen_locator: tests/contract/observer::facet_provenance
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: observation::assembly}
+    bounded: false
+    status_hint: none
+    basis: the observation assembly cross-checks (facet provenance versus stored evidence)
+    divergence: reference-candidates 2026-08-19
+  - id: AK-029
+    kind: test_report
+    frozen_locator: tests/proofs/p3_real_observation
+    evidence:
+      execute: {package: gauntlet-cli, target: p3_real_observation}
+    bounded: false
+    status_hint: none
+    basis: the P3 composed proof (claims facet excluded from verification inputs by construction)
+    divergence: reference-candidates 2026-08-19
+  - id: AK-030
+    kind: test_report
+    frozen_locator: tests/antigaming/g6_hide_failed_observations
+    evidence:
+      execute: {package: gauntlet-cli, target: g6_hide_failed_observations}
+    bounded: false
+    status_hint: none
+    basis: the G6 proof (failures populate both gap arrays; hidden edits are tamper-evident)
+    divergence: reference-candidates 2026-08-19
+  - id: AK-031
+    kind: test_report
+    frozen_locator: tests/proofs/p11_critic_is_not_verifier
+    evidence:
+      execute: {package: gauntlet-cli, target: p11_critic_is_not_verifier}
+    bounded: false
+    status_hint: none
+    basis: the P11 composed proof (comparators produce residuals only; nothing settles on them)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-032
+    kind: test_report
+    frozen_locator: tests/contract/comparison::deterministic_aggregation
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: compare::}
+    bounded: false
+    status_hint: none
+    basis: the compare suite (deterministic aggregation; blocking residual forces fail; no model)
+    divergence: reference-candidates 2026-08-20
+  - id: AK-033
+    kind: test_report
+    frozen_locator: tests/contract/review_mode::adaptive_skips_settled_dimensions
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: compare::}
+    bounded: false
+    status_hint: none
+    basis: the review-mode suite (deterministic probes first; model critics only where undecided)
+    divergence: reference-candidates 2026-08-20
+  - id: AK-034
+    kind: test_report
+    frozen_locator: tests/contract/review_mode::truncation_is_recorded
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: compare::}
+    bounded: false
+    status_hint: none
+    basis: the review-mode suite (budget-truncated dimensions recorded as unavailable evidence)
+    divergence: reference-candidates 2026-08-20
+  - id: AK-035
+    kind: test_report
+    frozen_locator: tests/contract/verifier::deterministic_first
+    evidence:
+      execute: {package: gauntlet-cli, target: p12_missing_is_not_passing}
+    bounded: false
+    status_hint: none
+    basis: the P12 composed leg (the deterministic rung decides; zero model dispatches recorded)
+    divergence: reference-candidates 2026-08-21
+  - id: AK-036
+    kind: test_report
+    frozen_locator: tests/contract/verifier::evidence_binding
+    evidence:
+      execute: {package: gauntlet-cli, target: p12_missing_is_not_passing}
+    bounded: false
+    status_hint: none
+    basis: the P12 binding classes (absent stale and foreign evidence each refuse distinctly)
+    divergence: reference-candidates 2026-08-21
+  - id: AK-037
+    kind: test_report
+    frozen_locator: tests/contract/controller::records_alternatives
+    evidence:
+      execute: {package: gauntlet-cli, target: p4_corrective_loop}
+    bounded: false
+    status_hint: none
+    basis: the P4 composed proof (correcting records name rejected alternatives with reasons)
+    divergence: reference-candidates 2026-08-25
+  - id: AK-038
+    kind: test_report
+    frozen_locator: tests/proofs/p4_corrective_loop
+    evidence:
+      execute: {package: gauntlet-cli, target: p4_corrective_loop}
+    bounded: false
+    status_hint: none
+    basis: the P4 composed loop (injected defect exposed compared and closed by routed correction)
+    divergence: reference-candidates 2026-08-25
+  - id: AK-039
+    kind: test_report
+    frozen_locator: tests/contract/diagnosis::nonconvergence
+    evidence:
+      execute: {package: gauntlet-cli, target: p4_corrective_loop}
+    bounded: false
+    status_hint: none
+    basis: the P4 diagnosis leg (recurring residual routes to bounded diagnosis; exhaustion is INCONCLUSIVE)
+    divergence: reference-candidates 2026-08-25
+  - id: AK-040
+    kind: test_report
+    frozen_locator: tests/contract/settlement::preconditions
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: settle}
+    bounded: false
+    status_hint: none
+    basis: the settlement precondition matrix (each refused condition a distinct typed refusal)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-041
+    kind: test_report
+    frozen_locator: tests/proofs/p7_recovery::commit_order
+    evidence:
+      execute: {package: gauntlet-cli, target: p7_recovery}
+    bounded: false
+    status_hint: none
+    basis: the P7 commit_order leg (durable event before any status write or in-memory advance)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-042
+    kind: test_report
+    frozen_locator: tests/proofs/p7_recovery
+    evidence:
+      execute: {package: gauntlet-cli, target: p7_recovery}
+    bounded: false
+    status_hint: none
+    basis: the P7 crash legs (kill mid-settlement; resume completes exactly once; evidence kept)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-043
+    kind: test_report
+    frozen_locator: tests/antigaming/g10_builder_writes_answer_key
+    evidence:
+      execute: {package: gauntlet-cli, target: g10_builder_writes_answer_key}
+    bounded: false
+    status_hint: none
+    basis: the G10 composed legs (builder writes refused by containment; tamper aborts pinned)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-044
+    kind: test_report
+    frozen_locator: tests/proofs/p5_hard_gate::irreversible_never_dispatched
+    evidence:
+      execute: {package: gauntlet-cli, target: p5_hard_gate}
+    bounded: false
+    status_hint: none
+    basis: the P5 leg (irreversible never dispatches; zero durable invocations; queue ticket)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-045
+    kind: test_report
+    frozen_locator: tests/proofs/p5_hard_gate
+    evidence:
+      execute: {package: gauntlet-cli, target: p5_hard_gate}
+    bounded: false
+    status_hint: none
+    basis: the P5 merit-vs-conjunct leg (one violated hard requirement refuses outright)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-046
+    kind: test_report
+    frozen_locator: tests/antigaming/g7_tier_downgrade
+    evidence:
+      execute: {package: gauntlet-cli, target: g7_tier_downgrade}
+    bounded: false
+    status_hint: none
+    basis: the G7 legs (agent lattice moves refused both directions; mid-run downgrade aborts)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-047
+    kind: test_report
+    frozen_locator: tests/contract/sandbox::no_unsandboxed_fallback
+    evidence:
+      execute: {package: gauntlet-cli, target: p5_hard_gate}
+    bounded: false
+    status_hint: none
+    basis: the P5 escalation leg (failed validation escalates; no unsandboxed fallback)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-048
+    kind: test_report
+    frozen_locator: tests/contract/sandbox::wraps_from_process_start
+    evidence:
+      execute: {package: gauntlet-cli, target: p5_hard_gate}
+    bounded: false
+    status_hint: none
+    basis: the P5 wrap leg (containment from process start; confined session over shipped policies)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-049
+    kind: test_report
+    frozen_locator: tests/e2e/doctor::irreversible_policy_is_error
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: doctor}
+    bounded: false
+    status_hint: none
+    basis: the doctor check-5 suite (irreversible-tier policy fails the run; removal is green)
+    divergence: reference-candidates 2026-08-17
+  - id: AK-050
+    kind: test_report
+    frozen_locator: tests/contract/sandbox::capability_mismatch
+    evidence:
+      execute: {package: gauntlet-cli, target: p5_hard_gate}
+    bounded: false
+    status_hint: none
+    basis: the P5 capability leg (isolation-none runner refused above contained)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-051
+    kind: test_report
+    frozen_locator: tests/proofs/p6_budget_control
+    evidence:
+      execute: {package: gauntlet-cli, target: p6_budget_control}
+    bounded: false
+    status_hint: none
+    basis: the P6 proof (terminal at the declared budget with the recovery reserve unspent)
+    divergence: reference-candidates 2026-08-25
+  - id: AK-052
+    kind: test_report
+    frozen_locator: tests/contract/budget::reserve_protected
+    evidence:
+      execute: {package: gauntlet-cli, target: p6_budget_control}
+    bounded: false
+    status_hint: none
+    basis: the P6 meter legs (reserve-consuming dispatch refused and booked as nothing)
+    divergence: reference-candidates 2026-08-25
+  - id: AK-053
+    kind: test_report
+    frozen_locator: tests/contract/state::checkpoint_sufficiency
+    evidence:
+      execute: {package: gauntlet-app, lib: true, filter: control::controller}
+    bounded: true
+    status_hint: none
+    basis: controller checkpoint and resume fidelity (18.3 steps 4-5 absent; recorded RES-A4)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-054
+    kind: test_report
+    frozen_locator: tests/contract/state::deterministic_export
+    evidence:
+      execute: {package: gauntlet-cli, target: export_stack}
+    bounded: false
+    status_hint: none
+    basis: the composed export stack (double export byte-identical and canonical)
+    divergence: reference-candidates 2026-08-17
+  - id: AK-055
+    kind: test_report
+    frozen_locator: tests/proofs/p10_no_false_learning
+    evidence:
+      execute: {package: gauntlet-cli, target: p10_no_false_learning}
+    bounded: false
+    status_hint: none
+    basis: the P10 proof (one run never promotes; identical variation refused; revoke sticky)
+    divergence: reference-candidates 2026-09-03
+  - id: AK-056
+    kind: test_report
+    frozen_locator: tests/proofs/p9_self_improvement_containment
+    evidence:
+      execute: {package: gauntlet-cli, target: p9_self_improvement_containment}
+    bounded: false
+    status_hint: none
+    basis: the P9 proof (weakening candidates rejected with the reason as its own tooth)
+    divergence: reference-candidates 2026-09-03
+  - id: AK-057
+    kind: test_report
+    frozen_locator: tests/contract/promotion::candidate_only
+    evidence:
+      execute: {package: gauntlet-app, target: promotion, filter: candidate_only}
+    bounded: false
+    status_hint: none
+    basis: the promotion suite (optimizer output is a candidate revision only; rollback valid)
+    divergence: reference-candidates 2026-09-03
+  - id: AK-058
+    kind: test_report
+    frozen_locator: tests/antigaming
+    evidence:
+      execute: {package: gauntlet-cli, target: antigaming}
+    bounded: false
+    status_hint: none
+    basis: the antigaming suite (sixteen strategy tests over real adapters; manifest validator)
+    divergence: reference-candidates 2026-09-04
+  - id: AK-059
+    kind: test_report
+    frozen_locator: tests/fixtures/mock_runner_scenarios
+    evidence:
+      execute: {package: gauntlet-adapter-agent-mock, target: scenario_playback}
+    bounded: false
+    status_hint: none
+    basis: fixture playback in the mock adapter (the frozen locator holds the scenario fixtures)
+    divergence: unrecorded
+  - id: AK-060
+    kind: test_report
+    frozen_locator: tests/e2e/cli_surface
+    evidence:
+      execute: {package: gauntlet-cli, target: cli_surface}
+    bounded: false
+    status_hint: none
+    basis: the surface snapshot and dispatch smokes over the REAL binary
+    divergence: reference-candidates 2026-08-31
+  - id: AK-061
+    kind: log
+    frozen_locator: build/cli-only-profile
+    evidence:
+      execute: {package: gauntlet-cli, target: e2e_full_loop_mock}
+    bounded: false
+    status_hint: none
+    basis: the mock full loop through the CLI-only default build (task-21 re-evidence)
+    divergence: unrecorded
+  - id: AK-062
+    kind: test_report
+    frozen_locator: tests/contract/operator_actions::no_bypass
+    evidence:
+      execute: {package: gauntlet-cli, target: operator_actions_no_bypass, features: [surfaces]}
+    bounded: false
+    status_hint: none
+    basis: the operator-action proof under the surfaces config (the whole target is feature-gated; the default config compiles zero of its tests)
+    divergence: reference-candidates 2026-08-28
+  - id: AK-063
+    kind: test_report
+    frozen_locator: tests/contract/roles::install_and_verify
+    evidence:
+      execute: {package: gauntlet-app, target: roles, filter: install_and_verify}
+    bounded: false
+    status_hint: none
+    basis: the roles suite (install from repo files; drift reported in every direction)
+    divergence: reference-candidates 2026-08-30
+  - id: AK-064
+    kind: test_report
+    frozen_locator: tests/contract/skills::wayfinder_gauntlet_conformance
+    evidence:
+      execute: {package: gauntlet-app, target: skills, filter: wayfinder_gauntlet_conformance}
+    bounded: false
+    status_hint: none
+    basis: the wayfinder-gauntlet conformance suite (provenance; semantics preserved)
+    divergence: unrecorded
+  - id: AK-065
+    kind: test_report
+    frozen_locator: tests/contract/formation::fog_not_in_answer_key
+    evidence:
+      execute: {package: gauntlet-app, target: formation, filter: fog_not_in_answer_key}
+    bounded: false
+    status_hint: none
+    basis: the formation fog invariant (fog recorded; no fog entry reaches the answer key)
+    divergence: unrecorded
+  - id: AK-066
+    kind: test_report
+    frozen_locator: tests/e2e/full_loop_real_runner
+    evidence:
+      execute: {package: gauntlet-cli, target: e2e_full_loop_real_runner}
+    bounded: true
+    status_hint: none
+    basis: the wrap-and-settle leg (recovery and budget legs corroborate; settleability tension recorded)
+    divergence: reference-candidates 2026-09-06
+  - id: AK-067
+    kind: file
+    frozen_locator: .agents/reports/handoff.md
+    evidence:
+      artifact: {path: .agents/reports/handoff.md, predicate: handoff_six_categories}
+    bounded: false
+    status_hint: proposed
+    basis: the six-category handoff (B3 wave 2; absent stays honest INCONCLUSIVE until it lands)
+    divergence: none
+  - id: AK-068
+    kind: test_report
+    frozen_locator: tests/contract/docs_present
+    evidence:
+      execute: {package: gauntlet-arch-tests, target: docs_present}
+    bounded: false
+    status_hint: none
+    basis: the docs-present teeth (eight documents exist; proven-vs-provisional present; AK-001 precedent)
+    divergence: none
+  - id: AK-069
+    kind: metric
+    frozen_locator: .agents/reports/baselines.json
+    evidence:
+      artifact: {path: .agents/reports/baselines.json, predicate: baselines_keys_abcd}
+    bounded: true
+    status_hint: configured_but_untested
+    basis: the recorded task-26 settlement artifact (measured on the task-26 tree; D-does-not-win included)
+    divergence: none
+  - id: AK-070
+    kind: test_report
+    frozen_locator: .agents/reports/mutation.json
+    evidence:
+      artifact: {path: .agents/reports/mutation.json, predicate: mutation_record_valid}
+    bounded: true
+    status_hint: configured_but_untested
+    basis: the recorded task-24 settlement artifact (73 examined 63 caught 10 unviable missed 0)
+    divergence: none

@@ -1,0 +1,12 @@
+command: cargo nextest run -p gauntlet-arch-tests --test architecture_boundaries denylist
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+────────────
+ Nextest run ID ee688b5b-acff-4dc5-8fbe-1032a99ff2b3 with nextest profile: default
+    Starting 1 test across 1 binary (3 tests skipped)
+        PASS [   4.802s] (1/1) gauntlet-arch-tests::architecture_boundaries denylist
+────────────
+     Summary [   4.803s] 1 test run: 1 passed, 3 skipped

@@ -1,10 +1,23 @@
-//! `gauntlet verify` (spec §20.1; plan Task 20, charter D8): re-runs
-//! ladder verification for `--unit` or a whole `--run` through the
-//! [`VerificationAuthority`] + the composed §14.2 rung set. Prints the
-//! THREE-STATE outcomes (PASS / FAIL / INCONCLUSIVE stay three states —
-//! nothing collapses them) and NEVER settles: this command writes
-//! nothing; a verification record here is a read-side re-run, and the
-//! durable settlement path stays the loop's alone.
+//! `gauntlet verify` (spec §20.1; plan Task 20, charter D8; task 27 for
+//! `--all`): re-runs ladder verification for `--unit` or a whole `--run`
+//! through the [`VerificationAuthority`] + the composed §14.2 rung set.
+//! Prints the THREE-STATE outcomes (PASS / FAIL / INCONCLUSIVE stay
+//! three states — nothing collapses them) and NEVER settles: this
+//! command writes nothing; a verification record here is a read-side
+//! re-run, and the durable settlement path stays the loop's alone.
+//!
+//! `gauntlet verify --all [--report <path>] [--manifest <path>]`
+//! (task 27, charter decision 1) is the conformance sweep: a READ-ONLY
+//! instrument surface over [`gauntlet_app::conformance`] that
+//! adjudicates every frozen-ruler unit against the authored manifest
+//! and writes ONLY the report + the evidence directory. `--all` and
+//! `--run` are mutually exclusive (usage error, exit 2); the sweep
+//! exits 0 iff it completed with zero FAIL outcomes (INCONCLUSIVE is
+//! allowed — honest reporting); any refusal or FAIL exits non-zero
+//! with no half-written report. The process toolchain (the repository
+//! test runner and its compile-lock discipline) is composed by the
+//! adapter layer ([`sweep_toolchain`]) — this composition root wires,
+//! it does not spell tool names.
 
 use std::process::ExitCode;
 
@@ -18,11 +31,140 @@ fn bound() -> Deadline {
     crate::context::doctor_bound()
 }
 
-/// `gauntlet verify --run <run-id> [--unit <unit-id>]`.
+/// The sweep's package vocabulary: the core workspace packages the
+/// application layer pins by default, EXTENDED with the two runner
+/// adapters this composition root wires (their contract suites and
+/// fixture playback are conformance evidence). Adapter names live here
+/// and only here — the composition root, outside the adapter-identifier
+/// denylist's scope.
+pub fn sweep_packages() -> &'static [&'static str] {
+    const PACKAGES: &[&str] = &[
+        "gauntlet-domain",
+        "gauntlet-ports",
+        "gauntlet-app",
+        "gauntlet-cli",
+        "gauntlet-arch-tests",
+        "gauntlet-adapter-agent-mock",
+        "gauntlet-adapter-agent-cli",
+    ];
+    PACKAGES
+}
+
+/// The sweep's FEATURE-edge vocabulary, discovered from the package
+/// allowlist's own `[features]` tables: gauntlet-app declares
+/// `composition`, gauntlet-cli declares `surfaces`, and every other
+/// allowlisted package (domain, ports, arch-tests, both runner
+/// adapters) declares none; `default` is implicit and deliberately
+/// absent. The application layer's default pins the same core edges
+/// (and a test pins THAT const to the Cargo.tomls); this composition
+/// root list is what the committed manifest validates against.
+pub fn sweep_features() -> &'static [&'static str] {
+    const FEATURES: &[&str] = &["composition", "surfaces"];
+    FEATURES
+}
+
+/// The sweep's process executor: maps the application layer's
+/// STRUCTURAL commands onto adapter-composed invocations. Nextest arms
+/// run under the repository compile-lock discipline with the lock
+/// acquisition bounded and the wrapped exit status preserved; the
+/// FLOCK-LEVEL outcomes — a lock that stayed busy, and a wrapper that
+/// could not execute its command — are the typed environmental refusal
+/// (INCONCLUSIVE, charter decision 3), never FAIL-by-default; the
+/// wrapper remaps an inner command's own reserved code so the
+/// flock-level pair stays unambiguous (COR-1). Bare-program arms (the
+/// fixture world) run directly — no compile, no lock, no reserved-code
+/// reinterpretation: their exit is their own.
+struct SweepProcessExecutor;
+
+impl gauntlet_app::conformance::ConformanceExecutor for SweepProcessExecutor {
+    fn execute(
+        &mut self,
+        command: &gauntlet_app::conformance::SweepCommand,
+    ) -> Result<gauntlet_app::conformance::CommandOutcome, gauntlet_app::conformance::ExecuteError>
+    {
+        use gauntlet_adapter_verify_command_exit_code::sweep_toolchain as chain;
+        use gauntlet_app::conformance::NextestSelector;
+
+        // Only the locked arm's exit codes are flock-interpreted; the
+        // bare-program arm owns every code it produces.
+        let locked = matches!(
+            command,
+            gauntlet_app::conformance::SweepCommand::Nextest { .. }
+        );
+        let invocation = match command {
+            gauntlet_app::conformance::SweepCommand::Nextest {
+                package,
+                selector,
+                filter,
+                features,
+            } => {
+                let (target, lib) = match selector {
+                    NextestSelector::Test(name) => (Some(name.as_str()), false),
+                    NextestSelector::Lib => (None, true),
+                };
+                let edges: Vec<&str> = features.iter().map(String::as_str).collect();
+                let inner =
+                    chain::nextest_invocation(package, target, lib, filter.as_deref(), &edges);
+                chain::lock_wrapped(&inner)
+            }
+            gauntlet_app::conformance::SweepCommand::Program { path } => chain::ToolInvocation {
+                program: path.clone(),
+                args: Vec::new(),
+                display: path.clone(),
+            },
+        };
+        let started = std::time::Instant::now();
+        let run = std::process::Command::new(&invocation.program)
+            .args(&invocation.args)
+            .output();
+        let elapsed = started.elapsed().as_millis() as u64;
+        match run {
+            Ok(status) => {
+                let code = status.status.code().unwrap_or(-1);
+                if locked && (code == chain::LOCK_BUSY_EXIT || code == chain::LOCK_EXEC_FAILED_EXIT)
+                {
+                    // The wrapper script remaps the INNER command's own
+                    // reserved code, so these two are unambiguously the
+                    // lock layer speaking (COR-1's disambiguation).
+                    let detail = String::from_utf8_lossy(&status.stderr);
+                    let first = detail
+                        .lines()
+                        .find(|line| !line.trim().is_empty())
+                        .unwrap_or_default()
+                        .to_owned();
+                    let reason = if code == chain::LOCK_BUSY_EXIT {
+                        "the repository compile lock stayed busy past the wrapper's \
+                         bounded wait"
+                            .to_owned()
+                    } else {
+                        format!("the lock wrapper could not execute the sweep command: {first}")
+                    };
+                    return Err(gauntlet_app::conformance::ExecuteError::CannotRun { reason });
+                }
+                Ok(gauntlet_app::conformance::CommandOutcome {
+                    display: invocation.display,
+                    exit_code: code,
+                    stdout: status.stdout,
+                    stderr: status.stderr,
+                    duration_ms: elapsed,
+                })
+            }
+            Err(error) => Err(gauntlet_app::conformance::ExecuteError::CannotRun {
+                reason: format!("the sweep command could not be spawned: {error}"),
+            }),
+        }
+    }
+}
+
+/// `gauntlet verify --run <run-id> [--unit <unit-id>]` or
+/// `gauntlet verify --all [--report <path>] [--manifest <path>]`.
 #[allow(clippy::arc_with_non_send_sync)] // single-threaded re-verification surface
 pub fn verify(args: &[String]) -> ExitCode {
     let mut run_id: Option<String> = None;
     let mut unit: Option<String> = None;
+    let mut all = false;
+    let mut report: Option<String> = None;
+    let mut manifest: Option<String> = None;
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
@@ -46,12 +188,55 @@ pub fn verify(args: &[String]) -> ExitCode {
                     return ExitCode::from(2);
                 }
             },
+            "--all" => {
+                all = true;
+                index += 1;
+            }
+            "--report" => match args.get(index + 1) {
+                Some(value) => {
+                    report = Some(value.clone());
+                    index += 2;
+                }
+                None => {
+                    eprintln!("gauntlet verify: --report requires a path");
+                    println!("usage: gauntlet verify --all [--report <path>] [--manifest <path>]");
+                    return ExitCode::from(2);
+                }
+            },
+            "--manifest" => match args.get(index + 1) {
+                Some(value) => {
+                    manifest = Some(value.clone());
+                    index += 2;
+                }
+                None => {
+                    eprintln!("gauntlet verify: --manifest requires a path");
+                    println!("usage: gauntlet verify --all [--report <path>] [--manifest <path>]");
+                    return ExitCode::from(2);
+                }
+            },
             other => {
                 eprintln!("gauntlet verify: unknown argument '{other}'");
-                println!("usage: gauntlet verify --run <run-id> [--unit <unit-id>]");
+                if all {
+                    println!("usage: gauntlet verify --all [--report <path>] [--manifest <path>]");
+                } else {
+                    println!("usage: gauntlet verify --run <run-id> [--unit <unit-id>]");
+                }
                 return ExitCode::from(2);
             }
         }
+    }
+    if all {
+        if run_id.is_some() {
+            eprintln!("gauntlet verify: --all and --run are mutually exclusive");
+            println!("usage: gauntlet verify --all [--report <path>] [--manifest <path>]");
+            return ExitCode::from(2);
+        }
+        if unit.is_some() {
+            eprintln!("gauntlet verify: --unit belongs to --run, not --all");
+            println!("usage: gauntlet verify --all [--report <path>] [--manifest <path>]");
+            return ExitCode::from(2);
+        }
+        return verify_all(report.as_deref(), manifest.as_deref());
     }
     let Some(run_id) = run_id else {
         eprintln!("gauntlet verify: --run is required");
@@ -191,4 +376,207 @@ pub fn verify(args: &[String]) -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+/// The conformance sweep (task 27): read-only, writes ONLY the report
+/// and the evidence directory, never settles anything.
+fn verify_all(report: Option<&str>, manifest: Option<&str>) -> ExitCode {
+    let context = match resolve_context(None) {
+        Ok(context) => context,
+        Err(error) => {
+            eprintln!("gauntlet verify --all: the configuration did not resolve: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let root = context.project_root.clone();
+    let reports = gauntlet_app::config::defaults::report_dir_at(&root);
+    let report_path = match report {
+        Some(path) => root.join(path),
+        None => reports.join("conformance.json"),
+    };
+    let manifest_path = match manifest {
+        Some(path) => root.join(path),
+        None => reports.join("conformance-manifest.yaml"),
+    };
+    let answer_key = context.resolved.reference.answer_key.clone();
+    let ruler_text = match std::fs::read_to_string(&answer_key) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!(
+                "gauntlet verify --all: reading {}: {error}",
+                answer_key.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    let manifest_text = match std::fs::read_to_string(&manifest_path) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!(
+                "gauntlet verify --all: reading {}: {error}",
+                manifest_path.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    };
+    let tree_commit = match head_commit(&root) {
+        Ok(commit) => commit,
+        Err(error) => {
+            eprintln!("gauntlet verify --all: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let (generated_at, evidence_stamp) = utc_now();
+    let display_answer_key = display_path(&root, &answer_key);
+    let display_manifest = display_path(&root, &manifest_path);
+    let inputs = gauntlet_app::conformance::SweepInputs {
+        ruler_text: &ruler_text,
+        answer_key_path: display_answer_key,
+        manifest_text: &manifest_text,
+        manifest_path: display_manifest,
+        workspace_root: root.as_path(),
+        allowed_packages: sweep_packages(),
+        allowed_features: sweep_features(),
+        generated_at,
+        evidence_stamp,
+        tree_commit,
+    };
+    let mut executor = SweepProcessExecutor;
+    let outcome = match gauntlet_app::conformance::run_sweep(&mut executor, &inputs) {
+        Ok(outcome) => outcome,
+        Err(refusal) => {
+            eprintln!("gauntlet verify --all: REFUSED — {refusal}");
+            eprintln!("gauntlet verify --all: no report was written");
+            return ExitCode::FAILURE;
+        }
+    };
+    // Write the evidence directory first, then the report, so the
+    // report's evidence refs exist on disk the moment it lands.
+    let parent = report_path
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_else(|| root.clone());
+    for (relative, bytes) in &outcome.evidence_files {
+        let target = parent.join(relative);
+        if let Some(directory) = target.parent()
+            && let Err(error) = std::fs::create_dir_all(directory)
+        {
+            eprintln!(
+                "gauntlet verify --all: creating {}: {error}",
+                directory.display()
+            );
+            return ExitCode::FAILURE;
+        }
+        if let Err(error) = std::fs::write(&target, bytes) {
+            eprintln!(
+                "gauntlet verify --all: writing {}: {error}",
+                target.display()
+            );
+            return ExitCode::FAILURE;
+        }
+    }
+    let mut report_text = outcome.report.to_json_text();
+    report_text.push('\n');
+    if let Err(error) = std::fs::write(&report_path, report_text.as_bytes()) {
+        eprintln!(
+            "gauntlet verify --all: writing {}: {error}",
+            report_path.display()
+        );
+        return ExitCode::FAILURE;
+    }
+    println!(
+        "verify --all: units={} pass={} inconclusive={} fail={} commands={} — report at {}",
+        outcome.pass + outcome.inconclusive + outcome.fail,
+        outcome.pass,
+        outcome.inconclusive,
+        outcome.fail,
+        outcome.commands_executed,
+        report_path.display()
+    );
+    println!("verify --all: read-only sweep — NOTHING settled");
+    if outcome.fail > 0 {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// The tree's head commit, read from the working tree's git directory
+/// (HEAD → ref file → packed-refs fallback). Read-only.
+fn head_commit(root: &std::path::Path) -> Result<String, String> {
+    let git = root.join(".git");
+    let head = std::fs::read_to_string(git.join("HEAD"))
+        .map_err(|error| format!("reading the tree's HEAD: {error}"))?;
+    let head = head.trim();
+    if let Some(reference) = head.strip_prefix("ref: ") {
+        let direct = git.join(reference);
+        if let Ok(commit) = std::fs::read_to_string(&direct) {
+            return Ok(commit.trim().to_owned());
+        }
+        let packed = std::fs::read_to_string(git.join("packed-refs")).unwrap_or_default();
+        for line in packed.lines() {
+            if let Some((commit, name)) = line.split_once(' ')
+                && name.trim() == reference
+            {
+                return Ok(commit.to_owned());
+            }
+        }
+        return Err(format!("the ref {reference} could not be resolved"));
+    }
+    if head.len() == 40 && head.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Ok(head.to_owned());
+    }
+    Err("the tree's HEAD has an unrecognized shape".to_owned())
+}
+
+/// The repo-relative display spelling of an anchored path (absolute
+/// paths under the root lose the root prefix; others pass through).
+fn display_path(root: &std::path::Path, path: &std::path::Path) -> String {
+    match path.strip_prefix(root) {
+        Ok(relative) => relative
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy().to_string())
+            .collect::<Vec<String>>()
+            .join("/"),
+        Err(_) => path.display().to_string(),
+    }
+}
+
+/// Days-since-epoch to the civil date (the standard era arithmetic —
+/// boring, inspectable, no dependencies).
+fn civil_from_days(day_number: i64) -> (i64, u32, u32) {
+    let shifted = day_number + 719_468;
+    let era = shifted.div_euclid(146_097);
+    let day_of_era = shifted.rem_euclid(146_097);
+    let year_of_era = (day_of_era - day_of_era.div_euclid(1_461) + day_of_era.div_euclid(36_524)
+        - day_of_era.div_euclid(146_096))
+    .div_euclid(365);
+    let year = year_of_era + era * 400;
+    let day_of_year =
+        day_of_era - (365 * year_of_era + year_of_era.div_euclid(4) - year_of_era.div_euclid(100));
+    let mp = (5 * day_of_year + 2).div_euclid(153);
+    let day = day_of_year - (153 * mp + 2).div_euclid(5) + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if month <= 2 { year + 1 } else { year };
+    (year, month as u32, day as u32)
+}
+
+/// The current UTC instant as (RFC3339, compact stamp). Caller-resolved
+/// time: the application layer owns no wall clock.
+fn utc_now() -> (String, String) {
+    let total = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|since| since.as_secs() as i64)
+        .unwrap_or_default();
+    let (days, within_day) = (total.div_euclid(86_400), total.rem_euclid(86_400));
+    let (year, month, day) = civil_from_days(days);
+    let (hour, minute, second) = (
+        within_day.div_euclid(3_600),
+        within_day.rem_euclid(3_600).div_euclid(60),
+        within_day.rem_euclid(60),
+    );
+    (
+        format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"),
+        format!("{year:04}{month:02}{day:02}T{hour:02}{minute:02}{second:02}Z"),
+    )
 }

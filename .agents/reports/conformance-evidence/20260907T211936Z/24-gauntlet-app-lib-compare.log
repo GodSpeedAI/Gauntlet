@@ -1,0 +1,48 @@
+command: cargo nextest run -p gauntlet-app --lib compare::
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+────────────
+ Nextest run ID a25a3ff5-37c0-4961-8367-22e5b5da76e2 with nextest profile: default
+    Starting 37 tests across 1 binary (523 tests skipped)
+        PASS [   0.021s] ( 1/37) gauntlet-app compare::aggregate::tests::empty_and_disagreeing_inputs_are_typed_errors
+        PASS [   0.037s] ( 2/37) gauntlet-app compare::aggregate::tests::omitted_hard_gate_is_not_held
+        PASS [   0.016s] ( 3/37) gauntlet-app compare::aggregate::tests::verdict_intents_flow_deterministically
+        PASS [   0.037s] ( 4/37) gauntlet-app compare::aggregate::tests::hard_gates_hold_only_when_every_contributor_holds
+        PASS [   0.038s] ( 5/37) gauntlet-app compare::aggregate::tests::any_blocking_residual_forces_fail_regardless_of_everything_else
+        PASS [   0.038s] ( 6/37) gauntlet-app compare::aggregate::tests::preserves_an_already_disputed_residual
+        PASS [   0.012s] ( 7/37) gauntlet-app compare::contract::tests::structural_defects_are_typed_errors_with_loci
+        PASS [   0.012s] ( 8/37) gauntlet-app compare::contract::tests::unknown_versions_are_typed_errors_never_partially_adopted
+        PASS [   0.013s] ( 9/37) gauntlet-app compare::contract::tests::a_minimal_contract_parses_and_the_view_round_trips
+        PASS [   0.015s] (10/37) gauntlet-app compare::contract::tests::rubric_and_dimension_vocabulary_is_enforced
+        PASS [   0.015s] (11/37) gauntlet-app compare::contract::tests::the_repository_artifact_parses_into_the_typed_view
+        PASS [   0.075s] (12/37) gauntlet-app compare::aggregate::tests::deterministic_aggregation
+        PASS [   0.025s] (13/37) gauntlet-app compare::envelope::tests::a_role_deny_set_naming_a_carried_category_refuses_the_input_set
+        PASS [   0.025s] (14/37) gauntlet-app compare::envelope::tests::a_tampered_bundle_is_refused_at_the_consumption_boundary
+        PASS [   0.007s] (15/37) gauntlet-app compare::envelope::tests::legitimate_frozen_prose_is_not_mistaken_for_an_injected_field
+        PASS [   0.034s] (16/37) gauntlet-app compare::envelope::tests::a_built_envelope_is_usable_by_the_ports_comparator_surface
+        PASS [   0.007s] (17/37) gauntlet-app compare::envelope::tests::the_envelope_digest_is_recomputable_and_coupling_friendly
+        PASS [   0.034s] (18/37) gauntlet-app compare::envelope::tests::a_poisoned_serialization_fails_the_blindness_proof
+        PASS [   0.035s] (19/37) gauntlet-app compare::envelope::tests::a_critic_role_invocation_carries_the_envelope_digest
+        PASS [   0.012s] (20/37) gauntlet-app compare::recording::tests::persistence_failure_cancels_the_already_admitted_child
+        PASS [   0.016s] (21/37) gauntlet-app compare::envelope::tests::the_envelope_carries_facet_reality_and_none_of_the_claims
+        PASS [   0.024s] (22/37) gauntlet-app compare::review::tests::adaptive_inconclusive_probe_is_not_a_settlement
+        PASS [   0.025s] (23/37) gauntlet-app compare::review::tests::a_meter_refusal_truncates_the_dimension_with_the_typed_cause
+        PASS [   0.016s] (24/37) gauntlet-app compare::review::tests::concurrency_lease_releases_before_third_admission_without_a_clock
+        PASS [   0.027s] (25/37) gauntlet-app compare::review::tests::adaptive_skips_settled_dimensions
+        PASS [   0.010s] (26/37) gauntlet-app compare::review::tests::forever_running_primary_is_cancelled_before_its_permit_is_released
+        PASS [   0.033s] (27/37) gauntlet-app compare::review::tests::cancellation_error_quarantines_every_unconfirmed_sibling
+        PASS [   0.019s] (28/37) gauntlet-app compare::review::tests::every_mode_merges_into_one_coupled_record
+        PASS [   0.019s] (29/37) gauntlet-app compare::review::tests::failed_collection_cancels_every_uncollected_sibling
+        PASS [   0.011s] (30/37) gauntlet-app compare::review::tests::high_assurance_requires_an_adversarial_source
+        PASS [   0.020s] (31/37) gauntlet-app compare::review::tests::high_assurance_admits_every_job_before_its_first_collection
+        PASS [   0.033s] (32/37) gauntlet-app compare::review::tests::forever_running_primary_cancel_refusal_quarantines_its_permit
+        PASS [   0.067s] (33/37) gauntlet-app compare::review::tests::a_comparator_cannot_accept_a_document_bound_to_an_envelope_it_invented
+        PASS [   0.022s] (34/37) gauntlet-app compare::review::tests::review_retains_contributor_records_for_verification
+        PASS [   0.021s] (35/37) gauntlet-app compare::review::tests::review_refuses_a_mutated_envelope_before_source_selection
+        PASS [   0.020s] (36/37) gauntlet-app compare::review::tests::source_failure_after_admission_cancels_the_admitted_job
+        PASS [   0.022s] (37/37) gauntlet-app compare::review::tests::truncation_is_recorded
+────────────
+     Summary [   0.166s] 37 tests run: 37 passed, 523 skipped

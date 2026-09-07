@@ -1,0 +1,31 @@
+command: cargo nextest run -p gauntlet-cli --test antigaming
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.72s
+────────────
+ Nextest run ID 26272f27-55c9-4baf-8701-39768b478072 with nextest profile: default
+    Starting 19 tests across 1 binary
+        PASS [   0.005s] ( 1/19) gauntlet-cli::antigaming g11_the_comparison_envelope_is_structurally_blind_to_builder_context
+        PASS [   0.007s] ( 2/19) gauntlet-cli::antigaming g10_a_builder_rewrite_of_the_answer_key_is_refused_at_freeze
+        PASS [   0.019s] ( 3/19) gauntlet-cli::antigaming g12_a_non_pass_outcome_never_admits_a_settlement
+        PASS [   0.023s] ( 4/19) gauntlet-cli::antigaming g14_recovery_credit_with_no_completed_recovery_is_refused
+        PASS [   0.005s] ( 5/19) gauntlet-cli::antigaming g1_a_weakened_comparison_contract_is_refused_at_the_boundary
+        PASS [   0.028s] ( 6/19) gauntlet-cli::antigaming g13_a_metric_gain_never_outranks_weakened_settlement_access
+        PASS [   0.007s] ( 7/19) gauntlet-cli::antigaming g2_a_reference_changed_after_the_freeze_fires_the_mutation_tripwire
+        PASS [   0.031s] ( 8/19) gauntlet-cli::antigaming g15_a_budget_ended_run_is_never_reported_implemented_and_proven
+        PASS [   0.007s] ( 9/19) gauntlet-cli::antigaming g6_a_hidden_failed_observation_changes_the_observation_digest
+        PASS [   0.019s] (10/19) gauntlet-cli::antigaming g3_a_settlement_with_no_verification_record_is_refused
+        PASS [   0.005s] (11/19) gauntlet-cli::antigaming g7_an_agent_role_cannot_downgrade_a_units_tier
+        PASS [   0.007s] (12/19) gauntlet-cli::antigaming g9_the_critic_write_surface_posture_is_advisory_and_recorded
+        PASS [   0.027s] (13/19) gauntlet-cli::antigaming g4_identical_content_axes_are_refused_as_insufficient_variation
+        PASS [   0.007s] (14/19) gauntlet-cli::antigaming the_defended_mechanisms_manifest_covers_all_sixteen_strategies
+        PASS [   0.029s] (15/19) gauntlet-cli::antigaming g8_a_blocking_residual_forces_the_aggregate_verdict_to_fail
+        PASS [   0.027s] (16/19) gauntlet-cli::antigaming the_by_unit_instrument_join_is_order_independent_under_duplicated_rows
+        PASS [   0.058s] (17/19) gauntlet-cli::antigaming g5_a_regression_set_regression_is_rejected_while_the_metric_improves
+        PASS [   0.086s] (18/19) gauntlet-cli::antigaming g16_the_honest_road_a_gap_then_a_complete_evaluation_still_promotes
+        PASS [   0.092s] (19/19) gauntlet-cli::antigaming g16_a_failing_evaluation_cannot_be_laundered_by_a_rerun
+────────────
+     Summary [   0.097s] 19 tests run: 19 passed, 0 skipped

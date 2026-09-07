@@ -1,0 +1,16 @@
+command: cargo nextest run -p gauntlet-cli --test p9_self_improvement_containment
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.91s
+────────────
+ Nextest run ID 273ed6b5-409c-4876-984b-cc7350319403 with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.072s] (1/4) gauntlet-cli::p9_self_improvement_containment the_honest_candidate_promotes_through_the_full_conjunction
+        PASS [   0.073s] (2/4) gauntlet-cli::p9_self_improvement_containment the_promoted_revision_rolls_back_and_the_restore_survives_a_reopen
+        PASS [   0.503s] (3/4) gauntlet-cli::p9_self_improvement_containment a_revision_without_evaluation_is_provisional_and_never_promotes
+        PASS [   0.521s] (4/4) gauntlet-cli::p9_self_improvement_containment the_verification_weakening_candidate_is_rejected_over_the_real_loop
+────────────
+     Summary [   0.521s] 4 tests run: 4 passed, 0 skipped

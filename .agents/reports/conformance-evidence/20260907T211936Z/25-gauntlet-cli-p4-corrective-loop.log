@@ -1,0 +1,16 @@
+command: cargo nextest run -p gauntlet-cli --test p4_corrective_loop
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 25s
+────────────
+ Nextest run ID 3e12b7ce-d900-498a-88a2-0a879474fe29 with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.022s] (1/4) gauntlet-cli::p4_corrective_loop a_mid_run_answer_key_edit_cancels_the_in_flight_attempt_and_aborts
+        PASS [   0.032s] (2/4) gauntlet-cli::p4_corrective_loop correction_selection_durably_carries_rejected_alternatives_with_reasons
+        PASS [   0.038s] (3/4) gauntlet-cli::p4_corrective_loop an_injected_defect_is_exposed_compared_and_closed_by_a_routed_correction
+        PASS [   0.306s] (4/4) gauntlet-cli::p4_corrective_loop a_recurring_residual_through_the_real_diff_comparator_enters_bounded_diagnosis
+────────────
+     Summary [   0.312s] 4 tests run: 4 passed, 0 skipped

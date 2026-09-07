@@ -1,0 +1,6 @@
+command: cargo nextest run -p gauntlet-app --test roles install_and_verify
+exit: 69
+--- stdout ---
+
+--- stderr ---
+flock: failed to execute -w: No such file or directory

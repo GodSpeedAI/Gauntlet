@@ -1,0 +1,16 @@
+command: cargo nextest run -p gauntlet-arch-tests --test docs_present
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+────────────
+ Nextest run ID b0cab0c5-c8b1-4608-b9ad-52ac6ebeca72 with nextest profile: default
+    Starting 5 tests across 1 binary
+        PASS [   0.008s] (1/5) gauntlet-arch-tests::docs_present handoff_pointer_names_canonical_locator
+        PASS [   0.009s] (2/5) gauntlet-arch-tests::docs_present conformance_binding_content_present
+        PASS [   0.012s] (3/5) gauntlet-arch-tests::docs_present status_section_in_every_doc
+        PASS [   0.012s] (4/5) gauntlet-arch-tests::docs_present status_claims_use_canonical_vocabulary
+        PASS [   0.012s] (5/5) gauntlet-arch-tests::docs_present docs_set_present
+────────────
+     Summary [   0.013s] 5 tests run: 5 passed, 0 skipped

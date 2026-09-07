@@ -1,0 +1,12 @@
+command: cargo nextest run -p gauntlet-app --lib an_empty_world_resolves_to_the_defaults_table
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+────────────
+ Nextest run ID d7ca01ca-65e6-4ece-b9fd-268043c0a93e with nextest profile: default
+    Starting 1 test across 1 binary (559 tests skipped)
+        PASS [   0.004s] (1/1) gauntlet-app config::resolve::tests::an_empty_world_resolves_to_the_defaults_table
+────────────
+     Summary [   0.005s] 1 test run: 1 passed, 559 skipped

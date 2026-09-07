@@ -1,0 +1,12 @@
+command: cargo nextest run -p gauntlet-domain --lib every_fixed_value_set_enum_rejects_unknown_values
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+────────────
+ Nextest run ID f26392f0-ad34-40b1-a3c0-66fb73dfebd2 with nextest profile: default
+    Starting 1 test across 1 binary (84 tests skipped)
+        PASS [   0.021s] (1/1) gauntlet-domain values::tests::every_fixed_value_set_enum_rejects_unknown_values
+────────────
+     Summary [   0.021s] 1 test run: 1 passed, 84 skipped

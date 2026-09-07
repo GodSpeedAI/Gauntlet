@@ -1,0 +1,6 @@
+command: cargo nextest run -p gauntlet-domain --lib exhaustive_tier_authority_coupling_holds_on_every_construction_path
+exit: 69
+--- stdout ---
+
+--- stderr ---
+flock: failed to execute -w: No such file or directory

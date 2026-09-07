@@ -1,0 +1,14 @@
+command: cargo nextest run -p gauntlet-cli --test p3_real_observation
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 17s
+────────────
+ Nextest run ID c755114a-174f-4370-86c7-66ad7e1d7412 with nextest profile: default
+    Starting 2 tests across 1 binary
+        PASS [   0.008s] (1/2) gauntlet-cli::p3_real_observation a_claims_swap_moves_the_digest_but_not_the_facet_inputs
+        PASS [   0.015s] (2/2) gauntlet-cli::p3_real_observation the_lying_builders_claim_diverges_from_reality_inside_the_bundle
+────────────
+     Summary [   0.016s] 2 tests run: 2 passed, 0 skipped

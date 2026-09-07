@@ -1,0 +1,15 @@
+command: cargo nextest run -p gauntlet-arch-tests --test architecture_boundaries
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.08s
+────────────
+ Nextest run ID 689a1c51-b762-41cf-a8bd-eb3ae6b20943 with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.067s] (1/4) gauntlet-arch-tests::architecture_boundaries dependency_direction
+        PASS [   7.564s] (2/4) gauntlet-arch-tests::architecture_boundaries denylist
+        PASS [  20.185s] (3/4) gauntlet-arch-tests::architecture_boundaries answer_key_single_writer
+        PASS [  27.472s] (4/4) gauntlet-arch-tests::architecture_boundaries scope_integrity
+────────────
+     Summary [  27.473s] 4 tests run: 4 passed, 0 skipped

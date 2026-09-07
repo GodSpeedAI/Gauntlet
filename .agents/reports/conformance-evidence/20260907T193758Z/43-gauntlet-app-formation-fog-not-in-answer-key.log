@@ -1,0 +1,6 @@
+command: cargo nextest run -p gauntlet-app --test formation fog_not_in_answer_key
+exit: 69
+--- stdout ---
+
+--- stderr ---
+flock: failed to execute -w: No such file or directory

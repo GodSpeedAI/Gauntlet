@@ -1,0 +1,14 @@
+command: cargo nextest run -p gauntlet-cli --test operator_actions_no_bypass
+exit: 4
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.28s
+────────────
+ Nextest run ID 12d77900-fd24-4132-b44f-04fbe85b44b3 with nextest profile: default
+    Starting 0 tests across 1 binary
+────────────
+     Summary [   0.000s] 0 tests run: 0 passed, 0 skipped
+error: no tests to run
+(hint: use `--no-tests` to customize)

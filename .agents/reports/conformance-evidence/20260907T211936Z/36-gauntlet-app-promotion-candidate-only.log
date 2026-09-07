@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-app --test promotion candidate_only
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 20s
+────────────
+ Nextest run ID ef7afa92-6ae3-4173-b2fd-224c57332eeb with nextest profile: default
+    Starting 1 test across 1 binary
+        PASS [   0.007s] (1/1) gauntlet-app::promotion candidate_only
+────────────
+     Summary [   0.019s] 1 test run: 1 passed, 0 skipped

@@ -1,0 +1,24 @@
+command: cargo nextest run -p gauntlet-app --lib observation::assembly
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+────────────
+ Nextest run ID 73a11f08-f615-450e-90d4-136d51553a80 with nextest profile: default
+    Starting 13 tests across 1 binary (547 tests skipped)
+        PASS [   0.029s] ( 1/13) gauntlet-app observation::assembly::tests::an_empty_project_revision_is_refused
+        PASS [   0.029s] ( 2/13) gauntlet-app observation::assembly::tests::an_empty_observer_list_is_refused
+        PASS [   0.027s] ( 3/13) gauntlet-app observation::assembly::tests::a_badly_shaped_environment_fingerprint_is_refused
+        PASS [   0.029s] ( 4/13) gauntlet-app observation::assembly::tests::an_exitless_facet_against_exited_evidence_is_a_provenance_mismatch
+        PASS [   0.059s] ( 5/13) gauntlet-app observation::assembly::tests::a_provenance_disagreement_is_recorded_not_fatal
+        PASS [   0.059s] ( 6/13) gauntlet-app observation::assembly::tests::all_healthy_observers_leave_both_arrays_explicitly_empty
+        PASS [   0.029s] ( 7/13) gauntlet-app observation::assembly::tests::an_observer_store_write_failure_surfaces_as_gap_entries
+        PASS [   0.028s] ( 8/13) gauntlet-app observation::assembly::tests::assembly_is_deterministic_under_the_same_clock_and_environment
+        PASS [   0.063s] ( 9/13) gauntlet-app observation::assembly::tests::a_failing_bundle_store_write_is_a_typed_assembly_error
+        PASS [   0.008s] (10/13) gauntlet-app observation::assembly::tests::observer_failures_populate_both_gap_arrays_exactly_once
+        PASS [   0.016s] (11/13) gauntlet-app observation::assembly::tests::the_assembled_document_round_trips_and_feeds_verification_inputs
+        PASS [   0.018s] (12/13) gauntlet-app observation::assembly::tests::garbage_evidence_populates_both_gap_arrays
+        PASS [   0.019s] (13/13) gauntlet-app observation::assembly::tests::cross_wired_evidence_with_equal_exits_is_a_provenance_mismatch
+────────────
+     Summary [   0.086s] 13 tests run: 13 passed, 547 skipped

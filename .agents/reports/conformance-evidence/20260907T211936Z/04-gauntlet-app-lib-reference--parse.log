@@ -1,0 +1,26 @@
+command: cargo nextest run -p gauntlet-app --lib reference::parse
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 41s
+────────────
+ Nextest run ID eefc46b8-ad7e-4af4-952e-fd52d5e66cc6 with nextest profile: default
+    Starting 14 tests across 1 binary (546 tests skipped)
+        PASS [   0.008s] ( 1/14) gauntlet-app reference::parse::tests::a_well_formed_block_parses_into_a_unit
+        PASS [   0.008s] ( 2/14) gauntlet-app reference::parse::tests::a_missing_required_field_is_a_block_failure
+        PASS [   0.009s] ( 3/14) gauntlet-app reference::parse::tests::a_tier_authority_coupling_violation_is_a_block_failure
+        PASS [   0.011s] ( 4/14) gauntlet-app reference::parse::tests::an_unknown_enum_value_names_field_value_and_block
+        PASS [   0.013s] ( 5/14) gauntlet-app reference::parse::tests::a_duplicate_block_id_fails_the_later_block
+        PASS [   0.006s] ( 6/14) gauntlet-app reference::parse::tests::every_enum_field_reports_unknown_values_through_the_same_door
+        PASS [   0.007s] ( 7/14) gauntlet-app reference::parse::tests::non_ak_headings_and_wrong_depth_are_heading_failures
+        PASS [   0.019s] ( 8/14) gauntlet-app reference::parse::tests::crlf_endings_are_tolerated_line_by_line
+        PASS [   0.008s] ( 9/14) gauntlet-app reference::parse::tests::parse_all_or_fail_is_all_or_nothing
+        PASS [   0.015s] (10/14) gauntlet-app reference::parse::tests::malformed_evidence_mappings_fail_the_block_not_the_file
+        PASS [   0.017s] (11/14) gauntlet-app reference::parse::tests::depends_on_parses_all_three_frozen_spellings
+        PASS [   0.009s] (12/14) gauntlet-app reference::parse::tests::the_frozen_answer_key_parses_seventy_clean_units
+        PASS [   0.007s] (13/14) gauntlet-app reference::parse::tests::unknown_field_keys_and_stray_lines_are_typed_errors
+        PASS [   0.017s] (14/14) gauntlet-app reference::parse::tests::one_malformed_block_fails_only_itself
+────────────
+     Summary [   0.032s] 14 tests run: 14 passed, 546 skipped

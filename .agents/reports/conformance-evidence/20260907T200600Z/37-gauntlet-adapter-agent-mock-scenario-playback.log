@@ -1,0 +1,20 @@
+command: cargo nextest run -p gauntlet-adapter-agent-mock --test scenario_playback
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.03s
+────────────
+ Nextest run ID f42d81c7-aea9-40e3-9e26-b527f0abdfc7 with nextest profile: default
+    Starting 9 tests across 1 binary
+        PASS [   0.056s] (1/9) gauntlet-adapter-agent-mock::scenario_playback no_result_times_out_and_never_completes
+        PASS [   0.058s] (2/9) gauntlet-adapter-agent-mock::scenario_playback malformed_fails_and_is_never_collectible
+        PASS [   0.062s] (3/9) gauntlet-adapter-agent-mock::scenario_playback answer_key_write_attempt_is_observable_and_the_real_ruler_stays_untouched
+        PASS [   0.062s] (4/9) gauntlet-adapter-agent-mock::scenario_playback lying_builder_divergence_is_observable
+        PASS [   0.062s] (5/9) gauntlet-adapter-agent-mock::scenario_playback critic_pass_without_evidence_pins_the_p11_shape_at_the_envelope_level
+        PASS [   0.062s] (6/9) gauntlet-adapter-agent-mock::scenario_playback happy_completes_and_collects_echoing_dispatch_identity_exactly
+        PASS [   0.008s] (7/9) gauntlet-adapter-agent-mock::scenario_playback the_required_fixture_inventory_exists_and_parses
+        PASS [   0.012s] (8/9) gauntlet-adapter-agent-mock::scenario_playback stale_envelope_digest_fails_contract_mismatch
+        PASS [   0.006s] (9/9) gauntlet-adapter-agent-mock::scenario_playback wrong_invocation_id_fails_contract_mismatch
+────────────
+     Summary [   0.069s] 9 tests run: 9 passed, 0 skipped

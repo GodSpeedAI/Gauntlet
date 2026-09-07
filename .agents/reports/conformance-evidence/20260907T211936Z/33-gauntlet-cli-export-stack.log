@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-cli --test export_stack
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 17s
+────────────
+ Nextest run ID 3d5ed160-42ed-4fcb-ba9a-ac9c49eafb88 with nextest profile: default
+    Starting 1 test across 1 binary
+        PASS [   0.030s] (1/1) gauntlet-cli::export_stack the_real_adapter_export_stack_is_deterministic_and_canonical
+────────────
+     Summary [   0.038s] 1 test run: 1 passed, 0 skipped

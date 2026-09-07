@@ -1,0 +1,16 @@
+command: cargo nextest run -p gauntlet-cli --test p10_no_false_learning
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 14s
+────────────
+ Nextest run ID 71bc6e5a-1db8-4d4a-b80f-d39db08e501f with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.026s] (1/4) gauntlet-cli::p10_no_false_learning one_successful_run_is_observed_and_never_promoted
+        PASS [   0.037s] (2/4) gauntlet-cli::p10_no_false_learning three_identical_axis_settlements_are_refused
+        PASS [   0.039s] (3/4) gauntlet-cli::p10_no_false_learning revoke_is_sticky_and_has_no_flip_back
+        PASS [   0.040s] (4/4) gauntlet-cli::p10_no_false_learning the_positive_path_is_the_only_road_to_promoted
+────────────
+     Summary [   0.042s] 4 tests run: 4 passed, 0 skipped

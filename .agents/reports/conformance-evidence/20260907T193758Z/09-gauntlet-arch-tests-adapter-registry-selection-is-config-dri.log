@@ -1,0 +1,6 @@
+command: cargo nextest run -p gauntlet-arch-tests --test adapter_registry selection_is_config_driven
+exit: 69
+--- stdout ---
+
+--- stderr ---
+flock: failed to execute -w: No such file or directory

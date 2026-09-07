@@ -1,0 +1,16 @@
+command: cargo nextest run -p gauntlet-cli --test p1_reference_integrity
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.45s
+────────────
+ Nextest run ID d8c2da50-5686-49ad-bb38-343441a60d7a with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.009s] (1/4) gauntlet-cli::p1_reference_integrity digest_rechecked
+        PASS [   0.009s] (2/4) gauntlet-cli::p1_reference_integrity builder_mutation_of_the_active_reference_aborts_with_reference_mutated
+        PASS [   0.010s] (3/4) gauntlet-cli::p1_reference_integrity frozen_copy_outside_workspace
+        PASS [   0.014s] (4/4) gauntlet-cli::p1_reference_integrity the_run_carries_the_frozen_version
+────────────
+     Summary [   0.014s] 4 tests run: 4 passed, 0 skipped

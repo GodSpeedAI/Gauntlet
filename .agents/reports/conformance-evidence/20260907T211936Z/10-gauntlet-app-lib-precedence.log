@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-app --lib precedence
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+────────────
+ Nextest run ID bd207560-3b1b-4c41-b656-d0d49cd6fc69 with nextest profile: default
+    Starting 2 tests across 1 binary (558 tests skipped)
+        PASS [   0.036s] (1/2) gauntlet-app config::resolve::tests::text_precedence_and_list_precedence_hold_too
+        PASS [   0.043s] (2/2) gauntlet-app config::resolve::tests::precedence
+────────────
+     Summary [   0.044s] 2 tests run: 2 passed, 558 skipped

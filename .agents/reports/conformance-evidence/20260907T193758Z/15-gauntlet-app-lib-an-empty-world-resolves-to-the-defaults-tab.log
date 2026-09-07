@@ -1,0 +1,6 @@
+command: cargo nextest run -p gauntlet-app --lib an_empty_world_resolves_to_the_defaults_table
+exit: 69
+--- stdout ---
+
+--- stderr ---
+flock: failed to execute -w: No such file or directory

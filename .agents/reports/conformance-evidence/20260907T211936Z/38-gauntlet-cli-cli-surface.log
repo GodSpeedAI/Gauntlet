@@ -1,0 +1,15 @@
+command: cargo nextest run -p gauntlet-cli --test cli_surface
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.27s
+────────────
+ Nextest run ID b8bf509d-b454-4950-97a7-318626e9938b with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.051s] (1/4) gauntlet-cli::cli_surface usage_dispatch_and_manifest_name_the_same_command_set
+        PASS [   0.053s] (2/4) gauntlet-cli::cli_surface the_whole_tree_help_snapshot_holds
+        PASS [   0.113s] (3/4) gauntlet-cli::cli_surface unknown_and_missing_arguments_are_usage_errors_with_exit_two
+        PASS [   0.140s] (4/4) gauntlet-cli::cli_surface every_surface_command_dispatches_and_unknown_commands_are_usage_errors
+────────────
+     Summary [   0.147s] 4 tests run: 4 passed, 0 skipped

@@ -1,0 +1,24 @@
+command: cargo nextest run -p gauntlet-cli --test p12_missing_is_not_passing
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 26s
+────────────
+ Nextest run ID 47d4203d-2aeb-4955-8d5c-c2a28c7fb101 with nextest profile: default
+    Starting 12 tests across 1 binary
+        PASS [   0.107s] ( 1/12) gauntlet-cli::p12_missing_is_not_passing evidence_at_another_locator_is_unresolvable_not_the_required_evidence
+        PASS [   0.175s] ( 2/12) gauntlet-cli::p12_missing_is_not_passing absent_store_evidence_is_inconclusive_at_every_layer_never_pass
+        PASS [   0.172s] ( 3/12) gauntlet-cli::p12_missing_is_not_passing a_request_lying_about_recency_producer_and_locator_cannot_make_stale_fresh
+        PASS [   0.189s] ( 4/12) gauntlet-cli::p12_missing_is_not_passing an_absent_artifact_at_a_resolving_production_is_inconclusive_p12
+        PASS [   0.083s] ( 5/12) gauntlet-cli::p12_missing_is_not_passing fresh_resolving_pinned_evidence_passes_and_approaches_settlement
+        PASS [   0.209s] ( 6/12) gauntlet-cli::p12_missing_is_not_passing a_doctored_workspace_file_cannot_ride_the_locator_to_a_pass
+        PASS [   0.024s] ( 7/12) gauntlet-cli::p12_missing_is_not_passing the_four_real_adapters_report_absent_evidence_as_a_typed_error
+        PASS [   0.252s] ( 8/12) gauntlet-cli::p12_missing_is_not_passing every_model_rung_record_is_flagged_non_deterministic
+        PASS [   0.078s] ( 9/12) gauntlet-cli::p12_missing_is_not_passing instrument_produced_evidence_never_satisfies_a_human_producer
+        PASS [   0.105s] (10/12) gauntlet-cli::p12_missing_is_not_passing stale_evidence_from_a_prior_iteration_is_inconclusive_stale
+        PASS [   0.121s] (11/12) gauntlet-cli::p12_missing_is_not_passing the_deterministic_rung_decides_when_the_model_rung_could_too
+        PASS [   0.115s] (12/12) gauntlet-cli::p12_missing_is_not_passing the_three_binding_classes_are_reachable_and_distinct
+────────────
+     Summary [   0.339s] 12 tests run: 12 passed, 0 skipped

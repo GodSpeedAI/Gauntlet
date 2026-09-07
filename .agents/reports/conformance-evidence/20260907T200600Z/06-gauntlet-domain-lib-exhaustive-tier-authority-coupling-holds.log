@@ -1,0 +1,12 @@
+command: cargo nextest run -p gauntlet-domain --lib exhaustive_tier_authority_coupling_holds_on_every_construction_path
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+────────────
+ Nextest run ID c8128bc6-7aeb-4aca-908a-375e79264fec with nextest profile: default
+    Starting 1 test across 1 binary (84 tests skipped)
+        PASS [   0.010s] (1/1) gauntlet-domain unit::tests::exhaustive_tier_authority_coupling_holds_on_every_construction_path
+────────────
+     Summary [   0.010s] 1 test run: 1 passed, 84 skipped

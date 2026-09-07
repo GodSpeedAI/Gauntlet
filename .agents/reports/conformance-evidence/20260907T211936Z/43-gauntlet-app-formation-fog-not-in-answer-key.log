@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-app --test formation fog_not_in_answer_key
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 0.55s
+────────────
+ Nextest run ID 304bb8d4-564d-4962-8274-a0707fdc9d2e with nextest profile: default
+    Starting 1 test across 1 binary
+        PASS [   0.007s] (1/1) gauntlet-app::formation fog_not_in_answer_key
+────────────
+     Summary [   0.007s] 1 test run: 1 passed, 0 skipped

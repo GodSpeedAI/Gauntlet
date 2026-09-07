@@ -34,3 +34,8 @@ path = "../../tests/contract/no_hardcoded_literals.rs"
 [[test]]
 name = "env_example_complete"
 path = "../../tests/contract/env_example_complete.rs"
+
+# AK-068 (spec §25, plan Task 27): the frozen locator names this target.
+[[test]]
+name = "docs_present"
+path = "../../tests/contract/docs_present.rs"

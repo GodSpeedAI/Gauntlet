@@ -1,0 +1,12 @@
+command: cargo nextest run -p gauntlet-arch-tests --test adapter_registry selection_is_config_driven
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+────────────
+ Nextest run ID 1550dc73-ac2f-4799-ab28-4b04c2dd2f7c with nextest profile: default
+    Starting 1 test across 1 binary
+        PASS [   3.094s] (1/1) gauntlet-arch-tests::adapter_registry selection_is_config_driven
+────────────
+     Summary [   3.094s] 1 test run: 1 passed, 0 skipped

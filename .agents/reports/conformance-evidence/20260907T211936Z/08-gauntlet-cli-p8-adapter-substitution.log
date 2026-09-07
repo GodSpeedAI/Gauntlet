@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-cli --test p8_adapter_substitution
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 21s
+────────────
+ Nextest run ID bab00007-88b1-4141-885e-85f6340cb09f with nextest profile: default
+    Starting 1 test across 1 binary
+        PASS [   0.026s] (1/1) gauntlet-cli::p8_adapter_substitution the_full_conformance_suite_passes_against_every_selected_adapter_unchanged
+────────────
+     Summary [   0.031s] 1 test run: 1 passed, 0 skipped

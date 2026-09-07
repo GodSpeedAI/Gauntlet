@@ -1,0 +1,6 @@
+command: cargo nextest run -p gauntlet-cli --test g6_hide_failed_observations
+exit: 69
+--- stdout ---
+
+--- stderr ---
+flock: failed to execute -w: No such file or directory

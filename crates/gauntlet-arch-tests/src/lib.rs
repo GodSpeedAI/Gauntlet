@@ -16,6 +16,7 @@
 //! | `tests/contract/adapter_registry::selection_is_config_driven` | [`check_adapter_selection`] | AK-014 |
 //! | `tests/contract/no_hardcoded_literals` | [`check_no_hardcoded_literals`] | AK-016 |
 //! | `tests/contract/env_example_complete` | [`check_env_example`] | AK-019 |
+//! | `tests/contract/docs_present` | [`docs::check_docs_files_present`] + siblings | AK-068 |
 //!
 //! # Mechanisms
 //!
@@ -130,6 +131,7 @@
 pub mod delegation;
 pub mod denylist;
 pub mod deps;
+pub mod docs;
 pub mod envfile;
 pub mod escapes;
 pub mod literals;
@@ -2152,6 +2154,10 @@ mod evidence_locators {
             (
                 "architecture_boundaries".to_string(),
                 "../../tests/contract/architecture_boundaries.rs".to_string(),
+            ),
+            (
+                "docs_present".to_string(),
+                "../../tests/contract/docs_present.rs".to_string(),
             ),
             (
                 "env_example_complete".to_string(),

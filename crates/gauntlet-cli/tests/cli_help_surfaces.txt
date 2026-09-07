@@ -12,6 +12,7 @@ usage: gauntlet doctor [--config <path>]
        gauntlet status --run <run-id>
        gauntlet inspect --run <run-id> [--iteration <n>] [--unit <unit-id>] [--verifications] [--settlements]
        gauntlet verify --run <run-id> [--unit <unit-id>]
+       gauntlet verify --all [--report <path>] [--manifest <path>]
        gauntlet resume <run-id>
        gauntlet escalations list | resolve | retry
        gauntlet serve                  (surfaces build; bind: GAUNTLET_API_BIND)
@@ -22,6 +23,8 @@ usage: gauntlet doctor [--config <path>]
        gauntlet improve propose [--from-result <path>] [--from-run <run-id>]
        gauntlet improve evaluate <revision> --held-out <dir> --regression <dir> \
                     [--protected <cap,cap>] [--metric <token>]
+       gauntlet improve baseline --profiles <A,B,C,D> --tasks <dir> \
+                    [--out <path>] [--config <path>]
        gauntlet improve promote <revision>
        gauntlet improve rollback <revision>
        gauntlet export --run <run-id> [--out <path>]

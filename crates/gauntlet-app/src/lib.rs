@@ -14,6 +14,7 @@
 pub mod baseline;
 pub mod compare;
 pub mod config;
+pub mod conformance;
 pub mod control;
 pub mod doctor;
 pub mod formation;

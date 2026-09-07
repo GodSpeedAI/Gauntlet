@@ -12,6 +12,7 @@ usage: gauntlet doctor [--config <path>]
        gauntlet status --run <run-id>
        gauntlet inspect --run <run-id> [--iteration <n>] [--unit <unit-id>] [--verifications] [--settlements]
        gauntlet verify --run <run-id> [--unit <unit-id>]
+       gauntlet verify --all [--report <path>] [--manifest <path>]
        gauntlet resume <run-id>
        gauntlet escalations list | resolve | retry
        gauntlet roles install --harness <id>

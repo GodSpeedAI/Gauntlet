@@ -276,6 +276,31 @@ pub const WRITE_API_INVENTORY: &[WriteSite] = &[
         reason: "export --out writes the canonical export to the OPERATOR-named path only                  (plan Task 20); the default writes nothing (stdout)",
         guard: Some("--out"),
     },
+    // Task 27 (B1): the conformance sweep's ONLY writes — the evidence
+    // directory and the report. The sweep is a read-only instrument
+    // surface (charter decision 4): it writes no state, no ruler, no
+    // run record; every path is the operator's --report flag or the
+    // configured reports dir, and the sweep function's own head is the
+    // lexical warrant that these three sites are its whole write
+    // surface (pinned by the conformance tests' writes-only assertions).
+    WriteSite {
+        file: "crates/gauntlet-cli/src/verify_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "the conformance sweep creates the evidence directory beside the                  operator-or-config-derived report path (task 27; writes nothing else)",
+        guard: Some("fn verify_all"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/verify_cmd.rs",
+        token: "fs::write",
+        reason: "the conformance sweep writes its evidence logs and manifest under the                  evidence directory beside the report (task 27)",
+        guard: Some("fn verify_all"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/verify_cmd.rs",
+        token: "fs::write",
+        reason: "the conformance sweep writes the report document itself at the                  operator-or-config-derived path — after the evidence it cites is on disk",
+        guard: Some("fn verify_all"),
+    },
     WriteSite {
         file: "crates/gauntlet-app/src/control/controller.rs",
         token: "fs::create_dir_all",
@@ -1187,6 +1212,21 @@ mod tests {
                     Some("--out"),
                 ),
                 (
+                    "crates/gauntlet-cli/src/verify_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn verify_all"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/verify_cmd.rs",
+                    "fs::write",
+                    Some("fn verify_all"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/verify_cmd.rs",
+                    "fs::write",
+                    Some("fn verify_all"),
+                ),
+                (
                     "crates/gauntlet-app/src/control/controller.rs",
                     "fs::create_dir_all",
                     Some("fn contained_locator_path"),
@@ -1620,6 +1660,13 @@ mod tests {
                 "fn export(out: Option<&std::path::Path>, flag: &str) {\n    if flag == \
                  \"--out\" {\n        if let Some(path) = out {\n            \
                  std::fs::write(path, b\"x\");\n        }\n    }\n}\n",
+            );
+            // Task 27 (B1): the conformance sweep's inventoried writes —
+            // the evidence directory, the evidence files, and the report
+            // itself, all inside the sweep function the inventory pins.
+            repo.write(
+                "crates/gauntlet-cli/src/verify_cmd.rs",
+                "fn verify_all() {\n    std::fs::create_dir_all(\"e\");\n                     std::fs::write(\"e/log\", b\"x\");\n    std::fs::write(\"report\",                  b\"x\");\n}\n",
             );
             // COR-R3-3: the state-dir single-writer guard's inventoried
             // writes — the O_EXCL admission and its release-on-drop.

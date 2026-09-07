@@ -220,6 +220,13 @@ impl gauntlet_ports::contract::verifier::VerifierFactory for CommandExitVerifier
     }
 }
 
+// Task 27 (B1): the conformance sweep's process toolchain — the one
+// place the sweep spells the repository's test runner and its
+// compile-lock discipline (spec §8.4 keeps tool products in adapters;
+// the frozen AK-016 literal boundary enforces exactly that in the core
+// crates). Pure composition over std types; no new dependencies.
+pub mod sweep_toolchain;
+
 #[cfg(test)]
 mod tests {
     use super::*;

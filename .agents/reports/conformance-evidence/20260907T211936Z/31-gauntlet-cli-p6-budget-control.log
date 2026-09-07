@@ -1,0 +1,14 @@
+command: cargo nextest run -p gauntlet-cli --test p6_budget_control
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 16s
+────────────
+ Nextest run ID c2659614-a790-4f7f-82ed-931b56678c85 with nextest profile: default
+    Starting 2 tests across 1 binary
+        PASS [   0.006s] (1/2) gauntlet-cli::p6_budget_control the_meter_refuses_the_reserve_consuming_slice_and_books_nothing
+        PASS [   0.056s] (2/2) gauntlet-cli::p6_budget_control a_non_converging_task_exhausts_the_forward_budget_with_the_reserve_intact
+────────────
+     Summary [   0.057s] 2 tests run: 2 passed, 0 skipped

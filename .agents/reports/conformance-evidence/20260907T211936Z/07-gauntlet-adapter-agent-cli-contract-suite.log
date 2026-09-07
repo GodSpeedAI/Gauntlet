@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-adapter-agent-cli --test contract_suite
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.09s
+────────────
+ Nextest run ID 4175f045-a726-4fdb-81d3-02452af76e0c with nextest profile: default
+    Starting 2 tests across 1 binary
+        PASS [   0.007s] (1/2) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_exit_without_result_suite
+        PASS [   0.019s] (2/2) gauntlet-adapter-agent-cli::contract_suite the_cli_agent_runner_passes_the_unmodified_shared_contract_suite
+────────────
+     Summary [   0.026s] 2 tests run: 2 passed, 0 skipped

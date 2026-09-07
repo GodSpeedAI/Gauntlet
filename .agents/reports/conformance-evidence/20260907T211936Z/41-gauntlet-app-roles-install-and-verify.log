@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-app --test roles install_and_verify
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 2m 21s
+────────────
+ Nextest run ID e1fa9ec9-4461-451f-9ca6-331dd8913fd9 with nextest profile: default
+    Starting 1 test across 1 binary (40 tests skipped)
+        PASS [   0.012s] (1/1) gauntlet-app::roles install_and_verify
+────────────
+     Summary [   0.017s] 1 test run: 1 passed, 40 skipped
