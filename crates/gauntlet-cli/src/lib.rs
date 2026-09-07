@@ -13,9 +13,10 @@
 //! `run`, `status`, `inspect`, `verify`, `resume`, `escalations`
 //! (list/resolve/retry), `roles` (install/verify/list), `skills`
 //! (install/verify/list), `improve`
-//! (propose/evaluate/promote/rollback), `export`. Every §20.1 command
-//! fronts a backing service; the optimizer surface landed with plan
-//! Task 23 (spec §19.3/§19.4).
+//! (propose/evaluate/baseline/promote/rollback), `export`. Every §20.1
+//! command fronts a backing service; the optimizer surface landed with
+//! plan Task 23 (spec §19.3/§19.4), the baseline measurement harness
+//! with plan Task 26 (AK-069).
 
 pub mod compose;
 pub mod context;
@@ -116,6 +117,8 @@ fn usage() {
     println!("       gauntlet improve propose [--from-result <path>] [--from-run <run-id>]");
     println!("       gauntlet improve evaluate <revision> --held-out <dir> --regression <dir> \\");
     println!("                    [--protected <cap,cap>] [--metric <token>]");
+    println!("       gauntlet improve baseline --profiles <A,B,C,D> --tasks <dir> \\");
+    println!("                    [--out <path>] [--config <path>]");
     println!("       gauntlet improve promote <revision>");
     println!("       gauntlet improve rollback <revision>");
     println!("       gauntlet export --run <run-id> [--out <path>]");

@@ -21,6 +21,8 @@ usage: gauntlet doctor [--config <path>]
        gauntlet improve propose [--from-result <path>] [--from-run <run-id>]
        gauntlet improve evaluate <revision> --held-out <dir> --regression <dir> \
                     [--protected <cap,cap>] [--metric <token>]
+       gauntlet improve baseline --profiles <A,B,C,D> --tasks <dir> \
+                    [--out <path>] [--config <path>]
        gauntlet improve promote <revision>
        gauntlet improve rollback <revision>
        gauntlet export --run <run-id> [--out <path>]

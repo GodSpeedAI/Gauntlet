@@ -11,6 +11,7 @@
 //! Plan Task 5 lands the first services here: configuration resolution
 //! ([`config`], spec §8) and the preflight checks ([`doctor`], spec §8.5).
 
+pub mod baseline;
 pub mod compare;
 pub mod config;
 pub mod control;

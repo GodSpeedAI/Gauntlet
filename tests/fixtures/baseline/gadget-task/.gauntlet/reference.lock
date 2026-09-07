@@ -1,0 +1,13 @@
+{
+  "answer_key_path": ".wayfinder/answer-key.md",
+  "answer_key_digest": "sha256:a179a9d907d7cf6aa999006306cbea99dff12775fc9a839ea9b7f84b3828fbc7",
+  "manifest_path": ".wayfinder/reference.yaml",
+  "manifest_digest": "sha256:f3958d81bfde1be1e0bcc062f3848e5d6f19a99b7a7134d28a8ce3ffdaef7c74",
+  "algo": "sha256",
+  "frozen_at": "2026-09-06T00:00:00Z",
+  "spec_source": "src/gadget.rs",
+  "spec_annex": "Baseline harness fixture answer key (AK-961..AK-962)",
+  "unit_count": 2,
+  "digest_tool": "scripts/reference-digest.sh",
+  "note": "Fixture freeze record for the task-26 baseline harness (profiles A/B/C/D over tests/fixtures/baseline). Generated exactly the way task 25 froze target-real: scripts/reference-digest.sh normalization over the two frozen artifacts, frozen at B1 time and never edited afterward — re-frozen once by the corrections round (COR-1, task 26 defects D1/D4: the minimum_reliability prose now carries the parser-required '>= 2 settlements' statement, and AK-962 is contained-tier, the only tier the fixture's none posture admits; both digests cover the corrected artifacts). Committed as part of the fixture; no leg ever writes here."
+}

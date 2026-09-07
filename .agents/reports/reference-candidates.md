@@ -1758,3 +1758,51 @@ evidence: `.agents/reports/task22/falsifier-round2.md` (NH-5b, F2-3).
   (or narrow it) in the configuration that names a live backend —
   today the repository root's shipped default stays `sandbox.backend:
   none`, so the raise is latent until a live posture is configured.
+
+### 6. The hostile-child judge-forgery class and the privileged-judge-channel prerequisite (task 26, 2026-09-07) — recorded for the ruler owner
+
+- **Executed finding (falsifier rounds 1-2):** under the conservative
+  `none` posture the dispatched child holds full same-user OS
+  permissions, so NO judge material inside its reach — a wrapper
+  script, snapshot files, a manifest — can be made unforgeable.
+  Executed attacks: wrapper swap-window with self-restore (the digest
+  pin verifies at grading time only), in-place snapshot content
+  rewrites (a 5 ms daemon beat the judge; "a race, not an invariant"),
+  count-preserving `.absent`→`.rs` replacement, and the round-1
+  direct overwrite via the leg-dir chain the harness's own leg-files
+  channel teaches. The shipped defenses (wrapper sha256 pin,
+  ULID-nonce snapshot names, count cross-check over the leg's durable
+  test-facet executions, the COR-5 snapshot manifest) raise the bar
+  and fail grading closed on DETECTED tamper — they are tamper
+  EVIDENCE, not prevention.
+- **Why this is a boundary, not a task defect:** the baseline
+  harness's declared threat model (charter §The honest posture) is
+  FIXED scripted children — repo-owned fixture data, digest-pinned.
+  The measured matrix stands under it. A hostile-child threat model
+  (an adaptive agent attacking its own measurement) is the
+  cross_cutting-tier threat, and the none posture refuses to dispatch
+  that tier at all. The structural prerequisite for trusting
+  held-out/verification material against hostile children is a
+  PRIVILEGED JUDGE CHANNEL — uid separation or a sandboxed judge —
+  which does not exist in this composition and would be a
+  runtime/sandbox revision.
+- **Lineage:** task-14 R-4 (the whole host readable inside the
+  sandbox — a builder that can read the ruler can target assertions);
+  task-21 (raw durable-store write access can stage genuinely passing
+  evidence). This entry extends the same class to the measurement
+  harness itself.
+- **For the ruler owner:** AK-069's evidence (the baseline metric)
+  carries an explicit threat-model scope that future readers should
+  not silently widen. If the ruler ever claims hostile-child
+  resistance for any verification surface, the privileged judge
+  channel must land first.
+
+### 7. Instrument-run burden denominators are not comparable across profiles (task 26, 2026-09-07) — recorded
+
+- D's `instrument_runs` counts durable verification records on
+  settling legs; B/C's counts declared-check re-runs (one per leg).
+  The figures are honest and disclosed (`_meta.instrument_run_denominator_disclosure`)
+  but not cross-profile comparable; a comparable verification-burden
+  metric (e.g. instrument EXECUTIONS across all profiles) is a
+  candidate for the ruler owner before any payment comparison is
+  promoted to a tracked dimension.

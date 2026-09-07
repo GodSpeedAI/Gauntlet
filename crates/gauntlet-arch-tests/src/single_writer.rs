@@ -389,6 +389,210 @@ pub const WRITE_API_INVENTORY: &[WriteSite] = &[
                  recovery)",
         guard: Some("impl Drop for WriterLock"),
     },
+    // Task 26, COR-3: the `improve baseline` measurement harness (plan
+    // §Task 26, AK-069) — one entry per production write site, in file
+    // order. Every site writes ONLY the run's own scratch worlds, the
+    // materialized per-leg/per-process instruments, or the operator-named
+    // `--out` report — never a reference, contract, or evidence artifact.
+    // The composition root resolves every path from the enumerated fixture
+    // roots, the temp dir, or the operator's flag; no literal contributes
+    // a path component. Guard needles are the owning functions: each write
+    // is legitimate only inside the function named, and its disappearance
+    // forces a re-litigation here.
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "baseline: creating the process-unique instrument directory under the \
+                 temp dir (the static judge shim + child wrapper live there for this \
+                 process only)",
+        guard: Some("fn establish_leg_environment"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::write",
+        reason: "baseline: materializing the static child wrapper bytes inside the \
+                 process-unique instrument directory (interpreter shebang baked from \
+                 the host SHELL configuration)",
+        guard: Some("fn establish_leg_environment"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::write",
+        reason: "baseline: materializing the static judge shim bytes inside the \
+                 process-unique instrument directory (same baked interpreter)",
+        guard: Some("fn establish_leg_environment"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline: the parent's cleanup of its own process-unique instrument \
+                 directory after the re-exec's status returns (every exit path short \
+                 of a kill)",
+        guard: Some("fn establish_leg_environment"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "baseline: creating the run's scratch legs root (under the test-hook \
+                 path or the temp dir — never the fixture tree)",
+        guard: Some("fn baseline"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "baseline: creating the operator-named report parent before the atomic \
+                 write (--out; the default assembles the charter's frozen locator)",
+        guard: Some("fn baseline"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline: ScratchGuard removes the run's scratch world on drop unless \
+                 the test hook retained it — the guard's own path, nothing else",
+        guard: Some("impl Drop for ScratchGuard"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "File::create",
+        reason: "baseline: the report's STAGING file beside the operator-named --out \
+                 path (the roles write_atomic pattern: create staging, write, fsync, \
+                 rename)",
+        guard: Some("fn write_report_atomically"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::rename",
+        reason: "baseline: the atomic commit of the staged report over the \
+                 operator-named --out path",
+        guard: Some("fn write_report_atomically"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::write",
+        reason: "baseline: the leg's scenario file (the static child wrapper reads it \
+                 from the leg directory; the workspace forbids unsafe code, so files \
+                 — not the process environment — carry per-leg data)",
+        guard: Some("fn write_leg_files"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::write",
+        reason: "baseline: the leg's child-path file (the leg's fixture child, inside \
+                 its own scratch workspace; same per-leg channel)",
+        guard: Some("fn write_leg_files"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline: a leg's fresh-world guarantee — its leg directory is wiped \
+                 before materialization so nothing from a previous run leaks in",
+        guard: Some("fn materialize_workspace"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "baseline: creating the leg's fresh workspace directory tree inside \
+                 its own leg directory (the scratch world the leg owns)",
+        guard: Some("fn materialize_workspace"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "baseline D leg: creating the judge-owned snapshot directory under the \
+                 leg's scratch tree (outside every workspace the loop can dispatch)",
+        guard: Some("fn run_full_loop"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::write",
+        reason: "baseline D leg: materializing the leg's judge wrapper (declared-check \
+                 path, snapshot dir, and deliverable baked; interpreter shebang from \
+                 the host SHELL) inside the leg's scratch tree",
+        guard: Some("fn run_full_loop"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::write",
+        reason: "baseline D leg: writing the leg-file pointer the static judge shim \
+                 resolves (the wrapper's absolute path, one line, in the leg's scratch \
+                 directory)",
+        guard: Some("fn run_full_loop"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline D judge: the snapshot judge's temp staging root removed \
+                 before use (a stale layout from this process's pid must never seed a \
+                 judgment)",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "baseline D judge: creating the snapshot staging layout's src directory \
+                 inside the judge's own temp staging root",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline D judge: the staging layout removed when a snapshot records \
+                 a failed copy (the typed judge refusal path)",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::copy",
+        reason: "baseline D judge: staging one judged snapshot's bytes into the judge's \
+                 own temp layout (snapshot reads, temp writes — the fixture instrument \
+                 never runs over the original)",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline D judge: the staging layout removed when a snapshot cannot \
+                 be staged (the typed staging-failure path)",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline D judge: the staging layout removed when the fixture \
+                 instrument cannot spawn over it (the typed spawn-failure path)",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline D judge: the staging layout removed when an entry shape is \
+                 unrecognized (fail-closed refuse path)",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::remove_dir_all",
+        reason: "baseline D judge: the staging layout removed after the last entry is \
+                 judged (the judge leaves nothing behind)",
+        guard: Some("fn judge_snapshots"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "baseline: copy_tree creates each destination directory inside the leg's \
+                 scratch workspace while copying the task project (the e2e World \
+                 pattern; the source is the enumerated fixture root, the destination \
+                 the leg's own fresh workspace)",
+        guard: Some("fn copy_tree"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/improve_cmd.rs",
+        token: "fs::copy",
+        reason: "baseline: copy_tree copies each fixture file into the leg's scratch \
+                 workspace (verbatim materialization of the leg's fresh world; never \
+                 writes back into the fixture tree)",
+        guard: Some("fn copy_tree"),
+    },
 ];
 
 /// The check body, called by [`crate::check_answer_key_single_writer`].
@@ -1050,6 +1254,138 @@ mod tests {
                     "fs::remove_file",
                     Some("impl Drop for WriterLock"),
                 ),
+                // Task 26, COR-3: the `improve baseline` harness — one row
+                // per production write site, same order as the inventory.
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn establish_leg_environment"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::write",
+                    Some("fn establish_leg_environment"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::write",
+                    Some("fn establish_leg_environment"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn establish_leg_environment"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn baseline"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn baseline"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("impl Drop for ScratchGuard"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "File::create",
+                    Some("fn write_report_atomically"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::rename",
+                    Some("fn write_report_atomically"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::write",
+                    Some("fn write_leg_files"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::write",
+                    Some("fn write_leg_files"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn materialize_workspace"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn materialize_workspace"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn run_full_loop"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::write",
+                    Some("fn run_full_loop"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::write",
+                    Some("fn run_full_loop"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::copy",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::remove_dir_all",
+                    Some("fn judge_snapshots"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn copy_tree"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/improve_cmd.rs",
+                    "fs::copy",
+                    Some("fn copy_tree"),
+                ),
             ]
         );
     }
@@ -1298,6 +1634,37 @@ mod tests {
                  std::fs::create_dir_all(parent)?;\n    }\n    \
                  let file = std::fs::OpenOptions::new().write(true).create_new(true).open(\
                  &lock_path)?;\n    Ok(Self { path: lock_path })\n}\n",
+            );
+            // Task 26, COR-3: the `improve baseline` harness's inventoried
+            // writes — one stub call per pinned site, each inside the
+            // owning function the inventory pins as its guard.
+            repo.write(
+                "crates/gauntlet-cli/src/improve_cmd.rs",
+                "fn establish_leg_environment() {\n    std::fs::create_dir_all(\"d\");\n    \
+                 std::fs::write(\"wrapper\", b\"x\");\n    std::fs::write(\"shim\", \
+                 b\"x\");\n    let _ = std::fs::remove_dir_all(\"d\");\n}\n\
+                 fn baseline() {\n    std::fs::create_dir_all(\"legs\");\n    \
+                 std::fs::create_dir_all(\"reports\");\n}\n\
+                 struct ScratchGuard { path: std::path::PathBuf }\n\
+                 impl Drop for ScratchGuard {\n    fn drop(&mut self) {\n        let _ = \
+                 std::fs::remove_dir_all(&self.path);\n    }\n}\n\
+                 fn write_report_atomically() {\n    let staging = \
+                 std::fs::File::create(\"s\");\n    std::fs::rename(\"s\", \"out\");\n    \
+                 let _ = staging;\n}\n\
+                 fn write_leg_files() {\n    std::fs::write(\"mode\", b\"x\");\n    \
+                 std::fs::write(\"child\", b\"x\");\n}\n\
+                 fn materialize_workspace() {\n    let _ = \
+                 std::fs::remove_dir_all(\"leg\");\n    \
+                 std::fs::create_dir_all(\"ws\");\n}\n\
+                 fn run_full_loop() {\n    std::fs::create_dir_all(\"snapshots\");\n    \
+                 std::fs::write(\"wrapper\", b\"x\");\n    std::fs::write(\"pointer\", \
+                 b\"x\");\n}\n\
+                 fn judge_snapshots() {\n    let _ = std::fs::remove_dir_all(\"t\");\n    \
+                 std::fs::create_dir_all(\"t\");\n    let _ = \
+                 std::fs::remove_dir_all(\"t\");\n    std::fs::copy(\"a\", \"t/b\");\n    \
+                 let _ = std::fs::remove_dir_all(\"t\");\n}\n\
+                 fn copy_tree() {\n    std::fs::create_dir_all(\"to\");\n    \
+                 std::fs::copy(\"from\", \"to/f\");\n}\n",
             );
             repo
         }
