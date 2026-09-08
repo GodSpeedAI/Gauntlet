@@ -966,10 +966,11 @@ fn the_committed_manifest_agrees_with_the_frozen_ruler() {
     }
     // Every executed arm is honestly INCONCLUSIVE (cannot_run) under the
     // never-run executor; the recorded artifacts adjudicate for real.
-    // Wave-2 note (task-27 B3): `.agents/reports/handoff.md` now EXISTS
-    // and satisfies `handoff_six_categories`, so AK-067 adjudicates PASS
-    // here alongside the two recorded artifacts (pre-wave-2 this was
-    // 2 PASS / 68 INCONCLUSIVE with AK-067 `no_artifact`).
+    // Settlement note (task-27): the counts did NOT move at settlement —
+    // AK-067 already adjudicated PASS here once its artifact landed
+    // (B3's wave-2 re-pin from 2/68); the three artifact arms are
+    // AK-067/069/070. The settlement re-sweep's 70 PASS runs the REAL
+    // executor; this validation-only tooth keeps its own honest split.
     assert_eq!(
         outcome.fail, 0,
         "nothing fails under a validation-only sweep"
@@ -983,4 +984,77 @@ fn the_committed_manifest_agrees_with_the_frozen_ruler() {
     // composition root's feature vocabulary (the parse above proved it
     // by not refusing; pin the const so drift is loud).
     assert!(gauntlet_cli::verify_cmd::sweep_features().contains(&"surfaces"));
+}
+
+/// COR-5 R3-F4: an ARTIFACT-ONLY sweep into a NONEXISTENT report parent
+/// completes — the report's parent directory is created before the
+/// report write (an artifact-only run produces no evidence files, so
+/// nothing else creates it). Driven through the REAL binary over a
+/// scratch project-root world (the falsifier's harness shape: a tiny
+/// file-kind fixture ruler + a detached HEAD), never mutating the
+/// tracked tree.
+#[test]
+fn an_artifact_only_sweep_creates_a_missing_report_parent() {
+    let world = scratch("f4-parent");
+    let ruler = String::from(
+        "## AK-201\nclaim: A durable artifact predicate decides this unit.\n\
+         verify_by: static_check\nblast_radius: local\nauthority: critic\n\
+         evidence_required: {kind: file, locator: reports/one.json, producer: instrument}\n\
+         \n## AK-202\nclaim: A second artifact predicate decides this unit.\n\
+         verify_by: static_check\nblast_radius: local\nauthority: critic\n\
+         evidence_required: {kind: metric, locator: reports/two.json, producer: instrument}\n",
+    );
+    let wayfinder = world.root.join(".wayfinder");
+    std::fs::create_dir_all(&wayfinder).expect("world wayfinder dir");
+    std::fs::write(wayfinder.join("answer-key.md"), ruler).expect("fixture ruler write");
+    let git = world.root.join(".git");
+    std::fs::create_dir_all(&git).expect("world git dir");
+    std::fs::write(
+        git.join("HEAD"),
+        "0123456789abcdef0123456789abcdef01234567\n",
+    )
+    .expect("detached head write");
+    let reports = world.root.join("reports");
+    std::fs::create_dir_all(&reports).expect("world reports dir");
+    std::fs::write(
+        reports.join("one.json"),
+        "{\"A\":{\"x\":1},\"B\":{\"x\":1},\"C\":{\"x\":1},\"D\":{\"x\":1},\"_meta\":{}}",
+    )
+    .expect("artifact one write");
+    std::fs::write(
+        reports.join("two.json"),
+        "{\"A\":{\"x\":1},\"B\":{\"x\":1},\"C\":{\"x\":1},\"D\":{\"x\":1},\"_meta\":{}}",
+    )
+    .expect("artifact two write");
+    let manifest_path = world.root.join("manifest.yaml");
+    std::fs::write(
+        &manifest_path,
+        String::from("schema: gauntlet.conformance-manifest@v1\nunits:\n")
+            + "  - id: AK-201\n    kind: file\n    frozen_locator: reports/one.json\n"
+            + "    evidence:\n      artifact: {path: reports/one.json, predicate: baselines_keys_abcd}\n"
+            + "    bounded: false\n    status_hint: none\n    basis: fixture one\n    divergence: none\n"
+            + "  - id: AK-202\n    kind: metric\n    frozen_locator: reports/two.json\n"
+            + "    evidence:\n      artifact: {path: reports/two.json, predicate: baselines_keys_abcd}\n"
+            + "    bounded: false\n    status_hint: none\n    basis: fixture two\n    divergence: none\n",
+    )
+    .expect("fixture manifest write");
+    // The report's parent (out/deep) does NOT exist.
+    let report_path = world.root.join("out").join("deep").join("conformance.json");
+    let output = binary()
+        .env("GAUNTLET_PROJECT_ROOT", &world.root)
+        .args(["verify", "--all"])
+        .arg("--report")
+        .arg(&report_path)
+        .arg("--manifest")
+        .arg(&manifest_path)
+        .output()
+        .expect("the gauntlet binary runs");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "an artifact-only sweep into a missing parent completes: {stdout} {stderr}"
+    );
+    assert!(report_path.is_file(), "the report is written: {stderr}");
 }

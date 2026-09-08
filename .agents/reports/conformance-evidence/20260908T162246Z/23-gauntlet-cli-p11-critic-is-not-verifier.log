@@ -1,0 +1,17 @@
+command: cargo nextest run -p gauntlet-cli --test p11_critic_is_not_verifier
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.67s
+────────────
+ Nextest run ID 6cda4c72-1f53-4444-bfc1-909cd59edc4b with nextest profile: default
+    Starting 5 tests across 1 binary
+        PASS [   0.020s] (1/5) gauntlet-cli::p11_critic_is_not_verifier a_broken_verifier_refuses_and_nothing_settles
+        PASS [   0.022s] (2/5) gauntlet-cli::p11_critic_is_not_verifier a_pass_verdict_settles_the_same_composition
+        PASS [   0.023s] (3/5) gauntlet-cli::p11_critic_is_not_verifier an_inconclusive_verdict_never_settles_and_names_itself
+        PASS [   0.023s] (4/5) gauntlet-cli::p11_critic_is_not_verifier a_fail_verdict_never_settles_and_names_the_real_cause
+        PASS [   0.025s] (5/5) gauntlet-cli::p11_critic_is_not_verifier no_rung_can_decide_and_nothing_settles
+────────────
+     Summary [   0.025s] 5 tests run: 5 passed, 0 skipped

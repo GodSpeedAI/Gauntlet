@@ -1,0 +1,25 @@
+command: cargo nextest run -p gauntlet-cli --test p2_context_isolation
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 15s
+────────────
+ Nextest run ID 1d5ecc7f-0b72-4a6f-a40d-12b802023cde with nextest profile: default
+    Starting 13 tests across 1 binary
+        PASS [   0.021s] ( 1/13) gauntlet-cli::p2_context_isolation an_iteration_with_no_durable_observation_binding_has_no_authority
+        PASS [   0.025s] ( 2/13) gauntlet-cli::p2_context_isolation a_bound_observation_whose_bytes_are_absent_is_refused_never_treated_as_empty
+        PASS [   0.026s] ( 3/13) gauntlet-cli::p2_context_isolation bytes_that_are_not_the_bound_observation_cannot_be_served_into_a_comparison
+        PASS [   0.027s] ( 4/13) gauntlet-cli::p2_context_isolation an_observation_bundle_that_misdeclares_its_own_digest_is_refused
+        PASS [   0.012s] ( 5/13) gauntlet-cli::p2_context_isolation comparison_authority_requires_a_durable_run
+        PASS [   0.040s] ( 6/13) gauntlet-cli::p2_context_isolation a_stale_envelope_digest_is_unrepresentable_from_outside_the_port
+        PASS [   0.043s] ( 7/13) gauntlet-cli::p2_context_isolation an_unrecorded_substitute_observation_cannot_enter_comparison
+        PASS [   0.027s] ( 8/13) gauntlet-cli::p2_context_isolation frozen_evidence_that_disagrees_with_the_durable_digest_yields_no_projection
+        PASS [   0.040s] ( 9/13) gauntlet-cli::p2_context_isolation mandatory_acceptance_failure_is_non_success_and_never_writes_a_comparison
+        PASS [   0.028s] (10/13) gauntlet-cli::p2_context_isolation the_issued_envelope_carries_the_durable_runs_own_frozen_digest
+        PASS [   0.048s] (11/13) gauntlet-cli::p2_context_isolation durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_crosswire
+        PASS [   0.040s] (12/13) gauntlet-cli::p2_context_isolation the_envelope_is_structurally_blind_and_carries_instrument_reality
+        PASS [   0.054s] (13/13) gauntlet-cli::p2_context_isolation teeth
+────────────
+     Summary [   0.087s] 13 tests run: 13 passed, 0 skipped

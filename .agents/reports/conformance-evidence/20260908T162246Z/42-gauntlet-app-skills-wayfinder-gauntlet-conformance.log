@@ -1,0 +1,13 @@
+command: cargo nextest run -p gauntlet-app --test skills wayfinder_gauntlet_conformance
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-app v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-app)
+    Finished `test` profile [unoptimized] target(s) in 0.49s
+────────────
+ Nextest run ID 50fb9309-cee1-4979-82ed-3100eb7839d2 with nextest profile: default
+    Starting 1 test across 1 binary (5 tests skipped)
+        PASS [   0.006s] (1/1) gauntlet-app::skills wayfinder_gauntlet_conformance
+────────────
+     Summary [   0.006s] 1 test run: 1 passed, 5 skipped

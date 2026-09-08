@@ -1,0 +1,25 @@
+command: cargo nextest run -p gauntlet-cli --features surfaces --test operator_actions_no_bypass
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 6.20s
+────────────
+ Nextest run ID 4b31bf1b-d53c-4ffe-8a5f-2c1bab3c3a5e with nextest profile: default
+    Starting 13 tests across 1 binary
+        PASS [   0.050s] ( 1/13) gauntlet-cli::operator_actions_no_bypass a_newline_carrying_unknown_argument_cannot_forge_a_following_log_line
+        PASS [   0.057s] ( 2/13) gauntlet-cli::operator_actions_no_bypass a_control_byte_ticket_id_lands_escaped_in_the_failed_action_log_line
+        PASS [   0.060s] ( 3/13) gauntlet-cli::operator_actions_no_bypass a_newline_carrying_ticket_argument_cannot_forge_a_following_log_line
+        PASS [   0.070s] ( 4/13) gauntlet-cli::operator_actions_no_bypass a_control_byte_unit_argument_lands_escaped_and_forges_nothing
+        PASS [   0.078s] ( 5/13) gauntlet-cli::operator_actions_no_bypass a_unit_read_on_a_non_durable_run_404s_with_the_run_view_s_own_wording
+        PASS [   0.097s] ( 6/13) gauntlet-cli::operator_actions_no_bypass a_corrupt_ticket_stays_the_queue_s_own_typed_refusal
+        PASS [   0.078s] ( 7/13) gauntlet-cli::operator_actions_no_bypass resolve_with_an_earned_pass_record_settles_once_and_resolves_the_ticket
+        PASS [   0.090s] ( 8/13) gauntlet-cli::operator_actions_no_bypass an_action_outside_the_frozen_ruler_is_refused_and_the_ticket_stays_open
+        PASS [   0.092s] ( 9/13) gauntlet-cli::operator_actions_no_bypass no_hostile_record_or_argument_can_escape_the_family_s_output_discipline
+        PASS [   0.080s] (10/13) gauntlet-cli::operator_actions_no_bypass the_denial_view_names_the_governance_gate_s_containment_vocabulary
+        PASS [   0.069s] (11/13) gauntlet-cli::operator_actions_no_bypass the_reentry_failure_names_the_durable_truth_the_fresh_one_names_the_commit_and_the_acceptance_names_both_ids
+        PASS [   0.112s] (12/13) gauntlet-cli::operator_actions_no_bypass resolve_without_a_durable_pass_record_refuses_with_the_gate_the_cli_hits
+        PASS [   0.069s] (13/13) gauntlet-cli::operator_actions_no_bypass the_surface_answers_405_404_and_identity_refusals_in_the_error_shape
+────────────
+     Summary [   0.208s] 13 tests run: 13 passed, 0 skipped

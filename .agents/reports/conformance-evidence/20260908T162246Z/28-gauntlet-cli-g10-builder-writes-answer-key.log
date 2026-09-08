@@ -1,0 +1,14 @@
+command: cargo nextest run -p gauntlet-cli --test g10_builder_writes_answer_key
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 22s
+────────────
+ Nextest run ID 61e5eb43-502b-49c4-ae25-26ef3c33b360 with nextest profile: default
+    Starting 2 tests across 1 binary
+        PASS [   0.053s] (1/2) gauntlet-cli::g10_builder_writes_answer_key a_builder_context_write_at_the_key_is_refused_by_containment
+        PASS [   0.063s] (2/2) gauntlet-cli::g10_builder_writes_answer_key a_midrun_key_tamper_aborts_with_both_digests_pinned
+────────────
+     Summary [   0.066s] 2 tests run: 2 passed, 0 skipped

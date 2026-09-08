@@ -8,28 +8,27 @@ a thin pointer).
 
 **Provenance:** the grouping below is derived mechanically from the
 committed conformance sweep `.agents/reports/conformance.json`
-(`gauntlet.conformance@v1`, generated `2026-09-07T21:19:36Z`, tree
-`a98b6249f9ce5edcc4f6b0ae50fdfb9522838865`; summary 70 units = 69
-PASS / 1 INCONCLUSIVE / 0 FAIL) — every unit in the category the
+(`gauntlet.conformance@v1`, generated `2026-09-08T16:22:46Z`, tree
+`8f4bacace632ff87261a9e4fbc037dc7fae9a76c`; summary 70 units = 70
+PASS / 0 INCONCLUSIVE / 0 FAIL) — every unit in the category the
 sweep's `status_category` field assigns it, counts included. The
 `tests/contract/docs_present` target's consistency leg asserts this
 equality mechanically at test time against whatever conformance.json is
 committed, so this report can never silently drift from the sweep.
 
-**Evidence-of-the-moment (honest window):** the sweep this report was
-derived from ran BEFORE this file existed — that is why AK-067 below
-sits in the proposed section with its `no_artifact` reason. The task's
-settlement re-sweep re-adjudicates AK-067 against this file (the
-six-category predicate is satisfied by the sections below) and the
-committed conformance.json is regenerated at settlement; the
-accompanying row move (AK-067 → implemented_and_proven, count bump) is
-the anticipated, mechanical follow-up. The manifest's seventeen
-`divergence` flags that were `unrecorded` at sweep time are already
-flipped to dated `reference-candidates 2026-09-07` citations (the
-entries live in `.agents/reports/reference-candidates.md`); the
-settlement re-sweep's json will carry the dated spellings.
+**Settlement note (the evidence-of-the-moment window, closed):** the
+pre-settlement sweep ran before this file existed, so an earlier
+revision of this report carried AK-067 in the proposed section with
+its verbatim `no_artifact` reason. The settlement re-sweep
+re-adjudicated AK-067 against this file — the six-category predicate
+is satisfied by the sections below — and it now stands in
+implemented_and_proven. The manifest's seventeen `divergence` flags
+that were `unrecorded` at the first sweep are dated
+`reference-candidates 2026-09-07` citations in both the manifest and
+the committed json (the entries live in
+`.agents/reports/reference-candidates.md`).
 
-## implemented_and_proven — 65 units
+## implemented_and_proven — 66 units
 
 Every unit below PASSed its executed or adjudicated evidence in the
 sweep with no bounded basis recorded.
@@ -98,6 +97,7 @@ sweep with no bounded basis recorded.
 - AK-063 — the roles suite (install from repo files; drift reported in every direction)
 - AK-064 — the wayfinder-gauntlet conformance suite (provenance; semantics preserved)
 - AK-065 — the formation fog invariant (fog recorded; no fog entry reaches the answer key)
+- AK-067 — this report: the six §26 category sections below satisfy the frozen `handoff_six_categories` predicate (the settlement re-sweep's evidence ref is this file)
 - AK-068 — the docs-present teeth (eight documents exist; proven-vs-provisional section present; the arch-target precedent)
 
 ## implemented_but_provisional — 4 units
@@ -118,13 +118,11 @@ the sweep — executed evidence (proven) or adjudicated recorded
 artifacts with a disclosed bounded basis (provisional). No unit landed
 between: nothing is configured and merely asserted.
 
-## proposed — 1 unit
+## proposed — 0 units
 
-- AK-067 — INCONCLUSIVE (no_artifact): the sweep's reason, verbatim:
-  "no_artifact: .agents/reports/handoff.md is absent". This file is
-  that artifact; it did not exist when the derived-from sweep ran (see
-  the evidence-of-the-moment note above — the settlement re-sweep
-  re-adjudicates it against this file's six-category predicate).
+None. AK-067 was the sole pre-settlement occupant (its `no_artifact`
+window is recorded in the settlement note above); the settlement
+re-sweep adjudicated it against this file.
 
 ## blocked — 0 units
 
@@ -151,10 +149,12 @@ recorded here (fog dispositions, not units — they carry no AK id):
 
 ## INCONCLUSIVE units and reasons (summary)
 
-Exactly one: **AK-067** — `no_artifact: .agents/reports/handoff.md is
-absent` at the derived-from sweep. Missing evidence is not passing
-evidence; the artifact now exists (this file) and the settlement
-re-sweep decides it.
+None remain. The one pre-settlement INCONCLUSIVE — **AK-067**,
+`no_artifact: .agents/reports/handoff.md is absent` at the
+2026-09-07T21:19:36Z sweep — was resolved exactly as the missing-
+evidence rule demands: the artifact was produced, and the settlement
+re-sweep (2026-09-08T16:22:46Z) adjudicated it PASS on its own
+predicate. Missing evidence was never treated as passing evidence.
 
 ## Disclosures
 

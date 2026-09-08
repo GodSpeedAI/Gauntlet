@@ -1,0 +1,57 @@
+command: cargo nextest run -p gauntlet-app --lib control::controller
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.02s
+────────────
+ Nextest run ID e8cce395-9adf-4f88-941a-453e402d43c9 with nextest profile: default
+    Starting 46 tests across 1 binary (514 tests skipped)
+        PASS [   0.055s] ( 1/46) gauntlet-app control::controller::tests::a_dangling_depends_on_is_surfaced_from_the_scheduler
+        PASS [   0.086s] ( 2/46) gauntlet-app control::controller::tests::a_drain_that_never_terminates_is_bounded_cancelled_and_escalated
+        PASS [   0.100s] ( 3/46) gauntlet-app control::controller::tests::a_corroborated_produced_artifact_settles_in_the_produced_world
+        PASS [   0.011s] ( 4/46) gauntlet-app control::controller::tests::a_fresh_run_checkpoint_carries_a_real_event_log_offset
+        PASS [   0.099s] ( 5/46) gauntlet-app control::controller::tests::a_critic_reservation_releases_at_fan_in_so_a_later_iteration_still_dispatches
+        PASS [   0.102s] ( 6/46) gauntlet-app control::controller::tests::a_declared_attempted_other_unit_never_settles_and_is_recorded
+        PASS [   0.048s] ( 7/46) gauntlet-app control::controller::tests::a_file_only_unit_is_never_dispatched_the_frozen_reference_bounds_membership
+        PASS [   0.006s] ( 8/46) gauntlet-app control::controller::tests::a_malformed_result_gets_one_reminder_re_dispatch_then_escalates
+        PASS [   0.007s] ( 9/46) gauntlet-app control::controller::tests::a_governance_blocked_run_terminals_blocked_with_a_ticket_never_exhausted
+        PASS [   0.010s] (10/46) gauntlet-app control::controller::tests::a_full_iteration_settles_a_unit_through_the_composed_chain
+        PASS [   0.109s] (11/46) gauntlet-app control::controller::tests::a_crash_after_a_settlement_never_re_runs_settled_work
+        PASS [   0.014s] (12/46) gauntlet-app control::controller::tests::a_meter_refused_critic_dispatch_is_truncated_and_the_run_continues
+        PASS [   0.014s] (13/46) gauntlet-app control::controller::tests::a_mid_run_answer_key_edit_aborts_the_run_with_both_digests_as_evidence
+        PASS [   0.012s] (14/46) gauntlet-app control::controller::tests::a_recovery_completed_settlement_on_a_settled_run_resumes_as_the_settled_noop
+        PASS [   0.013s] (15/46) gauntlet-app control::controller::tests::a_recovery_completed_production_on_a_settled_run_resumes_as_the_settled_noop
+        PASS [   0.008s] (16/46) gauntlet-app control::controller::tests::a_result_whose_meter_charge_is_refused_is_recorded_not_dropped
+        PASS [   0.022s] (17/46) gauntlet-app control::controller::tests::a_multi_member_slice_is_refused_rather_than_charged_for_and_dropped
+        PASS [   0.012s] (18/46) gauntlet-app control::controller::tests::a_result_the_run_budget_refuses_is_recorded_not_dropped
+        PASS [   0.018s] (19/46) gauntlet-app control::controller::tests::a_residual_retry_dispatch_carries_residual_text_only
+        PASS [   0.014s] (20/46) gauntlet-app control::controller::tests::a_resume_completes_half_applied_settlements_and_reconciles_the_projection
+        PASS [   0.030s] (21/46) gauntlet-app control::controller::tests::a_recurring_residual_routes_composed_diagnosis_to_correction_indicated
+        PASS [   0.012s] (22/46) gauntlet-app control::controller::tests::a_stalled_attempt_cancels_retries_once_then_escalates
+        PASS [   0.013s] (23/46) gauntlet-app control::controller::tests::a_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row
+        PASS [   0.012s] (24/46) gauntlet-app control::controller::tests::a_terminal_reached_with_work_in_flight_cancels_the_stranded_invocation
+        PASS [   0.020s] (25/46) gauntlet-app control::controller::tests::a_settled_dependency_stays_in_the_graph_while_eligibility_filters_it
+        PASS [   0.010s] (26/46) gauntlet-app control::controller::tests::an_empty_parsed_ruler_is_refused_at_composition
+        PASS [   0.021s] (27/46) gauntlet-app control::controller::tests::a_surviving_hypothesis_ends_inconclusive_with_quarantine_composed
+        PASS [   0.014s] (28/46) gauntlet-app control::controller::tests::an_escalation_summary_with_quotes_and_backslashes_stays_parseable_evidence
+        PASS [   0.011s] (29/46) gauntlet-app control::controller::tests::an_escaping_evidence_locator_is_refused_at_the_write_boundary
+        PASS [   0.021s] (30/46) gauntlet-app control::controller::tests::an_answer_key_read_failure_degrades_the_iteration_and_stays_resumeable
+        PASS [   0.010s] (31/46) gauntlet-app control::controller::tests::an_over_capacity_fan_out_is_truncated_and_recorded_never_a_run_error
+        PASS [   0.013s] (32/46) gauntlet-app control::controller::tests::an_uncorroborated_produced_artifact_never_settles_in_the_produced_world
+        PASS [   0.013s] (33/46) gauntlet-app control::controller::tests::damaged_production_bookkeeping_on_a_settled_produced_world_run_resumes_settled
+        PASS [   0.014s] (34/46) gauntlet-app control::controller::tests::reference_unavailability_is_a_recorded_gap_not_an_abort
+        PASS [   0.013s] (35/46) gauntlet-app control::controller::tests::resuming_an_all_settled_run_is_a_settled_noop_in_the_produced_world
+        PASS [   0.018s] (36/46) gauntlet-app control::controller::tests::resume_restores_per_unit_attempts_from_durable_productions
+        PASS [   0.011s] (37/46) gauntlet-app control::controller::tests::resuming_an_all_settled_run_is_an_honest_settled_no_op
+        PASS [   0.008s] (38/46) gauntlet-app control::controller::tests::the_answer_key_cannot_express_a_cohort_on_any_shipped_surface
+        PASS [   0.022s] (39/46) gauntlet-app control::controller::tests::resume_restores_the_budget_from_the_checkpoint_watermark
+        PASS [   0.009s] (40/46) gauntlet-app control::controller::tests::the_answer_key_cannot_express_a_unit_status_on_any_shipped_surface
+        PASS [   0.007s] (41/46) gauntlet-app control::controller::tests::the_pass_leg_settles_durably_through_the_service
+        PASS [   0.012s] (42/46) gauntlet-app control::controller::tests::the_corroboration_rule_demands_this_runs_executed_passing_test_facet
+        PASS [   0.039s] (43/46) gauntlet-app control::controller::tests::budget_exhaustion_drives_the_terminal_state_with_the_reserve_intact
+        PASS [   0.012s] (44/46) gauntlet-app control::controller::tests::the_transient_retry_cancels_the_prior_invocation_through_the_port
+        PASS [   0.010s] (45/46) gauntlet-app control::controller::tests::without_a_provider_the_dispatch_falls_back_to_the_run_derived_ref
+        PASS [   0.014s] (46/46) gauntlet-app control::controller::tests::two_units_of_one_run_are_admitted_into_distinct_workspaces
+────────────
+     Summary [   0.202s] 46 tests run: 46 passed, 514 skipped

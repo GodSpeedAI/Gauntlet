@@ -1,0 +1,14 @@
+command: cargo nextest run -p gauntlet-cli --test e2e_full_loop_real_runner
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 0.48s
+────────────
+ Nextest run ID 36f4fede-547c-4d69-b5be-a683e2ed2b88 with nextest profile: default
+    Starting 2 tests across 1 binary
+        PASS [  10.410s] (1/2) gauntlet-cli::e2e_full_loop_real_runner a_policy_validation_failure_escalates_and_never_runs_unsandboxed
+        PASS [  15.484s] (2/2) gauntlet-cli::e2e_full_loop_real_runner the_composed_loop_settles_the_auto_closable_units_wraps_the_cross_cutting_dispatch_and_escalates_the_rest
+────────────
+     Summary [  15.484s] 2 tests run: 2 passed, 0 skipped

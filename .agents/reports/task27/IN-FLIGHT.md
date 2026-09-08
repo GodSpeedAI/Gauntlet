@@ -225,3 +225,39 @@ Gate: verbatim in the charter; `just ruler` at every phase boundary.
   write (os error 2). All adjudicated -> COR-5 dispatched to B1
   (final round; settlement follows). Corrections commit landed:
   workspace 1697/1697, boundaries 261/261, ruler PASS.
+- 2026-09-08 COR-5 LANDED + COMMITTED. SETTLEMENT SEQUENCE STARTED:
+  step 2 = the settlement re-sweep via the plan gate command
+  verbatim (expect 70 PASS incl. AK-067 flipping on the landed
+  handoff.md). Then: handoff row-move per B3's playbook (orchestrator
+  settlement action, mechanical 5-line edit B3 documented);
+  conformance_cli pinned-counts update 3/67 -> 4/66 (same re-pin the
+  interim state required at each artifact landing); docs_present
+  verify; bundle re-pin + --check; just ci; ruler; the four personal
+  teeth; closure records + settlement commit.
+- 2026-09-08 SETTLEMENT SEQUENCE EXECUTED. Sweep-4 (plan gate
+  verbatim): 70 units = 70 PASS / 0 INCONCLUSIVE / 0 FAIL, 45
+  commands, exit 0 (AK-067 flipped on the landed handoff; gate python
+  asserts hold). Handoff row-move: BOTH teeth caught the
+  orchestrator's own two errors live (AK-067 bullet initially placed
+  in the provisional section [AK-066 is bounded-provisional]; a wrong
+  4/66 pinned-count expectation — the validation-only executor's
+  split stays 67/3 since AK-067 already counted among the artifact
+  PASSes). Fixed; consistency 7/7 + conformance_cli 10/10; bundle
+  re-pinned (50 files) + --check from root. Closure battery v1: one
+  recorded load-flaky test failed under load (d_env_and_prompt —
+  task-16-era adapter test, NOT task27 code), green in isolation
+  (0.055s), /tmp healthy; battery v2 GREEN: check 0, workspace
+  1700/1700, lint/deny 0, boundaries 261/261, ruler PASS. Four
+  personal teeth RED -> byte-identical restore -> GREEN (T1 manifest
+  kind-damage; T2 baselines.json removal; T3 docs/SECURITY.md
+  removal = 4 RED; T4 fixture row-move = 4 violations).
+- 2026-09-08 INCIDENT (orchestrator, disclosed): a CURRENT_STATUS.yml
+  bulk edit matched the operator's workbench next_action line instead
+  of the real one and truncated the metadata/execution/active/
+  next_action middle. Reconstructed same-session from git HEAD + the
+  workbench block (exact text preserved) + this session's known
+  edits, then re-verified section-by-section. Known delta: the
+  task26-era uncommitted updated_by long text is carried as a summary
+  line (the full text survives verbatim in commit a98b624's message
+  and the task26 closure record). Lesson filed: bulk edits to
+  multi-occurrence keys require unique anchors.

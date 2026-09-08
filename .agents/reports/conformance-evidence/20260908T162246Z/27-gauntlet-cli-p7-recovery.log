@@ -1,0 +1,17 @@
+command: cargo nextest run -p gauntlet-cli --test p7_recovery
+exit: 0
+--- stdout ---
+
+--- stderr ---
+   Compiling gauntlet-cli v0.1.0 (/home/sprime01/projects/gauntlet/crates/gauntlet-cli)
+    Finished `test` profile [unoptimized] target(s) in 2m 15s
+────────────
+ Nextest run ID c3fdc379-c12f-46ee-b849-b32f9d5e3d1f with nextest profile: default
+    Starting 5 tests across 1 binary
+        PASS [   0.055s] (1/5) gauntlet-cli::p7_recovery a_settled_run_reresumes_over_anchored_settlements_without_rescanning
+        PASS [   0.072s] (2/5) gauntlet-cli::p7_recovery commit_order
+        PASS [   0.182s] (3/5) gauntlet-cli::p7_recovery a_crash_before_the_settlement_event_retries_as_if_never_verified
+        PASS [   0.243s] (4/5) gauntlet-cli::p7_recovery a_crash_between_event_and_row_completes_exactly_once_through_resume
+        PASS [   0.245s] (5/5) gauntlet-cli::p7_recovery a_crash_after_the_durable_row_never_reruns_settled_work
+────────────
+     Summary [   0.248s] 5 tests run: 5 passed, 0 skipped

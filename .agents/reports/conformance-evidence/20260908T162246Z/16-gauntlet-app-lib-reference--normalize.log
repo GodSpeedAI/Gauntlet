@@ -1,0 +1,17 @@
+command: cargo nextest run -p gauntlet-app --lib reference::normalize
+exit: 0
+--- stdout ---
+
+--- stderr ---
+    Finished `test` profile [unoptimized] target(s) in 0.01s
+────────────
+ Nextest run ID 0c1f05a9-f529-4faa-b19e-3fa110d09e35 with nextest profile: default
+    Starting 6 tests across 1 binary (554 tests skipped)
+        PASS [   0.005s] (1/6) gauntlet-app reference::normalize::tests::invalid_utf8_is_a_typed_error_with_the_byte_locus
+        PASS [   0.005s] (2/6) gauntlet-app reference::normalize::tests::normalization_is_deterministic_across_line_ending_and_final_newline_spellings
+        PASS [   0.005s] (3/6) gauntlet-app reference::normalize::tests::a_whitespace_only_last_line_is_content_not_a_blank_line
+        PASS [   0.005s] (4/6) gauntlet-app reference::normalize::tests::normalization_is_sensitive_to_content_edits
+        PASS [   0.006s] (5/6) gauntlet-app reference::normalize::tests::short_inputs_pin_the_exact_normalized_output
+        PASS [   0.006s] (6/6) gauntlet-app reference::normalize::tests::empty_and_all_blank_inputs_normalize_to_zero_bytes
+────────────
+     Summary [   0.007s] 6 tests run: 6 passed, 554 skipped
