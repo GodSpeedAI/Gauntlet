@@ -240,6 +240,10 @@ pub(crate) mod testing {
 
     /// The acceptance boundary over the fixture's own substrate.
     pub(crate) fn acceptance(governed: &Governed) -> MandatoryComparisonAcceptance {
-        MandatoryComparisonAcceptance::new(governed.state.clone(), governed.evidence.clone())
+        MandatoryComparisonAcceptance::new(
+            governed.state.clone(),
+            governed.evidence.clone(),
+            EpochSeconds::new(BASE_INSTANT),
+        )
     }
 }

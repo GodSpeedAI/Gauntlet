@@ -858,6 +858,11 @@ pub fn compose_run(
     let evidence_root = context.resolved.evidence_dir.clone();
     ensure_configured_dir(&state_dir)?;
     ensure_configured_dir(&evidence_root)?;
+    ensure_configured_dir(
+        &state_dir
+            .join(defaults::WORKSPACES_DIR_NAME)
+            .join(defaults::WORKSPACES_DIR_NAME),
+    )?;
     let state = Arc::new(
         EmbeddedStateStore::open(&state_dir.join(STATE_DB_NAME)).map_err(|error| {
             CompositionError::Store {
@@ -950,8 +955,20 @@ pub fn compose_run(
         env: "GAUNTLET_MAX_TOKENS",
         detail: error.to_string(),
     })?;
-    let model = ModelComparatorSource::new(ModelComparator::with_clock(
+    let critic_identity = gauntlet_domain::RunnerIdentity::new(&critic_token).map_err(|error| {
+        CompositionError::RunnerConstruction {
+            detail: error.to_string(),
+        }
+    })?;
+    let recording_critic_runner = Arc::new(gauntlet_app::compare::RecordingAgentRunner::new(
         critic_runner,
+        state.clone(),
+        evidence.clone(),
+        critic_identity,
+        clock.now(),
+    ));
+    let model = ModelComparatorSource::new(ModelComparator::with_clock(
+        recording_critic_runner,
         ids.clone(),
         None,
         budget_for_slices,

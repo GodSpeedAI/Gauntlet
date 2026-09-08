@@ -266,18 +266,26 @@ impl IssuedComparison {
     /// exact contributor set that ran — acceptance later works over that
     /// retained set, never over a caller-supplied slice, so presenting a
     /// friendly subset of a high-assurance review is unrepresentable.
+    ///
+    /// `at` is the timestamp recorded on the `InvocationTerminal` event
+    /// [`MandatoryComparisonAcceptance::accept`] appends for every
+    /// comparator invocation it durably accepts (task26-dcritic-apparatus-
+    /// repair B3/B7) — the caller's own clock reading, the same convention
+    /// `RecordingAgentRunner::new`'s `admitted_at` already uses (one
+    /// composition-time snapshot per run, never recomputed per event).
     pub fn review(
         self,
         deps: &ReviewDeps<'_>,
         mode: ReviewMode,
         budget: ModelDispatchBudget,
         deadline: Deadline,
+        at: gauntlet_domain::EpochSeconds,
     ) -> Result<CompletedReview, AdmissionError> {
         // The acceptance boundary is the service's own, built from the same
         // injected substrate the authority was opened against. A caller cannot
         // pass a different one in `deps`.
         let acceptance =
-            MandatoryComparisonAcceptance::new(self.state.clone(), self.evidence.clone());
+            MandatoryComparisonAcceptance::new(self.state.clone(), self.evidence.clone(), at);
         let outcome = review(self.context(), deps, &acceptance, mode, budget, deadline)
             .map_err(AdmissionError::ReviewRefused)?;
         Ok(CompletedReview {

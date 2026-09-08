@@ -1855,6 +1855,7 @@ fn g8_review(shape: G8ResidualShape) -> G8ReviewWorld {
             gauntlet_domain::ReviewMode::Single,
             ModelDispatchBudget::new(1),
             bound(),
+            gauntlet_domain::EpochSeconds::new(BASE_INSTANT),
         )
         .expect("the single-critic review completes")
         .accept(bound())

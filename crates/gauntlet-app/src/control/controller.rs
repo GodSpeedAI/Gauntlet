@@ -3231,6 +3231,7 @@ impl RunController {
                 self.comparison.review_mode,
                 ModelDispatchBudget::new(self.comparison.model_dispatches),
                 self.operation_bound(),
+                self.clock.now(),
             )?
             .accept(self.operation_bound())?;
         // The residual set drives §11.5 rows 1/9.

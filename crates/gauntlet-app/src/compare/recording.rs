@@ -75,7 +75,11 @@ impl RecordingAgentRunner {
     /// runner. Both halves share the same durable stores but preserve the
     /// adapter/application dependency direction.
     pub fn mandatory_comparison_acceptance(&self) -> MandatoryComparisonAcceptance {
-        MandatoryComparisonAcceptance::new(self.state.clone(), self.evidence.clone())
+        MandatoryComparisonAcceptance::new(
+            self.state.clone(),
+            self.evidence.clone(),
+            self.admitted_at,
+        )
     }
 
     fn admitted(

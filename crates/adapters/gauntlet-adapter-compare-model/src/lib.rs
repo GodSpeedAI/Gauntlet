@@ -464,6 +464,33 @@ impl PendingComparison for PendingModelComparison {
     }
 }
 
+/// The interval between non-terminal polls in [`drive_to_terminal_with`]'s
+/// bounded probe run (task26-dcritic-apparatus-repair B4 change 1). Kept
+/// local to this adapter rather than imported from `gauntlet-app`'s
+/// `config::defaults::POLL_INTERVAL_MS`: an adapter crate does not depend
+/// on the application layer (the composition-root-only dependency
+/// direction the architecture boundary suite polices), so this is a
+/// LOCAL constant, deliberately set to the same 10ms cadence
+/// `gauntlet-adapter-agent-cli`'s own transport poll loop already uses
+/// (`ProcessChildTransport`'s liveness poll) rather than an unrelated
+/// value invented for this adapter alone.
+///
+/// Effective bounded wall-clock window this gives a real (non-mock)
+/// critic child process to reach a terminal state before
+/// [`drive_to_terminal_with`] gives up and returns `TimedOut`:
+/// `PROBE_CEILING * POLL_INTERVAL_MS` = 24 * 10ms = 240ms, plus whatever
+/// the polls themselves cost — a REAL bound, never assumed instantaneous.
+/// Before this constant existed the loop polled with NO delay between
+/// iterations: 24 back-to-back non-blocking `poll()` calls complete in
+/// far under 1ms of wall-clock, which is not enough time for ANY real
+/// child process (fork, exec, do its work, write its result file) to
+/// reach a terminal state — the loop would return `TimedOut` against a
+/// live OS child almost unconditionally, never against a `MockAgentRunner`
+/// whose `poll()` can report `Completed` on the very first call. See
+/// `the_probe_interval_gives_a_real_child_wall_clock_to_finish` below for
+/// the RED (0ms) / GREEN (10ms) discriminating proof.
+const POLL_INTERVAL_MS: u64 = 10;
+
 fn drive_to_terminal_with(
     runner: &dyn AgentRunner,
     handle: &gauntlet_ports::agent_runner::InvocationHandle,
@@ -486,6 +513,7 @@ fn drive_to_terminal_with(
         if status.is_terminal() {
             return Ok(status);
         }
+        std::thread::sleep(std::time::Duration::from_millis(POLL_INTERVAL_MS));
     }
     Err(ComparatorError::TimedOut {
         detail: format!("no terminal state within bounded probe run ({PROBE_CEILING})"),
@@ -918,6 +946,13 @@ mod tests {
         CrossWiredEnvelope,
         /// The runner cannot return the declared result contract.
         CollectionFailure,
+        /// Reports `Running` for a fixed number of polls, then terminal
+        /// (task26-dcritic-apparatus-repair B4 change 1's discriminating
+        /// tooth): drives the REAL `drive_to_terminal_with` probe loop
+        /// through several genuinely non-terminal polls, so the interval
+        /// between them is on the wall-clock critical path — the exact
+        /// shape a real (non-mock) child process forces on the loop.
+        DelayedTerminal(u32),
     }
 
     struct ScriptedCritic {
@@ -1100,6 +1135,14 @@ mod tests {
                     payment_so_far: gauntlet_domain::Payment::zero(),
                 }),
                 Derailment::Timeout => Ok(InvocationStatus::TimedOut),
+                Derailment::DelayedTerminal(required_polls)
+                    if *self.polls.borrow() < required_polls =>
+                {
+                    Ok(InvocationStatus::Running {
+                        last_event_at: EpochSeconds::new(BASE_INSTANT),
+                        payment_so_far: gauntlet_domain::Payment::zero(),
+                    })
+                }
                 _ => {
                     let spec = self
                         .specs
@@ -1473,6 +1516,42 @@ mod tests {
     #[test]
     fn the_bounded_probe_run_is_recorded() {
         assert_eq!(PROBE_CEILING, 24, "the Task-8 convention ceiling");
+    }
+
+    /// task26-dcritic-apparatus-repair B4 change 1's discriminating tooth.
+    ///
+    /// RED (documented, not re-introduced): with NO delay between
+    /// non-terminal polls, `drive_to_terminal_with`'s loop over a
+    /// genuinely non-terminal (`Derailment::DelayedTerminal`) runner
+    /// completes in far under 1ms of wall-clock — 24 back-to-back
+    /// non-blocking calls cost nothing measurable. Reverting
+    /// `POLL_INTERVAL_MS` to 0 reproduces this: the assertion below then
+    /// fails (elapsed time collapses to sub-millisecond).
+    ///
+    /// GREEN (this test, as committed): the runner requires 3 genuinely
+    /// non-terminal polls before reporting `Completed` — a real,
+    /// deterministic stand-in for "the child hasn't finished yet" — so
+    /// `drive_to_terminal_with` must sleep at least twice between polls 1
+    /// and 3. With `POLL_INTERVAL_MS = 10`, that floor is 20ms; the
+    /// assertion below requires only half that (10ms) to stay clear of
+    /// scheduler jitter while remaining IMPOSSIBLE under the RED (0ms)
+    /// shape by two orders of magnitude.
+    #[test]
+    fn the_probe_interval_gives_a_real_child_wall_clock_to_finish() {
+        let (comparator, _specs, root, _cancellations) =
+            build_comparator(Derailment::DelayedTerminal(3));
+        let started = std::time::Instant::now();
+        let result =
+            comparator.comparison_document(&trusted_of(SUPPORTED_CONTRACT_VERSION, false), bound());
+        let elapsed = started.elapsed();
+        std::fs::remove_dir_all(&root).ok();
+        result.expect("the delayed-terminal critic still completes within the probe ceiling");
+        assert!(
+            elapsed >= std::time::Duration::from_millis(10),
+            "drive_to_terminal_with must actually wait between non-terminal polls \
+             (elapsed {elapsed:?} — a 0ms interval regression would complete this in \
+             microseconds against a scripted runner that answers instantly)"
+        );
     }
 
     /// The adapter passes the UNMODIFIED shared comparator suite (spec

@@ -596,9 +596,30 @@ pub fn derive_loop_metrics(
         .iter()
         .map(|(id, _)| id)
         .collect();
-    let review_dispatches = all_invocations
-        .len()
-        .saturating_sub(dispatched_invocations.len()) as u64;
+    // task26-dcritic-apparatus-repair B7: a SET-DIFFERENCE count, not a
+    // size subtraction. The prior `all_invocations.len() -
+    // dispatched_invocations.len()` silently assumed `invocation_terminals`
+    // is always a SUPERSET of `unit_dispatches` (every unit-dispatched
+    // invocation ALSO carries its own terminal fact, so subtracting sizes
+    // leaves exactly the "extra" reviewer/critic invocations). That
+    // assumption does not hold against the real composed loop: durable
+    // inspection of an actual `improve baseline --profiles D` run (raw
+    // durable-store `event_log`) shows unit-dispatched BUILDER invocations recorded
+    // via `unit_dispatch` events only, never a matching
+    // `invocation_terminal` — while accepted CRITIC comparisons now do
+    // carry one (the sibling B3/B7 fix in
+    // gauntlet_ports::comparator::MandatoryComparisonAcceptance::accept).
+    // The two sets are DISJOINT in that real shape, so the old size
+    // subtraction computed `2 - 2 = 0` for a run with two critic
+    // dispatches — reproduced and confirmed via raw state-store
+    // inspection before this fix. A genuine set difference is correct
+    // under both shapes: this module's own fixture-based unit test below
+    // deliberately includes the unit-dispatched invocation IN
+    // `invocation_terminals` too (the superset shape), and this formula
+    // returns the identical count there as the old size subtraction did —
+    // it is only the real, disjoint-sets shape the old formula silently
+    // mishandled.
+    let review_dispatches = all_invocations.difference(&dispatched_invocations).count() as u64;
     Ok(DerivedLoopMetrics {
         d: LoopFacts {
             run_id: run.as_str().to_owned(),
@@ -1183,6 +1204,49 @@ mod tests {
             }
         );
         assert_eq!(derived.d.deterministic_verified_settled, 1);
+    }
+
+    /// task26-dcritic-apparatus-repair B7's discriminating tooth: the REAL
+    /// composed-loop shape, confirmed by raw durable-store inspection of an
+    /// actual `improve baseline --profiles D` run — unit-dispatched
+    /// (builder) invocations appear in `unit_dispatches` but carry NO
+    /// matching `invocation_terminals` entry of their own; the reviewer's
+    /// terminal is the ONLY terminal fact recorded, and its invocation id
+    /// is DISJOINT from the unit-dispatched one (not a superset, unlike
+    /// `settled_store`'s fixture above). A size-subtraction formula
+    /// (`all.len() - dispatched.len()`) computes `1 - 1 = 0` here — RED,
+    /// reproduced against the pre-fix formula — while the correct
+    /// invocation actually ran and its comparison was durably accepted.
+    #[test]
+    fn review_dispatches_counts_a_disjoint_terminal_set_not_a_size_difference() {
+        let (settlement, record) = settlement_and_record(true);
+        let invocation = InvocationId::new(RUN_ULID).expect("a valid invocation id");
+        let observer = InvocationId::new(OTHER_ULID).expect("a valid invocation id");
+        let store = FakeDurableStore {
+            durable: true,
+            settlements: vec![settlement],
+            verifications: vec![record],
+            lifecycle: RunLifecycleFacts {
+                unit_dispatches: vec![(unit(), invocation)],
+                // The disjoint real shape: ONLY the reviewer/critic
+                // invocation carries a terminal fact — never the
+                // unit-dispatched builder's own id.
+                invocation_terminals: vec![(observer, InvocationState::Completed)],
+                run_terminals: vec![TerminalState::Settled],
+            },
+        };
+        let derived =
+            derive_loop_metrics(&store, &run_id(), TerminalState::Settled, Some(9), bound())
+                .expect("the record is complete");
+        assert_eq!(
+            derived.dispatches, 1,
+            "the one unit-attributed builder dispatch"
+        );
+        assert_eq!(
+            derived.review_dispatches, 1,
+            "the one disjoint reviewer/critic invocation must still count — a size \
+             subtraction over disjoint sets would silently read back 0"
+        );
     }
 
     /// A settlement decided by a NON-deterministic instrument does not

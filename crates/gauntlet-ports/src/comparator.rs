@@ -32,7 +32,8 @@ use core::fmt;
 use std::sync::Arc;
 
 use gauntlet_domain::{
-    ComparisonRecord, Digest, EvidenceRef, IterationNo, ReferenceVersion, Residual, RunId, Severity,
+    ComparisonRecord, Digest, EpochSeconds, EvidenceRef, InvocationState, IterationNo,
+    ReferenceVersion, Residual, RunId, Severity,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -42,7 +43,7 @@ use crate::deadline::Deadline;
 use crate::evidence_store::EvidenceStore;
 use crate::json::{JsonNumber, JsonValue};
 use crate::observer::FacetKind;
-use crate::state_store::{ObservationBinding, StateStore};
+use crate::state_store::{ObservationBinding, RunEvent, RunEventKind, StateStore};
 use gauntlet_domain::EvidenceKind;
 
 /// The declared field vocabulary of one facet summary as canonically
@@ -1330,11 +1331,27 @@ pub trait PendingComparison {
 pub struct MandatoryComparisonAcceptance {
     state: Arc<dyn StateStore>,
     evidence: Arc<dyn EvidenceStore>,
+    /// The timestamp recorded on the [`RunEventKind::InvocationTerminal`]
+    /// event this acceptance appends for the comparator invocation it
+    /// admits (task26-dcritic-apparatus-repair B3/B7). Fixed at
+    /// construction — the exact convention [`RoleInvocation::admitted_at`]
+    /// already uses for every invocation the composing runner admits
+    /// within one run (the caller's per-run composition-time snapshot,
+    /// never recomputed per event).
+    at: EpochSeconds,
 }
 
 impl MandatoryComparisonAcceptance {
-    pub fn new(state: Arc<dyn StateStore>, evidence: Arc<dyn EvidenceStore>) -> Self {
-        Self { state, evidence }
+    pub fn new(
+        state: Arc<dyn StateStore>,
+        evidence: Arc<dyn EvidenceStore>,
+        at: EpochSeconds,
+    ) -> Self {
+        Self {
+            state,
+            evidence,
+            at,
+        }
     }
 
     /// Accepts one comparison from a [`ComparisonProduct`] — a document a
@@ -1417,6 +1434,42 @@ impl MandatoryComparisonAcceptance {
             .accept_comparison(&admitted, deadline)
             .map_err(|error| ComparatorError::ComparisonFailed {
                 detail: format!("recording accepted comparison failed: {error}"),
+            })?;
+        // task26-dcritic-apparatus-repair B3/B7: an accepted comparison IS
+        // this invocation's terminal disposition — the comparator's
+        // product was collected and durably bound. Without this event the
+        // invocation is durably admitted (RunEventKind::InvocationAdmitted,
+        // written at dispatch by the runner wrapper) but never durably
+        // TERMINAL, so it is invisible to every reader that reconstructs
+        // "which invocations actually ran" from the event log alone
+        // (gauntlet_app::baseline::metrics::derive_loop_metrics's
+        // review_dispatches, and any other lifecycle-fact consumer) — the
+        // exact asymmetry independently confirmed against durable state:
+        // an accepted critic comparison left `role_invocation` rows and a
+        // `comparison` record, but zero InvocationTerminal events, so
+        // `review_dispatches` silently read back 0 despite the critic
+        // genuinely having run and its product having been accepted.
+        // Mirrors controller.rs's own InvocationTerminal write for the
+        // builder dispatch path (the same event kind, the same meaning:
+        // "this invocation reached a terminal state", spec §5.3.5) so a
+        // durable reader never has to know which dispatch loop produced
+        // the invocation to find its terminal fact.
+        self.state
+            .append_event(
+                RunEvent {
+                    run_id: spec.run_id.clone(),
+                    kind: RunEventKind::InvocationTerminal {
+                        invocation_id: spec.invocation_id.clone(),
+                        state: InvocationState::Completed,
+                    },
+                    at: self.at,
+                },
+                deadline,
+            )
+            .map_err(|error| ComparatorError::ComparisonFailed {
+                detail: format!(
+                    "recording the accepted comparison's invocation terminal failed: {error}"
+                ),
             })?;
         Ok(admitted)
     }

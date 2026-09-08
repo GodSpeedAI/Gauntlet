@@ -939,6 +939,7 @@ fn the_envelope_is_structurally_blind_and_carries_instrument_reality() {
             ReviewMode::Adaptive,
             ModelDispatchBudget::new(10),
             bound(),
+            EpochSeconds::new(BASE_INSTANT),
         )
         .expect("the governed review completes")
         .accept(bound())
@@ -1080,6 +1081,7 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
             ReviewMode::Single,
             ModelDispatchBudget::new(4),
             bound(),
+            EpochSeconds::new(BASE_INSTANT),
         )
         .expect("the governed review completes")
         .accept(bound())
@@ -1124,6 +1126,32 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
     assert!(exported.contains("context_envelope_digest"));
     assert!(exported.contains(&envelope.envelope_digest().to_string()));
     assert!(exported.contains("critic-comparison-01ARZ3NDEKTSV4RRFFQ69G5FAV"));
+
+    // task26-dcritic-apparatus-repair B3/B7's discriminating tooth: an
+    // accepted critic comparison must leave a durable InvocationTerminal
+    // fact, not just an InvocationAdmitted one — otherwise the invocation
+    // is durably admitted but invisible to every reader that reconstructs
+    // "which invocations actually ran" from the lifecycle facts alone
+    // (gauntlet_app::baseline::metrics::derive_loop_metrics's
+    // review_dispatches among them). Independently confirmed via raw
+    // durable-store inspection of a real `improve baseline --profiles D` run
+    // before this fix: `invocation_admitted` events existed for both the
+    // builder and the critic, but ONLY the builder ever received a
+    // matching terminal event — the critic's `review_dispatches`
+    // contribution silently read back 0 despite the critic genuinely
+    // running and its comparison record being durably accepted above.
+    let lifecycle = reopened
+        .run_lifecycle_facts(envelope.run_id(), bound())
+        .expect("the reopened store answers the lifecycle-facts read");
+    assert!(
+        lifecycle
+            .invocation_terminals
+            .iter()
+            .any(|(_, state)| *state == gauntlet_domain::InvocationState::Completed),
+        "an accepted critic comparison must leave a durable InvocationTerminal(Completed) \
+         fact, exactly like the builder dispatch path already does — found: {:?}",
+        lifecycle.invocation_terminals
+    );
     let resumed = reopened
         .resume(envelope.run_id(), bound())
         .expect("resume reads")
@@ -1216,7 +1244,8 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
             &rejected_deps,
             ReviewMode::Single,
             ModelDispatchBudget::new(4),
-            bound()
+            bound(),
+            EpochSeconds::new(BASE_INSTANT)
         ),
         Err(AdmissionError::ReviewRefused(_))
     ));
@@ -1289,7 +1318,8 @@ fn mandatory_acceptance_failure_is_non_success_and_never_writes_a_comparison() {
             &deps,
             ReviewMode::Single,
             ModelDispatchBudget::new(4),
-            bound()
+            bound(),
+            EpochSeconds::new(BASE_INSTANT)
         ),
         Err(AdmissionError::ReviewRefused(_))
     ));

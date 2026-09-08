@@ -1,0 +1,82 @@
+# Reference manifest for the baseline-harness fixture task project
+# (spec §5.3.1, §9; task 26). The checkable-Unit projection lives
+# separately in .wayfinder/answer-key.md (AK-961..AK-962); `units` below
+# stays empty so the two never become competing copies — the same
+# discipline the task-20/25 fixtures and the repository's own reference
+# manifest hold. The field set is the strict closed manifest shape.
+reference:
+  id: gauntlet-baseline-fixture-gadget-task
+  version: 1
+  digest: null
+
+  source_refs:
+    - src/gadget.rs
+
+  purpose: >
+    A minimal, self-contained bounded task the task-26 baseline harness
+    can run every orchestration posture against end to end on the real
+    generic CLI adapter under the conservative none posture: one source
+    file with a preserved marker property and an added marker property,
+    one declared check that is deliberately incomplete, one deterministic
+    child agent with five scripted scenarios, and two blocking units.
+
+  desired_state: >
+    Every blocking dispatchable unit of the fixture reference settles
+    with pinned, instrument-produced evidence — or the runtime honestly
+    reports the non-settlement — while the baseline harness records each
+    profile's verification economics over the scripted scenario matrix,
+    including the recorded case where the full Gauntlet profile does not
+    win on payment.
+
+  invariants:
+    - id: I1
+      statement: The builder never modifies the standard its work is evaluated against.
+    - id: I8
+      statement: Missing evidence is not passing evidence.
+
+  constraints:
+    - The fixture is copied to a per-leg scratch world before any leg;
+      the fixture tree itself is never written at run time.
+    - The declared check is deliberately incomplete — it greps the added
+      marker only and never inspects the preserved marker; that
+      incompleteness is the measured variable, not a defect.
+    - Scenario behavior is fixture-scripted through GAUNTLET_BASELINE_MODE
+      per leg; the held-out instrument is run only by the harness as
+      ground truth and is never referenced by any child, prompt, or the
+      declared check.
+    - The conservative none posture is held constant across every
+      profile — no policy files; every dispatchable unit is
+      contained-tier, the only tier the none posture admits (the §17.3
+      capability gate refuses any dispatch whose tier requires a stronger
+      isolation rung than the runner reports).
+
+  anti_goals:
+    - A settlement whose evidence is the builder's claim rather than an
+      instrument's record.
+    - A frontier-model claim — the child agent is a deterministic fixture
+      script under the real adapter, never a model.
+    - Treating the declared check's pass as proof of correctness — the
+      held-out instrument exists precisely because the declared check is
+      incomplete.
+
+  units: []
+
+  quality_dimensions: []
+
+  settlement:
+    success_criteria:
+      - every blocking dispatchable unit of the fixture reference is
+        settled with PASS verification and pinned instrument evidence
+      - the baseline harness records each profile's outcomes honestly,
+        including refusals, escapes, and bounded honest terminals
+    required_evidence:
+      - the fixture check script's real exit status, observed by an
+        instrument the runtime composes
+      - the child's evidence report at the unit's declared locator for
+        the honest scripted modes
+    minimum_reliability: >
+      fixture posture: >= 2 settlements (both blocking units — each
+      contained-tier and auto-closable) is the smallest loop the baseline
+      harness can observe end to end; a single clean run never promotes
+      anything.
+    terminal_conditions: [settled, blocked, budget_exhausted, escalated, aborted, inconclusive]
