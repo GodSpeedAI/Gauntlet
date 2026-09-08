@@ -124,22 +124,75 @@ pub struct ManifestEntry {
 /// defect was detected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ManifestError {
-    Schema { line: usize, found: String },
-    UnitsHeader { line: usize, text: String },
-    UnknownKey { line: usize, key: String },
-    DuplicateKey { line: usize, key: &'static str },
-    MissingKey { key: &'static str },
-    MalformedLine { line: usize, text: String },
-    TabIndentation { line: usize },
-    Comment { line: usize },
-    BadEvidenceArm { line: usize, detail: String },
-    BadKind { line: usize, found: String },
-    BadStatusHint { line: usize, found: String },
-    BadDivergence { line: usize, found: String },
-    BadBool { line: usize, found: String },
-    BadArtifactPath { line: usize, path: String },
-    UnknownPredicate { line: usize, predicate: String },
-    Command { line: usize, cause: CommandError },
+    Schema {
+        line: usize,
+        found: String,
+    },
+    UnitsHeader {
+        line: usize,
+        text: String,
+    },
+    UnknownKey {
+        line: usize,
+        key: String,
+    },
+    DuplicateKey {
+        line: usize,
+        key: &'static str,
+    },
+    MissingKey {
+        key: &'static str,
+    },
+    MalformedLine {
+        line: usize,
+        text: String,
+    },
+    TabIndentation {
+        line: usize,
+    },
+    Comment {
+        line: usize,
+    },
+    BadEvidenceArm {
+        line: usize,
+        detail: String,
+    },
+    BadKind {
+        line: usize,
+        found: String,
+    },
+    BadStatusHint {
+        line: usize,
+        found: String,
+    },
+    BadDivergence {
+        line: usize,
+        found: String,
+    },
+    BadBool {
+        line: usize,
+        found: String,
+    },
+    BadArtifactPath {
+        line: usize,
+        path: String,
+    },
+    UnknownPredicate {
+        line: usize,
+        predicate: String,
+    },
+    Command {
+        line: usize,
+        cause: CommandError,
+    },
+    /// COR-3 F1: the same unit id twice — set equality is checked on
+    /// MULTISETS, so the first entry can never silently shadow a later
+    /// one.
+    DuplicateId {
+        id: String,
+        first_line: usize,
+        line: usize,
+    },
     EmptyEntryList,
 }
 
@@ -220,6 +273,14 @@ impl fmt::Display for ManifestError {
                     "line {line}: the execute arm violates the closed vocabulary: {cause}"
                 )
             }
+            Self::DuplicateId {
+                id,
+                first_line,
+                line,
+            } => write!(
+                f,
+                "line {line}: unit {id} appears again (first seen on line {first_line}) — one                  entry per ruler unit; the first entry must never shadow a later one"
+            ),
             Self::EmptyEntryList => {
                 write!(f, "the manifest carries no entries")
             }
@@ -544,16 +605,44 @@ fn close_entry(
         basis: entry.basis.clone().expect("checked present"),
         divergence: entry.divergence.clone().expect("checked present"),
     };
-    // The charter's shape rule: `file`/`metric` kinds never carry an
-    // execute arm — their evidence is an artifact or an honest none.
-    if (built.kind == "file" || built.kind == "metric")
-        && matches!(built.evidence, EvidenceArm::Execute(_))
-    {
+    // COR-3 F2: the kind/arm matrix is EXACT, in both directions —
+    // a test_report/log unit runs a command (an artifact arm would
+    // launder a text file into a PASS with zero commands and an
+    // evidence_kind that misdescribes the evidence), EXCEPT the one
+    // recorded-artifact form charter decision 11 defines: a BOUNDED
+    // artifact is the recorded-settlement posture (AK-070's shape).
+    // file/metric units carry their artifact or an honest none. Kinds
+    // outside the matrix refuse outright — widening is a recorded
+    // change, not a silent default.
+    let bounded_artifact = built.bounded && matches!(built.evidence, EvidenceArm::Artifact { .. });
+    let matrix_ok = match built.kind.as_str() {
+        "test_report" | "log" => {
+            matches!(built.evidence, EvidenceArm::Execute(_)) || bounded_artifact
+        }
+        "file" | "metric" => {
+            matches!(
+                built.evidence,
+                EvidenceArm::Artifact { .. } | EvidenceArm::None { .. }
+            )
+        }
+        other => {
+            return Err(ManifestError::BadEvidenceArm {
+                line: 0,
+                detail: format!(
+                    "kind {other} is outside the sweep's kind-arm matrix (test_report and log \
+                     run commands; file and metric carry artifacts) — widening it is a \
+                     recorded change"
+                ),
+            });
+        }
+    };
+    if !matrix_ok {
         return Err(ManifestError::BadEvidenceArm {
             line: 0,
             detail: format!(
-                "kind {} admits artifact or none arms only — an artifact-locator unit's \
-                 evidence is its artifact",
+                "kind {} admits execute arms only, or the bounded recorded-artifact form \
+                 (charter decision 11) — an unbounded artifact arm would launder a text \
+                 file into a PASS with zero commands executed",
                 built.kind
             ),
         });
@@ -585,6 +674,7 @@ pub fn parse_manifest_with(
 ) -> Result<Vec<ManifestEntry>, ManifestError> {
     let mut schema_seen = false;
     let mut units_seen = false;
+    let mut seen_ids: Vec<(String, usize)> = Vec::new();
     let mut entries: Vec<ManifestEntry> = Vec::new();
     let mut draft: Option<EntryDraft> = None;
 
@@ -666,6 +756,17 @@ pub fn parse_manifest_with(
                     text: line.to_owned(),
                 });
             }
+            // COR-3 F1: one entry per ruler unit — duplicates refuse
+            // with both line loci, so no first entry can silently
+            // shadow a later one.
+            if let Some((_, first_line)) = seen_ids.iter().find(|(known, _)| known == value) {
+                return Err(ManifestError::DuplicateId {
+                    id: value.to_owned(),
+                    first_line: *first_line,
+                    line: line_no,
+                });
+            }
+            seen_ids.push((value.to_owned(), line_no));
             let mut fresh = EntryDraft::default();
             fresh.set("id", line_no)?;
             fresh.id = Some(value.to_owned());

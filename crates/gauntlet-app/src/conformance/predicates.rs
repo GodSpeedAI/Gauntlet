@@ -51,7 +51,11 @@ pub fn evaluate(name: &str, bytes: &[u8]) -> Result<Predicate, String> {
     }
 }
 
-/// AK-067: the handoff report names all six §26 categories.
+/// AK-067: the handoff report carries a SECTION for each of the six
+/// §26 categories — a `## <category>` heading per category (a trailing
+/// suffix such as a unit count is fine; the heading FORM is mandatory).
+/// COR-3 F3: a bare mention of the six words (a legend, a word-salad)
+/// refutes — the report must be sectioned, not a glossary.
 fn handoff_six_categories(bytes: &[u8]) -> Predicate {
     let text = match std::str::from_utf8(bytes) {
         Ok(text) => text,
@@ -74,9 +78,14 @@ fn handoff_six_categories(bytes: &[u8]) -> Predicate {
         "blocked",
         "unknown",
     ] {
-        if !text.contains(category) {
+        let headed = text.lines().any(|line| {
+            line.trim()
+                .strip_prefix("## ")
+                .is_some_and(|rest| rest.split_whitespace().next() == Some(category))
+        });
+        if !headed {
             return Predicate::Refutes {
-                reason: format!("the handoff does not name the category {category}"),
+                reason: format!("the handoff carries no '## {category}' heading"),
             };
         }
     }

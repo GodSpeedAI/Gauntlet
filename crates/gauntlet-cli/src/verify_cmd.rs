@@ -120,7 +120,26 @@ impl gauntlet_app::conformance::ConformanceExecutor for SweepProcessExecutor {
         let elapsed = started.elapsed().as_millis() as u64;
         match run {
             Ok(status) => {
-                let code = status.status.code().unwrap_or(-1);
+                // COR-3 F10: a signal-killed command (the OOM-killer
+                // shape) has NO exit code — fabricating one would turn
+                // an environmental kill into a FAIL-by-default, the
+                // exact shape charter decision 3 forbids. The typed
+                // environmental refusal names the signal; no evidence
+                // log is written for a command that never completed
+                // (so no log can record a fabricated exit either).
+                let Some(code) = status.status.code() else {
+                    #[cfg(unix)]
+                    let signal = std::os::unix::process::ExitStatusExt::signal(&status.status);
+                    #[cfg(not(unix))]
+                    let signal: Option<i32> = None;
+                    let signal = signal.unwrap_or(0);
+                    return Err(gauntlet_app::conformance::ExecuteError::CannotRun {
+                        reason: format!(
+                            "the sweep command was killed by signal {signal} (no exit \
+                             code exists)"
+                        ),
+                    });
+                };
                 if locked && (code == chain::LOCK_BUSY_EXIT || code == chain::LOCK_EXEC_FAILED_EXIT)
                 {
                     // The wrapper script remaps the INNER command's own
@@ -579,4 +598,47 @@ fn utc_now() -> (String, String) {
         format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"),
         format!("{year:04}{month:02}{day:02}T{hour:02}{minute:02}{second:02}Z"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gauntlet_app::conformance::ConformanceExecutor as _;
+
+    /// COR-3 F10 (RED batch): a signal-killed sweep command (the
+    /// OOM-killer shape) is the typed environmental refusal naming the
+    /// signal — never a fabricated "exit -1" FAIL. The stub kills
+    /// ITSELF with signal 9; the executor must report CannotRun.
+    #[test]
+    fn a_signal_killed_command_is_the_typed_environmental_refusal() {
+        let sep = std::path::MAIN_SEPARATOR;
+        let mut body = String::new();
+        body.push_str("#!");
+        body.push(sep);
+        body.push_str("bin");
+        body.push(sep);
+        body.push_str("sh\nkill -9 $$\n");
+        let dir =
+            std::env::temp_dir().join(format!("gauntlet-sweep-signal-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        let stub = dir.join("self-kill");
+        std::fs::write(&stub, body).expect("stub write");
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755))
+                .expect("stub is made executable");
+        }
+        let mut executor = SweepProcessExecutor;
+        let command = gauntlet_app::conformance::SweepCommand::Program {
+            path: stub.to_string_lossy().to_string(),
+        };
+        match executor.execute(&command) {
+            Err(gauntlet_app::conformance::ExecuteError::CannotRun { reason }) => {
+                assert!(reason.contains("signal"), "{reason}");
+                assert!(reason.contains('9'), "{reason}");
+            }
+            other => panic!("a killed command refuses as environmental, got {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

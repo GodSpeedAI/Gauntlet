@@ -84,3 +84,28 @@ regenerates conformance.json)
 - Completion contract: `.agents/reports/task27/b3-report.md` (includes
   the anticipated settlement-correction playbook and the deviations
   list).
+
+## COR-B3 — DONE 2026-09-08 (falsifier F8: five claim-laundering classes)
+
+- Hardened both claim-binding legs in my three files only
+  (docs.rs, docs_consistency.rs, docs_present.rs comment):
+  case-insensitive + id-canonicalizing matching everywhere claims
+  bind (`ak-053` ⇒ `AK-053`; `Delivered`/`IMPLEMENTED` beside an id
+  fail closed), plus a ±1-line window FALLBACK that binds any
+  six-word vocabulary token (any casing) to any AK id on the line or
+  its neighbors — closing the five executed evasion shapes (capital,
+  caps, hyphen/colon separators, split lines, lowercase ids) without
+  a second grammar. The window keys on vocabulary words only — verbs
+  never bind (pinned by test).
+- RED-first: the five-shapes tooth authored and run RED against the
+  unfixed checkers (matching the falsifier's executed finding), GREEN
+  after; the docs.rs casing teeth caught a half-fixed implementation
+  RED mid-correction. A fixture-dir race across test processes was
+  found and fixed (pid+nanos dirs).
+- Battery: my scoped targets 14/14 unit + 7/7 docs_present over the
+  real tree; fmt/clippy clean; just ruler PASS; handoff.md /
+  conformance.json / bundle untouched and re-verified by digest.
+  Full --lib suite is 241/243 — the two denylist failures point at
+  crates/gauntlet-app/tests/conformance.rs:1267-1269, B1's in-flight
+  COR-3 (out of my scope this round); zero violations in my files.
+  §COR-B3 in b3-report.md carries the full record.

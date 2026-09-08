@@ -105,11 +105,15 @@ fn handoff_matches_conformance_grouping() {
     );
 }
 
-/// AK-068 leg (g) — wave-2 (B3): every `- <status_word> — AK-NNN:`
-/// claim line in the eight docs stays at or behind the conformance
-/// report's adjudication — `implemented_and_proven` only where the json
-/// says proven, `implemented_but_provisional` where it says proven or
-/// provisional, the other four categories only on exact agreement.
+/// AK-068 leg (g) — wave-2 (B3, hardened by COR-B3/falsifier F8):
+/// every status claim in the eight docs stays at or behind the
+/// conformance report's adjudication — `implemented_and_proven` only
+/// where the json says proven, `implemented_but_provisional` where it
+/// says proven or provisional, the other four categories only on exact
+/// agreement. Claims bind through the canonical
+/// `- <status_word> — AK-NNN:` line shape AND a case-insensitive
+/// ±1-line window fallback (any casing, separator variants, split
+/// lines — the laundering shapes are claims too).
 #[test]
 fn docs_status_claims_never_ahead_of_conformance() {
     let violations =

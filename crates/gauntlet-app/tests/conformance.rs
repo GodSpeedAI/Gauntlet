@@ -1206,3 +1206,120 @@ fn the_default_feature_vocabulary_is_pinned_to_the_workspace() {
         "the vocabulary and the workspace [features] tables disagree"
     );
 }
+
+/// COR-3 F1 (RED batch): duplicate manifest unit ids refuse — the first
+/// entry must never silently shadow a later one (the falsifier's forged
+/// PASS: AK-901 twice, passing arm first).
+#[test]
+fn duplicate_manifest_ids_refuse() {
+    let mut manifest = fixture_manifest();
+    manifest.push_str(&entry(
+        "AK-101",
+        "test_report",
+        &locator_one(),
+        &program_arm("false"),
+        false,
+        "none",
+        "the shadowed honest entry",
+        "none",
+    ));
+    let parsed = conformance::parse_manifest(&manifest);
+    assert!(parsed.is_err(), "a duplicate id is drift, not intent");
+    assert!(parsed.unwrap_err().to_string().contains("AK-101"));
+}
+
+/// COR-3 F2 (RED batch): the kind/arm matrix is exact — a test_report
+/// unit may not launder a text artifact into a PASS with zero commands
+/// (unbounded); the ONE recorded-artifact form (charter decision 11's
+/// bounded settlement artifact, AK-070's shape) stays admissible.
+#[test]
+fn the_kind_arm_matrix_is_exact() {
+    let mut forged = String::from(MANIFEST_HEAD);
+    forged.push_str(&entry(
+        "AK-101",
+        "test_report",
+        &locator_one(),
+        &artifact_arm(&locator_four(), "handoff_six_categories"),
+        false,
+        "none",
+        "FORGED unbounded artifact on a test_report unit",
+        "none",
+    ));
+    assert!(
+        conformance::parse_manifest(&forged).is_err(),
+        "test_report + unbounded artifact is evidence-kind laundering"
+    );
+    // The recorded-artifact form (bounded) parses — AK-070's shape.
+    let mut recorded = String::from(MANIFEST_HEAD);
+    recorded.push_str(&entry(
+        "AK-101",
+        "test_report",
+        &locator_one(),
+        &artifact_arm(&locator_four(), "baselines_keys_abcd"),
+        true,
+        "configured_but_untested",
+        "the recorded settlement artifact",
+        "none",
+    ));
+    assert!(conformance::parse_manifest(&recorded).is_ok());
+    // A kind outside the matrix refuses outright (fail-closed). The
+    // alien token is deliberately not a real kind and not an adapter
+    // identifier (the arch denylist scans test sources too).
+    let mut alien = String::from(MANIFEST_HEAD);
+    alien.push_str(&entry(
+        "AK-101",
+        "astral_kind",
+        &locator_one(),
+        &artifact_arm(&locator_four(), "baselines_keys_abcd"),
+        false,
+        "unknown",
+        "basis",
+        "none",
+    ));
+    assert!(conformance::parse_manifest(&alien).is_err());
+    // And a test_report unit cannot carry a none arm either.
+    let mut idle = String::from(MANIFEST_HEAD);
+    idle.push_str(&entry(
+        "AK-101",
+        "test_report",
+        &locator_one(),
+        &none_arm("no mechanical basis today"),
+        false,
+        "proposed",
+        "basis",
+        "none",
+    ));
+    assert!(conformance::parse_manifest(&idle).is_err());
+}
+
+/// COR-3 F3 (RED batch): the handoff predicate demands the section
+/// grammar — a `## <category>` heading for each of the six — so a bare
+/// word-salad legend refutes.
+#[test]
+fn the_handoff_predicate_demands_section_headings() {
+    let legend = b"implemented_and_proven implemented_but_provisional \
+configured_but_untested proposed blocked unknown\n";
+    match conformance::predicates::evaluate("handoff_six_categories", legend) {
+        Ok(conformance::predicates::Predicate::Refutes { reason }) => {
+            assert!(reason.contains("heading"), "{reason}");
+        }
+        other => panic!("a word-salad legend refutes, got {other:?}"),
+    }
+    let mut headed = String::new();
+    for category in [
+        "implemented_and_proven",
+        "implemented_but_provisional",
+        "configured_but_untested",
+        "proposed",
+        "blocked",
+        "unknown",
+    ] {
+        headed.push_str("## ");
+        headed.push_str(category);
+        headed.push_str(" - 12 units\n");
+    }
+    match conformance::predicates::evaluate("handoff_six_categories", headed.as_bytes()) {
+        Ok(conformance::predicates::Predicate::Holds) => {}
+        other => panic!("the section-grammar handoff holds, got {other:?}"),
+    }
+}

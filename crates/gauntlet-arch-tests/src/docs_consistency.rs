@@ -26,6 +26,19 @@
 //!   is safe; claiming stronger is not); the other four categories only
 //!   where the json agrees exactly. A claim naming an id the json does
 //!   not carry is a violation (fail-closed).
+//! - **COR-B3 (falsifier F8) — laundering-proof claim binding.** The
+//!   canonical line shape above stays the primary grammar, and a
+//!   FALLBACK window scan binds everything it cannot see: for each
+//!   line naming an `AK-NNN` id — ANY casing, canonicalized to the
+//!   report's spelling (`ak-053` ⇒ `AK-053`) — every six-word §26
+//!   vocabulary token (any casing, word-delimited) on that line or its
+//!   immediate neighbors is a claim about that id under the same
+//!   ahead-of-evidence rule. This closes the five executed evasion
+//!   classes (leading capital, ALL CAPS, hyphen/colon separators
+//!   instead of the em-dash, a claim split across two lines, lowercase
+//!   unit ids). The window keys on the vocabulary WORDS only — verbs
+//!   ("implements", "delivers") and bare status-like tokens never bind
+//!   a claim, so ordinary prose beside an id stays prose.
 //!
 //! # Scope honesty (deliberate limits)
 //!
@@ -67,7 +80,7 @@
 //! objects, arrays, literals). Anything malformed is a violation,
 //! never a skip (I8).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::docs::{CANONICAL_HANDOFF_LOCATOR, DOC_SET, STATUS_WORDS};
@@ -136,23 +149,30 @@ fn is_unit_id(text: &str) -> bool {
 
 /// Every `AK-NNN` id on the line, word-delimited on both sides
 /// (underscores are word characters; hyphens delimit, so `UNK-003` and
-/// the prose literal `AK-NNN` never match).
+/// the prose literal `AK-NNN` never match). CASE-INSENSITIVE and
+/// CANONICALIZING (COR-B3, falsifier F8's class 5): `ak-053`, `Ak-053`,
+/// and `AK-053` all yield the canonical `AK-053` spelling the
+/// conformance report keys on.
 fn unit_ids_on(line: &str) -> Vec<String> {
-    let bytes = line.as_bytes();
+    let lowered = line.to_lowercase();
+    let bytes = lowered.as_bytes();
     let mut ids = Vec::new();
     let mut at = 0;
-    while let Some(found) = line[at..].find("AK-") {
+    while let Some(found) = lowered[at..].find("ak-") {
         let start = at + found;
         let mut end = start + 3;
         while end < bytes.len() && bytes[end].is_ascii_digit() {
             end += 1;
         }
         let has_digits = end > start + 3;
-        let boundary_before =
-            start == 0 || !line[..start].chars().next_back().is_some_and(is_word_char);
-        let boundary_after = !line[end..].chars().next().is_some_and(is_word_char);
+        let boundary_before = start == 0
+            || !lowered[..start]
+                .chars()
+                .next_back()
+                .is_some_and(is_word_char);
+        let boundary_after = !lowered[end..].chars().next().is_some_and(is_word_char);
         if has_digits && boundary_before && boundary_after {
-            ids.push(line[start..end].to_owned());
+            ids.push(format!("AK-{}", &lowered[start + 3..end]));
         }
         at = end;
     }
@@ -424,6 +444,49 @@ fn parse_claim(line: &str) -> Option<ClaimLine<'_>> {
     None
 }
 
+/// COR-B3 fallback (falsifier F8's classes 1-4): the line-anchored
+/// canonical grammar stays the PRIMARY parse, and this scan binds what
+/// it cannot see. For each line naming an `AK-NNN` id (any casing,
+/// canonicalized), every six-word §26 vocabulary token (any casing,
+/// word-delimited) on that line or its immediate neighbors is a CLAIM
+/// about that id, subject to the same ahead-of-evidence rule. This
+/// closes the leading-capital, ALL-CAPS, separator-variant
+/// (`—`/`-`/`–`/`:`), and split-two-line shapes without inventing a
+/// second grammar.
+///
+/// Two deliberate invariants:
+/// - the window keys on the six VOCABULARY WORDS, never on verbs or
+///   bare status-like tokens — "the runtime implements X" beside an id
+///   is prose until a category word actually appears;
+/// - the window is conservative by design: a vocabulary token on an
+///   ADJACENT line binds the neighboring id too (adjacent claims read
+///   as claims about each other's units) — over-pairing can only ever
+///   surface as an ahead-of-evidence violation, which the canonical
+///   line shape resolves by keeping claims at least one non-claim line
+///   apart, as the committed docs do.
+fn window_claims(lines: &[&str]) -> Vec<(usize, &'static str, String)> {
+    let mut claims = Vec::new();
+    for (index, line) in lines.iter().enumerate() {
+        let ids = unit_ids_on(line);
+        if ids.is_empty() {
+            continue;
+        }
+        let lo = index.saturating_sub(1);
+        let hi = (index + 1).min(lines.len() - 1);
+        for neighbor in &lines[lo..=hi] {
+            let lowered = neighbor.to_lowercase();
+            for word in STATUS_WORDS {
+                if crate::docs::contains_word(&lowered, word) {
+                    for id in &ids {
+                        claims.push((index, word, id.clone()));
+                    }
+                }
+            }
+        }
+    }
+    claims
+}
+
 /// The admissibility matrix: may a doc claim `status` for a unit the
 /// json adjudicates `json_category`? Claiming WEAKER than the evidence
 /// is safe; claiming STRONGER is not.
@@ -477,27 +540,36 @@ pub fn check_docs_claims_not_ahead_at(docs_root: &Path, conformance: &Path) -> V
                 continue;
             }
         };
-        for (index, line) in text.lines().enumerate() {
-            let Some(claim) = parse_claim(line) else {
+        let lines: Vec<&str> = text.lines().collect();
+        // The claims of this document: the canonical line-anchored parse
+        // first (exact line attribution), then the COR-B3 window
+        // fallback for every variant shape (casing, separators,
+        // split lines). A (status, id) pairing is judged once — the
+        // primary occurrence wins the line number.
+        let mut claims: Vec<(usize, &str, String)> = Vec::new();
+        for (index, line) in lines.iter().enumerate() {
+            if let Some(claim) = parse_claim(line) {
+                claims.push((index, claim.status, claim.id.to_owned()));
+            }
+        }
+        claims.extend(window_claims(&lines));
+        let mut judged: BTreeSet<(String, String)> = BTreeSet::new();
+        for (index, status, id) in claims {
+            if !judged.insert((status.to_owned(), id.clone())) {
                 continue;
-            };
-            match json_category(claim.id) {
+            }
+            match json_category(&id) {
                 None => violations.push(format!(
-                    "docs-claims: docs/{name}:{} claims {} for {} but the conformance report \
-                     carries no such unit",
-                    index + 1,
-                    claim.status,
-                    claim.id
+                    "docs-claims: docs/{name}:{} claims {status} for {id} but the conformance \
+                     report carries no such unit",
+                    index + 1
                 )),
                 Some(category) => {
-                    if !claim_admissible(claim.status, category) {
+                    if !claim_admissible(status, category) {
                         violations.push(format!(
-                            "docs-claims: docs/{name}:{} claims {} for {} but conformance.json \
-                             adjudicates it {} (ahead of evidence)",
-                            index + 1,
-                            claim.status,
-                            claim.id,
-                            category
+                            "docs-claims: docs/{name}:{} claims {status} for {id} but \
+                             conformance.json adjudicates it {category} (ahead of evidence)",
+                            index + 1
                         ));
                     }
                 }
@@ -890,14 +962,29 @@ mod tests {
     }
 
     fn claims_dir_with(line: &str) -> std::path::PathBuf {
+        claims_dir_with_text(&format!("- {line}\n"))
+    }
+
+    /// A throwaway docs tree. Each call gets its OWN directory (pid +
+    /// nanos): nextest runs each test in a separate process, so a shared
+    /// fixture path would let concurrent tests overwrite each other's
+    /// fixture docs mid-check.
+    fn claims_dir_with_text(text: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("past the epoch")
+            .as_nanos();
         let dir = std::env::temp_dir()
-            .join("gauntlet-arch-tests-docs-consistency")
+            .join(format!(
+                "gauntlet-arch-tests-docs-consistency-{}-{nanos}",
+                std::process::id()
+            ))
             .join("docs");
         std::fs::create_dir_all(&dir).expect("create tmp docs dir");
         for name in DOC_SET {
             std::fs::write(dir.join(name), "## Proven vs provisional\n").expect("write doc");
         }
-        std::fs::write(dir.join("ARCHITECTURE.md"), format!("- {line}\n")).expect("write doc");
+        std::fs::write(dir.join("ARCHITECTURE.md"), text).expect("write doc");
         dir
     }
 
@@ -933,6 +1020,74 @@ mod tests {
             check_docs_claims_not_ahead_at(&unknown, &json)
                 .iter()
                 .any(|v| v.contains("AK-099") && v.contains("carries no such unit"))
+        );
+    }
+
+    /// COR-B3 (falsifier F8): the five executed evasion shapes — leading
+    /// capital, ALL CAPS, hyphen separator, claim split across two lines,
+    /// lowercase unit id — are ALL claims, subject to the same
+    /// ahead-of-evidence rule as the canonical line shape. Each fixture
+    /// claims AK-053 `implemented_and_proven` while the fixture json
+    /// holds it `implemented_but_provisional`: every shape must report.
+    #[test]
+    fn the_five_executed_evasion_shapes_are_claims() {
+        let json = write_temp("evasion.json", FIXTURE_JSON);
+        let evasions = [
+            (
+                "- Implemented_and_proven — AK-053: prose\n",
+                "leading capital",
+            ),
+            (
+                "- IMPLEMENTED_AND_PROVEN — AK-053: prose\n",
+                "all-caps status word",
+            ),
+            (
+                "- implemented_and_proven - AK-053: prose\n",
+                "hyphen separator",
+            ),
+            (
+                "- implemented_and_proven:\nAK-053 — prose continuation\n",
+                "claim split across two lines",
+            ),
+            (
+                "- implemented_and_proven — ak-053: prose\n",
+                "lowercase unit id",
+            ),
+        ];
+        for (text, label) in evasions {
+            let dir = claims_dir_with_text(text);
+            assert!(
+                check_docs_claims_not_ahead_at(&dir, &json)
+                    .iter()
+                    .any(|v| v.contains("AK-053") && v.contains("ahead of evidence")),
+                "the {label} laundering shape must be reported ahead of evidence"
+            );
+        }
+        // The behind-evidence direction stays admissible under variant
+        // spellings too: claiming the PROVEN AK-001 provisional is safe.
+        let behind = claims_dir_with_text("- IMPLEMENTED_BUT_PROVISIONAL — ak-001: prose\n");
+        assert!(
+            check_docs_claims_not_ahead_at(&behind, &json).is_empty(),
+            "a behind-evidence claim in variant casing/shape is admissible"
+        );
+    }
+
+    /// COR-B3 over-rejection guard: the fallback window keys on the six
+    /// §26 vocabulary WORDS, never on verbs — a unit id sitting beside
+    /// "implements"/"delivered"/bare "implemented" with no vocabulary
+    /// token in the window is prose, not a claim.
+    #[test]
+    fn a_unit_id_near_a_verb_is_not_a_claim_without_a_vocabulary_word() {
+        let json = write_temp("verbs.json", FIXTURE_JSON);
+        let dir = claims_dir_with_text(
+            "The runtime implements the precedence merge and delivers it — AK-001: prose\n\
+             AK-002 sits in ordinary prose nearby, configured and operating\n\
+             implemented (bare token, no category word) — AK-053: prose\n",
+        );
+        assert!(
+            check_docs_claims_not_ahead_at(&dir, &json).is_empty(),
+            "verbs and bare status-like tokens never bind a claim; only the six §26 \
+             vocabulary words do"
         );
     }
 

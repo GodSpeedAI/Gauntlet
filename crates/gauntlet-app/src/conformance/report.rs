@@ -47,6 +47,14 @@ pub const DISCLOSURES: &[&str] = &[
      not a fresh mutation re-run — the recorded-artifact posture, bounded",
     "AK-067's artifact lands with wave 2 (B3); until then it is honestly INCONCLUSIVE \
      (no_artifact)",
+    "evidence_ref anchoring is arm-dependent: execute-arm refs resolve from the REPORT's \
+     parent directory (the evidence dir sits beside the report); artifact-arm refs resolve \
+     from the workspace root — the committed report is at the default locator, where both \
+     resolve",
+    "lib and module filters are nextest SUBSTRING filters: a module-level filter \
+     intentionally over-determines its unit (the command fails if ANY matching test fails \
+     — the fail-closed direction) and carries a recorded drift risk (a renamed test could \
+     leave the filter matching unrelated tests); disclosed, not re-mapped",
 ];
 
 /// The report header facts the caller resolves (time, tree commit,

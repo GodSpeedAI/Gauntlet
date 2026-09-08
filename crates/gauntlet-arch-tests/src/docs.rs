@@ -30,6 +30,9 @@
 //!   words is on that same line. The canonical forms are the underscore
 //!   spellings `implemented_and_proven`, `implemented_but_provisional`,
 //!   `configured_but_untested`, plus `proposed`, `blocked`, `unknown`.
+//!   Matching (both the tokens and the AK grammar) is case-insensitive:
+//!   `Delivered — ak-060` and `IMPLEMENTED — AK-060` fail closed exactly
+//!   like their lowercase spellings (COR-B3, falsifier F8).
 //!
 //! # What this does NOT enforce (deliberately)
 //!
@@ -40,6 +43,12 @@
 //! - It does not judge whether a status word is EARNED by evidence — only
 //!   the sweep can. A canonically-spelled claim ahead of its evidence is
 //!   caught by the wave-2 cross-check, not here.
+//! - This leg is line-anchored: a NON-canonical status-like token split
+//!   across lines from its id (token on one line, `AK-NNN` on the next,
+//!   with no six-word vocabulary token anywhere near) is outside its
+//!   reach — the wave-2 cross-check's window deliberately binds only the
+//!   six vocabulary WORDS, never bare status-like tokens, so ordinary
+//!   prose ("proven vs provisional" headings) cannot false-positive.
 //! - It polices only the eight UPPERCASE §25 files. The operator's
 //!   lowercase `docs/` tree is out of scope by charter (never modified,
 //!   never a second ruler).
@@ -216,7 +225,11 @@ pub fn check_conformance_binding_content(root: &Path) -> Vec<String> {
 /// `haystack` contains `needle` as a whole word: the characters around it
 /// are not `[A-Za-z0-9_]`. Underscores count as word characters, so the
 /// bare token `proven` does not match inside `implemented_but_proven`.
-fn contains_word(haystack: &str, needle: &str) -> bool {
+/// Callers normalize (lowercase) first for case-insensitive matching —
+/// the §26 vocabulary and the AK grammar are case-insensitive in prose
+/// even though the canonical emission is lowercase (COR-B3, falsifier
+/// F8's classes 1/2/5).
+pub(crate) fn contains_word(haystack: &str, needle: &str) -> bool {
     let mut start = 0;
     while let Some(found) = haystack[start..].find(needle) {
         let at = start + found;
@@ -238,19 +251,23 @@ fn is_word_char(c: char) -> bool {
 
 /// The line names a ruler unit: `AK-` followed by at least one digit,
 /// delimited as a word on both sides. The prose literal `AK-NNN` (letters
-/// after the hyphen) does not count.
+/// after the hyphen) does not count. Case-insensitive (COR-B3): the id
+/// grammar accepts any casing — `ak-053` names a unit exactly like
+/// `AK-053` — so the line is normalized before scanning.
 fn names_a_unit(line: &str) -> bool {
-    let bytes = line.as_bytes();
+    let lowered = line.to_lowercase();
+    let bytes = lowered.as_bytes();
     let mut i = 0;
-    while let Some(found) = line[i..].find("AK-") {
+    while let Some(found) = lowered[i..].find("ak-") {
         let at = i + found;
         let mut end = at + 3;
         while end < bytes.len() && bytes[end].is_ascii_digit() {
             end += 1;
         }
         let has_digits = end > at + 3;
-        let boundary_before = at == 0 || !line[..at].chars().next_back().is_some_and(is_word_char);
-        let boundary_after = !line[end..].chars().next().is_some_and(is_word_char);
+        let boundary_before =
+            at == 0 || !lowered[..at].chars().next_back().is_some_and(is_word_char);
+        let boundary_after = !lowered[end..].chars().next().is_some_and(is_word_char);
         if has_digits && boundary_before && boundary_after {
             return true;
         }
@@ -263,7 +280,11 @@ fn names_a_unit(line: &str) -> bool {
 /// unit, a status-like token is admissible only beside one of the six
 /// canonical §26 words. A bare `proven`/`delivered`/`tested`/mixed-spelling
 /// claim adjacent to an `AK-` id fails closed — the wave-2 cross-check must
-/// find canonically-spelled, machine-checkable mentions only.
+/// find canonically-spelled, machine-checkable mentions only. Matching is
+/// CASE-INSENSITIVE (COR-B3, falsifier F8): `Delivered — ak-060` and
+/// `IMPLEMENTED — AK-060` are violations exactly like their lowercase
+/// spellings — the line is normalized before matching, and the AK-id
+/// grammar accepts any casing.
 pub fn check_status_claim_vocabulary(root: &Path) -> Vec<String> {
     let mut violations = Vec::new();
     for name in DOC_SET {
@@ -275,18 +296,21 @@ pub fn check_status_claim_vocabulary(root: &Path) -> Vec<String> {
             }
         };
         for (index, line) in text.lines().enumerate() {
-            if !names_a_unit(line) {
+            let lowered = line.to_lowercase();
+            if !names_a_unit(&lowered) {
                 continue;
             }
             let status_like = STATUS_LIKE_TOKENS
                 .iter()
-                .filter(|token| contains_word(line, token))
+                .filter(|token| contains_word(&lowered, token))
                 .copied()
                 .collect::<Vec<_>>();
             if status_like.is_empty() {
                 continue;
             }
-            let canonical = STATUS_WORDS.iter().any(|word| contains_word(line, word));
+            let canonical = STATUS_WORDS
+                .iter()
+                .any(|word| contains_word(&lowered, word));
             if !canonical {
                 violations.push(format!(
                     "docs-set: docs/{name}:{} names a ruler unit with a non-canonical \
@@ -353,6 +377,56 @@ mod tests {
                 .iter()
                 .any(|v| v.contains("OPERATOR-GUIDE.md") && v.contains("non-canonical")),
             "the bogus status word beside AK-060 must be a violation"
+        );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// COR-B3 (falsifier F8 classes 1/2/5 at the vocabulary leg):
+    /// case variants — leading capital, ALL CAPS, lowercase unit id —
+    /// of status-like tokens beside an id are violations exactly like
+    /// their canonical-casing spellings; a case variant of a CANONICAL
+    /// word satisfies this leg (its ahead-of-evidence adjudication is
+    /// the cross-check leg's job).
+    #[test]
+    fn capitalized_status_tokens_are_violations_and_capitalized_canonical_words_are_not() {
+        let tmp = std::env::temp_dir().join("gauntlet-arch-tests-docs-cased");
+        let docs = tmp.join("docs");
+        for name in DOC_SET {
+            std::fs::create_dir_all(&docs).expect("create tmp docs dir");
+            std::fs::write(docs.join(name), STATUS_SECTION).expect("write doc");
+        }
+        std::fs::write(
+            docs.join("SECURITY.md"),
+            format!(
+                "{STATUS_SECTION}\n- Delivered — AK-060: capitalized bogus claim\n\
+                 - IMPLEMENTED — ak-060: all-caps bogus claim on a lowercase id\n"
+            ),
+        )
+        .expect("write doc");
+        let violations = check_status_claim_vocabulary(&tmp);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("SECURITY.md") && v.contains("delivered")),
+            "the capitalized bogus token must be a violation: {violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("SECURITY.md") && v.contains("implemented")),
+            "the all-caps bogus token beside a lowercase id must be a violation: {violations:?}"
+        );
+        // A case variant of a canonical word is canonical HERE (the
+        // vocabulary leg is casing-insensitive); whether it is AHEAD of
+        // evidence is the cross-check leg's question.
+        std::fs::write(
+            docs.join("SECURITY.md"),
+            format!("{STATUS_SECTION}\n- IMPLEMENTED_AND_PROVEN — ak-060: cased canonical\n"),
+        )
+        .expect("write doc");
+        assert!(
+            check_status_claim_vocabulary(&tmp).is_empty(),
+            "a cased canonical word satisfies the vocabulary leg"
         );
         let _ = std::fs::remove_dir_all(&tmp);
     }

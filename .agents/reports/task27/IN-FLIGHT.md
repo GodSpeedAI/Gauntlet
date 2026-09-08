@@ -98,3 +98,79 @@ Gate: verbatim in the charter; `just ruler` at every phase boundary.
   committed json (AK-067 in the proposed section for now); anticipated
   post-settlement-sweep correction: AK-067's handoff row move + count
   bump (~5 lines).
+- 2026-09-07 BLIND DESIGN-AS-BUILT CRITIC r1: CONFIRM (0 blocking /
+  1 MAJOR settlement-precondition [committed json is not yet the final
+  tree's report — decision 12 requires the settlement re-sweep; the
+  self-consistent fixed point exists and the teeth enforce it] / 3
+  MINOR [evidence_ref dual anchoring execute=report-parent-relative vs
+  artifact=repo-relative — resolve by disclosure at settlement;
+  structural-vocabulary deviation re-adjudicated ACCEPTED with the
+  forcing claim verified against the AK-016 scanner source; CURRENT_
+  STATUS uncommitted — settlement step] / 2 INFORMATIONAL). POSITIVE
+  audit surface: both plan-gate asserts hold on the artifact by
+  construction; all 67 manifest execute arms mechanically cross-checked
+  REAL (targets exist, filters found in cited sources, features match
+  the cfg gate, no hopeful mapping); teeth verified not trusted (row-
+  move/ahead-of-evidence/flock/manifest); bundle 50/50; handoff
+  re-derived 65/4/0/1/0/0 == json. Adjudication: MAJOR = the planned
+  settlement sequence itself (final sweep -> handoff row move -> re-pin
+  -> commit); minors 1-3 routed to the settlement correction.
+- 2026-09-07 BLIND EXECUTING FALSIFIER r1: NOT_CONFIRM — 3 MAJOR /
+  5 MINOR, every finding EXECUTED (report: falsifier-round1.md).
+  MAJORS: F1 duplicate manifest ids accepted, first entry shadows
+  (forged PASS repro'd); F2 test_report units may carry an artifact
+  arm (PASS with zero commands repro'd); F10 signal-killed command
+  fabricates exit=-1 FAIL instead of environmental INCONCLUSIVE
+  (lock-held kill-9 repro'd — the OOM shape). MINORS: F3 handoff
+  predicate accepts a six-word legend; F4 mutation date unvalidated
+  (recorded-artifact posture — residual); F7 evidence_ref anchor
+  arm-dependent (matches critic minor); F8 docs claim-check has five
+  executed evasion classes (case/hyphen/split-line/lowercase-ak);
+  F13 lib filters are loose substrings (over-determined fail-closed;
+  drift risk). Attacks that HELD: the full refusal matrix (11
+  structural manifest lies -> typed REFUSED), three-state discipline,
+  grouping+sha256 evidence, COR-1 wrapper teeth 9/9 live, COR-2
+  features both directions, handoff grouping teeth all 6 tamper
+  classes, bundle tamper/missing/foreign-cwd, delivered suites green.
+  Falsifier incident disclosed: its own first driver put sccache-stop
+  before cargo inside its flock — wedged the compile lock, recovered;
+  re-confirms the delivered wrapper's order. ADJUDICATION: F1/F2/F10/
+  F3/F7/F13 -> COR-3 dispatched to B1 (dup-id typed refusal; kind-arm
+  matrix exact; signal->CannotRun incl. the unopenable-lock class;
+  predicate section grammar; two _meta disclosures — F13 adjudicated
+  disclose-and-record, no re-map); F8 -> COR-B3 dispatched to B3
+  (case-insensitive + separator-tolerant + split-line window scan,
+  five RED teeth, over-rejection invariant test). F4 recorded as
+  decision-11 residual. Both corrections in flight, file-disjoint.
+- 2026-09-08 COR-B3 LANDED: five F8 evasion classes closed (case-
+  insensitive canonicalizing match; primary line-anchored parse +
+  vocabulary-keyed +/-1 window fallback binding split/separator
+  shapes; over-rejection invariant pinned — verb-beside-id prose is
+  not a claim); RED-first against the unchanged checkers observed,
+  plus a mid-correction RED the new teeth caught themselves; a
+  nextest fixture-dir race found+fixed (pid+nanos). Real-tree audit:
+  exactly 33 window pairings = the 33 claim lines, zero incidental.
+  Scoped battery green; the 2 --lib failures disclosed are B1's
+  in-flight COR-3 files (task-23 wave-interference class). Honest
+  residual: bare non-canonical status tokens split from their id
+  stay outside both legs (window keys on vocabulary words only).
+  AWAITING COR-3 (B1).
+- 2026-09-08 B1 DIED on a usage-limit window mid-COR-3 (resets 14:42
+  harness time). Recovery per the standing procedure: tree audited
+  BEFORE any re-dispatch — ALL COR-3 code + tests landed (F1
+  DuplicateId typed refusal + test; F2 exact kind<->arm matrix + test;
+  F10 signal->CannotRun naming the signal + self-kill stub test; F3
+  predicate ## -heading grammar + test; F7/F13 _meta disclosures).
+  Only b1-report.md's COR-3 section was unwritten — completed by the
+  orchestrator under the heal+continue exception (dispatch
+  unavailable), labeled as orchestrator-verified, not builder claim.
+  Full workspace battery over BOTH corrections running in the
+  orchestrator's hands. B3's COR-B3 landed earlier (see above).
+- 2026-09-08 COR-3 battery v1 FAILED at the arch scanners: B1's F2
+  alien-kind test token "diff" is an adapter identifier under the
+  denylist (AK-014 scan; task-26 COR-3 token class recurring).
+  Orchestrator mechanical fix: token -> "astral_kind" + a comment
+  stating the constraint (conformance.rs:1267 region). Verified:
+  denylist --lib 3/3, docs_consistency+docs 14/14 (COR-B3), app
+  conformance 25/25 incl. the fixed F2 test. Battery v2 (full,
+  consecutive) running.

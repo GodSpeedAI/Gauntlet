@@ -233,6 +233,125 @@ implemented_and_proven:
    charter decision 11 is the recorded-artifact posture; AGENTS.md
    expensive-evidence policy).
 
+## COR-B3 (2026-09-08, falsifier round 1 finding F8 — five evasion
+classes in the docs status-claim cross-check, EXECUTED)
+
+### What was wrong (the falsifier's executed repro)
+
+The blind executing falsifier drove the REAL
+`docs::check_status_claim_vocabulary` and
+`docs_consistency::check_docs_claims_not_ahead_at` over fixture docs
+against the real committed conformance.json and found five laundering
+shapes invisible to BOTH mechanical legs (falsifier-round1.md §F8;
+AK-053 is `implemented_but_provisional` in the json, so any
+`implemented_and_proven` claim about it is ahead of evidence):
+
+1. leading capital — `- Implemented_and_proven — AK-053: …`;
+2. ALL CAPS — `- IMPLEMENTED_AND_PROVEN — AK-053: …`;
+3. hyphen separator — `- implemented_and_proven - AK-053: …`;
+4. the claim split across two lines (status word on one line, the id
+   on the next);
+5. lowercase id — `— ak-053:`.
+
+Root cause: `contains_word`/`names_a_unit`/`parse_claim` were
+case-sensitive and shape-exact where the docs' free text is not. The
+canonical forms were caught correctly (ahead-claims, `AK-0053`
+zero-padding, bare `proven`) — a deterrence gap, not a live lie
+(docs_present was 7/7 on the committed tree).
+
+### What changed (my three files only: docs.rs, docs_consistency.rs,
+docs_present.rs comment)
+
+- **Case-insensitive matching everywhere claims bind.**
+  `check_status_claim_vocabulary` normalizes each line before token
+  matching; `names_a_unit` and `unit_ids_on` normalize and
+  CANONICALIZE ids (`ak-053`/`Ak-053` ⇒ the report's `AK-053`), so the
+  six-word vocabulary and the AK grammar accept any casing in prose.
+  `contains_word` is now `pub(crate)` — one word-boundary
+  implementation shared by both modules.
+- **The fallback window scan (closes classes 1-4 without a second
+  grammar).** The canonical `- <status_word> — AK-NNN:` line parse
+  stays the PRIMARY grammar (exact line attribution); a FALLBACK binds
+  what it cannot see: for each line naming an AK id (any casing,
+  canonicalized), every six-word §26 vocabulary token (any casing,
+  word-delimited) on that line or its immediate ±1 neighbors is a
+  CLAIM about that id under the same ahead-of-evidence rule. Since the
+  word and the id bind regardless of what separates them on the line,
+  the separator variants (`—`, `-`, `–`, `:`) and the split-line shape
+  are claims too. Pairings are judged once per (status, id), the
+  primary occurrence winning the line number.
+- **Over-rejection guards, stated and tested:** the window keys on the
+  six VOCABULARY WORDS only — verbs ("implements", "delivers") and
+  bare status-like tokens never bind a claim (pinned by
+  `a_unit_id_near_a_verb_is_not_a_claim_without_a_vocabulary_word`);
+  and the window is conservative by design (a vocabulary token on an
+  ADJACENT line binds the neighboring id) — over-pairing can only ever
+  surface as an ahead-of-evidence violation, resolved by keeping
+  claim lines at least one non-claim line apart, as the committed docs
+  do. An executed pre-fix audit of the real eight docs under exactly
+  the window semantics found 33 pairings — precisely the 33 canonical
+  claim lines, zero incidental prose pairings.
+
+### RED-first record
+
+- `the_five_executed_evasion_shapes_are_claims` (all five shapes +
+  a behind-evidence variant-casing admissibility leg) was authored
+  BEFORE the mechanism and run against the unchanged checkers: **RED**
+  (FAIL at the first shape — "the leading capital laundering shape
+  must be reported" found no violation), matching the falsifier's
+  executed finding. After the fix: GREEN.
+- The docs.rs leg got a parallel tooth
+  (`capitalized_status_tokens_are_violations_and_capitalized_canonical_words_are_not`);
+  during implementation the matcher was briefly half-fixed (input
+  normalized but the AK scan still case-sensitive) and BOTH docs.rs
+  teeth caught it RED ("the capitalized bogus token must be a
+  violation: []") — the exact F8 blindness — before the scan was
+  normalized; fixed, both GREEN. A cased CANONICAL word satisfies the
+  vocabulary leg (its ahead-of-evidence adjudication is leg (g)'s
+  question — pinned).
+- A fixture-race was found and fixed on the way: the claims-fixture
+  helper shared one temp docs dir across test PROCESSES (nextest runs
+  each test in its own process), which made the new tests flake under
+  parallel execution; each fixture now gets its own pid+nanos dir.
+- Post-fix, real tree: docs_present **7/7 PASS** (the hardened
+  checkers find the committed docs clean — no evasion shapes present,
+  all 33 pairings admissible).
+
+### COR-B3 battery (scoped; discipline as before)
+
+- `cargo nextest run -p gauntlet-arch-tests --lib docs_consistency::
+  docs::tests --no-fail-fast` → **14/14 PASS** (10 prior + the
+  five-shapes tooth + the verb-guard tooth + the docs.rs casing tooth
+  + parser/id-scan updates).
+- `cargo nextest run -p gauntlet-arch-tests --test docs_present
+  --no-fail-fast` → **7/7 PASS** over the real tree.
+- Full `--lib` suite: **241/243** — the two failures
+  (`denylist::repo::adapter_selection_is_config_driven`,
+  `denylist::repo::core_crates_contain_no_denied_identifiers`) both
+  point at `crates/gauntlet-app/tests/conformance.rs:1267-1269`
+  ('diff' literals) — **B1's in-flight COR-3 file**, explicitly out of
+  my scope this round (the coordinator's do-not-touch list); the
+  recorded task-23 wave-parallel-interference class; zero violations
+  in my files.
+- `cargo fmt --check` + `cargo clippy -p gauntlet-arch-tests
+  --all-targets -- -D warnings` → clean.
+- `just ruler` → **PASS**. Frozen artifacts untouched and re-verified:
+  handoff.md `b2104e1a…`, conformance.json `aa439901…`,
+  `pin-evidence-bundle.sh --check` → bundle verified.
+
+### Honest residual
+
+- A NON-canonical status-like token split across lines from its id
+  (e.g. bare `proven` on one line, the id on the next, no six-word
+  vocabulary token anywhere near) remains outside both legs: the
+  window deliberately keys on the six vocabulary words only, so
+  ordinary prose ("proven vs provisional" headings) cannot
+  false-positive. Recorded in docs.rs's "does NOT enforce" section.
+- The integration legs read the real `docs/` tree with no docs-dir
+  override; the evasion teeth therefore run at the unit level over
+  fixture docs through the same public checkers the falsifier drove —
+  the equivalent channel without mutating real artifacts.
+
 ## Known limits / honest residuals
 
 - The committed conformance.json's embedded manifest sha is stale

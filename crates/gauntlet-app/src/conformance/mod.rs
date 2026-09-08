@@ -75,6 +75,7 @@ pub const EVIDENCE_DIR_NAME: &str = "conformance-evidence";
 pub const EVIDENCE_MANIFEST_NAME: &str = "MANIFEST";
 
 /// One executed command's observed facts, as the executor reports them.
+#[derive(Debug, Clone)]
 pub struct CommandOutcome {
     /// The invocation the executor ran (its own concrete spelling —
     /// the adapter layer composes it; this layer's structural display

@@ -496,3 +496,38 @@ command, sccache stopped inside)
 - `./scripts/verify-ruler.sh` (`just ruler`) → **PASS**; the ruler
   never moved.
 - The real sweep was NOT re-run (the orchestrator's action).
+
+## COR-3 (completed by the ORCHESTRATOR under the heal+continue exception)
+
+B1's agent died on a usage-limit window mid-COR-3 (2026-09-08 ~14:08
+harness time; window resets 14:42). The code and tests below were
+verified LANDED IN THE TREE before the death (git diff audit per fix);
+this section records them from orchestrator-verified evidence, not
+builder claim. The scoped battery was re-run by the orchestrator.
+
+- F1 (duplicate ids): `ManifestError::DuplicateId` typed refusal,
+  one-entry-per-ruler-unit enforced in `parse_manifest_with`
+  (manifest.rs; "COR-3 F1: one entry per ruler unit"). Test:
+  `duplicate_manifest_ids_refuse`.
+- F2 (kind<->arm matrix exact): test_report|log => execute ONLY;
+  file|metric => artifact|none ONLY; other kinds refused at the
+  matrix ("kind ... is outside the sweep's kind-arm matrix"). Test:
+  `the_kind_arm_matrix_is_exact`. The committed manifest verified
+  compliant (no content change needed).
+- F10 (signal-killed != FAIL): `code()==None` maps to the typed
+  `ExecuteError::CannotRun` naming the signal via ExitStatusExt
+  (verify_cmd.rs:123 region; never a fabricated "exit -1"). Test:
+  `a_signal_killed_command_is_the_typed_environmental_refusal`
+  (self-killing stub, expects CannotRun with "signal" and "9").
+- F3 (predicate grammar): `handoff_six_categories` demands a
+  `## <category>` heading per category (trailing count suffix fine);
+  a bare word-legend refutes ("the handoff carries no '## ...'
+  heading"). Test: `the_handoff_predicate_demands_section_headings`.
+- F7+F13 (_meta disclosures, no behavior change): the arm-dependent
+  evidence_ref anchor rule (execute refs resolve from the report's
+  parent; artifact refs from the workspace root) and the lib-filter
+  substring semantics + over-determination/fail-closed direction +
+  recorded drift risk are both disclosed in the report assembly.
+- Battery: the orchestrator's full workspace battery over BOTH
+  corrections (COR-3 + B3's COR-B3) — results recorded in the
+  settlement/ledger records of this task.
