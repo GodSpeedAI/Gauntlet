@@ -63,7 +63,8 @@ pub use manifest::{
     parse_manifest_with,
 };
 pub use report::{
-    AssemblyRefusal, REPORT_SCHEMA_TOKEN, ReportHeader, UnitDisposition, assemble_report,
+    AssemblyRefusal, DISCLOSURES, REPORT_SCHEMA_TOKEN, ReportHeader, UnitDisposition,
+    assemble_report,
 };
 
 /// The evidence directory leaf name (single segment; the stamped run

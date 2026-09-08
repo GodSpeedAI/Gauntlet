@@ -1372,6 +1372,26 @@ fn the_bounded_artifact_exception_is_test_report_only() {
         "none",
     ));
     assert!(conformance::parse_manifest(&log_execute).is_ok());
+    // COR-5 R3-F3: the refusal prose is kind-specific — a log author
+    // sees the execute-only rule, never the bounded-artifact latitude.
+    let log_text = conformance::parse_manifest(&log_recorded)
+        .expect_err("log + bounded artifact refuses")
+        .to_string();
+    assert!(log_text.contains("execute arms only"), "{log_text}");
+    assert!(!log_text.contains("recorded-artifact"), "{log_text}");
+}
+
+/// COR-5 R3-F1: the report's disclosures name the chosen-exit
+/// indistinguishability inside the signal band — the disclosure gap the
+/// falsifier executed.
+#[test]
+fn the_disclosures_name_the_chosen_exit_band_ambiguity() {
+    let joined = conformance::DISCLOSURES.join(" ");
+    assert!(joined.contains("129..159"), "{joined}");
+    assert!(
+        joined.contains("indistinguishable from a signal death"),
+        "{joined}"
+    );
 }
 
 /// COR-4 R2-F6 (cosmetic): the duplicate-id refusal names both loci in

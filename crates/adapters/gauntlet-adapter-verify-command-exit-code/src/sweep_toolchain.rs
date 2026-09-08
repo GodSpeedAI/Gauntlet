@@ -32,11 +32,13 @@
 //!
 //! - inner 69 → [`INNER_EXIT_REMAP_69`] (169)
 //! - inner 86 → [`INNER_EXIT_REMAP_86`] (186)
-//! - inner 129..159 (the shell's STANDARD signal encoding: the inner
-//!   command was KILLED by signal n-128 — the realistic OOM victim,
-//!   COR-4 R2-F2) → [`INNER_SIGNAL_BASE`] + (n - 128) (200..231,
-//!   outside every flock code); the CLI classifies that band as the
-//!   typed environmental refusal naming the signal. The band is
+//! - inner 129..159 (the shell's STANDARD signal encoding band) →
+//!   [`INNER_SIGNAL_BASE`] + (n - 128) (200..231, outside every flock
+//!   code); the CLI classifies that band as the typed environmental
+//!   refusal naming the signal — COR-4 R2-F2's realistic OOM victim
+//!   shape. COR-5 R3-F1's honesty note: a CHOSEN inner exit inside the
+//!   band is classified as a signal death and is indistinguishable from
+//!   one (the reason text says so; the band side claims nothing). The band is
 //!   deliberately 129..159, NOT the full 128..191: the remapped 169/186
 //!   live inside 128..191, so a wider band would consume a genuine
 //!   inner 169/186 (executed: 169 → 241) — standard signals 1..31 are
@@ -121,6 +123,32 @@ pub enum ExitClassification {
     /// The inner command was KILLED by a signal (the 200..231 band) —
     /// environmental, naming the signal.
     InnerSignal { signal: i32 },
+}
+
+/// The environmental refusal reason for an inner signal-band exit (the
+/// CLI composes this over [`ExitClassification::InnerSignal`]).
+/// COR-5 R3-F1/R3-F2: the claim is "classified as", the shell encoding
+/// is named as the wrapper's observation, the chosen-exit
+/// indistinguishability is stated — and the degenerate band entry with
+/// no valid signal encoding (observed 200, i.e. "signal 0", whose shell
+/// encoding 128 cannot occur) says exactly that instead of asserting
+/// impossible facts.
+pub fn inner_signal_reason(observed: i32) -> String {
+    let signal = observed - INNER_SIGNAL_BASE;
+    if signal == 0 {
+        format!(
+            "the inner command's exit status {observed} falls in the reserved signal band \
+             with no valid signal encoding — classified environmental (INCONCLUSIVE \
+             claims nothing)"
+        )
+    } else {
+        let encoded = 128 + signal;
+        format!(
+            "classified as killed by signal {signal} (the wrapper's shell encoded exit \
+             status {encoded} — a chosen exit in this band is indistinguishable from a \
+             signal death)"
+        )
+    }
 }
 
 /// Classifies a locked arm's observed exit code (see the type's docs).
@@ -293,6 +321,33 @@ mod tests {
         assert!(band < reserved, "band remap precedes the 69/86 remaps");
         // The recorded display stays the REAL command, not the wrapper.
         assert_eq!(wrapped.display, inner.display);
+    }
+
+    /// COR-5 R3-F1/R3-F2: the signal-band reason claims "classified as",
+    /// names the shell encoding as the wrapper's observation, states the
+    /// chosen-exit indistinguishability — and the degenerate "signal 0"
+    /// entry (observed 200) asserts no impossible facts.
+    #[test]
+    fn the_inner_signal_reason_is_honest_about_classification() {
+        let term = inner_signal_reason(215);
+        assert!(term.contains("classified as killed by signal 15"), "{term}");
+        assert!(term.contains("encoded exit status 143"), "{term}");
+        assert!(
+            term.contains("a chosen exit in this band is indistinguishable"),
+            "{term}"
+        );
+        let kill = inner_signal_reason(209);
+        assert!(kill.contains("signal 9"), "{kill}");
+        assert!(kill.contains("encoded exit status 137"), "{kill}");
+        // Observed 200: "signal 0" and its impossible 128 encoding are
+        // never asserted.
+        let degenerate = inner_signal_reason(200);
+        assert!(
+            degenerate.contains("no valid signal encoding"),
+            "{degenerate}"
+        );
+        assert!(!degenerate.contains("signal 0"), "{degenerate}");
+        assert!(!degenerate.contains("encoded"), "{degenerate}");
     }
 
     /// COR-4: the classification table the CLI executor applies to a

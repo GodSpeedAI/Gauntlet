@@ -171,18 +171,16 @@ impl gauntlet_app::conformance::ConformanceExecutor for SweepProcessExecutor {
                         };
                         return Err(gauntlet_app::conformance::ExecuteError::CannotRun { reason });
                     }
-                    Some(chain::ExitClassification::InnerSignal { signal }) => {
-                        // The inner command itself was killed (the
-                        // realistic OOM victim); the wrapper's band remap
-                        // preserved the signal fact. Environmental, never
-                        // FAIL-by-default.
+                    Some(chain::ExitClassification::InnerSignal { .. }) => {
+                        // The inner command is CLASSIFIED as killed (the
+                        // realistic OOM victim; the wrapper's band remap
+                        // carried the shell encoding through). The reason
+                        // is the toolchain's honest spelling — including
+                        // the chosen-exit indistinguishability and the
+                        // degenerate no-encoding entry (COR-5 R3-F1/F2).
+                        // Environmental, never FAIL-by-default.
                         return Err(gauntlet_app::conformance::ExecuteError::CannotRun {
-                            reason: format!(
-                                "the sweep command was killed by signal {signal} (the \
-                                 wrapper's shell encoded it as {}; the band remap carried \
-                                 the signal through)",
-                                128 + signal
-                            ),
+                            reason: chain::inner_signal_reason(code),
                         });
                     }
                     _ => {}
@@ -512,11 +510,22 @@ fn verify_all(report: Option<&str>, manifest: Option<&str>) -> ExitCode {
         }
     };
     // Write the evidence directory first, then the report, so the
-    // report's evidence refs exist on disk the moment it lands.
+    // report's evidence refs exist on disk the moment it lands. The
+    // report's OWN parent is created up front (COR-5 R3-F4: an
+    // artifact-only sweep produces no evidence files, so the evidence
+    // loop would never create the parent and the report write would die
+    // on a missing directory).
     let parent = report_path
         .parent()
         .map(std::path::Path::to_path_buf)
         .unwrap_or_else(|| root.clone());
+    if let Err(error) = std::fs::create_dir_all(&parent) {
+        eprintln!(
+            "gauntlet verify --all: creating {}: {error}",
+            parent.display()
+        );
+        return ExitCode::FAILURE;
+    }
     for (relative, bytes) in &outcome.evidence_files {
         let target = parent.join(relative);
         if let Some(directory) = target.parent()

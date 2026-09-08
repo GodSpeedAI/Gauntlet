@@ -45,7 +45,10 @@ pub const DISCLOSURES: &[&str] = &[
      the command's own merits, 200+signal = environmental INCONCLUSIVE naming the \
      signal; a genuine inner exit of 169, 186, or 200..231 is indistinguishable from \
      the remapped forms — disclosed, with the failure direction intact (still FAIL) \
-     and the band side claiming nothing (still INCONCLUSIVE)",
+     and the band side claiming nothing (still INCONCLUSIVE); a CHOSEN inner exit \
+     inside the signal band (129..159, remapped to 200..231) is likewise \
+     indistinguishable from a signal death — classified environmental, the side that \
+     claims nothing",
     "an INCONCLUSIVE unit whose entry carries no status_hint maps to the category unknown",
     "divergence citations marked unrecorded are real frozen-locator divergences whose \
      dated reference-candidates entry is owed (reported in the task-27 B1 report; B3 is \

@@ -176,3 +176,15 @@ orchestrator's phase-gate action.
 - Final battery: app 27/27, adapter 14/14 (10.4s test-phase), cli lib
   17/17, cli suites 13/13, arch 261/261, check/clippy/fmt 0, ruler
   PASS. Real sweep NOT re-run. Nothing mid-flight.
+
+- 2026-09-07 COR-5 (r3 CONFIRM; 4 residuals): R3-F1 chosen-exit band
+  ambiguity named in _meta + module doc "is classified as" + reason via
+  the pure inner_signal_reason ("classified as killed by signal N ...
+  indistinguishable"); R3-F2 observed-200 branch asserts no impossible
+  facts; R3-F3 kind-specific matrix prose (log ⇒ execute-only, no
+  bounded latitude advertised); R3-F4 report parent created up front
+  (end-to-end tooth: artifact-only world, out/deep parent, REAL
+  binary, exit 0). Battery: adapter 15/15, app 28/28, cli 31/31, arch
+  261/261, check/clippy/fmt 0 (one useless_format caught and fixed),
+  ruler PASS. Real sweep NOT re-run. NOTHING mid-flight — slice
+  complete pending settlement.

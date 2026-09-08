@@ -651,3 +651,56 @@ include queuing, test-phase Summaries are the honest figures)
 - `./scripts/verify-ruler.sh` (`just ruler`) → **PASS**; the ruler
   never moved.
 - The real sweep / settlement re-sweep NOT re-run (the orchestrator's).
+
+## COR-5 (2026-09-07, falsifier round 3 — CONFIRM; 4 residuals, all
+disclosure/classification polish; behavior already correct both directions
+where the falsifier verified it)
+
+- **R3-F1 (MINOR, disclosure gap)**: a CHOSEN inner exit inside the
+  signal band (129..159) is classified as a signal death, and that
+  indistinguishability was named nowhere (DISCLOSURES listed only
+  169/186/200..231; the module doc asserted the band "was KILLED").
+  Fix: the `_meta` disclosure names the chosen-exit band ambiguity; the
+  module doc says "is classified as"; the reason is now the toolchain's
+  pure `inner_signal_reason` — "classified as killed by signal N (the
+  wrapper's shell encoded exit status S — a chosen exit in this band is
+  indistinguishable from a signal death)". Toothed at both layers
+  (adapter reason tests; app `the_disclosures_name_the_chosen_exit_
+  band_ambiguity` pins the sentence).
+- **R3-F2 (MINOR, impossible facts)**: inner exit 200 produced "killed
+  by signal 0 (encoded as 128)" — doubly impossible. Fix: one boring
+  branch in `inner_signal_reason` — observed 200 reads "the inner
+  command's exit status 200 falls in the reserved signal band with no
+  valid signal encoding — classified environmental (INCONCLUSIVE claims
+  nothing)". Toothed: the degenerate entry asserts neither "signal 0"
+  nor any encoding.
+- **R3-F3 (COSMETIC)**: the kind-arm refusal text advertised the
+  bounded recorded-artifact form to log-kind authors. Fix: kind-specific
+  prose (log ⇒ execute-only rule; test_report ⇒ the decision-11
+  exception). Toothed in the matrix test (log text contains
+  "execute arms only", never "recorded-artifact").
+- **R3-F4 (MINOR)**: an artifact-only sweep into a NONEXISTENT report
+  parent adjudicated fully then died at the report write (os error 2) —
+  the evidence loop only creates parents for evidence files, and an
+  artifact-only run has none. Fix: `create_dir_all` the report's parent
+  up front (real write errors stay fail-explicit). Toothed end-to-end
+  through the REAL binary: `an_artifact_only_sweep_creates_a_missing_
+  report_parent` (scratch project-root world: 2-unit file/metric
+  fixture ruler + detached HEAD, report at out/deep/conformance.json →
+  exit 0, report written).
+
+### COR-5 battery (same discipline; B3 contention in the walls, Summaries
+are test-phase)
+
+- adapter: **15/15 PASS** (14 + the reason-builder teeth).
+- app conformance: **28/28 PASS** (27 + the disclosure pin and the
+  kind-specific-prose assertions).
+- cli lib + conformance_cli + cli_surface: **31/31 PASS** (30 + the
+  artifact-only-world tooth).
+- arch-tests: **261/261 PASS**.
+- `cargo check` + `cargo clippy --all-targets -- -D warnings` (one
+  `useless_format` in the new branch found and fixed) → exit 0;
+  `cargo fmt --check` → exit 0.
+- `./scripts/verify-ruler.sh` (`just ruler`) → **PASS**; the ruler
+  never moved.
+- The settlement re-sweep NOT re-run (the orchestrator's).

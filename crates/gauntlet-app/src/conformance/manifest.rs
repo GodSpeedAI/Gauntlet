@@ -644,15 +644,22 @@ fn close_entry(
         }
     };
     if !matrix_ok {
-        return Err(ManifestError::BadEvidenceArm {
-            line: 0,
-            detail: format!(
+        // Kind-specific prose (COR-5 R3-F3): a log author sees the
+        // execute-only rule; a test_report author sees the bounded
+        // recorded-artifact exception.
+        let detail = if built.kind == "log" {
+            "kind log admits execute arms only — its evidence is the command it ran, \
+             never a text artifact"
+                .to_owned()
+        } else {
+            format!(
                 "kind {} admits execute arms only, or the bounded recorded-artifact form \
                  (charter decision 11) — an unbounded artifact arm would launder a text \
                  file into a PASS with zero commands executed",
                 built.kind
-            ),
-        });
+            )
+        };
+        return Err(ManifestError::BadEvidenceArm { line: 0, detail });
     }
     entries.push(built);
     Ok(())

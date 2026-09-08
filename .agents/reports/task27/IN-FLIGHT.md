@@ -212,3 +212,16 @@ Gate: verbatim in the charter; `just ruler` at every phase boundary.
   {169,186} inner-remapped / {200..231} inner-signalled, all
   ambiguities disclosed. Scoped batteries green. FULL closure-grade
   battery running in the orchestrator's hands.
+- 2026-09-08 FOCUSED FALSIFIER r3: CONFIRM — 0 MAJOR (0 blocking).
+  The corrected exit-code scheme held under executed attack: band
+  boundaries exact (kill -1/-31 -> signals named; RT kills -34/-40
+  stay FAIL), the 10s stop bound reproduced the dirty 2m14s stall
+  live and capped it exactly (sleep-2 sweep 12.04s wall, never
+  +134s), daemon invariant held across ~15 runs, fuzz table exact,
+  all regressions green, zero state collapses. 4 residuals: R3-F1
+  chosen-exit-in-band disclosure gap; R3-F2 impossible "signal 0"
+  reason facts; R3-F3 stale refusal text for log kinds; R3-F4
+  artifact-only sweep into a nonexistent report parent dies at
+  write (os error 2). All adjudicated -> COR-5 dispatched to B1
+  (final round; settlement follows). Corrections commit landed:
+  workspace 1697/1697, boundaries 261/261, ruler PASS.
