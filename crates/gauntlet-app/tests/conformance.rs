@@ -283,6 +283,7 @@ impl ConformanceExecutor for CountingExecutor {
             stdout,
             stderr,
             duration_ms: 1,
+            exit_note: String::new(),
         })
     }
 }
@@ -1322,4 +1323,75 @@ configured_but_untested proposed blocked unknown\n";
         Ok(conformance::predicates::Predicate::Holds) => {}
         other => panic!("the section-grammar handoff holds, got {other:?}"),
     }
+}
+
+/// COR-4 R2-F4 (RED-first): the bounded recorded-artifact exception is
+/// TEST_REPORT only (charter decision 11 names exactly one instance,
+/// AK-070, kind test_report) — a log-kind unit can no longer PASS
+/// provisional with zero commands on a text artifact.
+#[test]
+fn the_bounded_artifact_exception_is_test_report_only() {
+    let mut log_recorded = String::from(MANIFEST_HEAD);
+    log_recorded.push_str(&entry(
+        "AK-101",
+        "log",
+        &locator_one(),
+        &artifact_arm(&locator_four(), "handoff_six_categories"),
+        true,
+        "configured_but_untested",
+        "a log-kind unit on a text artifact",
+        "none",
+    ));
+    assert!(
+        conformance::parse_manifest(&log_recorded).is_err(),
+        "log + bounded artifact is dead latitude the matrix must not carry"
+    );
+    // The charter's one named instance stays admissible.
+    let mut report_recorded = String::from(MANIFEST_HEAD);
+    report_recorded.push_str(&entry(
+        "AK-101",
+        "test_report",
+        &locator_one(),
+        &artifact_arm(&locator_four(), "baselines_keys_abcd"),
+        true,
+        "configured_but_untested",
+        "the recorded settlement artifact",
+        "none",
+    ));
+    assert!(conformance::parse_manifest(&report_recorded).is_ok());
+    // And a log-kind unit's honest arms remain execute (or nothing).
+    let mut log_execute = String::from(MANIFEST_HEAD);
+    log_execute.push_str(&entry(
+        "AK-101",
+        "log",
+        &locator_one(),
+        &program_arm("true"),
+        false,
+        "none",
+        "basis",
+        "none",
+    ));
+    assert!(conformance::parse_manifest(&log_execute).is_ok());
+}
+
+/// COR-4 R2-F6 (cosmetic): the duplicate-id refusal names both loci in
+/// clean prose — no mangled whitespace run.
+#[test]
+fn the_duplicate_id_refusal_is_clean_prose() {
+    let mut manifest = fixture_manifest();
+    manifest.push_str(&entry(
+        "AK-101",
+        "test_report",
+        &locator_one(),
+        &program_arm("true"),
+        false,
+        "none",
+        "the duplicate",
+        "none",
+    ));
+    let error = conformance::parse_manifest(&manifest).expect_err("duplicate refuses");
+    let text = error.to_string();
+    assert!(text.contains("AK-101"), "{text}");
+    assert!(text.contains("first seen on line"), "{text}");
+    assert!(!text.contains("  "), "no doubled spaces: {text:?}");
 }

@@ -140,32 +140,74 @@ impl gauntlet_app::conformance::ConformanceExecutor for SweepProcessExecutor {
                         ),
                     });
                 };
-                if locked && (code == chain::LOCK_BUSY_EXIT || code == chain::LOCK_EXEC_FAILED_EXIT)
-                {
-                    // The wrapper script remaps the INNER command's own
-                    // reserved code, so these two are unambiguously the
-                    // lock layer speaking (COR-1's disambiguation).
-                    let detail = String::from_utf8_lossy(&status.stderr);
-                    let first = detail
-                        .lines()
-                        .find(|line| !line.trim().is_empty())
-                        .unwrap_or_default()
-                        .to_owned();
-                    let reason = if code == chain::LOCK_BUSY_EXIT {
-                        "the repository compile lock stayed busy past the wrapper's \
-                         bounded wait"
-                            .to_owned()
-                    } else {
-                        format!("the lock wrapper could not execute the sweep command: {first}")
-                    };
-                    return Err(gauntlet_app::conformance::ExecuteError::CannotRun { reason });
+                // COR-4 R2-F1/R2-F2: on a LOCKED arm the exit codes are
+                // flock-interpreted through the toolchain's classification
+                // (the wrapper remaps the inner command's own 69/86 to
+                // 169/186 and an inner signal death to 200+signal, so the
+                // lock-level pair {86, 69} stays unambiguous). A bare
+                // program's exit is its own.
+                let classification = if locked {
+                    Some(chain::classify_exit(code))
+                } else {
+                    None
+                };
+                match classification {
+                    Some(
+                        chain::ExitClassification::LockBusy
+                        | chain::ExitClassification::LockExecFailed,
+                    ) => {
+                        let detail = String::from_utf8_lossy(&status.stderr);
+                        let first = detail
+                            .lines()
+                            .find(|line| !line.trim().is_empty())
+                            .unwrap_or_default()
+                            .to_owned();
+                        let reason = if code == chain::LOCK_BUSY_EXIT {
+                            "the repository compile lock stayed busy past the wrapper's \
+                             bounded wait"
+                                .to_owned()
+                        } else {
+                            format!("the lock wrapper could not execute the sweep command: {first}")
+                        };
+                        return Err(gauntlet_app::conformance::ExecuteError::CannotRun { reason });
+                    }
+                    Some(chain::ExitClassification::InnerSignal { signal }) => {
+                        // The inner command itself was killed (the
+                        // realistic OOM victim); the wrapper's band remap
+                        // preserved the signal fact. Environmental, never
+                        // FAIL-by-default.
+                        return Err(gauntlet_app::conformance::ExecuteError::CannotRun {
+                            reason: format!(
+                                "the sweep command was killed by signal {signal} (the \
+                                 wrapper's shell encoded it as {}; the band remap carried \
+                                 the signal through)",
+                                128 + signal
+                            ),
+                        });
+                    }
+                    _ => {}
                 }
+                // The exit note carries the remap provenance into the
+                // FAIL reason (COR-4 R2-F1: an inner own-86 must FAIL,
+                // naming what happened — never hide as environmental).
+                let exit_note = match classification {
+                    Some(chain::ExitClassification::InnerFailure { inner, .. })
+                        if inner != code =>
+                    {
+                        format!(
+                            "the wrapper remaps an inner exit of {inner}; a direct exit of \
+                             {code} is indistinguishable from the remapped form (disclosed)"
+                        )
+                    }
+                    _ => String::new(),
+                };
                 Ok(gauntlet_app::conformance::CommandOutcome {
                     display: invocation.display,
                     exit_code: code,
                     stdout: status.stdout,
                     stderr: status.stderr,
                     duration_ms: elapsed,
+                    exit_note,
                 })
             }
             Err(error) => Err(gauntlet_app::conformance::ExecuteError::CannotRun {

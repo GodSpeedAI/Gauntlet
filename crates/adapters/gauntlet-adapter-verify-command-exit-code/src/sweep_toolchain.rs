@@ -22,15 +22,33 @@
 //! (the task-20 lesson: a daemon holding the lock fd; the task-23
 //! lesson: never nest flocks — this wrapper is the only lock layer).
 //!
-//! # Reserved exit codes (COR-1's disambiguation contract)
+//! # Reserved exit codes (COR-1 + COR-4 R2-F1/R2-F2's contract)
 //!
-//! flock itself, not the wrapped command, produces 86 (via `-E`) and
-//! 69 (it could not execute the command — the COR-1 defect's observed
+//! flock itself, not the wrapped command, produces 86 (via `-E`) and 69
+//! (it could not execute the command — the COR-1 defect's observed
 //! signature). So the caller can tell a flock-level outcome from an
-//! inner command that itself exits 69, the wrapper script REMAPS its
-//! own 69 to [`INNER_EXIT_REMAP`] before exiting: {86, 69} mean
-//! flock-level (environmental); 169 means the inner command exited 69
-//! on its own merits.
+//! inner command's own exit, the wrapper script REMAPS the inner
+//! command's own reserved codes before exiting:
+//!
+//! - inner 69 → [`INNER_EXIT_REMAP_69`] (169)
+//! - inner 86 → [`INNER_EXIT_REMAP_86`] (186)
+//! - inner 129..159 (the shell's STANDARD signal encoding: the inner
+//!   command was KILLED by signal n-128 — the realistic OOM victim,
+//!   COR-4 R2-F2) → [`INNER_SIGNAL_BASE`] + (n - 128) (200..231,
+//!   outside every flock code); the CLI classifies that band as the
+//!   typed environmental refusal naming the signal. The band is
+//!   deliberately 129..159, NOT the full 128..191: the remapped 169/186
+//!   live inside 128..191, so a wider band would consume a genuine
+//!   inner 169/186 (executed: 169 → 241) — standard signals 1..31 are
+//!   exactly 129..159, and a real-time-signal death (160..192) is a
+//!   disclosed residual that stays a FAIL (the failure direction).
+//!
+//! The reserved set is therefore {86, 69} = lock-level; {169, 186} =
+//! inner-remapped; 200..231 = inner signal death. A genuine inner exit
+//! of 169/186 (or 200..231) passing through is INDISTINGUISHABLE from
+//! the remapped forms — disclosed in the report's `_meta`; the failure
+//! direction stays honest (169/186 still FAIL, 200..231 still claims
+//! nothing as INCONCLUSIVE).
 //!
 //! # Argument order (COR-1's executed defect)
 //!
@@ -52,7 +70,18 @@ pub const LOCK_EXEC_FAILED_EXIT: i32 = 69;
 
 /// What the wrapper script remaps the inner command's OWN 69 to, so the
 /// pair {86, 69} stays unambiguously flock-level.
-pub const INNER_EXIT_REMAP: i32 = 169;
+pub const INNER_EXIT_REMAP_69: i32 = 169;
+
+/// What the wrapper script remaps the inner command's OWN 86 to (COR-4
+/// R2-F1: the remap was half-built — only 69 was remapped, so a genuine
+/// inner 86 was misattributed as lock-busy INCONCLUSIVE).
+pub const INNER_EXIT_REMAP_86: i32 = 186;
+
+/// The base of the inner-signal band (COR-4 R2-F2): the shell encodes a
+/// signal-killed child as 128+n; the wrapper remaps that band to
+/// 200+signal so the CLI can classify it as the typed environmental
+/// refusal naming the signal. 200..231 stays clear of every flock code.
+pub const INNER_SIGNAL_BASE: i32 = 200;
 
 /// How long the wrapper waits for the repository compile lock before
 /// reporting the environmental refusal, in seconds.
@@ -61,12 +90,62 @@ pub const LOCK_WAIT_SECONDS: &str = "3600";
 /// The repository-wide compile lock this toolchain serializes against.
 pub const COMPILE_LOCK: &str = "/tmp/gauntlet-build.lock";
 
+/// How long the wrapper's compiler-cache daemon stop may take before it
+/// is killed (COR-4 R2-F3: with NO daemon live the bare stop stalls
+/// ~2m14s — lock-held — which the committed sweep's own evidence shows
+/// as a ~134s floor per command; bounded, and its exit is swallowed).
+pub const DAEMON_STOP_TIMEOUT: &str = "10";
+
 /// One runnable process invocation: program, arguments, and the
 /// canonical display the sweep records for it.
 pub struct ToolInvocation {
     pub program: String,
     pub args: Vec<String>,
     pub display: String,
+}
+
+/// How a wrapped command's exit code classifies (COR-4: the mapping the
+/// CLI executor applies to a LOCKED arm's exit — a pure function so the
+/// contract is testable without running cargo).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExitClassification {
+    /// The lock stayed busy past the bounded wait — environmental.
+    LockBusy,
+    /// The lock wrapper could not execute the command — environmental.
+    LockExecFailed,
+    /// The inner command FAILED on its own merits: the code the CLI
+    /// observed and the inner code it stands for (identical for a plain
+    /// code; 169 stands for inner 69 and 186 for inner 86 — a direct
+    /// inner 169/186 is indistinguishable, disclosed).
+    InnerFailure { observed: i32, inner: i32 },
+    /// The inner command was KILLED by a signal (the 200..231 band) —
+    /// environmental, naming the signal.
+    InnerSignal { signal: i32 },
+}
+
+/// Classifies a locked arm's observed exit code (see the type's docs).
+pub fn classify_exit(observed: i32) -> ExitClassification {
+    match observed {
+        LOCK_BUSY_EXIT => ExitClassification::LockBusy,
+        LOCK_EXEC_FAILED_EXIT => ExitClassification::LockExecFailed,
+        INNER_EXIT_REMAP_69 => ExitClassification::InnerFailure {
+            observed,
+            inner: LOCK_EXEC_FAILED_EXIT,
+        },
+        INNER_EXIT_REMAP_86 => ExitClassification::InnerFailure {
+            observed,
+            inner: LOCK_BUSY_EXIT,
+        },
+        code if (INNER_SIGNAL_BASE..INNER_SIGNAL_BASE + 32).contains(&code) => {
+            ExitClassification::InnerSignal {
+                signal: code - INNER_SIGNAL_BASE,
+            }
+        }
+        code => ExitClassification::InnerFailure {
+            observed: code,
+            inner: code,
+        },
+    }
 }
 
 /// The repository test runner's invocation for one allowlisted package
@@ -131,9 +210,12 @@ pub fn lock_wrapped(inner: &ToolInvocation) -> ToolInvocation {
 /// lock path and bounded wait — the seam the BEHAVIORAL tooth uses (a
 /// REAL flock over a TEMP lock with a short bound; the production
 /// spelling delegates above). Options come BEFORE the file operand
-/// (COR-1); the wrapped command's exit status is preserved across the
-/// compiler-cache daemon stop; its own 69 is remapped to
-/// [`INNER_EXIT_REMAP`] so {86, 69} stay flock-level.
+/// (COR-1). The script, in order: the inner command runs; its status is
+/// captured; the compiler-cache daemon stop is BOUNDED and swallowed
+/// (COR-4 R2-F3: an unbounded stop stalls ~2m14s lock-held when no
+/// daemon is live); the inner signal band remaps FIRST (a remapped
+/// 169/186 would otherwise fall inside it), then the inner own-69/86
+/// remap so the lock-level pair {86, 69} stays unambiguous.
 pub fn lock_wrapped_over(lock: &str, wait: &str, inner: &ToolInvocation) -> ToolInvocation {
     let mut command = String::new();
     // Shell-quote nothing: the inner invocation's pieces are structural
@@ -145,8 +227,12 @@ pub fn lock_wrapped_over(lock: &str, wait: &str, inner: &ToolInvocation) -> Tool
         command.push_str(arg);
     }
     let script = format!(
-        "{command}; __sweep_status=$?; sccache --stop-server >/dev/null 2>&1; \
-         if [ \"$__sweep_status\" -eq 69 ]; then __sweep_status=169; fi; \
+        "{command}; __sweep_status=$?; \
+         timeout {DAEMON_STOP_TIMEOUT} sccache --stop-server >/dev/null 2>&1 || true; \
+         if [ \"$__sweep_status\" -ge 129 ] && [ \"$__sweep_status\" -le 159 ]; then \
+         __sweep_status=$((__sweep_status - 128 + {INNER_SIGNAL_BASE})); fi; \
+         if [ \"$__sweep_status\" -eq 69 ]; then __sweep_status={INNER_EXIT_REMAP_69}; fi; \
+         if [ \"$__sweep_status\" -eq 86 ]; then __sweep_status={INNER_EXIT_REMAP_86}; fi; \
          exit \"$__sweep_status\""
     );
     ToolInvocation {
@@ -184,15 +270,93 @@ mod tests {
         assert_eq!(wrapped.args[4], COMPILE_LOCK);
         assert_eq!(wrapped.args[5], "-c");
         let script = &wrapped.args[6];
-        // The exit status is preserved across the daemon stop, and the
-        // inner 69 is remapped so {86, 69} stay flock-reserved.
+        // The exit status is preserved across the (bounded, swallowed)
+        // daemon stop; the inner signal band remaps FIRST, then the
+        // inner own-69/86 remaps keep {86, 69} flock-reserved (COR-4).
         assert!(script.contains("__sweep_status=$?"), "{script}");
         assert!(script.contains("exit \"$__sweep_status\""), "{script}");
-        assert!(script.contains("sccache --stop-server"), "{script}");
+        assert!(
+            script.contains("timeout 10 sccache --stop-server"),
+            "the daemon stop is bounded: {script}"
+        );
+        assert!(script.contains("|| true"), "{script}");
         assert!(script.contains("-eq 69"), "{script}");
+        assert!(script.contains("-eq 86"), "{script}");
         assert!(script.contains("__sweep_status=169"), "{script}");
+        assert!(script.contains("__sweep_status=186"), "{script}");
+        assert!(script.contains("-ge 129"), "{script}");
+        assert!(script.contains("-le 159"), "{script}");
+        // The band remap comes BEFORE the reserved-code remaps (a fresh
+        // 169 would otherwise fall inside a wider band).
+        let band = script.find("-ge 129").expect("band check present");
+        let reserved = script.find("-eq 69").expect("reserved remap present");
+        assert!(band < reserved, "band remap precedes the 69/86 remaps");
         // The recorded display stays the REAL command, not the wrapper.
         assert_eq!(wrapped.display, inner.display);
+    }
+
+    /// COR-4: the classification table the CLI executor applies to a
+    /// LOCKED arm's observed exit (pure, so it is testable without
+    /// cargo).
+    #[test]
+    fn the_exit_classification_table_holds() {
+        assert_eq!(classify_exit(86), ExitClassification::LockBusy);
+        assert_eq!(classify_exit(69), ExitClassification::LockExecFailed);
+        assert_eq!(
+            classify_exit(169),
+            ExitClassification::InnerFailure {
+                observed: 169,
+                inner: 69
+            }
+        );
+        assert_eq!(
+            classify_exit(186),
+            ExitClassification::InnerFailure {
+                observed: 186,
+                inner: 86
+            }
+        );
+        for signal in [1, 9, 15, 31] {
+            assert_eq!(
+                classify_exit(200 + signal),
+                ExitClassification::InnerSignal { signal },
+                "signal {signal}"
+            );
+        }
+        assert_eq!(
+            classify_exit(1),
+            ExitClassification::InnerFailure {
+                observed: 1,
+                inner: 1
+            }
+        );
+        assert_eq!(
+            classify_exit(4),
+            ExitClassification::InnerFailure {
+                observed: 4,
+                inner: 4
+            }
+        );
+        // The band endpoints: 200..231 classify as signals; 232 and 199
+        // are plain failures.
+        assert_eq!(
+            classify_exit(231),
+            ExitClassification::InnerSignal { signal: 31 }
+        );
+        assert_eq!(
+            classify_exit(232),
+            ExitClassification::InnerFailure {
+                observed: 232,
+                inner: 232
+            }
+        );
+        assert_eq!(
+            classify_exit(199),
+            ExitClassification::InnerFailure {
+                observed: 199,
+                inner: 199
+            }
+        );
     }
 
     #[test]
@@ -314,6 +478,24 @@ mod tests {
         }
     }
 
+    /// A tiny executable that kills ITSELF with a signal — the OOM
+    /// victim's shape (the inner command dies, the wrapper lives).
+    fn inner_killing(signal: i32) -> ToolInvocation {
+        let path = std::env::temp_dir().join(format!(
+            "gauntlet-sweep-tooth-kill-{signal}-{}",
+            std::process::id()
+        ));
+        std::fs::write(&path, format!("#!/bin/sh\nkill -{signal} $$\n")).expect("stub write");
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .expect("stub is made executable");
+        ToolInvocation {
+            program: path.to_string_lossy().to_string(),
+            args: Vec::new(),
+            display: path.to_string_lossy().to_string(),
+        }
+    }
+
     fn temp_lock(tag: &str) -> String {
         std::env::temp_dir()
             .join(format!(
@@ -353,7 +535,7 @@ mod tests {
         let wrapped = lock_wrapped_over(&lock, "5", &inner_69);
         assert_eq!(
             run(&wrapped).status.code(),
-            Some(INNER_EXIT_REMAP),
+            Some(INNER_EXIT_REMAP_69),
             "the inner command's own 69 surfaces as the remap code"
         );
         // And an unrelated inner code passes through untouched.
@@ -363,6 +545,65 @@ mod tests {
         let _ = std::fs::remove_file(&lock);
         let _ = std::fs::remove_file(inner_69.display.as_str());
         let _ = std::fs::remove_file(inner_7.display.as_str());
+    }
+
+    /// COR-4 R2-F1: the remap was half-built — a genuine inner exit 86
+    /// surfaced as lock-busy INCONCLUSIVE (a fabricated environmental
+    /// excuse the plan gate exits 0 on). The wrapper must remap it to
+    /// 186 so the CLI can FAIL it on its own merits.
+    #[test]
+    fn the_inner_own_exit_86_is_remapped_not_misattributed_to_the_lock() {
+        let lock = temp_lock("remap86");
+        let _ = std::fs::remove_file(&lock);
+        let inner_86 = inner_exiting(86);
+        let wrapped = lock_wrapped_over(&lock, "5", &inner_86);
+        assert_eq!(
+            run(&wrapped).status.code(),
+            Some(INNER_EXIT_REMAP_86),
+            "the inner command's own 86 surfaces as its remap, never as lock-busy"
+        );
+        let _ = std::fs::remove_file(&lock);
+        let _ = std::fs::remove_file(inner_86.display.as_str());
+    }
+
+    /// COR-4 R2-F2: an inner command KILLED by a signal (the realistic
+    /// OOM victim) must surface in the 200+signal band — never as the
+    /// shell's fabricated 128+n the CLI would read as an honest FAIL.
+    /// Both legs through the REAL wrapper.
+    #[test]
+    fn an_inner_signal_death_surfaces_in_the_signal_band() {
+        let lock = temp_lock("signal");
+        let _ = std::fs::remove_file(&lock);
+        for (signal, expected) in [(15, 200 + 15), (9, 200 + 9)] {
+            let killer = inner_killing(signal);
+            let wrapped = lock_wrapped_over(&lock, "5", &killer);
+            assert_eq!(
+                run(&wrapped).status.code(),
+                Some(expected),
+                "kill -{signal} surfaces as {expected}, never as the shell's \
+                 128+{signal} encoding"
+            );
+            let _ = std::fs::remove_file(killer.display.as_str());
+        }
+        let _ = std::fs::remove_file(&lock);
+    }
+
+    /// COR-4 R2-F2's band ambiguity, pinned: a genuine inner exit INSIDE
+    /// the remap outputs (169/186) or the signal band (200..231) passes
+    /// through unchanged and is indistinguishable from the remapped
+    /// forms — disclosed in the report's _meta; the failure direction
+    /// stays honest.
+    #[test]
+    fn a_genuine_inner_band_exit_passes_through_disclosed() {
+        let lock = temp_lock("band");
+        let _ = std::fs::remove_file(&lock);
+        for code in [169, 186, 200, 231] {
+            let stub = inner_exiting(code);
+            let wrapped = lock_wrapped_over(&lock, "5", &stub);
+            assert_eq!(run(&wrapped).status.code(), Some(code), "{code}");
+            let _ = std::fs::remove_file(stub.display.as_str());
+        }
+        let _ = std::fs::remove_file(&lock);
     }
 
     #[test]

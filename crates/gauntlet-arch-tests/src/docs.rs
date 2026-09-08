@@ -32,7 +32,22 @@
 //!   `configured_but_untested`, plus `proposed`, `blocked`, `unknown`.
 //!   Matching (both the tokens and the AK grammar) is case-insensitive:
 //!   `Delivered — ak-060` and `IMPLEMENTED — AK-060` fail closed exactly
-//!   like their lowercase spellings (COR-B3, falsifier F8).
+//!   like their lowercase spellings (COR-B3, falsifier F8), and the
+//!   common Cyrillic/Latin homoglyphs are folded to their ASCII
+//!   counterparts inside the matchers (`Dеlivered — AK-060` with a
+//!   Cyrillic е fails like the ASCII spelling; COR-B3-2, falsifier
+//!   round-2 R2-F5).
+//!
+//! # Honest residual — the confusable table is NOT exhaustive
+//!
+//! [`ASCII_CONFUSABLES`] covers the common Cyrillic look-alikes only.
+//! Exotic scripts and look-alike classes beyond it (Greek, fullwidth,
+//! mathematical alphanumerics, digit look-alikes like 0/O and 1/l — the
+//! latter would corrupt the AK digit grammar) stay outside these legs'
+//! reach. The residual threat is repo-authored prose (weak — a human
+//! reviewer sees what the falsifier's reader saw), with review as the
+//! second net; an exhaustive Unicode-confusable pass would be a
+//! dependency or a data table out of proportion to it.
 //!
 //! # What this does NOT enforce (deliberately)
 //!
@@ -134,6 +149,52 @@ const STATUS_LIKE_TOKENS: [&str; 22] = [
 fn read_doc(root: &Path, name: &str) -> Result<String, String> {
     std::fs::read_to_string(root.join("docs").join(name))
         .map_err(|err| format!("docs-set: {name} unreadable: {err}"))
+}
+
+/// The common Cyrillic/Latin homoglyphs (falsifier round-2 R2-F5),
+/// each folded to its ASCII counterpart INSIDE the token matchers
+/// only — the documents' bytes are never rewritten and the canonical
+/// emission is never altered. A plain static table, no dependency.
+///
+/// NOT exhaustive by design: scripts beyond this table (Greek, fullwidth,
+/// mathematical alphanumerics, digit look-alikes like 0/O and 1/l — the
+/// latter would corrupt the AK digit grammar) stay outside the legs'
+/// reach. The residual class is repo-authored prose — a weak threat with
+/// human review as the second net; recorded in the module scope notes.
+pub(crate) const ASCII_CONFUSABLES: &[(char, char)] = &[
+    ('\u{0410}', 'A'), // Cyrillic А -> A
+    ('\u{0412}', 'B'), // Cyrillic В -> B
+    ('\u{0415}', 'E'), // Cyrillic Е -> E
+    ('\u{041a}', 'K'), // Cyrillic К -> K
+    ('\u{041c}', 'M'), // Cyrillic М -> M
+    ('\u{041d}', 'H'), // Cyrillic Н -> H
+    ('\u{041e}', 'O'), // Cyrillic О -> O
+    ('\u{0420}', 'P'), // Cyrillic Р -> P
+    ('\u{0421}', 'C'), // Cyrillic С -> C
+    ('\u{0422}', 'T'), // Cyrillic Т -> T
+    ('\u{0423}', 'Y'), // Cyrillic У -> Y
+    ('\u{0425}', 'X'), // Cyrillic Х -> X
+    ('\u{0430}', 'a'), // Cyrillic а -> a
+    ('\u{0435}', 'e'), // Cyrillic е -> e
+    ('\u{043e}', 'o'), // Cyrillic о -> o
+    ('\u{0440}', 'p'), // Cyrillic р -> p
+    ('\u{0441}', 'c'), // Cyrillic с -> c
+    ('\u{0443}', 'y'), // Cyrillic у -> y
+    ('\u{0445}', 'x'), // Cyrillic х -> x
+];
+
+/// Folds the table's homoglyphs to their ASCII counterparts. Callers
+/// apply it to the NORMALIZED scan input only — this is matching help,
+/// never a rewrite of the document.
+pub(crate) fn fold_confusables(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            ASCII_CONFUSABLES
+                .iter()
+                .find(|(from, _)| *from == c)
+                .map_or(c, |&(_, to)| to)
+        })
+        .collect()
 }
 
 /// (a) All eight §25 files exist under `docs/` and are non-empty. An
@@ -255,7 +316,7 @@ fn is_word_char(c: char) -> bool {
 /// grammar accepts any casing — `ak-053` names a unit exactly like
 /// `AK-053` — so the line is normalized before scanning.
 fn names_a_unit(line: &str) -> bool {
-    let lowered = line.to_lowercase();
+    let lowered = fold_confusables(&line.to_lowercase());
     let bytes = lowered.as_bytes();
     let mut i = 0;
     while let Some(found) = lowered[i..].find("ak-") {
@@ -296,7 +357,7 @@ pub fn check_status_claim_vocabulary(root: &Path) -> Vec<String> {
             }
         };
         for (index, line) in text.lines().enumerate() {
-            let lowered = line.to_lowercase();
+            let lowered = fold_confusables(&line.to_lowercase());
             if !names_a_unit(&lowered) {
                 continue;
             }
@@ -327,6 +388,26 @@ pub fn check_status_claim_vocabulary(root: &Path) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// COR-B3-2: the fold table is well-formed — every entry folds a
+    /// NON-ASCII char to a DIFFERENT ASCII char, no duplicate sources —
+    /// and it actually folds the falsifier's two executed code points.
+    #[test]
+    fn the_confusable_table_is_ascii_and_deduplicated() {
+        let mut sources = std::collections::BTreeSet::new();
+        for &(from, to) in ASCII_CONFUSABLES {
+            assert!(!from.is_ascii(), "{from:?} is already ASCII");
+            assert!(to.is_ascii(), "{to:?} is not ASCII");
+            assert_ne!(from, to);
+            assert!(sources.insert(from), "{from:?} appears twice");
+        }
+        assert_eq!(fold_confusables("\u{0410}"), "A");
+        assert_eq!(fold_confusables("\u{0435}"), "e");
+        assert_eq!(
+            fold_confusables("plain ASCII is untouched — éü stay"),
+            "plain ASCII is untouched — éü stay"
+        );
+    }
 
     #[test]
     fn word_boundaries_treat_underscores_as_word_characters() {
@@ -428,6 +509,40 @@ mod tests {
             check_status_claim_vocabulary(&tmp).is_empty(),
             "a cased canonical word satisfies the vocabulary leg"
         );
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// COR-B3-2 (falsifier round-2 R2-F5): a Cyrillic homoglyph inside a
+    /// status-like token beside a unit id is a violation exactly like
+    /// its ASCII spelling — the vocabulary leg folds the common
+    /// Cyrillic/Latin look-alikes before matching. \u{0435} is Cyrillic е.
+    #[test]
+    fn a_homoglyph_status_token_beside_a_unit_id_is_a_violation() {
+        let tmp = std::env::temp_dir().join("gauntlet-arch-tests-docs-homoglyph");
+        let docs = tmp.join("docs");
+        for name in DOC_SET {
+            std::fs::create_dir_all(&docs).expect("create tmp docs dir");
+            std::fs::write(docs.join(name), STATUS_SECTION).expect("write doc");
+        }
+        std::fs::write(
+            docs.join("FAILURE-RECOVERY.md"),
+            format!("{STATUS_SECTION}\n- D\u{0435}livered — AK-042: homoglyph claim\n"),
+        )
+        .expect("write doc");
+        let violations = check_status_claim_vocabulary(&tmp);
+        assert!(
+            violations
+                .iter()
+                .any(|v| v.contains("FAILURE-RECOVERY.md") && v.contains("delivered")),
+            "the homoglyph spelling of a status-like token must be a violation: {violations:?}"
+        );
+        // An ASCII-clean canonical line stays clean through the fold.
+        std::fs::write(
+            docs.join("FAILURE-RECOVERY.md"),
+            format!("{STATUS_SECTION}\n- implemented_and_proven — AK-042: plain ASCII\n"),
+        )
+        .expect("write doc");
+        assert!(check_status_claim_vocabulary(&tmp).is_empty());
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

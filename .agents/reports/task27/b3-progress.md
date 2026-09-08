@@ -109,3 +109,21 @@ regenerates conformance.json)
   crates/gauntlet-app/tests/conformance.rs:1267-1269, B1's in-flight
   COR-3 (out of my scope this round); zero violations in my files.
   §COR-B3 in b3-report.md carries the full record.
+
+## COR-B3-2 — DONE 2026-09-08 (falsifier R2-F5: homoglyph laundering)
+
+- Static `ASCII_CONFUSABLES` table (19 Cyrillic/Latin pairs) +
+  `fold_confusables` in docs.rs, applied inside BOTH scanners'
+  matchers only (leg-e line scan, names_a_unit, unit_ids_on, the
+  window scan) — docs bytes never rewritten. RED-first teeth with the
+  falsifier's exact inputs (Cyrillic А in the id; Cyrillic е in the
+  word) observed RED then GREEN; the table pinned by an integrity
+  test.
+- Honest residual recorded in both module scope notes: the table is
+  NOT exhaustive; digit look-alikes (0/O, 1/l) deliberately not
+  folded (1/l would corrupt the AK digit grammar); exotic scripts
+  stay outside the legs; repo-authored prose is a weak threat with
+  human review as the second net.
+- Battery: 17/17 scoped units, docs_present 7/7 on the real tree,
+  fmt/clippy clean, just ruler PASS, frozen artifacts unchanged.
+  §COR-B3-2 in b3-report.md.

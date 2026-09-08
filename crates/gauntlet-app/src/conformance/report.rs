@@ -35,10 +35,17 @@ pub const DISCLOSURES: &[&str] = &[
      parallelism is the honest spelling, the scripts-layer mutation precedent",
     "all cargo invocations run under the repository compile-lock discipline with the \
      lock acquisition bounded and the compiler cache daemon stopped inside the same \
-     locked command; configured parallelism is never raised; the lock layer's own \
-     outcomes (a lock that stayed busy; a wrapper that could not execute its command) \
-     are environmental INCONCLUSIVE — never FAIL — with the wrapper remapping an \
-     inner command's own reserved exit code so the lock-level pair stays unambiguous",
+     locked command (the stop bounded at ten seconds and its exit swallowed — with \
+     no daemon live an unbounded stop stalls minutes while holding the lock); \
+     configured parallelism is never raised; the lock layer's own outcomes — a lock \
+     that stayed busy (86), a wrapper that could not execute its command (69) — are \
+     environmental INCONCLUSIVE, never FAIL; the wrapper remaps the inner command's \
+     OWN 69 and 86 to 169 and 186, and an inner signal death (the shell's 128+n) to \
+     200+signal, so those three bands classify as: inner-remapped 169/186 = FAIL on \
+     the command's own merits, 200+signal = environmental INCONCLUSIVE naming the \
+     signal; a genuine inner exit of 169, 186, or 200..231 is indistinguishable from \
+     the remapped forms — disclosed, with the failure direction intact (still FAIL) \
+     and the band side claiming nothing (still INCONCLUSIVE)",
     "an INCONCLUSIVE unit whose entry carries no status_hint maps to the category unknown",
     "divergence citations marked unrecorded are real frozen-locator divergences whose \
      dated reference-candidates entry is owed (reported in the task-27 B1 report; B3 is \

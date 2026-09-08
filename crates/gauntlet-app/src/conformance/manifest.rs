@@ -279,7 +279,8 @@ impl fmt::Display for ManifestError {
                 line,
             } => write!(
                 f,
-                "line {line}: unit {id} appears again (first seen on line {first_line}) — one                  entry per ruler unit; the first entry must never shadow a later one"
+                "line {line}: unit {id} appears again (first seen on line {first_line}) — one entry per ruler unit; the first entry \
+                 must never shadow a later one"
             ),
             Self::EmptyEntryList => {
                 write!(f, "the manifest carries no entries")
@@ -614,7 +615,13 @@ fn close_entry(
     // file/metric units carry their artifact or an honest none. Kinds
     // outside the matrix refuse outright — widening is a recorded
     // change, not a silent default.
-    let bounded_artifact = built.bounded && matches!(built.evidence, EvidenceArm::Artifact { .. });
+    // The bounded exception is TEST_REPORT only: charter decision 11
+    // names exactly one recorded-artifact instance and its kind is
+    // test_report (COR-4 R2-F4 — a log-kind unit could otherwise PASS
+    // provisional with zero commands on a text artifact).
+    let bounded_artifact = built.kind == "test_report"
+        && built.bounded
+        && matches!(built.evidence, EvidenceArm::Artifact { .. });
     let matrix_ok = match built.kind.as_str() {
         "test_report" | "log" => {
             matches!(built.evidence, EvidenceArm::Execute(_)) || bounded_artifact

@@ -39,6 +39,16 @@
 //!   unit ids). The window keys on the vocabulary WORDS only — verbs
 //!   ("implements", "delivers") and bare status-like tokens never bind
 //!   a claim, so ordinary prose beside an id stays prose.
+//! - **COR-B3-2 (falsifier round-2 R2-F5) — homoglyph laundering.** The
+//!   common Cyrillic/Latin look-alikes (`ASCII_CONFUSABLES` in
+//!   [`crate::docs`]) are folded to ASCII inside the id and vocabulary
+//!   matchers only — the documents' bytes are never rewritten. The
+//!   two executed shapes (Cyrillic А in the id, Cyrillic е in the
+//!   status word) are claims exactly like their ASCII spellings.
+//!   HONEST RESIDUAL: the table is NOT exhaustive — exotic scripts
+//!   and digit look-alikes (0/O, 1/l; the latter would corrupt the AK
+//!   digit grammar) stay outside the legs; repo-authored prose is a
+//!   weak threat with human review as the second net.
 //!
 //! # Scope honesty (deliberate limits)
 //!
@@ -154,7 +164,7 @@ fn is_unit_id(text: &str) -> bool {
 /// and `AK-053` all yield the canonical `AK-053` spelling the
 /// conformance report keys on.
 fn unit_ids_on(line: &str) -> Vec<String> {
-    let lowered = line.to_lowercase();
+    let lowered = crate::docs::fold_confusables(&line.to_lowercase());
     let bytes = lowered.as_bytes();
     let mut ids = Vec::new();
     let mut at = 0;
@@ -474,7 +484,7 @@ fn window_claims(lines: &[&str]) -> Vec<(usize, &'static str, String)> {
         let lo = index.saturating_sub(1);
         let hi = (index + 1).min(lines.len() - 1);
         for neighbor in &lines[lo..=hi] {
-            let lowered = neighbor.to_lowercase();
+            let lowered = crate::docs::fold_confusables(&neighbor.to_lowercase());
             for word in STATUS_WORDS {
                 if crate::docs::contains_word(&lowered, word) {
                     for id in &ids {
@@ -1021,6 +1031,42 @@ mod tests {
                 .iter()
                 .any(|v| v.contains("AK-099") && v.contains("carries no such unit"))
         );
+    }
+
+    /// COR-B3-2 (falsifier round-2 R2-F5): the two EXECUTED homoglyph
+    /// laundering shapes — a Cyrillic А (U+0410) in the unit id and a
+    /// Cyrillic е (U+0435) inside the status word — are claims exactly
+    /// like their ASCII spellings. The inputs are the falsifier's
+    /// verbatim shapes (AK-053 is provisional in the fixture json, so
+    /// an implemented_and_proven claim is ahead of evidence). The
+    /// escape spellings keep this source file byte-ASCII: \u{0410} is
+    /// Cyrillic А, \u{0435} is Cyrillic е.
+    #[test]
+    fn the_two_executed_homoglyph_shapes_are_claims() {
+        let json = write_temp("homoglyph.json", FIXTURE_JSON);
+        let shapes = [
+            (
+                "- implemented_and_proven — \u{0410}K-053: prose\n",
+                "Cyrillic A in the unit id",
+            ),
+            (
+                "- implem\u{0435}nted_and_proven — AK-053: prose\n",
+                "Cyrillic e in the status word",
+            ),
+        ];
+        for (text, label) in shapes {
+            let dir = claims_dir_with_text(text);
+            assert!(
+                check_docs_claims_not_ahead_at(&dir, &json)
+                    .iter()
+                    .any(|v| v.contains("AK-053") && v.contains("ahead of evidence")),
+                "the {label} homoglyph laundering shape must be reported ahead of evidence"
+            );
+        }
+        // ASCII-clean lines stay clean: the fold must not corrupt the
+        // canonical matcher (behind-evidence claim with an ASCII id).
+        let plain = claims_dir_with_text("- implemented_but_provisional — AK-001: prose\n");
+        assert!(check_docs_claims_not_ahead_at(&plain, &json).is_empty());
     }
 
     /// COR-B3 (falsifier F8): the five executed evasion shapes — leading

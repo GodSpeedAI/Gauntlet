@@ -86,6 +86,12 @@ pub struct CommandOutcome {
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
     pub duration_ms: u64,
+    /// Provenance for a code the executor's layer translated (COR-4:
+    /// 169/186 are the wrapper's remaps of an inner 69/86; a direct
+    /// inner exit of those codes is indistinguishable — disclosed).
+    /// Empty when the exit needs no explanation; a FAIL reason carries
+    /// it verbatim.
+    pub exit_note: String,
 }
 
 /// Why the executor could not run a command. Environmental, typed — the
@@ -346,6 +352,7 @@ pub fn run_sweep(
                         stdout: outcome.stdout.clone(),
                         stderr: outcome.stderr.clone(),
                         duration_ms: outcome.duration_ms,
+                        exit_note: outcome.exit_note.clone(),
                     }),
                 }
             }
@@ -420,7 +427,14 @@ pub fn run_sweep(
                     Ok(outcome) => {
                         row.outcome = "FAIL".to_owned();
                         row.evidence_ref = execution.log_path.clone();
-                        row.reason = format!("command exited {}", outcome.exit_code);
+                        row.reason = if outcome.exit_note.is_empty() {
+                            format!("command exited {}", outcome.exit_code)
+                        } else {
+                            format!(
+                                "command exited {} — {}",
+                                outcome.exit_code, outcome.exit_note
+                            )
+                        };
                     }
                     Err(ExecuteError::CannotRun { reason }) => {
                         row.outcome = "INCONCLUSIVE".to_owned();

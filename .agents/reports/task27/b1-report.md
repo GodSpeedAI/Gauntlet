@@ -531,3 +531,123 @@ builder claim. The scoped battery was re-run by the orchestrator.
 - Battery: the orchestrator's full workspace battery over BOTH
   corrections (COR-3 + B3's COR-B3) — results recorded in the
   settlement/ledger records of this task.
+
+## COR-3 (2026-09-07, falsifier round 1 findings F1/F2/F10/F3/F7/F13 —
+each with an executed repro; code verified landed by the orchestrator)
+
+- **F1 (MAJOR, forged PASS)**: duplicate manifest unit ids were
+  ACCEPTED, the first entry silently shadowing later ones (executed:
+  AK-901 twice, passing arm first → PASS with the forged basis, the
+  shadowed entry nowhere). Fix: `ManifestError::DuplicateId { id,
+  first_line, line }` raised at entry-open in `parse_manifest_with` —
+  set equality is now on multisets. RED: `duplicate_manifest_ids_refuse`
+  observed FAILED (`duplicate parses, no refusal`) before the fix.
+- **F2 (MAJOR, evidence-kind laundering)**: a test_report unit could
+  carry an ARTIFACT arm and PASS implemented_and_proven with ZERO
+  commands. Fix: the kind/arm matrix is EXACT — test_report/log ⇒
+  execute, file/metric ⇒ artifact|none, kinds outside the matrix refuse
+  outright — with the ONE exception charter decision 11 defines
+  (bounded recorded artifact; see COR-4 R2-F4 for its final scoping).
+  RED: `the_kind_arm_matrix_is_exact` observed FAILED before the fix.
+- **F10 (MAJOR, false FAIL on environmental kill)**: a signal-killed
+  command was recorded FAIL "command exited -1" (the executor's
+  `code().unwrap_or(-1)` fabricated a code; the falsifier kill -9'd a
+  lock-waiting wrapper). Fix: `code() == None` ⇒ typed CannotRun naming
+  the signal (via `ExitStatusExt`, cfg-scoped); no evidence log is
+  written for a command that never completed, so no log can record a
+  fabricated exit. The unopenable-lock-file class rides the same path
+  (spawn/IO error ⇒ CannotRun). RED: `a_signal_killed_command_is_the_
+  typed_environmental_refusal` observed FAILED with the fabricated
+  `exit_code: -1` in the panic output.
+- **F3 (MINOR, predicate accepts a legend)**: handoff_six_categories
+  held on one line of word salad. Fix: the predicate demands the
+  section grammar — a `## <category>` heading (first token after the
+  marker) for each of the six; suffixes like unit counts stay fine.
+  RED: observed `a word-salad legend refutes, got Ok(Holds)`.
+- **F7+F13 (MINOR, disclosures only)**: added verbatim to `_meta`:
+  the arm-dependent evidence_ref anchoring (execute refs from the
+  report's parent; artifact refs from the workspace root; the committed
+  report is at the default locator where both resolve) and the
+  substring-filter semantics + over-determination direction + the
+  recorded drift risk. No manifest content change (F13 adjudicated
+  disclose-and-record).
+
+## COR-4 (2026-09-07, falsifier round 2 findings R2-F1/F2/F3/F4/F6 —
+each executed against my COR-3-corrected surfaces)
+
+- **R2-F1 (MAJOR, inner-86 misattributed lock-busy)**: the remap was
+  half-built — the wrapper remapped inner-69→169 but never inner-86, so
+  a command failing with its own 86 was recorded INCONCLUSIVE "lock
+  stayed busy" and a single-unit world exited 0. Fix: the wrapper also
+  remaps inner-86→186 (`INNER_EXIT_REMAP_86`); the CLI classifies
+  through a new pure `classify_exit` table (adapter — testable without
+  cargo); 169/186 land as FAIL with the reason naming the remap AND the
+  indistinguishability ("a direct exit of this code is indistinguishable
+  from the remapped form — disclosed"); the lying `{86,69} unambiguous`
+  comment is replaced; the `_meta` disclosure names both remaps. Teeth:
+  adapter behavioral `the_inner_own_exit_86_is_remapped...` (real
+  wrapper, stub exiting 86 → 186), `the_exit_classification_table_holds`
+  (pure table incl. 169/186/200..231/232/199 endpoints).
+- **R2-F2 (MAJOR, inner signal death still FAIL-by-default)**: kill -15
+  → FAIL "exited 143", kill -9 → "exited 137" — the wrapper's sh
+  encoded 128+n and COR-3 covered only a wrapper-level kill. Fix: the
+  wrapper remaps the shell signal band to `200+signal` (200..231,
+  outside every flock code); the CLI classifies 200..231 as the typed
+  CannotRun naming the signal (the realistic OOM victim is the inner
+  process). Band-ambiguity caveat disclosed (a genuine inner exit
+  200..231 is indistinguishable — it lands INCONCLUSIVE, the side that
+  claims nothing). Teeth: `an_inner_signal_death_surfaces_in_the_signal_
+  band` (kill -15 → 215, kill -9 → 209, REAL wrapper) and the
+  pass-through pin `a_genuine_inner_band_exit_passes_through_disclosed`.
+- **R2-F1/F2 correction-of-the-correction (found by MY OWN tooth)**:
+  the r2-specified 128..191 band consumed a genuine inner 169 (executed
+  in my tooth: 169 → 241). Narrowed the band to 129..159 — the standard
+  signals 1..31 are exactly 129..159 — which preserves the remapped
+  169/186 AND remaps every standard signal death; a real-time-signal
+  death (160..192) remains a plain FAIL (disclosed residual, failure
+  direction). The module doc records the executed 169→241 evidence.
+- **R2-F3 (MAJOR, payment)**: the unconditional `sccache --stop-server`
+  stalled ~2m14s per command whenever no daemon was live — lock-held
+  (~100 min/sweep; the falsifier measured 134s floor vs 0.009s bare
+  flock). Fix: `timeout 10 sccache --stop-server >/dev/null 2>&1 ||
+  true` INSIDE the locked command (the daemon-never-holds-the-lock
+  invariant preserved; a >10s stop is killed and its exit swallowed).
+  **Timing before/after (adapter suite, nextest test-phase Summary
+  wall)**: COR-3 era ~269s per the falsifier's measurement of these
+  same wrapper-driven tests → **10.4s** after the fix (the suite grew
+  9→14 tests in between; the per-command floor is gone — the remaining
+  seconds are the held-lock leg's deliberate sleeps). Total command
+  wall times in this session (~140-158s) are compile + contention with
+  the parallel builder's locks, not test time.
+- **R2-F4 (MINOR, dead latitude)**: log × bounded-artifact was ACCEPTED
+  (PASS provisional, zero commands on a text artifact). Fix: the
+  bounded recorded-artifact exception is TEST_REPORT only (charter
+  decision 11 names exactly one instance, AK-070, kind test_report).
+  RED-first: `the_bounded_artifact_exception_is_test_report_only`
+  written against the accepting behavior, observed FAILED, then green.
+  The committed manifest is unaffected (AK-070 is test_report; the
+  tooth re-proves it).
+- **R2-F6 (cosmetic)**: the DuplicateId message's mangled 17-space run
+  fixed; `the_duplicate_id_refusal_is_clean_prose` asserts no doubled
+  spaces and both line loci.
+
+### COR-3 + COR-4 battery (every flock its own top-level command; sccache
+stopped inside; B3's parallel gates contended for the lock — wall times
+include queuing, test-phase Summaries are the honest figures)
+
+- app conformance: **27/27 PASS** (22 + duplicate-id, matrix, handoff
+  grammar, bounded-scope, clean-prose; the COR-3 F1/F2/F3 trio observed
+  behavioral RED pre-fix).
+- adapter: **14/14 PASS** (test-phase 10.4s; the COR-1 behavioral teeth
+  + R2-F1's 86-remap, R2-F2's signal-band legs, the pass-through pin,
+  the classification table, and the bounded-daemon-stop shape pin).
+- cli lib (incl. the F10 signal tooth): **17/17 PASS**; conformance_cli
+  + cli_surface: **13/13 PASS**.
+- arch-tests: **261/261 PASS** (the suite grew with B3's landed work;
+  the earlier combined-run denylist FAIL was a stale-tree transient —
+  green in isolation and in this final full run).
+- `cargo check` + `cargo clippy --all-targets -- -D warnings` over the
+  three touched crates → exit 0; `cargo fmt --check` → exit 0.
+- `./scripts/verify-ruler.sh` (`just ruler`) → **PASS**; the ruler
+  never moved.
+- The real sweep / settlement re-sweep NOT re-run (the orchestrator's).

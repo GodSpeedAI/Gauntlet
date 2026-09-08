@@ -352,6 +352,78 @@ docs_present.rs comment)
   fixture docs through the same public checkers the falsifier drove —
   the equivalent channel without mutating real artifacts.
 
+## COR-B3-2 (2026-09-08, falsifier round-2 finding R2-F5 — homoglyph
+laundering, the adjacent class COR-B3 did not claim)
+
+### What was wrong (the falsifier's executed inputs)
+
+Two shapes produced ZERO violations from BOTH docs claim legs:
+
+- `- implemented_and_proven — АК-053: …` with a Cyrillic А (U+0410)
+  starting the id — `unit_ids_on` scans for the ASCII `ak-` prefix, so
+  the line named no unit and nothing bound;
+- `- implemеnted_and_proven — AK-053: …` with a Cyrillic е (U+0435)
+  inside the status word — the word was neither the canonical byte
+  string nor any STATUS_LIKE_TOKEN, so no vocabulary token matched.
+
+Same class as round-1 F8 (a deterrence gap on authored input, not a
+live lie): R2's regression list re-confirmed the legs clean on the
+real tree.
+
+### What changed (same three files as COR-B3)
+
+- **`ASCII_CONFUSABLES`** (`docs.rs`): a plain static table of the
+  common Cyrillic/Latin homoglyphs (А/А В/В Е/Е К/К М/М Н/Н О/О Р/Р
+  С/С Т/Т У/У Х/Х and the lowercase а е о р с у х — 19 entries) with
+  **`fold_confusables`**, applied INSIDE the id/vocabulary matchers
+  only: docs.rs's leg-e line scan and `names_a_unit`,
+  docs_consistency's `unit_ids_on` and the window scan. The
+  documents' bytes are NEVER rewritten and the canonical emission is
+  never altered — the fold exists only so the matchers see what a
+  reader sees. No dependency; the table is pinned by
+  `the_confusable_table_is_ascii_and_deduplicated` (every source
+  non-ASCII and unique, every target ASCII, both executed code points
+  fold, non-table chars untouched).
+- **Scope notes** in both module headers record the honest residual
+  verbatim: the table is NOT exhaustive — exotic scripts (Greek,
+  fullwidth, mathematical alphanumerics) and the digit look-alikes
+  (0/O, 1/l) stay outside the legs; the 1/l fold was deliberately NOT
+  built (it would corrupt the AK digit grammar — the dispatch's "if
+  trivial" resolved to no), the 0/O class likewise (it would need a
+  digit-position-only fold of no measured value). The residual threat
+  is repo-authored prose — weak, with human review as the second net.
+
+### RED-first record
+
+- Both teeth authored BEFORE the fold existed, with the falsifier's
+  exact shapes: `the_two_executed_homoglyph_shapes_are_claims`
+  (leg (g): both shapes + an ASCII-clean control) and
+  `a_homoglyph_status_token_beside_a_unit_id_is_a_violation` (leg (e):
+  Cyrillic е inside `Delivered` beside AK-042 + an ASCII control) —
+  both **RED** for the executed reason ("the Cyrillic A in the unit id
+  homoglyph laundering shape must be reported", "the homoglyph
+  spelling of a status-like token must be a violation: []"), both
+  **GREEN** after the fold landed.
+
+### COR-B3-2 battery (scoped; discipline as before)
+
+- `cargo nextest run -p gauntlet-arch-tests --lib docs_consistency::
+  docs::tests --no-fail-fast` → **17/17 PASS** (14 prior + 2 homoglyph
+  teeth + the table-integrity pin).
+- `cargo nextest run -p gauntlet-arch-tests --test docs_present
+  --no-fail-fast` → **7/7 PASS** over the real tree (legs still clean
+  — the committed docs carry no homoglyphs).
+- `cargo fmt --check` + `cargo clippy -p gauntlet-arch-tests
+  --all-targets -- -D warnings` → clean (one duplicated-`#[test]`
+  attribute from a botched intermediate edit caught by clippy and
+  fixed).
+- `just ruler` → **PASS**; frozen artifacts re-verified unchanged
+  (handoff.md `b2104e1a…`, conformance.json `aa439901…`).
+- The full `--lib` suite was NOT re-run this round: the two known
+  denylist failures live in B1's in-flight COR-3 file
+  (`crates/gauntlet-app/tests/conformance.rs`), unchanged by me; my
+  scoped targets and the real-tree leg are the honest signal.
+
 ## Known limits / honest residuals
 
 - The committed conformance.json's embedded manifest sha is stale

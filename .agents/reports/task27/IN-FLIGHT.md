@@ -174,3 +174,41 @@ Gate: verbatim in the charter; `just ruler` at every phase boundary.
   denylist --lib 3/3, docs_consistency+docs 14/14 (COR-B3), app
   conformance 25/25 incl. the fixed F2 test. Battery v2 (full,
   consecutive) running.
+- 2026-09-08 FOCUSED FALSIFIER r2 (fresh agent): NOT_CONFIRM — 3
+  MAJOR / 2 MINOR / 1 COSMETIC, each executed (falsifier-round2.md).
+  R2-F1 inner exit-86 misattributed lock-busy INCONCLUSIVE (gate exit
+  0 on a real failure); R2-F2 inner signal kills still FAIL with
+  fabricated 128+n codes (the realistic OOM victim); R2-F3 PAYMENT:
+  unconditional sccache --stop-server = ~2m14s/command with no daemon
+  (~100 min lock-held per sweep; explains the 75-min sweeps and the
+  269s adapter tests); R2-F4 log+artifact+bounded wider than the
+  correction's contract; R2-F5 Cyrillic homoglyphs evade both docs
+  legs; R2-F6 mangled whitespace in DuplicateId msg. HELD: F1
+  byte-equal/padded/execute-artifact twins; F2 unbounded laundering;
+  F10 direct kills; F3 grammar variants; F8 all ten shapes; no
+  PASS-without-evidence path; committed-report staleness matches the
+  recorded lifecycle (settlement re-sweep owed). ADJUDICATION: COR-4
+  dispatched to B1 (inner-86->186 remap; 128+n -> 200+signal band
+  remap -> CannotRun naming the signal; timeout-10 bounded sccache
+  stop; bounded-artifact restricted to test_report; message fix;
+  disclosure/comment corrections); COR-B3-2 dispatched to B3 (static
+  ASCII-confusable fold + the two executed homoglyph teeth + honest
+  residual). Focused r3 to follow on the reserved-code scheme.
+- 2026-09-08 COR-B3-2 + COR-4 LANDED. COR-B3-2: static 19-pair
+  ASCII confusable fold inside the matchers only; both executed
+  homoglyph shapes RED-first then GREEN; table-pinning test; honest
+  residual (exotic scripts + digit look-alikes outside the legs;
+  1/l unfolded deliberately to protect the AK grammar).
+  COR-4: inner-86->186 remap + classify_exit table; signal band
+  remap 200+signal -> CannotRun naming it (teeth through the REAL
+  wrapper: kill -15 -> 215, kill -9 -> 209); CORRECTION-OF-THE-
+  CORRECTION executed by B1's own pass-through tooth — the r2-
+  demanded 128..191 band consumed a genuine inner 169 (observed
+  169->241), narrowed to 129..159 (standard signals exactly);
+  RT-signal death 160..192 stays FAIL (disclosed); timeout-10
+  sccache stop (adapter test-phase 269s -> 10.4s; per-command floor
+  eliminated); bounded-artifact restricted to test_report (RED-
+  first); R2-F6 string fix. Reserved set now {86,69} lock-level /
+  {169,186} inner-remapped / {200..231} inner-signalled, all
+  ambiguities disclosed. Scoped batteries green. FULL closure-grade
+  battery running in the orchestrator's hands.

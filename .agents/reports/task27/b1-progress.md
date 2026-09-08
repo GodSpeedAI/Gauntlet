@@ -157,3 +157,22 @@ orchestrator's phase-gate action.
   Battery: app 22/22, adapter 10/10, cli 13/13, arch 245/245,
   check/clippy/fmt 0, ruler PASS. Real sweep NOT re-run. Nothing
   mid-flight.
+
+- 2026-09-07 COR-3 (falsifier r1 F1/F2/F10/F3/F7/F13): duplicate-id
+  refusal (multiset equality), exact kind/arm matrix, signal-kill ⇒
+  CannotRun naming the signal (ExitStatusExt, no fabricated -1, no log
+  for an incomplete command), handoff predicate demands ## headings,
+  F7/F13 disclosures. All four behavioral REDs observed pre-fix
+  (incl. the fabricated exit_code: -1 in the F10 panic).
+- 2026-09-07 COR-4 (falsifier r2 R2-F1/F2/F3/F4/F6): inner-86 remap →
+  186 (half-built remap fixed; classify_exit pure table; FAIL reasons
+  name the remap + indistinguishability); inner signal band 129..159 →
+  200+signal (NOT the r2-specified 128..191 — my own pass-through tooth
+  EXECUTED 169→241 under the wider band, so it was narrowed to the
+  standard signals 1..31; RT-signal residual disclosed, stays FAIL);
+  daemon stop bounded `timeout 10 ... || true` inside the lock
+  (adapter test-phase 269s → 10.4s); bounded-artifact exception
+  test_report-only (RED-first); F6 mangled string fixed.
+- Final battery: app 27/27, adapter 14/14 (10.4s test-phase), cli lib
+  17/17, cli suites 13/13, arch 261/261, check/clippy/fmt 0, ruler
+  PASS. Real sweep NOT re-run. Nothing mid-flight.
