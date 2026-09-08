@@ -54,18 +54,33 @@ Phase-2 precondition: updated COMMITTED conformance.json (dated
 `reference-candidates 2026-09-07` divergence citations, AK-067 still
 INCONCLUSIVE until handoff.md lands).
 
-## Phase 2 — pending
+## Phase 2 — DONE 2026-09-07/08 (under the orchestrator's sequencing
+adjustment: intermediate re-sweep skipped; settlement re-sweep
+regenerates conformance.json)
 
-- e. `.agents/reports/handoff.md` (six §26 categories from
-  conformance.json's `status_category`; INCONCLUSIVE units + reasons;
-  per-category counts; UNK-002/UNK-003 terminal dispositions in the
-  unknown section; disclosures: no durable run to export, four bounded
-  units' bases quoted, mutation-record basis). Must satisfy
-  `predicates.rs handoff_six_categories` exactly.
-- f. consistency test (handoff↔conformance set+count equality with
-  RED tooth via fixture; docs claim-line cross-check with env-var
-  override to fixture json; then MECHANICAL upgrade of behind-evidence
-  doc claim lines).
-- g. execute scripts/pin-evidence-bundle.sh for real.
-- h. docs/HANDOFF.md placeholder counts → canonical pointer.
-- i. battery + b3-report.md.
+- e. `.agents/reports/handoff.md` LANDED (sha256 `b2104e1a…`): six
+  category sections 65/4/0/1/0/0, every unit once, AK-067 in proposed
+  with its verbatim `no_artifact` reason, UNK-002/UNK-003 terminal
+  dispositions in the unknown section, disclosures (no-durable-run
+  verified by execution; four bounded bases quoted verbatim;
+  mutation-record basis; divergence census). The six-category
+  predicate holds — proven by execution (the CLI tooth adjudicates
+  AK-067 PASS now).
+- f. `crates/gauntlet-arch-tests/src/docs_consistency.rs` (new, 8 unit
+  tests) + legs (f)/(g) in `tests/contract/docs_present.rs` + one
+  lib.rs mod line. RED-first: leg (f) observed RED (handoff unreadable)
+  before the artifact landed, then 7/7 GREEN; tooth A (T4 row-move via
+  GAUNTLET_HANDOFF_FIXTURE) RED with 4 violations; tooth B (AK-062
+  json downgrade via GAUNTLET_CONFORMANCE_JSON_FIXTURE) RED naming the
+  ahead line. Real-artifact digests unchanged across both teeth. 27
+  doc claim lines upgraded mechanically (6 stay: the bounded four).
+- g. pin EXECUTED: 50 files pinned, `--check` verified.
+- h. docs/HANDOFF.md: pointer form kept (dispatch-allowed), stale
+  prose fixed, AK-068 line upgraded.
+- i. Battery: arch-tests **255/255**, conformance_cli **9/9** (after
+  two disclosed updates in B1's file forced by the handoff landing),
+  cli_surface **4/4**, fmt+clippy clean on both touched crates, pin
+  verified, `just ruler` PASS.
+- Completion contract: `.agents/reports/task27/b3-report.md` (includes
+  the anticipated settlement-correction playbook and the deviations
+  list).

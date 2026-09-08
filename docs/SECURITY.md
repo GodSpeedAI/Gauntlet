@@ -82,27 +82,27 @@ violation aborts the run and preserves everything.
 Status categories are spec §26's six; unit-level claims defer to
 `.agents/reports/conformance.json`.
 
-- implemented_but_provisional — AK-022: the frozen reference is stored in
+- implemented_and_proven — AK-022: the frozen reference is stored in
   the evidence store outside every builder-writable path
   (`crates/gauntlet-cli/tests/p1_reference_integrity.rs`, task 7; composed
   thereafter in every settlement path).
-- implemented_but_provisional — AK-023: a builder attempt to modify the
+- implemented_and_proven — AK-023: a builder attempt to modify the
   active reference aborts the run with `reference_mutated` (same proof,
   both digest implementations agreeing; the mock runner carries the
   reference-mutation scenario fixture).
-- implemented_but_provisional — AK-043: the runtime is the sole writer of
+- implemented_and_proven — AK-043: the runtime is the sole writer of
   Unit status and evidence fields — the g10 proof plus the arch-level
   answer-key single-writer scan
   (`crates/gauntlet-cli/tests/g10_builder_writes_answer_key.rs`;
   `architecture_boundaries::answer_key_single_writer`).
-- implemented_but_provisional — AK-044: an `irreversible` unit is never an
+- implemented_and_proven — AK-044: an `irreversible` unit is never an
   automatic dispatch candidate at the scheduler (p5; re-evidenced through
   the real binary at task 25 — the unit stands in the escalation queue with
   a durable ticket and no dispatch).
-- implemented_but_provisional — AK-047: sandbox policy validation precedes
+- implemented_and_proven — AK-047: sandbox policy validation precedes
   execution and a validation failure escalates without falling back to
   unsandboxed execution (p5 + the real-runner E2E governance leg).
-- implemented_but_provisional — AK-048: containment wraps the builder
+- implemented_and_proven — AK-048: containment wraps the builder
   session from process start — the typed `CommandContainment` seam in the
   CLI adapter, wrap between admission and process start on every
   policy-carrying dispatch, with the child's own inside-sandbox confinement

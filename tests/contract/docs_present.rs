@@ -7,11 +7,18 @@
 //! checking logic lives in the crate (`gauntlet_arch_tests::docs`); this
 //! file is the address.
 //!
-//! Scope (task-27 charter slice B2): structure only — presence, the
-//! status section in each file, handoff pointer integrity, CONFORMANCE.md's
-//! binding content, and the six-word §26 status vocabulary on unit-level
-//! claims. The conformance.json cross-check leg is deliberately NOT here;
-//! it belongs to the wave-2 consistency test (charter slice B3).
+//! Scope (task-27 charter slices B2 + B3): legs (a)–(e) are B2's
+//! structure checks — presence, the status section in each file, handoff
+//! pointer integrity, CONFORMANCE.md's binding content, and the six-word
+//! §26 status vocabulary on unit-level claims. Legs (f)–(g) are B3's
+//! wave-2 consistency checks: the canonical handoff's category sections
+//! equal conformance.json's grouping (counts included), and no doc claim
+//! line runs ahead of the conformance report. The consistency logic
+//! lives in `gauntlet_arch_tests::docs_consistency`; both its legs read
+//! the committed locator by default and honor the fixture env overrides
+//! (`GAUNTLET_CONFORMANCE_JSON_FIXTURE`, `GAUNTLET_HANDOFF_FIXTURE`)
+//! documented there, which is how the RED teeth run against tampered
+//! COPIES of the real artifacts without mutating them.
 
 use gauntlet_arch_tests as arch;
 
@@ -81,5 +88,35 @@ fn status_claims_use_canonical_vocabulary() {
         violations.is_empty(),
         "{}",
         arch::summarize("status-vocabulary", &violations)
+    );
+}
+
+/// AK-068 leg (f) — wave-2 (B3): the canonical handoff's six §26
+/// sections group EXACTLY the units `.agents/reports/conformance.json`
+/// groups, counts included, every unit exactly once. Charter tooth T4:
+/// moving a unit between sections in the handoff makes this RED.
+#[test]
+fn handoff_matches_conformance_grouping() {
+    let violations = arch::docs_consistency::check_handoff_matches_conformance(&arch::repo_root());
+    assert!(
+        violations.is_empty(),
+        "{}",
+        arch::summarize("handoff-consistency", &violations)
+    );
+}
+
+/// AK-068 leg (g) — wave-2 (B3): every `- <status_word> — AK-NNN:`
+/// claim line in the eight docs stays at or behind the conformance
+/// report's adjudication — `implemented_and_proven` only where the json
+/// says proven, `implemented_but_provisional` where it says proven or
+/// provisional, the other four categories only on exact agreement.
+#[test]
+fn docs_status_claims_never_ahead_of_conformance() {
+    let violations =
+        arch::docs_consistency::check_docs_claims_not_ahead_of_conformance(&arch::repo_root());
+    assert!(
+        violations.is_empty(),
+        "{}",
+        arch::summarize("docs-claims", &violations)
     );
 }

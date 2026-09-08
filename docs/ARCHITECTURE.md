@@ -112,17 +112,17 @@ authoritative per-unit status is whatever
 `.agents/reports/conformance.json` records when the task-27 sweep runs, and
 this section defers to it.
 
-- implemented_but_provisional — AK-001: the domain crate has zero
+- implemented_and_proven — AK-001: the domain crate has zero
   compile-time dependencies on ports, adapters, or infrastructure;
   enforced by `tests/contract/architecture_boundaries`, green in every
   closure battery through task 26.
-- implemented_but_provisional — AK-002: application source depends on port
+- implemented_and_proven — AK-002: application source depends on port
   abstractions only and no adapter identifier appears in domain or
   application code (dependency-direction + denylist checks, same target).
-- implemented_but_provisional — AK-014: adapter selection resolves from
+- implemented_and_proven — AK-014: adapter selection resolves from
   configuration only (`tests/contract/adapter_registry`; the doctor
   measures the configured runners rather than declaring them).
-- implemented_but_provisional — AK-013: the full shared port-contract
+- implemented_and_proven — AK-013: the full shared port-contract
   suite runs against two `AgentRunner` adapters — mock and generic-CLI —
   with zero test-body changes
   (`crates/gauntlet-cli/tests/p8_adapter_substitution.rs`, task 16; the

@@ -202,10 +202,10 @@ status word is the working ledger's claim ("55 units provisional through
 Task 26", CURRENT_STATUS observations); the sweep's conformance.json is
 authoritative and this section defers to it.
 
-- implemented_but_provisional — AK-005: `Outcome` stays three-state end to
+- implemented_and_proven — AK-005: `Outcome` stays three-state end to
   end and missing evidence never satisfies a settlement requirement
   (`crates/gauntlet-cli/tests/p12_missing_is_not_passing.rs`, task 11).
-- implemented_but_provisional — AK-058: each of the sixteen §23.2 gaming
+- implemented_and_proven — AK-058: each of the sixteen §23.2 gaming
   strategies has a test that goes RED when its defense is removed
   (`crates/gauntlet-cli/tests/antigaming.rs` + the task-24 mutation run:
   73 examined / 63 caught / 10 unviable / 0 missed; G9's defense is the

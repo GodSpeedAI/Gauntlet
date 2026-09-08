@@ -111,20 +111,20 @@ pattern (tasks 20, 25, 26).
 Status categories are spec §26's six; unit-level claims defer to
 `.agents/reports/conformance.json`.
 
-- implemented_but_provisional — AK-015: the four-layer precedence merge and
+- implemented_and_proven — AK-015: the four-layer precedence merge and
   the run config fingerprint live in `crates/gauntlet-app/src/config/`
   (resolve, canonical, fingerprint, env-layer, GAUNTLET.md decoder), with
   unit tests at each layer (task 5).
-- implemented_but_provisional — AK-016: no path, model, provider, command,
+- implemented_and_proven — AK-016: no path, model, provider, command,
   timeout, or tier-policy literal outside the declared defaults table —
   `tests/contract/no_hardcoded_literals`; the application layer's literal
   inventory went from 290 sites to zero at task 26 COR-3 with 26 inventoried
   write sites carrying reason and guard.
-- implemented_but_provisional — AK-017: `gauntlet doctor` performs the §8.5
+- implemented_and_proven — AK-017: `gauntlet doctor` performs the §8.5
   checks and exits non-zero on required failure
   (`crates/gauntlet-app/src/doctor/`, `crates/gauntlet-cli/src/doctor_cmd.rs`;
   the AK-049 locator divergence is the recorded 2026-08-17
   reference-candidates entry).
-- implemented_but_provisional — AK-019: `.env.example` lists every
+- implemented_and_proven — AK-019: `.env.example` lists every
   recognized `GAUNTLET_` variable with empty values and no credentials
   (`tests/contract/env_example_complete`).

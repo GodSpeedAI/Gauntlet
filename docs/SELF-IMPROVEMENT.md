@@ -87,16 +87,16 @@ recorded-artifact posture for it.
 Status categories are spec §26's six; unit-level claims defer to
 `.agents/reports/conformance.json`.
 
-- implemented_but_provisional — AK-055: one successful run leaves a
+- implemented_and_proven — AK-055: one successful run leaves a
   capability Observed and never promotes; the promotion road is the full
   §19.2 conjunction over the real composed ledger
   (`crates/gauntlet-cli/tests/p10_no_false_learning.rs`, task 22).
-- implemented_but_provisional — AK-056: an optimizer proposal that
+- implemented_and_proven — AK-056: an optimizer proposal that
   improves a metric by weakening verification fails promotion — executed
   over the real composed loop with the refusal reason itself as the tooth
   (`crates/gauntlet-cli/tests/p9_self_improvement_containment.rs`,
   task 23).
-- implemented_but_provisional — AK-057: the optimizer cannot modify the
+- implemented_and_proven — AK-057: the optimizer cannot modify the
   active loop; its only output is a candidate revision requiring isolated
   evaluation, held-out comparison, and valid rollback
   (`gauntlet_app::promote`, the `promotion::candidate_only` behavioral

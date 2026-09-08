@@ -81,16 +81,16 @@ Logs are structured `key=value` with `run_id`, `iteration_no`,
 Status categories are spec §26's six; unit-level claims defer to
 `.agents/reports/conformance.json`.
 
-- implemented_but_provisional — AK-060: the CLI carries the full §20.1
+- implemented_and_proven — AK-060: the CLI carries the full §20.1
   surface — the cli_surface suite executes every verb through the real
   binary against the golden help snapshot (task 20; the frozen-locator
   divergence is the recorded 2026-08-31 reference-candidates entry).
-- implemented_but_provisional — AK-061: the core builds and runs a full
+- implemented_and_proven — AK-061: the core builds and runs a full
   loop with operator surfaces limited to the CLI — the mock E2E completes
   end to end and the `surfaces` feature build stays byte-identical
   CLI-only by default (tasks 20–21; the frozen locator is the recorded
   `build/cli-only-profile` divergence).
-- implemented_but_provisional — AK-062: operator resolve and retry actions
+- implemented_and_proven — AK-062: operator resolve and retry actions
   perform the same atomic commit sequence as automatic settlement and
   cannot settle a unit lacking PASS evidence — refusal parity executed
   byte-identical across the CLI and API surfaces, the positive

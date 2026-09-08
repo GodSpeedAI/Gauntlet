@@ -132,6 +132,7 @@ pub mod delegation;
 pub mod denylist;
 pub mod deps;
 pub mod docs;
+pub mod docs_consistency;
 pub mod envfile;
 pub mod escapes;
 pub mod literals;

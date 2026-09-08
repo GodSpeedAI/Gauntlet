@@ -79,21 +79,21 @@ the reserve intact — through the real binary in the task-25 E2E.
 Status categories are spec §26's six; unit-level claims defer to
 `.agents/reports/conformance.json`.
 
-- implemented_but_provisional — AK-041: the atomic commit sequence appends
+- implemented_and_proven — AK-041: the atomic commit sequence appends
   the durable event before any status write and before any in-memory
   advance (`crates/gauntlet-cli/tests/p7_recovery.rs`, task 13).
-- implemented_but_provisional — AK-042: killing the process mid-settlement
+- implemented_and_proven — AK-042: killing the process mid-settlement
   and resuming settles exactly once — no double commit, no lost evidence
   (p7; the real-binary recovery legs at task 25: SIGKILL at observed
   durable boundaries, exactly-once resume).
-- implemented_but_provisional — AK-051: a non-converging task terminates
+- implemented_and_proven — AK-051: a non-converging task terminates
   at the declared budget limit with the recovery reserve unspent
   (`p6_budget_control.rs` + `e2e_budget.rs` through the real binary).
 - implemented_but_provisional — AK-053: every iteration boundary writes a
   durable checkpoint sufficient to resume without conversational context
   (`crates/gauntlet-app/src/state/`, the state-store contract suite, and
   the composed resume path; task 6, composed at task 20).
-- implemented_but_provisional — AK-054: run records export
+- implemented_and_proven — AK-054: run records export
   deterministically to JSONL — exporting the same run twice is
   byte-identical (`crates/gauntlet-app/src/state/` export service;
   `crates/gauntlet-cli/tests/export_stack.rs`).

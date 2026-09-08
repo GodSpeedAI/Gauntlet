@@ -67,3 +67,34 @@ Gate: verbatim in the charter; `just ruler` at every phase boundary.
   validated against the workspace's feature edges; AK-062 entry; sweep
   the manifest for other gated targets). Evidence:
   conformance-evidence/20260907T200600Z/.
+- 2026-09-07 COR-2 landed (features dimension {composition,surfaces}
+  discovered from the workspace [features] tables, pinned by a test;
+  AK-062 entry carries features:[surfaces]; cli_surface.rs verified
+  inner-cfg-only). SWEEP-3 (orchestrator, ~75 min): 70 units = 69
+  PASS (65 proven + 4 provisional) / 1 INCONCLUSIVE (AK-067
+  no_artifact — wave 2) / 0 FAIL, exit 0; AK-062 PASS through the
+  surfaces config. WAVE-1 MILESTONE COMMITTED ad9c64f (174 files;
+  evidence dirs + reports included; CURRENT_STATUS/TUI/.jolli
+  excluded); ruler PASS post-commit.
+- 2026-09-07 B3 (wave 2) DISPATCHED two-phase: phase 1 =
+  reference-candidates dated entries for the 17 unrecorded divergences
+  + manifest divergence re-pin + pin-evidence-bundle.sh (+--check);
+  then orchestrator re-sweep (dated citations land in the json,
+  AK-067 still INCONCLUSIVE); phase 2 = handoff.md at the frozen
+  AK-067 locator (six categories, every INCONCLUSIVE named, UNK-002/
+  003 terminal dispositions, no-repo-run export disclosure, bounded
+  bases quoted) + handoff↔conformance consistency test + docs
+  status-claim cross-check with mechanical upgrades of behind-evidence
+  lines + the executed bundle pin + docs/HANDOFF.md counts.
+- 2026-09-07 B3 PHASE-1 LANDED + COMMITTED: reference-candidates
+  2026-09-07 batch entry (8 sub-entries, all 17 unrecorded units, no
+  prior-entry collisions verified); manifest divergence re-pin 17+/17-
+  (CLI manifest tooth re-proven); scripts/pin-evidence-bundle.sh
+  (fixture-tested, refused honestly on the real tree pre-handoff).
+  Orchestrator decision: SKIP the intermediate re-sweep (75 min to
+  change citations handoff.md doesn't carry); committed json's
+  manifest-sha goes stale in the window — honest evidence-of-the-moment,
+  resolves at the settlement sweep. B3 phase 2 released against the
+  committed json (AK-067 in the proposed section for now); anticipated
+  post-settlement-sweep correction: AK-067's handoff row move + count
+  bump (~5 lines).

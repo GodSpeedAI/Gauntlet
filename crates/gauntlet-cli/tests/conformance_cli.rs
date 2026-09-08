@@ -855,8 +855,11 @@ fn a_failing_command_exits_non_zero_with_an_honest_report() {
 }
 
 /// An absent artifact is INCONCLUSIVE and the sweep still exits 0 (the
-/// redesign trigger's honest-reporting posture) — the interim state the
-/// real AK-067 carries until wave 2 lands its artifact.
+/// redesign trigger's honest-reporting posture). Wave-2 note (task-27
+/// B3): the REAL `.agents/reports/handoff.md` now exists and satisfies
+/// its predicate, so this tooth points the fixture's artifact arm at a
+/// path guaranteed absent under the repo root — the no_artifact
+/// semantics stay pinned independently of the real tree's state.
 #[test]
 fn an_absent_artifact_is_inconclusive_and_the_sweep_exits_zero() {
     let world = scratch("absent");
@@ -867,7 +870,11 @@ fn an_absent_artifact_is_inconclusive_and_the_sweep_exits_zero() {
         fixture_manifest(&|entry: &mut FixtureEntry| {
             if entry.id == "AK-067" {
                 entry.evidence = Evidence::Artifact {
-                    path: seg(&[".agents", "reports", "handoff.md"]),
+                    path: seg(&[
+                        ".agents",
+                        "reports",
+                        "fixture-artifact-that-never-exists.md",
+                    ]),
                     predicate: "handoff_six_categories".to_owned(),
                 };
             }
@@ -959,15 +966,19 @@ fn the_committed_manifest_agrees_with_the_frozen_ruler() {
     }
     // Every executed arm is honestly INCONCLUSIVE (cannot_run) under the
     // never-run executor; the recorded artifacts adjudicate for real.
+    // Wave-2 note (task-27 B3): `.agents/reports/handoff.md` now EXISTS
+    // and satisfies `handoff_six_categories`, so AK-067 adjudicates PASS
+    // here alongside the two recorded artifacts (pre-wave-2 this was
+    // 2 PASS / 68 INCONCLUSIVE with AK-067 `no_artifact`).
     assert_eq!(
         outcome.fail, 0,
         "nothing fails under a validation-only sweep"
     );
     assert_eq!(
-        outcome.inconclusive, 68,
-        "the sixty-eight execute arms cannot run; the two recorded artifacts judge for real"
+        outcome.inconclusive, 67,
+        "the sixty-seven execute arms cannot run; the three artifact arms judge for real"
     );
-    assert_eq!(outcome.pass, 2);
+    assert_eq!(outcome.pass, 3);
     // COR-2: the committed manifest's feature edge is inside the
     // composition root's feature vocabulary (the parse above proved it
     // by not refusing; pin the const so drift is loud).

@@ -5,7 +5,8 @@ frozen locator the ruler's AK-067 names. That report is the single source
 of per-unit truth, together with the conformance sweep output at
 `.agents/reports/conformance.json`. This file is a pointer, never a second
 handoff: category counts, unit lists, and every `INCONCLUSIVE` unit with
-its reason live there, not here.
+its reason live there, not here. The table below deliberately names no
+counts — the canonical file carries them.
 
 ## The six status categories (spec §26)
 
@@ -45,14 +46,17 @@ which — the operator's call).
 ## Proven vs provisional
 
 Status categories are spec §26's six; unit-level claims defer to
-`.agents/reports/conformance.json`. The canonical report named above is
-this same task's wave-2 deliverable; until it exists, nothing here claims
-anything on its behalf.
+`.agents/reports/conformance.json`. The canonical report named above
+exists (task-27 wave 2) and is kept equal to the sweep's grouping by
+the consistency leg of `tests/contract/docs_present`.
 
-- implemented_but_provisional — AK-068: the eight-file §25 documentation
+- implemented_and_proven — AK-068: the eight-file §25 documentation
   set exists and `tests/contract/docs_present` enforces its structure —
   all eight files present and non-empty, the status section required in
   each, the canonical handoff locator named here, the binding
-  CONFORMANCE.md content, and the six-word status vocabulary on every
-  unit-level claim (this task's B2 slice; RED-first teeth recorded in
-  `.agents/reports/task27/b2-report.md`).
+  CONFORMANCE.md content, the six-word status vocabulary on every
+  unit-level claim, the canonical handoff's category grouping equal to
+  conformance.json (counts included), and no claim line ahead of the
+  conformance report (B2 structure legs + B3 consistency legs;
+  RED-first teeth recorded in `.agents/reports/task27/b2-report.md`
+  and `.agents/reports/task27/b3-report.md`).
