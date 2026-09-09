@@ -1,0 +1,1 @@
+{"first_divergence":null,"limitations":["tamper-evident, not tamper-proof: anyone with write access can rewrite the whole chain (CEP-0008 §55)"],"ok":true,"omissions":[],"sxr_output_version":"1","unknowns":[],"verified_count":13}

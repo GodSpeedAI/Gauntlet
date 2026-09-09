@@ -1,0 +1,350 @@
+{
+  "cep_envelope": {
+    "boundary_record": {
+      "compression_notes": [],
+      "excluded_sections": [],
+      "included_sections": [
+        "representations",
+        "references",
+        "provenance"
+      ],
+      "known_omissions": [
+        "source_comments",
+        "source_formatting",
+        "source_line_positions"
+      ],
+      "limitations": [],
+      "out_of_scope_entities": [],
+      "redactions": [],
+      "scope": "logistics-relations.sea",
+      "unknowns": []
+    },
+    "cep_version": "0.1.0",
+    "completeness_status": "complete_for_declared_state",
+    "created_at": "2026-09-09T18:09:21.645503Z",
+    "created_by": "domainforge 0.16.0",
+    "envelope_id": "01a0875c-32ed-78c2-a922-b4aac9ef6086",
+    "envelope_kind": "semantic_snapshot",
+    "envelope_version": "1.0.0",
+    "lineage_refs": [],
+    "omission_status": "known_omissions_recorded",
+    "provenance": [
+      {
+        "created_at": "2026-09-09T18:09:21.645503Z",
+        "producer_refs": [
+          "domainforge 0.16.0"
+        ],
+        "production_method": "domainforge envelope --emit cep",
+        "provenance_id": "provenance:01a0875c-32ed-78c2-a922-b4aac9ef6086",
+        "review_status": "unreviewed",
+        "source_system_refs": [
+          "source-set:sha256:b52a0614e061a0ca572c07b6d72c5da9c5c8fc1e5f8000401670177138ac578b"
+        ],
+        "verification_status": "unverified"
+      }
+    ],
+    "provenance_refs": [
+      "source-set:sha256:b52a0614e061a0ca572c07b6d72c5da9c5c8fc1e5f8000401670177138ac578b"
+    ],
+    "references": [
+      {
+        "availability_status": "available",
+        "integrity_status": "verifiable",
+        "ref_id": "source-set:b52a0614e061a0ca572c07b6d72c5da9c5c8fc1e5f8000401670177138ac578b",
+        "ref_type": "source_set",
+        "scope": "logistics-relations.sea",
+        "target_hash": "sha256:b52a0614e061a0ca572c07b6d72c5da9c5c8fc1e5f8000401670177138ac578b",
+        "target_uri_or_id": "logistics-relations.sea"
+      }
+    ],
+    "representations": [
+      {
+        "content_availability": "available",
+        "content_hash": "sha256:df55cf1621b97c16206ea5074e04d0dae817b93c4c7493c34b4667f497be35d6",
+        "inline_content": "{\"envelope\":{\"application_contract\":{\"entities\":[],\"enums\":[],\"operations\":[],\"records\":[]},\"canonicalization_version\":\"domainforge-canonicalization/v1\",\"compiler_interpretation_version\":\"domainforge-interpretation/v1\",\"import_graph\":[],\"language_schema_version\":\"domainforge-ast/v3\",\"modules\":[{\"logical_id\":\"logistics-relations.sea\",\"namespace\":\"logistics\",\"semantic_content_hash\":\"sha256:bfdef511086bbac590cbdfd152125e547a5392653fceb6f5da22bcc1cd58b991\"}],\"namespace_bindings\":[{\"logical_id\":\"logistics-relations.sea\",\"namespace\":\"logistics\"}],\"resolved_references\":[],\"semantic_declarations\":[{\"declaration\":{\"data\":{\"annotations\":{},\"domain\":\"logistics\",\"name\":\"Supplier\"},\"kind\":\"entity\"},\"id\":{\"data\":{\"id\":\"0dbb11c7-81d0-53a6-b9be-b11f3b4d6679\"},\"kind\":\"concept\"},\"logical_module_id\":\"logistics-relations.sea\"},{\"declaration\":{\"data\":{\"annotations\":{},\"domain\":\"logistics\",\"name\":\"MaterialLot\"},\"kind\":\"entity\"},\"id\":{\"data\":{\"id\":\"4544479d-add8-59cd-b989-bc505dd3676b\"},\"kind\":\"concept\"},\"logical_module_id\":\"logistics-relations.sea\"},{\"declaration\":{\"data\":{\"annotations\":{},\"domain\":\"logistics\",\"name\":\"Goods\"},\"kind\":\"resource\"},\"id\":{\"data\":{\"id\":\"f5814ca5-2184-52bc-acc4-45e2bddc78d8\"},\"kind\":\"concept\"},\"logical_module_id\":\"logistics-relations.sea\"},{\"declaration\":{\"data\":{\"annotations\":{},\"from_entity\":{\"data\":{\"id\":{\"data\":{\"id\":\"0dbb11c7-81d0-53a6-b9be-b11f3b4d6679\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"quantity\":\"1\",\"resource\":{\"data\":{\"id\":{\"data\":{\"id\":\"ff768ad5-8932-517f-a7ae-671cfb18d6b8\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"to_entity\":{\"data\":{\"id\":{\"data\":{\"id\":\"4544479d-add8-59cd-b989-bc505dd3676b\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"}},\"kind\":\"flow\"},\"id\":{\"data\":{\"content_hash\":\"sha256:5316de9690aa7135bf786302f1a4d34ea8dde532d575e3940da49913f6d5268c\",\"duplicate_index\":0,\"kind\":\"flow\"},\"kind\":\"occurrence\"},\"logical_module_id\":\"logistics-relations.sea\"},{\"declaration\":{\"data\":{\"domain\":\"logistics\",\"name\":\"material_lot\"},\"kind\":\"role\"},\"id\":{\"data\":{\"id\":\"89136ce9-2418-59ff-a587-a6801680d109\"},\"kind\":\"concept\"},\"logical_module_id\":\"logistics-relations.sea\"},{\"declaration\":{\"data\":{\"domain\":\"logistics\",\"name\":\"supplier\"},\"kind\":\"role\"},\"id\":{\"data\":{\"id\":\"a31d3c70-a715-52ca-bacf-324016a4842b\"},\"kind\":\"concept\"},\"logical_module_id\":\"logistics-relations.sea\"},{\"declaration\":{\"data\":{\"name\":\"SupplierSuppliesMaterial\",\"object_role\":{\"data\":{\"id\":{\"data\":{\"id\":\"89136ce9-2418-59ff-a587-a6801680d109\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"predicate\":\"supplies\",\"subject_role\":{\"data\":{\"id\":{\"data\":{\"id\":\"a31d3c70-a715-52ca-bacf-324016a4842b\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"via_flow\":{\"data\":{\"id\":{\"data\":{\"id\":\"f5814ca5-2184-52bc-acc4-45e2bddc78d8\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"}},\"kind\":\"relation\"},\"id\":{\"data\":{\"id\":\"bfa3e79b-28b8-5161-8d23-93807f00ae44\"},\"kind\":\"concept\"},\"logical_module_id\":\"logistics-relations.sea\"}],\"semantic_packs\":[]},\"inputs\":{\"interpretation_version\":\"domainforge-interpretation/v1\",\"language_schema_version\":\"domainforge-ast/v3\",\"semantic_pack_set_hash\":\"sha256:6e5312099a8d89e1d271bd89d9fcb36b031069bd8dad72be397af6b331d85c40\",\"source_set_hash\":\"sha256:b52a0614e061a0ca572c07b6d72c5da9c5c8fc1e5f8000401670177138ac578b\"},\"producer\":{\"name\":\"domainforge-core\",\"version\":\"0.16.0\"},\"schema_version\":\"domainforge-semantic-envelope/v1\",\"self_hash\":\"sha256:df55cf1621b97c16206ea5074e04d0dae817b93c4c7493c34b4667f497be35d6\",\"semantic_closure_hash\":\"sha256:5451b991e93b081ca52b2bf01f1f143517a2985cfc309a0da0ad7a9ce2114970\"}",
+        "media_type": "application/json",
+        "omission_record": {
+          "known_omissions": [
+            "source_comments",
+            "source_formatting",
+            "source_line_positions"
+          ],
+          "reason": "domainforge canonical envelope is formatting- and comment-independent by construction",
+          "recoverable_from": "the .sea sources at the recorded git blob hashes"
+        },
+        "preserved_distinctions": [
+          "declared_vs_observed",
+          "representation_vs_reality"
+        ],
+        "preserved_entities": [
+          "concept:0dbb11c7-81d0-53a6-b9be-b11f3b4d6679",
+          "concept:4544479d-add8-59cd-b989-bc505dd3676b",
+          "concept:f5814ca5-2184-52bc-acc4-45e2bddc78d8",
+          "occurrence:flow:sha256:5316de9690aa7135bf786302f1a4d34ea8dde532d575e3940da49913f6d5268c:0",
+          "concept:89136ce9-2418-59ff-a587-a6801680d109",
+          "concept:a31d3c70-a715-52ca-bacf-324016a4842b",
+          "concept:bfa3e79b-28b8-5161-8d23-93807f00ae44"
+        ],
+        "provenance_record": {
+          "inputs": {
+            "interpretation_version": "domainforge-interpretation/v1",
+            "language_schema_version": "domainforge-ast/v3",
+            "semantic_pack_set_hash": "sha256:6e5312099a8d89e1d271bd89d9fcb36b031069bd8dad72be397af6b331d85c40",
+            "source_set_hash": "sha256:b52a0614e061a0ca572c07b6d72c5da9c5c8fc1e5f8000401670177138ac578b"
+          },
+          "producer": {
+            "name": "domainforge-core",
+            "version": "0.16.0"
+          },
+          "resolution_inputs": {
+            "entry_logical_path": "logistics-relations.sea",
+            "registry_content_hash": null,
+            "resolved_namespaces": {
+              "logistics-relations.sea": "logistics"
+            }
+          }
+        },
+        "representation_id": "representation:sha256:df55cf1621b97c16206ea5074e04d0dae817b93c4c7493c34b4667f497be35d6",
+        "representation_kind": "derived",
+        "representation_type": "domainforge_semantic_envelope_document",
+        "scope": "logistics-relations.sea",
+        "semantic_hash": "sha256:5451b991e93b081ca52b2bf01f1f143517a2985cfc309a0da0ad7a9ce2114970",
+        "size_bytes": 3531,
+        "source": "domainforge 0.16.0",
+        "validation_status": "valid"
+      }
+    ],
+    "scope": {
+      "entry_logical_path": "logistics-relations.sea",
+      "semantic_closure_hash": "sha256:5451b991e93b081ca52b2bf01f1f143517a2985cfc309a0da0ad7a9ce2114970"
+    },
+    "validation_status": "validated"
+  },
+  "representation": {
+    "envelope": {
+      "application_contract": {
+        "entities": [],
+        "enums": [],
+        "operations": [],
+        "records": []
+      },
+      "canonicalization_version": "domainforge-canonicalization/v1",
+      "compiler_interpretation_version": "domainforge-interpretation/v1",
+      "import_graph": [],
+      "language_schema_version": "domainforge-ast/v3",
+      "modules": [
+        {
+          "logical_id": "logistics-relations.sea",
+          "namespace": "logistics",
+          "semantic_content_hash": "sha256:bfdef511086bbac590cbdfd152125e547a5392653fceb6f5da22bcc1cd58b991"
+        }
+      ],
+      "namespace_bindings": [
+        {
+          "logical_id": "logistics-relations.sea",
+          "namespace": "logistics"
+        }
+      ],
+      "resolved_references": [],
+      "semantic_declarations": [
+        {
+          "declaration": {
+            "data": {
+              "annotations": {},
+              "domain": "logistics",
+              "name": "Supplier"
+            },
+            "kind": "entity"
+          },
+          "id": {
+            "data": {
+              "id": "0dbb11c7-81d0-53a6-b9be-b11f3b4d6679"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "logistics-relations.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "annotations": {},
+              "domain": "logistics",
+              "name": "MaterialLot"
+            },
+            "kind": "entity"
+          },
+          "id": {
+            "data": {
+              "id": "4544479d-add8-59cd-b989-bc505dd3676b"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "logistics-relations.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "annotations": {},
+              "domain": "logistics",
+              "name": "Goods"
+            },
+            "kind": "resource"
+          },
+          "id": {
+            "data": {
+              "id": "f5814ca5-2184-52bc-acc4-45e2bddc78d8"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "logistics-relations.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "annotations": {},
+              "from_entity": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "0dbb11c7-81d0-53a6-b9be-b11f3b4d6679"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "quantity": "1",
+              "resource": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "ff768ad5-8932-517f-a7ae-671cfb18d6b8"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "to_entity": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "4544479d-add8-59cd-b989-bc505dd3676b"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              }
+            },
+            "kind": "flow"
+          },
+          "id": {
+            "data": {
+              "content_hash": "sha256:5316de9690aa7135bf786302f1a4d34ea8dde532d575e3940da49913f6d5268c",
+              "duplicate_index": 0,
+              "kind": "flow"
+            },
+            "kind": "occurrence"
+          },
+          "logical_module_id": "logistics-relations.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "domain": "logistics",
+              "name": "material_lot"
+            },
+            "kind": "role"
+          },
+          "id": {
+            "data": {
+              "id": "89136ce9-2418-59ff-a587-a6801680d109"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "logistics-relations.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "domain": "logistics",
+              "name": "supplier"
+            },
+            "kind": "role"
+          },
+          "id": {
+            "data": {
+              "id": "a31d3c70-a715-52ca-bacf-324016a4842b"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "logistics-relations.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "name": "SupplierSuppliesMaterial",
+              "object_role": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "89136ce9-2418-59ff-a587-a6801680d109"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "predicate": "supplies",
+              "subject_role": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "a31d3c70-a715-52ca-bacf-324016a4842b"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "via_flow": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "f5814ca5-2184-52bc-acc4-45e2bddc78d8"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              }
+            },
+            "kind": "relation"
+          },
+          "id": {
+            "data": {
+              "id": "bfa3e79b-28b8-5161-8d23-93807f00ae44"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "logistics-relations.sea"
+        }
+      ],
+      "semantic_packs": []
+    },
+    "inputs": {
+      "interpretation_version": "domainforge-interpretation/v1",
+      "language_schema_version": "domainforge-ast/v3",
+      "semantic_pack_set_hash": "sha256:6e5312099a8d89e1d271bd89d9fcb36b031069bd8dad72be397af6b331d85c40",
+      "source_set_hash": "sha256:b52a0614e061a0ca572c07b6d72c5da9c5c8fc1e5f8000401670177138ac578b"
+    },
+    "producer": {
+      "name": "domainforge-core",
+      "version": "0.16.0"
+    },
+    "schema_version": "domainforge-semantic-envelope/v1",
+    "self_hash": "sha256:df55cf1621b97c16206ea5074e04d0dae817b93c4c7493c34b4667f497be35d6",
+    "semantic_closure_hash": "sha256:5451b991e93b081ca52b2bf01f1f143517a2985cfc309a0da0ad7a9ce2114970"
+  }
+}

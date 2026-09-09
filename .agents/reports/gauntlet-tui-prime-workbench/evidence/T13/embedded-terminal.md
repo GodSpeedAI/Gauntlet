@@ -108,4 +108,36 @@ Read: the default ingest path (sanitize→scrollback→projection) sustains ~69 
 - The bound-as-data posture for argv metacharacters: attempt to construct a provider call that re-joins argv (the type surface makes it awkward; try anyway), and try injection through `title`/RPC values that survive sanitization as text.
 - The negative-control live-fire test writes fixed `/tmp` paths (`gauntlet-t13-attack1-marker`, `/tmp/gauntlet-t13/`); confirm no cross-run interference.
 
+## Correction Round 1 (T18 adversarial findings)
+
+**Finding (MAJOR, spawn-env executable substitution at `terminal.spawn.request`)**: `validateSpawnRequest` accepted `{program: "echo" (allowlisted bare name), env: {PATH: "/tmp/attacker/fakebin"}}`; the real provider forwarded env verbatim into `Bun.spawn` and the SUBSTITUTED binary executed (fakebin/echo wrote a marker; `/bin/echo` cannot). LD_PRELOAD-family values also passed. The inventory claim "untrusted argv/path/env are bound before any provider call" was overstated for the env locus (REQ-SEC-005 class). Latent only (no production caller passes env), but the claim had to become true or shrink.
+
+**Verification of the vector before fixing (this Bun 1.4.0)**: reproduced the verifier's live-fire exactly — `Bun.spawn(["echo","pwned"], {env:{PATH: fakebin}})` resolves the bare name through the CHILD env's PATH and executes the substituted binary (marker attributable to fakebin/echo alone; scripts use absolute `/bin/touch` because an attacker-only PATH also hides bare tooling from the attacker's own script). A shell child (`/bin/sh -c "ls …"`, env PATH=fakebin) resolves its commands from the inherited PATH the same way — the vector is real, and the shell-child case is the realistic embedded-terminal scenario.
+
+**Fix — both verifier-suggested shapes, RED-first** (8 new tests written first, confirmed failing against the pre-fix code with the right reasons: live-fire marker created, `raised = null` on every refusal assertion):
+
+1. **Env locus hardening** (`validateSpawnRequest`): `PATH` refused outright (`env_path_override` — programs are bound to resolved absolute paths, so a child-side PATH lookup must never happen); the `LD_*` / `DYLD_*` dynamic-loader injection families refused outright (`env_loader_injection_family`); ANY env value carrying a path separator refused (`env_value_path_separator` — kills the PYTHONPATH/NODE_PATH/HOME class that a name allowlist cannot keep up with). Control-byte refusal unchanged and still reachable for non-family names.
+2. **Bare names resolved to absolute paths BEFORE spawn** (`programResolution` table on `SpawnPathPolicy`): a bare name without a declared resolution table is refused (`bare_program_unresolved`); a name missing from the table is refused (`program_not_in_allowlist`); a table entry is itself anchored under `allowedProgramRoots` (outside-roots entry refused). `ValidatedSpawnRequest.program` is now ALWAYS a resolved absolute path; provenance records `requestedProgram` (the pre-resolution name) alongside the bound argv. Both native providers assert the absolute-path invariant defensively at spawn.
+
+**Adjacent hole closed in the same boundary (self-found during the fix, same claim)**: ESC/DEL in a program path or cwd parameter would ride `provenance` into non-viewport projections — a DSN-014 violation of the same claim ("untrusted inputs cannot become terminal control data"). Program metacharacter wall now includes ESC/DEL (`shell_metacharacter_in_program`); path parameters refuse control bytes (`control_char_in_path`).
+
+**Pinned (verifier found sound, regression-pinned)**: percent-encoded (`%2e%2e%2f`), double-encoded (`%252e%252e%252f`), and `%00`-encoded cwd segments bind as inert literals inside the roots (no component in the chain URL-decodes); raw NUL in cwd still refused; shell metacharacters/spaces in cwd bind verbatim (chdir(2) takes a literal name; nothing re-parses a path).
+
+**Cross-file note**: the parallel T18 suites (`secret-leakage.test.ts`, `security-boundaries.test.ts`) exercise this boundary and already target the corrected API (`programResolution`, `bare_program_unresolved`) — their in-flight compile errors during this round were their files' transients and cleared on retry; no T13-owned file was changed outside the owned set.
+
+**Correction-round gates (verbatim, 2026-09-09, all pre-existing tests green)**:
+
+| Gate | Result |
+| :--- | :--- |
+| `just tui-test embedded-terminal` | exit 0 — 14 pass, 1 skip (gated real-PTY probe), 0 fail |
+| `just tui-test unsafe-input-boundaries` | exit 0 — 41 pass (33 pre-existing + 8 correction), 0 fail |
+| `GAUNTLET_T13_REAL_PTY=1 bun test embedded-terminal` | 15 pass, 0 fail (real-PTY battery) |
+| `just tui-bench terminal-path` | exit 0 |
+| `just tui-check` | exit 0 |
+| `just tui-lint` | exit 0 — 34 warnings, 469 infos (warn-level only) |
+| `just tui-preflight bootstrap` | exit 0 PASS |
+| `cd workbench && bun test` | 468 pass, 1 skip, 0 fail across 43 files |
+
+The inventory claim is now TRUE at the env locus: env is validated/bound (resolution families refused, separator-bearing values refused, keys-only recording) before any provider call, and no bare name can reach a provider without a resolved absolute path.
+
 Confirmation: BUILDER evidence pending peer confirmation.

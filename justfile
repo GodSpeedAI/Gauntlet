@@ -151,6 +151,10 @@ tui-bench selector:
     cd workbench
     if [ "{{selector}}" = "bun-substrate" ]; then
         bun run src/bun-substrate.bench.ts
+    elif [ "{{selector}}" = "focus-latency" ]; then
+        bun run src/focus-latency.bench.ts
+    elif [ "{{selector}}" = "projection-worker" ]; then
+        bun run src/projection-worker.bench.ts
     elif [ "{{selector}}" = "sqlite-replay" ]; then
         bun run src/sqlite-replay.bench.ts
     elif [ "{{selector}}" = "terminal-path" ]; then

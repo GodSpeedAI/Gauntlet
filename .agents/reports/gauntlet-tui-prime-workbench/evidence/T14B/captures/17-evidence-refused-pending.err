@@ -1,0 +1,1 @@
+sxr: record 01M23MRR5XTM78DR4KJ72QKPZ8 is spooled (spooled (not yet validated)); not committed — run `sxr await` or `sxr spool drain`/`sxr queue recover` first (AC-DAEMON-003/F-19b)

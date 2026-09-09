@@ -1,0 +1,16 @@
+@namespace "logistics"
+@version "1.0.0"
+
+Resource "Goods" in logistics
+Entity "Supplier" in logistics
+Entity "MaterialLot" in logistics
+Flow "Goods" from "Supplier" to "MaterialLot" quantity 1
+
+Role "supplier" in logistics
+Role "material_lot" in logistics
+
+Relation "SupplierSuppliesMaterial"
+  subject: "supplier"
+  predicate: "supplies"
+  object: "material_lot"
+  via: flow "Goods"

@@ -9,59 +9,56 @@ metadata:
   initialized: true
   last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (the five-builder max-parallel wave settled: T11 peer CONFIRM
-    [0 blocking/0 major]; T13 peer CONFIRM [0/0; 3 fail-closed minors:
-    non-idempotent cancel reason overwrite, 128+signum exit-code provenance
-    fidelity, untyped TypeError on garbage shapes]; T14 peer CONFIRM + COR-1
-    evidence-honesty correction [the real working-tree build's both-mode
-    object carrier is typed invalid by the pinned parser — fail-closed;
-    settled claim rests on the pinned P1 pair; T14B owns requalification];
-    T15 adversarial NOT_CONFIRM -> COR-1 [BLOCKING: out-of-order same-view
-    disposer resurrected an unmounted plugin's renderer — replaced with a
-    per-view stack recomposition; plus fanout dispatcher, own-property
-    manifest reads, typed mount errors] -> focused r2 CONFIRM_REVERSIBILITY
-    [verifier rewrote probes 33/33, accepted the P2b unsatisfiability proof];
-    T16 adversarial CONFIRM with 1 MAJOR -> COR-1 RED-first [baseline-path
-    silent cursor advance past store-refused frames -> refused_events/
-    refusal_reasons reporting + persistent degraded visibility;
-    consumed-and-refused position with the livelock rationale] -> focused r2
-    CONFIRM_RECONNECT_INTEGRITY [9 new overreach attacks repelled]). Gates
-    green in the orchestrator's hands on the final tree: 331 tests/38 files
-    (1 env-gated skip: T13 real-PTY probe, 15/15 when enabled), all
-    selectors, tsc clean, biome 0 errors, preflight PASS, terminal bench
-    PASS, preregs T11/T13/T14/T15/T16 intact.
+    Orchestrator (the T14B+T17+T18 wave settled: T14B on independent
+    CONFIRM_COMPOSITION + COR-1 [swapped-repo dead-guard bypass closed
+    RED-first with dual live ledger-provenance guards; XDG omission; typed
+    forged-command refusal] — REAL captures: full 13-record sxr 0.1.0
+    lifecycle, both-mode object carrier requalified discharging T14's
+    trigger-record, real CAS content_ref, real Relation fixture, 34-entry
+    digest-pinned capture set; T17 on peer CONFIRM [all five adversarial
+    probes clean; frozen budgets all PASS; placement decisions reproduced
+    under seed perturbation] with the planner-swap composition gap tracked
+    as a T20 obligation; T18 on CONFIRM_TRUST_BOUNDARIES + COR-1
+    [inventory attestation made honest with the true enforcement locus +
+    verifier's repro pinned; scanner calibrated with 5 new patterns] —
+    its spawned corrections closed elsewhere: T13 spawn-env substitution
+    bound [PATH/LD_*/DYLD_* refused, bare names anchored, 8 RED-first
+    regressions, real-PTY battery green] adjudicated CONFIRM by the
+    consolidated focused re-verification). Focused r2 verdicts:
+    T13=CONFIRM, T14B=CONFIRM, T18=CONFIRM. Final tree green in the
+    orchestrator's hands: 469 tests/43 files (1 env-gated skip), all
+    selectors, four benches, tsc clean, biome 0 errors, preflight PASS,
+    preregs T14B/T17/T18 intact.
 
 execution:
-  last_settled_task: T16
+  last_settled_task: T18
   in_flight_task: null
-  ready_tasks: [T14B, T17, T18]
+  ready_tasks: [T19, T20]
   blocked_tasks:
-    T19: [T18, T14B]
-    T20: [T18, T14B]
-    T21: [T17, T20]
-    T22: [T18, T19, T20, T14B]
-    T23: [T11, T18, T20, T14B]
+    T21: [T20]
+    T22: [T19, T20]
+    T23: [T20]
     T24: [T20, T22]
-    T25: [T14B, T21, T22, T23, T24]
+    T25: [T21, T22, T23, T24]
 
 active:
-  task: T14B+T17+T18
+  task: T19+T20
   phase: dispatch-prep
-  title: three-builder wave (T16 freed T18; all deps settled)
+  title: two-builder wave (headless equivalence + release qualification)
   blocker: null
 
 next_action:
-  task: T14B+T17+T18
+  task: T19+T20
   action: >-
-    Dispatch three builders in parallel. T14B (P3 independent; prereg
-    60943b46): SXR evidence lens — carries T14's trigger-records (both-mode
-    object-carrier contract drift, CAS content_ref, Relation-declaration
-    fixture, Inspector wiring, SXR live qualification; also fix the
-    semanticNeighborhood valid:false filter). T17 (P2 peer; prereg 19636de8):
-    worker isolation + horizon-shaped payment benches. T18 (P3 indep
-    adversarial; prereg 4bd5c124): security/trust/secret hardening sweep
-    across ALL landed adapters — re-attack the T09/T10 carried
-    trigger-records. Then T19+T20, then T21+T22+T23, T24, T25.
+    Dispatch T19 (P3 independent; prereg 55d81c37): headless replay +
+    renderer boundary + canonical-layer import bans. T20 (P2 peer; prereg
+    4eabe7b8): SSH/tmux qualification + release build/launch + real-PTY
+    operator journeys — T20 carries tracked obligations: the T17
+    planner-swap composition gap (WorkbenchModel.getSnapshot still folds
+    inline; wire the MaterializationFoldCoordinator into the production
+    path), the T14B/T12 Inspector lens wiring (sxr-evidence + semantic
+    sections into the live view), and T18's disclosed_bound inventory is
+    the truth source for its boundary claims.
 
 latest_evidence:
   T00:
@@ -230,3 +227,44 @@ latest_evidence:
       transition-only staleness; nested-reconnect handshake desync
       (self-healing); forged persisted cursors validate 'valid' (reporting
       level); orphaned buffered frames bounded/inert.
+  T14B:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T14B/
+    artifacts: [sxr-evidence.md, CAPTURES.sha256]
+    confirmation: >-
+      CONFIRM_COMPOSITION (2026-09-09, independent) + COR-1 RED-first
+      (swapped-repo dead-guard bypass -> dual live ledger-provenance
+      guards; XDG omission; typed forged-command refusal). Real captures:
+      13-record sxr 0.1.0 lifecycle, both-mode object carrier requalified
+      (T14 trigger-record discharged), real CAS content_ref, real Relation
+      fixture, 34 pinned digests. Trigger-records: deadline-kill vs
+      grandchild pipe holders; offer_id-keyed admission (cross-unit dedupe
+      is canonical-API-owned); relations.ts valid:false filter (T14
+      carried); Inspector lens wiring -> T19/T20 wave.
+  T17:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T17/
+    artifacts: [horizon-payment.md]
+    confirmation: >-
+      peer CONFIRM (2026-09-09): all five adversarial probes clean
+      (falsifier authenticity, counter reality, placement honesty under
+      seed perturbation, no identity fork across the worker boundary, no
+      false-green budget path). Frozen budgets all PASS; small->inline /
+      large->worker decisions reproduced. MAJOR carried as a T20 tracked
+      obligation: WorkbenchModel.getSnapshot still folds inline — wire the
+      coordinator into the production path at/before T20 integration.
+      Minors trigger-recorded: readmission-measurement bookkeeping;
+      single-sample RSS; B3 endpoint-vs-per-cycle wording; REQ-GOAL-006
+      current-actions residual (T21 re-settles).
+  T18:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T18/
+    artifacts: [security-hardening.md]
+    confirmation: >-
+      CONFIRM_TRUST_BOUNDARIES (2026-09-09, independent adversarial) +
+      COR-1 (inventory attestation made honest: evidence.frame.fabrication
+      names the real locus with disclosed_bound; verifier's repro pinned
+      in the suite; scanner calibrated with 5 new patterns + negatives;
+      six-plus-one disclosure wording fixed). Its spawned cross-task
+      corrections: T13 spawn-env substitution bound (adjudicated CONFIRM);
+      T09 arming bound adjudicated precise (exposure-of-arming-not-of-
+      mutation; 8 attacks held). Trigger-records: perform-hang
+      instance-wide stall (T09 composition-level deadline); redactDeep
+      Map/Set; real-PTY echoed paste.

@@ -20,11 +20,16 @@
  *     the host terminal.
  *   - PRIVILEGED BOUNDARY (REQ-SEC-005): spawn requests are validated and
  *     BOUND before any process exists — argv is bound as an argv ARRAY
- *     (never interpolated into a shell string), path parameters are
- *     lexically anchored under declared roots (traversal refused), env is
- *     name-validated with keys-only provenance (values are never recorded —
- *     secret discipline), automation titles and RPC payload strings are
- *     control-neutralized. Refusals are typed, carrying the locus.
+ *     (never interpolated into a shell string), program paths and cwd are
+ *     lexically anchored under declared roots (traversal refused), bare
+ *     program names are RESOLVED to anchored absolute paths before spawn
+ *     (a bare name with no declared resolution is refused), env is
+ *     name-validated with the executable/library-resolution families
+ *     (PATH, LD_*, DYLD_*) refused outright and any path-separator-bearing
+ *     value refused (no untrusted env can influence which binary or what
+ *     code loads), env VALUES are never recorded (secret discipline),
+ *     automation titles and RPC payload strings are control-neutralized.
+ *     Refusals are typed, carrying the locus.
  *   - PROVIDER SEAM: Bun's process/PTY facilities are the QUALIFIED native
  *     path (REQ-BUN-004; T03 admission ledger — `Bun.spawn` qualified
  *     2026-09-08, `Bun.Terminal` PTY probed for T13). The session state
@@ -54,13 +59,18 @@ export type BoundaryRejectionCode =
   | "empty_program"
   | "shell_metacharacter_in_program"
   | "program_not_in_allowlist"
+  | "bare_program_unresolved"
   | "relative_program_path"
   | "path_traversal"
   | "path_not_absolute"
   | "path_outside_allowed_roots"
   | "control_char_in_argv"
+  | "control_char_in_path"
   | "env_name_invalid"
   | "env_value_control_char"
+  | "env_value_path_separator"
+  | "env_path_override"
+  | "env_loader_injection_family"
   | "env_not_object"
   | "payload_not_object"
   | "payload_key_not_allowed"
@@ -407,13 +417,24 @@ export interface SpawnRequestInput {
 export interface SpawnPathPolicy {
   /** Roots an absolute program path may resolve under. Default /bin,/usr/bin. */
   readonly allowedProgramRoots?: readonly string[];
-  /** Bare program names allowed without a root-anchored path. */
-  readonly allowedPrograms?: readonly string[];
+  /**
+   * Bare-name resolution table: name → anchored ABSOLUTE path. A bare
+   * program name is resolved through this table BEFORE spawn (and the
+   * result anchored under allowedProgramRoots), so no child-side PATH
+   * lookup can ever select an executable. A bare name without a declared
+   * resolution is refused.
+   */
+  readonly programResolution?: Readonly<Record<string, string>>;
   /** Roots a cwd may resolve under (REQUIRED — no implicit roots). */
   readonly allowedPathRoots: readonly string[];
 }
 
-/** A bound spawn request: the ONLY shape a provider may be handed. */
+/**
+ * A bound spawn request: the ONLY shape a provider may be handed. `program`
+ * is ALWAYS a resolved absolute path (bare names resolve through the policy
+ * table first), so no executable resolution is ever delegated to the child
+ * environment.
+ */
 export interface ValidatedSpawnRequest {
   /** Anchored absolute program path, or the bare allowlisted name. */
   readonly program: string;
@@ -449,6 +470,8 @@ const PROGRAM_METACHARACTERS = new Set([
   "\n",
   "\r",
   "\0",
+  "\x1b", // ESC — a program path can never be allowed to carry control data
+  "\x7f",
   " ",
 ]);
 
@@ -474,6 +497,18 @@ export function anchorPath(input: string, allowedRoots: readonly string[]): stri
   }
   if (input.includes("\0")) {
     throw new TerminalBoundaryError("path", "path_traversal", "NUL byte in path parameter");
+  }
+  if (
+    hasControlChar(input) ||
+    input.includes("\n") ||
+    input.includes("\x1b") ||
+    input.includes("\x7f")
+  ) {
+    throw new TerminalBoundaryError(
+      "path",
+      "control_char_in_path",
+      "path parameter carries a control byte (C0/ESC/DEL); it can never be bound",
+    );
   }
   if (!input.startsWith("/")) {
     throw new TerminalBoundaryError(
@@ -544,19 +579,31 @@ export function validateSpawnRequest(
       throw new TerminalBoundaryError(
         "argv",
         "relative_program_path",
-        `relative program path '${program}' is refused; use a bare allowlisted name or an absolute path`,
+        `relative program path '${program}' is refused; use a resolved absolute path or a bare name with a declared resolution`,
       );
     }
     boundProgram = anchorPath(program, policy.allowedProgramRoots ?? ["/bin", "/usr/bin"]);
   } else {
-    if (policy.allowedPrograms !== undefined && !policy.allowedPrograms.includes(program)) {
+    // Shape (2) of the T18 correction: a bare name MUST resolve to an
+    // anchored ABSOLUTE path here — before any provider call — so no
+    // child-side PATH lookup can ever select the executable.
+    const resolution = policy.programResolution;
+    if (resolution === undefined) {
+      throw new TerminalBoundaryError(
+        "argv",
+        "bare_program_unresolved",
+        `bare program '${program}' has no declared resolution; pass an absolute anchored path or declare programResolution { name: absolute path }`,
+      );
+    }
+    const resolved = resolution[program];
+    if (resolved === undefined) {
       throw new TerminalBoundaryError(
         "argv",
         "program_not_in_allowlist",
-        `bare program '${program}' is not in the declared allowlist`,
+        `bare program '${program}' is not in the declared resolution table`,
       );
     }
-    boundProgram = program;
+    boundProgram = anchorPath(resolved, policy.allowedProgramRoots ?? ["/bin", "/usr/bin"]);
   }
 
   // --- args (bound as DATA: shell metacharacters are inert; control bytes refused) ---
@@ -588,11 +635,37 @@ export function validateSpawnRequest(
           `env name ${JSON.stringify(name.slice(0, 32))} is not a valid identifier`,
         );
       }
+      // Shape (1) of the T18 correction: env vars that influence executable
+      // or library resolution have NO legitimate untrusted use here. PATH
+      // selects which binary execs; LD_*/DYLD_* inject code into the loader.
+      if (name === "PATH") {
+        throw new TerminalBoundaryError(
+          "env",
+          "env_path_override",
+          "PATH overrides are refused: programs are bound to resolved absolute paths, so a child-side PATH lookup must never happen",
+        );
+      }
+      if (name.startsWith("LD_") || name.startsWith("DYLD_")) {
+        throw new TerminalBoundaryError(
+          "env",
+          "env_loader_injection_family",
+          `${name} is dynamic-loader injection (LD_*/DYLD_* family) and is refused outright`,
+        );
+      }
       if (hasControlChar(value) || value.includes("\n")) {
         throw new TerminalBoundaryError(
           "env",
           "env_value_control_char",
           `env value for '${name}' carries a control byte or newline`,
+        );
+      }
+      // A separator-bearing value is a path-shaped payload under an
+      // unallowlisted name (PYTHONPATH / NODE_PATH / ... class): refused.
+      if (value.includes("/") || value.includes("\\")) {
+        throw new TerminalBoundaryError(
+          "env",
+          "env_value_path_separator",
+          `env value for '${name}' carries a path separator; path-shaped env payloads are refused at the boundary`,
         );
       }
       env[name] = value;
@@ -726,6 +799,11 @@ export function bunPtyProcessProvider(
       request: ValidatedSpawnRequest,
       handlers: TerminalProcessHandlers,
     ): TerminalProcessHandle {
+      // Boundary invariant: a bound request always carries a resolved
+      // absolute program, so exec never consults any PATH.
+      if (!request.program.startsWith("/")) {
+        throw new Error("bun-pty provider: bound program must be an absolute path");
+      }
       // Bun.spawn throws synchronously on refusal (ENOTSUP off POSIX, missing
       // program) — mapped to a failed session by the caller.
       const proc = Bun.spawn([request.program, ...request.args], {
@@ -781,6 +859,10 @@ export function bunPipeProcessProvider(): TerminalProcessProvider {
       request: ValidatedSpawnRequest,
       handlers: TerminalProcessHandlers,
     ): TerminalProcessHandle {
+      // Boundary invariant (same as the PTY provider): absolute program only.
+      if (!request.program.startsWith("/")) {
+        throw new Error("bun-pipe provider: bound program must be an absolute path");
+      }
       const proc = Bun.spawn([request.program, ...request.args], {
         cwd: request.cwd,
         env: { ...request.env },
@@ -921,8 +1003,10 @@ export interface TerminalLifecycleEvent {
 export interface TerminalProvenanceRecord {
   readonly sessionId: string;
   readonly providerKind: TerminalProviderKind;
-  /** Bound argv exactly as handed to the provider (program first). */
+  /** Bound argv exactly as handed to the provider (resolved absolute program first). */
   readonly argv: readonly string[];
+  /** The requested program name BEFORE resolution (input provenance). */
+  readonly requestedProgram: string | null;
   /** Anchored cwd. */
   readonly cwd: string;
   /** Env NAMES only — values are never recorded (secret discipline). */
@@ -1017,6 +1101,7 @@ export class TerminalSession {
       sessionId: this.sessionId,
       providerKind: provider.kind,
       argv: Object.freeze([bound.program, ...bound.args]),
+      requestedProgram: input.program === bound.program ? null : input.program,
       cwd: bound.cwd,
       envKeys: Object.freeze(Object.keys(bound.env)),
       pid: null,

@@ -18,7 +18,7 @@
  */
 
 import { describe, expect, it } from "bun:test";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -108,19 +108,20 @@ describe("T13 Attack 1 matrix: shell metacharacters in the program parameter", (
     );
   });
 
-  it("refuses bare programs outside a declared allowlist when one is declared", () => {
+  it("refuses bare programs missing from the declared resolution table", () => {
     expectBoundary("argv", "program_not_in_allowlist", () =>
       validateSpawnRequest(
         { program: "curl", cwd: "/tmp/gauntlet-t13" },
-        { ...POLICY, allowedPrograms: ["sh", "ls"] },
+        { ...POLICY, programResolution: { sh: "/bin/sh", ls: "/bin/ls" } },
       ),
     );
-    // In-allowlist bare names bind unchanged.
+    // In-table bare names bind to their RESOLVED anchored absolute path —
+    // the provider never receives the bare name (T18 correction, shape 2).
     const bound = validateSpawnRequest(
       { program: "ls", cwd: "/tmp/gauntlet-t13" },
-      { ...POLICY, allowedPrograms: ["sh", "ls"] },
+      { ...POLICY, programResolution: { sh: "/bin/sh", ls: "/bin/ls" } },
     );
-    expect(bound.program).toBe("ls");
+    expect(bound.program).toBe("/bin/ls");
   });
 });
 
@@ -378,10 +379,12 @@ describe("T13 Attack 1 matrix: RPC payload and env boundaries", () => {
   it("refuses env smuggling: control bytes and malformed names", () => {
     expectBoundary("env", "env_value_control_char", () =>
       validateSpawnRequest(
-        { program: "/bin/sh", cwd: "/tmp/gauntlet-t13", env: { LD_PRELOAD: "x\ny" } },
+        { program: "/bin/sh", cwd: "/tmp/gauntlet-t13", env: { HOME: "x\ny" } },
         POLICY,
       ),
     );
+    // LD_PRELOAD hits the loader-injection family refusal first (correction
+    // round 1) — asserted exhaustively in the T18 describe above.
     expectBoundary("env", "env_name_invalid", () =>
       validateSpawnRequest(
         { program: "/bin/sh", cwd: "/tmp/gauntlet-t13", env: { "BAD NAME": "1" } },
@@ -410,5 +413,208 @@ describe("T13 Attack 1 matrix: RPC payload and env boundaries", () => {
     const everything = JSON.stringify(session.project()) + JSON.stringify(session.events);
     expect(everything).toContain("T13_SECRET_TOKEN");
     expect(everything).not.toContain("super-secret-value-xyz");
+  });
+});
+
+// --- Correction round 1 (T18 adversarial MAJOR: spawn-env executable substitution)
+// Verifier finding: `{program: "echo" (allowlisted bare name), env:{PATH: fakebin}}`
+// was accepted, forwarded verbatim into Bun.spawn, and the SUBSTITUTED binary
+// executed. Fix shape (1): refuse PATH / LD_* / DYLD_* outright and any env
+// value carrying a path separator. Fix shape (2): bare names resolve to
+// anchored ABSOLUTE paths before spawn — no child-side PATH lookup can happen.
+
+const FAKEBIN = join(tmpdir(), "gauntlet-t13-fakebin");
+const RESOLUTION: Record<string, string> = { echo: "/bin/echo", ls: "/bin/ls", sh: "/bin/sh" };
+
+describe("T13 correction round 1 (T18 MAJOR): spawn-env executable substitution", () => {
+  it("END-TO-END through the REAL provider: attacker PATH cannot substitute the binary", async () => {
+    mkdirSync(FAKEBIN, { recursive: true });
+    // The attacker's substituted `echo`: only THIS binary writes the marker;
+    // /bin/echo cannot. Mirrors the verifier's demonstration. (/bin/touch is
+    // absolute ON PURPOSE: the attacker PATH contains only fakebin, so a bare
+    // `touch` inside the script would itself fail — the marker must be
+    // attributable to the SUBSTITUTED binary alone.)
+    writeFileSync(join(FAKEBIN, "echo"), `#!/bin/sh\n/bin/touch ${ATTACK_FILE}\n`);
+    chmodSync(join(FAKEBIN, "echo"), 0o755);
+    rmSync(ATTACK_FILE, { force: true });
+
+    // Negative control — the vector is REAL: Bun.spawn resolves a bare name
+    // through the CHILD env's PATH.
+    const rogue = Bun.spawn(["echo", "pwned"], {
+      env: { PATH: FAKEBIN },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    await rogue.exited;
+    expect(existsSync(ATTACK_FILE)).toBe(true); // substitution DID execute here
+    rmSync(ATTACK_FILE, { force: true });
+
+    // The same shape through the module's REAL-provider path: refused at the
+    // boundary, before any provider call, so the substituted binary never runs.
+    expectBoundary("env", "env_path_override", () => {
+      new TerminalSession(
+        {
+          program: "echo",
+          args: ["pwned"],
+          cwd: "/tmp/gauntlet-t13",
+          env: { PATH: FAKEBIN },
+        },
+        bunPipeProcessProvider(),
+        { pathPolicy: { ...POLICY, programResolution: RESOLUTION } },
+      );
+    });
+    expect(existsSync(ATTACK_FILE)).toBe(false);
+
+    // spawn-never-happened is directly observable on the fake provider too.
+    const fake = new FakeProcessProvider();
+    expectBoundary("env", "env_path_override", () => {
+      new TerminalSession(
+        { program: "echo", env: { PATH: FAKEBIN }, cwd: "/tmp/gauntlet-t13" },
+        fake,
+        { pathPolicy: { ...POLICY, programResolution: RESOLUTION } },
+      );
+    });
+    expect(fake.spawnCount).toBe(0);
+
+    rmSync(FAKEBIN, { recursive: true, force: true });
+  });
+
+  it("refuses the dynamic-loader injection families outright (LD_*, DYLD_*)", () => {
+    const policy = { ...POLICY, programResolution: RESOLUTION };
+    for (const name of [
+      "LD_PRELOAD",
+      "LD_LIBRARY_PATH",
+      "LD_AUDIT",
+      "DYLD_INSERT_LIBRARIES",
+      "DYLD_LIBRARY_PATH",
+      "DYLD_FRAMEWORK_PATH",
+    ]) {
+      expectBoundary("env", "env_loader_injection_family", () =>
+        validateSpawnRequest(
+          { program: "sh", cwd: "/tmp/gauntlet-t13", env: { [name]: "/tmp/attacker/evil.so" } },
+          policy,
+        ),
+      );
+    }
+  });
+
+  it("refuses path-separator-bearing env values (PYTHONPATH/NODE_PATH class)", () => {
+    const policy = { ...POLICY, programResolution: RESOLUTION };
+    for (const [name, value] of [
+      ["PYTHONPATH", "/tmp/attacker"],
+      ["NODE_PATH", "/tmp/attacker/node_modules"],
+      ["HOME", "/tmp/attacker/home"],
+      ["WEIRD", "a/b"],
+    ] as const) {
+      expectBoundary("env", "env_value_path_separator", () =>
+        validateSpawnRequest(
+          { program: "sh", cwd: "/tmp/gauntlet-t13", env: { [name]: value } },
+          policy,
+        ),
+      );
+    }
+  });
+
+  it("refuses a bare program name when no resolution table is declared", () => {
+    expectBoundary("argv", "bare_program_unresolved", () =>
+      validateSpawnRequest({ program: "curl", cwd: "/tmp/gauntlet-t13" }, POLICY),
+    );
+  });
+
+  it("resolves bare names through the declared table to anchored absolute paths", () => {
+    const bound = validateSpawnRequest(
+      { program: "echo", cwd: "/tmp/gauntlet-t13" },
+      { ...POLICY, programResolution: RESOLUTION },
+    );
+    // Absolute BEFORE spawn — no child-side PATH lookup can ever select.
+    expect(bound.program).toBe("/bin/echo");
+  });
+
+  it("refuses a resolution table entry outside the program roots", () => {
+    expectBoundary("path", "path_outside_allowed_roots", () =>
+      validateSpawnRequest(
+        { program: "evil", cwd: "/tmp/gauntlet-t13" },
+        { ...POLICY, programResolution: { evil: "/tmp/attacker/evil" } },
+      ),
+    );
+  });
+
+  it("REAL provider: resolved argv[0] is the anchored absolute path; requested name kept", async () => {
+    mkdirSync("/tmp/gauntlet-t13", { recursive: true });
+    mkdirSync(FAKEBIN, { recursive: true });
+    writeFileSync(join(FAKEBIN, "echo"), `#!/bin/sh\ntouch ${ATTACK_FILE}\n`);
+    chmodSync(join(FAKEBIN, "echo"), 0o755);
+    rmSync(ATTACK_FILE, { force: true });
+
+    const provider = bunPipeProcessProvider();
+    const session = new TerminalSession(
+      { program: "echo", args: ["resolved"], cwd: "/tmp/gauntlet-t13" },
+      provider,
+      { pathPolicy: { ...POLICY, programResolution: RESOLUTION } },
+    );
+    expect(session.provenance.argv[0]).toBe("/bin/echo");
+    expect(session.provenance.requestedProgram).toBe("echo");
+    await until(() => session.status === "exited", 10000);
+    expect(session.provenance.exitCode).toBe(0);
+    // /bin/echo ran — not the attacker's fakebin substitute.
+    expect(existsSync(ATTACK_FILE)).toBe(false);
+
+    rmSync(FAKEBIN, { recursive: true, force: true });
+  });
+
+  it("control bytes (ESC/DEL) in program and path parameters are refused", () => {
+    // Adjacent hole closed with the same round: an ESC in program/cwd would
+    // ride provenance into non-viewport projections (DSN-014).
+    expectBoundary("argv", "shell_metacharacter_in_program", () =>
+      validateSpawnRequest(
+        { program: "/bin/ls\x1b]52;c;QQ==\x07", cwd: "/tmp/gauntlet-t13" },
+        POLICY,
+      ),
+    );
+    expectBoundary("path", "control_char_in_path", () =>
+      validateSpawnRequest(
+        { program: "/bin/ls", cwd: "/tmp/gauntlet-t13/\x1b]52;c;QQ==\x07" },
+        POLICY,
+      ),
+    );
+  });
+});
+
+describe("T13 pinned (T18): cwd edge shapes the verifier found sound, pinned", () => {
+  it("percent-encoded traversal stays a literal segment inside the roots", () => {
+    const bound = validateSpawnRequest(
+      { program: "/bin/ls", cwd: "/tmp/gauntlet-t13/%2e%2e%2fetc" },
+      POLICY,
+    );
+    // No component in the chain URL-decodes: the segment is an inert name.
+    expect(bound.cwd).toBe("/tmp/gauntlet-t13/%2e%2e%2fetc");
+  });
+
+  it("double-encoded traversal stays literal", () => {
+    const bound = validateSpawnRequest(
+      { program: "/bin/ls", cwd: "/tmp/gauntlet-t13/%252e%252e%252f" },
+      POLICY,
+    );
+    expect(bound.cwd).toBe("/tmp/gauntlet-t13/%252e%252e%252f");
+  });
+
+  it("encoded NUL stays literal; a raw NUL byte is refused", () => {
+    const bound = validateSpawnRequest(
+      { program: "/bin/ls", cwd: "/tmp/gauntlet-t13/a%00b" },
+      POLICY,
+    );
+    expect(bound.cwd).toBe("/tmp/gauntlet-t13/a%00b");
+    expectBoundary("path", "path_traversal", () =>
+      validateSpawnRequest({ program: "/bin/ls", cwd: "/tmp/gauntlet-t13\u0000b" }, POLICY),
+    );
+  });
+
+  it("shell metacharacters and spaces in cwd are literal (nothing re-parses a path)", () => {
+    const hostile = "/tmp/gauntlet-t13/ok && touch /tmp/pwned-cwd; cat /etc/passwd";
+    const bound = validateSpawnRequest({ program: "/bin/ls", cwd: hostile }, POLICY);
+    // Bound verbatim: chdir(2) takes it as one literal directory NAME.
+    expect(bound.cwd).toBe(hostile);
+    const spaced = "/tmp/gauntlet-t13/dir with spaces";
+    expect(validateSpawnRequest({ program: "/bin/ls", cwd: spaced }, POLICY).cwd).toBe(spaced);
   });
 });

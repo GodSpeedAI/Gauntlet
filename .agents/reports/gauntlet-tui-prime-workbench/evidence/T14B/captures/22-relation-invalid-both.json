@@ -1,0 +1,340 @@
+{
+  "cep_envelope": {
+    "boundary_record": {
+      "compression_notes": [],
+      "excluded_sections": [],
+      "included_sections": [
+        "representations",
+        "references",
+        "provenance"
+      ],
+      "known_omissions": [
+        "source_comments",
+        "source_formatting",
+        "source_line_positions"
+      ],
+      "limitations": [],
+      "out_of_scope_entities": [],
+      "redactions": [],
+      "scope": "relation-invalid.sea",
+      "unknowns": []
+    },
+    "cep_version": "0.1.0",
+    "completeness_status": "complete_for_declared_state",
+    "created_at": "2026-09-09T18:25:31.026672Z",
+    "created_by": "domainforge 0.16.0",
+    "envelope_id": "01a0876a-fd93-7411-a222-6b626f086e78",
+    "envelope_kind": "semantic_snapshot",
+    "envelope_version": "1.0.0",
+    "extensions": {
+      "domainforge": {
+        "diagnostics": [
+          "artifact_schema_violation: resolved closure failed graph construction: Undefined resource: Goods at 0:0"
+        ],
+        "model_validation_status": "invalid"
+      }
+    },
+    "lineage_refs": [],
+    "omission_status": "known_omissions_recorded",
+    "provenance": [
+      {
+        "created_at": "2026-09-09T18:25:31.026672Z",
+        "producer_refs": [
+          "domainforge 0.16.0"
+        ],
+        "production_method": "domainforge envelope --emit cep",
+        "provenance_id": "provenance:01a0876a-fd93-7411-a222-6b626f086e78",
+        "review_status": "unreviewed",
+        "source_system_refs": [
+          "source-set:sha256:fbe8e87c41f242ad0a7fc45234dcaad016ae90adc37b492bec96776bf629ba3e"
+        ],
+        "verification_status": "unverified"
+      }
+    ],
+    "provenance_refs": [
+      "source-set:sha256:fbe8e87c41f242ad0a7fc45234dcaad016ae90adc37b492bec96776bf629ba3e"
+    ],
+    "references": [
+      {
+        "availability_status": "available",
+        "integrity_status": "verifiable",
+        "ref_id": "source-set:fbe8e87c41f242ad0a7fc45234dcaad016ae90adc37b492bec96776bf629ba3e",
+        "ref_type": "source_set",
+        "scope": "relation-invalid.sea",
+        "target_hash": "sha256:fbe8e87c41f242ad0a7fc45234dcaad016ae90adc37b492bec96776bf629ba3e",
+        "target_uri_or_id": "relation-invalid.sea"
+      }
+    ],
+    "representations": [
+      {
+        "content_availability": "available",
+        "content_hash": "sha256:ba55d27694607dbc255738f1961a2dc37cba4c9db4a2db856f0a1b895f51e4e0",
+        "inline_content": "{\"envelope\":{\"application_contract\":{\"entities\":[],\"enums\":[],\"operations\":[],\"records\":[]},\"canonicalization_version\":\"domainforge-canonicalization/v1\",\"compiler_interpretation_version\":\"domainforge-interpretation/v1\",\"import_graph\":[],\"language_schema_version\":\"domainforge-ast/v3\",\"modules\":[{\"logical_id\":\"relation-invalid.sea\",\"namespace\":\"logistics\",\"semantic_content_hash\":\"sha256:fc0d4cb5a910ba29edc59e77a175abd39713b076a4960fbe9d610dc18c8d8308\"}],\"namespace_bindings\":[{\"logical_id\":\"relation-invalid.sea\",\"namespace\":\"logistics\"}],\"resolved_references\":[],\"semantic_declarations\":[{\"declaration\":{\"data\":{\"annotations\":{},\"domain\":\"logistics\",\"name\":\"Supplier\"},\"kind\":\"entity\"},\"id\":{\"data\":{\"id\":\"0dbb11c7-81d0-53a6-b9be-b11f3b4d6679\"},\"kind\":\"concept\"},\"logical_module_id\":\"relation-invalid.sea\"},{\"declaration\":{\"data\":{\"annotations\":{},\"domain\":\"logistics\",\"name\":\"MaterialLot\"},\"kind\":\"entity\"},\"id\":{\"data\":{\"id\":\"4544479d-add8-59cd-b989-bc505dd3676b\"},\"kind\":\"concept\"},\"logical_module_id\":\"relation-invalid.sea\"},{\"declaration\":{\"data\":{\"annotations\":{},\"from_entity\":{\"data\":{\"id\":{\"data\":{\"id\":\"0dbb11c7-81d0-53a6-b9be-b11f3b4d6679\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"quantity\":\"1\",\"resource\":{\"data\":{\"id\":{\"data\":{\"id\":\"f5814ca5-2184-52bc-acc4-45e2bddc78d8\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"to_entity\":{\"data\":{\"id\":{\"data\":{\"id\":\"4544479d-add8-59cd-b989-bc505dd3676b\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"}},\"kind\":\"flow\"},\"id\":{\"data\":{\"content_hash\":\"sha256:3d4a38d77f04e181f70ab0ec0d48505963df0ac208ac07e04f0130544ae871f3\",\"duplicate_index\":0,\"kind\":\"flow\"},\"kind\":\"occurrence\"},\"logical_module_id\":\"relation-invalid.sea\"},{\"declaration\":{\"data\":{\"domain\":\"logistics\",\"name\":\"material_lot\"},\"kind\":\"role\"},\"id\":{\"data\":{\"id\":\"89136ce9-2418-59ff-a587-a6801680d109\"},\"kind\":\"concept\"},\"logical_module_id\":\"relation-invalid.sea\"},{\"declaration\":{\"data\":{\"domain\":\"logistics\",\"name\":\"supplier\"},\"kind\":\"role\"},\"id\":{\"data\":{\"id\":\"a31d3c70-a715-52ca-bacf-324016a4842b\"},\"kind\":\"concept\"},\"logical_module_id\":\"relation-invalid.sea\"},{\"declaration\":{\"data\":{\"name\":\"SupplierSuppliesMaterial\",\"object_role\":{\"data\":{\"id\":{\"data\":{\"id\":\"89136ce9-2418-59ff-a587-a6801680d109\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"predicate\":\"supplies\",\"subject_role\":{\"data\":{\"id\":{\"data\":{\"id\":\"a31d3c70-a715-52ca-bacf-324016a4842b\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"},\"via_flow\":{\"data\":{\"id\":{\"data\":{\"id\":\"f5814ca5-2184-52bc-acc4-45e2bddc78d8\"},\"kind\":\"concept\"}},\"kind\":\"declaration\"}},\"kind\":\"relation\"},\"id\":{\"data\":{\"id\":\"bfa3e79b-28b8-5161-8d23-93807f00ae44\"},\"kind\":\"concept\"},\"logical_module_id\":\"relation-invalid.sea\"}],\"semantic_packs\":[]},\"inputs\":{\"interpretation_version\":\"domainforge-interpretation/v1\",\"language_schema_version\":\"domainforge-ast/v3\",\"semantic_pack_set_hash\":\"sha256:6e5312099a8d89e1d271bd89d9fcb36b031069bd8dad72be397af6b331d85c40\",\"source_set_hash\":\"sha256:fbe8e87c41f242ad0a7fc45234dcaad016ae90adc37b492bec96776bf629ba3e\"},\"producer\":{\"name\":\"domainforge-core\",\"version\":\"0.16.0\"},\"schema_version\":\"domainforge-semantic-envelope/v1\",\"self_hash\":\"sha256:ba55d27694607dbc255738f1961a2dc37cba4c9db4a2db856f0a1b895f51e4e0\",\"semantic_closure_hash\":\"sha256:84f60b80a2afe83c555505a314ff1ec6af0dfc355b1dc37066cd6c51f155ae20\"}",
+        "media_type": "application/json",
+        "omission_record": {
+          "known_omissions": [
+            "source_comments",
+            "source_formatting",
+            "source_line_positions"
+          ],
+          "reason": "domainforge canonical envelope is formatting- and comment-independent by construction",
+          "recoverable_from": "the .sea sources at the recorded git blob hashes"
+        },
+        "preserved_distinctions": [
+          "declared_vs_observed",
+          "representation_vs_reality"
+        ],
+        "preserved_entities": [
+          "concept:0dbb11c7-81d0-53a6-b9be-b11f3b4d6679",
+          "concept:4544479d-add8-59cd-b989-bc505dd3676b",
+          "occurrence:flow:sha256:3d4a38d77f04e181f70ab0ec0d48505963df0ac208ac07e04f0130544ae871f3:0",
+          "concept:89136ce9-2418-59ff-a587-a6801680d109",
+          "concept:a31d3c70-a715-52ca-bacf-324016a4842b",
+          "concept:bfa3e79b-28b8-5161-8d23-93807f00ae44"
+        ],
+        "provenance_record": {
+          "inputs": {
+            "interpretation_version": "domainforge-interpretation/v1",
+            "language_schema_version": "domainforge-ast/v3",
+            "semantic_pack_set_hash": "sha256:6e5312099a8d89e1d271bd89d9fcb36b031069bd8dad72be397af6b331d85c40",
+            "source_set_hash": "sha256:fbe8e87c41f242ad0a7fc45234dcaad016ae90adc37b492bec96776bf629ba3e"
+          },
+          "producer": {
+            "name": "domainforge-core",
+            "version": "0.16.0"
+          },
+          "resolution_inputs": {
+            "entry_logical_path": "relation-invalid.sea",
+            "registry_content_hash": null,
+            "resolved_namespaces": {
+              "relation-invalid.sea": "logistics"
+            }
+          }
+        },
+        "representation_id": "representation:sha256:ba55d27694607dbc255738f1961a2dc37cba4c9db4a2db856f0a1b895f51e4e0",
+        "representation_kind": "derived",
+        "representation_type": "domainforge_semantic_envelope_document",
+        "scope": "relation-invalid.sea",
+        "semantic_hash": "sha256:84f60b80a2afe83c555505a314ff1ec6af0dfc355b1dc37066cd6c51f155ae20",
+        "size_bytes": 3286,
+        "source": "domainforge 0.16.0",
+        "validation_status": "invalid"
+      }
+    ],
+    "scope": {
+      "entry_logical_path": "relation-invalid.sea",
+      "semantic_closure_hash": "sha256:84f60b80a2afe83c555505a314ff1ec6af0dfc355b1dc37066cd6c51f155ae20"
+    },
+    "validation_status": "validated"
+  },
+  "representation": {
+    "envelope": {
+      "application_contract": {
+        "entities": [],
+        "enums": [],
+        "operations": [],
+        "records": []
+      },
+      "canonicalization_version": "domainforge-canonicalization/v1",
+      "compiler_interpretation_version": "domainforge-interpretation/v1",
+      "import_graph": [],
+      "language_schema_version": "domainforge-ast/v3",
+      "modules": [
+        {
+          "logical_id": "relation-invalid.sea",
+          "namespace": "logistics",
+          "semantic_content_hash": "sha256:fc0d4cb5a910ba29edc59e77a175abd39713b076a4960fbe9d610dc18c8d8308"
+        }
+      ],
+      "namespace_bindings": [
+        {
+          "logical_id": "relation-invalid.sea",
+          "namespace": "logistics"
+        }
+      ],
+      "resolved_references": [],
+      "semantic_declarations": [
+        {
+          "declaration": {
+            "data": {
+              "annotations": {},
+              "domain": "logistics",
+              "name": "Supplier"
+            },
+            "kind": "entity"
+          },
+          "id": {
+            "data": {
+              "id": "0dbb11c7-81d0-53a6-b9be-b11f3b4d6679"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "relation-invalid.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "annotations": {},
+              "domain": "logistics",
+              "name": "MaterialLot"
+            },
+            "kind": "entity"
+          },
+          "id": {
+            "data": {
+              "id": "4544479d-add8-59cd-b989-bc505dd3676b"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "relation-invalid.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "annotations": {},
+              "from_entity": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "0dbb11c7-81d0-53a6-b9be-b11f3b4d6679"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "quantity": "1",
+              "resource": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "f5814ca5-2184-52bc-acc4-45e2bddc78d8"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "to_entity": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "4544479d-add8-59cd-b989-bc505dd3676b"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              }
+            },
+            "kind": "flow"
+          },
+          "id": {
+            "data": {
+              "content_hash": "sha256:3d4a38d77f04e181f70ab0ec0d48505963df0ac208ac07e04f0130544ae871f3",
+              "duplicate_index": 0,
+              "kind": "flow"
+            },
+            "kind": "occurrence"
+          },
+          "logical_module_id": "relation-invalid.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "domain": "logistics",
+              "name": "material_lot"
+            },
+            "kind": "role"
+          },
+          "id": {
+            "data": {
+              "id": "89136ce9-2418-59ff-a587-a6801680d109"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "relation-invalid.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "domain": "logistics",
+              "name": "supplier"
+            },
+            "kind": "role"
+          },
+          "id": {
+            "data": {
+              "id": "a31d3c70-a715-52ca-bacf-324016a4842b"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "relation-invalid.sea"
+        },
+        {
+          "declaration": {
+            "data": {
+              "name": "SupplierSuppliesMaterial",
+              "object_role": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "89136ce9-2418-59ff-a587-a6801680d109"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "predicate": "supplies",
+              "subject_role": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "a31d3c70-a715-52ca-bacf-324016a4842b"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              },
+              "via_flow": {
+                "data": {
+                  "id": {
+                    "data": {
+                      "id": "f5814ca5-2184-52bc-acc4-45e2bddc78d8"
+                    },
+                    "kind": "concept"
+                  }
+                },
+                "kind": "declaration"
+              }
+            },
+            "kind": "relation"
+          },
+          "id": {
+            "data": {
+              "id": "bfa3e79b-28b8-5161-8d23-93807f00ae44"
+            },
+            "kind": "concept"
+          },
+          "logical_module_id": "relation-invalid.sea"
+        }
+      ],
+      "semantic_packs": []
+    },
+    "inputs": {
+      "interpretation_version": "domainforge-interpretation/v1",
+      "language_schema_version": "domainforge-ast/v3",
+      "semantic_pack_set_hash": "sha256:6e5312099a8d89e1d271bd89d9fcb36b031069bd8dad72be397af6b331d85c40",
+      "source_set_hash": "sha256:fbe8e87c41f242ad0a7fc45234dcaad016ae90adc37b492bec96776bf629ba3e"
+    },
+    "producer": {
+      "name": "domainforge-core",
+      "version": "0.16.0"
+    },
+    "schema_version": "domainforge-semantic-envelope/v1",
+    "self_hash": "sha256:ba55d27694607dbc255738f1961a2dc37cba4c9db4a2db856f0a1b895f51e4e0",
+    "semantic_closure_hash": "sha256:84f60b80a2afe83c555505a314ff1ec6af0dfc355b1dc37066cd6c51f155ae20"
+  }
+}

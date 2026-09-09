@@ -33,8 +33,11 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T14/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T15/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T16/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T14B/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T17/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T18/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
-  next_action: "Execute the three-builder wave: T14B (SXR lens, carries T14 requalification trigger-records), T17 (worker isolation/payment), T18 (security hardening sweep over all landed adapters)."
+  next_action: "Execute the two-builder wave: T19 (headless equivalence, P3 independent) + T20 (SSH/release qualification, P2 peer; carries the T17 planner-swap obligation and the Inspector lens wiring)."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name
