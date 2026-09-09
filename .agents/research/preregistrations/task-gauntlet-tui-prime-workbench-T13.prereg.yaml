@@ -1,0 +1,106 @@
+# Task gauntlet-tui-prime-workbench-T13 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T13 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T13 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md (DSN-014)
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T13"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T09:45:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T13.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T13 qualifies and integrates the primary embedded terminal using
+      Bun PTY/process facilities plus OpenTUI terminal emulation before any
+      alternate PTY/emulator stack is admitted, with privileged
+      argv/path/input validation. It proves the workbench can host a real
+      interactive terminal with correct lifecycle, input, resize, exit, and
+      provenance on required local targets while untrusted inputs cannot
+      become unbound process or terminal control data (REQ-BUN-004,
+      REQ-SEC-005, REQ-UX-005/006; DSN-014).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Untrusted text renders as text: shell metacharacters, path
+          traversal, ANSI/OSC control sequences, hyperlinks, and clipboard
+          requests arriving through terminal/process parameters are DATA;
+          the privileged boundary rejects or safely binds them — no
+          unintended command/path executes (Attack 1; DSN-014).
+      - id: D2
+        statement: >
+          Terminal-session state is noncanonical: resize and kill/restart of
+          the terminal child change only the terminal-session projection;
+          Gauntlet/Prime canonical state is unaffected (Attack 2). Lifecycle,
+          resize, stdin, cwd/environment, exit, and cancellation bind to
+          explicit Gauntlet operations where consequential.
+      - id: D3
+        statement: >
+          Admission order: the Bun-native path is qualified FIRST; an
+          alternate stack is admitted only if the native path fails a required
+          case, with the failing evidence preserved (dependency-admission
+          ledger discipline from T03).
+
+    known_blindspots:
+      - "SSH/remote transport is T20; all-terminal compatibility is out of scope."
+      - "Hostile-process sandboxing is not claimed — a PTY runs the user's programs with the user's authority (T18 carries the disclosure)."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Embedded terminal integration over Bun PTY/process + OpenTUI terminal emulation behind the stable lower-surface contract"
+      why_visible_now: "Implements REQ-BUN-004/REQ-UX-005 native path."
+    - id: A2
+      class: "Privileged-boundary validation (argv, paths, automation, RPC payloads) + unsafe-input-boundaries suite"
+      why_visible_now: "Implements REQ-SEC-005/DSN-014 and Attack 1's defense."
+    - id: A3
+      class: "Gate suites embedded-terminal, unsafe-input-boundaries; bench terminal-path"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        Shell metacharacters/path traversal injected through an untrusted
+        terminal/process parameter are treated as data: no unintended command
+        or path executes, and the injection is rejected or safely bound.
+      kind: "implementation_defect"
+      supporting_observation: "Typed validation refusal; spawn argv bound as declared; no escape."
+      disconfirming_observation: "Any injected metacharacter reaches exec/interpreter control."
+    - id: P2
+      claim: >
+        Resizing and kill/restarting the terminal child while the rest of the
+        workbench stays active changes only the terminal-session projection;
+        canonical state is untouched and the workbench remains responsive.
+      kind: "representation_inadequacy"
+      supporting_observation: "Session projection reflects the new child; snapshot/generation semantics unchanged."
+      disconfirming_observation: "Terminal churn mutates canonical projections or blocks the host."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If Bun PTY/process + OpenTUI cannot satisfy required VT/input/resize/
+        target compatibility, the terminal semantic interface is preserved and
+        the smallest alternate stack is qualified with evidence — render/business
+        layers are not patched.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Qualified alternate terminal stack behind the same interface."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay lifecycle (spawn, input, resize, exit) across rapid terminal churn."
+      preregistered_expectation: "Only terminal-session projection changes; provenance retained."
+    parametric_variation:
+      level: L2
+      description: "Injection matrix across argv, cwd/env, automation, and RPC payload boundaries."
+      preregistered_expectation: "Every injection bound or refused; fidelity bench within preregistered bounds."

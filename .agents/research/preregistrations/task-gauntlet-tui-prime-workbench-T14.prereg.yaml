@@ -1,0 +1,110 @@
+# Task gauntlet-tui-prime-workbench-T14 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T14 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T14 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T14"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T09:45:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T14.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T14 connects a Case-bound DomainForge/SEA semantic model identity
+      to Focus relations, context construction, artifact bindings, and impact
+      navigation while preserving DomainForge semantic identity distinctly
+      from cache/file/run identities. It proves Cases with semantic models
+      gain graph-derived relations and reusable semantic placements without
+      reidentifying concepts, and Cases without DomainForge continue through
+      the same workbench with enrichment absent rather than faked
+      (REQ-DOM-001..005).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Typed identity domains never collapse: a Bun cache hash, a file
+          hash, and a DomainForge semantic fingerprint remain distinct typed
+          identities and cannot substitute for one another (Attack 1).
+      - id: D2
+        statement: >
+          Enrichment-absent is honest: a Case with no DomainForge model
+          binding is functional with semantic enrichment explicitly
+          absent — never fabricated (Attack 2). Same workflow, same views.
+      - id: D3
+        statement: >
+          Producer/protocol compatibility is explicit: the current DomainForge
+          main CLI envelope and the SXR Slice 0B consumer are incompatible
+          (T00/DEC-005); T14 parses a supported envelope version separately or
+          selects a compatible pair explicitly, and records incompatible/
+          unknown results honestly. Pack/scope/namespace and digest domains
+          are preserved; no name-based joins, no inferred authority.
+      - id: D4
+        statement: >
+          Semantic concepts project into FocusRef/Relation references with one
+          source identity across multiple placements; semantic neighborhoods
+          are optional inputs to horizon-local context construction, artifact
+          bindings, and impact navigation.
+
+    known_blindspots:
+      - "Rich cross-model overlay and Semantic Pack navigation are roadmap (DSN-015 direction); T14 is the single-bound-model seam."
+      - "SXR ledger evidence composition is T14B; T14 does not touch SXR outputs."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "DomainForge envelope adapter (pinned schema, typed parse, declarations/diagnostics/Unit bindings into Inspector/relations)"
+      why_visible_now: "Implements REQ-DOM-001..003."
+    - id: A2
+      class: "Semantic identity typing + FocusRef/Relation projection with provenance"
+      why_visible_now: "Implements REQ-DOM-004 identity distinction."
+    - id: A3
+      class: "Gate suites domainforge-adapter, semantic-identity, semantic-protocol-compatibility"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        Identical-looking labels across cache hash, file hash, and semantic
+        fingerprint remain three distinct typed identities; no code path
+        accepts one where another is required.
+      kind: "representation_inadequacy"
+      supporting_observation: "Typed refusals on cross-domain substitution."
+      disconfirming_observation: "Any join/substitution succeeds across identity domains."
+    - id: P2
+      claim: >
+        The same Case workflow completes with semantic enrichment bound and
+        with it absent; absent enrichment is surfaced explicitly and relations/
+        context degrade to the non-semantic baseline without fabrication.
+      kind: "implementation_defect"
+      supporting_observation: "Both runs complete; absent run carries explicit enrichment-absent state."
+      disconfirming_observation: "Absent enrichment fabricates relations or breaks the workflow."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If the current DomainForge integration cannot expose stable semantic
+        identity/relations without parsing presentation output, the proper
+        adapter seam is defined/extended rather than reconstructing meaning
+        from text.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Adapter seam extension with a pinned envelope schema."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay the same Case with enrichment enabled then absent, events identical."
+      preregistered_expectation: "Core projections identical; only semantic relations/placements differ."
+    parametric_variation:
+      level: L2
+      description: "Incompatible producer versions / corrupt digests / missing CAS inputs."
+      preregistered_expectation: "Explicit incompatible/invalid/unknown typed results; no name-join fallback."

@@ -25,8 +25,11 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T06/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T07/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T08/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T09/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T10/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T12/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
-  next_action: "Execute T09: Canonical affordance resolver and isomorphic operation gateway (P3, independent_adversarial; prereg frozen 0c07f855)."
+  next_action: "Execute the max-parallel wave: T11, T13, T14, T15, T16 builders (all deps settled; preregs frozen 08c39333/ca3f05e4/c421a2c8/7d546049/360e7fb4)."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name

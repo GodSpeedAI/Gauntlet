@@ -9,7 +9,13 @@ metadata:
   initialized: true
   last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (T09 settled on the full adversarial ladder: recovery builder
+    Orchestrator (T10+T12 settled from the first parallel builder wave — T10
+    [P3] on fresh-target reproduction CONFIRM with 2 MAJOR + 1 MINOR closed
+    RED-first in COR-1 [per-role envelope budget vs the dependency-smuggling
+    channel; double-spawn TOCTOU closed at two layers; substrate-inventory
+    staleness vs real prime 0.8.0 trigger-recorded to T24]; T12 [P2] on peer
+    CONFIRM with its MAJOR [composer dismissed-request re-admission] closed
+    RED-first in COR-1. Prior: T09 settled on the full adversarial ladder: recovery builder
     completed an interrupted session's partial gateway [98/98] -> independent
     adversarial r1 NOT_CONFIRM [3 BLOCKING: bind-time key ledger armed the
     re-drive gate-skip so refused+retried invocations EXECUTED; HTTP observe
@@ -22,44 +28,41 @@ metadata:
     verifier probes, scope clean]; gates re-verified personally.
 
 execution:
-  last_settled_task: T09
+  last_settled_task: T12
   in_flight_task: null
-  ready_tasks: [T10, T12]
+  ready_tasks: [T11, T13, T14, T15, T16]
   blocked_tasks:
-    T11: [T10]
-    T13: [T12]
-    T14: [T12]
-    T15: [T12]
-    T16: [T10, T12]
-    T14B: [T12, T14]
-    T17: [T12, T13]
+    T14B: [T14]
+    T17: [T13]
     T18: [T13, T15, T16]
-    T19: [T12, T16, T18, T14B]
-    T20: [T12, T13, T16, T18, T14B]
+    T19: [T16, T18, T14B]
+    T20: [T13, T16, T18, T14B]
     T21: [T17, T20]
     T22: [T16, T18, T19, T20, T14B]
-    T23: [T11, T12, T18, T20, T14B]
-    T24: [T10, T16, T20, T22]
+    T23: [T11, T18, T20, T14B]
+    T24: [T16, T20, T22]
     T25: [T14, T15, T19, T21, T22, T23, T24, T14B]
 
 active:
-  task: T10+T12
+  task: T11+T13+T14+T15+T16
   phase: dispatch-prep
-  title: T10 Prime recursive delegation (P3) + T12 OpenTUI semantic shell (P2), parallel
+  title: max-parallel builder wave (all five ready after T10+T12 settled)
   blocker: null
 
 next_action:
-  task: T10+T12
+  task: T11+T13+T14+T15+T16
   action: >-
-    Dispatch T10 (P3 fresh_target_reproduction; prereg frozen 4c38c0e1) and
-    T12 (P2 peer; prereg frozen 6d0425a8) builders in parallel. T10: bounded
-    context envelopes from the active Horizon over actual Prime child
-    sessions, mailbox/completion separation, detach-survives. T12: semantic
-    shell over immutable snapshots, Work/Chat/Trace, Inspector, Composer
-    takeover, DSN-001..010/013/015 clauses, geometry floors. Both re-run the
-    T09 deny matrix over their newly implemented routes (trigger-records:
-    accepted-record re-drive shape anchored-vs-unanchored; reconcile
-    unanchored audit-UX residual).
+    Dispatch five builders in parallel with disjoint file ownership. T11 (P2
+    peer; prereg 08c39333): kernel callable affordances + evidence promotion.
+    T13 (P2 peer; prereg ca3f05e4): embedded terminal + unsafe-input
+    boundaries + terminal-path bench (owns the justfile terminal-path
+    selector). T14 (P2 peer; prereg c421a2c8): DomainForge adapter +
+    semantic identity. T15 (P3 independent_adversarial; prereg 7d546049):
+    plugin slots/trust/reversibility + representative plugin. T16 (P3
+    independent_adversarial; prereg 360e7fb4): live streams, reconnect
+    generations, detach/reattach. Carried trigger-records: T24 substrate
+    inventory re-run; T10/T15 deny-matrix re-runs over new routes; T12
+    composer machine reused by T13/T15 takeovers.
 
 latest_evidence:
   T00:
@@ -144,3 +147,28 @@ latest_evidence:
       head-of-line bounded stall; non-crypto 64-bit payload digest;
       compromised-transport forged-accepted exposure via ledger + fresh
       observation.
+  T10:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T10/
+    artifacts:
+      - prime-recursion.md
+    confirmation: >-
+      CONFIRM_PRIME_RECURSION (2026-09-09, fresh-target reproduction) with
+      MAJOR dependency-smuggling channel + MINOR concurrent double-spawn
+      closed RED-first in COR-1 (per-role envelope budget; policy gates
+      serialized + spawn-time duplicate guard); MAJOR substrate-inventory
+      staleness vs real prime 0.8.0 trigger-recorded to T24 (owns the
+      inventory re-run + REQ-PRIME-008 provenance mapping). Verifier's own
+      42-check battery green post-fix; 187/187 tree tests; gates re-verified
+      personally.
+  T12:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T12/
+    artifacts:
+      - semantic-shell.md
+    confirmation: >-
+      peer CONFIRM (2026-09-09) with MAJOR composer dismissed-request
+      re-admission closed RED-first in COR-1 (queued purge on admission);
+      MINOR trigger-records: DSN-004 latent label collisions in unused
+      vocabulary (T20), RenderedRecord.kind taxonomy stretch (next registry
+      change). All 12 owned DSN clauses verified to pinning tests; 187/187
+      tree tests; gates re-verified personally. index.ts barrel exports
+      applied by the orchestrator at integration.

@@ -1,0 +1,108 @@
+# Task gauntlet-tui-prime-workbench-T15 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T15 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T15 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md (DSN-012)
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T15"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T09:45:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T15.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T15 introduces stable semantic contribution slots/providers and
+      lifecycle ownership for trusted in-process Bun/OpenTUI modules, with
+      untrusted code forced behind an out-of-process narrow capability
+      boundary and all plugin effects reversible. It proves a plugin can
+      mount, contribute views/renderers/relations/inspector/affordance
+      presentation/composer/lower surfaces, execute, and unload with no
+      orphan subscriptions/handlers/state, and that trust placement is
+      explicit (REQ-PLUGIN-001..004, REQ-SEC-004; DSN-012).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Lifecycle ownership: registrations, subscriptions, and effects bind
+          to plugin lifetime with deterministic disposers. A plugin that
+          throws halfway through load after registering one handler has its
+          partial effects unwound; the mount→exercise→unload→baseline
+          comparison shows zero orphan registration (Attack 1).
+      - id: D2
+        statement: >
+          Trust placement is enforced: marking an untrusted module for
+          in-process loading is blocked by policy or routed to the narrower
+          out-of-process capability boundary (Attack 2). In-process modules
+          are trusted by declaration, not by request.
+      - id: D3
+        statement: >
+          Slot catalog is typed and bounded (DSN-012: root.nav, case.view,
+          trace.row, inspector.section, artifact.viewer, composer,
+          bottom.panel, status.item, overlay; contribution kinds View, Focus
+          renderer, Relation provider, Cue provider, Inspector section,
+          artifact viewer, affordance projection). Plugins may not mutate
+          unrelated feature state directly; affordance projections reference
+          canonical operation IDs via the T09 gateway and re-run the deny
+          matrix over the plugin route.
+
+    known_blindspots:
+      - "A marketplace, arbitrary remote plugins, and rich DomainForge/RealityTrace plugin EXAMPLES are out of scope; the representative plugin exercises the catalog."
+      - "Plugin-defined canonical business state is forbidden by guardrail; contributions are presentation/projection only."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Typed slot/provider catalog + plugin lifecycle manager (mount, contribute, dispose, unload)"
+      why_visible_now: "Implements REQ-PLUGIN-001/002."
+    - id: A2
+      class: "Trust classification + out-of-process capability boundary for untrusted modules"
+      why_visible_now: "Implements REQ-SEC-004."
+    - id: A3
+      class: "Representative multi-surface plugin + reversibility harness (mount→exercise→unload→baseline comparison) + gate suites plugin-lifecycle, plugin-trust"
+      why_visible_now: "Implements REQ-PLUGIN-003/004 and the declared gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        A plugin throwing halfway through load leaves zero registered effects:
+        the baseline comparison after unload is byte-equivalent for
+        subscriptions, affordances, view contributions, handlers, and local
+        read-model residue.
+      kind: "implementation_defect"
+      supporting_observation: "Deterministic disposers unwind partial registration; baseline diff empty."
+      disconfirming_observation: "Any orphaned handler/subscription/UI state survives unload."
+    - id: P2
+      claim: >
+        An untrusted module cannot execute in-process: trust policy blocks it
+        or confines it to the out-of-process capability boundary.
+      kind: "representation_inadequacy"
+      supporting_observation: "Typed policy refusal or confined route with narrow capability surface."
+      disconfirming_observation: "Untrusted code reaches in-process host state."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If the slot catalog requires plugins to import/mutate each other's
+        runtime state, a stable service/relation/operation seam is introduced
+        instead.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Service/relation seam between plugins, never shared mutable state."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Mount→exercise→unload→remount cycles of the representative plugin."
+      preregistered_expectation: "Each cycle returns to baseline; no accumulation across cycles."
+    parametric_variation:
+      level: L2
+      description: "Failure injection at every registration step of the representative plugin."
+      preregistered_expectation: "Partial effects unwound at every injection point."

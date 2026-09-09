@@ -1,0 +1,104 @@
+# Task gauntlet-tui-prime-workbench-T11 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T11 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T11 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T11"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T09:45:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T11.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T11 projects currently admitted deterministic operations into the
+      Prime kernel as callable affordances and implements explicit
+      kernel-object pin/artifactize/offer-as-evidence transitions with
+      provenance. It proves kernel functions representing Gauntlet operations
+      invoke the same canonical gateway as every other projection; unavailable
+      operations cannot be called through a privileged kernel side path; and
+      kernel output becomes evidence only through explicit admission
+      (REQ-AFF-002, REQ-OUT-004, REQ-PRIME-006/007, REQ-SYNC-003).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Kernel callables carry canonical operation IDs and route through the
+          T09 operation gateway; no business logic is embedded in Python/TS
+          wrappers. An authority-revoked stale callable re-enters canonical
+          admission and is denied — stale wrapper existence cannot bypass
+          current gates (Attack 1).
+      - id: D2
+        statement: >
+          Kernel computation state is never evidence: a persuasive kernel
+          variable (verified=true) cannot settle work; artifactize/admission is
+          an explicit, provenance-carrying transition (Attack 2).
+      - id: D3
+        statement: >
+          Deterministic read/query helpers are represented separately from
+          consequential affordances; kernel input requests return through the
+          Prime mediation/Attention path, never direct terminal prompting.
+          Wrappers invalidate/refresh on generation/Horizon/authority change.
+
+    known_blindspots:
+      - "Arbitrary Python safety is out of scope; kernel/worker isolation is not a security sandbox (T05 disclosure carries)."
+      - "The notebook-like Work View is T12+ presentation; T11 provides the affordance namespace and transitions."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Kernel affordance namespace (generated/current callables bound to canonical operation IDs, routed via the T09 gateway)"
+      why_visible_now: "Implements REQ-AFF-002 isomorphism into the kernel projection."
+    - id: A2
+      class: "Kernel-object lifecycle transitions (pin/artifactize/attach-to-Focus/offer-as-evidence) with session/generation provenance"
+      why_visible_now: "Implements REQ-PRIME-007 and REQ-SYNC-003."
+    - id: A3
+      class: "Gate suites kernel-affordances and evidence-promotion"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        A kernel callable whose authority is revoked still exists but its
+        invocation re-enters canonical admission and is denied before any side
+        effect.
+      kind: "implementation_defect"
+      supporting_observation: "Typed canonical denial; zero state change; wrapper marked stale/refreshed."
+      disconfirming_observation: "The stale callable executes its effect through a kernel-side path."
+    - id: P2
+      claim: >
+        Kernel output becomes Gauntlet evidence only through explicit
+        artifactize/offer-as-evidence admission carrying source/session/
+        generation provenance; kernel variables can never establish
+        verification or settlement.
+      kind: "representation_inadequacy"
+      supporting_observation: "Un-admitted kernel values remain computation state in projections."
+      disconfirming_observation: "Any projection treats a kernel value as evidence/verification without admission."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If kernel wrappers need direct database/domain mutations to be useful,
+        the canonical operation/read boundary is corrected instead of granting
+        the kernel new authority.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Gateway/read-boundary extension, never kernel-side authority."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay grant→call→revoke→call through a kernel wrapper."
+      preregistered_expectation: "Second call denied canonically; wrapper invalidated on authority change."
+    parametric_variation:
+      level: L2
+      description: "Generation/Horizon changes between wrapper creation and invocation."
+      preregistered_expectation: "Wrapper invalidated or refreshed; no stale-envelope execution."

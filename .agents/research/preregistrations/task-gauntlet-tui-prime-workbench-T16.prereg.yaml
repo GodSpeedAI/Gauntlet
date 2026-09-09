@@ -1,0 +1,112 @@
+# Task gauntlet-tui-prime-workbench-T16 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T16 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T16 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T16"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T09:45:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T16.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T16 integrates live authoritative streams with baseline/cursor
+      catch-up, generation changes, stale-frame rejection, and TUI
+      detach/reattach to long-running Prime sessions — never treating local
+      projection inconsistency as source truth. It proves the workbench can
+      disconnect/reconnect while events are in flight, reject superseded
+      frames, rebuild coherent active views, and reattach to authorized Prime
+      work that continued without the TUI (REQ-DATA-002..004, REQ-OPS-001/002,
+      REQ-OUT-003, REQ-PRIME-009/010, REQ-SAFE-005, REQ-SYNC-001/002,
+      REQ-UX-004, REQ-VERIFY-005/006).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Generation-minted connect/reconnect handshake with baseline and
+          per-source cursors; late frames from older generations are rejected
+          (building on T06's ProjectionGeneration); canonical ordering never
+          relies on wall-clock timestamps alone.
+      - id: D2
+        statement: >
+          Detach persists ONLY noncanonical cursor/view preferences; it never
+          cancels Prime work. Reattach reconstructs Prime topology/session
+          refs from Prime/Gauntlet and reconciles events since the last
+          authoritative cursor (T10's survive-and-reattach data flow, now
+          over live streams).
+      - id: D3
+        statement: >
+          Inconsistency enters a visible degraded/resync state; authoritative
+          sources are never mutated to make the UI agree. Source epoch change,
+          cursor gaps/retention, two clients, overload, and kill-after-
+          acceptance-before-receipt are exercised; canonical execution
+          lifetime survives Bun host loss (presentation cursor persistence is
+          not execution recovery).
+
+    known_blindspots:
+      - "Real-network transport loss is exercised as deterministic in-process stream failure, not live network chaos (T20 covers real target paths)."
+      - "Million-event histories are T21 scale; T16 pins correctness under representative in-flight volumes."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Live stream integration with generation-minted handshake and baseline/cursor catch-up over the T06 store"
+      why_visible_now: "Implements REQ-SYNC-001/002, REQ-DATA-002."
+    - id: A2
+      class: "Stale-frame rejection + degraded/resync visibility"
+      why_visible_now: "Implements REQ-DATA-003/REQ-SAFE-005."
+    - id: A3
+      class: "TUI detach/reattach to continuing Prime work with authoritative reconciliation"
+      why_visible_now: "Implements REQ-PRIME-009/010, REQ-VERIFY-005/006."
+    - id: A4
+      class: "Gate suites reconnect-races, detach-reattach, stale-frame"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        Disconnect after baseline but before several incremental events
+        commit; reconnect to a new generation; deliver old-generation frames
+        out of order → the rebuilt generation converges to authoritative
+        state and every old-generation frame is rejected.
+      kind: "implementation_defect"
+      supporting_observation: "Converged projections equal the authoritative fold; rejections typed."
+      disconfirming_observation: "Any stale frame mutates the live generation or divergence persists."
+    - id: P2
+      claim: >
+        Closing/killing the TUI during a running Prime child and reopening
+        from a clean process projects the child's REAL state (authorized/
+        running or completed per Prime/Gauntlet) with no inference from stale
+        files, and no cancellation was sent by the detach.
+      kind: "representation_inadequacy"
+      supporting_observation: "Fresh process shows authoritative topology + reconciled events."
+      disconfirming_observation: "Detach cancels work or the new TUI invents state."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If reconnect correctness depends on UI-specific event ordering or
+        timestamps not guaranteed by owning sources, source cursor/sequence
+        semantics are strengthened rather than adding heuristics.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Source cursor/sequence semantics hardening."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay disconnect/reconnect with recorded in-flight event sets and epoch changes."
+      preregistered_expectation: "Deterministic convergence; typed stale rejections."
+    parametric_variation:
+      level: L2
+      description: "Two concurrent clients; overload backpressure; kill between acceptance and receipt."
+      preregistered_expectation: "No lost/duplicated authoritative effects; resync entered visibly."
