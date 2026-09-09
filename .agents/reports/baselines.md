@@ -114,3 +114,16 @@ workspace 1625/1625; lint; deny; boundaries 237/237; ruler PASS; the
 plan gate verbatim at the frozen locator; personal teeth RED →
 byte-identical restore → GREEN). Full records:
 `.agents/reports/task26/`.
+
+---
+
+## Post-settlement independent verification correction — 2026-09-08
+
+Two independent post-settlement forensic audits ([opus-task26-independent-verification.md](file:///home/sprime01/projects/gauntlet/.agents/reports/opus-task26-independent-verification.md) and [sol-task26-independent-verification.md](file:///home/sprime01/projects/gauntlet/.agents/reports/sol-task26-independent-verification.md)) revealed that the original Task 26 baseline fixture ran with `review.max_critics: 0`.
+
+Key Corrections & Disclosures:
+- **Critic Dispatch**: The original Task 26 Profile D ran with `review_dispatches = 0` and therefore did not execute the combined fresh-critic + deterministic-settlement loop.
+- **Interpretation Adjustment**: The original "D decisive win" narrative is qualified by the absence of critic dispatch in the historical Task 26 run.
+- **Wall-Clock Comparability**: The original wall-clock comparison reflects fixture-specific sleep constants and is not suitable for cross-profile economic inference.
+- **Settlement Reliability Meaning**: Settlement reliability measures whether completions are backed by durable, instrument-produced evidence, not external real-world correctness.
+- **New Follow-Up Evidence**: A dedicated follow-up experiment configuring Profile D with `max_critics: 1` (`D+critic`) was executed on 2026-09-08. The results are recorded as NEW evidence in [.agents/reports/task26-followup/](file:///home/sprime01/projects/gauntlet/.agents/reports/task26-followup/). The new run confirms that with critic dispatch enabled, the critic catches `subtle-defect` regressions (blocking residual emitted, 0 defect escapes), while deterministic verifier authority prevents `compromised-critic` from falsely settling.
