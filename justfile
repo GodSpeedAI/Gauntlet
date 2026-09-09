@@ -164,8 +164,21 @@ tui-bench selector:
         exit 2
     fi
 
-# Not yet implemented: no release/package target exists yet (plan T20).
+# Release/package target (plan T20): builds the pinned-target standalone
+# artifact (bun-linux-x64 --compile), LAUNCHES it in a real PTY at 120x40 and
+# qualifies the rendered shell, then writes workbench/dist/release-manifest.json
+# (artifact sha256, bun version, entry, lockfile digest, dependency list,
+# launch qualification, support facts). Exit 0 requires artifact + manifest +
+# clean launch. Other modes are NOT_IMPLEMENTED until a task declares them.
 tui-build mode:
-    @echo "tui-build {{mode}}: NOT_IMPLEMENTED — no release/package target exists yet (plan T20)" >&2; exit 2
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd workbench
+    if [ "{{mode}}" = "release" ]; then
+        bun run src/release-manifest.ts
+    else
+        echo "tui-build {{mode}}: NOT_IMPLEMENTED — no other package target is declared yet (plan T20 owns 'release')" >&2
+        exit 2
+    fi
 
 verify: ci

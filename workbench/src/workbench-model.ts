@@ -13,6 +13,7 @@ import {
   deriveAttention,
   isHorizon,
   MalformedSavedHorizonsError,
+  type MaterializationPlan,
   planMaterialization,
   SavedHorizonRegistry,
 } from "./horizon";
@@ -25,6 +26,7 @@ import {
 } from "./projection-store";
 import type { ProjectionWorld, RelationQuerySpec } from "./relations";
 import { deriveRelations } from "./relations";
+import { type FoldExecutor, MaterializationFoldCoordinator } from "./worker-folds";
 
 /**
  * React-free Workbench Model and immutable snapshot fan-out.
@@ -44,6 +46,11 @@ import { deriveRelations } from "./relations";
  *   - Case-wide attention is derived from the whole Case and stays independent of the
  *     active Horizon; capability observations never fake availability (REQ-GOAL-001,
  *     REQ-AFF-004/005, REQ-OPS-004).
+ *   - T20 planner swap (T17 obligation): with a fold executor configured, the
+ *     materialization plan refreshes off the render path through the
+ *     MaterializationFoldCoordinator; snapshots carry the last-known plan for the
+ *     exact current context and the inline fold remains the immediate fallback —
+ *     the model never blocks rendering on the worker (REQ-BUN-006).
  */
 
 /** Typed error carrying the failing WorkbenchModel operation (failure locus preserved). */
@@ -168,6 +175,17 @@ export type SnapshotListener = (snapshot: FullWorkbenchSnapshot) => void;
 export interface WorkbenchModelOptions {
   readonly dbPath?: string;
   readonly enableChat?: boolean;
+  /**
+   * T20 planner swap (T17 MAJOR obligation): when a fold executor is provided,
+   * the materialization plan refreshes OFF the render path through the
+   * MaterializationFoldCoordinator while the inline fold remains the immediate
+   * fallback. The model NEVER blocks rendering on the worker: snapshots carry
+   * the last-known plan for the current (generation, horizon, world) context
+   * and refresh when the worker completes; any context change falls back to
+   * the inline fold until a fresh worker plan lands. Omitted (the default),
+   * the model plans inline exactly as before T20.
+   */
+  readonly foldExecutor?: FoldExecutor;
 }
 
 export class WorkbenchModel {
@@ -188,6 +206,29 @@ export class WorkbenchModel {
   private savedHorizons = new SavedHorizonRegistry();
   private chatEnabled = true;
 
+  // T20 planner swap: worker fold coordination (off-path plan refresh).
+  private readonly foldCoordinator: MaterializationFoldCoordinator | null;
+  private foldUnsubscribe: (() => void) | null = null;
+  /** Bumped on every world/horizon/context change that stales a computed plan. */
+  private planVersion = 0;
+  /** The planVersion the last ACCEPTED worker plan was computed from. */
+  private acceptedPlanVersion = -1;
+  /** Guards against scheduling a second in-flight refresh for the same context. */
+  private refreshInFlight = false;
+  /** The planVersion captured when the current in-flight fold was dispatched. */
+  private dispatchedPlanVersion = -1;
+
+  /**
+   * Invalidate the plan cache for a changed context. Clearing the in-flight
+   * guard here lets a changed context schedule a fresh refresh even if an
+   * earlier worker outcome never arrives (wedged executor): the coordinator
+   * discards the superseded task whenever it does surface.
+   */
+  private invalidatePlan(): void {
+    this.planVersion += 1;
+    this.refreshInFlight = false;
+  }
+
   // In-memory projection reducers (mirrored/derived from durable log)
   private traceRecords: TraceRecord[] = [];
   private chatMessages: ChatMessage[] = [];
@@ -197,6 +238,32 @@ export class WorkbenchModel {
   constructor(options?: WorkbenchModelOptions) {
     this.store = new SqliteProjectionStore(options?.dbPath ?? ":memory:");
     this.chatEnabled = options?.enableChat ?? true;
+    const executor = options?.foldExecutor;
+    this.foldCoordinator = executor ? new MaterializationFoldCoordinator(executor) : null;
+    if (executor && this.foldCoordinator) {
+      const coordinator = this.foldCoordinator;
+      // Accept outcomes against the LIVE generation and publish the refreshed
+      // plan. Every outcome (applied, discarded, or error) completes the
+      // in-flight refresh for the latest task; stale frames were never
+      // dispatched for superseded task ids (worker coalescing) or are
+      // discarded by the coordinator's own invalidation contract.
+      this.foldUnsubscribe = executor.onOutcome((outcome) => {
+        const active = this.store.getActiveGeneration();
+        if (active === null || active.status === "closed") {
+          this.refreshInFlight = false;
+          return;
+        }
+        const result = coordinator.accept(outcome, active.id);
+        this.refreshInFlight = false;
+        if (result.status === "applied") {
+          // The plan was computed from the world as of the dispatch; record
+          // that version so validity tracks the context the fold actually read.
+          this.acceptedPlanVersion = this.dispatchedPlanVersion;
+          // Re-publish so listeners receive the refreshed plan (never a stale one).
+          this.notifySubscribers();
+        }
+      });
+    }
   }
 
   /**
@@ -212,6 +279,9 @@ export class WorkbenchModel {
     this.horizonStack = [];
     this.currentHorizon = null;
     this.storeFocusRef = null;
+    // New generation = new world: any previously accepted plan is for a
+    // superseded generation context.
+    this.invalidatePlan();
   }
 
   /**
@@ -290,6 +360,9 @@ export class WorkbenchModel {
     if (attributedFocus !== null) {
       this.storeFocusRef = attributedFocus;
     }
+    // The authoritative world changed: a previously accepted plan no longer
+    // describes it (T20 planner swap validity tracking).
+    this.invalidatePlan();
 
     // 2. Fan-out to Trace projection reducer
     this.traceRecords.push({
@@ -340,6 +413,7 @@ export class WorkbenchModel {
     }
     this.currentHorizon = horizon;
     this.horizonStack = horizon === null ? [] : [horizon];
+    this.invalidatePlan();
     this.notifySubscribers();
   }
 
@@ -363,6 +437,7 @@ export class WorkbenchModel {
     this.horizonStack.push(horizon);
     this.currentHorizon = horizon;
     this.currentFocus = ref;
+    this.invalidatePlan();
     this.notifySubscribers();
     return horizon;
   }
@@ -375,6 +450,7 @@ export class WorkbenchModel {
     this.horizonStack.pop();
     const top = this.horizonStack[this.horizonStack.length - 1] ?? null;
     this.currentHorizon = top;
+    this.invalidatePlan();
     this.notifySubscribers();
     return top;
   }
@@ -496,12 +572,20 @@ export class WorkbenchModel {
 
   /**
    * Build immutable FullWorkbenchSnapshot.
+   *
+   * T20 planner swap: the materialization plan comes from the fold
+   * coordinator's last-accepted worker plan whenever one is valid for the
+   * CURRENT (generation, horizon, world-version) context; otherwise it is
+   * folded inline synchronously — the immediate fallback. The inline fallback
+   * doubles as the refresh trigger: the first snapshot read on a stale context
+   * schedules an asynchronous worker refresh, so interactions never wait on
+   * the worker and the plan converges when the fold completes.
    */
   getSnapshot(): FullWorkbenchSnapshot {
     const horizonId = this.currentHorizon?.id ?? null;
     const baseSnapshot = this.store.getSnapshot(horizonId);
     const world = this.worldFromBase(baseSnapshot);
-    const plan = planMaterialization(world, this.currentHorizon);
+    const plan = this.currentPlan(world);
     const attention = deriveAttention(world);
     const capabilityStatuses = [...this.capabilities.values()].map(resolveCapabilityStatus);
     const availableCapabilityAffordances = capabilityStatuses
@@ -551,6 +635,84 @@ export class WorkbenchModel {
    */
   getUnits(): readonly UnitProjection[] {
     return this.getSnapshot().units;
+  }
+
+  /**
+   * T20 planner swap: the plan for this snapshot — the worker's last-accepted
+   * plan when it is valid for the current context, else the inline fold.
+   * Validity is exact: same active generation, same horizon, same world
+   * version (any event/horizon change invalidates). A miss schedules the
+   * asynchronous refresh and folds inline for THIS snapshot.
+   */
+  private currentPlan(world: ProjectionWorld): MaterializationPlan {
+    const coordinator = this.foldCoordinator;
+    if (coordinator !== null) {
+      const cached = coordinator.acceptedPlan;
+      const active = this.store.getActiveGeneration();
+      const valid =
+        cached !== null &&
+        this.acceptedPlanVersion === this.planVersion &&
+        active !== null &&
+        active.status !== "closed" &&
+        cached.horizon_id === (this.currentHorizon?.id ?? null);
+      if (valid && cached !== null) {
+        return cached;
+      }
+      this.scheduleFoldRefresh();
+    }
+    return planMaterialization(world, this.currentHorizon);
+  }
+
+  /**
+   * Fire-and-forget asynchronous plan refresh. Never awaited by the render
+   * path (the model must never block on the worker); the outcome handler in
+   * the constructor re-publishes when the refreshed plan is admitted.
+   */
+  private scheduleFoldRefresh(): void {
+    const coordinator = this.foldCoordinator;
+    if (coordinator === null || this.refreshInFlight) {
+      return;
+    }
+    const active = this.store.getActiveGeneration();
+    if (active === null || active.status === "closed") {
+      return;
+    }
+    this.refreshInFlight = true;
+    this.dispatchedPlanVersion = this.planVersion;
+    const world = this.worldSnapshot();
+    const horizon = this.currentHorizon;
+    void coordinator.submit(world, horizon, active.id).catch(() => {
+      // Submit failure (e.g. world install refused) must not wedge the
+      // scheduler; the inline fallback keeps serving fresh folds.
+      this.refreshInFlight = false;
+    });
+  }
+
+  /** The plan currently live for the render path (worker plan when current, else null). */
+  get workerPlan(): MaterializationPlan | null {
+    const coordinator = this.foldCoordinator;
+    if (coordinator === null) {
+      return null;
+    }
+    const cached = coordinator.acceptedPlan;
+    const active = this.store.getActiveGeneration();
+    return cached !== null &&
+      this.acceptedPlanVersion === this.planVersion &&
+      active !== null &&
+      active.status !== "closed" &&
+      cached.horizon_id === (this.currentHorizon?.id ?? null)
+      ? cached
+      : null;
+  }
+
+  /** Coordinator statistics (submitted/accepted/stale_discarded/error_discarded). */
+  get foldStats(): Readonly<{
+    submitted: number;
+    accepted: number;
+    stale_discarded: number;
+    error_discarded: number;
+  }> | null {
+    return this.foldCoordinator?.stats ?? null;
   }
 
   /**
@@ -662,6 +824,9 @@ export class WorkbenchModel {
    */
   close(): void {
     this.listeners.clear();
+    this.foldUnsubscribe?.();
+    this.foldUnsubscribe = null;
+    this.foldCoordinator?.dispose();
     this.store.close();
   }
 }

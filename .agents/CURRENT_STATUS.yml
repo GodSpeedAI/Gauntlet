@@ -36,8 +36,10 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T14B/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T17/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T18/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T19/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T20/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
-  next_action: "Execute the two-builder wave: T19 (headless equivalence, P3 independent) + T20 (SSH/release qualification, P2 peer; carries the T17 planner-swap obligation and the Inspector lens wiring)."
+  next_action: "Execute the final three-builder wave: T21 (payment benchmark), T22 (recovery matrix), T23 (cross-surface isomorphism confirmation). Then T24, then T25 whole-system settlement."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name

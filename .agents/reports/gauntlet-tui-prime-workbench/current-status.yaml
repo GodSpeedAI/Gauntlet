@@ -9,56 +9,56 @@ metadata:
   initialized: true
   last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (the T14B+T17+T18 wave settled: T14B on independent
-    CONFIRM_COMPOSITION + COR-1 [swapped-repo dead-guard bypass closed
-    RED-first with dual live ledger-provenance guards; XDG omission; typed
-    forged-command refusal] — REAL captures: full 13-record sxr 0.1.0
-    lifecycle, both-mode object carrier requalified discharging T14's
-    trigger-record, real CAS content_ref, real Relation fixture, 34-entry
-    digest-pinned capture set; T17 on peer CONFIRM [all five adversarial
-    probes clean; frozen budgets all PASS; placement decisions reproduced
-    under seed perturbation] with the planner-swap composition gap tracked
-    as a T20 obligation; T18 on CONFIRM_TRUST_BOUNDARIES + COR-1
-    [inventory attestation made honest with the true enforcement locus +
-    verifier's repro pinned; scanner calibrated with 5 new patterns] —
-    its spawned corrections closed elsewhere: T13 spawn-env substitution
-    bound [PATH/LD_*/DYLD_* refused, bare names anchored, 8 RED-first
-    regressions, real-PTY battery green] adjudicated CONFIRM by the
-    consolidated focused re-verification). Focused r2 verdicts:
-    T13=CONFIRM, T14B=CONFIRM, T18=CONFIRM. Final tree green in the
-    orchestrator's hands: 469 tests/43 files (1 env-gated skip), all
-    selectors, four benches, tsc clean, biome 0 errors, preflight PASS,
-    preregs T14B/T17/T18 intact.
+    Orchestrator (the T19+T20 wave settled: T19 on independent
+    CONFIRM_HEADLESS_EQUIVALENCE [own-fixture replay with independent fold,
+    renderer truth-move attacks, typed unavailability contract, store
+    deletion, 7 smuggling shapes incl. transitive chains all captured, 0
+    blocking/0 major; 1 minor trigger-recorded]; T20 on peer CONFIRM
+    [20 probes: 10 planner-swap supersession races, 8 lens shape-abuse,
+    2 transport edges — all repelled; release artifact rebuilt
+    byte-identical and independently launched; 0 blocking/0 major] with
+    COR: the mislabeled work-view journey frame fixed [untilFrame
+    fresh-frame assertion replaces accumulated-output matching; class
+    eliminated], three minors trigger-recorded [presence-only lens gate;
+    REQ-UX-007 live-endpoint breadth partially future, noted for T25;
+    planner refreshInFlight clearing micro-waste]. BOTH tracked
+    obligations discharged and probe-survived: T17 planner swap wired
+    into the production snapshot path [async refresh + inline fallback,
+    cache-validity generation/horizon/world-version triple]; Inspector
+    lens wiring [T14/T14B sections appended data-source-gated via
+    publishLensData]. SSH reality: sshd inactive on this host — real-SSH
+    leg a visible gated skip naming the probe failure; tmux 3.6 legs REAL
+    (render/resize/client-death/reattach, cancel_calls_issued:0). Release
+    artifact: bun build --compile bun-linux-x64, sha256 ec110d78...,
+    launched in a real PTY at 120x40, manifest with support facts; clean
+    rebuild byte-identical. Final tree green in the orchestrator's hands:
+    531 tests/51 files (5 gated skips, all named), release build PASS,
+    gated PTY journeys 3/3, tsc clean, biome 0 errors, preflight PASS,
+    preregs T19/T20 intact.
 
 execution:
-  last_settled_task: T18
+  last_settled_task: T20
   in_flight_task: null
-  ready_tasks: [T19, T20]
+  ready_tasks: [T21, T22, T23]
   blocked_tasks:
-    T21: [T20]
-    T22: [T19, T20]
-    T23: [T20]
-    T24: [T20, T22]
+    T24: [T22]
     T25: [T21, T22, T23, T24]
 
 active:
-  task: T19+T20
+  task: T21+T22+T23
   phase: dispatch-prep
-  title: two-builder wave (headless equivalence + release qualification)
+  title: final three-builder wave
   blocker: null
 
 next_action:
-  task: T19+T20
+  task: T21+T22+T23
   action: >-
-    Dispatch T19 (P3 independent; prereg 55d81c37): headless replay +
-    renderer boundary + canonical-layer import bans. T20 (P2 peer; prereg
-    4eabe7b8): SSH/tmux qualification + release build/launch + real-PTY
-    operator journeys — T20 carries tracked obligations: the T17
-    planner-swap composition gap (WorkbenchModel.getSnapshot still folds
-    inline; wire the MaterializationFoldCoordinator into the production
-    path), the T14B/T12 Inspector lens wiring (sxr-evidence + semantic
-    sections into the live view), and T18's disclosed_bound inventory is
-    the truth source for its boundary claims.
+    Dispatch T21 (P2 peer; prereg 55.. frozen 88a06f? see T21 hash):
+    payment benchmark with frozen budgets. T22 (P3 indep adversarial):
+    destructive recovery matrix over RECOV cases. T23 (P3 indep
+    adversarial): fresh cross-surface isomorphism confirmation. Then T24
+    (fresh-target Prime/Python lifecycle + substrate inventory re-run),
+    then T25 whole-system conformance + plan settlement.
 
 latest_evidence:
   T00:
@@ -268,3 +268,33 @@ latest_evidence:
       mutation; 8 attacks held). Trigger-records: perform-hang
       instance-wide stall (T09 composition-level deadline); redactDeep
       Map/Set; real-PTY echoed paste.
+  T19:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T19/
+    artifacts: [headless-equivalence.md]
+    confirmation: >-
+      CONFIRM_HEADLESS_EQUIVALENCE (2026-09-09, independent): own-fixture
+      replay (15 events, two sources, cross-source supersession, re-admitted
+      evidence, Case-scoped focus) with a hand-written independent fold equals
+      both harness paths byte-stably across processes; renderer truth-move,
+      typed unavailability, store deletion, and 7 import-smuggling shapes
+      (incl. transitive chains and type-only/dynamic bindings) all captured.
+      Minor trigger-recorded: normalize* accept any WorkbenchSnapshot
+      (convention not type enforcement; narrower parameter type at next
+      touch); two wording nits recorded.
+  T20:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T20/
+    artifacts: [release-qualification.md, frames/]
+    confirmation: >-
+      peer CONFIRM (2026-09-09): 20 adversarial probes (planner supersession
+      races, lens shape-abuse, transport edges) all repelled; release
+      artifact rebuilt byte-identical and independently launched; both
+      tracked obligations (T17 planner swap; Inspector lens wiring)
+      discharged and probe-survived. COR: mislabeled work-view journey frame
+      fixed (untilFrame fresh-frame assertions replace accumulated-output
+      matching). Trigger-records: presence-only lens render gate (typed
+      guard before any trust boundary); REQ-UX-007 live-endpoint breadth
+      partially future (T25 settle-list); planner refreshInFlight clearing
+      micro-waste. SSH reality: real-sshd leg a visible gated skip (sshd
+      inactive); tmux 3.6 legs real; release artifact bun-compile
+      bun-linux-x64 sha256 ec110d78... launched in a real PTY, clean rebuild
+      byte-identical.

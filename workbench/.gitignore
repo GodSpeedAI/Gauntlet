@@ -1,1 +1,4 @@
 node_modules/
+# T20 release form: the compiled artifact and its manifest are generated build
+# outputs (just tui-build release) — never sources.
+dist/

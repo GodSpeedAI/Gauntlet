@@ -23,12 +23,16 @@ import type {
   PaymentEstimate,
 } from "./affordance";
 import { resolveAffordance } from "./affordance";
+import type { SemanticEnrichment } from "./domainforge-adapter";
+import { renderSemanticSection } from "./domainforge-adapter";
 import type { FocusRef } from "./focus";
 import { operationIds } from "./operation-registry";
 import type { EvidenceProjection, SessionProjection, UnitProjection } from "./projection-store";
 import type { ProjectionWorld, RelationEdge } from "./relations";
 import { deriveRelations } from "./relations";
 import type { RenderedLine, RenderedRecord } from "./render-tree";
+import type { SxrLensProjection, SxrVerificationPath } from "./sxr-adapter";
+import { renderSxrEvidenceSection } from "./sxr-adapter";
 
 export interface InspectorSection {
   readonly id: string;
@@ -44,6 +48,16 @@ export interface InspectorArgs {
     readonly evidence: readonly EvidenceProjection[];
     readonly sessions: readonly SessionProjection[];
     readonly source_cursors: Record<string, string>;
+    /**
+     * T20 lens wiring (T14/T14B obligation): optional PUBLISHED lens data an
+     * operator host may carry on the snapshot (see `publishLensData`). The
+     * semantic and reality-trace sections appear ONLY when the snapshot
+     * carries the projected data — absence publishes nothing and no section
+     * is fabricated. Never canonical state; projections, not truth stores.
+     */
+    readonly semantic?: SemanticEnrichment | undefined;
+    readonly sxr_lens?: SxrLensProjection | undefined;
+    readonly sxr_paths?: readonly SxrVerificationPath[] | undefined;
   };
   readonly focus: FocusRef;
   readonly observation: AffordanceObservation;
@@ -382,8 +396,42 @@ export function renderInspector(args: InspectorArgs): {
     records: [],
   });
 
+  // T20 LENS WIRING (T14/T14B obligation): the semantic-enrichment and
+  // reality-trace sections join the live section list, gated on the snapshot
+  // actually CARRYING the projected data. Nothing here invents or infers
+  // provider output; when the host published no lens, no section appears.
+  if (snapshot.semantic !== undefined) {
+    sections.push(renderSemanticSection(snapshot.semantic));
+  }
+  if (snapshot.sxr_lens !== undefined) {
+    sections.push(renderSxrEvidenceSection(snapshot.sxr_lens, snapshot.sxr_paths ?? []));
+  }
+
   // Affordances — every operation with reasons and next steps (DSN-009).
   sections.push(affordanceSection(focus, observation, args.session, args.paymentEstimates));
 
   return { focus, sections };
+}
+
+// --- T20 lens publication seam (read-only, mirrors publishTerminalProvider) -------
+
+/** The noncanonical lens data a host may publish onto a snapshot. */
+export interface PublishedLensData {
+  readonly semantic?: SemanticEnrichment | undefined;
+  readonly sxr_lens?: SxrLensProjection | undefined;
+  readonly sxr_paths?: readonly SxrVerificationPath[] | undefined;
+}
+
+/**
+ * Publish projected lens data as OWN properties on a snapshot so
+ * `renderInspector` includes the semantic and reality-trace sections through
+ * the live shell path. Canonical fields are untouched; publishing nothing
+ * (or omitting a lens) keeps that section absent — the gate is the data's
+ * presence on the snapshot, never a default.
+ */
+export function publishLensData<S extends object>(
+  snapshot: S,
+  lenses: PublishedLensData,
+): S & PublishedLensData {
+  return Object.freeze({ ...snapshot, ...lenses });
 }
