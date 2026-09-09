@@ -1,359 +1,1286 @@
 # Gauntlet
 
-**A governed comparison-and-correction runtime for agentic work.**
+### Keep long-running agent work from turning into a persuasive blur.
 
-> An agent saying "done" is not a control system.
+One agent call is easy to understand.
 
----
+You give it a task. It works. You inspect the result.
 
-## The problem
+Now let it work for an hour.
 
-You ask an agent to build something. It edits files, runs commands, calls tools, and reports back: done.
+It reads dozens of files. Changes its plan. Calls tools. Retries failures. Delegates to another agent. Discovers a requirement it missed. Rewrites three files. Runs some tests. Runs out of context. Resumes. Fixes the fix.
 
-You believe it. The terminal is clean. The summary reads well. Nothing in front of you says otherwise.
+Eventually it says:
 
-Then, later:
+> Done.
 
-- The test it says passed never ran.
-- The requirement it says it met got quietly rewritten mid-task, to match what got built instead of the other way around.
-- The fix broke something three files away that nobody checked.
-- You find out in production. Or in a client demo. Or three sprints later, when someone else touches the code and it falls apart.
+At that point, the hard question is no longer whether the model is smart.
 
-None of that is a model problem. It's a structural one. The agent that did the work is also the only one certifying that it's correct. Nothing independent is checking whether "done" is true.
+It is:
 
-You can respond to that by reading every diff yourself and rerunning every test by hand. That scales to one project. Not to a team, and not to a business that runs on this working.
+> **What kept the target fixed while the work changed underneath it?**
 
-Or you can grant broad autonomy and hope. That works until the day it costs you something you can't get back: a security incident, a broken production system, a client who stops trusting your delivery.
+**Gauntlet is a constrained execution harness for long-horizon agentic work. It turns a bounded work contract into an orchestrated sequence of agent and tool actions, checks, recovery, and evidence while keeping the governing objective and acceptance criteria outside the executor.**
 
-Gauntlet is the third option: give agents real room to work, without giving any single agent enough authority to grade its own homework.
+Plainly: Gauntlet gives agents room to work for a long time without letting the work gradually redefine what counts as success.
 
----
+Its basic loop is:
 
-## What you get
-
-- **The claim and the check are separated.** Something other than the builder decides whether the work actually happened.
-- **The target can't move mid-run.** If the work doesn't meet the requirement, the requirement doesn't quietly get rewritten to match the work.
-- **Not knowing stays "not knowing."** A missing test, a timeout, an unavailable tool: none of it gets rounded up to a pass.
-- **Fixes stay small.** Gauntlet corrects the smallest thing that's actually broken, not the whole system, every time.
-- **Nothing gets forgotten.** A crash or restart doesn't erase what was already proven.
-- **"It worked once" doesn't become "it's reliable."** A pattern earns reuse only after it survives being tried again, under different conditions, with recovery from failure along the way.
-
----
-
-## How it works
-
-Every Gauntlet run moves through the same loop:
-
-reference → transform → observe → compare → verify → correct → settle → remember
-
-In plain terms:
-
-1. Gauntlet figures out what "correct" actually means before anyone starts building. That's the **Reference**.
-2. A builder, an agent, a script, a person, does the work.
-3. An instrument, not the builder, observes what actually happened.
-4. Gauntlet compares that observation against the Reference and flags every real difference.
-5. A verifier checks each difference against hard evidence: a test result, a compiler error, a scan, a human signoff.
-6. Whatever's still wrong gets the smallest fix that could plausibly close the gap.
-7. The loop repeats until the work settles, or until it hits a limit and stops honestly instead of pretending.
-8. What happened gets kept, so the next run doesn't start from zero.
-
-```mermaid
-flowchart LR
-    R[Reference] --> T[Transform]
-    T --> A[Reality / Artifacts]
-    A --> O[Observe]
-    O --> B[Observation Bundle]
-    B --> C[Compare]
-    C --> X[Residuals]
-    X --> V[Verify]
-
-    V -->|unresolved| S[Select Correction]
-    S --> K[Correct]
-    K --> A
-
-    V -->|requirements satisfied| SET[Settle]
-    SET --> M[Remember]
-    M --> R
+```text
+bounded work contract
+        ↓
+     execute
+        ↓
+     observe
+        ↓
+     compare
+        ↓
+      verify
+        ↓
+   correct if needed
+        ↓
+      settle
+        ↓
+ durable evidence
 ```
 
-Four distinctions do most of the work, and ordinary agent workflows tend to collapse all four:
+Agents can plan, search, code, delegate, retry, and recover inside that loop.
 
-- **Transform is not observe.** The builder changes the target. The builder doesn't get to decide what the change proves.
-- **Observe is not compare.** Observation records what's actually true. Comparison is what's different from what was supposed to be true.
-- **Compare is not verify.** A reviewer can spot something that looks wrong. Only a verifier, checking against real evidence, gets to say pass or fail.
-- **Execute is not settle.** A command running successfully is a much weaker claim than "the required outcome happened, and here's the evidence."
+They do not get to move the ruler because the ruler became inconvenient.
 
 ---
 
-## The Reference is the ruler, and it doesn't move
+## Long-horizon agents create a different kind of failure
 
-Every run works against one frozen Reference: what the finished thing is supposed to mean, what has to stay true, what can never happen, what evidence is required, what "done" actually looks like.
+A short agent task can fail obviously.
 
-It breaks down into individually checkable claims, called Units:
+The code does not compile. The answer is wrong. The tool call errors.
+
+Long-running work can fail while looking much healthier.
+
+Suppose you ask an agent to implement account lockout after repeated failed logins.
+
+Twenty minutes later it has:
+
+* edited the authentication service
+* changed a schema
+* added tests
+* updated configuration
+* delegated part of the work
+* fixed a regression
+* replaced an earlier implementation
+* summarized the result
+
+Every individual step may look plausible.
+
+The original requirement may still be wrong.
+
+Maybe lockout resets when the service restarts.
+
+Maybe the agent tested three failures when the requirement said five.
+
+Maybe the test it cites never ran after the final correction.
+
+Maybe a delegated agent changed a neighboring policy.
+
+Maybe the implementation works, but only because the acceptance criterion quietly became easier halfway through the run.
+
+The longer the work continues, the easier it becomes for these distinctions to disappear into the history of the run.
+
+A bigger context window does not solve that.
+
+More agents do not solve it.
+
+A more capable model does not solve it.
+
+The run needs structure outside the model.
+
+---
+
+## Start with one task you normally supervise too closely
+
+The easiest way to understand Gauntlet is to give it work you would otherwise keep checking manually.
+
+For example:
+
+```bash
+gauntlet run "Implement account lockout after repeated failed logins"
+```
+
+The interesting part is not that an agent starts coding.
+
+Before execution becomes meaningful, Gauntlet needs a stable account of what the finished work must satisfy.
+
+During the run it needs independent observations of what actually exists.
+
+When the implementation differs from the requirement, it needs to materialize that difference instead of allowing it to disappear into another round of prompting.
+
+When evidence is missing, it needs to keep that uncertainty visible.
+
+When a correction fails, it needs to recover without forgetting everything already established.
+
+And when the work finally stops, it needs to stop for a reason stronger than:
+
+```text
+the agent sounded finished
+```
+
+That is the experiment.
+
+---
+
+## The Reference keeps the run pointed at the same thing
+
+Every Gauntlet run works against a **Reference**.
+
+The Reference defines what the finished result is supposed to satisfy:
+
+```text
+required behavior
+constraints
+invariants
+forbidden outcomes
+required evidence
+acceptance conditions
+```
+
+Before execution, Gauntlet resolves and freezes that Reference.
+
+During the run, the executor works against it.
+
+At settlement, the Reference is checked again.
+
+If the work becomes difficult, the executor cannot quietly weaken the Reference and then claim success against the easier version.
+
+This failure is common even without AI.
+
+A team begins with:
+
+```text
+response time must remain below 200 ms
+```
+
+The implementation struggles.
+
+Later the requirement becomes:
+
+```text
+response time should usually be reasonable
+```
+
+Eventually the project passes.
+
+Nothing fraudulent necessarily happened. Pressure gradually changed the ruler.
+
+Agent systems can do the same thing much faster.
+
+Gauntlet makes changing the Reference an explicit event instead of an accidental side effect of execution.
+
+If the Reference itself is wrong, change it deliberately.
+
+Do not let the executor rewrite the criterion its own work is being measured against.
+
+---
+
+## References become individually falsifiable claims
+
+A large requirement is difficult to verify as one blob.
+
+Gauntlet decomposes it into checkable **Units**.
+
+A Unit might look like:
 
 ```yaml
-id: AK-014
-claim: past dates are rejected
+id: AUTH-014
+claim: accounts lock after five consecutive failed logins
 verify_by: test
 blast_radius: local
 authority: critic
 
 evidence_required:
   kind: test_report
-  locator: tests/leave/date_validation.rs::rejects_past_dates
+  locator: tests/auth/lockout.rs::locks_after_five_failures
   producer: instrument
 ```
 
-A Unit isn't a task on a board. It's a falsifiable claim about the finished system. Gauntlet isn't trying to find out whether the agent did something. It's trying to find out whether the thing it built is actually true.
+A Unit is not merely another task.
 
-At the start of a run, the Reference gets resolved, normalized, digested, frozen, and isolated. It gets checked again before settlement. If it changed, the run doesn't quietly keep going.
+It is a claim about the resulting system that can be shown to hold, shown to fail, or remain unresolved.
 
-That closes off the easiest form of self-deception in agentic work: the requirement gets hard, so the requirement quietly changes instead, so the new, easier requirement gets satisfied, so the system congratulates itself on a job well done. You've probably watched a team do this under deadline pressure. Gauntlet doesn't let an agent do it either.
+That difference matters.
 
-Gauntlet can find out the Reference itself was wrong. That happens, and that's fine. What it can't do is rewrite the ruler mid-run and then claim the run passed. Changing the Reference is its own governed step, done on purpose, not a side effect of a hard afternoon.
+This:
 
----
-
-## Builders don't review themselves
-
-A builder's reasoning trail is useful for debugging. It's also the last thing you want a reviewer to see when deciding whether the builder's work should be trusted, because a good explanation is not the same thing as a correct outcome. You've had a code review get talked into an exception by a persuasive comment thread. Same failure mode. This is the machine version.
-
-So the comparator doesn't get the builder's trajectory. It gets an explicit, constructed context: the frozen Reference, the observed state, instrument evidence, the comparison contract. It never sees the builder's reasoning, its identity, its self-grading, how many times it failed before this attempt, or its explanation for why this time is different.
-
-That's not "please ignore the explanation" written into a prompt. It's an interface where the explanation never arrives in the first place.
-
----
-
-## Critic and verifier are different jobs
-
-| Role | Question it answers | What it produces |
-|---|---|---|
-| Comparator / Critic | What's materially different from the Reference? | A list of residuals |
-| Verifier | Does this specific claim meet its declared evidence requirement? | PASS, FAIL, or INCONCLUSIVE |
-
-A critic that sounds right doesn't get to settle a claim. Wherever hard evidence exists, the verifier uses it instead of judgment: a compiler, a test runner, a schema validator, a security scanner, a benchmark, a live probe, a human signoff.
-
-Model judgment is good at finding problems. It doesn't get to authorize a pass.
-
----
-
-## Missing evidence is not the same as passing evidence
-
-Verification has three outcomes, deliberately not two:
-
-| Outcome | Meaning |
-|---|---|
-| PASS | The claim was checked against its required evidence, and it held. |
-| FAIL | The claim was checked, and it didn't hold. |
-| INCONCLUSIVE | The evidence needed to check the claim isn't available yet. |
-
-A missing test result isn't a pass. An unavailable tool isn't a pass. A timeout isn't a pass. A reviewer who can't decide isn't a pass. Something stays inconclusive until real evidence resolves it, or the run hits a bounded stopping point and says so honestly.
-
-That distinction is easy to state and easy to lose the moment everything gets forced into true or false too early. Gauntlet doesn't force it.
-
----
-
-## Authority and containment are two separate questions
-
-**Authority:** is this work allowed to run at all?
-**Containment:** how boxed in will it be if it does run?
-
-Authority gets decided first. The sandbox gets built second. The builder starts third. A tight sandbox doesn't grant authority it wasn't given. Having authority doesn't remove the need for containment. Higher-impact or harder-to-undo work can require a human signoff, no matter how confident the agent sounds about itself.
-
----
-
-## Agents are replaceable, on purpose
-
-Gauntlet is built around roles, not products: AgentRunner, Observer, Comparator, Verifier, ReferenceProvider, and a handful of others. A specific coding agent, a CLI harness, a model API, a test runner, is an adapter behind one of those roles.
-
-```mermaid
-flowchart TB
-    OP[Operator Surfaces]
-
-    APP["Gauntlet Control Runtime
-    RunController
-    IterationEngine
-    UnitScheduler
-    CorrectionSelector
-    SettlementService"]
-
-    PORTS["Roles
-    AgentRunner
-    Observer
-    Comparator
-    Verifier
-    ReferenceProvider
-    PolicyProvider
-    StateStore
-    EvidenceStore
-    EventLog
-    Sandbox
-    BudgetMeter"]
-
-    ADAPTERS["Adapters
-    CLI agents · model APIs · test runners
-    git · browsers · SQLite
-    filesystems · sandboxes · observability"]
-
-    OP --> APP
-    APP --> PORTS
-    ADAPTERS --> PORTS
+```text
+Task:
+Implement lockout.
 ```
 
-If swapping model vendors, or moving from a synchronous CLI agent to an async multi-agent harness, means rewriting your control loop, the boundary was drawn in the wrong place. Gauntlet doesn't assume a prompt-in, answer-out shape. It assumes invoke, then poll, then running, completed, failed, or timed out. That means a blocking CLI agent and a fire-and-forget async harness both fit the same runtime, without changing how either one is governed.
+describes work.
+
+This:
+
+```text
+Claim:
+After five consecutive failed logins,
+the account enters the locked state.
+
+Evidence:
+integration test X
+```
+
+describes something reality can push back against.
+
+Gauntlet executes work in service of those claims.
 
 ---
 
-## Failure is a runtime state, not an exception
+## The builder does not get to observe itself into success
 
-Agents fail. Tools fail. Networks drop. Tests hang. Reviewers return garbage. Workspaces get dirty. Budgets run out. Machines restart at the worst possible time. Gauntlet treats all of that as normal operation, not an edge case to patch around later.
+Most agent loops have one perspective:
 
-Every run is bounded: wall time, model spend, tool calls, parallelism, iteration count, cost, workspace scope, authority. If a limit isn't configured, conservative defaults apply. Missing configuration never means unlimited execution.
+```text
+agent acts
+agent reads result
+agent interprets result
+agent decides whether result is good
+agent continues or declares completion
+```
 
-A run ends as one of: **SETTLED, BLOCKED, BUDGET_EXHAUSTED, ESCALATED, ABORTED, INCONCLUSIVE.**
+That is efficient.
 
-Failure, reported honestly, is a legitimate outcome. A manufactured "it worked" is not.
+It is also easy for the same mistake to survive every stage.
+
+Gauntlet separates roles.
+
+```text
+Executor
+changes the target.
+
+Observer
+records what actually exists.
+
+Comparator
+finds material differences from the Reference.
+
+Verifier
+checks specific claims against required evidence.
+```
+
+These roles may ultimately be implemented by models, tools, people, or deterministic programs.
+
+What matters is that they are different interfaces.
+
+The comparator does not need the builder's internal story about why the work should be accepted.
+
+It receives the things relevant to comparison:
+
+```text
+frozen Reference
+observed target state
+instrument evidence
+comparison contract
+```
+
+A persuasive explanation from the executor cannot repair a missing test result because the explanation is not the test result.
 
 ---
 
-## State survives the crash
+## Observation, comparison, and verification are different jobs
 
-Gauntlet's state doesn't live in a chat transcript or an agent's working memory. Every real transition gets written to durable state, evidence, and an append-only event log.
+Consider this requirement:
 
-That means a restart is never "remind me what we were doing." A resumed run can reconstruct the Reference in use, which Units already settled, which residuals are still open, prior invocations, evidence collected, budget spent, and work still in flight, from records, not from asking an agent to remember.
+```text
+Past dates must be rejected.
+```
 
-Re-doing already-settled work because the orchestrator forgot isn't an inconvenience. It's a defect.
+An observer might inspect the implementation and produce:
+
+```text
+Date validation exists in request.rs.
+```
+
+That is an observation.
+
+The comparator might say:
+
+```text
+The validation appears to reject dates before today.
+No residual detected in the implementation.
+```
+
+That is a comparison.
+
+The verifier might run:
+
+```text
+tests/leave/date_validation.rs::rejects_past_dates
+```
+
+and receive:
+
+```text
+PASS
+```
+
+That is verification.
+
+Those statements have different evidentiary strength.
+
+Gauntlet keeps them separate.
+
+A model is extremely useful for finding suspicious differences.
+
+Where harder evidence exists, the hard evidence gets the final word.
 
 ---
 
-## What running it looks like
+## Verification has three answers
+
+Gauntlet does not force every question into true or false before enough evidence exists.
+
+A verification result can be:
+
+| Result           | Meaning                                                       |
+| ---------------- | ------------------------------------------------------------- |
+| **PASS**         | Required evidence was obtained and supports the claim.        |
+| **FAIL**         | Required evidence was obtained and contradicts the claim.     |
+| **INCONCLUSIVE** | The evidence needed to decide is unavailable or insufficient. |
+
+That third state is important.
+
+Suppose the integration environment is down.
+
+The required test cannot run.
+
+The claim is not therefore false.
+
+It is also not therefore true.
+
+It is unresolved.
+
+The same applies when:
+
+* a tool times out
+* an expected artifact is missing
+* a reviewer lacks enough evidence
+* a dependency is unavailable
+* an observation cannot be attributed reliably
+
+Gauntlet keeps the uncertainty instead of rounding it toward completion.
+
+---
+
+## One command returning zero does not settle a long run
+
+Execution success and work acceptance are different claims.
+
+This:
+
+```text
+cargo test
+exit code: 0
+```
+
+shows that a particular test command completed successfully.
+
+It does not automatically establish:
+
+```text
+the right tests ran
+the final artifact is correct
+all required Units were checked
+nothing important regressed
+the Reference remained unchanged
+the work is ready to accept
+```
+
+Gauntlet settles against the frozen work contract and the evidence accumulated during the run.
+
+The loop is closer to:
+
+```text
+Reference
+    ↓
+execution
+    ↓
+observation
+    ↓
+residuals
+    ↓
+verification
+    ↓
+all required claims supported?
+    ├── no  → correct
+    ├── ?   → gather evidence / escalate / stop inconclusive
+    └── yes → settle
+```
+
+The executor finishing is an event inside the run.
+
+It is not the definition of completion.
+
+---
+
+## Corrections should close the observed gap
+
+A common agent recovery strategy is:
+
+```text
+something failed
+      ↓
+give the model more context
+      ↓
+rewrite more code
+      ↓
+try again
+```
+
+Sometimes that works.
+
+Sometimes the correction creates three new variables while fixing one.
+
+Gauntlet chooses corrections from the residual that was actually observed.
+
+A correction can consider:
+
+```text
+what failed
+what evidence supports the diagnosis
+what remains unresolved
+what authority is available
+what budget remains
+what blast radius is acceptable
+what new observation would discriminate between explanations
+```
+
+The target is the smallest correction that could plausibly close the gap.
+
+For example:
+
+```text
+Observed:
+one integration test fails because an existing cache
+preserves the old authentication state.
+
+Bad correction:
+rewrite the authentication subsystem.
+
+Better correction:
+fix cache invalidation,
+rerun the discriminating test,
+reobserve.
+```
+
+The goal is not minimal code for its own sake.
+
+The goal is to spend as little additional uncertainty and blast radius as necessary to learn whether the diagnosed problem was actually the problem.
+
+---
+
+## A failed correction can still buy useful information
+
+Long-running agent systems become expensive when failure simply causes another opaque attempt.
+
+Gauntlet keeps the sequence:
+
+```text
+expectation
+attempt
+observation
+difference
+correction
+new observation
+```
+
+That lets the next move depend on what the previous attempt actually taught.
+
+A failed correction may establish:
+
+```text
+the diagnosis was wrong
+the Reference is underspecified
+a dependency is missing
+the problem lies outside the current scope
+the required capability is unavailable
+the remaining work is unaffordable under the current budget
+```
+
+That is still movement if the run preserves the distinction.
+
+Repeating the same error with the same representation and the same correction is different.
+
+Gauntlet is designed to make that visible.
+
+---
+
+## Every run has a budget
+
+An agent that can continue forever can turn almost any failure into a large bill.
+
+Gauntlet bounds execution across surfaces such as:
+
+```text
+wall time
+iterations
+tool calls
+model spend
+cost
+parallelism
+workspace scope
+authority
+```
+
+If a useful next move no longer fits the remaining budget, the correct response may be:
+
+```text
+BLOCKED
+BUDGET_EXHAUSTED
+ESCALATED
+INCONCLUSIVE
+```
+
+instead of another attempt.
+
+A run can terminate as:
+
+```text
+SETTLED
+BLOCKED
+BUDGET_EXHAUSTED
+ESCALATED
+ABORTED
+INCONCLUSIVE
+```
+
+A bounded failure is a legitimate result.
+
+An unbounded loop that eventually manufactures something called success is harder to trust.
+
+---
+
+## Recovery is part of the execution model
+
+Agent work is not reliable because nothing goes wrong.
+
+It becomes more useful when interruption does not destroy the useful state accumulated before the interruption.
+
+Tools fail.
+
+Processes crash.
+
+Models return malformed output.
+
+Workspaces get dirty.
+
+Machines restart.
+
+Remote systems disappear.
+
+Gauntlet treats recovery as part of normal execution.
+
+A run retains enough durable state to answer:
+
+```text
+Which Reference was frozen?
+Which Units are already settled?
+Which residuals remain open?
+Which invocations already happened?
+What evidence already exists?
+How much budget has been spent?
+What work was in flight?
+What should happen next?
+```
+
+The answer comes from records.
+
+Not from:
+
+> "Remind me what we were doing."
+
+---
+
+## State does not live in the chat transcript
+
+Every consequential transition is written to durable state, evidence, and an append-only event history.
+
+That matters once runs become longer than one model context.
+
+A resumed run can reconstruct its working state from recorded events rather than depending on the executor's memory of the conversation.
+
+Conceptually:
+
+```text
+Session
+  ↓
+Run
+  ↓
+Task / Unit / Invocation
+  ↓
+events + evidence + state transitions
+```
+
+The transcript may still be useful evidence.
+
+It is not the state machine.
+
+That difference is what allows a run to survive process restarts, model changes, context truncation, and executor replacement.
+
+---
+
+## Executors are replaceable
+
+Gauntlet is built around roles rather than one model vendor or one agent product.
+
+Core interfaces include roles such as:
+
+```text
+AgentRunner
+Observer
+Comparator
+Verifier
+ReferenceProvider
+PolicyProvider
+StateStore
+EvidenceStore
+EventLog
+Sandbox
+BudgetMeter
+```
+
+Adapters can sit behind them:
+
+```text
+CLI coding agents
+model APIs
+test runners
+Git
+browsers
+SQLite
+filesystems
+sandboxes
+observability systems
+```
+
+The control loop should not need to change because the executor changed.
+
+A synchronous CLI agent may block until it finishes.
+
+Another harness may start a task asynchronously and require polling.
+
+Gauntlet can normalize those different execution styles into lifecycle states such as:
+
+```text
+running
+completed
+failed
+timed_out
+cancelled
+```
+
+The executor is a participant in the run.
+
+It is not the architecture.
+
+---
+
+## More agents do not change the contract
+
+Parallelism can help.
+
+One agent can investigate an implementation while another examines tests and another searches for regressions.
+
+That does not mean each branch gets to invent its own definition of success.
+
+A Gauntlet run can coordinate:
+
+```text
+implementation agents
+sub-agents
+critics
+independent verifiers
+deterministic tools
+parallel search
+specialized skills
+```
+
+while holding one governing work contract outside those executors.
+
+Conceptually:
+
+```text
+                 frozen Reference
+                       |
+          +------------+------------+
+          |            |            |
+       agent A       agent B      tool
+          |            |            |
+          +------------+------------+
+                       |
+                    observe
+                       |
+                    compare
+                       |
+                    verify
+```
+
+Parallel execution increases the need for a stable comparison boundary.
+
+It does not reduce it.
+
+---
+
+## Formation keeps unknown work from pretending to be specified work
+
+Sometimes the run does not yet have a trustworthy Reference.
+
+That is a real state.
+
+Gauntlet calls it **formation**.
+
+Before dispatching execution, it can inspect available context and determine whether the desired transformation is sufficiently represented to support a frozen work contract.
+
+If the system knows:
+
+```text
+what must change
+what must remain true
+what evidence can establish the result
+what important unknowns remain
+```
+
+the Reference can be formed and frozen.
+
+If it cannot establish those things without guessing, the uncertainty remains visible.
+
+That prevents an agent from receiving a vague destination such as:
+
+```text
+"make the authentication system enterprise ready"
+```
+
+and silently inventing the criteria by which its own work will later be judged.
+
+Representation comes before long execution when execution depends on those distinctions.
+
+---
+
+## Authority stays outside the executor
+
+Gauntlet constrains execution.
+
+It does not gain authority merely because it can orchestrate powerful agents.
+
+There are two distinct questions:
+
+```text
+May this work happen?
+
+How should allowed work be executed?
+```
+
+The first is authority.
+
+The second is Gauntlet's execution problem.
+
+A Gauntlet deployment can consume decisions through a `PolicyProvider`, approval surface, or other authority integration.
+
+Inside the broader GodSpeed architecture, SEA-Forge owns the runtime authority boundary:
+
+```text
+proposed work
+     ↓
+SEA-Forge
+allow / deny / escalate
+     ↓
+authorized work contract
+     ↓
+Gauntlet
+constrained execution
+```
+
+A sandbox is also separate.
+
+Authority determines whether work may begin.
+
+Containment determines the environment in which allowed work can proceed.
+
+Gauntlet can build and use bounded execution environments without treating containment as permission.
+
+---
+
+## The Reference can come from a semantic model
+
+A work contract does not have to begin as prose.
+
+A `.sea` model can provide canonical domain meaning for the system being changed.
+
+SEA stands for **Semantic Executable Abstraction**.
+
+DomainForge compiles `.sea` into a canonical semantic model that can expose:
+
+```text
+entities
+resources
+flows
+roles
+relations
+policies
+metrics
+constraints
+concept identities
+```
+
+That gives Gauntlet a stronger starting point than repeatedly asking each executor to reconstruct the domain from scattered repository artifacts.
+
+For example:
+
+```text
+.sea domain model
+      ↓
+DomainForge
+      ↓
+validated semantic representation
+      ↓
+Gauntlet formation
+      ↓
+frozen work Reference
+      ↓
+execution
+```
+
+The domain model does not automatically tell Gauntlet how to implement a task.
+
+It gives the run explicit meaning against which implementation choices can be constrained and checked.
+
+---
+
+## One settled run is not durable capability
+
+Gauntlet can produce strong evidence that a particular work contract settled.
+
+That claim should stay narrow.
+
+This:
+
+```text
+Run 481 settled successfully.
+```
+
+does not automatically justify:
+
+```text
+The system now has a reliable capability
+for this entire class of work.
+```
+
+Durable capability requires more:
+
+```text
+repetition
+variation
+transfer
+reduced orchestration burden
+recovery after disruption
+continued verification quality
+```
+
+Gauntlet therefore preserves developmental evidence such as:
+
+```text
+attempts
+failures
+residuals
+corrections
+payments
+recoveries
+settlements
+```
+
+That history can support later promotion decisions.
+
+In the broader GodSpeed architecture, GodSpeed-Agent owns the stronger developmental question:
+
+> What does this settlement history justify making easier or more directly spendable next?
+
+Gauntlet supplies the execution evidence.
+
+It does not turn one good run into an imaginary muscle.
+
+---
+
+## Faster can be worse
+
+Suppose a later version of a route completes the same work in half the time.
+
+That looks like improvement.
+
+Now suppose it became faster by:
+
+```text
+skipping an integration test
+removing an independent comparison
+reducing variation coverage
+ignoring a recovery path
+accepting missing evidence as success
+```
+
+The route became cheaper by deleting the thing that made its result trustworthy.
+
+Gauntlet's developmental records make that kind of compression inspectable.
+
+A shortcut is only useful when the evidence standard survives it.
+
+The goal is not:
+
+```text
+fewer steps
+```
+
+The goal is:
+
+```text
+lower burden
+while preserving the properties
+that made settlement meaningful
+```
+
+---
+
+## Gauntlet can evaluate changes to Gauntlet
+
+A system that improves itself creates an awkward problem.
+
+If version B changes its own rules and then evaluates itself using those new rules, nearly any improvement can be made to look successful.
+
+Gauntlet treats self-revision like other consequential work.
+
+A candidate change can go through:
+
+```text
+proposal
+   ↓
+isolated implementation
+   ↓
+historical replay
+   ↓
+held-out evaluation
+   ↓
+regression checks
+   ↓
+protected invariants
+   ↓
+promotion or rejection
+```
+
+The candidate does not become the active runtime merely because the candidate prefers itself.
+
+If the revision regresses an established property, rollback remains available.
+
+This creates a path toward improving the harness without making production the experiment.
+
+---
+
+## What running Gauntlet looks like
+
+Initialize or inspect the environment:
 
 ```bash
-cd my-project
+gauntlet doctor
+gauntlet init
+```
 
+Work with References:
+
+```text
+gauntlet reference form
+gauntlet reference freeze
+gauntlet reference show
+gauntlet reference digest
+gauntlet reference diff
+gauntlet reference verify
+```
+
+Start work:
+
+```bash
 gauntlet run "Implement account lockout after repeated failed logins"
 ```
 
-Gauntlet discovers your configuration, checks what evidence already exists in the project, decides whether a sufficient Reference exists, forms one if it doesn't, freezes it, and only then dispatches bounded work: observe, compare, verify, correct, and either settle or stop honestly with an evidence-backed report.
-
-If it doesn't know enough to build a trustworthy Reference, it says so instead of guessing to keep the demo moving. That state is called **formation**. Unknowns stay visible until someone resolves them.
-
-The full operator surface:
+Inspect and continue it:
 
 ```text
-gauntlet doctor
-gauntlet init
-
-gauntlet reference form / freeze / show / digest / diff / verify
-
-gauntlet run "<desired transformation>"
-
 gauntlet status
 gauntlet inspect
 gauntlet verify
 gauntlet resume <run_id>
+```
 
+Inspect the surrounding runtime:
+
+```text
 gauntlet escalations
 gauntlet roles
 gauntlet skills
+```
 
+Use accumulated evidence:
+
+```text
 gauntlet improve
 gauntlet export
 ```
 
-The CLI is the reference surface. Dashboards, TUIs, and other views can sit on top of the same runtime. None of them are the control system.
+The CLI is the reference operator surface.
+
+A TUI, IDE integration, dashboard, or other view can project the same runtime state without becoming the control system itself.
 
 ---
 
-## Corrections stay small
+## The execution architecture
 
-When something's wrong, the answer isn't "rewrite everything and try again." Gauntlet picks the next correction based on what actually failed, what evidence exists, what authority is available, what budget is left, what blast radius is acceptable, and what a new observation would actually resolve.
+At a high level:
 
-The target is the smallest correction that could plausibly fix the real problem. Not the ordinary agent-loop instinct of failed, bigger prompt, bigger rewrite, more agents, hope.
+```text
+Operator
+   ↓
+bounded work request
+   ↓
+Reference formation / loading
+   ↓
+Reference freeze
+   ↓
+RunController
+   ↓
+IterationEngine
+   ↓
+UnitScheduler
+   ↓
+AgentRunner / tools
+   ↓
+Observer
+   ↓
+Comparator
+   ↓
+Verifier
+   ↓
+CorrectionSelector
+   ↓
+SettlementService
+   ↓
+durable state + evidence + events
+```
+
+The runtime talks to implementations through ports:
+
+```text
+ReferenceProvider
+AgentRunner
+Observer
+Comparator
+Verifier
+PolicyProvider
+StateStore
+EvidenceStore
+EventLog
+Sandbox
+BudgetMeter
+```
+
+Specific tools remain adapters.
+
+That boundary lets the orchestration strategy evolve without making the correctness model depend on whichever agent product happens to be fashionable this month.
 
 ---
 
-## Capability has to be earned, not assumed
+## What Gauntlet keeps separate
 
-None of the following make something a reliable capability: having access to the model, having access to the tool, a good explanation, a convincing imitation, one successful attempt, one passing test, one good review, one settled run.
+Several distinctions carry most of the system.
 
-Work that settles first becomes **developmental memory**: attempts, failures, payments, residuals, corrections, recoveries. Append-only, and intentionally messy.
+### Reference ≠ implementation
 
-It's promoted to the **capability ledger**, routes, skills, prompts, agent-selection policies, only after it survives repetition, variation, transfer to a new context, and recovery from failure, without the verification standard quietly getting weaker along the way.
+What should be true is not the code that currently exists.
 
-A workflow that got faster because it stopped checking the hard things didn't get more capable. It got less trustworthy, and that will cost you later, exactly when you can least afford it.
+### Execution ≠ observation
+
+The thing making the change does not get exclusive authority to describe the resulting state.
+
+### Observation ≠ comparison
+
+Recording reality and evaluating its difference from the Reference are different operations.
+
+### Comparison ≠ verification
+
+A plausible residual is not yet a proven failure.
+
+A plausible absence of residuals is not yet a proven pass.
+
+### Missing evidence ≠ passing evidence
+
+Unknown stays unknown.
+
+### Authority ≠ containment
+
+Permission to act and limits on how execution occurs answer different questions.
+
+### Execution ≠ settlement
+
+A process finishing does not establish that the required outcome occurred.
+
+### Settlement ≠ capability
+
+One accepted run does not establish reliable future performance.
+
+### Developmental evidence ≠ production promotion
+
+History can propose a shortcut.
+
+It does not authorize the shortcut by itself.
 
 ---
 
-## Gauntlet improves itself the same way it improves everything else
+## Structural invariants
 
-Gauntlet is meant to get better at its own process over time. It isn't allowed to do that by changing production behavior and then grading the change with rules it just wrote for itself.
+Gauntlet is designed to preserve these properties regardless of executor:
 
-A candidate revision goes through isolated evaluation, historical replay, held-out comparison, regression testing, and a check against anything it's not allowed to weaken, before it gets promoted. The optimizer proposes. It doesn't quietly become the active system.
+| Invariant                                                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------------------------- |
+| The executor cannot modify the frozen standard its own work is judged against during the run.                                            |
+| Observation cannot collapse into the executor's completion claim.                                                                        |
+| Comparison and verification remain separate roles.                                                                                       |
+| Missing required evidence cannot become a pass.                                                                                          |
+| A model judgment may propose a correction but cannot substitute for deterministic proof where the contract requires deterministic proof. |
+| Every run remains bounded.                                                                                                               |
+| Resumption reconstructs state from durable records rather than conversational memory.                                                    |
+| One settled run does not establish durable capability.                                                                                   |
+| Authority remains external to execution.                                                                                                 |
+| Containment cannot substitute for authority.                                                                                             |
+| Executor implementations remain replaceable behind stable roles.                                                                         |
+| Self-revision is evaluated before promotion rather than becoming active by self-declaration.                                             |
 
-That means a future version of Gauntlet can build and evaluate the next version of Gauntlet without swapping out the version currently running underneath you. Self-improvement, with a rollback button.
-
----
-
-## What stays true no matter what
-
-| Invariant |
-|---|
-| The builder never modifies the standard its own work is judged against |
-| Observation is never just the builder's claim that it's done |
-| The comparator and the verifier are different roles |
-| The builder never reviews itself through leaked reasoning or trajectory context |
-| A plausible answer can generate a candidate fix. It never grants a pass on its own |
-| One successful run doesn't become capability |
-| Missing evidence never becomes passing evidence |
-| Authority decides whether execution is allowed to start |
-| The sandbox decides how contained it is once it starts |
-| Budgets stay bounded even when nothing was configured |
-| State gets rebuilt from durable records, not from chat history |
-| Control logic depends on roles, not on a specific vendor or product |
-| The runtime never moves its own ruler and then claims the score improved |
-
-Where it's possible to enforce these structurally, Gauntlet enforces them structurally. They aren't suggestions written into a prompt.
+Where these properties can be enforced through interfaces and state transitions, Gauntlet should enforce them there rather than relying on prompt wording.
 
 ---
 
 ## What Gauntlet is not
 
-- Not an LLM
-- Not a model router with extra steps
-- Not a set of personas
-- Not a prompt pack
-- Not a code-review bot
-- Not a test runner
-- Not a task tracker
-- Not a dashboard
-- Not one specific multi-agent graph or agent harness
-- Not a license for unlimited recursive autonomy
+Gauntlet is not an LLM.
 
-Any of those things can participate inside a Gauntlet run. None of them is Gauntlet. Gauntlet is the protocol that decides how their work becomes something you can actually rely on.
+It is not a prompt pack.
+
+It is not a collection of agent personas.
+
+It is not a model router.
+
+It is not a code-review bot.
+
+It is not a test runner.
+
+It is not a task tracker.
+
+It is not one fixed multi-agent graph.
+
+It is not the authority layer.
+
+And it is not a mechanism for converting unlimited recursive autonomy into safety.
+
+Models, test runners, critics, sandboxes, agents, and workflow systems can all participate inside a Gauntlet run.
+
+Gauntlet is the constrained execution harness that determines how that work progresses, gets observed, corrected, recovered, and returned with evidence.
 
 ---
 
-## Where it sits in the GodSpeed stack
+## Where it fits
 
-Gauntlet runs standalone. Inside the larger GodSpeed architecture, it's the execution environment: the step that takes an authorized piece of work and actually carries it out, then hands back a trustworthy account of what happened.
+Gauntlet can run standalone.
+
+Inside the broader GodSpeed architecture, each neighboring component owns a different boundary.
 
 ```text
-GodSpeed-Agent decides what to work on next
+.sea
+represents consequential domain meaning
         ↓
-SWE_SEED defines what "done" provably means
+DomainForge
+compiles and validates that meaning
         ↓
-SEA-Forge authorizes the attempt
+Context Kernel
+supplies bounded relevant context
         ↓
-Gauntlet executes it and observes reality
+SEA-Forge
+authorizes consequential action
+        ↓
+Gauntlet
+executes difficult work inside constraints
+        ↓
+RealityTrace
+binds expectation to observation
+        ↓
+settlement evidence
+        ↓
+GodSpeed-Agent
+updates developmental memory and capability
 ```
 
-Inside that boundary, Gauntlet can use whatever mix of agents, sub-agents, tools, critics, and parallel search actually gets the job done well. It doesn't grant itself more authority than it was given just because it found a clever way to use it.
+For software work, SWE_SEED can define the lighter work-and-proof contract that Gauntlet executes:
+
+```text
+SWE_SEED
+route + context + artifact + proof contract
+        ↓
+SEA-Forge
+authority
+        ↓
+Gauntlet
+long-horizon execution
+```
+
+Those components can be used independently.
+
+The boundaries are useful because they prevent one system from quietly becoming author, executor, observer, verifier, authority, and capability judge at the same time.
+
+---
+
+## When Gauntlet is probably worth trying
+
+Gauntlet starts to make sense when you recognize one of these patterns:
+
+* agent tasks routinely run long enough that you stop watching them
+* a task needs several agents or tools to cooperate
+* agents frequently retry or rewrite earlier work
+* you need work to resume after interruption
+* "done" still requires a person to reconstruct what actually happened
+* requirements tend to drift during difficult implementation
+* one agent both performs and effectively reviews the work
+* missing evidence is frequently treated as good enough
+* large corrections repeatedly replace smaller diagnoses
+* you want to give agents more room without giving them the ability to redefine success
+
+If a task is short, cheap, reversible, and easy to inspect manually, Gauntlet may be unnecessary machinery.
+
+Use the smallest execution structure that gives the work the control it actually needs.
 
 ---
 
 ## The short version
 
-Freeze the ruler. Let the agents work. Observe reality independently. Materialize the difference. Verify with evidence. Correct the smallest useful thing. Stop when the work actually settles, not when it sounds settled. Remember what happened. Promote only what survives being tried again. Never let the system grade itself into capability.
+Freeze what the work must satisfy.
 
-That's Gauntlet.
+Give the executor room to work.
+
+Observe the resulting state independently.
+
+Materialize the difference.
+
+Verify claims with the evidence they require.
+
+Correct the smallest useful thing.
+
+Preserve what the failure taught.
+
+Resume from records instead of memory.
+
+Stop when the work settles or when no affordable reliable move remains.
+
+Keep one successful run from masquerading as capability.
+
+That is Gauntlet.
