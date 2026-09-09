@@ -9,12 +9,15 @@
 
 export * from "./client";
 export * from "./config";
+export * from "./focus";
 export * from "./geometry";
+export * from "./horizon";
 export * from "./preflight";
 export * from "./preview";
 export * from "./prime-host";
 export * from "./prime-kernel";
 export * from "./prime-topology";
 export * from "./projection-store";
+export * from "./relations";
 export * from "./theme";
 export * from "./workbench-model";

@@ -6,12 +6,12 @@ workbench_document_review:
   updated: "2026-09-08"
   scope: >-
     TUI Prime Workbench implementation underway; T00, T00A, T01, T02, T03,
-    T04, T05, T06, and T07 settled. T07 (React-free Workbench Model +
-    immutable snapshot fan-out) was found implemented-and-evidenced on the
-    tree after an interrupted session; the orchestrator personally re-ran its
-    full gate battery (prereg hash, tui-check/lint/preflight, bun 45/45,
-    both selector suites) before settlement, and the closure `just ci`
-    battery, before the first workbench-state commit (T00-T07 together).
+    T04, T05, T06, T07, and T08 settled. T07 was found implemented-and-
+    evidenced after an interrupted session and settled on the orchestrator's
+    own gate re-verification. T08 (Focus/Relation/Horizon + progressive
+    materialization) settled on the ladder: builder r1 -> peer CONFIRM with
+    2 MAJOR latent multi-source identity-fork findings -> correction round 1
+    RED-first (65/65 tests) -> orchestrator gate re-verification.
   artifacts:
     - .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
     - .agents/plans/gauntlet-tui-prime-workbench.plan.yaml
@@ -24,8 +24,9 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T05/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T06/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T07/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T08/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
-  next_action: "Execute T08: Focus, Relation, Horizon, and progressive materialization model (P2, peer confirmation)."
+  next_action: "Execute T09: Canonical affordance resolver and isomorphic operation gateway (P3, independent_adversarial; prereg frozen 0c07f855)."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name

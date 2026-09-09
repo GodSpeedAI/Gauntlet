@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import { FocusRef } from "./focus";
+import { createHorizon } from "./horizon";
 import type { FullWorkbenchSnapshot } from "./workbench-model";
 import { WorkbenchModel } from "./workbench-model";
 
@@ -46,7 +48,7 @@ describe("T07 WorkbenchModel & Immutable Snapshot Publishing (REQ-DATA-001, REQ-
     unsubscribe();
 
     // After unsubscribe, no further snapshots are received
-    model.selectFocus("unit", "u-1");
+    model.selectFocus(FocusRef.for("gauntlet", "WorkItem", "u-1"));
     expect(snapshots.length).toBe(2);
 
     model.close();
@@ -64,11 +66,14 @@ describe("T07 WorkbenchModel & Immutable Snapshot Publishing (REQ-DATA-001, REQ-
     expect(currentSnap.focus).toBeNull();
     expect(currentSnap.horizon).toBeNull();
 
-    model.selectFocus("unit", "u-42");
-    expect(currentSnap.focus).toEqual({ kind: "unit", id: "u-42" });
+    const ref = FocusRef.for("gauntlet", "WorkItem", "u-42");
+    model.selectFocus(ref);
+    expect(currentSnap.focus).toBe(ref);
 
-    model.selectHorizon("horizon-milestone-1");
-    expect(currentSnap.horizon).toBe("horizon-milestone-1");
+    const horizon = createHorizon({ root_focus: ref, generation: "gen-model-2" });
+    model.selectHorizon(horizon);
+    expect(currentSnap.horizon).toBe(horizon.id);
+    expect(currentSnap.active_horizon).toEqual(horizon);
 
     model.close();
   });

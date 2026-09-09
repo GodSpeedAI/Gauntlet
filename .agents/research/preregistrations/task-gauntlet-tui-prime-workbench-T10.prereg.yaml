@@ -1,0 +1,122 @@
+# Task gauntlet-tui-prime-workbench-T10 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T10 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T10 task block)
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T10"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T22:20:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T10.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T10 uses actual Prime child sessions for parallel open-ended work,
+      constructs child context from the active Horizon plus explicit
+      dependencies, projects mailbox delivery modes and long-running Prime
+      controls as admitted strategies, and preserves Prime/Gauntlet lifecycle
+      separation. It proves parallel work uses independent Prime contexts when
+      justified, recursive topology remains real, Prime
+      messages/heartbeats/goals/schedules/autonomous/refinement features
+      remain implementation substrates rather than canonical Gauntlet truth,
+      and authorized work can outlive the TUI (REQ-GOAL-003, REQ-OPS-001/004,
+      REQ-PRIME-003..006, REQ-PRIME-008..010).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Bounded context envelopes: each child delegation receives the
+          horizon-local envelope (hoisted Horizon, relevant Reference Units,
+          relations, artifact/evidence refs, role instructions, explicit
+          required dependencies) — never an accidental whole-Case dump
+          (Attack 1). Formal critic envelopes come only from Gauntlet
+          comparison assembly in fresh contexts.
+      - id: D2
+        statement: >
+          Recursive topology is real: parent/child identities come from actual
+          Prime sessions; bounded nested delegation uses actual Prime
+          depth/budget capabilities; the workbench mints no parallel session
+          lifecycle model.
+      - id: D3
+        statement: >
+          Mailbox is communication, not completion; heartbeats, goals,
+          schedules, autonomous mode, compaction, and harness state are
+          execution substrates/provenance — never Gauntlet direction,
+          settlement, or capability truth. No completion is inferred from
+          messages or liveness.
+      - id: D4
+        statement: >
+          Detach is not cancel: TUI detach alone sends no cancel/stop;
+          authorized Prime work outlives the TUI host (Attack 2); explicit
+          canonical stop/cancel remains the only operator termination path
+          unless governing policy terminates work.
+      - id: D5
+        statement: >
+          Canonical dispatch ownership and containment precede process start;
+          TUI/Bun death between admission and spawn is tested deterministically
+          on both sides.
+
+    known_blindspots:
+      - "Real-network transport loss behavior belongs to T16 reconnect; T10 proves survive-and-reattach data flow, not network resilience."
+      - "Kernel evidence promotion is T11; T10 does not admit kernel output as evidence."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Context-envelope constructor from hoisted Horizon + explicit dependencies (workbench host layer over the T04 Prime adapter)"
+      why_visible_now: "Implements REQ-OPS-004 bounded delegation and Attack 1's defense."
+    - id: A2
+      class: "Recursive delegation projection over actual Prime child sessions (prime-recursion, prime-context-envelope, prime-long-running suites)"
+      why_visible_now: "Gates require just tui-test prime-recursion, prime-context-envelope, prime-long-running."
+    - id: A3
+      class: "Long-running strategy mapping (mailbox modes as follow-up/steer operator choices; detach survival)"
+      why_visible_now: "Implements REQ-PRIME-009/010 without promoting substrates to canonical truth."
+
+  predictions:
+    - id: P1
+      claim: >
+        Two independent investigations spawned while hoisted to one WorkItem
+        each receive the bounded relevant envelope plus declared dependencies —
+        not an accidental dump of the entire Case.
+      kind: "implementation_defect"
+      supporting_observation: "Per-child received-context records show horizon-scoped content; no whole-Case payload."
+      disconfirming_observation: "Either child's received context contains unrelated whole-Case content."
+    - id: P2
+      claim: >
+        Closing the TUI while a child runs leaves the child authorized and
+        running per Prime/Gauntlet; an independent process reattaches to real
+        Prime state, and no completion is inferred from heartbeats or mailbox
+        messages.
+      kind: "representation_inadequacy"
+      supporting_observation: "Post-detach child continues; fresh projection reconstructs real topology; mailbox 'done' before a valid result leaves the child non-complete."
+      disconfirming_observation: "Detach cancels work, or any projection treats liveness/mailbox content as completion."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If reliable child execution requires whole-Case context because key
+        dependencies cannot be represented/retrieved, the relation/context
+        model is improved rather than normalizing maximal prompts as default.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Relation/context model revision, never a maximal-prompt default."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Deterministic TUI/Bun death between admission and spawn, both sides."
+      preregistered_expectation: "No orphaned admission; recovery per the canonical dispatch owner."
+    parametric_variation:
+      level: L2
+      description: "Nested delegation at varying bounded depths/budgets over actual Prime capabilities."
+      preregistered_expectation: "Topology reflects actual Prime identities at every depth; no synthetic minting."

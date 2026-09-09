@@ -1,0 +1,121 @@
+# Task gauntlet-tui-prime-workbench-T09 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T09 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T09 task block)
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T09"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T21:40:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T09.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T09 creates one canonical operation gateway and the current
+      AffordanceDescriptor resolution path used by every supported projection
+      (TUI, command palette, kernel wrappers, CLI/API projections, plugins,
+      eligible Prime contexts), with invocation-time revalidation and
+      fail-closed denial. It proves equivalent operations across projections
+      converge on the same operation ID, admission, authority, idempotency,
+      and result semantics, while denied/stale/unaffordable paths remain
+      non-executable through every supported route (REQ-AFF-001..005,
+      REQ-CONFIG-011, REQ-OPS-002/003, REQ-OUT-004, REQ-SAFE-002,
+      REQ-SEC-002, REQ-UX-003, REQ-VERIFY-003/004).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          One gateway, many projections: projection adapters reference stable
+          Gauntlet operation IDs and route to the same admission; they never
+          implement side effects or fork authority semantics. A denied
+          operation attempted through kernel wrapper, local adapter, plugin
+          callback, CLI/API, and eligible Prime context reaches the same
+          typed denial before any side effect (Attack 2).
+      - id: D2
+        statement: >
+          Invocation-time revalidation: a control rendered while an operation
+          was available MUST re-check authority/preconditions at activation;
+          revoking authority between render and invoke denies the stale
+          control before side effect and degrades/refreshes the projection
+          (Attack 1). Snapshot publication never freezes authority.
+      - id: D3
+        statement: >
+          AffordanceDescriptor resolution derives status and reason_codes from
+          current Focus/Horizon plus visibility, reachability, payment,
+          governance, settlement-access, and recovery checks; installed
+          capability is inventory only and never implies available
+          (REQ-AFF-004). Unavailable affordances remain inspectable with
+          machine-readable reasons (REQ-AFF-005).
+      - id: D4
+        statement: >
+          Idempotency and outcome reconciliation: each planned operation binds
+          actor, target, payload digest, canonical precondition/version and
+          retry semantics under the owning write boundary; a lost response
+          reconciles to outcome_unknown, and key reuse with a changed payload
+          is refused.
+
+    known_blindspots:
+      - "Projections not yet implemented (plugin loading lands in T15; Prime context eligibility in T10): the deny-equivalence matrix is executed over every projection CURRENTLY implemented, and later tasks re-run this matrix as they land."
+      - "Concurrent authority revocation racing invocation at the exact admission boundary (single-host sequential tests bound this; production ordering is the owning write boundary's)."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Canonical operation registry/gateway and AffordanceDescriptor resolver (workbench host layer + gauntlet-app operation admission reuse)"
+      why_visible_now: "Implements REQ-AFF-001..003 resolution and REQ-OPS-002/003 isomorphic admission."
+    - id: A2
+      class: "Invocation-time revalidation and idempotency/reconciliation at the gateway"
+      why_visible_now: "Implements Attack 1's defense and REQ-VERIFY-003/004."
+    - id: A3
+      class: "Deny-bypass and operation-isomorphism gate suites (affordance-resolver, operation-isomorphism, deny-bypass)"
+      why_visible_now: "Gates require just tui-test affordance-resolver, operation-isomorphism, deny-bypass."
+
+  predictions:
+    - id: P1
+      claim: >
+        An operation rendered available whose authority is revoked before
+        activation is denied at invocation before any side effect, through
+        every currently implemented projection route.
+      kind: "implementation_defect"
+      supporting_observation: "Typed stale-authority denial; projection refreshed/degraded; zero side effects."
+      disconfirming_observation: "Any projection executes the stale control's side effect."
+    - id: P2
+      claim: >
+        The same denied operation attempted through kernel wrapper, local
+        adapter, CLI/API, and any other currently implemented route produces
+        the same canonical denial semantics (same operation identity, same
+        typed refusal class, no side effect); allowed operations converge on
+        one admission/idempotency/result shape.
+      kind: "representation_inadequacy"
+      supporting_observation: "Deny-bypass matrix shows one denial per route with identical canonical identity."
+      disconfirming_observation: "Any route exhibits projection-specific business logic, divergent admission, or a side path that mutates consequential state."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If a supported projection cannot express a needed action without
+        bypassing or forking canonical operation semantics, that projection is
+        removed or redesigned rather than weakening the gateway.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Gateway/projection boundary redesign, never a per-projection whitelist."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay an operation sequence (grant, render, revoke, invoke) across every implemented route."
+      preregistered_expectation: "Identical denial-before-side-effect on every route."
+    parametric_variation:
+      level: L2
+      description: "Vary denial reasons (governance, payment, settlement-access, recovery, stale authority) across routes."
+      preregistered_expectation: "Reason codes preserved through every projection's refusal."
