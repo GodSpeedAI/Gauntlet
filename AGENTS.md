@@ -1,384 +1,142 @@
 # AGENTS.md
 
-Portable, reference-anchored Gauntlet runtime for agentic work.
+Durable operating contract for Gauntlet agents. Keep this file project-specific, behavior-changing, and earned; task state belongs in `.agents/`, detailed procedures in `.agents/skills/`, roles in `.agents/roles/`, plans in `.agents/plans/`, and normative behavior in `.agents/specs/`.
 
-The runtime orchestrates:
+Gauntlet is a portable, reference-anchored runtime for:
 
 **Reference → Transform → Observe → Compare → Verify → Select → Correct → Settle → Remember**
 
-Prime-Agent is the initial orchestration harness, not the architecture. Models, agent harnesses, MCP servers, CLIs, databases, sandboxes, and browsers are replaceable adapters.
-
-The normative specification is `.agents/specs/Core-spec.md`. The frozen ruler for this effort is `.wayfinder/answer-key.md`. Implementation plans live in `.agents/plans/`. Repeatable workflows belong in `.agents/skills/`. Role definitions live in `.agents/roles/`. **Do not duplicate those documents here.**
-
-This file is loaded into every session. Keep it short enough that that stays worth paying for.
-
-## Self-improvement
-
-Treat this file as a project-specific failure log, not a wishlist.
-
-When an agent makes a mistake, gets corrected, or repeatedly wastes effort:
-
-1. Determine whether the failure is likely to recur.
-2. If one concise repository rule would prevent it, add that rule here.
-3. If prevention requires a procedure, create or update a skill in `.agents/skills/`.
-4. If the failure exposes a specification or architecture defect, revise the source through its normal process — a `CandidateRevision` against the spec — rather than patching around it here.
-
-Do not add speculative rules for failures that have never occurred.
-
-### Failure log
-
-* Task 4 (2026-08-16): sub-agent final messages lost/truncated four times (two builders,
-  two critics); one builder session died without writing. Rule: every delegated slice
-  writes a checkpoint/report file as it goes; critics write reports to files first;
-  prefer `explore`-type agents for read-only work. Full guidance:
-  `.agents/lessons/subagent-message-loss.md`.
-* Tasks 4–6 (2026-08-16/17): the orchestrating session itself was interrupted five
-  times across three sessions, leaving orphaned builder state (code landed, proof loop
-  not run). Rule: reconcile `git status` and the task's report files against
-  .agents/CURRENT_STATUS.yml before treating any task as unstarted; on mismatch, run the
-  documented recovery procedure instead of re-dispatching; write an IN-FLIGHT line at
-  dispatch time. Full guidance:
-  `.agents/lessons/session-interruption-recovery.md`.
-* Task 20 (2026-08-31→09-01): the orchestrating session kept the task-local
-  IN-FLIGHT.md ledger current through four sub-agent interruptions but let
-  `.agents/CURRENT_STATUS.yml` go stale — a day into the work it still said
-  "task20 unstarted" (corrected by the operator). Rule: CURRENT_STATUS.yml's
-  metadata / execution / active / next_action lines are updated at every phase
-  transition (dispatch, correction round landed, interruption recovery), not only
-  at settlement. IN-FLIGHT.md is the per-slice contract; CURRENT_STATUS.yml is the
-  cross-session anchor; neither substitutes for the other.
-* Task 23 (2026-09-04): a builder wrapped an entire compound command (containing a
-  second `flock` on the same lock file) inside one outer `flock` and self-deadlocked
-  the repository compile lock — no compile was running; the lock was held against
-  itself. Rule: every `flock` invocation is its OWN top-level shell command, never
-  nested inside another flock's `-c` string. Same task, same day: a "dead" builder
-  REVIVED when messaged while a replacement continuation builder was already
-  dispatched — two builders interleaved on one tree, and the combined state failed
-  the repo-wide scanners that neither slice-scoped battery covered. Rule: after
-  clearing a wedge, message the agent and WAIT for observable progress (file mtime
-  or process change) before dispatching a replacement; and the orchestrator runs a
-  FULL battery, not slice-scoped suites, whenever more than one agent has touched
-  the tree since the last full run.
-* Task 25 (2026-09-06): a corrections builder ran `git restore` on a path
-  carrying uncommitted task work and clobbered it mid-round; the round's
-  sha256 discipline caught it and the work was reconstructed byte-exactly.
-  Rule: never `git restore` / `git checkout --` a tracked path during a
-  task round without first `git status`-ing it and recording its sha256 —
-  until the orchestrator's settlement commit, uncommitted work is the only
-  copy. Same task: an E2E leg whose kill lands in a sub-millisecond window
-  passed every slice battery for six rounds and failed only under
-  full-workspace load. Rule: a leg that races a real window needs a
-  deterministic boundary variant pinning each branch, or its green runs
-  prove only the branch that always wins.
+Prime-Agent is the initial harness, not the architecture. Models, harnesses, MCP servers, CLIs, stores, sandboxes, and browsers are replaceable adapters.
+
+## 1. Scope, Precedence, and Instruction Topology
 
-## Delegation and role boundaries
+The normative specification is `.agents/specs/Core-spec.md`; `.wayfinder/answer-key.md` is the frozen ruler for this effort.
 
-Role boundaries are architectural boundaries, not etiquette.
+Before substantial work:
 
-* **Orchestrator**: owns discovery, decomposition, interface contracts, acceptance criteria, verification architecture, evidence review, integration, settlement, and promotion decisions. **Does not write implementation code while delegation is available.** If no delegation mechanism exists, stop with an explicit blocked condition unless `GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION=1`.
-* **Builder**: implements bounded transformations. May not modify the frozen reference, comparison criteria, acceptance gates, immutable evidence, or prior settlement records. A builder's claim that work is finished carries no settlement authority.
-* **Critic**: read-only. Compares an observation bundle against the frozen reference under an explicit comparison contract, in a **fresh context**, and emits residuals. Never receives builder history, reasoning, attempt counts, or identity. Never fixes anything.
-* **Verifier**: decides whether a specific claim meets its declared evidence requirement. Prefers instruments over judgment.
-* **Process optimizer**: proposals only.
+1. Read this file.
+2. Read `.agents/CURRENT_STATUS.yml`.
+3. Read the governing spec and active plan.
+4. Reconcile `git status`, task reports, and any `IN-FLIGHT.md` before assuming work is unstarted.
+5. Inspect affected code, tests, configuration, and evidence.
+6. Load additional context only when required.
 
-Delegation is admission-based. `rlm(...)`-style calls return a handle, **not an answer** — never `await` a result from them. Every delegated invocation declares a result-contract path; completion means a schema-valid result file exists there. A mailbox reply is a signal, not the contract.
+Instruction precedence:
 
-Never delegate the question of whether the total system actually settled.
+1. Runtime/system safety and user constraints.
+2. Nearest scoped `AGENTS.md` (`crates/AGENTS.md`, `workbench/AGENTS.md`, `.agents/AGENTS.md`).
+3. This root `AGENTS.md`.
+4. Frozen reference and normative specs.
+5. Active plan and role/result contracts.
+6. Current implementation, tests, and evidence.
+7. General engineering defaults.
 
-## The testing loop
+Instructions live at the narrowest scope that completely governs them:
+* **`crates/` (`crates/AGENTS.md`)**: Governs 29 Rust workspace crates, inward dependency layering, mechanical boundary enforcement (`just boundaries`), shared adapter contract suites, and Rust build discipline.
+* **`workbench/` (`workbench/AGENTS.md`)**: Governs the terminal-native operator workbench (Bun + TypeScript + OpenTUI), TUI verification gates (`just tui-*`), and router-not-authority gateway invariants.
+* **`.agents/` (`.agents/AGENTS.md`)**: Governs durable operational memory, directory roles (specs vs. plans vs. reports), handoff contracts, and research preregistrations.
 
-Testing is part of the development loop, not a final cleanup step.
+Never silently resolve a conflict by changing the ruler, acceptance criteria, security policy, or architecture. Surface contradictions, hidden assumptions, unnecessary scope, and unresolved decisions.
 
-Use the repository `justfile` as the canonical human-and-agent CLI whenever an applicable recipe exists. Existing project-specific recipes and gates are authoritative; do not bypass them with raw Cargo commands merely to normalize the workflow.
+## 2. Investigation and Retrieval
 
-For each bounded behavioral change:
+Discover before asking; ask before inventing. Settle mechanically answerable questions with tools before spending model reasoning.
 
-1. Identify what observable result distinguishes correct from incorrect behavior.
-2. Add or identify the rele`vant test first when practical.
-3. Confirm the test fails for the expected reason before implementing.
-4. Implement the smallest coherent change.
-5. Run the narrowest sufficient check immediately.
-6. Run broader relevant verification before declaring the slice complete.
-7. Run the task's required closure gates before claiming settlement.
+Use the cheapest tool that can settle the question:
 
-### Rust fast-feedback workflow
+* `graft map` for initial repository orientation.
+* `graft ask "<question>" --source` for ranked architectural/behavioral context with source spans.
+* `graft callers <symbol>` (`--direction out`, `--depth N`) for call graph and blast radius.
+* `graft skeleton <file>` for signatures/spans without whole-file reads.
+* `graft grep "<literal>"` for exhaustive indexed literal matches.
+* `zvec_grep_search` or `zg` for semantic/conceptual discovery when wording or location is unknown.
+* `rg --files` for inventory and `rg` for known paths, symbols, literals, config keys, errors, or regexes.
+* `rust-analyzer` for Rust structural/semantic questions before grep-and-recompile loops.
+* `$understand-chat`, `$understand-explain`, or `$understand-diff` only when relationships/blast radius require broad reading; verify against source/tests.
 
-Prefer package-scoped work before workspace-wide work:
+Use Graft/zvec to narrow, then verify anchors with `rg` and read only relevant ranges. If Graft truncates a span, open that exact range before finalizing.
 
-```text
-rust-analyzer semantics
-→ targeted source inspection
-→ just check-package <crate>
-→ just test-package <crate>
-→ just check
-→ just test
-→ task-specific verification
-→ closure gates
-```
+Do not invent product behavior, acceptance criteria, comparison standards, public API semantics, security policy, or domain decisions. Record unresolved uncertainty as fog rather than guessing.
 
-Use these standard recipes when present:
+## 3. Delegation and Role Boundaries
 
-* `just check-package <crate>` — package-scoped type checking.
-* `just test-package <crate>` — package-scoped nextest execution.
-* `just check` — workspace-level type checking.
-* `just test` — workspace-level nextest execution.
-* `just test-doc` — doctests when applicable.
-* `just fmt-check` — formatting verification.
-* `just lint` — Clippy/static analysis under repository policy.
-* `just deny` — dependency/licence policy when configured.
-* `just verify` — canonical normal repository verification entrypoint.
-* `just timings` — Cargo compilation timing diagnostics.
-* `just cache-stats` — compiler-cache diagnostics.
+Role boundaries are architectural:
 
-Raw `cargo` commands remain appropriate for diagnostics or when no equivalent repository recipe exists, but do not silently substitute them for a stronger project-specific recipe.
+* **Orchestrator:** owns discovery, decomposition, contracts, acceptance criteria, verification architecture, integration, evidence review, settlement, and promotion. Does not write implementation code while delegation exists. Without delegation, stop blocked unless `GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION=1`.
+* **Builder:** performs bounded transformations; may not alter frozen references, comparison criteria, acceptance gates, immutable evidence, or prior settlements. Builder completion claims carry no settlement authority.
+* **Critic:** read-only, fresh-context comparison against the frozen reference under an explicit contract. Receives no builder reasoning/history/attempt count/identity. Emits residuals; never fixes.
+* **Verifier:** decides whether a declared claim meets its evidence requirement; prefer instruments over judgment.
+* **Process optimizer:** proposals only.
 
-Every port has a **shared contract suite**. Adding an adapter means passing the existing suite, not writing a bespoke one.
+Delegation is admission-based. `rlm(...)`-style calls return handles, not answers; never await them as result values. Every delegation declares a result-contract path, and completion requires a schema-valid result file there. Mailbox replies are signals, not contracts. Never delegate whether the total system settled.
 
-### Expensive evidence
+## 4. Failure-Derived Operating Rules
 
-Mutation testing and coverage are evidence-generation operations, not ordinary inner-loop checks.
+Permanent rules derived from demonstrated project failures:
 
-* Use `just mutation` / `cargo mutants` at settlement boundaries or when required by the task to verify that tests discriminate correct from incorrect behavior.
-* Use `just coverage` / `cargo llvm-cov` when coverage evidence is required.
-* Coverage alone proves nothing.
-* Do not add mutation or coverage to every edit/check cycle unless the repository's explicit verification contract requires it.
+* Delegated slices checkpoint/report to files as they work; critics write reports before messaging. Prefer `explore` agents for read-only work.
+* At every dispatch, correction round, and interruption recovery, update both task-local `IN-FLIGHT.md` and `.agents/CURRENT_STATUS.yml`; neither substitutes for the other.
+* After interruption, reconcile worktree + reports + status before redispatching.
+* Every `flock` invocation is its own top-level command; never nest a second `flock` inside another lock's `-c`.
+* After clearing an apparently wedged agent, message it and wait for observable progress before dispatching a replacement.
+* If multiple agents touched the tree since the last full verification, the orchestrator runs the full battery before settlement.
+* Never `git restore` / `git checkout --` a tracked task path without checking status and recording its SHA-256 first; uncommitted task work may be the only copy.
+* Timing/race-sensitive behavior requires deterministic boundary variants for each branch; repeated green races prove only the branch that happened to win.
 
-Use `cargo-deny` through the repository's canonical recipe for dependency policy.
+## 5. Architecture and Governance Invariants
 
-Never: disable a failing test to reach green; weaken an assertion because the implementation fails it; update a golden artifact merely because output differs; report success with a red relevant test; change the reference or an acceptance criterion to make implementation pass; treat `INCONCLUSIVE` as `PASS`.
+* Builder and evaluator never share control of the ruler. Freeze, digest, and re-verify references (`just ruler`).
+* Formal comparison uses a fresh context whose envelope is runtime-built from an allowlist.
+* Authority decides whether an operation may run; containment decides how constrained it is if it runs. Both precede builder process start; neither substitutes for the other.
+* `irreversible` units are never automatically dispatched.
+* An agent may never reduce a Unit's blast radius or authority classification.
+* Model output is untrusted external input: parse, schema-validate, then admit into consequential state.
+* Prefer deterministic verification wherever deterministic evidence exists.
+* Select the next affordable, governable, recoverable, settleable correction—not the largest change.
+* Self-improvement is `current → candidate → isolated evaluation → held-out/regression comparison → promote or rollback`. The active system never moves its own ruler and then claims improvement.
+* Bounded search supports bounded claims only. Do not convert "no issue found" into universal absence without exhausting a declared bounded space.
+* Existence is not composition. Integrated capability claims require proof through the intended production/composition path.
+* Stable concepts include `Reference`, `Answer Key`, `Unit`, `Observation`, `Comparison`, `Residual`, `Verification`, `Correction`, `Settlement`, `Capability`, and `Role Invocation`.
 
-If a test or a reference is wrong, demonstrate why before changing it. Changing the ruler and changing the implementation are separate operations.
+## 6. Universal Change Boundaries
 
-### Rust tooling policy
+Always:
+* Make the smallest effective change that fully satisfies the requested outcome; no MVP-like, placeholder, partial, or knowingly incomplete work unless explicitly requested.
+* Read every file before editing it and inspect one nearby pattern plus its tests.
+* Preserve unrelated worktree changes and avoid unrelated formatting/refactoring.
+* Keep work task/milestone-scoped.
+* Use types to prevent invalid states rather than comments or agent discipline.
+* Keep generated artifacts from becoming competing sources of truth.
+* Record adjacent issues separately instead of widening scope.
 
-The workstation may provide shared developer tooling such as `sccache`, `mold`, `cargo-nextest`, `cargo-mutants`, `cargo-deny`, `cargo-llvm-cov`, `just`, `clippy`, and `rustfmt`.
+Ask before adding/upgrading dependencies; changing persisted schemas, ID grammar, policy precedence, public interfaces, exit codes, CI, deployment, closure gates, or architecture boundaries; deleting files; or expanding the milestone. Prefer standard library and established dependencies over new packages.
 
-Global tool availability is capability, not project policy.
+## 7. Commands, Testing, and Verification
 
-Do not modify `rust-toolchain.toml`, `deny.toml`, nextest configuration, mutation exclusions, coverage thresholds, tracing/evidence configuration, CI, or closure gates merely to conform to a generic workstation baseline. Such changes require project-specific justification.
+Use the repository `justfile` as the canonical command interface. Standard global recipes:
+`just ruler`, `just check`, `just test`, `just lint`, `just deny`, `just boundaries`, `just ci`, `just verify`.
 
-Do not add project-local installation or configuration for globally supplied developer tooling unless reproducibility, CI, or a required project-specific version demands it.
+* Behavioral changes: identify observable correctness, add/identify focused tests first, confirm expected failure, implement the smallest coherent change, run the narrowest check, then broaden to closure gates.
+* Meaningful vertical changes must exercise the real loop:
+  `operator request → reference freeze → role dispatch → artifact change → observation → fresh-context comparison → verification → residual → correction → settlement → durable evidence`
+* Do not disable failing tests, weaken assertions, update goldens merely because output changed, treat `INCONCLUSIVE` as `PASS`, or change the ruler to make implementation pass.
+* Mutation and coverage are settlement/evidence operations, not routine edit-loop checks. Coverage proves reach, not correctness.
+* A successful tool call is not settlement.
 
-## Ask before you assume
-
-Discover before asking. Ask before inventing.
-
-Use `rg --files` then targeted `rg` before reading large amounts of source. For Rust structural questions prefer `rust-analyzer` semantics over grep-and-recompile.
-
-Do not invent: product behavior, acceptance criteria, comparison standards, security policy, public API semantics, or domain decisions.
-
-Resolve ambiguity from specifications, tests, code, configuration, environment, or tools where possible. If two materially different interpretations remain and the choice affects the outcome, ask when interactive. For unattended work, record the unresolved decision as fog — never silently pick one.
-
-Do not widen scope to fix adjacent issues. Record them separately.
-
-## Type checking
-
-Use the type system to prevent invalid states rather than relying on comments or agent discipline.
-
-Rust:
-
-* Explicit domain types, enums, and newtypes over stringly-typed state. Every fixed-value-set field in the spec is a type.
-* `Outcome` is three-state; do not implement a boolean conversion for it.
-* Typed errors carrying the failure locus. No bare strings, no swallowed errors.
-* `unsafe` narrowly scoped with a documented invariant; avoid `unwrap`/`expect` in production paths unless impossibility is an established invariant.
-* `clippy` runs as part of normal verification.
-
-TypeScript, if introduced: strict mode, no `any`, use `unknown` then validate and narrow, no casts to silence the compiler.
-
-Python, if introduced: type public interfaces and domain structures; typed structures over unstructured dicts for stable contracts.
-
-**Model output is untrusted external input.** Parse, validate against the declared schema, then admit into consequential state — never before.
-
-## Dependencies
-
-Prefer mature, maintained dependencies over rebuilding infrastructure. Before adding one, check: does the standard library or an existing dependency solve it; maintenance activity; advisories; licence; transitive cost; coupling introduced; whether it belongs behind an adapter.
-
-Do not add dependencies incidentally during unrelated work.
-
-Prefer the existing environment stack: `rustup`, `rust-analyzer`, a reproducible environment manager, `uv` for Python, current Bun for TypeScript, `just` for the repository CLI, `rusqlite` for local SQLite, and an observability backend only when warranted. Keep dependency policy explicit with `cargo-deny`.
-
-Before adopting any framework, answer: what problem does it solve; does the environment already solve it; what payment does it add; what coupling; can a smaller mechanism preserve the invariant. Prefer boring, inspectable mechanisms.
-
-## Naming
-
-One canonical name per concept. Search specs and code before introducing terminology.
-
-Preserve these distinctions (full vocabulary in the spec, §1):
-
-`Reference` · `Answer Key` · `Unit` · `Observation` · `Comparison` · `Residual` · `Verification` · `Correction` · `Settlement` · `Capability` · `Role Invocation`.
-
-Do not substitute: goal for reference; review for verification; output for settlement; access for capability; opinion for evidence; plan for ruler.
-
-Name ports for semantic capabilities, never vendors: `AgentRunner`, not `ClaudeRunner`. Vendor names belong in adapters and configuration.
-
-Rust conventions: `UpperCamelCase` types/traits/enums`, `snake_case`functions/modules/variables,`SCREAMING_SNAKE_CASE` constants.
-
-## Project structure
-
-Keep architecture discoverable from the tree. Use existing conventions once established; do not create competing layouts. Do not place new files at the repository root when an existing location fits.
-
-```text
-.agents/{specs,plans,skills,roles,reports,research}
-.wayfinder/{map.md,answer-key.md,reference.yaml}
-.gauntlet/{policies,comparison-contract.yaml}
-domain/ application/ ports/ adapters/ cli/
-tests/{contract,proofs,antigaming,e2e,fixtures}
-```
-
-Dependencies point inward: `adapters → application → domain`. The domain is framework- and infrastructure-independent. Provider-, model-, MCP-, persistence-, browser-, sandbox-, and observability-specific code lives behind adapters.
-
-Generated artifacts must not become competing sources of truth.
-
-When a task has a research preregistration under `.agents/research/preregistrations/`, never modify its frozen `.prereg.yaml` or its `.sha256` after implementation begins. Record later observations only in the corresponding `.outcome.yaml`. Verify with `just prereg-check <task>`; it is independent of `just ruler` and of task gates.
-
-## End-to-end verification
-
-Unit tests are not sufficient for claims about the Gauntlet loop itself. For meaningful vertical changes, exercise the real control path:
-
-```text
-operator request → reference resolution and freeze → role dispatch → artifact change
-→ independent observation → fresh-context comparison → verification → residual
-→ correction → settlement → durable evidence
-```
-
-Test unhappy paths deliberately: builder failure; critic failure; malformed result document; missing result document; verifier disagreement; unavailable tool; attempted reference mutation; interrupted run; exhausted budget; non-converging correction; missing evidence; resume/recovery; adapter substitution.
-
-A successful tool call is not settlement. Do not work around a failed E2E step and call the run successful.
-
-### Rust compilation discipline
-
-Compilation is expensive; do not use it as a substitute for reasoning. Use the cheapest operation that settles the current question:
-
-```text
-rust-analyzer semantics
-→ targeted source inspection
-→ just check-package <crate>
-→ just test-package <crate>
-→ just check
-→ just test
-→ broader/task-specific suite
-→ cargo build only when a real linked artifact is required
-```
-
-Do not repeatedly run workspace-wide verification after small localized edits when a package-scoped check provides sufficient feedback.
-
-The faster inner loop does **not** replace task gates, confirmation rounds, evidence requirements, or settlement criteria. Optimization changes when verification cost is paid, not what must ultimately be proven.
-
-Use `just timings` when compilation itself requires investigation. Use `just cache-stats` to inspect `sccache` effectiveness when available.
-
-## UI testing
-
-This project's primary surface is a CLI. If a TUI, dashboard, or web surface is introduced, automated code tests are not sufficient evidence that it works: exercise the rendered interface with realistic data, inspect actual rendered state, capture screenshots where visual comparison matters, and test loading, error, empty, and boundary states. Do not infer visual correctness from source. Keep substantial UI procedures in a `.agents/skills/` workflow.
-
-## Performance
-
-Performance includes computational cost **and** agentic payment. Measure: wall-clock latency; CPU/memory; model tokens; provider cost; tool invocations; retries; verification cost; orchestration burden; recovery cost.
-
-Run cheap deterministic checks before expensive model judgment. Do not invoke a frontier critic for a distinction already settled conclusively by an instrument. Conversely, do not assign an inadequate cheap judge to a comparison whose correctness determines the rest of the loop.
-
-Do not optimize one dimension by weakening correctness or evidence. A loop that halved builder cost by tripling orchestration cost has not improved. **A workflow that got faster by skipping verification is a regression, not learning.**
-
-Autonomous loops must be bounded: respect configured iteration, parallelism, depth, time, token, cost, and recovery-reserve limits. Absence of a configured budget is never permission for unlimited recursion.
-
-### Rust build-artifact budget
-
-Build caches are valuable but bounded. Do not solve disk pressure with routine `cargo clean`; preserve hot incremental state. If artifacts exceed the configured ceiling (`RUST_BUILD_CACHE_MAX_GB`, supplied by the environment — never a machine-specific literal in this repo): inventory first, preserve active build state, remove stale artifacts first, and use a full clean only when a true clean rebuild is required. Never run cleanup concurrently with an active build directory. Record unusual repeated growth as an environment failure.
-
-## Error handling
-
-Fail explicitly and preserve the failure locus. Do not swallow errors or convert uncertainty into success.
-
-Distinguish failure classes: configuration · reference · formation · workspace · agent execution · tool execution · observation · comparison · verification · settlement · persistence · environment · budget · governance · recovery · inconclusive evidence.
-
-Errors preserve enough context to diagnose, recover, retry safely, or abort.
-
-`PASS`, `FAIL`, and `INCONCLUSIVE` are different states. **Missing evidence is not passing evidence.**
+## 8. State, Settlement, and Completion
 
 Never reconstruct critical run state from conversational memory.
 
-## Architecture
+Before declaring completion:
+1. Reconcile worktree, reports, task ledgers, and `.agents/CURRENT_STATUS.yml`.
+2. Inspect the final diff.
+3. Run proof/verification proportional to the claim plus every required closure gate.
+4. Confirm no test, ruler, authority gate, containment boundary, or evidence requirement was weakened/bypassed.
+5. Record unresolved failure, debt, fog, or `INCONCLUSIVE` state explicitly in `.agents/`.
+6. Update `.agents/CURRENT_STATUS.yml`.
+7. Run `graft build` after code changes that affect indexing.
+8. Leave the next move explicit if the run remains open.
 
-Ports and adapters. Core Gauntlet logic depends on semantic capabilities, never on products.
+`PASS`, `FAIL`, and `INCONCLUSIVE` are distinct. Missing evidence is not passing evidence.
 
-Stable ports:
-
-```text
-AgentRunner  Observer  Comparator  Verifier  ReferenceProvider  PolicyProvider
-StateStore   EvidenceStore  EventLog  ToolProvider  Sandbox  WorkspaceProvider
-BudgetMeter  Clock  IdGenerator  HumanEscalation  OperatorSurface
-```
-
-Prime-Agent, Claude, OpenAI, MCP, SQLite, rust-analyzer, browsers, sandbox backends, and observability systems are adapters. If replacing one requires rewriting core control logic, the boundary is wrong — and a test enforces this, not a reviewer.
-
-Non-negotiable structural rules:
-
-* The builder never modifies the standard its work is evaluated against. Freeze, digest, re-verify.
-* Formal comparison uses a fresh context, with the envelope built by the runtime from an allowlist.
-* **Authority gates whether something runs; containment gates how contained it is if it does.** Both precede builder process start. Neither substitutes for the other.
-* `irreversible` units are never automatic dispatch candidates, at the scheduler, regardless of any prompt.
-* An agent may never lower a Unit's blast radius or authority.
-* Prefer deterministic verification wherever deterministic evidence exists.
-* When a residual is found, select the next affordable, governable, recoverable, settleable correction — not the largest possible change.
-* Self-improvement follows candidate revision: `current → candidate → isolated evaluation → held-out/regression comparison → promote or rollback`.
-
-The active system never moves its own ruler and then claims improvement.
-
-Commit often at meaningful milestones and keep `.agents/CURRENT_STATUS.yml` current.
-
-Do not upgrade bounded search into a universal claim. “No issue found” means none was found within the declared scope, threat model, search procedure, and budget; claim absence or minimality only when the relevant space is explicitly bounded and exhausted.
-
-Existence is not composition. When a task claims an integrated capability, prove the mechanism is reachable through the intended production/composition path; isolated mechanism existence or component tests do not establish composed capability.
-
-### Resource-constrained verification
-
-This workspace runs under a memory-constrained WSL environment.
-
-* Respect the repository's Cargo and nextest configuration; do not override configured build or test parallelism unless explicitly required.
-* Prefer `just check-package <crate>` and `just test-package <crate>` before workspace-wide verification when the changed scope permits it.
-* Use `just check` / `just test` only when workspace-level verification is warranted.
-* Do not increase Cargo build jobs or nextest test concurrency to speed up verification.
-* Do not disable `sccache`, replace the configured linker, or perform `cargo clean` merely to troubleshoot a normal compile unless evidence indicates the cache/build state is itself the problem.
-* If a test/build is OOM-killed, diagnose the failing process rather than retrying with greater parallelism.
-* Before task settlement, run every broader verification, evidence, and closure gate required by the task even if focused inner-loop checks were green.
-
-<!-- graft:start -->
-## Graft — repo context graph
-
-This repo is indexed in `graft/`: small linked markdown nodes that explain each
-system and carry exact file:line spans, kept in sync with the code through git.
-
-For ANY task here — understanding how something works, finding where code lives,
-or scoping a change — get context from the graph before grepping or opening
-source files. Re-ask freely (it's cheap) and reuse literal identifiers you
-already have (symbol, error string, file name) as the query. New to this repo?
-Run `graft map` first — a token-budgeted orientation (dir clusters, hubs,
-hotspots), no LLM, no key.
-
-- Run `graft ask "<your question>" --source` → ranked nodes with the relevant
-  code spans inlined (each hit's ≤8-line crux by default; `--full` for whole
-  definitions when the crux isn't enough). Match the tool to the task shape:
-  for understanding or editing, the top node IS the answer — cite its
-  `covers:` file:line spans and edit straight from `--source`. For
-  exhaustive tasks ("every occurrence / every caller of this pattern"), ranked
-  results are top-N, not complete — run `graft grep "<literal>"` instead
-  (exhaustive over indexed files, grouped by enclosing symbol), falling back
-  to raw `grep -rn` only for unindexed files.
-- `graft skeleton <file>` → every definition's signature + span, ~10× cheaper
-  than reading the file; use it to skim an API surface.
-- `graft callers <symbol>` gives precomputed, exact edges — who calls this.
-  Add `--direction out` for what it calls, or `--depth N` to walk
-  transitively for the full blast radius. For structural questions, skip
-  ranking and use this directly.
-- Or browse: `graft/INDEX.md` lists every node; follow the links.
-- Monorepos and folders of multiple repos rank fairly across sub-projects —
-  hits carry `[scope/]` labels naming which one they're from. Narrow with
-  `graft ask "<task>" --in <scope>/` once you know where you're working.
-
-If a returned span is truncated ("+N more lines"), open the file at that exact
-range before finalizing. Only open source files when a node genuinely lacks a
-needed detail, and then at the exact file:line the node points to — never
-re-read whole files.
-
-After big code changes, refresh the graph with `graft build` (deterministic,
-no API key, $0).
-<!-- graft:end -->
+Hard cap for this file: fewer than 150 lines and no more than 32 KiB.
