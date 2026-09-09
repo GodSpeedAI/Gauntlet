@@ -153,6 +153,8 @@ tui-bench selector:
         bun run src/bun-substrate.bench.ts
     elif [ "{{selector}}" = "sqlite-replay" ]; then
         bun run src/sqlite-replay.bench.ts
+    elif [ "{{selector}}" = "terminal-path" ]; then
+        bun run src/terminal-path.bench.ts
     else
         echo "tui-bench {{selector}}: NOT_IMPLEMENTED — no benchmark suite exists yet (plan T17/T21)" >&2
         exit 2

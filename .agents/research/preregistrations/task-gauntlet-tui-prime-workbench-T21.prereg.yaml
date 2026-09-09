@@ -1,0 +1,102 @@
+# Task gauntlet-tui-prime-workbench-T21 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T21 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T21 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T21"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:15:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T21.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T21 validates that Progressive Affordance Materialization and local
+      projection logistics remain affordable under representative large
+      Case/event/artifact/agent loads, and that Horizon narrowing measurably
+      constrains hot work. It proves cold start, Focus changes, Trace
+      movement, hoist/de-hoist, embedded terminal, multiple Prime children,
+      and large event histories meet PREREGISTERED latency/resource budgets
+      without eager whole-world loading (REQ-BUN-006, REQ-FOCUS-003/004,
+      REQ-GOAL-006, REQ-SYNC-002, REQ-UX-007).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Everything freezes BEFORE measurement: fixture sizes/rates, resource
+          ceilings, percentile thresholds, sample counts, CLI comparison
+          protocol, exact hardware/runtime/terminal versions. Failures are
+          preserved; no threshold is tuned after seeing a failure.
+      - id: D2
+        statement: >
+          Horizon narrowing is proven on data logistics, not visuals: forced
+          one-Focus horizons over very large histories keep the hot set
+          bounded by declared relations/dependencies (whole-world eager
+          behavior FAILS); loaded/subscribed/indexed counts recorded per
+          scenario.
+      - id: D3
+        statement: >
+          Measured scenarios: cold start, idle RSS/CPU, event replay, Focus
+          switch, hoist/de-hoist, Trace scrolling, large diff/code projection,
+          terminal activity, multiple Prime-child updates, high-volume event
+          streams while scrolling/typing. Failures route to optimizing the
+          MEASURED bottleneck only, never canonical boundaries.
+
+    known_blindspots:
+      - "Arbitrary unbounded scale and network conditions outside the declared support matrix are out of scope."
+      - "Hardware is this WSL2 host; budgets are recorded against its exact measured baseline (spec validation_matrix)."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Frozen budget table + representative small/large/long-history workloads + measurement harness"
+      why_visible_now: "Implements REQ-SYNC-002/REQ-UX-007 evidence."
+    - id: A2
+      class: "Benches: tui-bench large-case, tui-bench long-horizon with raw samples and pass/fail artifacts"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        A Horizon containing one Focus over a very large history keeps
+        subscriptions/queries/context bounded by declared relations — the
+        eager-whole-world shape fails the test by construction.
+      kind: "implementation_defect"
+      supporting_observation: "Hot-set counters flat under growing history."
+      disconfirming_observation: "Counters scale with total history size."
+    - id: P2
+      claim: >
+        Representative high-volume event streams during scrolling/typing stay
+        within the frozen input/render latency budget.
+      kind: "representation_inadequacy"
+      supporting_observation: "Percentiles within thresholds across frozen samples."
+      disconfirming_observation: "Budget exceeded → task unsettled pending measured-bottleneck fix."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If budgets cannot be met without violating source ownership, event
+        provenance, or affordance correctness, the projection/materialization
+        strategy is revised — never caching canonical truth or dropping
+        required evidence.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Materialization strategy revision behind stable contracts."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Re-run the full frozen bench matrix; results reproducible within sample noise."
+      preregistered_expectation: "Stable percentiles across runs."
+    parametric_variation:
+      level: L2
+      description: "Workload sizes across the frozen small/large/long-history set."
+      preregistered_expectation: "Scaling recorded; hot-set bounds hold at every size."

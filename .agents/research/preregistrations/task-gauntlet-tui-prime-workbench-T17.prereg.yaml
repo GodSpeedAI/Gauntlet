@@ -1,0 +1,106 @@
+# Task gauntlet-tui-prime-workbench-T17 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T17 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T17 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T17"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:00:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T17.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T17 moves expensive folding/indexing/preprocessing off the
+      interactive render path where Bun workers are appropriate, and
+      benchmarks local SQLite joins/horizon-shaped working sets so Focus
+      changes remain perceptually immediate without eager whole-world loading.
+      It proves representative large projections do not block interactive
+      rendering, and measured query/subscription/context working sets
+      shrink/expand with the Horizon instead of loading the entire Case by
+      default (REQ-BUN-006, REQ-GOAL-006, REQ-FOCUS-003/004).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Worker placement is measured, not ideological: expensive work moves
+          to Bun workers only where the measurement shows the render path is
+          blocked; if worker isolation costs more (serialization/copying) than
+          it removes, the stable Workbench Model contract stays and a
+          different execution placement is chosen (redesign_trigger).
+      - id: D2
+        statement: >
+          Data logistics follow the Horizon: loaded rows, subscriptions, and
+          context candidate counts are instrumented across hoist/de-hoist and
+          asserted to shrink/expand — proving materialization changed, not
+          just visuals (Attack 1: eager whole-graph behavior must FAIL).
+      - id: D3
+        statement: >
+          Budgets are frozen BEFORE measurement (fixture sizes, rates,
+          percentile thresholds, sample counts); failures are preserved; the
+          threshold is never tuned after seeing a failure. Worst-case folds
+          under rapid Focus movement stay within the preregistered
+          responsiveness budget or the task remains unsettled (Attack 2).
+
+    known_blindspots:
+      - "Final target-scale budgets across every terminal/remote latency are T21; T17 pins representative local correctness/performance."
+      - "Not all heavy computation belongs in workers; Prime/kernel placement decisions are recorded with measurements."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Worker offloading of pure/local folding/indexing with snapshot/invalidation handoff to the Workbench Model"
+      why_visible_now: "Implements REQ-BUN-006."
+    - id: A2
+      class: "Horizon-shaped join/subscription instrumentation + focus-latency and projection-worker benches"
+      why_visible_now: "Implements REQ-FOCUS-003/004 evidence."
+    - id: A3
+      class: "Gate suites/benches: tui-bench focus-latency, tui-bench projection-worker, tui-test horizon-materialization re-run"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        Opening a large Case and hoisting to one leaf does NOT subscribe/load
+        the entire event/artifact graph: only declared horizon/dependency
+        materialization stays hot (a test asserting whole-graph loading FAILS
+        by construction).
+      kind: "implementation_defect"
+      supporting_observation: "Instrumented counters stay within the declared closure."
+      disconfirming_observation: "Counters grow with whole-Case size on hoist."
+    - id: P2
+      claim: >
+        A worst representative projection fold run while rapidly moving Focus
+        keeps interactive input/render responsiveness within the frozen
+        budget (workers or alternative placement as measured).
+      kind: "representation_inadequacy"
+      supporting_observation: "Percentile latencies within budget across frozen samples."
+      disconfirming_observation: "Budget exceeded; task unsettled until corrected."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If worker isolation creates more serialization/copying payment than
+        it removes, execution placement changes while the Workbench Model
+        contract stays stable.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Alternative placement behind the same model contract."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay hoist/de-hoist cycles over the representative large fixture with counters."
+      preregistered_expectation: "Counters track the horizon exactly; no accumulation drift."
+    parametric_variation:
+      level: L2
+      description: "Fold sizes across small/large fixtures; worker vs inline placement measured both ways."
+      preregistered_expectation: "Placement decision recorded with numbers, not preference."

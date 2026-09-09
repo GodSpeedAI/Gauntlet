@@ -1,0 +1,114 @@
+# Task gauntlet-tui-prime-workbench-T18 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T18 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T18 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T18"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:00:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T18.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T18 hardens every privileged boundary so presentation, kernel,
+      plugin, terminal, and message paths cannot bypass Gauntlet authority;
+      secrets do not leak into projections/evidence/logs; unsafe inputs are
+      bound/validated; sandbox claims remain accurate; and fallbacks are
+      explicit. It proves denied operations remain denied across all local
+      paths, canonical truth survives loss of noncanonical layers, unsafe
+      inputs cannot become privileged code/data channels, and no component
+      misrepresents liveness/isolation/fallback as stronger guarantees
+      (REQ-SAFE-001..004, REQ-SEC-001..005, REQ-SXR-003, REQ-UX-006).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Declared enforcement scope, stated up front: trusted same-user
+          arbitrary code is NOT sandboxed by a TUI. Governed helper routes,
+          auth/origin controls, ANSI/OSC/paste injection handling, output
+          limits, and containment are exercised; excluded threat classes are
+          recorded, never implied covered.
+      - id: D2
+        statement: >
+          Every privileged side-effect boundary enumerated and defended:
+          Gauntlet commands, Prime execution/steer/cancel, kernel operations,
+          terminal/process spawn, plugin loading, SQL/file paths,
+          transport/RPC, evidence admission. Validation/binding/authorization
+          at each boundary; no UI/cache state is trusted as authority.
+          (Attack 1: denied op through EVERY projection plus direct
+          plugin/kernel/terminal helper paths → all deny before side effect.)
+      - id: D3
+        statement: >
+          Secret redaction scanners over config, SQLite, logs, snapshots,
+          evidence, plugin manifests, and errors: seeded fake secrets in
+          approved sources never appear in forbidden outputs (Attack 2);
+          references/redactions used instead.
+      - id: D4
+        statement: >
+          Provider/model/transport fallbacks are policy-permitted and VISIBLE;
+          silent fallback removed. Prime/Python isolation is disclosed as NOT
+          a security sandbox; heartbeats/process liveness are not success.
+
+    known_blindspots:
+      - "Remote network authentication beyond the declared support boundary is out of scope (T20 owns transport qualification)."
+      - "Carried trigger-records from T09/T10 (compromised-transport forged-accepted exposure via ledger+fresh observation; non-crypto payload digest; observe head-of-line bounded stall) are re-attacked here and either closed or re-scoped honestly."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Privileged-boundary inventory + validation/binding enforcement sweep across all landed adapters (T04/T05/T09/T10/T11/T13/T15/T16)"
+      why_visible_now: "Implements REQ-SEC-002/005, REQ-SAFE-002."
+    - id: A2
+      class: "Secret redaction scanners + secret-leakage suite over every forbidden output channel"
+      why_visible_now: "Implements REQ-SEC-001/003, REQ-SAFE-003."
+    - id: A3
+      class: "Fallback-visibility sweep + isolation-claim language/tests; gate suites security-boundaries, secret-leakage, deny-bypass re-run"
+      why_visible_now: "Implements REQ-SAFE-001/004, REQ-SEC-004 and the declared gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        A denied consequential operation attempted through every supported
+        projection plus direct plugin/kernel/terminal helper paths denies
+        before consequential side effect; any bypass fails the task.
+      kind: "implementation_defect"
+      supporting_observation: "Uniform typed denials; zero side effects across the full matrix."
+      disconfirming_observation: "Any path mutates state after a denial class."
+    - id: P2
+      claim: >
+        Seeded fake secrets in approved secret sources never appear in
+        errors, snapshots, evidence, plugin logs, or SQLite writes under any
+        triggered failure; redactions/references appear instead.
+      kind: "representation_inadequacy"
+      supporting_observation: "Scanners redact; forbidden channels clean under failure injection."
+      disconfirming_observation: "Any secret material reaches a forbidden channel."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        Any successful authority bypass or secret disclosure invalidates the
+        relevant boundary representation; downstream acceptance stops until
+        the root ownership/transport/admission defect is corrected and the
+        FULL attack set is rerun.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Root boundary correction, never per-path whitelisting."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay the full bypass matrix after every correction round."
+      preregistered_expectation: "All denials hold; no regression in earlier rounds."
+    parametric_variation:
+      level: L2
+      description: "Secret seeding across every approved source class; failure injection per boundary."
+      preregistered_expectation: "Redaction holds under every failure shape."

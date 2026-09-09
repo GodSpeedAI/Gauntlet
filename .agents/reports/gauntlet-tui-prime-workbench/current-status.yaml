@@ -9,60 +9,59 @@ metadata:
   initialized: true
   last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (T10+T12 settled from the first parallel builder wave — T10
-    [P3] on fresh-target reproduction CONFIRM with 2 MAJOR + 1 MINOR closed
-    RED-first in COR-1 [per-role envelope budget vs the dependency-smuggling
-    channel; double-spawn TOCTOU closed at two layers; substrate-inventory
-    staleness vs real prime 0.8.0 trigger-recorded to T24]; T12 [P2] on peer
-    CONFIRM with its MAJOR [composer dismissed-request re-admission] closed
-    RED-first in COR-1. Prior: T09 settled on the full adversarial ladder: recovery builder
-    completed an interrupted session's partial gateway [98/98] -> independent
-    adversarial r1 NOT_CONFIRM [3 BLOCKING: bind-time key ledger armed the
-    re-drive gate-skip so refused+retried invocations EXECUTED; HTTP observe
-    non-throwing so re-drives/reconcile committed under dead reads; a
-    concurrency split refusal+execution; MAJOR: stub used a fabricated
-    budget_exhausted admission gate absent from the real Rust vocabulary] ->
-    COR-1 RED-first -> adversarial r2 NOT_CONFIRM [1 BLOCKING: failed outcomes
-    armed the same skip — HTTP 503 then retry executed an unaffordable op] ->
-    COR-2 surgical [arm only accepted] -> focused r3 CONFIRM_NO_BYPASS [23/23
-    verifier probes, scope clean]; gates re-verified personally.
+    Orchestrator (the five-builder max-parallel wave settled: T11 peer CONFIRM
+    [0 blocking/0 major]; T13 peer CONFIRM [0/0; 3 fail-closed minors:
+    non-idempotent cancel reason overwrite, 128+signum exit-code provenance
+    fidelity, untyped TypeError on garbage shapes]; T14 peer CONFIRM + COR-1
+    evidence-honesty correction [the real working-tree build's both-mode
+    object carrier is typed invalid by the pinned parser — fail-closed;
+    settled claim rests on the pinned P1 pair; T14B owns requalification];
+    T15 adversarial NOT_CONFIRM -> COR-1 [BLOCKING: out-of-order same-view
+    disposer resurrected an unmounted plugin's renderer — replaced with a
+    per-view stack recomposition; plus fanout dispatcher, own-property
+    manifest reads, typed mount errors] -> focused r2 CONFIRM_REVERSIBILITY
+    [verifier rewrote probes 33/33, accepted the P2b unsatisfiability proof];
+    T16 adversarial CONFIRM with 1 MAJOR -> COR-1 RED-first [baseline-path
+    silent cursor advance past store-refused frames -> refused_events/
+    refusal_reasons reporting + persistent degraded visibility;
+    consumed-and-refused position with the livelock rationale] -> focused r2
+    CONFIRM_RECONNECT_INTEGRITY [9 new overreach attacks repelled]). Gates
+    green in the orchestrator's hands on the final tree: 331 tests/38 files
+    (1 env-gated skip: T13 real-PTY probe, 15/15 when enabled), all
+    selectors, tsc clean, biome 0 errors, preflight PASS, terminal bench
+    PASS, preregs T11/T13/T14/T15/T16 intact.
 
 execution:
-  last_settled_task: T12
+  last_settled_task: T16
   in_flight_task: null
-  ready_tasks: [T11, T13, T14, T15, T16]
+  ready_tasks: [T14B, T17, T18]
   blocked_tasks:
-    T14B: [T14]
-    T17: [T13]
-    T18: [T13, T15, T16]
-    T19: [T16, T18, T14B]
-    T20: [T13, T16, T18, T14B]
+    T19: [T18, T14B]
+    T20: [T18, T14B]
     T21: [T17, T20]
-    T22: [T16, T18, T19, T20, T14B]
+    T22: [T18, T19, T20, T14B]
     T23: [T11, T18, T20, T14B]
-    T24: [T16, T20, T22]
-    T25: [T14, T15, T19, T21, T22, T23, T24, T14B]
+    T24: [T20, T22]
+    T25: [T14B, T21, T22, T23, T24]
 
 active:
-  task: T11+T13+T14+T15+T16
+  task: T14B+T17+T18
   phase: dispatch-prep
-  title: max-parallel builder wave (all five ready after T10+T12 settled)
+  title: three-builder wave (T16 freed T18; all deps settled)
   blocker: null
 
 next_action:
-  task: T11+T13+T14+T15+T16
+  task: T14B+T17+T18
   action: >-
-    Dispatch five builders in parallel with disjoint file ownership. T11 (P2
-    peer; prereg 08c39333): kernel callable affordances + evidence promotion.
-    T13 (P2 peer; prereg ca3f05e4): embedded terminal + unsafe-input
-    boundaries + terminal-path bench (owns the justfile terminal-path
-    selector). T14 (P2 peer; prereg c421a2c8): DomainForge adapter +
-    semantic identity. T15 (P3 independent_adversarial; prereg 7d546049):
-    plugin slots/trust/reversibility + representative plugin. T16 (P3
-    independent_adversarial; prereg 360e7fb4): live streams, reconnect
-    generations, detach/reattach. Carried trigger-records: T24 substrate
-    inventory re-run; T10/T15 deny-matrix re-runs over new routes; T12
-    composer machine reused by T13/T15 takeovers.
+    Dispatch three builders in parallel. T14B (P3 independent; prereg
+    60943b46): SXR evidence lens — carries T14's trigger-records (both-mode
+    object-carrier contract drift, CAS content_ref, Relation-declaration
+    fixture, Inspector wiring, SXR live qualification; also fix the
+    semanticNeighborhood valid:false filter). T17 (P2 peer; prereg 19636de8):
+    worker isolation + horizon-shaped payment benches. T18 (P3 indep
+    adversarial; prereg 4bd5c124): security/trust/secret hardening sweep
+    across ALL landed adapters — re-attack the T09/T10 carried
+    trigger-records. Then T19+T20, then T21+T22+T23, T24, T25.
 
 latest_evidence:
   T00:
@@ -172,3 +171,62 @@ latest_evidence:
       change). All 12 owned DSN clauses verified to pinning tests; 187/187
       tree tests; gates re-verified personally. index.ts barrel exports
       applied by the orchestrator at integration.
+  T11:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T11/
+    artifacts: [kernel-affordances.md]
+    confirmation: >-
+      peer CONFIRM (2026-09-09): 0 blocking/0 major; 16 independent probes
+      found nothing; mutation restore hashes verified; type-level
+      establishes_*:false enforcement proven by negative compile probe.
+      Minors trigger-recorded: transitionTo latent ordering hazard (dead
+      defensive branch); unknownOrStaleOffer reason-fidelity nit.
+  T13:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T13/
+    artifacts: [embedded-terminal.md]
+    confirmation: >-
+      peer CONFIRM (2026-09-09): 0 blocking/0 major; real-PTY resize
+      delivery independently reproduced (stty size 40 90); 151-position
+      adversarial sanitizer sweep clean; negative control live-fires
+      forbidden interpolation. Minors trigger-recorded (fail-closed):
+      non-idempotent cancel reason overwrite on real PTYs; 128+signum
+      exitCode provenance fidelity vs declared contract; untyped TypeError
+      on garbage admission shapes; PATH-resolved bare names when no
+      allowlist declared.
+  T14:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T14/
+    artifacts: [domainforge-adapter.md]
+    confirmation: >-
+      peer CONFIRM (2026-09-09) + COR-1 evidence-honesty correction: all
+      three binary digests and the digest rule independently reproduced;
+      both attacks found nothing; mutation teeth verified. MAJOR closed as
+      evidence correction: the real working-tree build's both-mode object
+      carrier is typed invalid by the pinned parser (fail-closed); settled
+      claim rests on the pinned P1 pair; T14B owns both-mode/CAS/Relation-
+      fixture/Inspector/SXR-live requalification + the semanticNeighborhood
+      valid:false filter.
+  T15:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T15/
+    artifacts: [plugins.md]
+    confirmation: >-
+      CONFIRM_REVERSIBILITY (2026-09-09, adversarial r2 after NOT_CONFIRM
+      r1): BLOCKING out-of-order same-view disposer resurrection closed by
+      per-view stack recomposition (no previousRenderer pointers);
+      fanout dispatcher makes disposal infallible; own-property manifest
+      reads; typed mount errors. Verifier rewrote probes (33/33), verified
+      content-level, accepted the P2b unsatisfiability proof. Informationals
+      recorded: no per-listener throw isolation in fanout (parity with
+      host semantics); in-flight callCapability resolves after unload.
+  T16:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T16/
+    artifacts: [live-streams.md]
+    confirmation: >-
+      CONFIRM_RECONNECT_INTEGRITY (2026-09-09, adversarial focused r2 after
+      CONFIRM-with-MAJOR r1): baseline-path silent cursor advance closed
+      RED-first (refused_events/refusal_reasons + persistent degraded
+      visibility; consumed-and-refused position with validated livelock
+      rationale — verifier reproduced the resync-loop empirically). 9 new
+      overreach attacks repelled (accounting invariants, healing paths,
+      no masked refusable class). Minors trigger-recorded: degradedReasons
+      transition-only staleness; nested-reconnect handshake desync
+      (self-healing); forged persisted cursors validate 'valid' (reporting
+      level); orphaned buffered frames bounded/inert.

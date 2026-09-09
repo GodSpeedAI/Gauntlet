@@ -1,0 +1,106 @@
+# Task gauntlet-tui-prime-workbench-T19 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T19 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T19 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md (DSN-011)
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T19"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:00:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T19.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T19 proves consequential Gauntlet history and Workbench semantics
+      can be reconstructed/replayed WITHOUT OpenTUI/React/Bun SQLite/notebook
+      UI, and that renderer replacement does not require changing Gauntlet or
+      Prime execution semantics. It proves the same recorded Run is
+      reconstructible headlessly; deleting/restarting TUI/kernel/renderer
+      state does not alter canonical truth; and a minimal non-OpenTUI
+      projection can consume the Workbench Model/operations without
+      business-semantic forks (REQ-VERIFY-002, REQ-STATE-004, REQ-GOAL-005,
+      REQ-TUI-005, REQ-SAFE-001; DSN-011).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Headless replay consumes authoritative sources directly and emits
+          normalized Case/Run/Evidence/Attention/settlement projections;
+          removing/disabling ALL OpenTUI/React modules leaves canonical and
+          normalized data reconstructible — only presentation is absent
+          (Attack 1).
+      - id: D2
+        statement: >
+          Killing/restarting the Python REPL and renderer while canonical
+          sources remain changes nothing in Reference, authority, evidence,
+          settlement, or Run truth (Attack 2). Presentation cursor persistence
+          is not execution recovery.
+      - id: D3
+        statement: >
+          Dependency/architecture tests prevent Gauntlet/Prime canonical
+          layers from importing OpenTUI/React presentation modules; the
+          smallest renderer-independent test projection proves OpenTUI is not
+          in the business-state dependency graph. NOT built: a second
+          production renderer, and no libvaxis necessity claim.
+
+    known_blindspots:
+      - "The non-OpenTUI consumer is a minimal test projection, not a product renderer."
+      - "Recorded-Run reconstruction is bounded to the representative real Run recorded within this task's fixtures."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Headless replay/reconstruction harness over authoritative sources emitting normalized projections"
+      why_visible_now: "Implements REQ-VERIFY-002, REQ-STATE-004."
+    - id: A2
+      class: "Renderer-independent minimal projection consumer + canonical-layer import bans"
+      why_visible_now: "Implements REQ-TUI-005, DSN-011."
+    - id: A3
+      class: "Gate suites headless-replay, renderer-boundary"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        With every OpenTUI/React module removed/disabled, the recorded Run is
+        reconstructed headlessly to the normalized projection, byte-equivalent
+        to the with-presentation fold's consequential content.
+      kind: "implementation_defect"
+      supporting_observation: "Normalized projections equal; only render artifacts absent."
+      disconfirming_observation: "Any consequential field depends on presentation state."
+    - id: P2
+      claim: >
+        A minimal projection consumer with no OpenTUI/React imports consumes
+        the Workbench Model/operations with zero business-semantic forks, and
+        architecture tests hold against canonical-layer presentation imports.
+      kind: "representation_inadequacy"
+      supporting_observation: "Consumer runs; import-ban tests green."
+      disconfirming_observation: "Any canonical layer imports presentation, or the consumer needs a semantic fork."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If replay or canonical operation semantics require OpenTUI/React
+        state, presentation has become canonical and must be unwound before
+        continuing.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Unwinding presentation from canonical paths."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Record → destroy TUI/SQLite/kernel state → headless reconstruct → compare."
+      preregistered_expectation: "Consequential history identical; lost ephemeral output marked unavailable."
+    parametric_variation:
+      level: L2
+      description: "Replay under module removal orders (renderer first, kernel first, store first)."
+      preregistered_expectation: "Canonical truth invariant in every order."

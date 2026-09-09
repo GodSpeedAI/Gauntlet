@@ -1,0 +1,107 @@
+# Task gauntlet-tui-prime-workbench-T20 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T20 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T20 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T20"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:00:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T20.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T20 qualifies the same application protocol and Workbench semantics
+      across same-host local transport, SSH/remote terminal use, and the
+      declared Bun/OpenTUI release/packaging form without embedding
+      local-path assumptions into canonical operations. It proves local and
+      remote/SSH modes preserve operation meaning, Focus/resize/input/
+      reconnect behavior, and long-running work continuity; the release form
+      runs on actual target hardware with documented dependencies
+      (REQ-BUN-005, REQ-CONFIG-005, REQ-OUT-003, REQ-SXR-004, REQ-UX-005/007).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Transport equivalence: switching local transport to remote/SSH for
+          the same canonical operation changes only transport/config/
+          projection behavior — operation identity, admission, and result
+          semantics stay identical (Attack 1). SSH/tmux operates the SAME
+          host; no remote HTTP server or new Unix socket transport is
+          invented unless qualified without changing application meanings.
+      - id: D2
+        statement: >
+          Long-running continuity: restarting the SSH/client terminal while
+          Prime work continues leaves work alive per policy and the new
+          client reattaches through authoritative state, never local UI
+          memory (Attack 2).
+      - id: D3
+        statement: >
+          The release form (just tui-build release) builds on the actual
+          target environment with a pinned Bun/OpenTUI native target and
+          lockfile; the produced artifact LAUNCHES in the declared terminal.
+          Target-specific limitations are recorded as configuration/support
+          facts, never hardcoded domain behavior. Real-PTY operator journeys
+          (120x40 full, 80x24 compact, below-minimum prompt) are exercised
+          here — the REQ-UX-005 real-rendering evidence T12 deferred.
+
+    known_blindspots:
+      - "Every future cloud/GUI transport and universal terminal compatibility stay out of scope."
+      - "SXR producer availability flows through T14B's qualification; T20 records support facts only."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "SSH/tmux terminal qualification of the semantic workbench on the same host (input, resize, focus, streams, reconnect semantics)"
+      why_visible_now: "Implements REQ-CONFIG-005/REQ-UX-005 remote mode."
+    - id: A2
+      class: "Release build + launch of the produced artifact on real hardware (tui-build release un-not-implemented)"
+      why_visible_now: "Implements REQ-BUN-005."
+    - id: A3
+      class: "Gate suites transport-equivalence, ssh-target, operator-journeys re-run; tui-build release"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        The same canonical operation invoked over local and SSH/tmux modes
+        yields identical operation identity, admission decision, and result
+        semantics; only transport behavior differs.
+      kind: "implementation_defect"
+      supporting_observation: "Cross-mode result equivalence recorded."
+      disconfirming_observation: "Any semantic divergence between modes."
+    - id: P2
+      claim: >
+        The built release artifact launches in the declared terminal on this
+        host and renders the workbench shell; documented dependencies suffice.
+      kind: "representation_inadequacy"
+      supporting_observation: "Launch log + rendered frame evidence."
+      disconfirming_observation: "The artifact fails to launch or render on the target."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If remote mode requires different canonical operations or state
+        semantics, the protocol boundary is leaking transport concerns and is
+        refactored before both modes are called the same workbench.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Protocol boundary refactor."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay the operator journey set over local and SSH modes."
+      preregistered_expectation: "Same semantic locations, states, and operation results."
+    parametric_variation:
+      level: L2
+      description: "Terminal restart mid-run; resize storms; long-running work continuity across client death."
+      preregistered_expectation: "Work continues; fresh clients reattach authoritatively."

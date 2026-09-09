@@ -1,0 +1,103 @@
+# Task gauntlet-tui-prime-workbench-T23 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T23 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T23 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T23"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:15:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T23.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T23 freshly re-confirms, from OUTSIDE the builder path, that one
+      allowed and one denied consequential operation have identical semantics
+      across TUI, kernel wrapper, CLI/API, eligible Prime context, plugin
+      presentation, and any direct local adapter surface. It proves allowed
+      routes converge on one canonical operation/admission/idempotency/result;
+      denied/stale routes all fail before side effect; and no projection has
+      gained independent authority (REQ-AFF-001..003, REQ-OPS-002/004,
+      REQ-SEC-002, REQ-SXR-002, REQ-UX-003, REQ-VERIFY-003/004).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Frozen representatives BEFORE inspection: the allowed and denied
+          operations, their preconditions, and expected canonical IDs/results
+          are frozen before the verifier examines builder evidence.
+      - id: D2
+        statement: >
+          Every supported projection and direct adapter surface available on
+          the real target is exercised (the route inventory as it stands after
+          T10/T11/T15 landed theirs): operation identity, authority/admission
+          decisions, idempotency keys, side effects, result class, and
+          emitted canonical events compared per route.
+      - id: D3
+        statement: >
+          Least-obvious-path attacks: a denied operation through the least
+          obvious supported path (plugin/kernel/direct adapter) AFTER changing
+          authority post-render; stale-control invocation; an allowed
+          operation through all projections with the SAME idempotency identity
+          yielding ONE canonical semantic operation (projection choice does
+          not multiply side effects). Routing code/dependency graphs inspected
+          for any presentation-specific consequential side effect.
+
+    known_blindspots:
+      - "This proves the architecture with representative operations plus static/dynamic checks that all supported routes share one gateway; not every product operation individually."
+      - "Eligible Prime context route is bounded by the T10/T24 adapter-model scope (in-process contracts; cross-process is T24)."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Fresh cross-surface equivalence execution (gate suites cross-surface-equivalence, deny-bypass re-run)"
+      why_visible_now: "The task IS the confirmation."
+    - id: A2
+      class: "Static routing/dependency inspection for presentation-side-effect paths"
+      why_visible_now: "Completes the no-bypass evidence."
+
+  predictions:
+    - id: P1
+      claim: >
+        The denied operation invoked through the least-obvious supported path
+        after post-render authority change reaches the SAME canonical denial
+        before side effect on every route.
+      kind: "implementation_defect"
+      supporting_observation: "Identical typed denials; zero side effects."
+      disconfirming_observation: "Any route executes or diverges semantically."
+    - id: P2
+      claim: >
+        The allowed operation invoked through all projections with the same
+        idempotency identity produces one canonical semantic operation/result;
+        side effects are not multiplied by projection choice.
+      kind: "representation_inadequacy"
+      supporting_observation: "Single admission; identical canonical events."
+      disconfirming_observation: "Divergent admission or multiplied effects."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If even one projection requires unique business logic or authority
+        semantics, the isomorphism claim is false; the gateway/projection
+        boundary is corrected rather than whitelisting the exception.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Gateway/projection boundary correction."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Re-execute the frozen representative matrix after any tree change."
+      preregistered_expectation: "Stable equivalence; failures re-open the plan."
+    parametric_variation:
+      level: L2
+      description: "Denial-reason variation (governance/payment/settlement/recovery/stale) across all routes."
+      preregistered_expectation: "Reason codes preserved through every projection's refusal."

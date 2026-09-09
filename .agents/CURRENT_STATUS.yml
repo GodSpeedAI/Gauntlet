@@ -28,8 +28,13 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T09/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T10/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T12/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T11/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T13/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T14/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T15/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T16/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
-  next_action: "Execute the max-parallel wave: T11, T13, T14, T15, T16 builders (all deps settled; preregs frozen 08c39333/ca3f05e4/c421a2c8/7d546049/360e7fb4)."
+  next_action: "Execute the three-builder wave: T14B (SXR lens, carries T14 requalification trigger-records), T17 (worker isolation/payment), T18 (security hardening sweep over all landed adapters)."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name

@@ -1,0 +1,104 @@
+# Task gauntlet-tui-prime-workbench-T22 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T22 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T22 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T22"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:15:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T22.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T22 executes the required destructive recovery cases across SQLite,
+      TUI, kernel, reconnect, Prime availability, and projection
+      inconsistency to prove noncanonical layers can fail and recover without
+      rewriting canonical truth. It proves deleting/corrupting projections,
+      killing TUI/kernel, reconnecting mid-stream, and losing Prime where
+      scoped all produce the declared rebuild/degraded/reattach behavior with
+      preserved correction history (REQ-SAFE-001/005, REQ-SXR-004,
+      REQ-SYNC-001/003, REQ-VERIFY-001/002/005/006).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Self-consistent-but-wrong corruption is detected: local projection
+          rows crafted to look coherent but disagreeing with authoritative
+          cursors trigger rebuild/resync — the workbench NEVER mutates
+          authoritative sources to preserve the local view (Attack 1).
+      - id: D2
+        statement: >
+          Simultaneous destruction: killing TUI AND kernel during a real Run
+          while a Prime child continues leaves canonical truth and authorized
+          work intact per policy; fresh reconstruction recovers the real
+          state (Attack 2). RECOV-001..006 applicable cases executed; lost
+          ephemeral output explicitly marked unavailable — never impossibly
+          recreated; SXR absence/incompatibility and lost model pins/CAS
+          included.
+      - id: D3
+        statement: >
+          Every failed round and correction is preserved before rerun; exact
+          destructive procedures and pre-state digests/cursors are frozen;
+          restart/loss of Python REPL with ephemeral/pinned/artifactized
+          objects follows declared invalidation/recovery; Prime unavailable +
+          Gauntlet available degrades capability-scoped, restore resyncs.
+
+    known_blindspots:
+      - "Plugin unload reversibility and cross-surface isomorphism have dedicated confirmations (T15/T23) and are not re-proven here."
+      - "Cross-process Prime reality is T24; T22 exercises the declared in-model recovery semantics plus real-process TUI/kernel kills where deterministic."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Frozen destructive recovery procedures over SQLite/TUI/kernel/streams/Prime-availability with pre-state digests"
+      why_visible_now: "Implements RECOV-001..006."
+    - id: A2
+      class: "Gate suites recovery-matrix, cold-rebuild, detach-reattach re-run"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        Crafted self-consistent corrupt projections are detected against
+        authoritative cursors and rebuilt/resynced; no authoritative mutation
+        occurs.
+      kind: "implementation_defect"
+      supporting_observation: "Detection typed; rebuild converges; sources byte-identical."
+      disconfirming_observation: "The workbench edits sources or trusts the corrupt rows."
+    - id: P2
+      claim: >
+        Simultaneous TUI+kernel death during a live run with a continuing
+        Prime child recovers the real state from fresh processes; correction
+        history preserved.
+      kind: "representation_inadequacy"
+      supporting_observation: "Fresh reconstruction equals authoritative fold; failed rounds retained."
+      disconfirming_observation: "Lost canonical truth, fabricated recovery, or erased failure evidence."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        Any recovery path depending on unreconstructible local truth
+        invalidates the architecture; canonical ownership is corrected before
+        adding backup/replication complexity.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Canonical ownership correction."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay every destructive case twice; identical recovery behavior."
+      preregistered_expectation: "Deterministic rebuilds; stable verdicts."
+    parametric_variation:
+      level: L2
+      description: "Corruption shapes: partial rows, cursor lies, generation confusion, mixed-layer kills."
+      preregistered_expectation: "Every shape detected or safely bounded; none silently trusted."

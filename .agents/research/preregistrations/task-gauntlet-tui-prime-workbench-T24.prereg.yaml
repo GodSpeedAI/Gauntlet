@@ -1,0 +1,108 @@
+# Task gauntlet-tui-prime-workbench-T24 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T24 implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T24 block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T24"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:15:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T24.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T24 freshly reproduces Prime child admission, nested/parallel
+      topology, Python REPL serialization, mailbox/completion separation,
+      TUI detach survival, and authoritative reattachment on the ACTUAL
+      TARGET RUNTIME without builder session state. It proves the installed
+      Prime/Python substrate behaves as assumed by the workbench contract
+      under fresh real execution, including child continuity across workbench
+      loss and no inference of completion from messages/liveness
+      (REQ-OPS-001, REQ-PRIME-003/004/005/009/010, REQ-VERIFY-005).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Fresh target state per the prereg; no builder caches/fixtures.
+          Mailbox "complete" plus healthy heartbeat while the result
+          artifact/contract is absent keeps work NON-complete in
+          Gauntlet/workbench projections (Attack 1).
+      - id: D2
+        statement: >
+          Deleting all TUI/session projection cache before reattachment:
+          Prime topology and session refs reconstruct from authoritative
+          Prime/Gauntlet state (Attack 2) — the T10 verifier's cross-process
+          finding is directly engaged here.
+      - id: D3
+        statement: >
+          OWNED CARRIED WORK: the substrate inventory re-run — the real
+          installed prime-agent 0.8.0 exposes goals/child-budget/autonomous/
+          schedules (and send/stop/attach/list/resume) that the T04/T10
+          in-process adapter model records unsupported; T24 re-qualifies the
+          inventory against the real binary and maps REQ-PRIME-008
+          provenance honestly (exposed-by-binary vs exposed-by-adapter-model
+          vs admitted-by-workbench), without promoting any substrate to
+          canonical truth. Concurrent same-kernel execution stays serialized;
+          nested/parallel children reflect actual Prime depth/budget.
+
+    known_blindspots:
+      - "The full Gauntlet final settlement matrix and future Prime versions are out of scope."
+      - "If the fresh installed Prime fails a lifecycle assumption that passed in mocks, final acceptance stops and the adapter/spec assumption is updated — never masked."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Fresh-runtime Prime/Python lifecycle execution (admission, topology, serialization, detach survival, reattachment)"
+      why_visible_now: "The task IS the fresh reproduction."
+    - id: A2
+      class: "Substrate inventory re-qualification vs the real binary + honest provenance mapping"
+      why_visible_now: "Carried trigger-record from T10's fresh-target verification."
+    - id: A3
+      class: "Gate suites prime-fresh-target, kernel-serialization re-run, detach-reattach re-run"
+      why_visible_now: "Declared narrow gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        On the real installed substrate, misleading mailbox completion plus
+        healthy heartbeat never completes work while the result contract is
+        absent — in Gauntlet and in every workbench projection.
+      kind: "implementation_defect"
+      supporting_observation: "Child stays non-complete everywhere; contract absence decisive."
+      disconfirming_observation: "Any projection treats liveness/message as completion."
+    - id: P2
+      claim: >
+        With all TUI/session projection cache deleted, reattachment
+        reconstructs real Prime topology/session refs from authoritative
+        sources, including across process boundaries.
+      kind: "representation_inadequacy"
+      supporting_observation: "Fresh-process reconstruction matches the binary's real state."
+      disconfirming_observation: "Reconstruction needs local caches or fabricates identity."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If the fresh installed Prime version fails a lifecycle assumption
+        that passed only in mocks/builder state, final acceptance stops and
+        the adapter/spec assumption is updated rather than masked.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Adapter/spec assumption update."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Repeat the lifecycle battery on a clean target state."
+      preregistered_expectation: "Same outcomes; no state carryover."
+    parametric_variation:
+      level: L2
+      description: "Nested/parallel children at real depth/budget bounds; kill timing variations."
+      preregistered_expectation: "Topology and completion track the real binary at every variation."

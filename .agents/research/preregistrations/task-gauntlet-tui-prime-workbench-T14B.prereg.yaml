@@ -1,0 +1,109 @@
+# Task gauntlet-tui-prime-workbench-T14B preregistration — research instrumentation, non-normative.
+# Written BEFORE any T14B implementation exists. Immutable once frozen.
+# Derived from: .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T14B block),
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml, DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T14B"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-09T12:00:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T14B.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T14B adds a bounded adapter for explicit SXR refresh/export and
+      source-typed evidence links in existing Inspector/Evidence/Trace views.
+      It proves real qualified producer/consumer and UI compose while SXR
+      identity/settlement remain distinct and optional, and source loss
+      preserves core journeys (REQ-DOM-004/005, REQ-SXR-001..004,
+      REQ-SYNC-003). It does NOT implement SXR explain, autonomous runs, or a
+      graph engine; SXR evidence is never automatically Gauntlet evidence or
+      settlement.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Pinned producer/consumer schema and binary digests; versioned SXR
+          outputs and raw ledger export arrays are parsed SEPARATELY; wrong
+          producer protocol, corrupt digests, missing CAS, or swapped
+          repositories produce explicit incompatible/invalid/unknown results —
+          no name-join, no automatic ledger write, no Gauntlet settlement.
+      - id: D2
+        statement: >
+          Repository/run/entity/question/threshold and ledger ordinal/hash are
+          bound explicitly; committed/pending distinction retained — pending
+          SXR evidence can never be offered as settled.
+      - id: D3
+        statement: >
+          Refresh executes only through a bounded worker/argv/deadline/output
+          contract, never from render; a hanging producer flooding output is
+          terminated by the bounds while the renderer stays responsive and
+          core inspection works.
+      - id: D4
+        statement: >
+          The path declaration -> linked Unit -> recorded question/threshold/
+          evidence -> canonical verification runs without a second approval
+          button; classification of projection-rebuild side effects is explicit.
+
+    known_blindspots:
+      - "Producer availability on this host is bounded by the actual installed SXR/DomainForge binaries; unavailable producers are recorded and the required ignored/skipped test keeps this milestone honest."
+      - "Rich semantic overlays stay roadmap (DSN-015 direction)."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Qualified SXR refresh/export parser + explicit identity association (bounded worker contract)"
+      why_visible_now: "Implements REQ-SXR-001/002."
+    - id: A2
+      class: "Read-only evidence/ledger lens in existing views + evidence-admission boundary"
+      why_visible_now: "Implements REQ-SXR-003."
+    - id: A3
+      class: "Real producer-consumer-workbench composition + failure matrix; gate suites sxr-evidence-adapter, semantic-evidence-composition, deny-bypass re-run"
+      why_visible_now: "Implements REQ-SXR-004 and the declared gates."
+
+  predictions:
+    - id: P1
+      claim: >
+        Pending SXR evidence offered as settled anywhere in the lens is
+        impossible; committed/pending remains visible and only committed,
+        digest-valid evidence can be ADMITTED as Gauntlet evidence via the
+        explicit boundary.
+      kind: "representation_inadequacy"
+      supporting_observation: "Typed pending/committed states; admission refuses pending."
+      disconfirming_observation: "Any view or path presents pending SXR evidence as settled or admits it."
+    - id: P2
+      claim: >
+        A hung/flooded producer is killed by the deadline/output bounds while
+        keyboard navigation stays responsive and Gauntlet-only inspection
+        still works.
+      kind: "implementation_defect"
+      supporting_observation: "Bounded worker terminates; renderer unaffected."
+      disconfirming_observation: "The host blocks, or unbounded output reaches the render path."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If producer qualification fails on this host, the milestone records
+        the required-skipped test honestly and the plan keeps this scope open
+        rather than faking composition.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Recorded unqualified capability; no fabricated evidence path."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay Gauntlet-only, DomainForge-only, SXR-only, and combined cases."
+      preregistered_expectation: "Core journeys preserved in every combination; losses explicit."
+    parametric_variation:
+      level: L2
+      description: "Corrupt digests, missing CAS, swapped repositories, pending-vs-committed matrix."
+      preregistered_expectation: "Explicit typed results; no silent fallback."
