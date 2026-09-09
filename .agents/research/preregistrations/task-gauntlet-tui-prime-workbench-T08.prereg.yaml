@@ -1,0 +1,113 @@
+# Task gauntlet-tui-prime-workbench-T08 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T08 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml (T08 task block)
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T08"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T21:05:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T08.prereg.sha256"
+
+source_scope:
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T08 implements stable FocusRef identity, multiple placements,
+      relation queries, hoist/de-hoist Horizons, saved noncanonical horizons,
+      and horizon-driven materialization of subscriptions, SQLite queries,
+      prefetch, context candidates, and visible capability reasons. It proves
+      that the same object retains one FocusRef across placements; hoisting
+      changes the represented/query/context horizon without changing source
+      truth; the system prefers horizon-local loading; and it can explain why
+      unavailable capabilities are not yet spendable (REQ-AFF-004, REQ-AFF-005,
+      REQ-FOCUS-001..005, REQ-GOAL-001, REQ-GOAL-006, REQ-OPS-004, REQ-UX-002).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Focus identity is source/kind-based, never visual: placement records,
+          display labels, and visual positions are projections, not identity.
+          Rendering the same WorkItem under Plan, Current Run, Agent, and
+          Attention placements resolves to ONE FocusRef/source identity; a
+          placement-local label mutation cannot fork canonical state
+          (Attack 1, REQ-FOCUS-001/002).
+      - id: D2
+        statement: >
+          Hoist/de-hoist changes the active projection horizon only: source
+          truth, object identity, and canonical state are untouched. Hoisting
+          to a leaf narrows subscriptions, SQLite queries/prefetch, and context
+          candidates to declared relations/dependencies; de-hoist restores the
+          broader world without reidentifying objects (Attack 2, REQ-FOCUS-003..005).
+      - id: D3
+        statement: >
+          Case-wide urgent attention is preserved independently of
+          Horizon-local context; mandatory Reference/governance/evidence
+          closure stays in every eligible context, and formal critics come only
+          from the existing allowlist — never generic Horizon context.
+      - id: D4
+        statement: >
+          Saved Horizon preferences are noncanonical state persisted separately
+          from canonical Gauntlet state; unavailable capability reasons are
+          represented without calling installed providers current affordances.
+
+    known_blindspots:
+      - "Relation traversal cycle handling on graph-shaped relations."
+      - "Materialization accounting when two horizons overlap on shared relations."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "FocusRef identity + placement records + Horizon model in workbench/src (focus/horizon modules)"
+      why_visible_now: "Implements REQ-FOCUS-001..005 identity/placement/hoist semantics."
+    - id: A2
+      class: "Horizon-driven materialization (subscriptions, queries, prefetch, context candidates) in the Workbench Model layer"
+      why_visible_now: "Implements REQ-FOCUS-003/004 logistics-shaped-by-horizon."
+    - id: A3
+      class: "Gate suites focus-identity, horizon-hoist, horizon-materialization under workbench/src"
+      why_visible_now: "Gates require just tui-test focus-identity, horizon-hoist, horizon-materialization."
+
+  predictions:
+    - id: P1
+      claim: >
+        Mutating a placement-local label on one placement of a WorkItem never
+        changes the FocusRef or the state seen through any other placement.
+      kind: "representation_inadequacy"
+      supporting_observation: "All placements resolve to one source identity; label change is placement-local."
+      disconfirming_observation: "A placement mutation forks or reidentifies the object in another placement."
+    - id: P2
+      claim: >
+        Hoisting to a leaf Focus measurably narrows subscriptions, executed
+        queries, and context candidates to declared relations/dependencies;
+        de-hoist restores the broader world without reidentifying objects.
+      kind: "implementation_defect"
+      supporting_observation: "Materialization counters shrink on hoist and are restored on de-hoist."
+      disconfirming_observation: "The working set stays whole-Case (eager) across hoist, or de-hoist mints new identities."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If a required view cannot be expressed as a projection over
+        Focus/Relation/Horizon without inventing independent object identity,
+        the semantic TUI model is revised before adding view-specific domain state.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "FocusRef/Relation model revision, not a per-view domain copy."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Replay an event stream across hoist/de-hoist cycles."
+      preregistered_expectation: "Identify-preserving materialization; no identity churn across horizon changes."
+    parametric_variation:
+      level: L2
+      description: "Hoist to different leaf foci over the same Case."
+      preregistered_expectation: "Each hoist narrows to that focus's declared relations; saved horizons persist noncanonically."

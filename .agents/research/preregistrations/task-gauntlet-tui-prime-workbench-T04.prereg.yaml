@@ -1,0 +1,98 @@
+# Task gauntlet-tui-prime-workbench-T04 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T04 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/CURRENT_STATUS.yml
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T04"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T20:15:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T04.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T04 binds Gauntlet and the workbench to the installed Prime Agent through its structured
+      headless host surface and projects actual Prime sessions, children, identifiers, parent-child
+      topology, session references, model identity, lifecycle, and messages without synthesizing
+      parallel execution truth or scraping terminal UI screens. It proves that Prime child admission
+      is nonblocking (immediate admission handle returned), mailbox content remains communication
+      rather than completion, and the TUI reconstructs actual recursive topology from durable records.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Mailbox communication ≠ task completion. A mailbox message from a child saying "done"
+          is conversational communication; completion requires a schema-valid result contract or
+          terminal exit. Mailbox replies must never be treated as task settlement (AGENTS.md).
+      - id: D2
+        statement: >
+          Child admission is nonblocking. Spawning a child returns an admission handle immediately;
+          the workbench adapter never synchronously awaits child execution.
+      - id: D3
+        statement: >
+          Topology is reconstructed from Prime session identities and durable records without
+          synthesizing replacement IDs or scraping Prime's terminal screens.
+
+    known_blindspots:
+      - "Prime headless JSON-RPC stdio protocol details across versions."
+      - "Child session directories and process exit timing."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Prime host adapter and process manager in workbench/src/prime-host.ts"
+      why_visible_now: "Provides headless Prime lifecycle, stdio JSON-RPC, and nonblocking admission."
+    - id: A2
+      class: "Recursive topology model and session projection in workbench/src/prime-topology.ts"
+      why_visible_now: "Projects parent-child tree, model identities, and status without scraping."
+    - id: A3
+      class: "Automated teeth tests in workbench/src/prime-host.test.ts and prime-topology.test.ts"
+      why_visible_now: "Gate requires just tui-test prime-host and prime-topology."
+
+  predictions:
+    - id: P1
+      claim: "Sending a mailbox message containing 'done' before a valid child result exists leaves the child in non-complete/running state."
+      kind: "implementation_defect"
+      supporting_observation: "Mailbox message is recorded in session events, but child status remains active/running until result contract appears."
+      disconfirming_observation: "Child is marked completed simply because 'done' appeared in message text."
+    - id: P2
+      claim: "Restarting the workbench adapter while nested Prime children exist allows exact topology reconstruction from durable state."
+      kind: "representation_inadequacy"
+      supporting_observation: "Adapter re-reads session records and restores exact parent-child tree with original IDs."
+      disconfirming_observation: "Adapter creates new synthetic IDs or fails to reconstruct child relations."
+    - id: P3
+      claim: "Spawn requests return an admission handle immediately without waiting for child completion."
+      kind: "expected_later_scope"
+      supporting_observation: "Spawn call resolves in < 50ms with handle while child runs asynchronously."
+      disconfirming_observation: "Spawn call blocks until child process terminates."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If installed Prime Agent lacks a stable headless interface for an operation,
+        define versioned compatibility boundary without falling back to screen scraping.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Introduce structured protocol shim for Prime."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Mailbox message containing 'done' does not settle child."
+      preregistered_expectation: "Child remains uncompleted."
+    parametric_variation:
+      level: L2
+      description: "Multi-level nested child hierarchy topology reconstruction."
+      preregistered_expectation: "Recursive tree matches original structure exactly."

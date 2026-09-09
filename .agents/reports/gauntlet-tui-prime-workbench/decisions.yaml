@@ -1,0 +1,58 @@
+schema: agent.decisions
+schema_version: '1.0'
+plan_id: gauntlet-tui-prime-workbench
+
+decisions:
+  - id: DEC-001
+    date: '2026-09-08'
+    task: T00
+    topic: workbench_package_root
+    decision: Single new top-level directory `workbench/`, sibling to `crates/`.
+    rationale: >-
+      crates/gauntlet-arch-tests/src/walk.rs's core_tree walks all files under
+      crates/gauntlet-{domain,ports,app,cli} without extension filtering, failing
+      on symlinks/node_modules. Placing workbench/ at the top level outside crates/
+      preserves repository architecture boundaries while avoiding scanner failures.
+    status: EXECUTED
+
+  - id: DEC-002
+    date: '2026-09-08'
+    task: T00
+    topic: workbench_toolchain
+    decision: TypeScript strict mode + Biome (formatter & linter) + bun:test.
+    rationale: >-
+      Biome is a single native binary covering both linting and formatting with
+      minimal transitive footprint, satisfying AGENTS.md dependency discipline.
+    status: EXECUTED
+
+  - id: DEC-003
+    date: '2026-09-08'
+    task: T00
+    topic: surfaces_gate_closure
+    decision: >-
+      Wired `cargo nextest run -p gauntlet-cli --features surfaces --test operator_actions_no_bypass --test cli_surface`
+      into `test:` in justfile and provided a dedicated `test-surfaces:` recipe.
+    rationale: >-
+      Closes finding F8 where repository closure gate ran with default features only,
+      leaving the workbench read path unobserved. Verified with deliberate teeth failure.
+    status: EXECUTED
+
+  - id: DEC-004
+    date: '2026-09-08'
+    task: T00
+    topic: prime_host_protocol
+    decision: Use Prime Agent's structured stdio JSON-lines host protocol.
+    rationale: >-
+      Target environment uses prime-agent 0.8.0 which serializes execution over
+      stdio JSON-lines Python REPL, not Jupyter sockets.
+    status: DECIDED
+
+  - id: DEC-005
+    date: '2026-09-08'
+    task: T00
+    topic: sxr_domainforge_compatibility
+    decision: Mark SXR semantic enrichment as optional/unsupported until T14B.
+    rationale: >-
+      Checked-out DomainForge envelope CLI and SXR Slice 0B have incompatible schema
+      contracts; core workbench functionality must not depend on SXR presence.
+    status: DECIDED

@@ -1,0 +1,3346 @@
+schema: agent.development_plan
+schema_version: '1.0'
+metadata:
+  id: gauntlet-tui-prime-workbench
+  title: Gauntlet Prime-Native Terminal Workbench — Development Settlement Plan
+  status: approved
+  version: 0.3.0
+  created: '2026-09-06'
+  revised: '2026-09-08'
+  approval:
+    date: '2026-09-06'
+    authority: Operator instruction to refine, approve, and rehash these documents.
+    scope: Design approval only; no implementation settlement or runtime qualification is asserted.
+    review: .agents/reports/gauntlet-tui-prime-workbench/review.md
+    review_supplement: .agents/reports/gauntlet-tui-prime-workbench/adversarial-inspection-0.3.0.md
+  purpose: Project the frozen Gauntlet Prime-Native Terminal Workbench normative specification into an affordance/dependency
+    settlement graph that first preserves canonical Gauntlet authority, then exploits Prime/Python/Bun/OpenTUI/DomainForge
+    native substrates, then proves the operator workbench through destructive recovery and fresh independent confirmation.
+    This plan is approved for planning at the bound source hashes; T00 and all implementation gates remain unexecuted.
+  amendments:
+  - version: 0.3.0
+    date: '2026-09-08'
+    reason: Adversarial cross-artifact inspection of spec + plan + DESIGN.md before T00 dispatch. No task, dependency
+      edge, requirement mapping, or acceptance condition was weakened.
+    changes:
+    - Re-pinned the source spec at 0.3.0 and bound DESIGN.md as a second normative source with its own hash; the design
+      contract was previously unreferenced by both spec and plan and therefore unenforceable.
+    - Corrected the factual claim about `just verify`. It does NOT currently run any `surfaces`-feature test, and the
+      whole workbench read path sits behind that feature. T00 now owns closing that hole.
+    - T00 now binds all six proposed recipes (check/test/lint/preflight/bench/build), not four, matching gate_binding_rule.
+    - Declared the confirmation-mode vocabulary; `operator_journey` was used by T00A without a definition.
+    - Recorded the T00A bootstrap dependency-admission carve-out, which T03's ledger must absorb (T03 depends on T00A,
+      so T00A necessarily admits the first runtime dependencies before the ledger gate exists).
+    - Named request-level actor/session authentication and version negotiation on the Gauntlet operation bridge as T01
+      work; no task previously claimed it in its `changes`.
+    - Settled the workbench package-root/toolchain decision the inspection report left open — `workbench/` as a new
+      top-level directory (verification.workbench_package_root), TypeScript + Biome as the pinned dev toolchain
+      (verification.workbench_toolchain), and each Rust gate's TypeScript counterpart (verification.workbench_gate_composition).
+      T00 now scaffolds the package and toolchain directly; T00A's bootstrap carve-out is narrowed to the runtime rendering
+      dependencies (OpenTUI, a React reconciler) it still admits ahead of T03's ledger.
+    - Added DSN-001..DSN-015 design-clause ownership so the design contract has the same coverage discipline as the spec.
+    - Replaced the stale `task26` reference in T00 (task26 is committed; task27 is the concurrent workstream).
+source:
+  spec:
+    intended_repository_path: .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+    artifact_name: gauntlet-tui-prime-workbench.spec.yaml
+    spec_id: gauntlet-tui-prime-workbench
+    spec_version: 0.3.0
+    sha256: d66203651461fd1189a8d10b6649b09473b423d8f2f501e3508034d52cb9f00b
+    authority: normative
+  design:
+    intended_repository_path: DESIGN.md
+    artifact_name: DESIGN.md
+    sha256: 02ce58a257ec1240840338535cab218be77e0507abe22ea836dda77cad9944e3
+    authority: normative_presentation
+    precedence: Subordinate to the spec. Governs TUI visual/interaction presentation and the DSN-001..DSN-015 design
+      conformance clauses. On any disagreement with the spec, the spec governs and DESIGN.md is corrected — never the
+      reverse, and never silently.
+  supporting_sources:
+  - path: AGENTS.md
+    role: Repository role boundaries, canonical verification and evidence discipline.
+  - path: crates/gauntlet-cli/src/serve_cmd.rs
+    role: Observed feature-gated loopback server; not a general workbench API.
+  - path: https://github.com/PrimeIntellect-ai/prime-agent
+    role: Installed-version Prime Agent/RLM/Python REPL/headless-host capability evidence; actual target version must
+      be inspected and pinned.
+  - path: https://bun.com/reference/bun
+    role: Bun 1.4 native-substrate capability evidence to qualify before admitting overlapping dependencies.
+  - path: https://opentui.com/docs/
+    role: OpenTUI rendering, terminal, runtime-module, and packaging capability evidence.
+  - path: https://github.com/deepseek-ai/deepseek-harness
+    role: Non-normative donor for authoritative host state, reconnect generation, immutable projection, and reversible
+      composition rigor.
+target_settlement: A real operator can open or resume a Gauntlet Case in a terminal-native workbench, narrow the active
+  Horizon around a Focus, see source-identified relations/agents/artifacts/evidence/history and current spendable actions
+  become locally adjacent, invoke or delegate a legitimate operation through any supported projection with one canonical
+  Gauntlet admission path, observe Prime/Python execution and evidence live, detach/reconnect without terminating authorized
+  work, and fully reconstruct consequential state after deleting all noncanonical workbench/kernel/renderer state. The
+  result must hold on the declared real target environment under variation, recovery, performance, plugin, DomainForge-present/absent,
+  and independent adversarial confirmation.
+operating_contract:
+  core_principle: Gauntlet owns consequence; the workbench owns adjacency. No Bun/OpenTUI/React/SQLite/kernel/Prime-message
+    projection may become the place where Reference, authority, evidence, completion, settlement, or capability becomes
+    true.
+  rules:
+  - Execute tasks by dependency, not by narrative order.
+  - Independent tasks MAY run in parallel only after all declared dependencies are settled.
+  - Every task MUST leave the repository in a coherent state with all applicable global gates green.
+  - A task is not complete because code exists, a process starts once, the builder reports success, or a happy-path test
+    passes.
+  - A passing gate proves only what that gate actually observes.
+  - High-risk P3 work requires fresh independent/adversarial confirmation.
+  - Do not generalize from one observation unless the normative requirement is itself general.
+  - Do not silently widen domain, schema, API, config, service, or authority surfaces when an existing representation
+    can preserve the required distinction.
+  - Runtime/machine/provider-specific facts belong in the project's established config/secret hierarchy rather than scattered
+    hardcoding.
+  - Preserve failed evidence and correction history.
+  - Do not add an overlapping local database, PTY, process, socket/server, worker, config, hashing/compression, packaging,
+    or terminal dependency until the corresponding Bun/Prime/Python/OpenTUI native capability has been qualified and
+    evidence shows the dependency is needed.
+  - Do not make one Python REPL session a concurrent execution scheduler; sequential deterministic work stays in one
+    kernel and justified parallel open-ended work uses independent Prime contexts.
+  - Every consequential action exposed anywhere MUST reference the same canonical Gauntlet operation/admission path;
+    no projection may own a privileged shortcut.
+  - Focus/Horizon is allowed to reshape projection, subscriptions, queries, prefetch, and agent context, but never canonical
+    source identity or truth.
+  claim_states:
+  - OBSERVED
+  - INFERRED
+  - DECIDED
+  - ASSUMED
+  - UNKNOWN
+  correction_protocol:
+  - Preserve the failed evidence.
+  - 'Classify the failure: implementation, oracle/test, representation, missing prerequisite, environmental confound,
+    or source-spec ambiguity.'
+  - Determine whether the governing requirement/invariant remains valid.
+  - Correct the smallest falsified layer.
+  - Rerun the original teeth/falsification check.
+  - Rerun the original confirmation path.
+  - Append the correction round; do not erase the failed round.
+  - Do not weaken acceptance merely because the implementation repeatedly fails it.
+  scope_control: A newly discovered issue enters the current plan only when it blocks a normative requirement or is itself
+    required by the source specification. Valuable but independent discoveries become future debt/plans. Attractive architecture
+    with no requirement is rejected from current scope. Roadmap items in the source spec remain seams only unless a current
+    task requires their boundary for conformance.
+artifacts:
+  current_status: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
+  decision_log: .agents/reports/gauntlet-tui-prime-workbench/decisions.yaml
+  evidence_root: .agents/reports/gauntlet-tui-prime-workbench/evidence
+  reports_root: .agents/reports/gauntlet-tui-prime-workbench
+  preregistration_root: .agents/research/preregistrations
+  status_rule: Mutable current status is an operational projection and MUST NOT become a source of desired-state or normative
+    authority. Evidence and decisions are append-preserving; failed rounds are not overwritten. Update the workbench-specific
+    anchor at every phase transition without overwriting unrelated active task26 execution. Task IDs are namespaced by
+    this plan ID.
+  cross_session_anchor: .agents/CURRENT_STATUS.yml
+verification:
+  global_gates:
+  - id: GATE-TUI-CHECK
+    command: just tui-check
+  - id: GATE-TUI-TEST
+    command: just tui-test
+  - id: GATE-TUI-LINT
+    command: just tui-lint
+  - id: GATE-TUI-PREFLIGHT
+    command: just tui-preflight bootstrap
+  - id: GATE-REPO-VERIFY
+    command: just verify
+  - id: GATE-RULER
+    command: just ruler
+  gate_binding_rule: All tui-* commands are PROPOSED and absent at review time. T00 creates and verifies the argument/selector
+    contracts of ALL SIX (tui-check, tui-test, tui-lint, tui-preflight, tui-bench, tui-build) before any downstream task
+    dispatch; an unimplemented mode reports NOT_IMPLEMENTED and exits nonzero, never a green placeholder. Rust changes use
+    package-scoped recipes (just check-package / test-package) in the inner loop. just verify delegates to ci = check/test/lint/deny/boundaries/ruler;
+    wrappers cannot replace it or omit a gate. OBSERVED at plan revision, and a correction of the previous version of this
+    clause — `just verify` runs `cargo nextest run --workspace` with DEFAULT features and therefore executes NO `surfaces`-gated
+    test. The entire workbench read path (gauntlet serve, the seven-route JSON surface, its CLI integration tests) is behind
+    that feature, so the current repository closure gate does not observe the surface T00A/T12/T20 depend on. T00 MUST
+    close this before dispatching T00A, either by extending the repository gate to run the surfaces-enabled test selection
+    or by binding an explicit additional global gate that does; a tui-* wrapper that merely reruns default-feature tests
+    does not satisfy it. tui-preflight distinguishes document-integrity preflight from runtime qualification. Empty/unknown
+    selectors, zero selected tests, missing artifacts or skipped required integrations fail.
+  workbench_package_root: >-
+    DECIDED at plan revision (closes the T00 open decision the 0.3.0 review recorded): a single new top-level directory
+    `workbench/`, a sibling of `crates/`, not nested inside any Cargo crate and not loose at the repository root. Two
+    verified facts drive this, not preference. First, `crates/gauntlet-arch-tests/src/walk.rs`'s `core_tree` walks every
+    file under `crates/gauntlet-{domain,ports,app,cli}` with no extension filter, and its own header commits to treating
+    a symlink, a non-UTF-8 file, or an oversized file as a hard violation rather than a skip — so nesting a Bun/TypeScript
+    tree (node_modules symlinks and binaries included) under any of those four crates fails `just boundaries` on the first
+    `bun install`, not from any workbench defect. Nesting under a non-core crate directory (e.g. `crates/adapters/...`)
+    would dodge that scanner but misrepresent the tree the same way. Second, `REQ-TUI-005` requires OpenTUI stay a
+    replaceable renderer; naming the root after the current renderer (`tui/`) would repeat the vendor-naming mistake
+    AGENTS.md's Naming section already forbids for ports. `workbench/` matches the spec's own noun (Bun Workbench Host).
+    DESIGN.md's React implementation structure resolves against `workbench/src/`. EXECUTED at plan revision (not
+    just decided): the package root, pinned toolchain, and `tui-check`/`tui-test`/`tui-lint`/`tui-preflight bootstrap`
+    recipes are wired and passing — see .agents/reports/gauntlet-tui-prime-workbench/evidence/T00/workbench-toolchain.md.
+    This is one slice of T00, not the whole task.
+  workbench_toolchain: >-
+    DECIDED at plan revision: TypeScript in strict mode (`tsc --noEmit`, AGENTS.md Type checking), `bun test`, and Biome
+    (`@biomejs/biome`) for combined lint + format-check. Biome over ESLint+Prettier: it is one pinned dependency instead
+    of two-plus-a-config-bridge, a single Rust-native binary (no separate Node toolchain to install/audit), and covers
+    both jobs `tui-lint` needs — AGENTS.md's Dependencies section weighs exactly these axes (does an existing choice
+    already solve it, transitive cost, coupling) and Biome wins on all three against the ESLint+Prettier pair. If a
+    required TypeScript/JSX/OpenTUI construct proves unsupported during T00A or T12, that is a recorded qualification
+    failure (per T03's ledger discipline) and ESLint+Prettier become the qualified fallback for the unsupported case
+    only — not a silent swap.
+  workbench_gate_composition: >-
+    Binds each Rust global gate's counterpart so `workbench/` inherits the same discipline `crates/` gets, none of it
+    free: `tui-check` = `tsc --noEmit --strict` over `workbench/`. `tui-test` = `bun test` over `workbench/`, PLUS the
+    boundary/architecture tests T07 (presentation owns no business state) and T19 (canonical layers cannot import
+    OpenTUI/React) require — written as `bun test` cases under `workbench/`, not a second Rust scanner. `tui-lint` =
+    `biome check workbench/` (lint and format-check together; a formatting diff fails the gate exactly as `cargo fmt
+    --check` does). `tui-preflight` folds in T03's dependency-admission ledger plus `bun audit` plus a check that
+    `workbench/bun.lock` is committed and unmodified by the run — the npm-equivalent of `cargo deny check`. `just verify`
+    does NOT gain a TypeScript step by this binding (it stays the unchanged Rust closure gate per the existing rule
+    above); `just tui-check`/`tui-test`/`tui-lint`/`tui-preflight` are the closure gates for `workbench/` and MUST run
+    alongside `just verify` wherever a task's `gate:` lists both.
+  confirmation_modes:
+    builder: The builder's own declared gate and teeth suffice; no second party. Lowest mode, valid only at P0/P1.
+    operator_journey: A human operator (or an agent acting as a cold operator without the originating conversation) executes
+      the declared journey against the real rendered surface and records fixtures, keystrokes, observed states, errors,
+      and the return path. Evidence is the recording plus the journey log, not a component snapshot. Valid at P1 for UX
+      slices; it never substitutes for peer or independent confirmation of a behavioral claim.
+    peer: A second party inside the plan's execution context reviews the claim against the evidence and reruns the declared
+      gate/teeth. May receive builder context.
+    independent: A fresh-context verifier receiving only the frozen requirements, the comparison contract, and the runtime-allowlisted
+      observation bundle. Never receives builder reasoning, identity, history, or attempt counts.
+    independent_adversarial: An independent verifier as above whose declared task is to break the claim — it executes the
+      falsifiers itself rather than reading the builder's report of them. Corresponds to the spec's `adversarial` confirmation.
+    fresh_target_reproduction: The claim is re-executed from a clean target state defined in the preregistration, on the
+      actual installed substrate, without builder session state, caches, or fixtures.
+  proof_levels:
+    P0: Mechanical/deterministic change. Requires a narrow direct gate plus applicable global gates.
+    P1: Normal behavioral work. Requires positive behavior, a meaningful teeth/falsification check, and applicable global
+      gates.
+    P2: Invariant-sensitive work. Requires an explicit or preregistered claim, meaningful adversarial/negative evidence,
+      an evidence artifact, applicable global gates, and review of a plausible alternate failure path.
+    P3: Settlement-critical work. Requires frozen preregistration, builder evidence, explicit adversarial attacks, fresh
+      independent confirmation, and correction/re-confirmation after any failed confirmation.
+  proposed_recipe_contracts:
+    bootstrap_fixture_rule: T00 binds a real document-integrity and selector test, so bootstrap has an executable check before T00A; it does not select future renderer or integration suites.
+    tui-test [selector]: An exact registered suite; omitted selector selects all currently implemented suites, all selects
+      full conformance and requires every normative suite.
+    tui-bench <selector>: Frozen fixture/runtime/budget inputs; raw samples, workload, percentile, peak memory and pass/fail
+      artifact; all-required includes every required benchmark.
+    tui-build release: Pinned Bun/OpenTUI native target and lockfile; launch produced artifact in declared terminal.
+      Standalone is required only if selected release form.
+    tui-preflight bootstrap: Verify approved document hashes, structural schema, graph and recipe selector registry plus runtime inventory. Record unavailable future capabilities as not qualified; they are not selected tests and cannot become passing evidence. This mode never claims runtime conformance.
+    tui-preflight conformance: Verify every declared runtime capability, required actual integration and evidence artifact; missing, unsupported or skipped required behavior fails. Reverify document hashes without rebinding.
+    tui-preflight: Missing mode is a usage error; no implicit weakening to bootstrap.
+    preregistration: Before a P2/P3 implementation, freeze task-gauntlet-tui-prime-workbench-Txx.prereg.yaml and its .prereg.sha256 under the existing research root; verify using just prereg-check gauntlet-tui-prime-workbench-Txx. Record later observations in the corresponding .outcome.yaml without changing the frozen pair.
+  independence_contract: A formal critic is read-only in a fresh context and receives the frozen requirements, explicit
+    comparison contract and runtime-allowlisted observation only. No builder reasoning, identity, history, attempt counts
+    or originating conversation. A verifier may receive the specific claim and immutable instrument evidence; it cannot
+    substitute for the critic. Every delegated slice writes a checkpoint and schema-valid result file to its declared
+    path. The orchestrator alone decides whole-plan settlement after reviewing all evidence; no sub-agent verdict delegates
+    that authority.
+  clause_owners:
+    sources/core_authority; substrate_baseline; claim_discipline:
+    - T00
+    core_domain_model; identifiers_and_normalization:
+    - T06
+    - T08
+    - T14
+    - T14B
+    configuration_and_input_contract; operational_flow_and_state_model:
+    - T02
+    - T09
+    - T16
+    execution_integration_contract; reference_algorithms:
+    - T01
+    - T04
+    - T06
+    - T09
+    - T10
+    - T16
+    security_safety_trust_boundaries:
+    - T02
+    - T09
+    - T13
+    - T15
+    - T18
+    - T23
+    proof_and_observability; repeatability_and_variation; validation_matrix; implementation_definition_of_done:
+    - T20
+    - T21
+    - T22
+    - T25
+  design_clause_owners:
+    rule: DESIGN.md carries normative presentation clauses. They receive the same coverage discipline as spec section-path
+      clauses — each DSN ID has an owning task and MUST appear in the conformance report. A DSN clause never widens scope
+      beyond its spec basis; where the two could be read apart, the spec basis governs.
+    DSN-001: [T12]
+    DSN-002: [T12, T20]
+    DSN-003: [T12]
+    DSN-004: [T12]
+    DSN-005: [T09, T12]
+    DSN-006: [T08, T12]
+    DSN-007: [T12, T20]
+    DSN-008: [T12]
+    DSN-009: [T09, T12]
+    DSN-010: [T07, T12]
+    DSN-011: [T07, T19]
+    DSN-012: [T15]
+    DSN-013: [T12]
+    DSN-014: [T13, T18]
+    DSN-015: [T25]
+dependency_graph:
+  edges:
+  - - T00
+    - T00A
+  - - T00
+    - T01
+  - - T00A
+    - T01
+  - - T00
+    - T02
+  - - T01
+    - T02
+  - - T00
+    - T04
+  - - T01
+    - T04
+  - - T00A
+    - T04
+  - - T00
+    - T03
+  - - T02
+    - T03
+  - - T00A
+    - T03
+  - - T04
+    - T05
+  - - T01
+    - T06
+  - - T02
+    - T06
+  - - T03
+    - T06
+  - - T04
+    - T06
+  - - T06
+    - T07
+  - - T06
+    - T08
+  - - T07
+    - T08
+  - - T01
+    - T09
+  - - T02
+    - T09
+  - - T08
+    - T09
+  - - T04
+    - T10
+  - - T05
+    - T10
+  - - T08
+    - T10
+  - - T09
+    - T10
+  - - T07
+    - T12
+  - - T08
+    - T12
+  - - T09
+    - T12
+  - - T05
+    - T11
+  - - T09
+    - T11
+  - - T10
+    - T11
+  - - T03
+    - T13
+  - - T12
+    - T13
+  - - T06
+    - T14
+  - - T08
+    - T14
+  - - T12
+    - T14
+  - - T09
+    - T15
+  - - T12
+    - T15
+  - - T04
+    - T16
+  - - T06
+    - T16
+  - - T10
+    - T16
+  - - T12
+    - T16
+  - - T01
+    - T14B
+  - - T09
+    - T14B
+  - - T12
+    - T14B
+  - - T14
+    - T14B
+  - - T06
+    - T17
+  - - T08
+    - T17
+  - - T12
+    - T17
+  - - T13
+    - T17
+  - - T02
+    - T18
+  - - T05
+    - T18
+  - - T09
+    - T18
+  - - T13
+    - T18
+  - - T15
+    - T18
+  - - T16
+    - T18
+  - - T01
+    - T19
+  - - T06
+    - T19
+  - - T07
+    - T19
+  - - T12
+    - T19
+  - - T16
+    - T19
+  - - T18
+    - T19
+  - - T14B
+    - T19
+  - - T02
+    - T20
+  - - T03
+    - T20
+  - - T12
+    - T20
+  - - T13
+    - T20
+  - - T16
+    - T20
+  - - T18
+    - T20
+  - - T14B
+    - T20
+  - - T17
+    - T21
+  - - T20
+    - T21
+  - - T16
+    - T22
+  - - T18
+    - T22
+  - - T19
+    - T22
+  - - T20
+    - T22
+  - - T14B
+    - T22
+  - - T11
+    - T23
+  - - T12
+    - T23
+  - - T18
+    - T23
+  - - T20
+    - T23
+  - - T14B
+    - T23
+  - - T10
+    - T24
+  - - T16
+    - T24
+  - - T20
+    - T24
+  - - T22
+    - T24
+  - - T14
+    - T25
+  - - T15
+    - T25
+  - - T19
+    - T25
+  - - T21
+    - T25
+  - - T22
+    - T25
+  - - T23
+    - T25
+  - - T24
+    - T25
+  - - T14B
+    - T25
+  settlement_sequence:
+  - Bind source authority, repository gates, and actual substrate inventory.
+  - Preserve canonical Gauntlet state/operation ownership and configuration/trust boundaries.
+  - Exploit Prime/Python/Bun native capabilities and build reconstructible local projections.
+  - Make Focus/Horizon and affordance semantics drive data/context/action materialization.
+  - Project the world through OpenTUI, terminal, DomainForge, plugins, and Prime recursion without new truth stores.
+  - Prove reconnect, recovery, performance, remote/SSH, and headless replaceability on target.
+  - Freshly attack affordance bypass and Prime/Python lifecycle, then perform final independent whole-system confirmation.
+  ready_waves:
+  - ready_after_all_prior_waves_settle:
+    - T00
+  - ready_after_all_prior_waves_settle:
+    - T00A
+  - ready_after_all_prior_waves_settle:
+    - T01
+  - ready_after_all_prior_waves_settle:
+    - T02
+    - T04
+  - ready_after_all_prior_waves_settle:
+    - T03
+    - T05
+  - ready_after_all_prior_waves_settle:
+    - T06
+  - ready_after_all_prior_waves_settle:
+    - T07
+  - ready_after_all_prior_waves_settle:
+    - T08
+  - ready_after_all_prior_waves_settle:
+    - T09
+  - ready_after_all_prior_waves_settle:
+    - T10
+    - T12
+  - ready_after_all_prior_waves_settle:
+    - T11
+    - T13
+    - T14
+    - T15
+    - T16
+  - ready_after_all_prior_waves_settle:
+    - T14B
+    - T17
+    - T18
+  - ready_after_all_prior_waves_settle:
+    - T19
+    - T20
+  - ready_after_all_prior_waves_settle:
+    - T21
+    - T22
+    - T23
+  - ready_after_all_prior_waves_settle:
+    - T24
+  - ready_after_all_prior_waves_settle:
+    - T25
+  critical_path_rule: No durations have been measured; do not label an illustrative ordering a critical path. Dispatch
+    only from actual settled dependencies, not wave labels.
+initial_state:
+  current_task: T00
+  last_settled_task: null
+  ready:
+  - T00
+  blocked:
+    T00A:
+    - T00
+    T01:
+    - T00
+    - T00A
+    T02:
+    - T00
+    - T01
+    T04:
+    - T00
+    - T01
+    - T00A
+    T03:
+    - T00
+    - T02
+    - T00A
+    T05:
+    - T04
+    T06:
+    - T01
+    - T02
+    - T03
+    - T04
+    T07:
+    - T06
+    T08:
+    - T06
+    - T07
+    T09:
+    - T01
+    - T02
+    - T08
+    T10:
+    - T04
+    - T05
+    - T08
+    - T09
+    T12:
+    - T07
+    - T08
+    - T09
+    T11:
+    - T05
+    - T09
+    - T10
+    T13:
+    - T03
+    - T12
+    T14:
+    - T06
+    - T08
+    - T12
+    T15:
+    - T09
+    - T12
+    T16:
+    - T04
+    - T06
+    - T10
+    - T12
+    T14B:
+    - T01
+    - T09
+    - T12
+    - T14
+    T17:
+    - T06
+    - T08
+    - T12
+    - T13
+    T18:
+    - T02
+    - T05
+    - T09
+    - T13
+    - T15
+    - T16
+    T19:
+    - T01
+    - T06
+    - T07
+    - T12
+    - T16
+    - T18
+    - T14B
+    T20:
+    - T02
+    - T03
+    - T12
+    - T13
+    - T16
+    - T18
+    - T14B
+    T21:
+    - T17
+    - T20
+    T22:
+    - T16
+    - T18
+    - T19
+    - T20
+    - T14B
+    T23:
+    - T11
+    - T12
+    - T18
+    - T20
+    - T14B
+    T24:
+    - T10
+    - T16
+    - T20
+    - T22
+    T25:
+    - T14
+    - T15
+    - T19
+    - T21
+    - T22
+    - T23
+    - T24
+    - T14B
+tasks:
+  T00:
+    title: Freeze source authority, inspect repository, and bind execution gates
+    initial_status: ready
+    depends_on: []
+    proof_level: P1
+    confirmation: builder
+    settles:
+    - REQ-DOM-004
+    changes: Binds this plan to the exact source-spec revision, inventories the existing Gauntlet/Prime/DomainForge/TUI
+      seams, creates the plan-state/evidence roots, and establishes stable `just tui-*` gate aliases that delegate to
+      repository-native checks rather than duplicate them.
+    proves: The repository has a reproducible baseline and a cold implementing agent can identify authoritative components,
+      current integration seams, target runtime versions, and copy-pasteable global gates before architecture-changing
+      work begins.
+    does_not_prove: It does not prove any target TUI capability, Prime integration correctness, Bun suitability, or renderer
+      behavior.
+    hot_context:
+    - .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+    - DESIGN.md (normative TUI presentation contract; DSN-001..DSN-015)
+    - AGENTS.md and .agents/AGENTS.md if present
+    - justfile / package manifests / Cargo workspace manifests
+    - 'search: gauntlet serve, event log, state store, Prime/RLM adapter, DomainForge integration, OpenTUI/Bun experiments'
+    - existing tests and evidence that pin current CLI/API/runtime behavior
+    - substrate_baseline in source spec
+    - .agents/reports/gauntlet-tui-prime-workbench/substrate-review.md
+    - .agents/reports/gauntlet-tui-prime-workbench/adversarial-inspection-0.3.0.md (F1-F13; the package-root/toolchain decision it left open is now settled in verification.workbench_package_root/workbench_toolchain/workbench_gate_composition below)
+    - .agents/CURRENT_STATUS.yml
+    - crates/gauntlet-ports/src/operator_surface.rs
+    steps:
+    - Record inspected source hashes, actual working-tree status and the status of any concurrent workstream (at plan
+      revision this is task27; task26 is committed). Do not treat concurrent unfinished changes as settled substrate,
+      and do not assume the spec's recorded substrate_baseline commit is still HEAD — re-observe it.
+    - Bind approved 0.3.0 spec, DESIGN.md and plan sidecar SHA-256 manifests. All three are source authority; a one-byte
+      change to any of them is a mismatch. Verify the Core ruler unchanged. Approval is not execution settlement.
+    - Create `workbench/` per verification.workbench_package_root (a new top-level directory, sibling to `crates/`,
+      never nested inside a Cargo crate). Initialize its `package.json`, pinned exact-version devDependencies for
+      TypeScript and Biome per verification.workbench_toolchain, and commit `workbench/bun.lock`. Add `workbench/node_modules`
+      to `.gitignore`. Wire `tui-check`/`tui-test`/`tui-lint`/`tui-preflight` to the recipes verification.workbench_gate_composition
+      defines; each may still report NOT_IMPLEMENTED for a mode with no source yet, but MUST NOT report NOT_IMPLEMENTED
+      for a mode this task itself makes meaningful (e.g. `tui-lint` over an empty tree is a legitimate pass, not NOT_IMPLEMENTED).
+    - Close the surfaces-feature gate hole recorded in gate_binding_rule before dispatching T00A — make a global gate actually
+      execute the `surfaces`-enabled test selection, and prove it by breaking one surfaces-gated test and observing the
+      gate go red.
+    - Pin exact Prime host/runtime schema and OpenTUI package/ABI. Current upstream Prime uses Python REPL JSON-lines
+      stdio, not Jupyter sockets. Qualify transport through the host.
+    - Inventory DomainForge main envelope versus SXR Slice 0B CEP consumer incompatibility. Record a compatible binary/protocol
+      selection or explicit unsupported mode before enriched execution.
+    - Freeze Linux/WSL same-host and SSH/tmux terminal support, operation catalog and initial UX fixtures. New hardware
+      and remote API deployment remain outside current conformance.
+    - Verify the repository copy of the spec has id/version/hash matching this plan; if the spec changes, stop and regenerate/review
+      the plan before implementation.
+    - Inspect the repository to locate the existing Gauntlet application/core boundary, event/state owners, Prime integration,
+      DomainForge seam, current command plane, and any existing TUI/OpenTUI/Bun work. Record OBSERVED vs INFERRED findings
+      in the decision log.
+    - Inventory actual Bun, OpenTUI, Prime Agent, Python REPL, Rust/Cargo, and DomainForge versions in the target environment.
+    - Bind all six proposed recipes — `just tui-check`, `just tui-test`, `just tui-lint`, `just tui-preflight`, `just
+      tui-bench`, `just tui-build` — to existing project-native commands or the smallest nonduplicating adapters needed
+      to compose them. Recipes whose modes are not yet implementable must exist and report NOT_IMPLEMENTED with a nonzero
+      exit, so a later task cannot mistake absence for green.
+    - Create current-status, evidence, reports, and preregistration roots; record the baseline commit/worktree state
+      and baseline gate outputs.
+    gate:
+    - just tui-check
+    - just tui-test
+    - just tui-lint
+    - just tui-preflight bootstrap
+    teeth:
+    - attack: Change the repository spec copy by one byte or use a different spec version/hash and run the plan preflight.
+      expected: Execution is blocked as source-authority mismatch; the plan is not silently rebound.
+    - attack: Change DESIGN.md by one byte and run the plan preflight.
+      expected: Execution is blocked as source-authority mismatch on the design contract, exactly as for the spec.
+    - attack: Break one underlying repository-native test while leaving a wrapper untouched.
+      expected: The stable gate alias fails because it delegates to the real underlying gate rather than masking it.
+    - attack: Break one `surfaces`-feature-gated test in gauntlet-cli and run the repository closure gate.
+      expected: The gate fails. If it passes, the workbench read path is unobserved and T00 is not done.
+    - attack: Invoke `just tui-bench` and `just tui-build` for a mode nothing implements yet.
+      expected: NOT_IMPLEMENTED and a nonzero exit; never a green placeholder and never a usage-error masquerading as success.
+    - attack: Place a TypeScript file under `crates/gauntlet-cli/tui/` (nesting the workbench inside a core crate) and
+        run `just boundaries`.
+      expected: The scan fails on the nested tree (unreadable/non-UTF-8/oversized/symlinked files under a core crate are
+        violations, not skips) — proving the `workbench/` placement in verification.workbench_package_root is load-bearing,
+        not a style preference.
+    - attack: Introduce a formatting-only diff (e.g. inconsistent indentation) under `workbench/` with no lint-rule violation.
+      expected: "`just tui-lint` fails; Biomes format-check is part of the gate, not a separate optional step."
+    - attack: Delete `workbench/bun.lock` or hand-edit it out of sync with `package.json`, then run `just tui-preflight`.
+      expected: The preflight fails — the committed lockfile is load-bearing for `tui-preflight`, the same way `Cargo.lock`
+        is for `deny`.
+    redesign_trigger: If the current repository does not expose a stable headless Gauntlet core/event boundary or the
+      installed Prime/DomainForge/runtime topology materially contradicts the source spec assumptions, stop and classify
+      the discrepancy before creating compatibility shims.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T00/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - The source hash is bound, baseline evidence exists, and all four stable gate aliases execute against the actual
+      repository with no duplicated oracle logic.
+    - All six stable gate aliases (check/test/lint/preflight/bench/build) exist, have declared selector contracts, and
+      execute against the actual repository with no duplicated oracle logic.
+    - "`workbench/` exists at the decided top-level path with a committed `bun.lock`, is outside every core crate, and
+      the repository closure gate demonstrably observes the `surfaces`-gated surface."
+    - "`tui-check`/`tui-test`/`tui-lint`/`tui-preflight` are wired to `tsc`, `bun test`, `biome check`, and the dependency-ledger
+      plus `bun audit` plus lockfile check respectively, over the real (even if still empty) `workbench/` tree."
+  T00A:
+    title: Early rendered read-only Gauntlet operator journey
+    initial_status: blocked
+    depends_on:
+    - T00
+    proof_level: P1
+    confirmation: operator_journey
+    settles:
+    - REQ-UX-007
+    changes: A thin vertical slice using the actual feature-enabled HTTP read surface, Bun and OpenTUI. No new domain
+      model or mutation path.
+    proves: A cold operator can select a workspace/run, inspect Unit status/tier and verification metadata/evidence references,
+      and return using keyboard-only navigation. Preview actions say read-only; unsupported explanation fields say unavailable.
+    does_not_prove: Polling is not coherent baseline/event replay; this early slice does not settle final UX, mutation,
+      Prime or enriched integration claims.
+    hot_context:
+    - crates/gauntlet-ports/src/operator_surface.rs
+    - crates/gauntlet-cli/src/serve_cmd.rs
+    - crates/adapters/gauntlet-adapter-surface-json/src/views.rs
+    - REQ-UX-001..007
+    - 'DESIGN.md: geometry classes, DSN-002 (colour-independent legibility), DSN-006 (placements), DSN-007 (geometry floors)'
+    steps:
+    - 'Freeze the two target sizes as the spec floors, not design preference: 120x40 (full layout) and 80x24 (one primary
+      pane), with the recoverable compact-size prompt below 80x24 (REQ-UX-005, DSN-007). Render escalation-first Work/Inspector
+      navigation.'
+    - 'Record the bootstrap dependency admission explicitly. T00 already settled the workbench package root and pinned
+      the dev toolchain (TypeScript, Biome — verification.workbench_toolchain); those are not re-admitted here. T03 owns
+      the dependency-admission ledger but DEPENDS ON this task, so T00A necessarily admits the first RUNTIME rendering
+      dependencies (OpenTUI, any React reconciler it requires) before that ledger gate exists. This is a bounded, recorded
+      carve-out, not an exemption: list every dependency added here with version and reason in the T00A evidence, add
+      nothing from the REQ-BUN-001 overlap set (local database, PTY, process, server/socket, worker, config parser,
+      hashing/compression, packaging), and hand the list to T03 for retroactive qualification. An overlap-set dependency
+      added here fails this task.'
+    - Bind reads to state/run/unit/escalated response schemas and views.rs verification metadata/evidence refs. Do not
+      invent evidence-content endpoints or Unit denial explanations. Render absent fields as unavailable; final full
+      inspection depends on T01's explicit canonical read extension and T12 integration.
+    - Record keyboard journey, empty/disconnected states and explicit preview read-only state; correct usability defects
+      before full host/projection investment.
+    - Keep polling explicitly version/freshness-labelled and replace its adapter with T01/T06 synchronization; do not
+      build a second long-lived data framework.
+    gate:
+    - just tui-test operator-preview
+    - just tui-check
+    teeth:
+    - attack: Remove the source, use an empty workspace and navigate at 80x24 without a mouse.
+      expected: The user sees a clear next step and can return without a crash, hidden pane or invented state.
+    - attack: Shrink the terminal below 80x24 during the journey, then grow it back.
+      expected: The recoverable compact-size prompt appears naming the current and required size with a reachable exit;
+        growing back re-enters the compact layout with the semantic location intact and terminal modes restored.
+    - attack: Add an overlap-set dependency (a SQLite driver, a PTY library, a config parser) to the bootstrap slice.
+      expected: The task fails; the overlap set is T03's to adjudicate and the bootstrap carve-out does not cover it.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T00A/
+    redesign_trigger: If existing reads cannot support the metadata-only preview, record the missing source contract and revise this prerequisite; do not infer data or implement T01 covertly.
+    done_when:
+    - Actual HTTP read path and rendered keyboard journey recorded; selected tests pass; no mutation introduced.
+    - The bootstrap dependency-admission list is written to evidence and referenced by T03.
+    - The journey is recorded at both 120x40 and 80x24 and the below-minimum prompt is demonstrated.
+  T01:
+    title: Canonical Gauntlet state and operation boundary
+    initial_status: blocked
+    depends_on:
+    - T00
+    - T00A
+    proof_level: P3
+    confirmation: independent
+    settles:
+    - REQ-AFF-001
+    - REQ-GOAL-002
+    - REQ-OPS-001
+    - REQ-OPS-002
+    - REQ-OPS-003
+    - REQ-STATE-001
+    - REQ-STATE-005
+    - REQ-SYNC-001
+    changes: Establishes one headless application boundary through which the workbench reads canonical Gauntlet state/events
+      and submits consequential operation intents, preserving stable canonical operation identities and source ownership.
+      This includes request-level actor/session binding and version negotiation on that boundary, which the existing
+      feature-gated loopback JSON surface does not have — loopback refusal of non-loopback binds is reachability control,
+      not actor authentication. This is predominantly Rust work in the existing application/adapter crates.
+    proves: Reference/Run/Unit/evidence/verification/escalation/settlement truth remains owned by Gauntlet,
+      and a workbench-requested consequential action cannot become a presentation-specific side effect.
+    does_not_prove: It does not prove local projection reconstruction, cross-surface affordance equivalence, Prime lifecycle,
+      or OpenTUI behavior.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T01.prereg.yaml
+      claims:
+      - Reference/Run/Unit/evidence/verification/escalation/settlement truth remains owned by Gauntlet, and
+        a workbench-requested consequential action cannot become a presentation-specific side effect.
+      falsifiers:
+      - Implement a TUI-side helper that mutates settlement/evidence state without the canonical Gauntlet operation path.
+      - Replay a canonical event/read through the headless boundary with no renderer, SQLite read model, or Prime session
+        present.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - 'source spec: core_domain_model and REQ-STATE/REQ-AFF'
+    - existing gauntlet serve / CLI command handlers
+    - existing event log/state store and operation/application services
+    - crates/gauntlet-app/src/govern/gate.rs and existing settlement authority
+    steps:
+    - Define the missing Unit inspection read contract over existing Reference/answer-key parsing, verification records,
+      escalation tickets and EvidenceStore. Return source identity, requirement, evidence references, bounded content and
+      current denial/precondition explanation from owning services; validate digests and scope, preserve unknowns, and
+      make T12 depend on this contract for full inspection while T00A remains metadata-only.
+    - Bind Case/WorkItem/AttentionItem to source-spec vocabulary projections, not new canonical aggregates. Preserve
+      RunId/UnitId/TicketId and existing application ownership.
+    - Preserve execute_operator_action and the settlement service. Extract reusable composition only when needed; CLI
+      and JSON retain parity including locks, typed refusals and existing tests.
+    - Treat command capability handshake, baseline watermark/cursor bridge and long-lived invocation owner as new work.
+      Do not claim the current seven-route JSON adapter already provides them.
+    - Identify the existing application-layer read and command seams beneath CLI/serve; reuse them rather than making
+      the TUI call/parse CLI output.
+    - Define or bind stable canonical operation IDs and result/error envelopes without changing existing domain meaning.
+    - Expose canonical read/event references needed by the workbench without giving the workbench direct mutation authority.
+    - Bind every request on the operation boundary to the configured actor/session identity and validate host/origin or
+      equivalent channel identity; never accept client-asserted authority. Authentication and version negotiation precede
+      any mutation. A transport failure may not fall back to a direct store write or a shell. Preserve the existing
+      loopback-only bind refusal; it is additive to, not a substitute for, this binding.
+    - Add provenance/correlation sufficient to trace one workbench intent through Gauntlet admission and its resulting
+      canonical event/result.
+    - Document source ownership for every state class that can look consequential in the TUI.
+    gate:
+    - just tui-test canonical-boundary
+    - just tui-check
+    - just check-package gauntlet-app
+    - just test-package gauntlet-app
+    - just test-package gauntlet-cli
+    - just test-package gauntlet-adapter-surface-json
+    teeth:
+    - attack: Present a well-formed mutation request on the operation boundary with no bound actor/session, or with a
+        client-asserted actor, from a loopback client.
+      expected: Refused before any consequential side effect. Loopback reachability alone never authorises a mutation.
+    - attack: Implement a TUI-side helper that mutates settlement/evidence state without the canonical Gauntlet operation
+        path.
+      expected: The test or architecture gate rejects it; no consequential state change is possible through the side
+        path.
+    - attack: Replay a canonical event/read through the headless boundary with no renderer, SQLite read model, or Prime
+        session present.
+      expected: The canonical result remains available and correctly identified.
+    redesign_trigger: If the current CLI/serve handlers themselves own business semantics rather than delegating to a
+      reusable application/core layer, stop and extract/bind that layer before adding a TUI-specific API.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T01/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_CANONICALITY
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - A fresh verifier can trace representative canonical reads and mutations to Gauntlet ownership and finds no workbench-owned
+      consequential mutation path.
+  T02:
+    title: Configuration, preflight, and degraded-mode contract
+    initial_status: blocked
+    depends_on:
+    - T00
+    - T01
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-CONFIG-001
+    - REQ-CONFIG-002
+    - REQ-CONFIG-003
+    - REQ-CONFIG-005
+    - REQ-CONFIG-010
+    - REQ-CONFIG-012
+    - REQ-SAFE-003
+    - REQ-SEC-003
+    - REQ-UX-006
+    changes: Introduces the workbench configuration authority, typed preflight/error surface, local-vs-remote transport
+      selection, secret indirection, and capability-scoped degraded states without hardcoding machine/provider facts
+      into stable logic.
+    proves: Configuration precedence and startup behavior are deterministic; missing/invalid providers block only the
+      safe blast radius, while loss of canonical Gauntlet connectivity prevents state-changing commands and is visible.
+    does_not_prove: It does not prove current affordance revalidation, transport correctness under SSH, or that Bun native
+      choices are optimal.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T02.prereg.yaml
+      claim: Configuration precedence and startup behavior are deterministic; missing/invalid providers block only the
+        safe blast radius, while loss of canonical Gauntlet connectivity prevents state-changing commands and is visible.
+      falsifier: Remove Prime while keeping Gauntlet reachable.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - 'source spec: configuration_and_input_contract'
+    - existing project configuration hierarchy and justfile
+    - existing .env/TOML/YAML conventions
+    - current Gauntlet/Prime endpoint or process configuration
+    steps:
+    - Keep Gauntlet and Prime configuration precedence unchanged; optional Prime/DomainForge/SXR absence permits core
+      read-only inspection. Bind actor/session identity, do not equate loopback with authority.
+    - Bind configuration to the project-preferred TOML/YAML/env-indirection hierarchy; environment variables may override
+      only documented fields and must not become a shadow config system.
+    - Define typed startup/preflight errors with stable codes, blast radius, and recoverability hints.
+    - Represent local same-host and remote transport as configuration of one application protocol rather than different
+      operation semantics.
+    - Validate Gauntlet reachability, Prime compatibility, projection-store health/reconstructibility, Bun/OpenTUI support,
+      and required config before privileged actions are enabled.
+    - Implement visible degraded/stale states and secret redaction/indirection rules.
+    gate:
+    - just tui-test config-preflight
+    - just tui-preflight bootstrap
+    teeth:
+    - attack: Remove Prime while keeping Gauntlet reachable.
+      expected: Prime-dependent capabilities degrade/block, but safe Gauntlet read-only projections remain available
+        where supported.
+    - attack: Remove Gauntlet connectivity while leaving cached projections and Prime reachable.
+      expected: Cached state is marked stale/degraded and all state-changing commands fail closed.
+    redesign_trigger: If the repository already has a stronger typed configuration/preflight system, reuse it and delete
+      any duplicate workbench config authority rather than maintaining two precedence rules.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T02/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Config precedence, secret handling, typed errors, local/remote mode, and blast-radius preflight behavior are demonstrated
+      by positive and failure tests.
+  T04:
+    title: Prime structured host, session, and topology adapter
+    initial_status: blocked
+    depends_on:
+    - T00
+    - T01
+    - T00A
+    proof_level: P3
+    confirmation: fresh_target_reproduction
+    settles:
+    - REQ-GOAL-003
+    - REQ-OPS-001
+    - REQ-PRIME-001
+    - REQ-PRIME-002
+    - REQ-PRIME-003
+    - REQ-PRIME-005
+    changes: Binds Gauntlet to the installed Prime Agent through its structured headless host surface and projects actual
+      Prime sessions, children, identifiers, parent-child topology, session references, model identity, lifecycle, and
+      messages without synthesizing parallel execution truth.
+    proves: Prime child admission is nonblocking, mailbox content remains communication rather than completion, and the
+      TUI can reconstruct actual recursive topology from Prime/Gauntlet sources without scraping Prime's terminal UI.
+    does_not_prove: It does not prove Python REPL execution serialization, long-running detach/reattach, contextual horizon
+      construction, or cross-surface affordance admission.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T04.prereg.yaml
+      claims:
+      - Prime child admission is nonblocking, mailbox content remains communication rather than completion, and the TUI
+        can reconstruct actual recursive topology from Prime/Gauntlet sources without scraping Prime's terminal UI.
+      falsifiers:
+      - Send a Prime mailbox message containing “done” before a valid child result exists.
+      - Spawn nested Prime children and restart only the workbench adapter process.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - installed Prime Agent source/docs and actual version from T00
+    - existing Gauntlet Prime/RLM adapter tests
+    - Prime headless JSON/RPC/ACP interfaces as available in installed version
+    - Prime child/session result contracts and session directories
+    steps:
+    - Retain AgentRunner as the canonical execution port. Introduce only the adapter/composition required for persistent
+      session lifetime; Bun must not own admitted work or reconnect by scraping directories.
+    - Select the narrowest documented structured Prime host interface meeting the required session, lifecycle and input
+      contracts; pin version/schema. ACP/JSON are not interchangeable without contract evidence.
+    - Map actual Prime session/child IDs, parent-child relations, models, session refs, lifecycle, messages, and result
+      contracts into workbench references without owning them.
+    - Ensure spawn/delegation returns an admission handle immediately and later result/completion is observed independently.
+    - Route Prime UI/input requests through structured callbacks rather than embedding or scraping Prime's own TUI.
+    - Record source/version/protocol compatibility and unsupported Prime features explicitly.
+    gate:
+    - just tui-test prime-host
+    - just tui-test prime-topology
+    - just tui-check
+    teeth:
+    - attack: Send a Prime mailbox message containing “done” before a valid child result exists.
+      expected: Chat/Trace may show the message, but the child/invocation remains non-complete.
+    - attack: Spawn nested Prime children and restart only the workbench adapter process.
+      expected: The adapter re-reads actual Prime topology/identities rather than minting synthetic replacements.
+    redesign_trigger: If the installed Prime version lacks a stable structured headless carrier for a required operation,
+      stop and define the smallest versioned adapter/compatibility boundary; do not fall back to terminal-screen scraping.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T04/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_PRIME_HOST
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh target reproduction demonstrates actual Prime IDs/topology, nonblocking admission, structured host integration,
+      and mailbox/completion separation.
+  T03:
+    title: Bun 1.4 native-substrate qualification and dependency-admission ledger
+    initial_status: blocked
+    depends_on:
+    - T00
+    - T02
+    - T00A
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-GOAL-004
+    - REQ-CONFIG-004
+    - REQ-BUN-001
+    - REQ-BUN-002
+    changes: Creates a measured native-capability ledger for every proposed local database, PTY, process, server/socket,
+      worker, config, hashing/compression, packaging, and related workbench need before overlapping dependencies are
+      admitted.
+    proves: 'Every overlapping dependency decision is evidence-backed: either Bun/Prime/Python/OpenTUI native capability
+      is selected, or a reproducible qualification justifies an external dependency for a required case.'
+    does_not_prove: It does not prove bun:sqlite scale, terminal fidelity, worker performance, or final target packaging;
+      those are settled by later tasks.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T03.prereg.yaml
+      claim: 'Every overlapping dependency decision is evidence-backed: either Bun/Prime/Python/OpenTUI native capability
+        is selected, or a reproducible qualification justifies an external dependency for a required case.'
+      falsifier: Add an overlapping SQLite/PTTY/process/socket/config dependency with no qualification artifact.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - T00A bootstrap dependency-admission list
+    - Bun 1.4.0 observed baseline; exact runtime/API compatibility pin from T00
+    - OpenTUI installed version/docs
+    - existing package manifests and proposed dependencies
+    - declared Linux/WSL same-host and SSH/tmux terminals recorded by T00
+    steps:
+    - Absorb T00A's recorded bootstrap dependency admissions into the ledger retroactively. Each one is qualified or
+      falsified here on the same terms as any other admission; an admission that fails qualification is removed or replaced
+      before this task settles, and the failure is preserved. The ledger is not permitted to inherit a dependency merely
+      because the bootstrap slice already shipped it.
+    - Enumerate required local substrate capabilities from the spec and current repository; record the native candidate
+      for each.
+    - Prototype the smallest executable probe for Bun SQLite, local server/socket, spawn/process, Terminal/PTTY, workers,
+      TOML/YAML/JSONL/config needs, hashing/compression, and compile/package facilities actually required.
+    - Record versions, commands, measured behavior, known limitations, and target-environment results in a dependency-admission
+      ledger.
+    - Reject overlapping dependencies by default; for any admitted dependency, preserve a reproducible failing native
+      case and the material advantage of the replacement.
+    gate:
+    - just tui-test bun-native-smoke
+    - just tui-bench bun-substrate
+    - just tui-check
+    teeth:
+    - attack: Add an overlapping SQLite/PTTY/process/socket/config dependency with no qualification artifact.
+      expected: Dependency policy gate fails.
+    - attack: Force one Bun-native probe to fail on a required target.
+      expected: The ledger records the failure and only the affected capability remains open; the plan does not silently
+        claim Bun coverage.
+    redesign_trigger: If a required Bun capability is absent or unreliable on the target runtime, record the falsification
+      and admit the smallest substitute behind the stable abstraction rather than contorting the design around Bun.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T03/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - The dependency-admission ledger covers every overlapping local-runtime capability currently proposed and no overlapping
+      dependency lacks evidence.
+    - Every dependency T00A admitted under the bootstrap carve-out is present in the ledger with a qualification result.
+  T05:
+    title: Python REPL computation, control, and kernel-object lifecycle
+    initial_status: blocked
+    depends_on:
+    - T04
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-PRIME-004
+    - REQ-PRIME-006
+    - REQ-PRIME-007
+    - REQ-SAFE-004
+    - REQ-SEC-001
+    - REQ-UX-004
+    changes: Exploit Prime's persistent Python REPL substrate for sequential deterministic computation, host-mediated
+      input/control, explicit kernel-object references, and safe separation between kernel liveness/computation and Gauntlet
+      truth.
+    proves: One Prime kernel serializes shell execution; parallel open-ended work is routed to independent contexts,
+      input/control is mediated through Prime, kernel objects are classed ephemeral/pinned/artifactized, and kernel liveness
+      is never called work success.
+    does_not_prove: It does not prove kernel affordance wrappers, evidence admission, recursive context quality, or hostile-code
+      sandboxing.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T05.prereg.yaml
+      claim: One Prime kernel serializes shell execution; parallel open-ended work is routed to independent contexts,
+        input/control is mediated through Prime, kernel objects are classed ephemeral/pinned/artifactized, and kernel
+        liveness is never called work success.
+      falsifier: Attempt two concurrent execute requests against the same Prime Python REPL session.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - Prime RLM runtime/Python REPL tool implementation
+    - Prime ReplKernelManager and runtime JSON-lines execute/interrupt/host_request/host_reply protocol
+    - source spec KernelObjectRef
+    - existing Prime kernel/session persistence tests
+    steps:
+    - Bind serialized execute and host-mediated interrupt/input/host_request/host_reply messages through the selected
+      Prime host API. Do not assume Jupyter sockets, Comm or heartbeat channels from the historical ipython tool name.
+    - Enforce serialized execution for one kernel and provide a clear route for parallel work through independent Prime
+      child sessions rather than concurrent calls into one kernel.
+    - Represent explicit kernel objects with session/generation identity and ephemeral/pinned/artifactized persistence
+      class.
+    - Surface kernel input/control requests as structured attention/control events for later composer integration.
+    - Document that kernel/worker isolation is not a security sandbox and expose no claim implying otherwise.
+    gate:
+    - just tui-test kernel-serialization
+    - just tui-test kernel-object-lifecycle
+    - just tui-check
+    teeth:
+    - attack: Attempt two concurrent execute requests against the same Prime Python REPL session.
+      expected: The workbench prevents or serializes the pattern; it does not create unsafe concurrent shell execution.
+    - attack: Kill the kernel after creating ephemeral and pinned objects.
+      expected: Ephemeral objects invalidate; canonical Gauntlet state remains untouched; pinned/artifactized behavior
+        follows the declared policy.
+    redesign_trigger: If Prime's installed kernel host semantics differ materially from the assumed single-kernel serialization/control
+      model, revise the adapter representation before adding a second scheduler.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T05/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Kernel serialization, channel mediation, object lifecycle classification, and liveness/non-success separation are
+      all evidenced.
+  T06:
+    title: Reconstructible Bun SQLite projection store with generations and cursors
+    initial_status: blocked
+    depends_on:
+    - T01
+    - T02
+    - T03
+    - T04
+    proof_level: P3
+    confirmation: independent
+    settles:
+    - REQ-BUN-003
+    - REQ-DATA-002
+    - REQ-DATA-003
+    - REQ-DATA-004
+    - REQ-DATA-007
+    - REQ-OUT-002
+    - REQ-STATE-002
+    - REQ-STATE-003
+    - REQ-SYNC-001
+    - REQ-SYNC-002
+    - REQ-SYNC-003
+    - REQ-VERIFY-001
+    changes: Creates the disposable local read-model store and generation/cursor reconciliation contract that joins authoritative
+      Gauntlet/Prime/DomainForge references while remaining fully rebuildable and provenance-linked.
+    proves: Local projections can be deleted/corrupted and rebuilt from authoritative sources; stale generation frames
+      are rejected; cursor advancement and dependent rows commit atomically; bun:sqlite is proven adequate for representative
+      correctness loads or explicitly falsified.
+    does_not_prove: It does not prove final operator UX, large-scale latency targets, reconnect over real network loss,
+      or renderer replacement.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T06.prereg.yaml
+      claims:
+      - Local projections can be deleted/corrupted and rebuilt from authoritative sources; stale generation frames are
+        rejected; cursor advancement and dependent rows commit atomically; bun:sqlite is proven adequate for representative
+        correctness loads or explicitly falsified.
+      falsifiers:
+      - Delete the entire local SQLite database and restart the workbench.
+      - After reconnect starts generation G2, deliver a delayed G1 update with a later-looking timestamp.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - 'source spec: ProjectionGeneration and WorkbenchSnapshot'
+    - Gauntlet canonical baseline/event seam from T01
+    - Prime structured adapter from T04
+    - Bun qualification ledger from T03
+    steps:
+    - Implement source identity/store epoch, coherent baseline watermark, inclusive-read de-duplication, gap detection,
+      bounded backlog and epoch/retention resync. Do not compare opaque cursor strings or imply cross-source atomicity.
+    - Define the smallest SQLite schema/read models required for Focus joins, source provenance, event indexes, agents,
+      evidence, artifacts, attention, and affordance references; avoid storing duplicate canonical truth.
+    - Implement ProjectionGeneration with per-source cursors and a baseline-plus-incremental fold path.
+    - Apply each authoritative event and cursor update in one coherent SQLite transaction for all rows required by the
+      next snapshot.
+    - Reject any frame/event associated with a superseded generation.
+    - Implement cold rebuild and corruption detection/replacement from authoritative sources; compare normalized projections
+      before/after rebuild.
+    - Benchmark representative replay volume sufficient to decide whether bun:sqlite remains the default.
+    gate:
+    - just tui-test projection-generation
+    - just tui-test projection-rebuild
+    - just tui-bench sqlite-replay
+    - just tui-check
+    teeth:
+    - attack: Delete the entire local SQLite database and restart the workbench.
+      expected: Equivalent consequential projections rebuild from owning sources; no canonical state is lost or recreated
+        from cache.
+    - attack: After reconnect starts generation G2, deliver a delayed G1 update with a later-looking timestamp.
+      expected: The G1 frame is rejected and G2 snapshot/cursors remain unchanged.
+    redesign_trigger: 'If reconstruction requires data that exists only in the local database, stop: canonical ownership
+      has leaked into the projection layer and must be corrected before proceeding.'
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T06/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_RECONSTRUCTIBLE_PROJECTION
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh independent deletion/corruption/rebuild and stale-generation attacks confirm reconstructibility and projection
+      ownership.
+  T07:
+    title: React-free Workbench Model and immutable snapshot fan-out
+    initial_status: blocked
+    depends_on:
+    - T06
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-DATA-001
+    - REQ-DATA-005
+    - REQ-DATA-006
+    - REQ-TUI-001
+    - REQ-GOAL-005
+    changes: Introduces a React-free Workbench Model that consumes authoritative adapters/local read models and publishes
+      immutable snapshots plus interaction callbacks, with Chat and Trace as separate projections and one source event
+      fan-out to multiple views.
+    proves: Presentation code can consume immutable snapshots without owning business state, one event can update multiple
+      projections without destructive acknowledgement, and Chat is not the canonical source of Trace/history.
+    does_not_prove: It does not prove full OpenTUI layout, Focus/Horizon semantics, renderer replacement, or final event
+      reconnect behavior.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T07.prereg.yaml
+      claim: Presentation code can consume immutable snapshots without owning business state, one event can update multiple
+        projections without destructive acknowledgement, and Chat is not the canonical source of Trace/history.
+      falsifier: Remove the Chat projection entirely and reconstruct Trace for the same run.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - 'source spec: WorkbenchSnapshot'
+    - projection schema/reducer from T06
+    - DeepSeek donor notes on host-owned models/immutable snapshots
+    - existing OpenTUI/React integration if any
+    steps:
+    - Define the React-free Workbench Model API around immutable snapshots, view payload references, health, and interaction
+      callbacks.
+    - Implement separate Work/Chat/Trace projection reducers over shared durable sources without consuming/acking events
+      per view.
+    - Ensure a single source event may update all dependent read models before one snapshot generation is published.
+    - Add architecture tests that reject direct Gauntlet/Prime/DomainForge business-state ownership/imports from presentation
+      packages.
+    gate:
+    - just tui-test workbench-model
+    - just tui-test projection-fanout
+    - just tui-check
+    teeth:
+    - attack: Remove the Chat projection entirely and reconstruct Trace for the same run.
+      expected: Trace remains reconstructible and unchanged in consequential content.
+    - attack: Have Work and Trace both depend on one canonical event.
+      expected: Both update; neither can consume the event in a way that starves the other.
+    redesign_trigger: If view requirements force mutable business state into React/OpenTUI components, move that state
+      back into the Workbench Model/read-model layer rather than adding synchronization hooks between components.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T07/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Immutable snapshot ownership and multi-projection fan-out are proven by architecture and behavior tests.
+  T08:
+    title: Focus, Relation, Horizon, and progressive materialization model
+    initial_status: blocked
+    depends_on:
+    - T06
+    - T07
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-AFF-004
+    - REQ-AFF-005
+    - REQ-FOCUS-001
+    - REQ-FOCUS-002
+    - REQ-FOCUS-003
+    - REQ-FOCUS-004
+    - REQ-FOCUS-005
+    - REQ-GOAL-001
+    - REQ-GOAL-006
+    - REQ-OPS-004
+    - REQ-UX-002
+    changes: Implements stable FocusRef identity, multiple placements, relation queries, hoist/de-hoist Horizons, saved
+      noncanonical horizons, and horizon-driven materialization of subscriptions, SQLite queries, prefetch, context candidates,
+      and visible capability reasons.
+    proves: The same object retains one FocusRef across placements; hoisting changes the represented/query/context horizon
+      without changing source truth; the system prefers horizon-local loading and can explain why unavailable capabilities
+      are not yet spendable.
+    does_not_prove: It does not prove canonical operation admission, Prime child context envelopes, DomainForge semantic
+      enrichment, or final large-case payment targets.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T08.prereg.yaml
+      claim: The same object retains one FocusRef across placements; hoisting changes the represented/query/context horizon
+        without changing source truth; the system prefers horizon-local loading and can explain why unavailable capabilities
+        are not yet spendable.
+      falsifier: Render the same WorkItem under Plan, Current Run, Agent, and Attention and mutate only one placement-local
+        label.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - 'source spec: FocusRef, Horizon, AffordanceDescriptor'
+    - Workbench Model from T07
+    - SQLite relation/provenance store from T06
+    - Leo-derived semantic outline/hoist design notes in source spec context
+    steps:
+    - Preserve Case-wide urgent attention independently of Horizon-local context. Mandatory Reference/governance/evidence
+      closure remains in every eligible context; formal critics use the existing allowlist, never generic Horizon context.
+    - Implement source/kind-based FocusRef identity and placement records that never use visual position/display labels
+      as identity.
+    - Implement Relation queries and Horizon root/filter/traversal semantics; hoist/de-hoist only changes the active
+      projection.
+    - Drive local event subscriptions, SQLite queries/prefetch, and context-candidate selection from the active Horizon
+      rather than eager whole-Case loading.
+    - Persist saved Horizon preferences separately from canonical state.
+    - Represent unavailable capability reasons without falsely calling installed providers current affordances.
+    gate:
+    - just tui-test focus-identity
+    - just tui-test horizon-hoist
+    - just tui-test horizon-materialization
+    - just tui-check
+    teeth:
+    - attack: Render the same WorkItem under Plan, Current Run, Agent, and Attention and mutate only one placement-local
+        label.
+      expected: All placements resolve to one FocusRef/source identity; canonical state is not copied or forked.
+    - attack: Hoist to a leaf Focus and inspect backend queries/subscriptions/context candidates.
+      expected: The working set narrows to declared relations/dependencies while de-hoist restores the broader world
+        without reidentifying objects.
+    redesign_trigger: If a required view cannot be expressed as a projection over Focus/Relation/Horizon without inventing
+      independent object identity, stop and revise the semantic TUI model before adding view-specific domain state.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T08/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Focus identity, clone-like placements, hoist/de-hoist, saved Horizon noncanonicality, and horizon-driven materialization
+      are demonstrated.
+  T09:
+    title: Canonical affordance resolver and isomorphic operation gateway
+    initial_status: blocked
+    depends_on:
+    - T01
+    - T02
+    - T08
+    proof_level: P3
+    confirmation: independent_adversarial
+    settles:
+    - REQ-AFF-001
+    - REQ-AFF-002
+    - REQ-AFF-003
+    - REQ-AFF-004
+    - REQ-AFF-005
+    - REQ-CONFIG-011
+    - REQ-OPS-002
+    - REQ-OPS-003
+    - REQ-OUT-004
+    - REQ-SAFE-002
+    - REQ-SEC-002
+    - REQ-UX-003
+    - REQ-VERIFY-003
+    - REQ-VERIFY-004
+    changes: Creates one canonical operation gateway and current AffordanceDescriptor resolution path used by TUI, command
+      palette, kernel wrappers, CLI/API projections, plugins, and eligible Prime contexts, with invocation-time revalidation
+      and fail-closed denial.
+    proves: Equivalent operations across projections converge on the same operation ID, admission, authority, idempotency,
+      and result semantics, while denied/stale/unaffordable paths remain non-executable through every supported route.
+    does_not_prove: It does not prove final visual controls, Prime context quality, terminal safety, or whole-system
+      security outside the operation boundary.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T09.prereg.yaml
+      claims:
+      - Equivalent operations across projections converge on the same operation ID, admission, authority, idempotency,
+        and result semantics, while denied/stale/unaffordable paths remain non-executable through every supported route.
+      falsifiers:
+      - Render an operation as available, revoke authority before activation, then invoke from the stale control.
+      - Attempt the same denied operation through kernel wrapper, local adapter, plugin callback, CLI/API, and eligible
+        Prime context.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - Gauntlet canonical operation boundary from T01
+    - Focus/Horizon model from T08
+    - configuration/preflight from T02
+    - existing Gauntlet governance and settlement authority
+    - source spec AffordanceDescriptor and reference algorithms
+    steps:
+    - Bind each planned operation to actor, target, payload digest, canonical precondition/version and retry semantics.
+      Recheck under the owning write boundary; reconcile outcome_unknown after lost responses and reject key reuse with
+      a changed payload.
+    - Implement or bind a canonical operation registry/gateway keyed by stable Gauntlet operation identity.
+    - Resolve AffordanceDescriptor from current Focus/Horizon plus visibility, reachability, payment, governance, settlement-access,
+      and recovery reasons; installed capability is only inventory.
+    - Expose projection adapters that reference operation IDs instead of implementing side effects.
+    - Revalidate the current operation/affordance at invocation time, including provider/authority changes after snapshot
+      publication.
+    - Return machine-readable unavailable/attention/degraded reasons suitable for every projection.
+    - Add direct bypass tests for TUI, kernel, CLI/API, Prime, plugin, and local adapter paths.
+    gate:
+    - just tui-test affordance-resolver
+    - just tui-test operation-isomorphism
+    - just tui-test deny-bypass
+    - just tui-check
+    - just check-package gauntlet-app
+    - just test-package gauntlet-app
+    teeth:
+    - attack: Render an operation as available, revoke authority before activation, then invoke from the stale control.
+      expected: Invocation revalidation denies before side effect and projection is refreshed/degraded.
+    - attack: Attempt the same denied operation through kernel wrapper, local adapter, plugin callback, CLI/API, and
+        eligible Prime context.
+      expected: Every path reaches the same denial semantics; no side path mutates consequential state.
+    redesign_trigger: If a supported projection cannot express a needed action without bypassing or forking canonical
+      operation semantics, remove or redesign that projection rather than weaken the gateway.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T09/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_NO_BYPASS
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh independent adversarial execution proves allowed-operation equivalence and denied-operation equivalence across
+      every supported projection currently implemented.
+  T10:
+    title: Prime recursive delegation, bounded context, messaging, and long-running strategy integration
+    initial_status: blocked
+    depends_on:
+    - T04
+    - T05
+    - T08
+    - T09
+    proof_level: P3
+    confirmation: fresh_target_reproduction
+    settles:
+    - REQ-GOAL-003
+    - REQ-OPS-001
+    - REQ-OPS-004
+    - REQ-PRIME-003
+    - REQ-PRIME-004
+    - REQ-PRIME-005
+    - REQ-PRIME-006
+    - REQ-PRIME-008
+    - REQ-PRIME-009
+    - REQ-PRIME-010
+    changes: Uses actual Prime child sessions for parallel open-ended work, constructs child context from active Horizon
+      plus explicit dependencies, projects mailbox delivery modes and long-running Prime controls as admitted strategies,
+      and preserves Prime/Gauntlet lifecycle separation.
+    proves: Parallel work uses independent Prime contexts when justified, recursive topology remains real, messages/heartbeats/goals/schedules/autonomous/refinement
+      features remain implementation substrates rather than canonical Gauntlet truth, and authorized work can outlive
+      the TUI.
+    does_not_prove: It does not prove reconnect after transport loss, kernel evidence promotion, final UI rendering,
+      or harness refinement as a current product feature.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T10.prereg.yaml
+      claims:
+      - Parallel work uses independent Prime contexts when justified, recursive topology remains real, messages/heartbeats/goals/schedules/autonomous/refinement
+        features remain implementation substrates rather than canonical Gauntlet truth, and authorized work can outlive
+        the TUI.
+      falsifiers:
+      - Spawn two independent investigations while hoisted to one WorkItem and inspect their received context.
+      - Close the TUI while a child is running, then inspect Prime from an independent process.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - Prime adapter from T04
+    - Python REPL serialization contract from T05
+    - Horizon model from T08
+    - affordance gateway from T09
+    - Prime goals/heartbeats/schedules/autonomous/refinement APIs available in installed version
+    steps:
+    - Use canonical dispatch ownership and contain every execution before process start. Test TUI/Bun death between admission
+      and spawn deterministically on both sides. Formal critic envelopes come only from Gauntlet comparison assembly
+      in fresh contexts.
+    - Build a context-envelope constructor from hoisted Horizon, relevant Reference Units, relations, artifacts/evidence
+      refs, role instructions, and explicit required dependencies; avoid whole-Case dumps by default.
+    - Project recursive Prime parent/child topology and support bounded nested delegation using actual Prime depth/budget
+      capabilities.
+    - Map message delivery modes into semantic operator choices such as follow-up vs steer, while preserving mailbox/completion
+      separation.
+    - Map Prime goals, schedules, heartbeats, autonomous mode, compaction, and harness state only as admitted execution
+      strategies/provenance; do not promote them to Gauntlet direction/settlement/capability truth.
+    - Ensure TUI detach alone sends no cancel/stop; explicit canonical stop/cancel remains the only operator path unless
+      governing policy terminates work.
+    gate:
+    - just tui-test prime-recursion
+    - just tui-test prime-context-envelope
+    - just tui-test prime-long-running
+    - just tui-check
+    teeth:
+    - attack: Spawn two independent investigations while hoisted to one WorkItem and inspect their received context.
+      expected: Each child receives the bounded relevant envelope plus declared dependencies, not an accidental dump
+        of the entire Case.
+    - attack: Close the TUI while a child is running, then inspect Prime from an independent process.
+      expected: Authorized Prime work remains alive; no completion is inferred from heartbeats/messages.
+    redesign_trigger: If reliable child execution requires whole-Case context because key dependencies cannot be represented/retrieved,
+      stop and improve the relation/context model rather than normalizing maximal prompts as the default.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T10/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      required_verdict: CONFIRM_PRIME_RECURSION
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh target reproduction proves bounded recursive delegation, message semantics, long-running strategy mapping,
+      and no implicit TUI-owned cancellation.
+  T12:
+    title: OpenTUI semantic shell and Case-centric projections
+    initial_status: blocked
+    depends_on:
+    - T07
+    - T08
+    - T09
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-DATA-005
+    - REQ-GOAL-001
+    - REQ-GOAL-005
+    - REQ-OUT-001
+    - REQ-TUI-001
+    - REQ-TUI-002
+    - REQ-TUI-003
+    - REQ-TUI-004
+    - REQ-UX-001
+    - REQ-UX-002
+    - REQ-UX-003
+    - REQ-UX-004
+    - REQ-UX-005
+    - REQ-UX-006
+    - REQ-UX-007
+    changes: 'Builds the terminal-native semantic shell over immutable Workbench snapshots: Navigator/semantic outline,
+      Work/Chat/Trace primary views, Inspector, Composer with takeover, and contextual lower surfaces while preserving
+      Focus identity and renderer non-authority.'
+    proves: An operator can navigate a Case, see multiple placements of the same Focus, hoist/de-hoist, switch among
+      Work/Chat/Trace questions over the same history, inspect relations/evidence/affordances, and complete temporary
+      composer takeovers without presentation owning domain state.
+    does_not_prove: It does not prove embedded terminal fidelity, Prime reattachment, plugin loading, performance at
+      large scale, or renderer replacement.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T12.prereg.yaml
+      claim: An operator can navigate a Case, see multiple placements of the same Focus, hoist/de-hoist, switch among
+        Work/Chat/Trace questions over the same history, inspect relations/evidence/affordances, and complete temporary
+        composer takeovers without presentation owning domain state.
+      falsifier: Open the same Focus in Navigator, Work, Agent placement, and Inspector, then update source state once.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - Workbench Model from T07
+    - Focus/Horizon model from T08
+    - affordance gateway from T09
+    - OpenTUI installed docs/components from T00/T03
+    - approved semantic TUI layout/design in source spec
+    - 'DESIGN.md in full, and specifically its Design conformance index: DSN-001..DSN-010, DSN-013, DSN-015'
+    steps:
+    - Execute REQ-UX-001..007 journeys and reuse the T00A rendered decisions. Test keyboard-only 80x24/120x40, the recoverable
+      compact-size prompt below 80x24, empty/source-failure states, queued attention, preserved drafts, expired replies,
+      scroll anchoring and terminal restoration.
+    - 'Implement the DESIGN.md presentation contract and satisfy its indexed clauses: semantic token indirection with no
+      raw colour literals outside theme adapters (DSN-001); truecolor/256/monochrome lowering with glyph+label+emphasis
+      carrying consequential state (DSN-002); gold reserved for proof and sanctioned authority (DSN-003); distinct token
+      families for authority/execution/evidence/settlement/readiness/integrity/capability (DSN-004); no component-local
+      authority predicate (DSN-005); placements over copies (DSN-006); the geometry floors (DSN-007); evidence and
+      authority as inspectable record objects (DSN-008); blocked-with-reason versus absent-but-palette-discoverable
+      affordances (DSN-009); Chat subordinate to durable execution history (DSN-010); optional motion plus a
+      reduced-motion mode (DSN-013).'
+    - 'Build only the Views the spec scopes as primary or promotable. Work, Chat and Trace are the required primary
+      projections; Evidence, Agents, Files/Changes, Kernel, Problems and Terminal are lower surfaces promotable only when
+      a provider exists; Domain is promotable only when a DomainForge/SEA model is bound. Do NOT build a Harness View —
+      it is roadmap-only in the spec and forbidden by this plan''s guardrails (DSN-015).'
+    - Implement the stable Surface layout and Environment->Workspace->Surface->View->Focus semantic vocabulary in React-free
+      model types with OpenTUI/React renderers only as lowering.
+    - Render semantic outline placements keyed by FocusRef, not copied state.
+    - Implement Work, Chat, and Trace as separate projections; fold tool/agent details semantically without making Chat
+      history canonical.
+    - Implement Inspector sections from selected Focus relations/provenance/evidence/affordances.
+    - Implement default Composer plus temporary chain/takeover states for approval/question/recovery/kernel input while
+      preserving underlying draft state unless the canonical interaction changes it.
+    - Expose only implemented lower-surface adapters for Terminal, Kernel, Agents, Evidence, Problems, and Changes where
+      corresponding providers exist.
+    gate:
+    - just tui-test opentui-shell
+    - just tui-test composer-takeover
+    - just tui-test work-chat-trace
+    - just tui-check
+    - just tui-test operator-journeys
+    - just tui-test keyboard-accessibility
+    teeth:
+    - attack: Render the shell at 120x40.
+      expected: The full three-surface layout (Navigator, Primary, Inspector) is present. A layout that first drops the
+        Inspector above 120 columns is nonconforming against REQ-UX-005/DSN-007 regardless of how it looks.
+    - attack: Shrink below 80x24 and grow back.
+      expected: Recoverable compact-size prompt, then re-entry with the semantic location intact, terminal modes restored,
+        and no admitted work cancelled.
+    - attack: Force monochrome/no-color mode and read every consequential state in Work, Trace, Evidence and Attention.
+      expected: Every state remains distinguishable by glyph, label, emphasis and ordering (DSN-002).
+    - attack: Grep the presentation packages for raw colour literals outside the theme/token adapter and its tests.
+      expected: None (DSN-001).
+    - attack: Look for a Harness View, a Skill/HarnessRevision Focus renderer, or a refinement lifecycle UI.
+      expected: Absent. Roadmap surfaces are not built under this plan (DSN-015).
+    - attack: Open the same Focus in Navigator, Work, Agent placement, and Inspector, then update source state once.
+      expected: All placements update through one source identity/snapshot; no view-local canonical copy diverges.
+    - attack: Trigger kernel-input takeover while text exists in the default composer.
+      expected: Temporary view owns the interaction, then the original composer state returns unless canonical state
+        explicitly replaced it.
+    redesign_trigger: If OpenTUI/React requires owning mutable business state to remain usable, stop and move that state
+      into Workbench Model rather than embedding synchronization logic in render components.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T12/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - The Case-centric semantic shell, Work/Chat/Trace separation, Focus placements, Inspector, and temporary Composer
+      takeover operate only from Workbench snapshots/callbacks.
+    - Every DSN clause owned by this task has an evidence citation; no roadmap surface was built.
+  T11:
+    title: Kernel callable affordances and explicit artifact/evidence promotion
+    initial_status: blocked
+    depends_on:
+    - T05
+    - T09
+    - T10
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-AFF-002
+    - REQ-OUT-004
+    - REQ-PRIME-006
+    - REQ-PRIME-007
+    - REQ-SYNC-003
+    changes: Projects currently admitted deterministic operations into the Prime kernel as callable affordances and implements
+      explicit kernel-object pin/artifactize/offer-as-evidence transitions with provenance.
+    proves: Kernel functions representing Gauntlet operations invoke the same canonical gateway as other projections,
+      unavailable operations cannot be called through a privileged kernel side path, and kernel output becomes evidence
+      only through explicit admission.
+    does_not_prove: It does not prove the full notebook-like Work View, arbitrary Python safety, or final cross-surface
+      independent confirmation.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T11.prereg.yaml
+      claim: Kernel functions representing Gauntlet operations invoke the same canonical gateway as other projections,
+        unavailable operations cannot be called through a privileged kernel side path, and kernel output becomes evidence
+        only through explicit admission.
+      falsifier: Keep an old kernel callable after its authority is revoked and invoke it.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - Python REPL object lifecycle from T05
+    - affordance gateway from T09
+    - Prime context integration from T10
+    - existing Gauntlet artifact/evidence APIs
+    steps:
+    - Expose a generated/current kernel affordance namespace whose callables carry canonical operation IDs and route
+      to the operation gateway; do not embed separate business logic in Python wrappers.
+    - Represent deterministic read/query helpers separately from consequential affordances.
+    - Implement explicit pin, artifactize, attach-to-Focus, and offer-as-evidence transitions with source/session/generation
+      provenance.
+    - Ensure kernel input requests return through the Prime mediation/Attention path rather than direct terminal prompting.
+    - Invalidate or refresh kernel affordance wrappers when the active generation/Horizon/authority changes.
+    gate:
+    - just tui-test kernel-affordances
+    - just tui-test evidence-promotion
+    - just tui-check
+    teeth:
+    - attack: Keep an old kernel callable after its authority is revoked and invoke it.
+      expected: The call re-enters canonical admission and is denied; stale wrapper existence cannot bypass current gates.
+    - attack: Create a persuasive kernel variable named `verified=true` and attempt to settle work from it.
+      expected: It remains computation state until explicitly artifactized/admitted and cannot itself establish verification/settlement.
+    redesign_trigger: If kernel wrappers need direct database/domain mutations to be useful, the canonical operation/read
+      boundary is insufficient and must be corrected instead of granting the kernel new authority.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T11/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Kernel callables are isomorphic with canonical operations and evidence promotion preserves explicit provenance
+      and admission.
+  T13:
+    title: Bun PTY/process plus OpenTUI embedded-terminal path
+    initial_status: blocked
+    depends_on:
+    - T03
+    - T12
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-BUN-004
+    - REQ-SEC-005
+    - REQ-UX-005
+    - REQ-UX-006
+    changes: Qualifies and integrates the primary embedded terminal using Bun PTY/process facilities plus OpenTUI terminal
+      emulation before any alternate PTY/emulator stack is admitted, with privileged argv/path/input validation.
+    proves: The workbench can host a real interactive terminal with correct lifecycle, input, resize, exit, and provenance
+      on required local targets while untrusted inputs cannot become unbound process or terminal control data.
+    does_not_prove: It does not prove SSH/remote transport, hostile process sandboxing, or all-terminal compatibility.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T13.prereg.yaml
+      claim: The workbench can host a real interactive terminal with correct lifecycle, input, resize, exit, and provenance
+        on required local targets while untrusted inputs cannot become unbound process or terminal control data.
+      falsifier: Inject shell metacharacters/path traversal through an untrusted terminal/process parameter that should
+        be treated as data.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - Bun Terminal/process probes from T03
+    - OpenTUI EmbeddedTerminal/native terminal support
+    - current terminal/shell requirements and target terminals
+    - security input rules in source spec
+    steps:
+    - Integrate Bun PTY/process output with the OpenTUI embedded terminal/renderable through the stable lower-surface
+      contract.
+    - Bind lifecycle, resize, stdin, cwd/environment, exit, and cancellation to noncanonical terminal-session state and
+      explicit Gauntlet operations where consequential.
+    - Validate/bind process argv, paths, terminal automation, and RPC payloads at privileged boundaries; never interpolate
+      unsafe SQL/shell fragments.
+    - Run fidelity/payment comparison against any existing terminal stack; admit an alternate only if the native path
+      fails a required case and preserve evidence.
+    gate:
+    - just tui-test embedded-terminal
+    - just tui-test unsafe-input-boundaries
+    - just tui-bench terminal-path
+    - just tui-check
+    teeth:
+    - attack: Inject shell metacharacters/path traversal through an untrusted terminal/process parameter that should
+        be treated as data.
+      expected: The privileged boundary rejects or safely binds it; no unintended command/path executes.
+    - attack: Resize and kill/restart the terminal child while the rest of the TUI remains active.
+      expected: Only terminal-session projection changes; Gauntlet/Prime canonical state remains unaffected.
+    redesign_trigger: If Bun.Terminal plus OpenTUI cannot satisfy required VT/input/resize/target compatibility, preserve
+      the terminal semantic interface and qualify the smallest alternate stack rather than patching render/business layers.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T13/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - The native terminal path passes required local fidelity/security probes or is formally falsified with a justified
+      substitute.
+  T14:
+    title: DomainForge/SEA semantic enrichment adapter
+    initial_status: blocked
+    depends_on:
+    - T06
+    - T08
+    - T12
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-DOM-001
+    - REQ-DOM-002
+    - REQ-DOM-003
+    - REQ-DOM-004
+    - REQ-DOM-005
+    changes: Connects a Case-bound DomainForge/SEA semantic model identity to Focus relations, context construction,
+      artifact bindings, and impact navigation while preserving DomainForge semantic identity distinctly from cache/file/run
+      identities.
+    proves: Cases with semantic models gain graph-derived relations and reusable semantic placements without reidentifying
+      concepts; Cases without DomainForge continue through the same workbench with enrichment absent rather than faked.
+    does_not_prove: It does not prove rich cross-model overlay, Semantic Pack navigation, or that every repository artifact
+      has a semantic binding.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T14.prereg.yaml
+      claim: Cases with semantic models gain graph-derived relations and reusable semantic placements without reidentifying
+        concepts; Cases without DomainForge continue through the same workbench with enrichment absent rather than faked.
+      falsifier: Give a Bun cache hash, file hash, and DomainForge semantic fingerprint identical-looking labels.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - ../domainforge/domainforge-core/src/cli/envelope.rs
+    - ../domainforge/domainforge-core/src/cli/mod.rs
+    - ../sxr/sxr-df/src/adapter.rs
+    - ../sxr/sxr-df/tests/real_binary_tests.rs
+    - source spec REQ-DOM-001..005 and explicit workspace/reference/model binding
+    - Focus/Relation store from T08
+    steps:
+    - Show envelope-derived declarations, source locations, diagnostics and explicit Unit bindings in the existing Inspector.
+      Preserve pack/scope/namespace and digest domains; no name-based joins or inferred authority.
+    - Qualify a pinned DomainForge producer/envelope schema. Current main CLI and SXR Slice 0B consumer are incompatible.
+      Parse the supported native envelope separately or select a compatible pair explicitly; do not invent an existing
+      Gauntlet semantic seam.
+    - Project semantic concepts/relations into FocusRef/Relation references while retaining source model identity/provenance.
+    - Allow semantic concepts to appear in multiple views/placements with one source identity.
+    - Use semantic neighborhoods as optional inputs to horizon-local context construction, artifact bindings, and impact
+      navigation.
+    - Exercise the same Case workflow with semantic enrichment enabled and absent.
+    gate:
+    - just tui-test domainforge-adapter
+    - just tui-test semantic-identity
+    - just tui-check
+    - just tui-test semantic-protocol-compatibility
+    teeth:
+    - attack: Give a Bun cache hash, file hash, and DomainForge semantic fingerprint identical-looking labels.
+      expected: They remain distinct typed identities and cannot substitute for one another.
+    - attack: Run a Case with no DomainForge model binding.
+      expected: The workbench remains functional; semantic enrichment is absent/explicit rather than fabricated.
+    redesign_trigger: If the current DomainForge integration cannot expose stable semantic identity/relations without
+      parsing presentation output, stop and define/extend the proper adapter seam rather than reconstructing meaning
+      from text.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T14/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Semantic enrichment demonstrably improves relations/context when present and remains optional without identity
+      collapse.
+  T15:
+    title: Typed plugin composition, trust, and reversible effects
+    initial_status: blocked
+    depends_on:
+    - T09
+    - T12
+    proof_level: P3
+    confirmation: independent_adversarial
+    settles:
+    - REQ-PLUGIN-001
+    - REQ-PLUGIN-002
+    - REQ-PLUGIN-003
+    - REQ-PLUGIN-004
+    - REQ-SEC-004
+    changes: Introduces stable semantic contribution slots/providers and lifecycle ownership for trusted in-process Bun/OpenTUI
+      modules, with untrusted code forced behind an out-of-process narrow capability boundary and all plugin effects
+      reversible.
+    proves: A plugin can mount, contribute views/renderers/relations/inspector/affordance presentation/composer/lower
+      surfaces, execute, and unload with no orphan subscriptions/handlers/state; trust placement is explicit.
+    does_not_prove: It does not prove a marketplace, arbitrary remote plugins, rich DomainForge/RealityTrace plugins,
+      or plugin-defined canonical business state.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T15.prereg.yaml
+      claims:
+      - A plugin can mount, contribute views/renderers/relations/inspector/affordance presentation/composer/lower surfaces,
+        execute, and unload with no orphan subscriptions/handlers/state; trust placement is explicit.
+      falsifiers:
+      - Plugin throws halfway through load after registering one handler/subscription.
+      - Mark an untrusted module for in-process loading.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - OpenTUI/Bun runtime-module support
+    - source spec plugin slot examples and trust rules
+    - Workbench Model snapshot/callback boundary
+    - affordance gateway from T09
+    steps:
+    - Define the smallest typed semantic slot/provider catalog needed by current features; plugins may not mutate unrelated
+      feature state directly.
+    - Bind registrations/subscriptions/effects to plugin lifetime and return deterministic disposers.
+    - Classify in-process modules as trusted and define an out-of-process capability boundary for untrusted extensions.
+    - Create at least one representative plugin that contributes multiple semantic surfaces and can fully unload.
+    - Automate mount -> exercise -> unload -> baseline comparison, including subscriptions, affordances, view contributions,
+      handlers, and local read-model residue. Cover the DESIGN.md slot catalogue (root.nav, case.view, trace.row,
+      inspector.section, artifact.viewer, composer, bottom.panel, status.item, overlay) and the contribution kinds it
+      names — View, Focus renderer, Relation provider, Cue provider, Inspector section, artifact viewer, affordance
+      projection (DSN-012).
+    gate:
+    - just tui-test plugin-lifecycle
+    - just tui-test plugin-trust
+    - just tui-check
+    teeth:
+    - attack: Plugin throws halfway through load after registering one handler/subscription.
+      expected: Partial effects unwind and the baseline comparison shows no orphan registration.
+    - attack: Mark an untrusted module for in-process loading.
+      expected: Trust policy blocks it or routes it to the narrower out-of-process boundary.
+    redesign_trigger: If the slot catalog requires plugins to import/mutate each other's runtime state, the composition
+      boundary is wrong; stop and introduce a stable service/relation/operation seam instead.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T15/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_REVERSIBILITY
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh adversarial lifecycle testing confirms mount/exercise/unload returns to baseline and trust boundaries cannot
+      be bypassed.
+  T16:
+    title: Live streams, reconnect generations, and Prime detach/reattach
+    initial_status: blocked
+    depends_on:
+    - T04
+    - T06
+    - T10
+    - T12
+    proof_level: P3
+    confirmation: independent_adversarial
+    settles:
+    - REQ-DATA-002
+    - REQ-DATA-003
+    - REQ-DATA-004
+    - REQ-OPS-001
+    - REQ-OPS-002
+    - REQ-OUT-003
+    - REQ-PRIME-009
+    - REQ-PRIME-010
+    - REQ-SAFE-005
+    - REQ-SYNC-001
+    - REQ-SYNC-002
+    - REQ-UX-004
+    - REQ-VERIFY-005
+    - REQ-VERIFY-006
+    changes: Integrates live authoritative streams with baseline/cursor catch-up, generation changes, stale-frame rejection,
+      and TUI detach/reattach to long-running Prime sessions without treating local projection inconsistency as source
+      truth.
+    proves: The workbench can disconnect/reconnect while events are in flight, reject superseded frames, rebuild coherent
+      active views, and reattach to authorized Prime work that continued without the TUI.
+    does_not_prove: It does not prove final remote/SSH transport support, all recovery cases, or whole-system performance
+      under million-event histories.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T16.prereg.yaml
+      claims:
+      - The workbench can disconnect/reconnect while events are in flight, reject superseded frames, rebuild coherent
+        active views, and reattach to authorized Prime work that continued without the TUI.
+      falsifiers:
+      - Disconnect after baseline but before several incremental events commit, reconnect to a new generation, then deliver
+        old-generation frames out of order.
+      - Close/kill the TUI during a running Prime child and reopen from a clean process.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - ProjectionGeneration/cursors from T06
+    - Prime long-running integration from T10
+    - OpenTUI shell from T12
+    - authoritative event stream/read API from T01
+    - current local transport from T02
+    steps:
+    - Test source epoch change, cursor gaps/retention, two clients, overload and kill after acceptance before receipt.
+      Canonical execution lifetime survives Bun host loss; presentation cursor persistence is not execution recovery.
+    - Implement generation-minted connect/reconnect handshake with baseline and per-source cursors.
+    - Buffer/order/reconcile the minimum necessary stream increments and atomically fold them into local projections;
+      never rely on wall-clock timestamp alone for canonical ordering.
+    - Reject late frames/events from older generations.
+    - On TUI detach, persist only noncanonical cursor/view preferences needed for later reconstruction; do not cancel
+      Prime work.
+    - On reattach, reconstruct Prime topology/session refs from Prime/Gauntlet and reconcile events since the last authoritative
+      cursor.
+    - Enter visible degraded/resync state on inconsistency rather than mutating authoritative sources to make the UI
+      agree.
+    gate:
+    - just tui-test reconnect-races
+    - just tui-test detach-reattach
+    - just tui-test stale-frame
+    - just tui-check
+    teeth:
+    - attack: Disconnect after baseline but before several incremental events commit, reconnect to a new generation,
+        then deliver old-generation frames out of order.
+      expected: The rebuilt generation converges to authoritative state and all old-generation frames are rejected.
+    - attack: Close/kill the TUI during a running Prime child and reopen from a clean process.
+      expected: The child remains authorized/running or completed according to Prime/Gauntlet, and the new TUI projects
+        that real state without inference from stale files.
+    redesign_trigger: If reconnect correctness depends on UI-specific event ordering or timestamps not guaranteed by
+      owning sources, stop and strengthen source cursor/sequence semantics rather than adding heuristics.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T16/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_RECONNECT_INTEGRITY
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Independent adversarial reconnect and detach/reattach tests converge to authoritative state with no stale-frame
+      corruption.
+  T14B:
+    title: Reality Trace evidence lens and qualified semantic composition
+    initial_status: blocked
+    depends_on:
+    - T01
+    - T09
+    - T12
+    - T14
+    proof_level: P3
+    confirmation: independent
+    settles:
+    - REQ-DOM-004
+    - REQ-DOM-005
+    - REQ-SXR-001
+    - REQ-SXR-002
+    - REQ-SXR-003
+    - REQ-SXR-004
+    - REQ-SYNC-003
+    changes: Adds a bounded adapter for explicit SXR refresh/export and source-typed evidence links in existing Inspector/Evidence/Trace
+      views.
+    proves: Real qualified producer/consumer and UI compose while SXR identity/settlement remain distinct and optional
+      source loss preserves core journeys.
+    does_not_prove: SXR evidence is not automatically Gauntlet evidence or settlement; this does not implement SXR explain,
+      autonomous runs or a graph engine.
+    hot_context:
+    - ../sxr/sxr-cli/src/commands.rs
+    - ../sxr/sxr-cli/src/output.rs
+    - ../sxr/sxr-df/src/adapter.rs
+    - ../sxr/sxr-df/tests/real_binary_tests.rs
+    - REQ-SXR-001..004 and REQ-DOM-004..005
+    steps:
+    - Pin compatible producer/consumer schema and binary digests; separately parse versioned SXR outputs and raw ledger
+      export arrays.
+    - Bind repository/run/entity/question/threshold and ledger ordinal/hash explicitly; retain committed/pending, diagnostics,
+      unknowns and omissions.
+    - Classify projection-rebuild side effects; execute refresh only through bounded worker/argv/deadline/output contract,
+      never from render.
+    - Expose declaration -> linked Unit -> recorded question/threshold/evidence -> canonical verification path without
+      a second approval button.
+    - Run actual Gauntlet-only, DomainForge-only, SXR-only and combined cases through the workbench; preserve incompatible/missing-source
+      results.
+    gate:
+    - just tui-test sxr-evidence-adapter
+    - just tui-test semantic-evidence-composition
+    - just tui-test deny-bypass
+    - just tui-check
+    teeth:
+    - attack: Use main DomainForge binary with Slice 0B flags, corrupt a digest, remove CAS, swap repositories, or offer
+        pending SXR evidence as settled.
+      expected: Explicit incompatible/invalid/unknown result; no name-join, automatic ledger write or Gauntlet settlement.
+    - attack: Hang the producer and flood output during keyboard navigation.
+      expected: Deadline/output bounds terminate the adapter work; renderer stays responsive and core inspection works.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T14B.prereg.yaml
+      claims:
+      - Source-qualified composition and no imported settlement authority.
+      falsifiers:
+      - Wrong producer protocol; invalid digests; pending evidence; producer hang.
+      confirmation_condition: Real-binary composed path and negative matrix pass; required ignored/skipped test keeps
+        this milestone open.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T14B/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_COMPOSITION
+    done_when:
+    - Required real composition and negative matrix pass with inspectable evidence; independent bounded confirmation
+      complete.
+  T17:
+    title: Bun worker isolation, local joins, and horizon-shaped payment
+    initial_status: blocked
+    depends_on:
+    - T06
+    - T08
+    - T12
+    - T13
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-BUN-006
+    - REQ-GOAL-006
+    - REQ-FOCUS-003
+    - REQ-FOCUS-004
+    changes: Moves expensive folding/indexing/preprocessing off the interactive render path where Bun workers are appropriate
+      and benchmarks local SQLite joins/horizon-shaped working sets so Focus changes remain perceptually immediate without
+      eager whole-world loading.
+    proves: Representative large projections do not block interactive rendering, and measured query/subscription/context
+      working sets shrink/expand with Horizon instead of loading the entire Case by default.
+    does_not_prove: It does not prove final target-scale budgets across every terminal, remote latency, or that all heavy
+      computation belongs in Bun workers rather than Prime/kernel processes.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T17.prereg.yaml
+      claim: Representative large projections do not block interactive rendering, and measured query/subscription/context
+        working sets shrink/expand with Horizon instead of loading the entire Case by default.
+      falsifier: Open a large Case, hoist to one leaf, and assert the workbench still subscribes/loads the entire event/artifact
+        graph.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - Bun worker qualification from T03
+    - SQLite projection store from T06
+    - Horizon model from T08
+    - OpenTUI shell/terminal from T12/T13
+    - performance budgets in spec/config
+    steps:
+    - Identify expensive projection/index/search/diff preprocessing on the render path using measurements, not intuition.
+    - Move suitable pure/local work to Bun workers and define snapshot/invalidation handoff back to the Workbench Model.
+    - Benchmark Focus-local joins versus view-by-view reconstruction/eager loading on representative event/artifact/agent
+      sizes.
+    - Instrument loaded rows/subscriptions/context candidate counts across hoist/de-hoist to prove data logistics follow
+      Horizon.
+    - Record latency/CPU/RSS budgets and confounds for final target benchmark.
+    gate:
+    - just tui-bench focus-latency
+    - just tui-bench projection-worker
+    - just tui-test horizon-materialization
+    - just tui-check
+    teeth:
+    - attack: Open a large Case, hoist to one leaf, and assert the workbench still subscribes/loads the entire event/artifact
+        graph.
+      expected: The test fails; only declared horizon/dependency materialization remains hot.
+    - attack: Run a worst representative projection fold while rapidly moving Focus/scrolling.
+      expected: Interactive input/render responsiveness stays within preregistered budget or the task remains unsettled.
+    redesign_trigger: If worker isolation creates more serialization/copying payment than it removes, keep the stable
+      Workbench Model contract and choose a different execution placement rather than preserving workers as a goal.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T17/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Measured local joins and worker placement satisfy the preregistered representative responsiveness/payment budget.
+  T18:
+    title: Security, trust, secret, and privileged-input hardening
+    initial_status: blocked
+    depends_on:
+    - T02
+    - T05
+    - T09
+    - T13
+    - T15
+    - T16
+    proof_level: P3
+    confirmation: independent_adversarial
+    settles:
+    - REQ-SAFE-001
+    - REQ-SAFE-002
+    - REQ-SAFE-003
+    - REQ-SAFE-004
+    - REQ-SEC-001
+    - REQ-SEC-002
+    - REQ-SEC-003
+    - REQ-SEC-004
+    - REQ-SEC-005
+    - REQ-SXR-003
+    - REQ-UX-006
+    changes: Hardens every privileged boundary so presentation/kernel/plugin/terminal/message paths cannot bypass Gauntlet
+      authority, secrets do not leak into projections/evidence/logs, unsafe inputs are bound/validated, sandbox claims
+      remain accurate, and fallbacks are explicit.
+    proves: Denied operations remain denied across all local paths, canonical truth survives loss of noncanonical layers,
+      unsafe inputs cannot become privileged code/data channels, and no component misrepresents liveness/isolation/fallback
+      as stronger guarantees.
+    does_not_prove: It does not prove remote network authentication beyond the declared support boundary or target packaging
+      portability.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T18.prereg.yaml
+      claims:
+      - Denied operations remain denied across all local paths, canonical truth survives loss of noncanonical layers,
+        unsafe inputs cannot become privileged code/data channels, and no component misrepresents liveness/isolation/fallback
+        as stronger guarantees.
+      falsifiers:
+      - Attempt a denied consequential operation through every supported projection plus direct plugin/kernel/terminal
+        helper paths.
+      - Seed fake secrets in approved secret sources and trigger errors, snapshots, evidence, plugin logs, and SQLite
+        writes.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - all prior adapters and privileged pathways
+    - secret/config hierarchy from T02
+    - kernel sandbox warning from T05
+    - operation gateway T09
+    - terminal T13
+    - plugin trust T15
+    - reconnect/degraded behavior T16
+    steps:
+    - 'Apply the declared enforcement scope: trusted same-user arbitrary code is not sandboxed by a TUI. Exercise governed
+      helper routes, auth/origin controls, ANSI/OSC/paste injection, output limits and containment; record excluded threat
+      classes.'
+    - 'Enumerate all privileged side-effect boundaries: Gauntlet commands, Prime execution/steer/cancel, kernel operations,
+      terminal/process spawn, plugin loading, SQL/file paths, transport/RPC, and evidence admission.'
+    - Apply validation/binding/authorization at each boundary and ensure no UI/cache state is trusted as authority.
+    - Add secret redaction scanners for config, SQLite, logs, snapshots, evidence, plugin manifests, and errors.
+    - Make provider/model/transport fallbacks policy-permitted and visible; remove silent fallback.
+    - Add explicit language/tests that Prime/Python isolation is not a security sandbox and heartbeats/process liveness
+      are not success.
+    - Run independent adversarial bypass attempts against every supported projection and privileged adapter.
+    gate:
+    - just tui-test security-boundaries
+    - just tui-test secret-leakage
+    - just tui-test deny-bypass
+    - just tui-check
+    teeth:
+    - attack: Attempt a denied consequential operation through every supported projection plus direct plugin/kernel/terminal
+        helper paths.
+      expected: All deny before consequential side effect; any bypass fails the task.
+    - attack: Seed fake secrets in approved secret sources and trigger errors, snapshots, evidence, plugin logs, and
+        SQLite writes.
+      expected: No secret appears in forbidden outputs; references/redactions are used instead.
+    redesign_trigger: Any successful authority bypass or secret disclosure invalidates the relevant boundary representation;
+      stop downstream acceptance until the root ownership/transport/admission defect is corrected and the full attack
+      set is rerun.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T18/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_TRUST_BOUNDARIES
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh independent adversarial tests find no authority bypass/secret leakage in the declared support surface and
+      canonical truth survives noncanonical failures.
+  T19:
+    title: Headless equivalence and renderer replaceability
+    initial_status: blocked
+    depends_on:
+    - T01
+    - T06
+    - T07
+    - T12
+    - T16
+    - T18
+    - T14B
+    proof_level: P3
+    confirmation: independent
+    settles:
+    - REQ-VERIFY-002
+    - REQ-STATE-004
+    - REQ-GOAL-005
+    - REQ-TUI-005
+    - REQ-SAFE-001
+    changes: Proves that consequential Gauntlet history and Workbench semantics can be reconstructed/replayed without
+      OpenTUI/React/Bun SQLite/notebook UI and that renderer replacement does not require changing Gauntlet or Prime
+      execution semantics.
+    proves: The same recorded Run is reconstructible headlessly, deleting/restarting TUI/kernel/renderer state does not
+      alter canonical truth, and a minimal non-OpenTUI projection can consume the Workbench Model/operations without
+      business-semantic forks.
+    does_not_prove: It does not prove that libvaxis is needed or suitable, nor does it require building a second production
+      renderer.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T19.prereg.yaml
+      claims:
+      - The same recorded Run is reconstructible headlessly, deleting/restarting TUI/kernel/renderer state does not alter
+        canonical truth, and a minimal non-OpenTUI projection can consume the Workbench Model/operations without business-semantic
+        forks.
+      falsifiers:
+      - Remove/disable all OpenTUI/React modules and reconstruct the recorded Run.
+      - Kill/restart Python REPL and renderer while retaining canonical sources.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - canonical boundary T01
+    - projection rebuild T06
+    - Workbench Model T07
+    - OpenTUI shell T12
+    - reconnect T16
+    - roadmap renderer boundary in spec
+    steps:
+    - Create a headless replay/reconstruction harness that consumes authoritative sources directly and emits normalized
+      Case/Run/Evidence/Attention/settlement projections.
+    - Record a representative real Run, destroy TUI/SQLite/kernel state, and reconstruct the consequential history headlessly.
+    - Create the smallest renderer-independent test projection or snapshot consumer to prove OpenTUI is not in the business-state
+      dependency graph.
+    - Add dependency/architecture tests preventing Gauntlet/Prime canonical layers from importing OpenTUI/React presentation
+      modules.
+    gate:
+    - just tui-test headless-replay
+    - just tui-test renderer-boundary
+    - just tui-check
+    teeth:
+    - attack: Remove/disable all OpenTUI/React modules and reconstruct the recorded Run.
+      expected: Canonical and normalized Workbench data remain reconstructible; only presentation is absent.
+    - attack: Kill/restart Python REPL and renderer while retaining canonical sources.
+      expected: Reference, authority, evidence, settlement, and Run truth remain unchanged.
+    redesign_trigger: 'If replay or canonical operation semantics require OpenTUI/React state, stop: presentation has
+      become canonical and must be unwound before continuing.'
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T19/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_HEADLESS_EQUIVALENCE
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh independent headless replay and renderer-boundary inspection confirm replaceability and canonical survival.
+  T20:
+    title: Linux/WSL same-host and SSH/tmux terminal release qualification
+    initial_status: blocked
+    depends_on:
+    - T02
+    - T03
+    - T12
+    - T13
+    - T16
+    - T18
+    - T14B
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-BUN-005
+    - REQ-CONFIG-005
+    - REQ-OUT-003
+    - REQ-SXR-004
+    - REQ-UX-005
+    - REQ-UX-007
+    changes: Qualifies the same application protocol and Workbench semantics across same-host local transport, SSH/remote
+      terminal use, and the declared Bun/OpenTUI release/packaging form without embedding local-path assumptions into
+      canonical operations.
+    proves: Local and remote/SSH modes preserve operation meaning, Focus/resize/input/reconnect behavior, and long-running
+      work continuity; the release form runs on actual target hardware with documented dependencies.
+    does_not_prove: It does not prove every future cloud/GUI transport or universal terminal compatibility.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T20.prereg.yaml
+      claim: Local and remote/SSH modes preserve operation meaning, Focus/resize/input/reconnect behavior, and long-running
+        work continuity; the release form runs on actual target hardware with documented dependencies.
+      falsifier: Switch local transport to remote/SSH mode for the same canonical operation.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - local transport config from T02
+    - native Bun transport/package probes T03
+    - OpenTUI shell/terminal T12/T13
+    - reconnect T16
+    - declared Linux/WSL same-host and SSH/tmux terminals from T00
+    steps:
+    - Reuse the feature-gated loopback HTTP surface. SSH/tmux operates the workbench on that same host; a remote HTTP
+      server or new Unix socket transport is not required. Any additional transport needs explicit qualification without
+      changing application meanings.
+    - Run the semantic workbench over local and SSH/remote terminal paths; verify input, mouse where supported, resize,
+      focus, terminal, streams, and reconnect semantics.
+    - Build the declared Bun/OpenTUI release form, including standalone executable if selected by qualification, on the
+      actual target environment.
+    - Record target-specific limitations as configuration/support facts rather than hardcoded domain behavior.
+    gate:
+    - just tui-test transport-equivalence
+    - just tui-test ssh-target
+    - just tui-build release
+    - just tui-check
+    - just tui-test semantic-evidence-composition
+    - just tui-test operator-journeys
+    teeth:
+    - attack: Switch local transport to remote/SSH mode for the same canonical operation.
+      expected: Operation identity/admission/result semantics remain unchanged; only transport/config/projection behavior
+        differs.
+    - attack: Restart the SSH/client terminal while long-running Prime work continues.
+      expected: Work continues per policy and the new client reattaches through authoritative state rather than local
+        UI memory.
+    redesign_trigger: If remote mode requires different canonical operations or state semantics, the protocol boundary
+      is leaking transport concerns; stop and refactor before calling both modes the same workbench.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T20/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Required local and SSH/remote target paths plus selected packaging form run on real target hardware with semantic
+      equivalence evidence.
+  T21:
+    title: Large-Case and long-horizon payment benchmark
+    initial_status: blocked
+    depends_on:
+    - T17
+    - T20
+    proof_level: P2
+    confirmation: peer
+    settles:
+    - REQ-BUN-006
+    - REQ-FOCUS-003
+    - REQ-FOCUS-004
+    - REQ-GOAL-006
+    - REQ-SYNC-002
+    - REQ-UX-007
+    changes: Validates that Progressive Affordance Materialization and local projection logistics remain affordable under
+      representative large Case/event/artifact/agent loads and that Horizon narrowing measurably constrains hot work.
+    proves: Cold start, Focus changes, Trace movement, hoist/de-hoist, embedded terminal, multiple Prime children, and
+      large event histories meet preregistered latency/resource budgets without eager whole-world loading.
+    does_not_prove: It does not prove arbitrary unbounded scale or network conditions outside the declared support matrix.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T21.prereg.yaml
+      claim: Cold start, Focus changes, Trace movement, hoist/de-hoist, embedded terminal, multiple Prime children, and
+        large event histories meet preregistered latency/resource budgets without eager whole-world loading.
+      falsifier: Force a Horizon containing one Focus in a Case with a very large history and inspect subscriptions/queries/context.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - performance instrumentation from T17
+    - target integration T20
+    - spec validation matrix large-Case case
+    - representative synthetic/recorded Case data
+    steps:
+    - Freeze fixture sizes/rates, resource ceilings, percentile thresholds, sample counts and CLI comparison protocol
+      before running measurements; preserve cold/warm samples, user errors and intervention counts. Do not tune the acceptance
+      threshold after seeing a failure.
+    - Freeze representative small/large/long-history workloads and exact hardware/runtime/terminal versions before measurement.
+    - Measure cold start, idle RSS/CPU, event replay, Focus switch, hoist/de-hoist, Trace scrolling, large diff/code
+      projection, terminal activity, and multiple Prime-child updates.
+    - Record loaded/subscribed/indexed object counts to verify the horizon changes data logistics, not only visuals.
+    - Compare against preregistered budgets and preserve failures; optimize only the measured bottleneck without changing
+      canonical boundaries.
+    gate:
+    - just tui-bench large-case
+    - just tui-bench long-horizon
+    - just tui-check
+    teeth:
+    - attack: Force a Horizon containing one Focus in a Case with a very large history and inspect subscriptions/queries/context.
+      expected: Hot set remains bounded by declared relations/dependencies; whole-world eager behavior fails the test.
+    - attack: Stream representative high-volume events while scrolling/typing.
+      expected: Input/render latency stays within preregistered budget or the task remains unsettled.
+    redesign_trigger: If budgets cannot be met without violating source ownership, event provenance, or affordance correctness,
+      revise the projection/materialization strategy rather than caching canonical truth or dropping required evidence.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T21/
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Representative target workloads satisfy frozen latency/resource/materialization budgets with full evidence and
+      no semantic shortcuts.
+  T22:
+    title: Cold-loss and recovery matrix
+    initial_status: blocked
+    depends_on:
+    - T16
+    - T18
+    - T19
+    - T20
+    - T14B
+    proof_level: P3
+    confirmation: independent_adversarial
+    settles:
+    - REQ-SAFE-001
+    - REQ-SAFE-005
+    - REQ-SXR-004
+    - REQ-SYNC-001
+    - REQ-SYNC-003
+    - REQ-VERIFY-001
+    - REQ-VERIFY-002
+    - REQ-VERIFY-005
+    - REQ-VERIFY-006
+    changes: Executes the required destructive recovery cases across SQLite, TUI, kernel, reconnect, Prime availability,
+      and projection inconsistency to prove noncanonical layers can fail/recover without rewriting canonical truth.
+    proves: Deleting/corrupting projections, killing TUI/kernel, reconnecting mid-stream, and losing Prime where scoped
+      all produce the declared rebuild/degraded/reattach behavior with preserved correction history.
+    does_not_prove: It does not independently re-prove plugin unload or cross-surface operation isomorphism; those have
+      dedicated confirmation tasks.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T22.prereg.yaml
+      claims:
+      - Deleting/corrupting projections, killing TUI/kernel, reconnecting mid-stream, and losing Prime where scoped all
+        produce the declared rebuild/degraded/reattach behavior with preserved correction history.
+      falsifiers:
+      - Corrupt local projection rows so they look self-consistent but disagree with authoritative cursors.
+      - Kill TUI and kernel simultaneously during a real Run while Prime child continues.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - RECOV-001..RECOV-006 in source spec
+    - T16 reconnect
+    - T18 safety boundaries
+    - T19 headless reconstruction
+    - T20 real target setup
+    steps:
+    - Rebuild admitted consequential state, while explicitly marking lost ephemeral output unavailable. Include lost
+      model pins/CAS and SXR absence/incompatibility; never require impossible recreation of unretained kernel values.
+    - Freeze exact destructive recovery procedures and pre-state digests/cursors.
+    - Run local projection deletion/corruption and verify deterministic rebuild.
+    - Kill TUI during admitted Prime work; reattach from a fresh process.
+    - Restart/lose Python REPL with ephemeral/pinned/artifactized objects and verify declared invalidation/recovery.
+    - Disconnect/reconnect while events are in flight and inject old-generation late frames.
+    - Make Prime unavailable while Gauntlet remains available and verify capability-scoped degradation; restore and resync.
+    - Preserve every failed round and correction before rerunning.
+    gate:
+    - just tui-test recovery-matrix
+    - just tui-test cold-rebuild
+    - just tui-test detach-reattach
+    - just tui-check
+    teeth:
+    - attack: Corrupt local projection rows so they look self-consistent but disagree with authoritative cursors.
+      expected: Workbench detects stale/corrupt state and rebuilds/resyncs; it never mutates authoritative sources to
+        preserve the local view.
+    - attack: Kill TUI and kernel simultaneously during a real Run while Prime child continues.
+      expected: Canonical truth and authorized Prime work survive according to policy; fresh workbench reconstruction
+        recovers the real state.
+    redesign_trigger: Any recovery path that depends on unreconstructible local truth invalidates the architecture; correct
+      canonical ownership before adding backup/replication complexity to the projection layer.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T22/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_RECOVERY
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Independent destructive recovery on the real target passes every applicable RECOV case with preserved failed/correction
+      evidence.
+  T23:
+    title: Independent cross-surface affordance and no-bypass confirmation
+    initial_status: blocked
+    depends_on:
+    - T11
+    - T12
+    - T18
+    - T20
+    - T14B
+    proof_level: P3
+    confirmation: independent_adversarial
+    settles:
+    - REQ-AFF-001
+    - REQ-AFF-002
+    - REQ-AFF-003
+    - REQ-OPS-002
+    - REQ-OPS-004
+    - REQ-SEC-002
+    - REQ-SXR-002
+    - REQ-UX-003
+    - REQ-VERIFY-003
+    - REQ-VERIFY-004
+    changes: Freshly re-confirms, from outside the builder path, that one allowed and one denied consequential operation
+      have identical semantics across TUI, kernel wrapper, CLI/API, eligible Prime context, plugin presentation, and
+      any direct local adapter surface.
+    proves: Allowed routes converge on one canonical operation/admission/idempotency/result, denied/stale routes all
+      fail before side effect, and no projection has gained independent authority.
+    does_not_prove: It does not prove every operation in the product individually; it proves the architecture with representative
+      operations plus static/dynamic checks that all supported routes use the same gateway.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T23.prereg.yaml
+      claims:
+      - Allowed routes converge on one canonical operation/admission/idempotency/result, denied/stale routes all fail
+        before side effect, and no projection has gained independent authority.
+      falsifiers:
+      - Invoke a denied operation through the least-obvious supported path (plugin/kernel/direct adapter) after changing
+        authority post-render.
+      - Invoke an allowed operation through all projections with the same idempotency identity.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - T09 implementation/evidence
+    - T11 kernel wrappers
+    - T12 TUI projections
+    - T18 security hardening
+    - T20 real transport modes
+    - source high-risk Affordance isomorphism group
+    steps:
+    - Freeze representative allowed and denied operations with preconditions and expected canonical IDs/results before
+      the verifier inspects builder evidence.
+    - Invoke each through every supported projection and direct adapter surface available on the real target.
+    - Compare operation identity, authority/admission decisions, idempotency keys, side effects, result class, and emitted
+      canonical events.
+    - Attempt stale-control invocation after authority/precondition changes.
+    - Inspect routing code/dependency graph for any presentation-specific consequential side effect.
+    gate:
+    - just tui-test cross-surface-equivalence
+    - just tui-test deny-bypass
+    - just tui-check
+    teeth:
+    - attack: Invoke a denied operation through the least-obvious supported path (plugin/kernel/direct adapter) after
+        changing authority post-render.
+      expected: Same canonical denial before side effect.
+    - attack: Invoke an allowed operation through all projections with the same idempotency identity.
+      expected: One canonical semantic operation/result is observed; projection choice does not multiply side effects.
+    redesign_trigger: If even one projection requires unique business logic or authority semantics, the isomorphism claim
+      is false; return to the gateway/projection boundary instead of whitelisting the exception.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T23/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_AFFORDANCE_ISOMORPHISM
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh independent adversarial report confirms representative allowed/denied equivalence and no presentation-specific
+      authority path.
+  T24:
+    title: Fresh-target Prime/Python lifecycle confirmation
+    initial_status: blocked
+    depends_on:
+    - T10
+    - T16
+    - T20
+    - T22
+    proof_level: P3
+    confirmation: fresh_target_reproduction
+    settles:
+    - REQ-OPS-001
+    - REQ-PRIME-003
+    - REQ-PRIME-004
+    - REQ-PRIME-005
+    - REQ-PRIME-009
+    - REQ-PRIME-010
+    - REQ-VERIFY-005
+    changes: Freshly reproduces Prime child admission, nested/parallel topology, Python REPL serialization, mailbox/completion
+      separation, TUI detach survival, and authoritative reattachment on the actual target runtime without relying on
+      builder session state.
+    proves: The installed Prime/Python substrate behaves as assumed by the workbench contract under fresh real execution,
+      including child continuity across workbench loss and no inference of completion from messages/liveness.
+    does_not_prove: It does not prove the full Gauntlet final settlement matrix or future Prime versions.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T24.prereg.yaml
+      claims:
+      - The installed Prime/Python substrate behaves as assumed by the workbench contract under fresh real execution,
+        including child continuity across workbench loss and no inference of completion from messages/liveness.
+      falsifiers:
+      - Use mailbox “complete” plus healthy heartbeat while result artifact/contract is absent.
+      - Delete all TUI/session projection cache before reattachment.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - T10 Prime integration evidence
+    - T16 detach/reattach evidence
+    - T22 recovery evidence
+    - actual installed Prime/Python target environment
+    - source high-risk Prime/Python lifecycle group
+    steps:
+    - Start from a fresh workbench/Prime target state defined in preregistration.
+    - Spawn a child and nested/parallel child work; verify admission handles and actual topology/IDs.
+    - Attempt concurrent same-kernel execution and verify serialization/prevention.
+    - Send misleading mailbox completion content before result contract exists.
+    - Detach/kill the TUI, allow authorized work to proceed, then reattach from a fresh client and verify state from
+      Prime/Gauntlet sources.
+    gate:
+    - just tui-test prime-fresh-target
+    - just tui-test kernel-serialization
+    - just tui-test detach-reattach
+    - just tui-check
+    teeth:
+    - attack: Use mailbox “complete” plus healthy heartbeat while result artifact/contract is absent.
+      expected: Work remains non-complete in Gauntlet/workbench projections.
+    - attack: Delete all TUI/session projection cache before reattachment.
+      expected: Prime topology and session refs reconstruct from authoritative Prime/Gauntlet state.
+    redesign_trigger: If the fresh installed Prime version fails a lifecycle assumption that passed only in mocks/builder
+      state, stop final acceptance and update the adapter/spec assumption rather than masking the difference.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T24/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_PRIME_REPL_LIFECYCLE
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - Fresh target reproduction confirms the high-risk Prime/Python lifecycle group with no critical mismatch.
+  T25:
+    title: Whole-system independent conformance and capability settlement
+    initial_status: blocked
+    depends_on:
+    - T14
+    - T15
+    - T19
+    - T21
+    - T22
+    - T23
+    - T24
+    - T14B
+    proof_level: P3
+    confirmation: independent_adversarial
+    settles:
+    - REQ-GOAL-001
+    - REQ-GOAL-002
+    - REQ-GOAL-003
+    - REQ-GOAL-004
+    - REQ-GOAL-005
+    - REQ-GOAL-006
+    - REQ-OUT-001
+    - REQ-OUT-002
+    - REQ-OUT-003
+    - REQ-OUT-004
+    - REQ-SXR-004
+    - REQ-UX-001
+    - REQ-UX-002
+    - REQ-UX-007
+    - REQ-VERIFY-001
+    - REQ-VERIFY-002
+    - REQ-VERIFY-003
+    - REQ-VERIFY-004
+    - REQ-VERIFY-005
+    - REQ-VERIFY-006
+    changes: Runs the preregistered end-to-end acceptance, variation, recovery, performance, plugin, semantic-enrichment,
+      and cross-surface proof matrix on the real target and produces the final requirement-to-evidence/confirmation index.
+    proves: An operator can enter/resume a real Case, focus/hoist, inspect the locally coherent world, invoke/delegate
+      legitimate operations through isomorphic surfaces, observe Prime/Python execution live, detach/reattach, reconstruct
+      after noncanonical loss, and settle evidence without the workbench becoming canonical.
+    does_not_prove: It does not prove roadmap capabilities such as production libvaxis renderer fallback, rich cross-model
+      DomainForge overlays, future GUI/mobile projections, or autonomous harness metabolization UI.
+    preregistration:
+      required: true
+      artifact: .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T25.prereg.yaml
+      claims:
+      - An operator can enter/resume a real Case, focus/hoist, inspect the locally coherent world, invoke/delegate legitimate
+        operations through isomorphic surfaces, observe Prime/Python execution live, detach/reattach, reconstruct after
+        noncanonical loss, and settle evidence without the workbench becoming canonical.
+      falsifiers:
+      - Delete Bun SQLite and restart TUI/kernel before replaying the final recorded Case.
+      - Select a currently denied operation through the most permissive-looking projection while Prime children and plugins
+        are active.
+      - Run the final Case without DomainForge enrichment, then with a real bound SEA/DomainForge model.
+      known_confounds:
+      - Existing repository behavior may be incomplete, stale, or implemented through a seam not yet discovered by the
+        builder.
+      confirmation_condition: The declared narrow gate and teeth pass with evidence sufficient for the stated proof level.
+    hot_context:
+    - entire frozen source spec
+    - runtime-allowlisted observation and immutable instrument evidence for all prerequisite tasks
+    - frozen preregistrations; correction history retained for orchestrator only
+    - real Gauntlet/Prime/Python/Bun/OpenTUI target environment
+    - DomainForge-enabled and DomainForge-absent Cases
+    steps:
+    - Check every normative section-path clause as well as REQ IDs; verify actual composed UI journeys and optional-source
+      modes, not only component existence.
+    - The independent critic/verifier emits bounded conformance findings. The orchestrator reviews all contracts and
+      evidence and alone records the whole-plan settlement decision.
+    - Mechanically recompute requirement coverage and fail if any REQUIRED source ID is unmapped or lacks settled evidence.
+      Recompute DSN-001..DSN-015 design-clause coverage on the same terms and fail identically; verify DESIGN.md's bound
+      hash still matches and that no roadmap surface was built (DSN-015).
+    - 'Run the real end-to-end Case required by the spec: at least one Prime child, one kernel computation, one evidence-producing
+      operation, one attention/composer interaction where applicable, one disconnect/reconnect, and final Gauntlet consequence.'
+    - Run all required VAR-001..VAR-006 and RECOV-001..RECOV-006 cases applicable to the declared support matrix; skipped
+      required integration is nonconforming.
+    - Review native-substrate dependency ledger, security/adversarial reports, performance evidence, plugin reversibility,
+      headless reconstruction, and DomainForge enrichment/no-enrichment variation.
+    - Have a fresh independent verifier answer the spec quality-gate questions and issue final CONFIRM/REVISE with explicit
+      requirement/evidence references.
+    - Write final handoff with settled/unsettled/roadmap items, support matrix, rollback/recovery, and exact next action.
+    gate:
+    - just tui-test all
+    - just tui-bench all-required
+    - just tui-preflight conformance
+    - just tui-check
+    - just tui-lint
+    - just verify
+    - just ruler
+    teeth:
+    - attack: Delete Bun SQLite and restart TUI/kernel before replaying the final recorded Case.
+      expected: Equivalent consequential state reconstructs and the workbench returns to a coherent current horizon from
+        authoritative sources.
+    - attack: Select a currently denied operation through the most permissive-looking projection while Prime children
+        and plugins are active.
+      expected: Denial remains canonical and no side effect occurs.
+    - attack: Run the final Case without DomainForge enrichment, then with a real bound SEA/DomainForge model.
+      expected: Core semantics remain correct in both; enrichment adds source-identified relations/context without identity
+        substitution.
+    redesign_trigger: Any failed high-risk confirmation, skipped required real integration, unmapped requirement, or
+      discrepancy between documentation/status and evidence keeps the plan open; do not declare partial conformance as
+      settled.
+    evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T25/
+    independent_confirmation:
+      verifier_receives:
+      - Frozen source requirements and explicit comparison/verification contract
+      - Runtime-allowlisted observation bundle and immutable instrument results
+      - Relevant implementation and exact bounded confirmation question
+      verifier_should_not_receive:
+      - Builder reasoning, identity, conversational history, attempt counts or originating conversation
+      required_verdict: CONFIRM_BOUNDED_CONFORMANCE
+    done_when:
+    - Every narrow gate exits 0.
+    - Every declared teeth/falsification check behaves as specified.
+    - All applicable global gates remain green.
+    - All 104 indexed normative requirements, all mandatory section-path clauses, and all fifteen DSN design clauses have
+      settled evidence, every required high-risk confirmation is fresh, applicable variation/recovery cases pass, the
+      bound spec and DESIGN.md hashes still match, and the bounded independent verdict is CONFIRM_BOUNDED_CONFORMANCE and
+      the orchestrator records settlement.
+final_acceptance:
+  canonicality_and_isomorphism:
+  - Gauntlet remains the only authority for consequential Reference/Run/Unit/evidence/verification/escalation/settlement
+    operation state.
+  - Allowed and denied operations are independently proven isomorphic across every supported projection and direct adapter
+    route.
+  - Deleting all Bun SQLite/TUI/kernel projection state cannot destroy or manufacture canonical truth.
+  operator_world:
+  - The operator can navigate a Case by stable Focus identity, multiple placements, hoistable Horizons, Work/Chat/Trace,
+    Inspector, Composer takeover, and contextual lower surfaces.
+  - Progressive Affordance Materialization measurably shapes subscriptions, SQLite queries, prefetch, Prime context,
+    and visible/current actions rather than only UI controls.
+  - DomainForge semantic enrichment is source-identified when present and safely absent when not bound.
+  - REQ-UX-001..007 real-PTY keyboard journeys and cold-operator evidence pass, including the 120x40 full layout, the
+    80x24 single primary pane, and the recoverable compact-size prompt below that.
+  - DESIGN.md clauses DSN-001..DSN-015 have settled evidence and no roadmap surface (Harness View, rich semantic overlay,
+    second production renderer) was built.
+  - Explicit source bindings connect DomainForge declarations and SXR ledger evidence in existing views; incompatible
+    producer/consumer contracts remain blocked.
+  prime_kernel_and_long_running_execution:
+  - Actual Prime sessions/children/topology are projected through a structured headless interface; child admission is
+    nonblocking and mailbox/liveness are not completion.
+  - One Python REPL session remains serialized; parallel open-ended work uses independent Prime contexts; kernel object/evidence
+    boundaries are explicit.
+  - Authorized Prime work survives TUI detachment and reattaches from authoritative Prime/Gauntlet state on the real
+    target.
+  bun_opentui_and_composition:
+  - Every overlapping local runtime dependency is either absent or justified by native-substrate qualification evidence.
+  - OpenTUI/React consume immutable React-free Workbench snapshots and can be removed/replaced without changing canonical
+    Gauntlet/Prime semantics.
+  - Trusted plugins unload reversibly; untrusted extensions cannot execute in-process; the selected embedded terminal
+    path passes required fidelity/security evidence.
+  variation_recovery_and_payment:
+  - VAR-001 through VAR-006 and RECOV-001 through RECOV-006 applicable to the declared support matrix pass with stored
+    evidence.
+  - Representative large-Case/long-history workloads meet frozen latency/resource/materialization budgets without eager
+    whole-world loading.
+  - Local and SSH/remote target modes preserve application semantics and the selected Bun/OpenTUI release form runs on
+    actual target hardware.
+  evidence_and_confirmation:
+  - Every REQUIRED normative spec requirement maps to at least one settled task/evidence record.
+  - Every P3 task has the required fresh independent confirmation.
+  - Failed/correction evidence has not been erased.
+  - Documentation/status claims do not exceed observed proof.
+  - All global gates exit 0.
+  - Independent bounded conformance is confirmed; the orchestrator independently reviews total evidence and records whole-plan
+    settlement before reporting none — plan settled.
+guardrails:
+- Do not make CLI presentation output, Prime terminal UI, notebook cells, React/OpenTUI components, local SQLite, or
+  mailbox content canonical.
+- Do not create a parallel agent/session lifecycle model when Prime already owns the real session/child topology.
+- Do not hardcode machine/provider/runtime facts when the project config/secret hierarchy can represent them.
+- Do not hide provider/model/transport fallback or projection staleness; degraded/failure state must be visible and fail
+  closed where consequential.
+- Do not treat a passing test, Prime heartbeat, message, kernel variable, or one successful execution as Gauntlet settlement/capability
+  unless the owning contract explicitly establishes it.
+- Do not expand roadmap items—libvaxis fallback, rich semantic overlays, multi-renderer products, harness-metabolization
+  UI—beyond the current seam required by the spec.
+handoff_contract:
+  must_report:
+  - settled capabilities/requirements
+  - explicitly unsettled or deferred items
+  - current operational system state
+  - requirement-to-evidence index
+  - known limitations
+  - rollback/recovery instructions where relevant
+  - important decisions/discoveries that changed the execution model
+  - exact next executable action or 'none — plan settled'
+  settled_next_action_rule: Only the orchestrator may record none — plan settled after T25 bounded independent confirmation
+    and its own total-system evidence review. Missing clauses, source composition, required real integrations or recovery
+    evidence keep the plan open.
+traceability:
+  spec_requirement_count: 104
+  mapped_requirement_count: 104
+  unmapped_requirements: []
+  unknown_plan_requirement_ids: []
+  requirement_to_tasks:
+    REQ-AFF-001:
+    - T01
+    - T09
+    - T23
+    REQ-AFF-002:
+    - T09
+    - T11
+    - T23
+    REQ-AFF-003:
+    - T09
+    - T23
+    REQ-AFF-004:
+    - T08
+    - T09
+    REQ-AFF-005:
+    - T08
+    - T09
+    REQ-BUN-001:
+    - T03
+    REQ-BUN-002:
+    - T03
+    REQ-BUN-003:
+    - T06
+    REQ-BUN-004:
+    - T13
+    REQ-BUN-005:
+    - T20
+    REQ-BUN-006:
+    - T17
+    - T21
+    REQ-CONFIG-001:
+    - T02
+    REQ-CONFIG-002:
+    - T02
+    REQ-CONFIG-003:
+    - T02
+    REQ-CONFIG-004:
+    - T03
+    REQ-CONFIG-005:
+    - T02
+    - T20
+    REQ-CONFIG-010:
+    - T02
+    REQ-CONFIG-011:
+    - T09
+    REQ-CONFIG-012:
+    - T02
+    REQ-DATA-001:
+    - T07
+    REQ-DATA-002:
+    - T06
+    - T16
+    REQ-DATA-003:
+    - T06
+    - T16
+    REQ-DATA-004:
+    - T06
+    - T16
+    REQ-DATA-005:
+    - T07
+    - T12
+    REQ-DATA-006:
+    - T07
+    REQ-DATA-007:
+    - T06
+    REQ-DOM-001:
+    - T14
+    REQ-DOM-002:
+    - T14
+    REQ-DOM-003:
+    - T14
+    REQ-DOM-004:
+    - T00
+    - T14
+    - T14B
+    REQ-DOM-005:
+    - T14
+    - T14B
+    REQ-FOCUS-001:
+    - T08
+    REQ-FOCUS-002:
+    - T08
+    REQ-FOCUS-003:
+    - T08
+    - T17
+    - T21
+    REQ-FOCUS-004:
+    - T08
+    - T17
+    - T21
+    REQ-FOCUS-005:
+    - T08
+    REQ-GOAL-001:
+    - T08
+    - T12
+    - T25
+    REQ-GOAL-002:
+    - T01
+    - T25
+    REQ-GOAL-003:
+    - T04
+    - T10
+    - T25
+    REQ-GOAL-004:
+    - T03
+    - T25
+    REQ-GOAL-005:
+    - T07
+    - T12
+    - T19
+    - T25
+    REQ-GOAL-006:
+    - T08
+    - T17
+    - T21
+    - T25
+    REQ-OPS-001:
+    - T01
+    - T04
+    - T10
+    - T16
+    - T24
+    REQ-OPS-002:
+    - T01
+    - T09
+    - T16
+    - T23
+    REQ-OPS-003:
+    - T01
+    - T09
+    REQ-OPS-004:
+    - T08
+    - T10
+    - T23
+    REQ-OUT-001:
+    - T12
+    - T25
+    REQ-OUT-002:
+    - T06
+    - T25
+    REQ-OUT-003:
+    - T16
+    - T20
+    - T25
+    REQ-OUT-004:
+    - T09
+    - T11
+    - T25
+    REQ-PLUGIN-001:
+    - T15
+    REQ-PLUGIN-002:
+    - T15
+    REQ-PLUGIN-003:
+    - T15
+    REQ-PLUGIN-004:
+    - T15
+    REQ-PRIME-001:
+    - T04
+    REQ-PRIME-002:
+    - T04
+    REQ-PRIME-003:
+    - T04
+    - T10
+    - T24
+    REQ-PRIME-004:
+    - T05
+    - T10
+    - T24
+    REQ-PRIME-005:
+    - T04
+    - T10
+    - T24
+    REQ-PRIME-006:
+    - T05
+    - T10
+    - T11
+    REQ-PRIME-007:
+    - T05
+    - T11
+    REQ-PRIME-008:
+    - T10
+    REQ-PRIME-009:
+    - T10
+    - T16
+    - T24
+    REQ-PRIME-010:
+    - T10
+    - T16
+    - T24
+    REQ-SAFE-001:
+    - T18
+    - T19
+    - T22
+    REQ-SAFE-002:
+    - T09
+    - T18
+    REQ-SAFE-003:
+    - T02
+    - T18
+    REQ-SAFE-004:
+    - T05
+    - T18
+    REQ-SAFE-005:
+    - T16
+    - T22
+    REQ-SEC-001:
+    - T05
+    - T18
+    REQ-SEC-002:
+    - T09
+    - T18
+    - T23
+    REQ-SEC-003:
+    - T02
+    - T18
+    REQ-SEC-004:
+    - T15
+    - T18
+    REQ-SEC-005:
+    - T13
+    - T18
+    REQ-STATE-001:
+    - T01
+    REQ-STATE-002:
+    - T06
+    REQ-STATE-003:
+    - T06
+    REQ-STATE-004:
+    - T19
+    REQ-STATE-005:
+    - T01
+    REQ-SXR-001:
+    - T14B
+    REQ-SXR-002:
+    - T14B
+    - T23
+    REQ-SXR-003:
+    - T14B
+    - T18
+    REQ-SXR-004:
+    - T14B
+    - T20
+    - T22
+    - T25
+    REQ-SYNC-001:
+    - T01
+    - T06
+    - T16
+    - T22
+    REQ-SYNC-002:
+    - T06
+    - T16
+    - T21
+    REQ-SYNC-003:
+    - T06
+    - T11
+    - T14B
+    - T22
+    REQ-TUI-001:
+    - T07
+    - T12
+    REQ-TUI-002:
+    - T12
+    REQ-TUI-003:
+    - T12
+    REQ-TUI-004:
+    - T12
+    REQ-TUI-005:
+    - T19
+    REQ-UX-001:
+    - T12
+    - T25
+    REQ-UX-002:
+    - T08
+    - T12
+    - T25
+    REQ-UX-003:
+    - T09
+    - T12
+    - T23
+    REQ-UX-004:
+    - T05
+    - T12
+    - T16
+    REQ-UX-005:
+    - T12
+    - T13
+    - T20
+    REQ-UX-006:
+    - T02
+    - T12
+    - T13
+    - T18
+    REQ-UX-007:
+    - T00A
+    - T12
+    - T20
+    - T21
+    - T25
+    REQ-VERIFY-001:
+    - T06
+    - T22
+    - T25
+    REQ-VERIFY-002:
+    - T19
+    - T22
+    - T25
+    REQ-VERIFY-003:
+    - T09
+    - T23
+    - T25
+    REQ-VERIFY-004:
+    - T09
+    - T23
+    - T25
+    REQ-VERIFY-005:
+    - T16
+    - T22
+    - T24
+    - T25
+    REQ-VERIFY-006:
+    - T16
+    - T22
+    - T25
+  design_clause_count: 15
+  mapped_design_clause_count: 15
+  coverage_rule: Every REQUIRED normative requirement in the source specification MUST map to at least one settlement
+    task, and every DSN design clause in the bound DESIGN.md MUST map to at least one settlement task. High-risk requirements additionally require the confirmation mode defined by the specification and this plan.
+    Claims/VAR/RECOV identifiers are evidence/variation controls and are not counted as normative REQ coverage, but T25
+    cannot settle unless every applicable required variation/recovery case passes.
+dispatch_contract:
+  rule: T01-T25 are capability milestones, not single builder assignments. Before dispatch, split each into bounded sequential
+    vertical slices with at most five expected files, explicit requirement IDs, application owner, dependencies, falsifier,
+    canonical test command and result-contract path. No builder receives a whole milestone by default.
+  blocking_condition: A missing operation contract, unqualified external protocol or slice crossing independent subsystems
+    blocks that slice until its contract is made concrete; do not fabricate source capabilities.
+  early_slices:
+    T01:
+    - Existing RuntimeSnapshot JSON contract and existing resolve/retry parity
+    - Versioned capability and command-result/precondition schema
+    - Atomic baseline/watermark and bounded event bridge
+    - Canonical invocation admission/reconciliation with durable process owner
+    T12:
+    - Work navigation and Unit/Inspector evidence journey
+    - Chat/Trace provenance and stable cross-view selection
+    - Queued composer attention, stale answer handling and keyboard safety
+    - Responsive layout and real-PTY journey acceptance
+    T14B:
+    - Qualified SXR refresh/export parser and explicit identity association
+    - Read-only evidence/ledger lens and evidence-admission boundary
+    - Real producer-consumer-workbench composition and failure matrix

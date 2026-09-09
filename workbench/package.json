@@ -1,0 +1,28 @@
+{
+  "name": "gauntlet-workbench",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Gauntlet terminal-native operator workbench (Bun + OpenTUI). Scaffolding only — see .agents/plans/gauntlet-tui-prime-workbench.plan.yaml.",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "scripts": {
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.12",
+    "@types/bun": "1.4.2",
+    "@types/react": "19.2.8",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.11",
+    "@opentui/react": "0.5.11",
+    "react": "19.2.8",
+    "react-reconciler": "0.33.0"
+  }
+}

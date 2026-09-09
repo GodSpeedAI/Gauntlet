@@ -5,5 +5,11 @@
 //! export depends on whichever adapter happens to be wired underneath.
 
 pub mod export;
+pub mod inspection;
 
 pub use export::{ExportError, export_run};
+pub use inspection::{
+    AttentionItemProjection, BoundedEvidenceContent, CaseProjection, EscalationInspectionFact,
+    EvidenceRequirementFact, UnitInspection, UnitInspectionError, VerificationInspectionFact,
+    WorkItemProjection, inspect_unit, project_attention_item, project_case, project_work_item,
+};

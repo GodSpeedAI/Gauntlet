@@ -202,6 +202,168 @@ impl UnitView {
     }
 }
 
+/// What would prove a Unit's claim — projected for inspection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EvidenceRequiredFact {
+    pub kind: String,
+    pub locator: String,
+    pub producer: String,
+}
+
+impl EvidenceRequiredFact {
+    pub fn to_json(&self) -> JsonValue {
+        JsonValue::Object(vec![
+            ("kind".to_owned(), JsonValue::Str(self.kind.clone())),
+            ("locator".to_owned(), JsonValue::Str(self.locator.clone())),
+            ("producer".to_owned(), JsonValue::Str(self.producer.clone())),
+        ])
+    }
+}
+
+/// One escalation fact for a unit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EscalationFact {
+    pub ticket_id: String,
+    pub run_id: String,
+    pub unit_id: Option<String>,
+    pub reason: String,
+    pub status: String,
+}
+
+impl EscalationFact {
+    pub fn to_json(&self) -> JsonValue {
+        JsonValue::Object(vec![
+            (
+                "ticket_id".to_owned(),
+                JsonValue::Str(self.ticket_id.clone()),
+            ),
+            ("run_id".to_owned(), JsonValue::Str(self.run_id.clone())),
+            (
+                "unit_id".to_owned(),
+                match &self.unit_id {
+                    Some(id) => JsonValue::Str(id.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            ("reason".to_owned(), JsonValue::Str(self.reason.clone())),
+            ("status".to_owned(), JsonValue::Str(self.status.clone())),
+        ])
+    }
+}
+
+/// One unit's deep inspection view (`GET /api/v1/units/{id}/inspection`):
+/// resolves requirement, answer-key parsing, verification records,
+/// escalation tickets, and bounded evidence content.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct UnitInspectionView {
+    pub unit_id: String,
+    pub tier: Option<String>,
+    pub claim: Option<String>,
+    pub authority: Option<String>,
+    pub blast_radius: Option<String>,
+    pub verify_by: Option<String>,
+    pub evidence_required: Option<EvidenceRequiredFact>,
+    pub depends_on: Vec<String>,
+    pub status: Option<String>,
+    pub settled: bool,
+    pub verifications: Vec<VerificationFact>,
+    pub escalation: Option<EscalationFact>,
+    pub evidence_content: Option<String>,
+    pub precondition_explanation: Option<String>,
+}
+
+impl UnitInspectionView {
+    pub fn to_json(&self) -> JsonValue {
+        JsonValue::Object(vec![
+            ("unit_id".to_owned(), JsonValue::Str(self.unit_id.clone())),
+            (
+                "tier".to_owned(),
+                match &self.tier {
+                    Some(t) => JsonValue::Str(t.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "claim".to_owned(),
+                match &self.claim {
+                    Some(c) => JsonValue::Str(c.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "authority".to_owned(),
+                match &self.authority {
+                    Some(a) => JsonValue::Str(a.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "blast_radius".to_owned(),
+                match &self.blast_radius {
+                    Some(b) => JsonValue::Str(b.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "verify_by".to_owned(),
+                match &self.verify_by {
+                    Some(v) => JsonValue::Str(v.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "evidence_required".to_owned(),
+                match &self.evidence_required {
+                    Some(e) => e.to_json(),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "depends_on".to_owned(),
+                JsonValue::Array(
+                    self.depends_on
+                        .iter()
+                        .map(|d| JsonValue::Str(d.clone()))
+                        .collect(),
+                ),
+            ),
+            (
+                "status".to_owned(),
+                match &self.status {
+                    Some(s) => JsonValue::Str(s.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            ("settled".to_owned(), JsonValue::Bool(self.settled)),
+            (
+                "verifications".to_owned(),
+                JsonValue::Array(self.verifications.iter().map(|v| v.to_json()).collect()),
+            ),
+            (
+                "escalation".to_owned(),
+                match &self.escalation {
+                    Some(esc) => esc.to_json(),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "evidence_content".to_owned(),
+                match &self.evidence_content {
+                    Some(content) => JsonValue::Str(content.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+            (
+                "precondition_explanation".to_owned(),
+                match &self.precondition_explanation {
+                    Some(p) => JsonValue::Str(p.clone()),
+                    None => JsonValue::Null,
+                },
+            ),
+        ])
+    }
+}
+
 /// The run-scoped reads (charter D6). Implemented by the composition
 /// root over the same durable reads the status/inspect commands use.
 pub trait RunScopedReader {
@@ -220,6 +382,37 @@ pub trait RunScopedReader {
         unit: &gauntlet_domain::UnitId,
         deadline: Deadline,
     ) -> Result<UnitView, RunScopedError>;
+
+    /// Deep unit inspection view (spec §20.2, T01), resolving requirement,
+    /// verification records, escalation tickets, and evidence content.
+    fn unit_inspection(
+        &self,
+        run: &gauntlet_domain::RunId,
+        unit: &gauntlet_domain::UnitId,
+        deadline: Deadline,
+    ) -> Result<UnitInspectionView, RunScopedError> {
+        let basic = self.unit_view(run, unit, deadline)?;
+        Ok(UnitInspectionView {
+            unit_id: unit.to_string(),
+            tier: basic.unit.as_ref().map(|u| u.tier.to_string()),
+            claim: None,
+            authority: None,
+            blast_radius: basic.unit.as_ref().map(|u| u.tier.to_string()),
+            verify_by: None,
+            evidence_required: None,
+            depends_on: Vec::new(),
+            status: basic.unit.as_ref().map(|u| u.status.to_string()),
+            settled: basic.settled,
+            verifications: basic.verifications,
+            escalation: None,
+            evidence_content: None,
+            precondition_explanation: Some(if basic.settled {
+                "Settled: verified PASS".to_owned()
+            } else {
+                "Preconditions pending".to_owned()
+            }),
+        })
+    }
 }
 
 /// Why a run-scoped read failed — the HTTP layer maps these to status

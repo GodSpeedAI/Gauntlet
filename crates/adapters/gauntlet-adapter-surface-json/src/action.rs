@@ -141,3 +141,101 @@ pub trait OperatorActionHandler {
 pub trait SnapshotDisclosure {
     fn run_derivation(&self) -> String;
 }
+
+/// Session authentication failure — typed (spec §21.2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SessionAuthError {
+    /// No session or authentication token was presented on a mutation request.
+    MissingAuthentication,
+    /// The presented session token is invalid.
+    InvalidToken,
+    /// The client asserted an operator identity that does not match the authenticated session actor.
+    ClientAssertedMismatch { expected: String, asserted: String },
+}
+
+impl fmt::Display for SessionAuthError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingAuthentication => write!(
+                f,
+                "mutation requires verified session authentication; loopback reachability alone does not authorize mutations (REQ-OPS-003)"
+            ),
+            Self::InvalidToken => write!(f, "the provided session token is invalid or expired"),
+            Self::ClientAssertedMismatch { expected, asserted } => write!(
+                f,
+                "client-asserted operator authority {asserted:?} does not match authenticated session actor {expected:?}; client assertion refused"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SessionAuthError {}
+
+/// Session authentication validator for the operator surface (REQ-OPS-003, T01).
+pub trait SessionAuthenticator: Send + Sync {
+    /// Validates request credentials.
+    /// `asserted_operator` is the optional header value sent by the client.
+    /// Returns the bound, verified actor identity, or refuses with a typed error.
+    fn authenticate(
+        &self,
+        auth_header: Option<&str>,
+        asserted_operator: Option<&str>,
+    ) -> Result<String, SessionAuthError>;
+}
+
+/// Token-based session authenticator with a bound actor identity.
+#[derive(Debug, Clone)]
+pub struct TokenSessionAuthenticator {
+    expected_token: String,
+    bound_actor: String,
+}
+
+impl TokenSessionAuthenticator {
+    pub fn new(expected_token: impl Into<String>, bound_actor: impl Into<String>) -> Self {
+        Self {
+            expected_token: expected_token.into(),
+            bound_actor: bound_actor.into(),
+        }
+    }
+
+    pub fn bound_actor(&self) -> &str {
+        &self.bound_actor
+    }
+
+    pub fn expected_token(&self) -> &str {
+        &self.expected_token
+    }
+}
+
+impl SessionAuthenticator for TokenSessionAuthenticator {
+    fn authenticate(
+        &self,
+        auth_header: Option<&str>,
+        asserted_operator: Option<&str>,
+    ) -> Result<String, SessionAuthError> {
+        let Some(raw_header) = auth_header else {
+            return Err(SessionAuthError::MissingAuthentication);
+        };
+        let token = raw_header
+            .strip_prefix("Bearer ")
+            .map(|t| t.trim())
+            .unwrap_or_else(|| raw_header.trim());
+
+        if token.is_empty() {
+            return Err(SessionAuthError::MissingAuthentication);
+        }
+        if token != self.expected_token {
+            return Err(SessionAuthError::InvalidToken);
+        }
+        if let Some(asserted) = asserted_operator {
+            let trimmed = asserted.trim();
+            if !trimmed.is_empty() && trimmed != self.bound_actor {
+                return Err(SessionAuthError::ClientAssertedMismatch {
+                    expected: self.bound_actor.clone(),
+                    asserted: trimmed.to_owned(),
+                });
+            }
+        }
+        Ok(self.bound_actor.clone())
+    }
+}

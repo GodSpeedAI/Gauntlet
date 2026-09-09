@@ -76,12 +76,27 @@ pub fn serve(args: &[String]) -> ExitCode {
     // The ONE durable surface behind all four seams: reads and the
     // disclosure share its composition; the action handler IS the shared
     // operator-action path (charter D3).
-    let server = SurfaceHttp::new(
+    let mut server = SurfaceHttp::new(
         Box::new(surface.clone()),
         Box::new(surface.clone()),
         Box::new(surface.clone()),
         Box::new(surface),
     );
+    if let Ok(token) =
+        std::env::var("GAUNTLET_API_TOKEN").or_else(|_| std::env::var("GAUNTLET_SESSION_TOKEN"))
+    {
+        let trimmed_token = token.trim();
+        if !trimmed_token.is_empty() {
+            let actor =
+                std::env::var("GAUNTLET_SESSION_ACTOR").unwrap_or_else(|_| "operator".to_owned());
+            server = server.with_authenticator(Box::new(
+                gauntlet_adapter_surface_json::action::TokenSessionAuthenticator::new(
+                    trimmed_token,
+                    actor.trim(),
+                ),
+            ));
+        }
+    }
     let addr = match SurfaceHttp::local_addr(&listener) {
         Ok(addr) => addr,
         Err(error) => {

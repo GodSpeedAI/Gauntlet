@@ -1,0 +1,98 @@
+# Task gauntlet-tui-prime-workbench-T02 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T02 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/CURRENT_STATUS.yml
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T02"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T20:15:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T02.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T02 establishes the workbench configuration authority, typed preflight/error surface,
+      local-vs-remote transport selection, secret indirection, and capability-scoped degraded states
+      without hardcoding machine/provider facts into stable logic. Configuration precedence and
+      startup behavior must be deterministic: missing/invalid providers block only the safe blast radius,
+      while loss of canonical Gauntlet connectivity prevents state-changing commands and is visible.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Precedence must be strictly deterministic: CLI flags > environment variables >
+          configuration files (YAML/JSON) > documented defaults. Environment variables must
+          not become an undocumented shadow configuration authority (REQ-CONFIG-001).
+      - id: D2
+        statement: >
+          Secrets and credentials MUST be referenced indirectly (env var names or secret paths)
+          and MUST NEVER be embedded in configuration files, SQLite projection rows, evidence
+          artifacts, or logs (REQ-CONFIG-002).
+      - id: D3
+        statement: >
+          Degraded modes must be capability-scoped: absence of Prime permits read-only Gauntlet
+          inspection; loss of Gauntlet connectivity marks state stale and fails closed on mutations (REQ-CONFIG-012).
+
+    known_blindspots:
+      - "Different shell environments may pass varied environment variable formats."
+      - "Path resolution must support both relative and absolute paths across working trees."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Configuration loader, precedence resolver, and validator in workbench/src/config.ts"
+      why_visible_now: "Establishes typed Config struct, precedence merging, and secret redaction."
+    - id: A2
+      class: "Typed preflight checker and error taxonomy in workbench/src/preflight.ts"
+      why_visible_now: "REQ-CONFIG-010..012 requires preflight probes and degraded mode evaluation."
+    - id: A3
+      class: "Automated test suite and teeth attacks in workbench/src/config-preflight.test.ts"
+      why_visible_now: "Gate requires just tui-test config-preflight and teeth validation."
+
+  predictions:
+    - id: P1
+      claim: "Removing Prime while keeping Gauntlet reachable allows safe read-only inspection while Prime operations degrade gracefully."
+      kind: "implementation_defect"
+      supporting_observation: "Preflight reports Prime unavailable, but workbench initializes in read-only Gauntlet mode."
+      disconfirming_observation: "Workbench fails to start completely or attempts uncontained Prime operations."
+    - id: P2
+      claim: "Removing Gauntlet connectivity while cached projections exist marks state as degraded/stale and fails closed on mutations."
+      kind: "expected_later_scope"
+      supporting_observation: "Workbench marks connection status disconnected/stale and rejects state mutations."
+      disconfirming_observation: "Workbench allows unverified mutations or presents stale state as fresh."
+    - id: P3
+      claim: "Configuration precedence unambiguously prioritizes CLI over env over file over defaults."
+      kind: "representation_inadequacy"
+      supporting_observation: "CLI flags override environment variables, which override file values."
+      disconfirming_observation: "Lower-precedence sources overwrite higher-precedence values."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If repository already provides a stronger typed configuration system that can be
+        reused directly by the workbench.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Bind to repository-wide configuration crate/module."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "CLI overrides environment variables and config files."
+      preregistered_expectation: "Resolved config contains CLI value."
+    parametric_variation:
+      level: L2
+      description: "Prime missing vs Gauntlet missing degraded modes."
+      preregistered_expectation: "Prime missing degrades Prime-dependent views; Gauntlet missing fails closed on mutations."

@@ -1,0 +1,95 @@
+# Task gauntlet-tui-prime-workbench-T07 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T07 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/CURRENT_STATUS.yml
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T07"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T20:30:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T07.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T07 introduces the React-free Workbench Model and immutable snapshot fan-out.
+      It establishes the host-level state orchestrator that consumes authoritative adapters and
+      local read models to publish immutable snapshots and interaction callbacks to presentation
+      layers. It proves that presentation code can consume immutable snapshots without owning
+      business state (REQ-DATA-001, REQ-TUI-001), one authoritative event can update multiple
+      independent projections (Work, Chat, Trace) without destructive acknowledgement (REQ-DATA-006),
+      and Chat is not the canonical source of Trace/history (REQ-DATA-005).
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          React-free state ownership: Presentation components (OpenTUI/React) are pure render projections
+          over immutable snapshots. Domain state, event routing, and source reconciliation live
+          exclusively in the host-owned WorkbenchModel (REQ-DATA-001, REQ-TUI-001).
+      - id: D2
+        statement: >
+          Chat is not the canonical source of Trace: Chat is a conversational interaction projection;
+          Trace is causal execution and settlement history. Removing or disabling Chat leaves Trace
+          fully reconstructible and identical in consequential content (REQ-DATA-005, Attack 1).
+      - id: D3
+        statement: >
+          Non-destructive multi-projection fan-out: When an authoritative event arrives, multiple
+          projection reducers consume it in parallel before a new snapshot is published. One view
+          cannot consume or acknowledge an event in a way that starves another view (REQ-DATA-006, Attack 2).
+
+    known_blindspots:
+      - "Snapshot subscriber backpressure when presentation rendering runs at 60fps."
+      - "Interaction callback queuing when host is processing large event batches."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "React-free WorkbenchModel and projection fan-out engine in workbench/src/workbench-model.ts"
+      why_visible_now: "Implements host model, snapshot subscription, and Work/Chat/Trace projection reducers."
+    - id: A2
+      class: "Model snapshot and subscription test suite in workbench/src/workbench-model.test.ts"
+      why_visible_now: "Gate requires just tui-test workbench-model."
+    - id: A3
+      class: "Multi-projection fan-out and teeth attacks test suite in workbench/src/projection-fanout.test.ts"
+      why_visible_now: "Gate requires just tui-test projection-fanout and both teeth attacks."
+
+  predictions:
+    - id: P1
+      claim: "Removing the Chat projection entirely from the model allows Trace to be reconstructed for the same run without loss or alteration of execution history."
+      kind: "representation_inadequacy"
+      supporting_observation: "Trace projection is bit-equivalent with or without Chat enabled."
+      disconfirming_observation: "Disabling Chat corrupts, truncates, or prevents Trace reconstruction."
+    - id: P2
+      claim: "When Work and Trace both depend on one canonical event, both update coherently without event starvation or destructive acknowledgement."
+      kind: "implementation_defect"
+      supporting_observation: "Both Work and Trace reflect the event in the subsequent snapshot."
+      disconfirming_observation: "One view consumes the event and starves the other."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If presentation code attempts to import internal adapter types or directly mutate host state.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Enforce architectural lint or package isolation boundary."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Full execution replay with Chat disabled."
+      preregistered_expectation: "Trace projection remains completely intact."
+    parametric_variation:
+      level: L2
+      description: "Multi-subscriber event fan-out across Work, Chat, and Trace."
+      preregistered_expectation: "All projections receive events non-destructively."

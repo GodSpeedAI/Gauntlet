@@ -40,4 +40,9 @@ pub use config::{
     config_fingerprint, resolve,
 };
 pub use doctor::{CheckOutcome, CheckStatus, DoctorInput, DoctorReport, SubResult, run_doctor};
-pub use state::{ExportError, export_run};
+pub use state::{
+    AttentionItemProjection, BoundedEvidenceContent, CaseProjection, EscalationInspectionFact,
+    EvidenceRequirementFact, ExportError, UnitInspection, UnitInspectionError,
+    VerificationInspectionFact, WorkItemProjection, export_run, inspect_unit,
+    project_attention_item, project_case, project_work_item,
+};

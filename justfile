@@ -16,9 +16,16 @@ check:
     cargo check --workspace --all-targets
 
 # Run the full test suite. cargo-nextest is the repository runner
-# (AGENTS.md "The testing loop").
+# (AGENTS.md "The testing loop"). Includes surfaces-feature tests so the
+# repository closure gate observes the workbench HTTP/JSON read path
+# (plan T00, gate_binding_rule).
 test:
     cargo nextest run --workspace
+    cargo nextest run -p gauntlet-cli --features surfaces --test operator_actions_no_bypass --test cli_surface
+
+# Run only the surfaces-feature tests in gauntlet-cli.
+test-surfaces:
+    cargo nextest run -p gauntlet-cli --features surfaces --test operator_actions_no_bypass --test cli_surface
 
 # Lint gate: clippy warnings are errors, then formatting must match exactly.
 # A warning here is a defect, not a suggestion.
@@ -93,5 +100,66 @@ mutation:
 
 cache-stats:
     sccache --show-stats
+
+# --- Gauntlet TUI workbench (Bun + TypeScript + OpenTUI) --------------------
+# .agents/plans/gauntlet-tui-prime-workbench.plan.yaml T00, verification.
+# workbench_package_root / workbench_toolchain / workbench_gate_composition.
+# `workbench/` is a sibling of `crates/`, never nested inside a Cargo crate —
+# crates/gauntlet-arch-tests/src/walk.rs's core_tree walks every file under
+# the four core crates with no extension filter and treats a symlink or
+# oversized file (node_modules, once bun installs) as a hard scan violation,
+# not a skip. These are the TypeScript-side counterparts to check/test/lint;
+# `just verify` stays the unchanged Rust closure gate and does NOT run them —
+# call them explicitly alongside it wherever a task's `gate:` lists both.
+
+# TypeScript strict type-check (tsc --noEmit), the tui-check counterpart to `check`.
+tui-check:
+    cd workbench && bun run check
+
+# Bun test suite. Omitted selector runs everything currently implemented;
+# `all` means full normative conformance per the plan's recipe contract,
+# which is not yet reachable and reports NOT_IMPLEMENTED rather than a green
+# placeholder over a suite that doesn't exist; any other value is forwarded
+# to `bun test` as a file/name filter.
+tui-test selector='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd workbench
+    if [ "{{selector}}" = "all" ]; then
+        echo "tui-test all: NOT_IMPLEMENTED — no normative suite is registered yet" >&2
+        exit 2
+    fi
+    bun test {{selector}}
+
+# Biome lint + format-check (`biome check`), the tui-lint counterpart to `lint`
+# and `cargo fmt --check` combined — a formatting-only diff fails this gate.
+tui-lint:
+    cd workbench && bun run lint
+
+# Document-integrity (bootstrap) or runtime (conformance) preflight —
+# scripts/tui-preflight.sh. Missing mode is a usage error (just itself
+# refuses a missing required parameter); conformance is NOT_IMPLEMENTED
+# until the runtime substrate it would qualify (Prime host, projection
+# store, OpenTUI shell, target terminal matrix) exists.
+tui-preflight mode:
+    ./scripts/tui-preflight.sh {{mode}}
+
+# TUI benchmark runner — supports plan T03 bun-substrate benchmark.
+tui-bench selector:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd workbench
+    if [ "{{selector}}" = "bun-substrate" ]; then
+        bun run src/bun-substrate.bench.ts
+    elif [ "{{selector}}" = "sqlite-replay" ]; then
+        bun run src/sqlite-replay.bench.ts
+    else
+        echo "tui-bench {{selector}}: NOT_IMPLEMENTED — no benchmark suite exists yet (plan T17/T21)" >&2
+        exit 2
+    fi
+
+# Not yet implemented: no release/package target exists yet (plan T20).
+tui-build mode:
+    @echo "tui-build {{mode}}: NOT_IMPLEMENTED — no release/package target exists yet (plan T20)" >&2; exit 2
 
 verify: ci

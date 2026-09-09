@@ -1,0 +1,96 @@
+# Task gauntlet-tui-prime-workbench-T06 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T06 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/CURRENT_STATUS.yml
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T06"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T20:25:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T06.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T06 creates the reconstructible local Bun SQLite projection store with generations and
+      cursors. It establishes the disposable read-model database and generation/cursor reconciliation
+      contract that joins authoritative Gauntlet/Prime/DomainForge references while remaining fully
+      rebuildable and provenance-linked. It proves that local projections can be deleted/corrupted and
+      rebuilt from authoritative sources; stale generation frames are rejected; cursor advancement and
+      dependent rows commit atomically; and bun:sqlite meets all representative performance floors.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Projection is strictly noncanonical: Local SQLite contains only rebuildable read-models.
+          All canonical domain truth remains exclusively in Gauntlet, Prime, or DomainForge. Deleting
+          the entire local SQLite file causes zero loss of domain state or settlement evidence (Attack 1).
+      - id: D2
+        statement: >
+          Generation isolation: Each reconnect/resync mints a new ProjectionGeneration (e.g. G1, G2).
+          Frames or updates from a superseded generation MUST be rejected, even if they arrive with a
+          later-looking clock timestamp (Attack 2).
+      - id: D3
+        statement: >
+          Atomic cursor advancement: Applying an authoritative event commits its cursor advancement
+          and all dependent projection rows within a single SQLite transaction (REQ-DATA-004).
+
+    known_blindspots:
+      - "Database file locking behavior across rapid recreate cycles in bun:sqlite."
+      - "Schema migration vs drop-and-rebuild trade-offs for disposable read models."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Reconstructible Bun SQLite projection store and generation manager in workbench/src/projection-store.ts"
+      why_visible_now: "Implements SQLite read-model tables, ProjectionGeneration, and cursor tracking."
+    - id: A2
+      class: "Generation and reconciliation test suite in workbench/src/projection-generation.test.ts"
+      why_visible_now: "Gate requires just tui-test projection-generation and stale-frame teeth attack."
+    - id: A3
+      class: "Cold rebuild test suite in workbench/src/projection-rebuild.test.ts"
+      why_visible_now: "Gate requires just tui-test projection-rebuild and database wipe teeth attack."
+    - id: A4
+      class: "Representative replay benchmark in workbench/src/sqlite-replay.bench.ts"
+      why_visible_now: "Gate requires just tui-bench sqlite-replay."
+
+  predictions:
+    - id: P1
+      claim: "Deleting the entire local SQLite database and restarting the workbench rebuilds identical consequential projections from owning sources without error or cache leakage."
+      kind: "implementation_defect"
+      supporting_observation: "Projections match before and after cold rebuild."
+      disconfirming_observation: "Rebuild fails, hangs, or loses projected state."
+    - id: P2
+      claim: "After reconnect starts generation G2, delivering a delayed G1 update with a later-looking timestamp is rejected, leaving G2 snapshot and cursors unmodified."
+      kind: "representation_inadequacy"
+      supporting_observation: "G1 frame rejected, G2 cursors intact."
+      disconfirming_observation: "Stale G1 frame mutates G2 snapshot."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If bun:sqlite performance on representative replay falls below 10,000 events/sec or file locking fails.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Evaluate in-memory SQLite with WAL persistence or memory-only projection."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Cold rebuild from authoritative Gauntlet and Prime event log."
+      preregistered_expectation: "Bit-equivalent or semantically identical normalized read models."
+    parametric_variation:
+      level: L2
+      description: "Out-of-order and superseded generation updates."
+      preregistered_expectation: "Strict generation isolation."

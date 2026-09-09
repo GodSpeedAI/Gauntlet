@@ -22,7 +22,8 @@ use gauntlet_ports::json::{JsonError, JsonValue};
 use gauntlet_ports::operator_surface::OperatorSurface;
 
 use crate::action::{
-    ActionCommand, ActionKind, ActionOutcome, OperatorActionHandler, SnapshotDisclosure,
+    ActionCommand, ActionKind, ActionOutcome, OperatorActionHandler, SessionAuthError,
+    SessionAuthenticator, SnapshotDisclosure,
 };
 use crate::views::{RunScopedError, RunScopedReader};
 use crate::{error_json, snapshot_json};
@@ -88,6 +89,7 @@ pub struct SurfaceHttp {
     reader: Box<dyn RunScopedReader>,
     actions: Box<dyn OperatorActionHandler>,
     disclosure: Box<dyn SnapshotDisclosure>,
+    authenticator: Option<Box<dyn SessionAuthenticator>>,
 }
 
 impl SurfaceHttp {
@@ -103,7 +105,14 @@ impl SurfaceHttp {
             reader,
             actions,
             disclosure,
+            authenticator: None,
         }
+    }
+
+    /// Attaches an optional session authenticator (spec REQ-OPS-003, D1).
+    pub fn with_authenticator(mut self, authenticator: Box<dyn SessionAuthenticator>) -> Self {
+        self.authenticator = Some(authenticator);
+        self
     }
 
     /// Parses the bind text and opens the listener — LOOPBACK ONLY
@@ -266,11 +275,15 @@ impl SurfaceHttp {
             .filter(|segment| !segment.is_empty())
             .collect();
         match (request.method.as_str(), segments.as_slice()) {
+            ("GET", ["capabilities"]) => self.capabilities_response(),
             ("GET", ["state"]) => self.snapshot_response(),
             ("POST", ["refresh"]) => self.snapshot_response(),
             ("GET", ["escalated"]) => self.escalated_response(),
             ("GET", ["runs", run_id]) => self.run_response(run_id, request),
             ("GET", ["units", unit_id]) => self.unit_response(unit_id, request),
+            ("GET", ["units", unit_id, "inspection"]) => {
+                self.unit_inspection_response(unit_id, request)
+            }
             ("POST", ["units", unit_id, "resolve"]) => {
                 self.action_response(request, ActionKind::Resolve, unit_id)
             }
@@ -278,9 +291,11 @@ impl SurfaceHttp {
                 self.action_response(request, ActionKind::Retry, unit_id)
             }
             // Supported path, wrong method: 405 with the supported one.
+            (_, ["capabilities"]) => Response::method_not_allowed("GET"),
             (_, ["state"]) => Response::method_not_allowed("GET"),
             (_, ["refresh"]) => Response::method_not_allowed("POST"),
             (_, ["escalated"]) => Response::method_not_allowed("GET"),
+            (_, ["units", _, "inspection"]) => Response::method_not_allowed("GET"),
             (_, ["units", _, last]) if matches!(*last, "resolve" | "retry") => {
                 Response::method_not_allowed("POST")
             }
@@ -290,6 +305,43 @@ impl SurfaceHttp {
                 "no route serves {path} — the surface serves the §20.2 endpoints"
             )),
         }
+    }
+
+    /// The capabilities handshake endpoint (`GET /capabilities`, spec REQ-OPS-003).
+    fn capabilities_response(&self) -> Response {
+        Response::ok(JsonValue::Object(vec![
+            (
+                "protocol_version".to_owned(),
+                JsonValue::Str("1.0.0".to_owned()),
+            ),
+            (
+                "server_version".to_owned(),
+                JsonValue::Str(env!("CARGO_PKG_VERSION").to_owned()),
+            ),
+            (
+                "capabilities".to_owned(),
+                JsonValue::Array(vec![
+                    JsonValue::Str("state_snapshot".to_owned()),
+                    JsonValue::Str("state_refresh".to_owned()),
+                    JsonValue::Str("escalation_inbox".to_owned()),
+                    JsonValue::Str("run_scoped_view".to_owned()),
+                    JsonValue::Str("unit_scoped_view".to_owned()),
+                    JsonValue::Str("unit_inspection".to_owned()),
+                    JsonValue::Str("action_resolve".to_owned()),
+                    JsonValue::Str("action_retry".to_owned()),
+                    JsonValue::Str("session_auth".to_owned()),
+                ]),
+            ),
+            (
+                "unsupported_operations".to_owned(),
+                JsonValue::Array(vec![
+                    JsonValue::Str("launch".to_owned()),
+                    JsonValue::Str("steering".to_owned()),
+                    JsonValue::Str("cancellation".to_owned()),
+                    JsonValue::Str("evidence_admission".to_owned()),
+                ]),
+            ),
+        ]))
     }
 
     /// The snapshot (`GET /state`, `POST /refresh`): assembled fresh per
@@ -360,6 +412,26 @@ impl SurfaceHttp {
         }
     }
 
+    /// The unit inspection endpoint (`GET /units/{id}/inspection`, spec §20.2, T01).
+    fn unit_inspection_response(&self, unit_id: &str, request: &Request) -> Response {
+        let Ok(unit) = UnitId::new(unit_id) else {
+            return Response::bad_request(
+                "unit_unparsable",
+                &format!("{unit_id} is not a valid unit id"),
+            );
+        };
+        let deadline = port_deadline();
+        let run = match self.anchor_run(request, deadline) {
+            Ok(run) => run,
+            Err(response) => return *response,
+        };
+        match self.reader.unit_inspection(&run, &unit, deadline) {
+            Ok(inspection) => Response::ok(inspection.to_json()),
+            Err(RunScopedError::NotFound { detail }) => Response::not_found(&detail),
+            Err(RunScopedError::ReadFailed { detail }) => Response::read_failed(detail),
+        }
+    }
+
     /// The action endpoints (D3): parse + validate, then the ONE shared
     /// handler. `409` carries a typed refusal; `500` an infrastructure
     /// failure; `400` a malformed request (identity, body, ids).
@@ -380,6 +452,45 @@ impl SurfaceHttp {
                 );
             }
         };
+
+        // Session authentication check (REQ-OPS-003, D1, Attack 1):
+        // Loopback reachability alone never authorizes a mutation.
+        if let Some(authenticator) = &self.authenticator {
+            let auth_header = request.header("Authorization");
+            let claimed = Some(operator.as_str());
+            match authenticator.authenticate(auth_header, claimed) {
+                Ok(bound_actor) => {
+                    if operator != bound_actor {
+                        return Response::forbidden(
+                            "client_asserted_authority_refused",
+                            &format!(
+                                "client-asserted operator '{operator}' does not match authenticated session actor '{bound_actor}'"
+                            ),
+                        );
+                    }
+                }
+                Err(SessionAuthError::MissingAuthentication) => {
+                    return Response::unauthorized(
+                        "actor_authentication_required",
+                        "mutation requests require authentication; provide bearer credentials in the Authorization header",
+                    );
+                }
+                Err(SessionAuthError::InvalidToken) => {
+                    return Response::unauthorized(
+                        "invalid_session_credentials",
+                        "the provided session token is invalid or expired",
+                    );
+                }
+                Err(SessionAuthError::ClientAssertedMismatch { expected, asserted }) => {
+                    return Response::forbidden(
+                        "client_asserted_authority_refused",
+                        &format!(
+                            "client-asserted operator '{asserted}' does not match authenticated session actor '{expected}'"
+                        ),
+                    );
+                }
+            }
+        }
         let note = match request.body_text() {
             Ok(body) => {
                 let trimmed = body.trim();
@@ -815,6 +926,26 @@ impl Response {
             status: 500,
             reason: "Internal Server Error",
             body: error_json("snapshot_failed", &detail),
+            allow: None,
+        }
+    }
+
+    /// Authentication is required but missing or invalid (401).
+    fn unauthorized(code: &str, message: &str) -> Self {
+        Self {
+            status: 401,
+            reason: "Unauthorized",
+            body: error_json(code, message),
+            allow: None,
+        }
+    }
+
+    /// Authenticated actor lacks authority or mismatched client assertion (403).
+    fn forbidden(code: &str, message: &str) -> Self {
+        Self {
+            status: 403,
+            reason: "Forbidden",
+            body: error_json(code, message),
             allow: None,
         }
     }

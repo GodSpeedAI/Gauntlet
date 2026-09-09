@@ -1,0 +1,2345 @@
+schema: agent.spec
+schema_version: "1.0"
+
+metadata:
+  id: "gauntlet-tui-prime-workbench"
+  title: "Gauntlet Prime-Native Terminal Workbench"
+  status: "approved"
+  version: "0.3.0"
+  created: "2026-09-06"
+  revised: "2026-09-08"
+  scope: >-
+    Terminal-native operator workbench for Gauntlet using Prime Agent as the
+    persistent recursive execution substrate, its Python REPL kernel as the
+    computational substrate, Bun 1.4 as the local workbench runtime and projection
+    substrate, OpenTUI as the terminal rendering substrate, and DomainForge as the
+    semantic-world provider when a Case is bound to SEA models.
+  purpose: >-
+    Define the normative contract for a Gauntlet workbench that makes the current
+    Case world computationally and perceptually coincident around the operator's
+    Focus while preserving Gauntlet as the authority for consequential state.
+    The workbench MUST progressively materialize only the representations,
+    capabilities, and affordances justified by the current horizon and MUST exploit
+    native Prime Agent, Python REPL, Bun, and OpenTUI capabilities before adding
+    parallel infrastructure.
+  owner: "GodSpeed AI / Gauntlet"
+  approval:
+    date: "2026-09-06"
+    authority: "Operator instruction to refine, approve, and rehash these documents."
+    scope: "Design approval; implementation and capability claims remain unverified."
+    review: ".agents/reports/gauntlet-tui-prime-workbench/review.md"
+  amendments:
+    - version: "0.3.0"
+      date: "2026-09-08"
+      reason: >-
+        Adversarial cross-artifact inspection of spec + plan + DESIGN.md before T00
+        dispatch. No requirement was weakened and no REQUIRED behavior was removed.
+      changes:
+        - "Bound DESIGN.md as the normative TUI presentation contract in sources; it was previously unreferenced by spec and plan and therefore unenforceable."
+        - "Added SemanticLocation and FocusPlacement to core_domain_model; DESIGN.md made both design-normative while no spec entity or plan task owned them."
+        - "Renamed prime_and_jupyter_integration to prime_and_kernel_integration; the key contradicted the spec's own protocol_boundary finding. Requirement IDs REQ-PRIME-* are unchanged."
+        - "Named the Gauntlet operation bridge's actor/session authentication and version negotiation as explicit new implementation work, not an existing surface property."
+
+  normative_language: "RFC 2119"
+  normative_keywords:
+    - MUST
+    - MUST_NOT
+    - REQUIRED
+    - SHOULD
+    - SHOULD_NOT
+    - RECOMMENDED
+    - MAY
+    - OPTIONAL
+  implementation_defined_meaning: >-
+    Behavior is part of the implementation contract but this specification does
+    not prescribe one universal mechanism. The implementation MUST document the
+    selected behavior and prove conformance to the surrounding requirements.
+
+sources:
+  core_authority:
+    role: "Governing runtime vocabulary, authority, containment, comparison, and settlement invariants."
+    path: ".agents/specs/Core-spec.md"
+    frozen_ruler: ".wayfinder/answer-key.md"
+    precedence: >-
+      This workbench specification extends presentation and adapter contracts. It does
+      not supersede the Core spec or frozen ruler. A required change to either follows
+      CandidateRevision with isolated evaluation, never an incidental workbench edit.
+  primary_brief:
+    role: "Historical motivation only; this approved document is the durable design contract."
+    expected_path: "Not available as a repository artifact; no implementation may depend on conversational reconstruction."
+
+  specification_template:
+    role: "Local authoring structure; runtime authority remains Core spec and the frozen ruler."
+    path: ".agents/specs/AGENT_SPEC_TEMPLATE.yaml"
+
+  design_contract:
+    role: >-
+      Normative TUI visual and interaction presentation contract, subordinate to this
+      specification. It governs colour/typography/density/linework/composition, the
+      semantic-token vocabulary, and the DSN-001..DSN-015 design conformance clauses.
+      It MUST NOT introduce a View, Surface, entity, geometry threshold, or capability
+      that this specification does not require or permit; on any disagreement this
+      specification governs and the design contract is corrected.
+    path: "DESIGN.md"
+    binding: >-
+      Hash-bound by plan task T00 alongside this specification. Its DSN clauses have
+      owning plan tasks and MUST appear in the conformance report exactly as
+      section-path clauses of this specification do.
+    donor: >-
+      DESIGN.md cites ../godspeed-growth/brand/visual/visual-language.md as visual
+      philosophy. That sibling is inspected evidence only: no implementation, build,
+      test, or runtime path may resolve it, and no design question may be settled by
+      reading it during implementation.
+
+  gauntlet_cli_reference:
+    role: >-
+      Evidence of the existing Gauntlet command surface and the pre-existing
+      headless/API seam; stale in details and therefore not automatically normative.
+    path: "crates/gauntlet-cli/src/lib.rs"
+
+  prime_rlm_runtime:
+    role: >-
+      Upstream documentation inspected on 2026-09-06: persistent Python REPL,
+      serialized execute calls, JSON-lines stdio host_request/host_reply admission,
+      recursive subagents, and host-owned child lifecycle. This mutable upstream URL
+      is not an installed-version pin and does not prove Gauntlet composition.
+    path: "https://github.com/PrimeIntellect-ai/prime-agent/blob/main/packages/coding-agent/docs/rlm-runtime.md"
+    protocol_boundary: >-
+      The current documented runtime uses python -m rlm.repl and JSON-lines stdio,
+      including execute, interrupt, host_reply and host_request. The tool's historical
+      ipython name is not proof of Jupyter shell/IOPub/control/stdin/Comm sockets.
+      Integrate through the version-qualified Prime host, not a second kernel client.
+
+  bun_sqlite_reference:
+    role: "External evidence for built-in SQLite prepared statements and transactions."
+    path: "https://bun.com/reference/bun/sqlite"
+
+  bun_runtime_reference:
+    role: >-
+      External evidence for Bun process, PTY, server, Unix-socket, and related local
+      runtime capabilities that MUST be qualified before parallel dependencies are added.
+    path: "https://bun.com/reference/bun"
+
+  opentui_reference:
+    role: >-
+      External evidence for native terminal rendering, embedded terminal support,
+      runtime modules under Bun, and standalone Bun executable support.
+    path: "https://opentui.com/docs/"
+
+  deepseek_architecture_reference:
+    role: >-
+      Non-normative donor evidence for authoritative host state, React-free client
+      models, immutable projections, durable session events, reversible plugin effects,
+      and typed composition seams.
+    path: "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/architecture.md"
+
+  deepseek_web_client_reference:
+    role: >-
+      Non-normative donor evidence for host-to-client projection ownership,
+      reconnect generations, stream/unary race handling, and presentation-layer discipline.
+    path: "https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/subsystems/web-client.md"
+
+  existing_implementation:
+    role: >-
+      Existing Gauntlet, Prime Agent integration, DomainForge, CLI surface, and project
+      harness to evolve. Current implementation proves present behavior but does not
+      automatically define the target architecture.
+    location: "crates/gauntlet-cli, crates/gauntlet-app, crates/gauntlet-ports, crates/adapters"
+  domainforge_implementation:
+    role: "Inspected local producer contract; not proof of SXR compatibility."
+    path: "../domainforge/domainforge-core/src/cli/envelope.rs"
+    head: "2fdbe48c4de774d6a93bed2299e288534211ea61"
+  reality_trace_implementation:
+    role: "Inspected semantic adapter, committed evidence and ledger command contracts."
+    paths:
+      - "../sxr/sxr-df/src/adapter.rs"
+      - "../sxr/sxr-df/tests/real_binary_tests.rs"
+      - "../sxr/sxr-cli/src/commands.rs"
+      - "../sxr/sxr-cli/src/output.rs"
+    head: "c588968e085c69da64f74dbda4f43538d4bcd444"
+    portability: "Sibling paths identify inspected source only; deployment selects explicit qualified artifacts, never a hardcoded sibling directory."
+
+substrate_baseline:
+  observed_on: "2026-09-06"
+  gauntlet_head: "e24d8d8d83f47a50eb6d7c6a4850576b18abfe9c"
+  working_tree: "Dirty task26 implementation present; findings bind inspected paths, not a clean-tree claim."
+  existing:
+    - path: "crates/gauntlet-ports/src/operator_surface.rs"
+      fact: "RuntimeSnapshot exposes run, escalations, invocations, Units, budget, denials, residuals; actions are refresh/resolve/retry."
+    - path: "crates/gauntlet-cli/src/serve_cmd.rs"
+      fact: "serve requires the surfaces feature and explicit GAUNTLET_API_BIND; it accepts loopback only."
+    - path: "crates/gauntlet-cli/src/operator_action.rs"
+      fact: "CLI and JSON resolve/retry share execute_operator_action and the settlement service. Preserve this owner."
+    - path: "crates/gauntlet-app/src/compare/envelope.rs"
+      fact: "Formal comparison has an existing runtime-owned envelope boundary; UI context cannot replace it."
+  proposed_not_existing:
+    - "A general versioned workbench command registry, atomic baseline/cursor API, and resumable source subscriptions."
+    - "Persistent Prime host attachment behind the existing AgentRunner abstraction."
+    - "Case/WorkItem/AttentionItem as workbench projections; these are not new canonical Gauntlet entities."
+    - "DomainForge and SXR adapters, verified together against explicitly compatible protocol versions."
+  runtime_observation: "bun --version returned 1.4.0; OpenTUI/Prime target integration is not yet qualified."
+  delivery_boundary: >-
+    The baseline is Linux/WSL, same-host Gauntlet and workbench, also operated from an
+    SSH/tmux terminal on that host. SSH terminal use does not require a remote Gauntlet
+    API. Remote HTTP deployment, new hardware targets, and an additional Unix socket
+    transport are not prerequisites. Reuse the existing loopback HTTP adapter first.
+  claim_limit: >-
+    Approval establishes a reviewed design, not zero technical debt, optimality over
+    all possible designs, implementation completeness, or measured UX quality. T00
+    pins actual adapter/runtime versions and T25 requires the declared evidence.
+
+spec_frame:
+  quality_gate_questions:
+    - "What should be built?"
+    - "What result should it produce?"
+    - "How will we know the result is real?"
+    - "What capability should become reliably available after repeated successful use?"
+    - "What evidence proves the capability claim?"
+    - "What fails safely?"
+    - "What must repeat until reliable?"
+    - "What changes when evidence disagrees with the design?"
+
+  preregistered_desired_outcome: >-
+    An operator can enter or resume a Gauntlet Case through a terminal-native
+    workbench, understand the current bounded world, inspect or narrow its horizon,
+    and perform or delegate the next legitimate transformation without manually
+    reconstructing context or switching mental models between Gauntlet, Prime Agent,
+    the persistent Python REPL kernel, subagents, files, evidence, history, and DomainForge
+    semantics. Every consequential action has one Gauntlet operation meaning and one
+    admission path even when projected as a TUI action, command-palette entry, CLI/API
+    command, kernel callable, or eligible agent capability. The workbench progressively
+    materializes only the representations, capabilities, and affordances justified by
+    the current Case, Focus, horizon, authority, payment constraints, and settlement state.
+
+  preregistered_success_condition: >-
+    Starting from a cold workbench or reconnecting after interruption, an operator can
+    select a Case and Focus, see what is currently consequential, invoke the same
+    legitimate operation through any supported projection, observe execution and
+    evidence live, and later reconstruct the same consequential history headlessly
+    without depending on TUI state, Bun SQLite state, kernel memory, React state,
+    mailbox delivery, or Prime conversational state.
+
+  proof_loop:
+    mermaid: |-
+      flowchart LR
+        JTBD["Operator needs next legitimate move"] --> Model["Reconstruct current world"]
+        Model --> Focus["Select / hoist Focus"]
+        Focus --> Afford["Resolve current affordances"]
+        Afford --> Act["Invoke one canonical operation"]
+        Act --> Observe["Observe execution + evidence"]
+        Observe --> Verify["Verify projection and consequential state"]
+        Verify -->|passes| Outcome["Verified workbench outcome"]
+        Verify -->|fails| Blocked["Blocked / degraded / contradictory state"]
+        Outcome --> Evidence["Evidence artifacts"]
+        Evidence --> Repeat["Variation + recovery tests"]
+        Repeat --> Capability["Capability claim decision"]
+        Evidence -->|contradicts design| Revise["Revise spec or implementation"]
+
+problem_statement:
+  system_name: "Gauntlet Prime-Native Terminal Workbench"
+
+  problem_summary: >-
+    Gauntlet has consequential Reference, Run, Unit, evidence, verification,
+    escalation, and settlement state while Prime Agent has persistent recursive
+    execution, Python REPL computation, messages, harness state, and long-running sessions.
+    DomainForge may provide a semantic world, and the repository, artifacts, tests,
+    terminals, and files provide additional representations. Without a coherent
+    workbench these worlds are manually reconstructed by the operator, duplicated in
+    interface state, or exposed through unrelated control surfaces, increasing
+    attention cost, synchronization risk, context payment, and the chance that a
+    technically available operation is mistaken for a legitimate affordance.
+
+  job_to_be_done:
+    actor: "Gauntlet operator"
+    trigger: >-
+      When entering, resuming, inspecting, steering, delegating, verifying, or
+      settling a Gauntlet Case, especially during long-running Prime Agent execution.
+    job: >-
+      Make the currently relevant Case world locally understandable and operable,
+      expose only legitimate current moves, and let the operator act through one
+      coherent terminal surface while preserving canonical state and execution
+      authority outside the presentation layer.
+    outcome: >-
+      The operator spends attention on judgment and steering rather than reconstructing
+      state, locating related artifacts, translating between control surfaces, or
+      determining whether different interfaces implement different meanings.
+
+  current_failure_modes:
+    - >-
+      TUI, CLI, kernel, agent, and API surfaces can drift into independent action
+      systems with inconsistent authorization or semantics.
+    - >-
+      Prime messages, conversational output, kernel variables, or UI state can be
+      mistaken for completion, evidence, or canonical Gauntlet truth.
+    - >-
+      The operator must manually join Case state, semantic relations, agent sessions,
+      files, evidence, and history to understand one Focus.
+    - >-
+      Entire Cases or repositories may be loaded into views or agent contexts when a
+      smaller hoisted horizon would suffice, wasting attention and model payment.
+    - >-
+      Parallel libraries or daemons may be introduced for SQLite, PTY, process,
+      transport, configuration, plugin, or rendering capabilities already afforded by
+      Bun, Prime Agent, Python REPL, or OpenTUI.
+    - >-
+      Streaming updates may race with baseline state or reconnects and leave different
+      views presenting mutually inconsistent local projections.
+
+  why_existing_approaches_fail: >-
+    Conventional TUI architecture often treats the interface as a component tree over
+    duplicated client state, treats agents as chat sessions, treats notebooks as
+    documents, and treats every backend capability as a separate integration. That
+    arrangement ignores Prime Agent's persistent kernel and recursive execution,
+    ignores Prime's distinct computation and host-request messages, ignores Bun's built-in
+    local systems facilities, and lets presentation concerns leak into business state.
+    It also makes progressive affordance materialization cosmetic rather than allowing
+    the current horizon to shape subscriptions, queries, caches, agent context, and
+    execution eligibility.
+
+  important_boundary:
+    is: >-
+      A disposable terminal-native projection and control workbench over canonical
+      Gauntlet state, Prime execution, DomainForge semantics, and local computational
+      artifacts, organized around Case, Focus, View, Surface, Horizon, relation,
+      attention, and current affordances.
+    is_not: >-
+      A replacement for Gauntlet's canonical state, a replacement Prime Agent harness,
+      a notebook-as-source-of-truth, a mailbox-driven task system, a new semantic
+      ontology, a security sandbox, or a separate implementation of every CLI/API action.
+    successful_execution: >-
+      The workbench can cold-reconstruct the current world, maintain coherent live
+      projections, preserve one canonical operation path across all action surfaces,
+      survive loss of TUI/kernel/local projection state, and correctly continue or
+      reattach to admitted long-running Prime work without losing consequential truth.
+    false_success_boundary: >-
+      A visually polished TUI, a responsive renderer, successful Prime messages,
+      green local projection tests, or a running Bun process MUST NOT be called success
+      if the same Gauntlet operation has divergent meanings across surfaces, if local
+      state is required to reconstruct settlement, or if a prohibited action can bypass
+      Gauntlet through the kernel, Prime RPC, terminal, plugin, CLI, or UI.
+
+requirements:
+  goals:
+    - id: REQ-GOAL-001
+      text: >-
+        The workbench MUST make the current Case, Focus, relevant relations, agents,
+        artifacts, evidence, history, and legitimate next actions locally coherent
+        without making the workbench authoritative for consequential state.
+    - id: REQ-GOAL-002
+      text: >-
+        Every consequential operation MUST resolve to one canonical Gauntlet operation
+        and admission path regardless of which supported projection invokes it.
+    - id: REQ-GOAL-003
+      text: >-
+        Prime Agent's persistent Python REPL kernel, recursive subagents, session
+        persistence, messaging, harness features, and long-running control mechanisms
+        MUST be exploited as native substrates rather than reimplemented in parallel.
+    - id: REQ-GOAL-004
+      text: >-
+        Bun 1.4 native facilities MUST be evaluated and used for noncanonical local
+        storage, process, PTY, transport, configuration, worker, and packaging needs
+        before an overlapping external dependency is admitted.
+    - id: REQ-GOAL-005
+      text: >-
+        OpenTUI MUST remain a replaceable rendering projection over React-free workbench
+        state and MUST NOT own consequential business truth.
+    - id: REQ-GOAL-006
+      text: >-
+        Progressive Affordance Materialization MUST shape data loading, subscriptions,
+        local queries, agent context, capability presentation, and current actions rather
+        than merely hiding or showing controls.
+
+  non_goals:
+    - id: NONGOAL-001
+      text: "Make the TUI, React tree, Bun SQLite database, or Python REPL kernel canonical."
+    - id: NONGOAL-002
+      text: "Recreate Prime Agent recursive execution, mailbox, session persistence, or kernel management inside Gauntlet."
+    - id: NONGOAL-003
+      text: "Expose or reconstruct hidden model chain-of-thought."
+    - id: NONGOAL-004
+      text: "Treat installed capabilities, plugins, skills, or tools as affordances merely because they exist."
+    - id: NONGOAL-005
+      text: "Create one giant eagerly loaded workspace containing the entire repository, Case, event history, and semantic graph."
+    - id: NONGOAL-006
+      text: "Use Prime/Python process isolation as a security sandbox."
+    - id: NONGOAL-007
+      text: "Require one global plugin framework to own Gauntlet, Prime, DomainForge, and OpenTUI extensions."
+
+outcome_contract:
+  output_produced:
+    primary_output: >-
+      A working Gauntlet terminal workbench whose local Bun host reconstructs and
+      incrementally maintains a queryable Workbench Model from canonical sources,
+      projects it through OpenTUI, integrates Prime Agent and Python REPL execution,
+      and exposes only context-valid Gauntlet operations.
+
+    requirements:
+      - id: REQ-OUT-001
+        text: >-
+          The workbench MUST provide Case-centric navigation with semantic Focus identity,
+          multiple placements, hoistable Horizons, primary Work/Chat/Trace projections,
+          Inspector, Composer, and contextual lower surfaces for terminal, kernel,
+          agents, evidence, problems, and changes where applicable.
+      - id: REQ-OUT-002
+        text: >-
+          The Bun host MUST maintain disposable queryable read models sufficient to join
+          a selected Focus to relevant Gauntlet, Prime, DomainForge, artifact, evidence,
+          history, and affordance references without requiring each view to perform its
+          own backend reconstruction.
+      - id: REQ-OUT-003
+        text: >-
+          The system MUST support live execution, reconnect, baseline-plus-incremental
+          reconstruction, and long-running Prime work that survives TUI detachment.
+      - id: REQ-OUT-004
+        text: >-
+          The kernel and TUI MUST expose the same admitted operation meanings as CLI/API
+          or agent projections and MUST NOT implement privileged side paths.
+
+  outcome_verified:
+    condition: >-
+      The output counts as verified only when destructive loss/reconnect tests,
+      isomorphic-operation tests, kernel and TUI loss tests, Prime long-running execution
+      tests, streaming generation tests, plugin lifecycle tests, and headless replay
+      demonstrate that the workbench is both useful and noncanonical.
+
+    signals:
+      - id: REQ-VERIFY-001
+        text: >-
+          Deleting the local Bun SQLite projection database and restarting the workbench
+          MUST reconstruct equivalent consequential projections from authoritative sources.
+      - id: REQ-VERIFY-002
+        text: >-
+          Killing and restarting the TUI and Python REPL kernel independently MUST NOT lose
+          Reference, authority, evidence, settlement, or other Gauntlet canonical truth.
+      - id: REQ-VERIFY-003
+        text: >-
+          A representative canonical operation invoked through TUI, kernel wrapper,
+          CLI/API, and eligible Prime Agent context MUST resolve through the same Gauntlet
+          operation semantics and gates.
+      - id: REQ-VERIFY-004
+        text: >-
+          A denied operation MUST remain denied through every supported projection and
+          direct local adapter path.
+      - id: REQ-VERIFY-005
+        text: >-
+          Closing the workbench during admitted long-running Prime execution MUST allow
+          the work to continue when authorized and MUST permit correct later reattachment.
+      - id: REQ-VERIFY-006
+        text: >-
+          Active-view projections MUST remain coherent across baseline reads, incremental
+          streams, reconnect generation changes, and late stale-frame delivery.
+
+    false_completion_conditions:
+      - "The TUI renders correctly but cannot be cold-reconstructed after local projection deletion."
+      - "A mailbox 'done' message changes completion state without the required Gauntlet result/evidence contract."
+      - "A kernel function or Prime extension can bypass a Gauntlet denial."
+      - "React/OpenTUI component state is needed to reconstruct Case truth."
+      - "Prime children are represented as synthetic UI workers instead of actual Prime sessions."
+      - "All views agree only because they share one mutable presentation store rather than authoritative projections."
+      - "A plugin unload leaves active registrations, subscriptions, affordances, or view contributions behind."
+
+  consumer_and_handoff:
+    consumers:
+      - "Gauntlet operators"
+      - "Prime Agent-backed Gauntlet workflows"
+      - "Future CLI/API/remote projections consuming the same canonical operation meanings"
+
+    handoff_complete_when:
+      - "A cold developer can identify every authoritative source and every disposable projection from this spec."
+      - "All REQUIRED behavior has requirement-to-test traceability and inspectable evidence."
+      - "The same recorded Case/Run can be reconstructed headlessly without OpenTUI, React, Bun SQLite, or a live notebook view."
+
+    unverified_state: "incomplete"
+    unverified_surface:
+      - "Explicit workbench health/degraded state with source-specific reason codes."
+      - "Evidence report identifying which required conformance gates remain open."
+
+capability_claim:
+  applicability: "applicable"
+  owner: "Gauntlet operator and Gauntlet execution environment"
+
+  delta: >-
+    Repeated successful use makes it reliably possible to enter or resume a Case,
+    orient around a Focus, use the smallest relevant computational horizon, delegate or
+    execute through Prime, observe consequence, and identify the next legitimate action
+    with less manual state reconstruction and less cross-surface translation burden.
+
+  why_in_scope: >-
+    The TUI exists to reduce operator orchestration burden without hiding authority,
+    evidence, uncertainty, or recovery boundaries. Reduced reconstruction and navigation
+    payment is therefore part of the product outcome rather than a cosmetic usability goal.
+
+  proven_only_if:
+    - "The required variation and recovery matrix passes across supported target environments."
+    - "Repeated Cases show stable reconstruction, action-isomorphism, reattachment, and projection behavior."
+    - "Measured operator/agent context burden decreases without increasing false settlement, bypass, or hidden fallback."
+    - "A second agent/operator can use settled workbench representations without consuming the originating conversation."
+
+  not_proven_by:
+    - "One successful demo Case."
+    - "Low render latency alone."
+    - "A large installed capability inventory."
+    - "Prime Agent continuing to run after the TUI closes without successful state reconstruction."
+
+  learning_claim: >-
+    The workbench itself does not automatically learn merely by being used. Repetition
+    may establish operational reliability. Developmental changes to Prime harness state,
+    skills, deterministic functions, or reusable projections count as learning only when
+    they are explicitly governed, evaluated, and retained by the surrounding Gauntlet
+    developmental process.
+
+claim_discipline:
+  levels:
+    evidence_backed: >-
+      Supported by implementation, tests, logs, proof commands, reviewable artifacts,
+      integration results, benchmark evidence, or other inspectable evidence.
+    partially_proven: >-
+      Implemented in meaningful pieces but not yet proven end-to-end, under required
+      variation, or in the target environment.
+    assumption: >-
+      Required for the design to hold but not yet proven.
+    roadmap: >-
+      Intended future behavior that is not required for current conformance.
+
+  claims:
+    - id: CLAIM-001
+      claim: >-
+        Prime Agent provides each relevant session a persistent Python REPL kernel and a
+        native recursive sub-agent interface whose TypeScript host owns child lifecycle.
+      level: "partially_proven"
+      required_evidence: "Prime Agent runtime documentation plus repository/target smoke test."
+      current_evidence: "Upstream rlm-runtime documentation inspected 2026-09-06; JSON-lines Python REPL, no installed integration test."
+      gap: "Target-workspace version and behavior MUST be confirmed during implementation preflight."
+
+    - id: CLAIM-002
+      claim: >-
+        bun:sqlite can serve as the workbench's local read-model substrate without an
+        external SQLite driver.
+      level: "partially_proven"
+      required_evidence: "Bun API documentation plus replay/query benchmark on target hardware."
+      current_evidence: "Bun API documents built-in SQLite prepared statements and transactions."
+      gap: "Target-volume affordability remains unproven until benchmarked."
+
+    - id: CLAIM-003
+      claim: >-
+        Bun PTY plus OpenTUI EmbeddedTerminal can provide the primary embedded terminal
+        path without a separate PTY/emulator dependency.
+      level: "partially_proven"
+      required_evidence: >-
+        Target integration across resize, interactive shells, SSH/tmux, Unicode,
+        signals, and shutdown/recovery behavior.
+      current_evidence: >-
+        Bun documents PTY-backed subprocesses; OpenTUI documents a Ghostty-VT-backed
+        embedded terminal that accepts child output and returns encoded input.
+      gap: "End-to-end qualification in Gauntlet target terminals is open."
+
+    - id: CLAIM-004
+      claim: >-
+        OpenTUI with Bun can support trusted runtime-loaded UI modules and standalone
+        compiled executables while keeping OpenTUI replaceable.
+      level: "partially_proven"
+      required_evidence: "Plugin lifecycle test and target-specific packaged executable acceptance."
+      current_evidence: "OpenTUI runtime-plugin and standalone executable documentation."
+      gap: "Gauntlet-specific unload discipline, compatibility contract, and target matrix remain open."
+
+    - id: CLAIM-005
+      claim: >-
+        Local SQLite joins around Focus will materially reduce operator-visible latency
+        and integration payment compared with view-by-view remote reconstruction.
+      level: "assumption"
+      required_evidence: "A/B benchmark using representative Case sizes and active event rates."
+      current_evidence: "Architectural inference only."
+      gap: "Performance and complexity advantage must be measured."
+
+    - id: CLAIM-006
+      claim: >-
+        A version-qualified structured Prime host interface is sufficient for
+        Gauntlet TUI integration without scraping or embedding Prime's own TUI.
+      level: "assumption"
+      required_evidence: >-
+        Repository inspection of the installed Prime version and integration test of
+        session lifecycle, messaging, kernel events, steering, extension prompts, and reattachment.
+      current_evidence: "Current project discussion and public Prime runtime documentation."
+      gap: "Exact RPC/ACP/JSON surface for the installed version must be inspected, not assumed."
+
+system_overview:
+  architecture_pattern:
+    primary: >-
+      Headless authoritative Gauntlet core with a disposable Bun-hosted local Workbench
+      Model, Prime Agent execution adapter, DomainForge semantic adapter, and OpenTUI
+      presentation projection; command/event/control/computation channels remain semantically distinct.
+    rationale: >-
+      This pattern preserves canonical Gauntlet meaning while exploiting native runtime
+      capabilities. It permits fast local joins, long-running Prime continuity, hoisted
+      context construction, incremental projection, multiple UI views over the same
+      history, and renderer replacement without duplicating business state.
+    intentionally_not_used:
+      - pattern: "TUI wraps CLI subprocesses as its primary application API"
+        reason: >-
+          Parsing command output duplicates application semantics, weakens streaming and
+          reconnect, and makes CLI presentation a hidden canonical contract.
+      - pattern: "React component tree owns streaming/business state"
+        reason: >-
+          It couples consequential state to the renderer and makes replay, replacement,
+          reconnection, and non-React projections harder to prove.
+      - pattern: "Mailbox as universal event bus"
+        reason: >-
+          Communication events are not equivalent to canonical state changes, completion,
+          evidence, or settlement.
+      - pattern: "Notebook document as canonical execution history"
+        reason: >-
+          Kernel state and cell history are computational projections and may be lost,
+          compacted, restarted, or re-rendered without changing Gauntlet truth.
+      - pattern: "Generic external infrastructure first"
+        reason: >-
+          It pays implementation and recovery cost before native Prime/Python/Bun/OpenTUI
+          capabilities have been falsified as insufficient.
+
+  main_components:
+    - name: "Gauntlet Core"
+      responsibility: >-
+        Own canonical Reference, Run, Unit, verification, evidence, escalation,
+        settlement, authority-facing command admission, and durable consequential history.
+      inputs:
+        - "Actor command intents"
+        - "Execution observations and evidence"
+      outputs:
+        - "Canonical state and durable events"
+        - "Admitted/rejected operation results"
+
+    - name: "Bun Workbench Host"
+      responsibility: >-
+        Own disposable local projection logistics: adapters, event cursors, reconnect
+        generations, SQLite read models, local joins, workers, process/PTY facilities,
+        plugin host, immutable Workbench snapshots, and OpenTUI lifecycle.
+      inputs:
+        - "Gauntlet baselines/events"
+        - "Prime host/session/kernel events"
+        - "DomainForge semantic references/projections"
+        - "Operator input"
+      outputs:
+        - "Immutable Workbench snapshots"
+        - "Canonical Gauntlet operation intents"
+        - "Noncanonical local process/terminal/plugin output"
+
+    - name: "Prime Agent Adapter"
+      responsibility: >-
+        Project actual Prime sessions, recursive agents, messages, kernel computation,
+        harness state, goals/schedules/heartbeats where used, and lifecycle into Gauntlet
+        Workbench references without inventing parallel agent truth.
+      inputs:
+        - "Admitted Gauntlet execution/delegation intents"
+        - "Prime host events and session state"
+      outputs:
+        - "Prime execution/session projections"
+        - "Execution observations, messages, and result references"
+
+    - name: "Python REPL Computational Substrate"
+      responsibility: >-
+        Provide persistent sequential computation, explicit working variables,
+        deterministic functions, rich outputs, and host-mediated input/control channels.
+      inputs:
+        - "Admitted deterministic computations"
+        - "Explicit context references"
+      outputs:
+        - "Computation output"
+        - "Kernel object references"
+        - "Artifacts offered for explicit admission as evidence"
+
+    - name: "DomainForge Semantic Adapter"
+      responsibility: >-
+        Provide semantic-world identity, graph relations, and generated/bound domain
+        representations when the active Case uses SEA/DomainForge.
+      inputs:
+        - "Domain model/pack identity and Focus relations"
+      outputs:
+        - "Semantic Focus/Relation projections"
+        - "Domain-linked context for views, queries, and agent envelopes"
+
+    - name: "OpenTUI Projection"
+      responsibility: >-
+        Render immutable Workbench snapshots into terminal Surfaces/Views/Foci and turn
+        operator gestures into explicit command intents without owning business truth.
+      inputs:
+        - "Workbench snapshots"
+        - "Cue/Attention/Affordance projections"
+      outputs:
+        - "Terminal cells"
+        - "Operator intent events"
+
+    - name: "Trusted Workbench Extension Layer"
+      responsibility: >-
+        Allow reversible semantic/UI contributions from trusted modules through stable
+        slots/providers while preserving ownership boundaries and unload cleanup.
+      inputs:
+        - "Validated trusted extension modules"
+      outputs:
+        - "Views, Focus renderers, inspector sections, relation providers, or affordance presentations"
+
+  component_diagram:
+    mermaid: |-
+      flowchart TB
+        Operator["Operator"] --> TUI["OpenTUI Projection"]
+        TUI --> Host["Bun Workbench Host"]
+        Host --> Gauntlet["Gauntlet Core"]
+        Host <--> Prime["Prime Agent Adapter"]
+        Prime <--> Kernel["Python REPL Kernel"]
+        Host <--> DF["DomainForge Adapter"]
+        Host <--> SQLite["bun:sqlite Read Models"]
+        Gauntlet --> Host
+        Host --> TUI
+        Gauntlet -. canonical consequence .-> Evidence["Evidence / Settlement"]
+
+  external_dependencies:
+    - name: "Prime Agent"
+      purpose: "Persistent recursive agency, Python REPL kernel ownership, messaging, sessions, and harness features."
+      failure_behavior: >-
+        Prime-dependent affordances become unavailable or degraded; Gauntlet canonical
+        state remains inspectable and MUST NOT be fabricated from stale local projections.
+
+    - name: "DomainForge"
+      purpose: "Semantic world identity and graph/domain projections when bound to the Case."
+      failure_behavior: >-
+        Domain-semantic enrichments become unavailable or stale and MUST be surfaced as
+        such; Gauntlet may continue only where the operation does not require DomainForge
+          semantic resolution or an exact model identity.
+
+    - name: "Reality Trace (SXR)"
+      purpose: "Optional committed evidence and ledger provenance linked explicitly to the selected work."
+      failure_behavior: "Mark the source unavailable/stale/incompatible; core Gauntlet inspection and authority remain independent."
+
+    - name: "Bun 1.4-compatible runtime"
+      purpose: "Local workbench host, SQLite, processes, PTY, workers, transport, and packaging."
+      failure_behavior: "Workbench cannot run; Gauntlet headless operation remains independent."
+
+    - name: "OpenTUI"
+      purpose: "Terminal-native rendering and interactive presentation."
+      failure_behavior: "TUI projection is unavailable; headless/CLI/API operation remains possible."
+
+core_domain_model:
+  vocabulary_binding:
+    Case: >-
+      A workbench navigation projection addressed by workspace identity, canonical
+      reference identity/digest and selected RunId (optional before a run exists).
+      Discovery reads configured workspaces and explicit operator selections; no
+      new canonical Case lifecycle or hidden machine-wide scan is introduced.
+    WorkItem: "Presentation reference to an existing Unit or explicit group of UnitIds; preserve each Unit's gates."
+    AttentionItem: >-
+      Projection of a canonical escalation TicketId or a separately typed Prime input
+      request. Prime questions never acquire escalation/settlement authority by appearing
+      in the same inbox. Every item retains owner, target, freshness and resolution path.
+    Relation: >-
+      A source-typed edge with source and target FocusRefs, relation kind, provenance,
+      source version and validity. Correlation is not causation or authority.
+    absent_focus: "Empty workspace snapshots allow null focus and horizon; views must render a useful empty state."
+  scope_rule: >-
+    This spec defines only stable workbench objects required to identify, project,
+    reconcile, cache, route, and invoke the current world. Canonical Gauntlet entities
+    such as Reference, Run, Unit, evidence records, escalation tickets, Settlement, and
+    Prime/DomainForge objects remain authoritative in their owning systems and appear
+    here by reference. React components, OpenTUI renderables, SQLite tables, RPC frames,
+    Python REPL wire messages, Bun workers, files, and plugin modules are implementation details.
+
+  entities:
+    - name: "FocusRef"
+      purpose: >-
+        Stable semantic reference to the smallest complete object currently selected,
+        inspected, related, or rendered across multiple placements.
+      used_by:
+        - "Bun Workbench Host"
+        - "OpenTUI Projection"
+        - "Prime Agent Adapter"
+        - "DomainForge Semantic Adapter"
+      required_fields:
+        - name: "id"
+          type: "string"
+          meaning: "Globally unambiguous workbench reference derived from owning-system identity and object kind."
+        - name: "kind"
+          type: "string"
+          meaning: "Stable semantic object kind such as WorkItem, Agent, Evidence, Event, File, or domain concept."
+        - name: "source"
+          type: "string"
+          meaning: "Owning authoritative source or projection source."
+        - name: "source_id"
+          type: "string"
+          meaning: "Identity in the owning source."
+      optional_fields:
+        - "human_label"
+      rules:
+        - "Multiple placements of the same underlying object MUST resolve to the same FocusRef."
+        - "FocusRef identity MUST NOT be derived from visual position, React keys alone, or mutable display text."
+
+    - name: "Horizon"
+      purpose: >-
+        Represent the bounded working world currently made relevant to the operator and
+        to context construction without claiming that excluded objects cease to exist.
+      used_by:
+        - "Bun Workbench Host"
+        - "Prime Agent Adapter"
+        - "OpenTUI Projection"
+      required_fields:
+        - name: "id"
+          type: "string"
+          meaning: "Stable identity for the active or saved horizon projection."
+        - name: "root_focus"
+          type: "FocusRef"
+          meaning: "Focus around which the horizon is constructed."
+        - name: "relation_queries"
+          type: "list"
+          meaning: "Declared relation traversals eligible for projection/context construction."
+        - name: "generation"
+          type: "string"
+          meaning: "Workbench generation for which this active horizon projection is valid."
+      optional_fields:
+        - "filters"
+        - "saved_name"
+      rules:
+        - "Hoisting MUST narrow representation and context construction, not delete or rewrite canonical state."
+        - "A horizon MUST be able to expand/de-hoist without losing source identity or provenance."
+
+    - name: "AffordanceDescriptor"
+      purpose: >-
+        Represent one currently evaluated path from a Focus to a canonical operation,
+        including whether it is available and why.
+      used_by:
+        - "Gauntlet Core"
+        - "Bun Workbench Host"
+        - "OpenTUI Projection"
+        - "Python REPL Computational Substrate"
+        - "Prime Agent Adapter"
+      required_fields:
+        - name: "id"
+          type: "string"
+          meaning: "Stable operation-affordance identity for the current context."
+        - name: "operation"
+          type: "string"
+          meaning: "Canonical Gauntlet operation identity."
+        - name: "focus"
+          type: "FocusRef"
+          meaning: "Object to which this affordance applies."
+        - name: "status"
+          type: "available|unavailable|requires_attention|degraded"
+          meaning: "Current affordance resolution result."
+        - name: "reason_codes"
+          type: "list[string]"
+          meaning: "Machine-readable visibility/reachability/payment/governance/settlement/recovery reasons."
+      optional_fields:
+        - "presentation_hint"
+        - "estimated_payment"
+        - "required_attention_item"
+      rules:
+        - "Installed capability MUST NOT imply status=available."
+        - "Every actionable projection MUST route to operation rather than implement independent side effects."
+        - "Unavailable operations MUST remain unavailable through kernel, TUI, CLI/API, plugin, and agent projections."
+
+    - name: "ProjectionGeneration"
+      purpose: >-
+        Bound a workbench connection/reconstruction generation so stale incremental
+        frames cannot mutate a newer local world after reconnect.
+      used_by:
+        - "Bun Workbench Host"
+      required_fields:
+        - name: "id"
+          type: "string"
+          meaning: "Unique generation identity minted when a new authoritative synchronization begins."
+        - name: "source_cursors"
+          type: "map[string,string]"
+          meaning: "Last authoritative cursor/sequence applied per source."
+        - name: "status"
+          type: "syncing|ready|degraded|closed"
+          meaning: "Lifecycle state of the generation."
+      optional_fields:
+        - "started_at"
+      rules:
+        - "Frames from a superseded generation MUST NOT update the active Workbench Model."
+        - "Cursor advancement and dependent local projection updates MUST be committed coherently."
+
+    - name: "WorkbenchSnapshot"
+      purpose: >-
+        Immutable React-free projection consumed by views for one generation, horizon,
+        Focus, and source-cursor state.
+      used_by:
+        - "Bun Workbench Host"
+        - "OpenTUI Projection"
+      required_fields:
+        - name: "id"
+          type: "string"
+          meaning: "Snapshot identity derived from generation and projection state."
+        - name: "generation"
+          type: "string"
+          meaning: "ProjectionGeneration identity."
+        - name: "horizon"
+          type: "string|null"
+          meaning: "Active Horizon identity, absent before selection."
+        - name: "focus"
+          type: "FocusRef|null"
+          meaning: "Current primary Focus, absent for empty/unselected workspaces."
+        - name: "source_cursors"
+          type: "map[string,string]"
+          meaning: "Authoritative source positions represented by this snapshot."
+        - name: "affordance_ids"
+          type: "list[string]"
+          meaning: "Current affordance projections for this Focus/horizon."
+      optional_fields:
+        - "view_payload_refs"
+        - "health"
+      rules:
+        - "Snapshots MUST be immutable after publication."
+        - "Snapshots MUST contain references/projections, not independent canonical Gauntlet truth."
+
+    - name: "FocusPlacement"
+      purpose: >-
+        Represent one rendered occurrence of a FocusRef in a Surface/View so multiple
+        placements can exist without copying or forking the underlying object state.
+      used_by:
+        - "Bun Workbench Host"
+        - "OpenTUI Projection"
+      required_fields:
+        - name: "id"
+          type: "string"
+          meaning: "Identity of this occurrence, valid only within the publishing snapshot generation."
+        - name: "focus"
+          type: "FocusRef"
+          meaning: "The single underlying object this occurrence renders."
+        - name: "surface"
+          type: "string"
+          meaning: "Surface hosting the occurrence."
+        - name: "view"
+          type: "string"
+          meaning: "View whose question this occurrence answers."
+      optional_fields:
+        - "relation_role"
+        - "presentation_hint"
+      rules:
+        - "A FocusPlacement MUST NOT carry canonical object state; it references a FocusRef."
+        - "Placement identity MUST NOT be used as, or substituted for, Focus identity."
+        - "Destroying a placement MUST NOT change canonical state or invalidate other placements of the same FocusRef."
+
+    - name: "SemanticLocation"
+      purpose: >-
+        Renderer-independent, reproducible address of a projection so navigation,
+        back/forward history, resume, and deep links can be reconstructed without a
+        router owning domain state.
+      used_by:
+        - "Bun Workbench Host"
+        - "OpenTUI Projection"
+      required_fields:
+        - name: "workspace"
+          type: "object"
+          meaning: >-
+            Case address per the Case vocabulary binding: workspace identity plus
+            canonical reference identity/digest plus selected RunId where one exists.
+      optional_fields:
+        - "horizon"
+        - "surface"
+        - "view"
+        - "focus"
+      rules:
+        - "A SemanticLocation MUST NOT mint a Case identifier; it addresses a Case by workspace identity, canonical reference identity/digest and RunId."
+        - "Resolving a SemanticLocation MUST NOT create, mutate, or imply canonical domain state."
+        - "A location whose referenced identities no longer resolve MUST fail visibly and recover to the nearest valid parent Horizon rather than render a fabricated world."
+        - "Serialized location encoding is implementation-defined and MUST be documented before it is persisted or shared."
+
+    - name: "KernelObjectRef"
+      purpose: >-
+        Identify explicit computational state in the Prime Python REPL kernel without
+        treating it as evidence or Gauntlet truth by default.
+      used_by:
+        - "Python REPL Computational Substrate"
+        - "Bun Workbench Host"
+      required_fields:
+        - name: "id"
+          type: "string"
+          meaning: "Stable reference within a Prime session/kernel generation."
+        - name: "session_ref"
+          type: "string"
+          meaning: "Owning Prime session identity/reference."
+        - name: "name"
+          type: "string"
+          meaning: "Explicit kernel variable/function name."
+        - name: "kernel_generation"
+          type: "string"
+          meaning: "Owning runtime incarnation; reuse of a name after restart MUST NOT revive the old reference."
+        - name: "persistence_class"
+          type: "ephemeral|pinned|artifactized"
+          meaning: "How the value may survive or be promoted."
+      optional_fields:
+        - "artifact_ref"
+        - "focus_refs"
+      rules:
+        - "Kernel objects MUST NOT become Evidence merely because they exist."
+        - "Artifactization/evidence admission MUST be explicit and provenance-preserving."
+
+  orchestrator_daemon_add_on:
+    applicability: "not_applicable"
+    guidance: >-
+      Prime Agent and Gauntlet already own orchestration/runtime state. This workbench
+      MUST NOT create duplicate WorkUnit/RunAttempt daemon entities merely because the
+      template names them.
+    entities: []
+
+  identifiers_and_normalization:
+    primary_id_rule: >-
+      Use owning-system stable identities plus explicit source/kind namespace. Do not
+      mint replacement identities when a canonical Gauntlet, Prime, DomainForge, file,
+      or artifact identity already exists.
+    human_readable_rule: >-
+      Human-readable labels MAY change independently of stable identifiers and MUST NOT
+      participate in canonical correlation.
+    normalized_identifier_rule: >-
+      Workbench-owned identifiers MUST use a deterministic lowercase ASCII namespace
+      prefix plus a collision-resistant source identity or digest; exact encoding is
+      implementation-defined and MUST be documented before persistence schema freezes.
+    path_or_resource_rule: >-
+      Paths MUST be normalized at adapter boundaries to an explicit workspace/host
+      namespace and MUST NOT be assumed portable across local, SSH, WSL, container, or
+      remote execution environments.
+    unsafe_input_rule: >-
+      Untrusted strings MUST be validated before becoming file paths, process argv,
+      SQL fragments, plugin/module paths, terminal input automation, or privileged
+      Gauntlet/Prime operations. Parameter binding MUST be used for SQLite values.
+
+configuration_and_input_contract:
+  ownership_rule: >-
+    This precedence governs workbench preferences only. Existing Gauntlet configuration
+    (including GAUNTLET_API_BIND), Prime configuration and approved secret sources retain
+    their owners and precedence. Workbench preferences cannot override authority or
+    containment. Remote transport configuration is optional and remains roadmap-only.
+  configuration_sources_precedence:
+    - order: 1
+      source: "explicit bounded operator/session override admitted by Gauntlet"
+    - order: 2
+      source: "project workbench configuration file (TOML preferred; exact path implementation-defined)"
+    - order: 3
+      source: "user-level workbench configuration file (implementation-defined)"
+    - order: 4
+      source: "documented defaults"
+    - order: 5
+      source: "environment variables only for secrets, endpoint indirection, or platform facts explicitly documented"
+
+  resolution_rules:
+    - id: REQ-CONFIG-001
+      text: >-
+        Runtime behavior MUST be configuration-file driven where practical; environment
+        variables MUST NOT become an undocumented parallel configuration authority.
+    - id: REQ-CONFIG-002
+      text: >-
+        Secrets and credentials MUST be referenced indirectly and MUST NOT be embedded
+        in TOML/YAML, SQLite projection rows, evidence artifacts, or logs.
+    - id: REQ-CONFIG-003
+      text: >-
+        Endpoint, socket, projection-store, plugin-root, terminal, and performance-budget
+        choices MUST be configurable and MUST NOT be hardcoded into stable logic.
+    - id: REQ-CONFIG-004
+      text: >-
+        The implementation MUST document every external dependency admitted after a
+        native-substrate qualification failure and preserve the evidence for that decision.
+    - id: REQ-CONFIG-005
+      text: >-
+        Configuration MUST distinguish local same-host transport from remote transport
+        without changing canonical operation meanings.
+
+  required_config_fields:
+    - field: "gauntlet_endpoint"
+      type: "string"
+      required: true
+      default: null
+      validation: "Must resolve to a supported local or remote Gauntlet application endpoint."
+    - field: "prime_endpoint"
+      type: "string"
+      required: false
+      default: null
+      validation: "Required only for Prime operations; missing/incompatible Prime must not prevent Gauntlet inspection."
+    - field: "projection_store"
+      type: "path|string"
+      required: false
+      default: "implementation-defined local SQLite path"
+      validation: "Must be writable or explicitly configured read-only for diagnostic mode."
+    - field: "plugin_roots"
+      type: "list[path]"
+      required: false
+      default: "[]"
+      validation: "Every in-process runtime plugin root must be explicitly trusted."
+    - field: "performance_budget"
+      type: "object"
+      required: false
+      default: "project-defined benchmark defaults"
+      validation: "Thresholds must be measurable and pre-registered before qualification runs."
+
+  error_classes:
+    - code: "missing_config_error"
+      blast_radius: "Workbench startup or affected integration only."
+    - code: "parse_error"
+      blast_radius: "Affected configuration/source projection only."
+    - code: "schema_error"
+      blast_radius: "Affected configuration or adapter contract only."
+    - code: "unsupported_kind_error"
+      blast_radius: "Affected Focus/view/provider; canonical state remains intact."
+    - code: "missing_credential_error"
+      blast_radius: "Affected remote/provider integration only."
+    - code: "input_validation_error"
+      blast_radius: "Affected operation only."
+    - code: "projection_generation_error"
+      blast_radius: "Active local projection generation; requires resync."
+    - code: "canonical_source_unavailable"
+      blast_radius: "Dependent views/affordances become degraded or unavailable."
+    - code: "affordance_denied"
+      blast_radius: "Requested operation only."
+    - code: "prime_integration_error"
+      blast_radius: "Prime-dependent views/operations only."
+    - code: "kernel_state_lost"
+      blast_radius: "Computational working set only; canonical Gauntlet truth must remain intact."
+    - code: "plugin_trust_error"
+      blast_radius: "Rejected plugin only."
+
+  error_surface_requirements:
+    - "Errors MUST include a stable code, concise message, and recoverability hint where possible."
+    - "Errors MUST NOT include secrets or excessive raw configuration."
+    - "The workbench MUST identify the owning source and whether the error affects canonical state, projection state, computation, or presentation only."
+    - "Hidden fallback to another provider/model/transport MUST NOT occur unless explicitly configured and visibly surfaced."
+
+  dynamic_reload:
+    status: "optional"
+    requirements:
+      - "Reload MUST be explicit or source-detected through a documented mechanism."
+      - "New configuration or trusted plugin state MUST validate before activation."
+      - "In-flight admitted Gauntlet/Prime work MUST NOT be silently restarted because workbench presentation configuration reloads."
+      - "Invalid reload MUST preserve the last known-good active configuration and surface the rejection."
+
+  startup_preflight:
+    requirements:
+      - id: REQ-CONFIG-010
+        text: >-
+          Startup MUST validate Gauntlet reachability, Prime integration compatibility,
+          projection-store integrity/reconstructibility, OpenTUI/Bun runtime support, and
+          required configuration before enabling privileged operations.
+      - id: REQ-CONFIG-011
+        text: >-
+          Before each privileged or provider-dependent operation, the workbench MUST
+          revalidate the current affordance/admission result rather than trust a stale UI control.
+      - id: REQ-CONFIG-012
+        text: >-
+          Preflight failure MUST block only the affected capability where safe; failure
+          of canonical Gauntlet connectivity MUST prevent state-changing commands and
+          clearly mark projections stale or unavailable.
+
+  primary_input:
+    type: "operator_intent"
+    source: "OpenTUI gesture, composer, command palette, kernel wrapper, CLI/API projection, or eligible agent context"
+    required_fields:
+      - name: "operation"
+        type: "string"
+        validation: "Must resolve to a canonical Gauntlet operation or an explicitly nonconsequential local workbench operation."
+      - name: "focus"
+        type: "FocusRef"
+        validation: "Must resolve within the active or explicitly addressed Case world."
+      - name: "actor_context"
+        type: "object"
+        validation: "Must identify the invoking actor/projection and current generation/horizon."
+    optional_fields:
+      - "parameters"
+      - "expected_generation"
+      - "idempotency_key"
+    invalid_input_behavior:
+      missing_required: "Reject with input_validation_error before any privileged side effect."
+      invalid_value: "Reject and preserve current state."
+      duplicate_request: "Use canonical operation idempotency semantics; local UI retries MUST NOT create duplicate consequential actions."
+      out_of_scope: "Reject or require explicit horizon expansion/selection."
+      unsafe: "Reject before process, filesystem, network, plugin, kernel, or Gauntlet privileged execution."
+
+operational_flow_and_state_model:
+  flow_summary:
+    primary_flow:
+      - "Start or reconnect a Bun Workbench Host generation."
+      - "Read authoritative baselines/cursors and rebuild or reconcile disposable local projections."
+      - "Select or resume a Case/Horizon/Focus and publish an immutable WorkbenchSnapshot."
+      - "Resolve current relations, attention, capabilities, and affordances for that horizon."
+      - "Invoke one canonical Gauntlet operation or explicitly local nonconsequential operation."
+      - "Observe Gauntlet, Prime/Python, DomainForge, artifact, and process updates through their owning channels."
+      - "Apply incremental projection updates transactionally and republish snapshots."
+      - "On interruption, reconnect with a new generation, reject stale frames, catch up from authoritative cursors, and continue."
+
+  flow_diagram:
+    mermaid: |-
+      flowchart TD
+        A["Start / reconnect"] --> B["Create projection generation"]
+        B --> C["Baseline + cursor sync"]
+        C -->|valid| D["READY snapshot"]
+        C -->|partial| X["DEGRADED"]
+        D --> E["Select / hoist Focus"]
+        E --> F["Resolve current affordances"]
+        F -->|admitted| G["Invoke canonical operation"]
+        F -->|denied| H["Surface reason / attention"]
+        G --> I["Observe source events"]
+        I --> J["Transactional projection update"]
+        J --> D
+        D -->|connection lost| R["New generation + catch-up"]
+        R --> C
+
+  service_states:
+    stateful_object: "Bun Workbench Host"
+    states:
+      - name: "STARTING"
+        meaning: "Runtime exists but required compatibility/preflight is not complete."
+        entry_trigger: "Process start."
+        exit_trigger: "Preflight begins or terminal failure occurs."
+      - name: "SYNCING"
+        meaning: "A new ProjectionGeneration is acquiring authoritative baselines/cursors."
+        entry_trigger: "Successful preflight or reconnect."
+        exit_trigger: "Required baseline is coherent, partial degradation is classified, or sync fails."
+      - name: "READY"
+        meaning: "Required authoritative sources for the active mode are coherent and commands may be evaluated."
+        entry_trigger: "Successful synchronization."
+        exit_trigger: "Source loss, integrity failure, shutdown, or explicit resync."
+      - name: "DEGRADED"
+        meaning: "Some projections/providers are unavailable or stale but bounded read-only or unrelated work remains valid."
+        entry_trigger: "Partial source/provider failure with safe blast-radius isolation."
+        exit_trigger: "Recovery/resync or escalation to DISCONNECTED/FAILED."
+      - name: "DISCONNECTED"
+        meaning: "Canonical Gauntlet command path is unavailable; local stale projections may remain inspectable but not authoritative."
+        entry_trigger: "Gauntlet connection loss or explicit offline inspection mode."
+        exit_trigger: "Reconnect begins or process stops."
+      - name: "FAILED"
+        meaning: "Workbench cannot safely reconstruct or operate in the requested mode."
+        entry_trigger: "Unrecoverable startup/integrity/compatibility failure."
+        exit_trigger: "Operator correction and restart/resync."
+      - name: "STOPPING"
+        meaning: "Releasing presentation resources; canonical invocations keep their owning lifetime."
+        entry_trigger: "Explicit detach/quit or termination signal."
+        exit_trigger: "Terminal and local resources restored/released."
+      - name: "STOPPED"
+        meaning: "No workbench subscriptions, terminal modes or render resources remain."
+        entry_trigger: "Local teardown completes."
+        exit_trigger: "New process starts a new generation."
+
+  transition_rules:
+    - from: "STARTING|SYNCING|READY|DEGRADED|DISCONNECTED"
+      to: "FAILED"
+      when: "unrecoverable local configuration or integrity failure"
+    - from: "STARTING|SYNCING|READY|DEGRADED|DISCONNECTED|FAILED"
+      to: "STOPPING"
+      when: "operator detach/quit or termination signal; no implicit canonical cancel"
+    - from: "STOPPING"
+      to: "STOPPED"
+      when: "local resources released"
+    - from: "SYNCING"
+      to: "DEGRADED"
+      when: "canonical baseline valid but an optional source is unavailable"
+    - from: "SYNCING|DEGRADED"
+      to: "DISCONNECTED"
+      when: "canonical source unavailable"
+    - from: "READY"
+      to: "SYNCING"
+      when: "epoch/cursor gap, explicit resync or source identity change"
+    - from: "FAILED"
+      to: "STARTING"
+      when: "operator corrected configuration and explicitly retries startup"
+    - from: "STARTING"
+      to: "SYNCING"
+      when: "required preflight succeeds"
+    - from: "SYNCING"
+      to: "READY"
+      when: "required baseline and cursors are coherent"
+    - from: "READY"
+      to: "DEGRADED"
+      when: "noncanonical or optional provider fails with bounded blast radius"
+    - from: "READY"
+      to: "DISCONNECTED"
+      when: "canonical Gauntlet command/event source is lost"
+    - from: "DEGRADED"
+      to: "SYNCING"
+      when: "recovery requires authoritative resynchronization"
+    - from: "DISCONNECTED"
+      to: "SYNCING"
+      when: "canonical source reconnect succeeds"
+
+  transition_triggers:
+    - name: "focus_changed"
+      behavior: "Recompute horizon-local queries, subscriptions, context candidates, and affordance projections without changing canonical state."
+    - name: "generation_replaced"
+      behavior: "Reject late frames from the superseded generation and begin baseline/cursor reconciliation."
+    - name: "prime_attention_requested"
+      behavior: "Create/project an operator attention path and composer takeover only through Gauntlet-approved semantics."
+    - name: "kernel_input_requested"
+      behavior: "Surface a bounded input request; response returns through Prime/Python host mediation."
+    - name: "canonical_event_received"
+      behavior: "Apply cursor and dependent read-model changes atomically before publishing the next WorkbenchSnapshot."
+
+  idempotency_rule: >-
+    Retried local intents MUST preserve or reuse the canonical operation idempotency key
+    where the operation supports it. Reprocessing the same authoritative event/cursor
+    MUST produce the same local read model and MUST NOT duplicate canonical side effects.
+
+  important_nuances:
+    - >-
+      Prime Python REPL shell execution is sequential within one session; parallel open-ended
+      work MUST use independent Prime child agents or another explicitly parallel substrate
+      rather than concurrent execution requests against one kernel.
+    - >-
+      A mailbox message, runtime output, heartbeat, local process exit, visible test pass,
+      or UI state transition is not Gauntlet completion or settlement unless the canonical
+      Gauntlet contract independently establishes it.
+    - >-
+      Hoisting changes the represented and computational horizon but does not change what exists canonically.
+
+core_behavior_requirements:
+  operation_and_lifecycle_contract:
+    - id: REQ-OPS-001
+      text: >-
+        Canonical Gauntlet composition MUST own admission, dispatch, process lifetime,
+        result collection and settlement independently of the Bun host. An admitted
+        receipt MUST identify the durable invocation before execution is exposed as
+        started. TUI/Bun loss at the admission-to-dispatch boundary MUST neither lose
+        nor duplicate the invocation. Recovery uses canonical reconciliation; adding
+        this composition is planned work, not an existing Prime adapter guarantee.
+    - id: REQ-OPS-002
+      text: >-
+        Resolve and invoke MUST recheck canonical preconditions at the write boundary,
+        under the owning operation's concurrency control. A projection generation is
+        not a canonical state version. Request identity binds actor, operation, target,
+        payload digest and canonical precondition version. Key reuse with a different
+        payload MUST be rejected. Timeouts after submission render outcome_unknown
+        until canonical status is reconciled; unsupported non-idempotent operations
+        MUST NOT be automatically retried. Two clients answering the same escalation
+        MUST yield at most one accepted transition and an explicit stale result.
+    - id: REQ-OPS-003
+      text: >-
+        A versioned capability handshake MUST distinguish existing read/refresh/resolve/
+        retry operations from planned launch, steering, cancellation, evidence admission
+        and session operations. Every exposed mutation MUST name its application owner,
+        allowed actors, typed inputs/results, preconditions, authority, containment,
+        budget, idempotency and evidence contract before implementation. Missing
+        operations render unsupported, never a shell-command fallback.
+    - id: REQ-OPS-004
+      text: >-
+        Formal critic envelopes MUST be assembled by Gauntlet from its allowlist in a
+        fresh context. Chat, builder identity/reasoning/history, attempt counts, arbitrary
+        Horizon relations, Prime session memory and SXR narrative MUST NOT enter formal
+        comparison. Approved observations may enter only via the declared comparison
+        contract. Hoisting MUST NOT remove mandatory Reference, governance or evidence
+        dependencies. Per-role context budgets apply after this mandatory closure.
+  projection_integrity_contract:
+    - id: REQ-SYNC-001
+      text: >-
+        Each adapter MUST declare source identity, store epoch, cursor semantics,
+        retention and baseline watermark. A baseline includes all events through its
+        watermark; increments begin strictly after it even when the underlying read
+        API is inclusive. Missing/out-of-order increments MUST cause bounded buffering
+        or resync, not silent cursor advancement. Opaque cursors MUST NOT use lexical
+        comparison. Epoch replacement or retention expiry requires a fresh baseline.
+    - id: REQ-SYNC-002
+      text: >-
+        Gauntlet, Prime, DomainForge and SXR source positions MUST remain distinct.
+        No global atomic snapshot or cross-source causal order is implied. Joins MUST
+        carry source versions and freshness; changed model bindings invalidate dependent
+        relations and commands. Queues, payloads, replay windows, query fanout, time and
+        storage MUST be bounded. Under overload, canonical events are caught up or
+        explicitly resynchronized; presentation updates may coalesce with visible lag.
+    - id: REQ-SYNC-003
+      text: >-
+        Loss of disposable projections MUST reconstruct all admitted consequential
+        records. Ephemeral kernel values and unretained streaming output MAY be lost
+        and MUST be labelled unavailable rather than recreated. Semantic/source bytes
+        used for evidence or model-visible decisions MUST be pinned in the owning
+        durable mechanism before use. A live query result alone is not durable evidence.
+  operator_journeys:
+    - id: REQ-UX-001
+      text: >-
+        A cold operator MUST be able to choose a configured workspace, inspect its
+        Reference and latest Run, and reach its escalation queue without knowing
+        internal identifiers. Empty, unavailable, corrupt and partially configured
+        workspaces MUST offer a named next step. Startup MUST NOT launch paid work.
+        The default Work view prioritizes escalation, in-flight work, Unit completion
+        by tier, remaining budget, denials and residuals, matching OperatorSurface.
+    - id: REQ-UX-002
+      text: >-
+        Work answers what needs action; Chat shows communication; Trace shows recorded
+        execution and evidence provenance. Selection MUST retain identity across views,
+        back/forward navigation, Inspector and source locations. Hoist MUST expose a
+        breadcrumb and one-step return. A persistent Case-wide attention summary MUST
+        reveal urgent escalation, budget and source-health changes outside the Horizon
+        without loading the whole Case into the model context or stealing input focus.
+    - id: REQ-UX-003
+      text: >-
+        The operator MUST inspect a blocked Unit's requirement, current evidence,
+        denial reason, required authority and exact target before resolve/retry. Disabled
+        actions remain discoverable with a reason and valid next step. Resolving an
+        escalation is not a generic approve button: it reuses the canonical verification
+        and settlement path. Pending, accepted, denied, outcome_unknown and completed
+        operation states MUST be visually and textually distinct; completed work still
+        does not imply settled Units.
+    - id: REQ-UX-004
+      text: >-
+        Composer mode and destination MUST always be visible: message, structured
+        operation, Prime input, or kernel execution. Pasted text MUST NOT execute or
+        change mode. Takeovers queue by stable request identity, preserve the draft,
+        and revalidate on reply; expired/already answered requests cannot accept input.
+        Escape dismisses local UI, detach leaves admitted work running, and explicit
+        stop targets a named invocation with canonical confirmation/status feedback.
+    - id: REQ-UX-005
+      text: >-
+        All core journeys MUST work with keyboard only, discoverable contextual help,
+        visible focus and no color-only meaning. The shell MUST adapt from a full layout
+        at 120x40 to one primary pane at 80x24, retaining Case, health, attention and
+        action destination; below that size show a recoverable compact-size prompt.
+        Resize, Unicode cell width, combining characters, multiline paste, long labels,
+        and SSH/tmux key conflicts MUST be tested. New stream output MUST NOT steal
+        scroll position or focus; follow-live is explicit and resumable.
+    - id: REQ-UX-006
+      text: >-
+        Each source pane MUST expose loading, empty, partial, stale, disconnected,
+        incompatible and error states with provenance and recovery. Core inspection
+        MUST remain usable without Prime, DomainForge or SXR. Untrusted text MUST be
+        rendered as text outside a deliberate PTY viewport; ANSI/OSC controls, links and
+        clipboard requests MUST NOT escape into the host terminal. PTY input ownership
+        and exit chord must remain visible; quit/error must restore terminal modes.
+    - id: REQ-UX-007
+      text: >-
+        Before broad feature implementation, a rendered vertical slice MUST prove
+        open workspace -> inspect Unit status/tier -> view verification metadata and
+        evidence references -> return, using existing Gauntlet reads. Fields not exposed
+        by that API MUST say unavailable; the preview is explicitly read-only and MUST
+        NOT infer selected-Unit denial reasons from global strings or status. Final
+        acceptance adds full requirement/evidence-content/current-denial inspection
+        through the new canonical read boundary and repeats these journeys
+        plus resolve/retry, delegation, detach/reconnect and optional semantic/evidence
+        navigation in a real PTY with screenshots or terminal recordings. A cold
+        operator MUST complete required journeys without the originating conversation.
+        Fixtures, task completion, navigation errors, time, interventions and context
+        cost MUST be recorded against the existing CLI workflow. Performance and UX
+        thresholds are frozen before measured runs; component snapshots alone do not
+        establish usability or reduced operator burden.
+  canonicality_and_reconstruction:
+    - id: REQ-STATE-001
+      text: >-
+        Gauntlet MUST remain authoritative for Reference, Run, Unit, evidence,
+        verification, escalation tickets, settlement, and consequential operation state.
+        Case/WorkItem/AttentionItem are source-referencing workbench projections;
+        Prime retains ownership of its input requests and session state.
+    - id: REQ-STATE-002
+      text: >-
+        Bun SQLite, WorkbenchSnapshot, OpenTUI/React state, kernel variables, Prime messages,
+        and local caches MUST be disposable without loss of Gauntlet canonical truth.
+    - id: REQ-STATE-003
+      text: >-
+        The local projection database MUST be fully reconstructible from authoritative
+        sources or be rejected as corrupt/stale and rebuilt.
+    - id: REQ-STATE-004
+      text: >-
+        The same recorded Gauntlet Run MUST be reconstructible headlessly without OpenTUI,
+        React, Bun SQLite, or an active notebook view.
+    - id: REQ-STATE-005
+      text: >-
+        Model-visible, settlement-relevant, or authority-changing information used by
+        Gauntlet MUST be durably reconstructible through its owning canonical mechanism.
+
+  affordance_isomorphism:
+    - id: REQ-AFF-001
+      text: >-
+        Every consequential action exposed by the workbench MUST reference one canonical
+        Gauntlet operation identity and MUST NOT implement an independent presentation-specific side effect.
+    - id: REQ-AFF-002
+      text: >-
+        TUI controls, command-palette entries, CLI/API projections, kernel callables,
+        and eligible agent capabilities representing the same operation MUST converge on
+        the same admission, validation, authority, idempotency, and result semantics.
+    - id: REQ-AFF-003
+      text: >-
+        A control displayed as available MUST be revalidated at invocation time; stale
+        affordance projections MUST fail safely rather than bypass current gates.
+    - id: REQ-AFF-004
+      text: >-
+        An installed provider, plugin, skill, tool, model, terminal, or subagent capability
+        MUST NOT be represented as an affordance until its current path passes the
+        applicable visibility, reachability, payment, governance, settlement-access, and recovery gates.
+    - id: REQ-AFF-005
+      text: >-
+        The workbench SHOULD preserve unavailable affordances as inspectable reasons when
+        doing so helps the operator understand what distinction, evidence, authority, or payment is missing.
+
+  focus_horizon_and_materialization:
+    - id: REQ-FOCUS-001
+      text: >-
+        Focus identity MUST be stable across Navigator, Work, Chat, Trace, Agents,
+        Evidence, Files, Inspector, and other placements.
+    - id: REQ-FOCUS-002
+      text: >-
+        The workbench MUST support multiple placements of one FocusRef without copying canonical object state.
+    - id: REQ-FOCUS-003
+      text: >-
+        Hoist/de-hoist MUST alter the active Horizon and MUST be able to constrain
+        subscriptions, SQLite queries, prefetch, semantic graph traversal, Prime context
+        construction, and visible affordances.
+    - id: REQ-FOCUS-004
+      text: >-
+        The system MUST prefer horizon-local incremental materialization over eager loading
+        of the entire Case, repository, semantic graph, Prime hierarchy, or event history.
+    - id: REQ-FOCUS-005
+      text: >-
+        Saved Horizons MAY preserve root Focus, relation queries, filters, active Views,
+        and layout preferences but MUST NOT become independent domain truth.
+
+  prime_and_kernel_integration:
+    - id: REQ-PRIME-001
+      text: >-
+        The workbench MUST project actual Prime sessions/children, stable Prime identifiers,
+        parent-child topology, session references, model identity, and lifecycle rather
+        than creating synthetic parallel agent records as the source of truth.
+    - id: REQ-PRIME-002
+      text: >-
+        Prime host/session integration MUST be headless and structured; scraping Prime's
+        terminal UI MUST NOT be the primary integration mechanism.
+    - id: REQ-PRIME-003
+      text: >-
+        Prime child delegation MUST be treated as nonblocking admission. A spawn/admission
+        handle MUST NOT be presented as the child result or completion.
+    - id: REQ-PRIME-004
+      text: >-
+        Parallel open-ended investigations SHOULD use independent Prime child sessions
+        when justified; the workbench MUST NOT issue concurrent shell executions against
+        one single-threaded Python REPL session.
+    - id: REQ-PRIME-005
+      text: >-
+        Prime mailbox/message delivery MUST be treated as communication. Message content
+        MAY update Chat/Trace/attention projections but MUST NOT alone establish Gauntlet completion.
+    - id: REQ-PRIME-006
+      text: >-
+        Kernel input/control needs MUST surface through explicit workbench Attention or
+        control affordances and MUST return through the Prime-owned Python REPL mediation path.
+    - id: REQ-PRIME-007
+      text: >-
+        Kernel objects MUST be classified as ephemeral, pinned, or artifactized; promotion
+        to Gauntlet evidence MUST be explicit and provenance-preserving.
+    - id: REQ-PRIME-008
+      text: >-
+        Prime goals, schedules, heartbeats, autonomous execution, compaction, refinement,
+        and harness state MAY implement admitted Gauntlet strategies but MUST NOT silently
+        become canonical Gauntlet Case direction, settlement, or capability claims.
+    - id: REQ-PRIME-009
+      text: >-
+        Closing the TUI MUST NOT terminate admitted Prime work unless the operator invokes
+        an explicit canonical stop/cancel operation or the governing policy requires it.
+    - id: REQ-PRIME-010
+      text: >-
+        Reattachment MUST recover Prime execution topology and session references from
+        qualified Prime/Gauntlet records rather than infer status from stale UI or unvalidated session-directory presence.
+
+  data_and_streaming:
+    - id: REQ-DATA-001
+      text: >-
+        The Bun host MUST use a React-free Workbench Model and publish immutable snapshots
+        to OpenTUI presentation code.
+    - id: REQ-DATA-002
+      text: >-
+        Canonical baseline reads and incremental streams MUST be reconciled through a
+        ProjectionGeneration and source cursors so reconnect races cannot corrupt active projections.
+    - id: REQ-DATA-003
+      text: >-
+        Late frames from a superseded generation MUST be rejected.
+    - id: REQ-DATA-004
+      text: >-
+        Applying one authoritative event MUST atomically update its local cursor and all
+        dependent SQLite read-model rows required for a coherent snapshot.
+    - id: REQ-DATA-005
+      text: >-
+        Chat and Trace MUST be separate projections over durable execution/session history
+        rather than one being canonical input for the other.
+    - id: REQ-DATA-006
+      text: >-
+        One source event MAY update multiple projections; views MUST NOT independently
+        consume/acknowledge a message in a way that causes another view to miss canonical state.
+    - id: REQ-DATA-007
+      text: >-
+        Local projection storage MUST preserve enough provenance to explain which owning
+        source and source cursor produced each consequential-looking projection.
+
+  bun_native_substrate:
+    - id: REQ-BUN-001
+      text: >-
+        The implementation MUST map every proposed local noncanonical database, PTY,
+        process, local server/socket, worker, config parser, compression, hashing, or
+        packaging dependency against Bun's built-in capability before adding an overlapping dependency.
+    - id: REQ-BUN-002
+      text: >-
+        An overlapping external dependency MAY be admitted only after a reproducible
+        qualification demonstrates a material correctness, portability, recovery,
+        maintenance, or performance advantage for a required use case.
+    - id: REQ-BUN-003
+      text: >-
+        bun:sqlite SHOULD be the default local read-model store unless target benchmarks
+        falsify its affordability or correctness for representative event and query loads.
+    - id: REQ-BUN-004
+      text: >-
+        Bun PTY/process facilities plus OpenTUI EmbeddedTerminal SHOULD be qualified as
+        the primary embedded-terminal path before another PTY/emulator stack is introduced.
+    - id: REQ-BUN-005
+      text: >-
+        Same-host integration SHOULD prefer a local transport such as a Unix socket where
+        supported and appropriate, while preserving the same application protocol for remote modes.
+    - id: REQ-BUN-006
+      text: >-
+        Expensive projection folding, indexing, or preprocessing MUST NOT block interactive
+        rendering when Bun worker isolation can move the computation off the render path.
+
+  opentui_projection:
+    - id: REQ-TUI-001
+      text: >-
+        OpenTUI and any React binding MUST consume Workbench snapshots and interaction
+        callbacks; presentation components MUST NOT directly own Gauntlet, Prime, or DomainForge business state.
+    - id: REQ-TUI-002
+      text: >-
+        The primary semantic hierarchy MUST preserve Environment -> Workspace -> Surface
+        -> View -> Focus, with Cue, Attention, Relation, Affordance, and Flow operating orthogonally.
+    - id: REQ-TUI-003
+      text: >-
+        The primary workspace MUST support distinct Work, Chat, and Trace questions over
+        the same Case without flattening execution history into conversation history.
+    - id: REQ-TUI-004
+      text: >-
+        Composer takeover for approval, question, recovery, or kernel input MUST be
+        temporary and MUST preserve the underlying default composer state unless the
+        canonical interaction explicitly changes it.
+    - id: REQ-TUI-005
+      text: >-
+        Renderer replacement MUST NOT require rewriting Gauntlet canonical behavior or Prime execution semantics.
+
+  plugin_composition:
+    - id: REQ-PLUGIN-001
+      text: >-
+        Workbench plugins MUST contribute through stable semantic slots/providers such as
+        View, Focus renderer, relation provider, inspector section, affordance presentation,
+        composer takeover, or lower-surface contribution rather than arbitrary cross-feature state mutation.
+    - id: REQ-PLUGIN-002
+      text: >-
+        In-process Bun/OpenTUI runtime modules MUST be explicitly trusted; untrusted code
+        MUST execute out of process behind a narrower capability boundary.
+    - id: REQ-PLUGIN-003
+      text: >-
+        Plugin registrations, subscriptions, view contributions, and local effects MUST
+        unwind when the plugin unloads.
+    - id: REQ-PLUGIN-004
+      text: >-
+        Plugin unload MUST be tested by mount -> exercise -> unload -> baseline comparison.
+
+  domainforge_synergy:
+    - id: REQ-DOM-001
+      text: >-
+        When a Case has a DomainForge/SEA semantic model identity, the workbench SHOULD
+        use it to enrich Focus relations, context construction, artifact bindings, and impact navigation.
+    - id: REQ-DOM-002
+      text: >-
+        DomainForge semantic identity MUST remain distinct from Bun cache hashes, file hashes,
+        UI snapshot identities, and Gauntlet Run identifiers.
+    - id: REQ-DOM-003
+      text: >-
+        A semantic concept MAY appear in multiple Views/placements while retaining one source identity.
+    - id: REQ-DOM-004
+      text: >-
+        The semantic adapter MUST qualify the exact producer binary, protocol/schema,
+        entry path, namespace, scope, pack pins and applicable content/semantic digests.
+        Checked-out DomainForge's positional envelope command and SXR's Slice 0B CEP
+        envelope invocation are incompatible contracts, not interchangeable versions.
+        Select an explicitly compatible producer/consumer pair or parse the supported
+        native envelope separately; no implicit flag fallback or sibling code rewrite.
+        Schema validity, digest integrity and semantic diagnostics remain separate
+        results. Resolved output containing diagnostics MUST NOT appear conformant.
+    - id: REQ-DOM-005
+      text: >-
+        A bound semantic Focus MUST show its declaration, source location, model identity,
+        applicable diagnostics and explicit links to Gauntlet Units and SXR records.
+        Use qualified envelope projections and existing validate/project/authority/pack/
+        contract capabilities where supported; do not invent a graph service. Namespace
+        and model closure changes invalidate links. CAS references require digest and
+        byte verification before use. Missing bindings remain unknown; semantic authority
+        information never substitutes for Gauntlet admission. Rich inferred impact
+        analysis remains roadmap-only.
+  reality_trace_synergy:
+    - id: REQ-SXR-001
+      text: >-
+        When explicitly bound, a Reality Trace adapter MUST expose committed evidence,
+        ledger verification/history/export and question/threshold context through the
+        existing Inspector, Evidence and Trace surfaces. Bind SXR repository/run/entity/
+        question IDs to Gauntlet workspace/reference/Run/Unit IDs explicitly; never join
+        by label alone. Preserve ledger ordinal, entry hash, source schema/version,
+        semantic closure and verification status. Keep pending or unverified records
+        visibly separate from committed, verified records.
+    - id: REQ-SXR-002
+      text: >-
+        SXR settlement, claims, residuals and observations MUST remain source-typed;
+        importing them MUST NOT mutate Gauntlet Settlement, Residual or EvidenceRef.
+        Evidence used by Gauntlet requires normal provenance-preserving observation,
+        admission and verification against the frozen Reference. Preserve unknowns and
+        omissions. Do not use the current placeholder explain command to invent causal
+        explanations; show the recorded question, threshold, evidence and missing links.
+    - id: REQ-SXR-003
+      text: >-
+        Integration MUST classify command side effects before invocation: SXR query/context
+        can rebuild projections and ledger verification can initialize local storage.
+        Execute such commands only through an explicit bounded adapter refresh, never
+        during render. Use argument arrays, a selected workspace, output/schema limits,
+        deadline/cancellation and process isolation from the render loop. Existing
+        synchronous DomainForge adapters do not prove these bounds. The workbench MUST
+        neither append to SXR's canonical ledger nor launch its autonomous run implicitly.
+    - id: REQ-SXR-004
+      text: >-
+        Qualification MUST exercise the real selected DomainForge producer, SXR consumer
+        and workbench path together, including incompatible flags/schema, invalid hashes,
+        missing CAS, wrong repository, changed pack pins, unavailable providers and
+        pending evidence. Test Gauntlet-only, DomainForge-only, SXR-only and combined
+        binding modes. Optional provider absence is valid; claiming enriched conformance
+        requires non-mock evidence. Ignored real-binary tests do not qualify composition.
+
+  completion_rules:
+    may_claim_completion_only_when:
+      - "All REQUIRED high-risk canonicality, affordance-isomorphism, recovery, and bypass tests pass."
+      - "Cold reconstruction from authoritative sources produces equivalent consequential projections."
+      - "Required Prime/Python/Bun/OpenTUI target integrations pass on the declared support matrix."
+      - "No known denied operation can bypass Gauntlet through another projection or adapter."
+      - "Headless replay/reconstruction is demonstrated without the TUI stack."
+
+    must_report_incomplete_blocked_or_failed_when:
+      - "Required target integration is skipped or mocked."
+      - "Local projection deletion loses consequential state."
+      - "Prime child/session state can only be reconstructed from UI memory."
+      - "An external overlapping dependency is introduced without native-substrate qualification evidence."
+      - "Plugin unload leaves observable effects or active registrations."
+      - "Reconnect can apply stale-generation frames to active projections."
+
+execution_integration_contract:
+  invocation:
+    method: "RPC|HTTP|Unix-socket|LIBRARY_CALL|SUBPROCESS depending on owning adapter; exact carrier implementation-defined"
+    required_parameters:
+      - "operation or local workbench action"
+      - "FocusRef / target identity"
+      - "actor/projection context"
+      - "current generation or canonical idempotency context where applicable"
+    runtime_context: >-
+      Bun workbench process; Gauntlet workspace/Case context; Prime session and Python REPL
+      kernel context only when the admitted operation requires them.
+    authentication: >-
+      Local trust MAY use OS/user/socket boundaries when sufficient; remote modes MUST
+      use explicit authentication. Gauntlet authority checks remain separate
+      from transport authentication.
+    timeout_policy: >-
+      UI/request timeouts MUST NOT imply cancellation of admitted Prime/Gauntlet work.
+      Cancellation MUST be an explicit operation. Long-running work MUST be detached/
+      reattachable where the owning substrate supports it.
+
+  result:
+    type: "typed operation result plus source events/projection updates"
+    success_fields:
+      - "operation_id"
+      - "status"
+      - "canonical_result_ref when applicable"
+      - "source_cursor or generation metadata where applicable"
+    failure_fields:
+      - "error.code"
+      - "error.message"
+      - "error.recoverable"
+      - "error.source"
+      - "error.blast_radius"
+
+  external_side_effects:
+    may_change:
+      - "Gauntlet canonical state only through admitted canonical operations."
+      - "Prime session/kernel state only through admitted Prime integration operations."
+      - "Local Bun SQLite/cache/plugin/view state as noncanonical projection state."
+      - "Workspace files/processes only when the admitted operation authorizes them."
+    must_not_change:
+      - "Reference, settlement, authority, evidence, or Case truth through presentation-only operations."
+      - "Prime or Gauntlet state by direct React/OpenTUI component mutation."
+      - "Canonical completion from mailbox, heartbeat, runtime output, process exit, or local SQLite state alone."
+
+  sequence_diagram:
+    mermaid: |-
+      sequenceDiagram
+        participant O as Operator / projection
+        participant W as Bun Workbench Host
+        participant G as Gauntlet Core
+        participant P as Prime Agent Host
+        participant K as Python REPL Kernel
+        participant E as Evidence / canonical event sink
+        O->>W: operation intent(Focus, params, generation)
+        W->>G: canonical operation request
+        G->>G: validate current affordance/authority/idempotency
+        alt denied
+          G-->>W: typed denial
+          W-->>O: reason / attention projection
+        else admitted Prime work
+          G->>G: persist invocation and dispatch ownership
+          G-->>W: admitted receipt (not completion)
+          G->>P: dispatch through governed execution adapter
+          P->>K: sequential computation when needed
+          K-->>P: runtime output/control/result events
+          P-->>W: session/message/result observations
+          W-->>O: live noncanonical projection
+          P-->>G: execution observation/result refs
+          G->>E: preserve evidence/canonical events
+          G-->>W: canonical state/events
+          W-->>O: coherent updated snapshot
+        end
+
+proof_and_observability:
+  required_evidence_artifacts:
+    - "Workbench conformance report mapping every REQUIRED requirement to test/evidence."
+    - "Cold reconstruction report after deleting Bun SQLite/local projection state."
+    - "TUI-loss and kernel-loss recovery logs."
+    - "Prime long-running child detach/reattach evidence."
+    - "Isomorphic-affordance cross-surface test report."
+    - "Denied-operation bypass/adversarial test report."
+    - "Projection generation/reconnect race report."
+    - "Bun native-substrate qualification matrix."
+    - "OpenTUI/Bun PTY target-terminal qualification report."
+    - "Plugin mount/exercise/unload/baseline comparison report."
+    - "Headless replay equivalence report."
+    - "Performance benchmark report for representative Case/event/query loads."
+
+  evidence_policy:
+    storage: "project evidence root; exact path implementation-defined by repository convention"
+    retention: >-
+      Keep settlement-critical and architecture-qualification evidence across revisions;
+      performance artifacts MAY be pruned only according to explicit project retention policy.
+    access: "reviewable by operator, critic, verifier, and independent confirmer"
+    correction_history: >-
+      Failed or contradictory evidence MUST NOT be overwritten merely because a later
+      run passes. Preserve provenance sufficient to reconstruct correction.
+
+  proof_interface:
+    preferred_commands:
+      - "implementation-defined: one command for core workbench conformance suite"
+      - "implementation-defined: one command for target integration/recovery suite"
+      - "implementation-defined: one command for performance/native-substrate qualification"
+    pass_condition: >-
+      Exit zero MUST mean every REQUIRED test selected by the command executed and passed,
+      required evidence was written, no required integration was skipped, and the evidence
+      records the exact runtime versions/target environment used.
+    fail_condition: >-
+      Nonzero, skipped REQUIRED integration, missing evidence, stale-generation acceptance,
+      canonical-state loss, authority bypass, contradictory replay, or hidden fallback is failure.
+
+  required_log_context:
+    - "Canonical RunId/UnitId/TicketId plus workbench Case/Focus projection IDs where applicable"
+    - "FocusRef"
+    - "ProjectionGeneration"
+    - "source cursor/sequence"
+    - "Prime session/child reference when applicable"
+    - "operation ID and reason code"
+
+  required_metrics:
+    - name: "focus_to_snapshot_latency"
+      reason: "Prove that local horizon changes remain perceptually usable at representative Case size."
+    - name: "event_to_projection_latency"
+      reason: "Diagnose streaming/update delay without conflating it with canonical event timing."
+    - name: "projection_rebuild_duration"
+      reason: "Prove disposable local state is recoverable at representative history size."
+    - name: "projection_store_size"
+      reason: "Bound local storage/payment and compare hot/cold strategies."
+    - name: "render_loop_block_time"
+      reason: "Detect projection/index work leaking onto the interactive render path."
+    - name: "agent_context_size_by_horizon"
+      reason: "Test whether hoisting/materialization actually reduces context payment."
+    - name: "reconnect_catchup_duration"
+      reason: "Prove long-running usability after interruption."
+
+  required_events:
+    - "workbench/generation-started"
+    - "workbench/generation-ready"
+    - "workbench/generation-degraded"
+    - "workbench/focus-changed"
+    - "workbench/horizon-changed"
+    - "workbench/affordances-resolved"
+    - "workbench/source-disconnected"
+    - "workbench/source-reconnected"
+    - "workbench/projection-rebuilt"
+    - "workbench/plugin-mounted"
+    - "workbench/plugin-unloaded"
+
+repeatability_and_variation:
+  required_variations:
+    - id: VAR-001
+      case: "Local same-host operation using the selected local transport."
+      expected: "All core views/actions work; no public network binding is required by default."
+    - id: VAR-002
+      case: "SSH/remote terminal use with the same semantic workbench model."
+      expected: "Rendering/transport changes do not change canonical operation meaning or state ownership."
+    - id: VAR-003
+      case: "Small Case and large Case/event history with multiple active Prime children."
+      expected: "Horizon-local interaction remains functional; no eager whole-world materialization is required."
+    - id: VAR-004
+      case: "Case with DomainForge semantic model and Case without DomainForge semantic enrichment."
+      expected: "Semantic enrichment is additive; absence is explicit and does not fabricate relations."
+    - id: VAR-005
+      case: "Operation invoked from TUI, kernel wrapper, CLI/API, and eligible Prime agent."
+      expected: "Same canonical operation semantics and gates; equivalent result class."
+    - id: VAR-006
+      case: "Prime child depth/parallel delegation under bounded horizon."
+      expected: "Actual Prime topology is projected and no concurrent execution is issued against one Python REPL session."
+
+  required_recovery_cases:
+    - id: RECOV-001
+      case: "Delete/corrupt Bun SQLite projection database."
+      expected: "Workbench rebuilds from authoritative sources or fails safely without canonical loss."
+    - id: RECOV-002
+      case: "Kill TUI during admitted Prime work."
+      expected: "Authorized Prime work survives; reopen reconstructs and reattaches correctly."
+    - id: RECOV-003
+      case: "Restart/lose Python REPL kernel."
+      expected: "Ephemeral computation may be lost, but canonical state survives and kernel projections clearly invalidate."
+    - id: RECOV-004
+      case: "Disconnect/reconnect after incremental events were in flight."
+      expected: "New generation baselines/cursors catch up; stale old-generation frames are rejected."
+    - id: RECOV-005
+      case: "Prime becomes unavailable while Gauntlet remains available."
+      expected: "Prime-dependent affordances degrade; unrelated canonical inspection remains valid."
+    - id: RECOV-006
+      case: "Trusted plugin throws during load or unload."
+      expected: "Failure is isolated, contributions unwind or never activate, and baseline workbench remains usable."
+
+  capability_claim_rule: >-
+    A capability claim remains unverified until every REQUIRED variation and recovery
+    case applicable to the target environment has passed. Reduced orchestration or
+    context burden MUST be measured under repeated use before being claimed as capability gain.
+
+failure_model_and_recovery:
+  failure_classes:
+    - name: "Canonical source loss"
+      symptoms:
+        - "Gauntlet command/event source unavailable or cursor continuity cannot be established."
+      required_behavior: >-
+        Disable state-changing canonical operations, mark affected projections stale or
+        disconnected, preserve local inspection where safe, and begin explicit resynchronization on recovery.
+
+    - name: "Local projection corruption"
+      symptoms:
+        - "SQLite integrity failure, cursor mismatch, impossible projection invariant, or unreadable local store."
+      required_behavior: >-
+        Quarantine/discard the local projection and rebuild from authoritative sources;
+        do not repair canonical truth from the projection.
+
+    - name: "Prime execution/provider loss"
+      symptoms:
+        - "Prime host unavailable, child session missing, kernel failure, or incompatible runtime API."
+      required_behavior: >-
+        Degrade Prime-dependent views/affordances with explicit reason; preserve Gauntlet
+        canonical state and require reattachment/recovery rather than inventing completion.
+
+    - name: "Projection generation race"
+      symptoms:
+        - "Late frame or baseline/incremental overlap from a superseded generation."
+      required_behavior: "Reject stale generation data and resynchronize from authoritative cursor/baseline."
+
+    - name: "Plugin lifecycle failure"
+      symptoms:
+        - "Plugin leaves registration/effect after unload or fails during activation."
+      required_behavior: "Isolate the plugin, unwind contributions where possible, and fail the plugin conformance gate."
+
+  safe_failure_requirements:
+    - id: REQ-SAFE-001
+      text: >-
+        Loss of TUI, React, OpenTUI renderer, local SQLite, or kernel state MUST NOT alter
+        canonical Gauntlet settlement/reference/authority truth.
+    - id: REQ-SAFE-002
+      text: >-
+        If the current affordance cannot be revalidated, the workbench MUST fail closed
+        for consequential operations rather than trust the stale presentation.
+    - id: REQ-SAFE-003
+      text: >-
+        Provider/model/transport fallback MUST be explicit, policy-permitted, and visible;
+        silent fallback is forbidden.
+    - id: REQ-SAFE-004
+      text: >-
+        Prime/Python heartbeats and process liveness MUST NOT be interpreted as work success.
+    - id: REQ-SAFE-005
+      text: >-
+        UI or local cache inconsistency MUST trigger resync/degraded state rather than
+        mutate canonical sources to make the projection self-consistent.
+
+  unsafe_behaviors:
+    - "Kernel or plugin directly performs a consequential action that Gauntlet would deny."
+    - "Mailbox message or UI status changes Gauntlet completion without canonical evidence."
+    - "TUI shutdown implicitly cancels admitted long-running work."
+    - "React/OpenTUI state is treated as durable business state."
+    - "Stale generation frames overwrite newer active projections."
+    - "Untrusted runtime module is loaded in-process."
+
+  recoverable_failures:
+    - failure: "Projection DB loss"
+      recovery: "Recreate schema and replay/reconcile authoritative baselines/events."
+    - failure: "TUI process loss"
+      recovery: "Restart, mint new generation, resync, reattach to Prime/Gauntlet."
+    - failure: "Kernel restart"
+      recovery: "Invalidate KernelObjectRefs, restart/reattach via Prime, restore only explicitly pinned/artifactized state available from owning stores."
+    - failure: "Optional DomainForge provider loss"
+      recovery: "Mark semantic enrichment unavailable and resume after identity-compatible reconnect."
+
+  nonrecoverable_or_operator_required:
+    - failure: "Canonical history contradiction or unresolvable cursor discontinuity"
+      behavior: "Stop state-changing operations and require operator/verifier investigation."
+    - failure: "Authority bypass detected"
+      behavior: "Fail conformance, disable affected path, preserve evidence, and require independent confirmation before re-enabling."
+    - failure: "Prime installed version incompatible with required integration contract"
+      behavior: "Block Prime-dependent workbench mode until adapter/version decision is explicit and proven."
+
+security_safety_trust_boundaries:
+  enforcement_scope: >-
+    Denial equivalence applies to supported governed workbench/CLI/kernel/agent/plugin
+    adapter routes within the declared containment and actor boundary. A same-user
+    unrestricted shell, malicious trusted in-process module or host administrator can
+    access host resources; this UI does not establish an OS security boundary against
+    them. Governed PTYs and Prime execution must inherit canonical containment before
+    process start. Presentation helpers cannot grant a broader capability. All input,
+    including authenticated source payloads, is schema/size validated; source trust
+    does not make embedded model text or terminal control bytes trusted.
+  local_transport: >-
+    Loopback binding is reachability, not actor authentication. The operation bridge
+    MUST bind each request to the configured actor/session and validate host/origin or
+    equivalent channel identity against cross-origin requests. Never accept client-
+    asserted authority. Authentication/version negotiation must precede mutations;
+    transport failures cannot fall back to direct store writes or an unrestricted shell.
+    The existing feature-gated loopback JSON surface has no request-level actor binding,
+    session identity, or version negotiation. Adding them is new implementation work on
+    the canonical operation boundary, owned by a named plan task; it MUST NOT be assumed
+    to already exist because the surface refuses non-loopback binds.
+  trusted_inputs:
+    - "Authenticated/authorized Gauntlet canonical events and operation responses."
+    - "Prime host/session data from the configured trusted local/remote Prime instance."
+    - "DomainForge outputs whose semantic identity has been validated for the Case."
+    - "Explicitly trusted in-process workbench plugin modules."
+
+  untrusted_inputs:
+    - "Repository content, filenames, terminal output, process output, model/agent text, and tool-produced strings."
+    - "Plugin/module paths or code not explicitly trusted."
+    - "Remote network input not authenticated to the workbench/Gauntlet policy."
+
+  trusted_actors:
+    - "Authenticated operator identity plus Gauntlet authorization context."
+
+  privileged_operations:
+    - "Any Gauntlet state mutation, approval, escalation resolution, settlement, cancellation, reference-changing operation, or governed execution."
+    - "Filesystem/process/network operations whose effects exceed local presentation state."
+    - "Prime steering/cancellation/refinement when it affects admitted execution or future harness behavior."
+    - "Loading in-process runtime modules."
+
+  mandatory_requirements:
+    - id: REQ-SEC-001
+      text: >-
+        Prime Python REPL/kernel and worker isolation MUST NOT be represented as a security sandbox.
+        Dangerous or hostile execution requires an external enforcement boundary appropriate to the risk.
+    - id: REQ-SEC-002
+      text: >-
+        No TUI, kernel, plugin, terminal, Prime message, or local adapter path MAY bypass
+        Gauntlet authority for a consequential operation.
+    - id: REQ-SEC-003
+      text: >-
+        Secrets MUST remain in approved secret sources and MUST NOT be persisted in local
+        projection rows, evidence, logs, snapshots, plugin manifests, or error messages.
+    - id: REQ-SEC-004
+      text: >-
+        Runtime-loaded Bun/OpenTUI modules MUST be treated as trusted in-process code;
+        code outside that trust policy MUST use a separate process and narrower interface.
+    - id: REQ-SEC-005
+      text: >-
+        Process argv, paths, SQL inputs, terminal automation, and RPC payloads derived from
+        untrusted content MUST be validated/escaped/bound at the privileged boundary.
+
+  secret_handling:
+    source: "project-approved secret manager, OS credential source, or provider authentication mechanism"
+    must_not:
+      - "log secrets"
+      - "persist secrets in evidence artifacts"
+      - "emit secrets in error messages"
+      - "store secrets in Bun SQLite projection rows or serialized Workbench snapshots"
+      - "inject secrets into model/agent context unless explicitly authorized and necessary"
+
+  authorization_requirements:
+    - "Transport authentication MUST NOT substitute for Gauntlet operation authority."
+    - "Affordances MUST be resolved in the current actor/horizon/authority context."
+    - "Stale previously authorized controls MUST be revalidated before execution."
+
+  trust_boundary_diagram:
+    mermaid: |-
+      flowchart LR
+        Operator["Authenticated Operator"] --> W["Bun Workbench Host"]
+        Repo["Untrusted repo/process/model text"] --> Validate["Validation / normalization"]
+        Validate --> W
+        W --> G["Gauntlet authority/admission"]
+        G --> P["Prime / execution adapters"]
+        W --> TrustedPlugin["Trusted in-process plugin"]
+        UntrustedPlugin["Untrusted plugin/code"] --> Isolated["Separate process boundary"]
+        Isolated --> W
+        Repo -. no direct privileged access .-> G
+        TrustedPlugin -. no independent authority .-> P
+
+reference_algorithms:
+  resolve_and_invoke_affordance:
+    pseudocode: |-
+      function resolve_and_invoke(actor, focus, requested_operation, params, expected_generation):
+        if active_generation.id != expected_generation:
+          return typed_stale_projection()
+        canonical_op = map_projection_to_canonical_operation(requested_operation)
+        decision = gauntlet.resolve_affordance(actor, focus, canonical_op, params)
+        if decision.status != AVAILABLE:
+          return typed_denial(decision.reason_codes)
+        # invoke atomically revalidates canonical preconditions; resolution is advisory
+        return gauntlet.invoke(canonical_op, actor, focus, params,
+                               decision.canonical_version, stable_request_identity)
+
+  apply_authoritative_increment:
+    pseudocode: |-
+      function apply_authoritative_increment(source, epoch, generation, cursor, event):
+        if generation != active_generation.id:
+          return reject_as_stale()
+        if epoch != stored_epoch(source):
+          return request_new_baseline(source)
+        disposition = source_protocol.classify_after(stored_cursor(source), cursor)
+        if disposition == DUPLICATE:
+          return idempotent_noop()
+        if disposition != NEXT:
+          return bounded_buffer_or_resync(source)
+        transaction(bun_sqlite):
+          update_read_models(event)
+          recompute_affected_relations_and_affordances(event)
+          store_cursor(source, cursor)
+        publish_immutable_snapshot()
+
+  construct_hoisted_prime_context:
+    pseudocode: |-
+      function construct_hoisted_prime_context(horizon, role, work_item):
+        if role == FORMAL_CRITIC:
+          return gauntlet.fresh_comparison_envelope(declared_contract, admitted_observation)
+        context = minimum_required_reference_units(work_item)
+        context += mandatory_governance_and_dependency_closure(work_item)
+        context += horizon.relation_queries.resolve_relevant_artifacts()
+        context += relevant_evidence(work_item)
+        context += relevant_domainforge_relations(horizon)
+        context += role_instructions(role)
+        assert no_unapproved_full_case_dump(context)
+        return bounded_context_envelope(context)
+
+validation_matrix:
+  core_conformance:
+    - area: "Outcome"
+      test: "Open/resume representative Case, hoist Focus, inspect related world, invoke admitted operation, observe live result, close/reopen, and reconstruct."
+      expected: "Same consequential state and operation semantics before and after reattachment."
+      evidence: "End-to-end workbench settlement report."
+
+    - area: "Input validation"
+      test: "Inject malformed FocusRef, path, operation, generation, and terminal/process input."
+      expected: "Typed rejection before privileged side effect; no canonical mutation."
+      evidence: "Input-boundary test report."
+
+    - area: "Config errors"
+      test: "Missing/invalid Prime endpoint, Gauntlet endpoint, plugin root, and projection-store config."
+      expected: "Typed error with bounded blast radius and no hidden fallback."
+      evidence: "Configuration/preflight test report."
+
+    - area: "Startup/preflight"
+      test: "Start with valid, partially unavailable, and incompatible providers."
+      expected: "Correct STARTING/SYNCING/READY/DEGRADED/FAILED states and operation gating."
+      evidence: "Startup-state transition log."
+
+    - area: "State transitions"
+      test: "Force reconnect, generation replacement, provider degradation, recovery, and shutdown."
+      expected: "Only valid transitions occur; stale frames cannot mutate active generation."
+      evidence: "State-machine conformance log."
+
+    - area: "Failure handling"
+      test: "Kill TUI, delete SQLite DB, restart kernel, drop Prime, and drop Gauntlet connection in separate runs."
+      expected: "Blast radius matches spec; canonical state remains safe."
+      evidence: "Recovery suite artifacts."
+
+    - area: "Observability"
+      test: "Trace one operation through TUI intent, canonical command, Prime execution, evidence, event, projection, and final snapshot."
+      expected: "Stable correlations and source provenance at every boundary."
+      evidence: "Cross-plane trace artifact."
+
+    - area: "Security/safety"
+      test: "Attempt denied operation through TUI, kernel, CLI/API, Prime extension/message, plugin, and terminal helper."
+      expected: "Every route denies before consequential side effect."
+      evidence: "Independent adversarial bypass report."
+
+    - area: "Affordance isomorphism"
+      test: "Invoke one allowed operation through every supported projection."
+      expected: "Same canonical operation ID/gates/idempotency/result class."
+      evidence: "Cross-surface equivalence report."
+
+    - area: "Projection reconstruction"
+      test: "Delete all noncanonical local state and rebuild from authoritative sources."
+      expected: "Equivalent Case/Focus/Trace/Evidence/Agent projections within documented presentation tolerances."
+      evidence: "Cold-rebuild comparison report."
+
+    - area: "Python REPL serialization"
+      test: "Attempt two concurrent execute requests against one Prime Python REPL session."
+      expected: "Workbench prevents/serializes the unsafe pattern and routes parallel work to independent execution contexts where appropriate."
+      evidence: "Kernel concurrency guard test."
+
+    - area: "Plugin reversibility"
+      test: "Mount trusted plugin, exercise all contributions, unload, compare baseline."
+      expected: "No orphan views, slots, subscriptions, affordances, or handlers remain."
+      evidence: "Plugin lifecycle diff."
+
+    - area: "Native substrate discipline"
+      test: "Review every overlapping external runtime dependency."
+      expected: "Each is absent or backed by explicit Bun/Prime/Python/OpenTUI qualification evidence."
+      evidence: "Dependency-admission ledger."
+
+  variation_and_recovery:
+    - case: "Representative large Case with high event volume and multiple Prime agents."
+      why: "Tests local projection payment and render isolation."
+      expected: "Pre-registered latency/resource budgets pass without eager whole-world loading."
+      evidence: "Performance benchmark report."
+    - case: "SSH/tmux target terminal."
+      why: "Primary operational environment must preserve semantics across transport."
+      expected: "Terminal, focus, resize, input, reconnect, and operation semantics remain correct."
+      evidence: "Target terminal acceptance report."
+    - case: "Kernel restart after pinned and ephemeral objects exist."
+      why: "Proves computation/evidence/canonical boundaries."
+      expected: "Ephemeral state invalidates; canonical state survives; pinned/artifactized recovery follows declared policy."
+      evidence: "Kernel-loss recovery report."
+    - case: "Stale late frame from old generation after reconnect."
+      why: "Prevents subtle long-horizon projection corruption."
+      expected: "Frame rejected and active snapshot unchanged."
+      evidence: "Generation-race adversarial test."
+
+  real_integration_condition: >-
+    Final conformance requires non-mock integration with the actual repository's Gauntlet
+    core, installed Prime Agent version, real Python REPL runtime, Bun 1.4-compatible
+    target runtime, OpenTUI native renderer, and target terminal/SSH environment. DomainForge
+    integration is required for Cases claiming semantic-world enrichment.
+
+  real_integration_tests:
+    - "Run a real Gauntlet Case with at least one Prime child, one kernel computation, one evidence-producing operation, and one reconnect."
+    - "Build/run the declared Bun/OpenTUI release form on the actual target hardware and terminal environment."
+    - "Perform a real local projection deletion/rebuild from authoritative sources."
+
+  skipped_test_rule: >-
+    Skipped REQUIRED integration tests MUST be reported as skipped, not passed, and MUST
+    prevent final conformance when those tests are required.
+
+implementation_definition_of_done:
+  - "The preregistered desired outcome and success condition are demonstrated end-to-end."
+  - "The domain model is concrete enough that a cold implementer can preserve ownership, identity, and projection boundaries without guessing."
+  - "Configuration precedence, errors, preflight, and degraded/reconnect states are proven."
+  - "Canonicality and cold reconstruction requirements pass after deleting local projection state."
+  - "Allowed and denied operation isomorphism is proven across every supported projection."
+  - "Prime/Python integration uses actual Prime sessions/children and preserves shell serialization."
+  - "TUI and kernel loss recovery cases pass without canonical truth loss."
+  - "Long-running Prime work survives TUI detachment where authorized and reattaches correctly."
+  - "Bun native-substrate qualification is complete for every overlapping external dependency actually introduced."
+  - "OpenTUI presentation consumes React-free immutable Workbench snapshots and does not own business truth."
+  - "Plugin lifecycle reversibility and trust-boundary tests pass."
+  - "Required evidence is stored and inspectable with exact runtime/target versions."
+  - "Variation and recovery cases applicable to the declared support matrix pass."
+  - "Security/trust-boundary tests pass, including independent denied-operation bypass attempts."
+  - "Headless replay/reconstruction succeeds without OpenTUI, React, Bun SQLite, or notebook UI state."
+  - "Optional/roadmap features are explicitly marked implemented, partial, or absent."
+  - "Claim levels match actual evidence."
+  - "A cold developer or agent can answer every quality-gate question in spec_frame from this file alone."
+
+roadmap_boundaries:
+  libvaxis_renderer_fallback:
+    level: "roadmap"
+    future_shape: >-
+      Replaceable native-minimal renderer/control implementation if OpenTUI fails measured
+      payment/reliability requirements on a required target.
+    current_requirement: >-
+      Keep renderer/business-state boundaries clean enough that an alternative renderer
+      does not require changing canonical Gauntlet/Prime semantics.
+
+  remote_workbench_transport:
+    level: "roadmap"
+    future_shape: "Authenticated remote/SSH/cloud workbench using the same application protocol and Workbench Model semantics."
+    current_requirement: "Do not make local Unix-socket/path assumptions part of canonical operation meanings."
+
+  domainforge_rich_semantic_navigation:
+    level: "roadmap"
+    future_shape: >-
+      Rich cross-model semantic graph overlays, SEA semantic-pack navigation, and
+      code/domain impact projections when DomainForge APIs and bindings are available.
+    current_requirement: "Preserve source semantic identity and a stable DomainForge adapter seam."
+
+  prime_harness_metabolization_ui:
+    level: "roadmap"
+    future_shape: >-
+      Governed promotion of repeated exploratory kernel functions/patterns into tested
+      Prime skills, harness refinements, or deterministic Gauntlet capability providers.
+    current_requirement: >-
+      Kernel objects, skills, memories, and refinements must remain distinguishable and
+      provenance-linkable so later developmental evaluation is possible.
+
+  multi_renderer_projection:
+    level: "roadmap"
+    future_shape: "Future GUI/web/mobile projection over the same headless Workbench Model and canonical operations."
+    current_requirement: "No OpenTUI-specific business truth in canonical or Workbench Model contracts."
+
+conformance_traceability:
+  clause_coverage_rule: >-
+    Requirement IDs are an index, not the complete oracle. Each normative clause in
+    domain-model rules, input/configuration, lifecycle transitions, security boundaries,
+    algorithms, validation matrices and definition of done MUST have a section-path
+    entry in the conformance report and an owning plan task. Counting REQ IDs alone
+    cannot establish completeness.
+  high_risk_requirement_groups:
+    - group: "Canonicality and reconstruction"
+      requirements:
+        - "REQ-STATE-001"
+        - "REQ-STATE-002"
+        - "REQ-STATE-003"
+        - "REQ-STATE-004"
+      confirmation: "independent"
+
+    - group: "Affordance isomorphism and no bypass"
+      requirements:
+        - "REQ-AFF-001"
+        - "REQ-AFF-002"
+        - "REQ-AFF-003"
+        - "REQ-SEC-002"
+      confirmation: "adversarial"
+
+    - group: "Prime/Python lifecycle correctness"
+      requirements:
+        - "REQ-PRIME-003"
+        - "REQ-PRIME-004"
+        - "REQ-PRIME-005"
+        - "REQ-PRIME-009"
+        - "REQ-PRIME-010"
+      confirmation: "fresh_target_reproduction"
+
+    - group: "Reconnect and streaming integrity"
+      requirements:
+        - "REQ-DATA-002"
+        - "REQ-DATA-003"
+        - "REQ-DATA-004"
+      confirmation: "adversarial"
+
+    - group: "Native substrate payment discipline"
+      requirements:
+        - "REQ-BUN-001"
+        - "REQ-BUN-002"
+        - "REQ-BUN-003"
+        - "REQ-BUN-004"
+      confirmation: "peer"
+
+    - group: "Plugin reversibility and trust"
+      requirements:
+        - "REQ-PLUGIN-002"
+        - "REQ-PLUGIN-003"
+        - "REQ-PLUGIN-004"
+        - "REQ-SEC-004"
+      confirmation: "adversarial"
+
+    - group: "Projection/render ownership"
+      requirements:
+        - "REQ-DATA-001"
+        - "REQ-TUI-001"
+        - "REQ-TUI-005"
+      confirmation: "peer"
+
+  plan_projection_rule: >-
+    Every REQUIRED normative requirement MUST map to at least one implementation plan
+    task. Every settlement-critical task MUST declare the requirement IDs it settles,
+    its proof level, evidence location, and confirmation mode. A requirement without a
+    plan task or settled evidence remains open. The implementation plan MUST be derived
+    as an affordance/dependency DAG: each task settles a spendable capability whose
+    evidence makes downstream tasks legitimately affordable; task ordering MUST NOT be
+    an arbitrary feature sequence.

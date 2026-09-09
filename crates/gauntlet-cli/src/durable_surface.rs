@@ -36,8 +36,8 @@ use gauntlet_adapter_surface_json::action::{
     OperatorActionHandler, SnapshotDisclosure,
 };
 use gauntlet_adapter_surface_json::views::{
-    BudgetSpentFacts, RunScopedError, RunScopedReader, RunView, SettlementFact, UnitView,
-    VerificationFact,
+    BudgetSpentFacts, EscalationFact, EvidenceRequiredFact, RunScopedError, RunScopedReader,
+    RunView, SettlementFact, UnitInspectionView, UnitView, VerificationFact,
 };
 use gauntlet_domain::{MicroUsd, RunId, UnitId, UnitStatus};
 use gauntlet_ports::budget_meter::Remaining;
@@ -445,6 +445,99 @@ impl RunScopedReader for DurableSurface {
             unit: snapshot_unit,
             verifications,
             settled,
+        })
+    }
+
+    fn unit_inspection(
+        &self,
+        run: &RunId,
+        unit: &UnitId,
+        deadline: Deadline,
+    ) -> Result<UnitInspectionView, RunScopedError> {
+        let _recorded = self
+            .surface
+            .state
+            .load_run(run, deadline)
+            .map_err(|error| RunScopedError::ReadFailed {
+                detail: error.to_string(),
+            })?
+            .ok_or_else(|| RunScopedError::NotFound {
+                detail: format!("run {run} is not durable in this state store"),
+            })?;
+
+        let key_text = std::fs::read_to_string(&self.surface.answer_key).unwrap_or_default();
+        let parsed = gauntlet_app::reference::parse::parse_answer_key(&key_text);
+
+        let queue = self
+            .queue()
+            .map_err(|err| RunScopedError::ReadFailed { detail: err })?;
+        let listing = queue.list().map_err(|err| RunScopedError::ReadFailed {
+            detail: err.to_string(),
+        })?;
+        let open_tickets: Vec<_> = listing
+            .records
+            .iter()
+            .map(|r| (r.ticket.clone(), None, r.summary.clone(), r.is_open()))
+            .collect();
+
+        let insp = gauntlet_app::inspect_unit(
+            run,
+            unit,
+            &parsed.units,
+            self.surface.state.as_ref(),
+            None,
+            &open_tickets,
+            deadline,
+        )
+        .map_err(|err| match err {
+            gauntlet_app::UnitInspectionError::UnitNotFound { unit_id } => {
+                RunScopedError::NotFound {
+                    detail: format!("unit {unit_id} not found in run {run}"),
+                }
+            }
+            gauntlet_app::UnitInspectionError::StateReadFailed { detail } => {
+                RunScopedError::ReadFailed { detail }
+            }
+        })?;
+
+        Ok(UnitInspectionView {
+            unit_id: insp.unit_id.to_string(),
+            tier: insp.tier.map(|t| t.to_string()),
+            claim: insp.claim,
+            authority: insp.authority.map(|a| a.to_string()),
+            blast_radius: insp.blast_radius.map(|b| b.to_string()),
+            verify_by: insp.verify_by.map(|v| v.to_string()),
+            evidence_required: insp.evidence_required.map(|r| EvidenceRequiredFact {
+                kind: r.kind.to_string(),
+                locator: r.locator.to_string(),
+                producer: r.producer,
+            }),
+            depends_on: insp.depends_on.into_iter().map(|d| d.to_string()).collect(),
+            status: Some(insp.status.to_string()),
+            settled: insp.settled,
+            verifications: insp
+                .verifications
+                .into_iter()
+                .map(|v| VerificationFact {
+                    unit_id: v.unit_id.to_string(),
+                    outcome: v.outcome.to_string(),
+                    evidence: v.evidence.to_string(),
+                    verification: v.verification,
+                })
+                .collect(),
+            escalation: insp.escalation.map(|e| EscalationFact {
+                ticket_id: e.ticket_id.to_string(),
+                run_id: e.run_id.to_string(),
+                unit_id: e.unit_id.map(|u| u.to_string()),
+                reason: e.reason,
+                status: if e.is_open {
+                    "open".to_owned()
+                } else {
+                    "resolved".to_owned()
+                },
+            }),
+            evidence_content: insp.evidence_content.and_then(|ec| ec.text_preview),
+            precondition_explanation: insp.precondition_explanation,
         })
     }
 }

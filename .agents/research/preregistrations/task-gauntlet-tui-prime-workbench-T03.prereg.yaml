@@ -1,0 +1,92 @@
+# Task gauntlet-tui-prime-workbench-T03 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T03 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/CURRENT_STATUS.yml
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T03"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T20:20:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T03.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T03 creates a measured native-capability ledger for every proposed local database,
+      PTY, process, server/socket, worker, config, hashing/compression, packaging, and related
+      workbench need before overlapping dependencies are admitted. It proves that every overlapping
+      dependency decision is evidence-backed: either Bun/Prime/Python/OpenTUI native capability is
+      selected, or a reproducible qualification justifies an external dependency for a required case.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Overlapping dependencies are rejected by default (REQ-BUN-001). Any admitted external
+          package must demonstrate a material advantage over Bun native capabilities via reproducible
+          benchmarks and qualification artifacts.
+      - id: D2
+        statement: >
+          T00A bootstrap carve-out dependencies (@opentui/core, @opentui/react, react, react-reconciler)
+          must be retroactively absorbed and qualified in the ledger; they cannot be inherited merely
+          because T00A admitted them for early preview.
+      - id: D3
+        statement: >
+          If a Bun native probe fails on a required target, the failure is recorded honestly and
+          only the affected capability remains open; coverage must never be fabricated.
+
+    known_blindspots:
+      - "bun:sqlite in-memory vs file WAL concurrency limits."
+      - "Bun.spawn pipe buffering vs PTY requirements."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Native substrate qualification probes in workbench/src/bun-native-smoke.test.ts"
+      why_visible_now: "Tests and benchmarks Bun.serve, bun:sqlite, Bun.spawn, Bun.gzipSync, crypto."
+    - id: A2
+      class: "Substrate performance benchmark script in workbench/src/bun-substrate.bench.ts"
+      why_visible_now: "Fulfills just tui-bench bun-substrate."
+    - id: A3
+      class: "Dependency-admission ledger in .agents/reports/gauntlet-tui-prime-workbench/evidence/T03/"
+      why_visible_now: "Document-level qualification of every runtime capability."
+
+  predictions:
+    - id: P1
+      claim: "Adding an overlapping SQLite/PTY/process/socket dependency without a qualification artifact is rejected by policy."
+      kind: "implementation_defect"
+      supporting_observation: "Policy check detects unadmitted overlap packages in package.json."
+      disconfirming_observation: "Overlapping dependencies slip in silently."
+    - id: P2
+      claim: "Bun native SQLite, HTTP server, child process, and crypto achieve required throughput with zero external npm dependencies."
+      kind: "expected_later_scope"
+      supporting_observation: "Native benchmarks demonstrate sub-millisecond query and latency bounds."
+      disconfirming_observation: "Native APIs fail or require third-party native shims."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If a required Bun capability is absent or unreliable on the target runtime.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Admit the smallest external substitute behind the stable abstraction."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Bun native smoke suite passes."
+      preregistered_expectation: "All native capability probes pass."
+    parametric_variation:
+      level: L2
+      description: "Forced failure on native probe."
+      preregistered_expectation: "Ledger records failure, plan does not claim coverage."

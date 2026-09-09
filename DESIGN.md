@@ -4,12 +4,17 @@
 >
 > **Design authority:** This file governs how the Gauntlet TUI should look, compose, navigate, expose state, and lower semantic interaction into terminal presentation. It does **not** redefine Gauntlet's normative execution, authority, evidence, or settlement semantics.
 >
-> **Source hierarchy:**
-> 1. `../godspeed-growth/brand/visual/visual-language.md` — GodSpeed visual philosophy and cross-product visual authority.
-> 2. `gauntlet-tui-prime-workbench.spec.yaml` — normative behavioral/system contract.
-> 3. `DESIGN.md` — normative TUI visual/interaction design contract.
-> 4. `gauntlet-tui-prime-workbench.plan.yaml` — settlement path for implementing and proving the above.
-> 5. renderer/theme/component code — replaceable implementation projections.
+> **Source hierarchy** (repository-relative paths; higher number yields to lower number on conflict):
+> 1. `.agents/specs/gauntlet-tui-prime-workbench.spec.yaml` — normative behavioral/system contract. It governs **behavior, geometry thresholds, state ownership, affordance semantics, and scope**.
+> 2. `DESIGN.md` (this file) — normative TUI **visual and interaction presentation** contract. It governs colour/typography/density/linework/composition and the semantic-token vocabulary. It MUST NOT introduce a View, Surface, entity, threshold, or capability that the spec does not require or permit.
+> 3. `.agents/plans/gauntlet-tui-prime-workbench.plan.yaml` — settlement path for implementing and proving 1 and 2.
+> 4. renderer/theme/component code — replaceable implementation projections.
+>
+> **Non-normative donor:** `../godspeed-growth/brand/visual/visual-language.md` (GodSpeed visual philosophy) is an out-of-repository sibling. It is *inspected evidence*, not a pinned dependency: nothing in this repository may resolve it at build, test, or run time, and a design question it would answer is decided here or escalated, never resolved by reading an unpinned sibling path during implementation. The tokens and rules this file needs from it are already reproduced below.
+>
+> **Conflict rule:** if this file and the spec disagree, the spec wins and this file is corrected — never the reverse, and never silently. If this file requires something the spec neither requires nor permits, it is out of current scope (see *Design conformance index*).
+>
+> **Binding:** this file is hash-bound by plan task `T00` alongside the spec. Changing it without re-binding is a source-authority mismatch.
 >
 > The SEA Forge semantic CSS is a precedent for naming presentation by **meaning rather than appearance**. Gauntlet carries that pattern into a terminal renderer: semantic state first, terminal representation second.
 
@@ -119,7 +124,7 @@ A projection that answers a specific operator question. A View never becomes can
 
 #### Focus
 
-The smallest semantically complete object of attention and action. Examples include Case, WorkItem, Run, Agent, Event, Evidence, File, AttentionItem, DomainConcept, KernelObject, Skill, and HarnessRevision.
+The smallest semantically complete object of attention and action. Examples include Case, WorkItem, Run, Agent, Event, Evidence, File, AttentionItem, DomainConcept, and KernelObject. (`Skill` and `HarnessRevision` are roadmap Focus kinds — see *Roadmap-only design surfaces*.)
 
 #### Cue
 
@@ -527,18 +532,24 @@ Visual treatment:
 
 Purpose: host the primary question-oriented View.
 
-Default Views:
+Views, by scope. Spec `REQ-OUT-001`/`REQ-TUI-003` require exactly three **primary** projections; everything else is a lower-surface or Inspector projection that MAY be promoted into the Primary Surface when the operator asks for it and a provider exists.
 
-- Work;
-- Chat;
-- Trace;
-- Evidence;
-- Agents;
-- Files;
-- Domain;
-- Kernel;
-- Harness;
-- Attention.
+| View | Scope | Basis |
+|---|---|---|
+| Work | primary (required) | `REQ-TUI-003`, `REQ-UX-001` |
+| Chat | primary (required) | `REQ-TUI-003` |
+| Trace | primary (required) | `REQ-TUI-003`, `REQ-DATA-005` |
+| Evidence | lower surface; promotable | `REQ-OUT-001` |
+| Agents | lower surface; promotable | `REQ-OUT-001` |
+| Files (Changes) | lower surface; promotable | `REQ-OUT-001` |
+| Kernel | lower surface; promotable | `REQ-OUT-001` |
+| Problems | lower surface | `REQ-OUT-001` |
+| Terminal | lower surface | `REQ-OUT-001`, `REQ-BUN-004` |
+| Attention | Case-wide summary + Inspector/overlay projection | `REQ-UX-002` |
+| Domain | promotable only when a DomainForge/SEA model is bound | `REQ-DOM-001` (SHOULD) |
+| Harness | **roadmap only — do not build** | spec `roadmap_boundaries.prime_harness_metabolization_ui` |
+
+A promotable View MUST NOT be materialised when its provider is absent (`REQ-AFF-004`): an unbound Domain View or a Kernel View with no live Prime session is not a tab, it is absent with an inspectable reason.
 
 Visual treatment depends on View but retains stable workspace framing.
 
@@ -592,7 +603,7 @@ Recovery
 
 Only one active composer variant occupies the primary input position at a time.
 
-A Prime/Jupyter request for input or a Gauntlet approval condition may temporarily take over the composer. After resolution, normal composition returns.
+A Prime kernel input request (host-mediated through the Prime Python REPL host, never a direct terminal prompt) or a Gauntlet approval condition may temporarily take over the composer. After resolution, normal composition returns.
 
 #### Overlay Surface
 
@@ -614,7 +625,6 @@ A View answers a question rather than merely grouping widgets.
 | Files | What implementation artifacts are involved? | File, Diff, Artifact |
 | Domain | What bounded world/model are we operating against? | DomainConcept, Relation, Policy |
 | Kernel | What computation is currently alive? | KernelObject, Function, Result |
-| Harness | What reusable agent capability has accumulated? | Skill, Memory, HarnessRevision |
 | Attention | What genuinely requires operator resolution? | AttentionItem |
 
 ### Focus renderer registry
@@ -820,7 +830,7 @@ Trace presentation should support:
 - folding;
 - filtering;
 - selected-row Inspector detail;
-- distinction between Gauntlet and Prime/Jupyter event provenance.
+- distinction between Gauntlet and Prime/kernel event provenance.
 
 ### Agent rows
 
@@ -872,6 +882,8 @@ Offer as Evidence
 
 `Offer as Evidence` is an affordance into Gauntlet's evidence admission path; it does not directly turn a Python value into evidence.
 
+The kernel is Prime's persistent Python REPL reached over the version-qualified Prime host (JSON-lines `execute`/`interrupt`/`host_request`/`host_reply`). It is **not** a Jupyter kernel: do not design for shell/IOPub/control/stdin/Comm sockets, and do not open a second kernel client. Execution against one session is serialized; parallel open-ended work is an independent Prime child, not a concurrent execute.
+
 ### Terminal
 
 The embedded terminal should feel native, not like a decorative console widget.
@@ -900,20 +912,17 @@ Selecting a DomainConcept should make related code, policy, evidence, events, an
 
 No DomainForge capability should be fabricated when the integration is absent.
 
-### Harness view
+### Roadmap-only design surfaces
 
-The Harness View exposes reusable Prime/Gauntlet developmental artifacts such as skills, prompt notes, memories, subagent specifications, and harness revisions.
+The following are recorded so the design does not have to be re-derived later. They are **out of current scope** and MUST NOT be implemented under this plan (spec `roadmap_boundaries`; plan `guardrails`).
 
-Refinement UI must distinguish:
+**Harness View** — a future View over reusable Prime/Gauntlet developmental artifacts (skills, prompt notes, memories, subagent specifications, harness revisions), whose refinement UI would distinguish `candidate` / `applied` / `verified` / `rolled-back` refinement, because a refinement is not proven merely because Prime can apply it.
 
-```text
-candidate refinement
-applied refinement
-verified refinement
-rolled-back refinement
-```
+**Rich semantic overlays** — cross-model DomainForge graph overlays and inferred impact analysis beyond the qualified envelope projections of `REQ-DOM-005`.
 
-A refinement is not proven merely because Prime can apply it.
+**Alternate renderers** — a libvaxis or GUI/web projection of the same Workbench Model.
+
+The *current* obligation for all three is only a seam: kernel objects, skills, memories, and refinements must remain distinguishable and provenance-linkable, and no OpenTUI-specific truth may enter the Workbench Model. Building the surfaces themselves is a separate, separately-approved plan.
 
 ### Plugin slots
 
@@ -1146,9 +1155,17 @@ The TUI should use a renderer-independent `SemanticLocation` (or equivalent) rat
 
 Conceptual shape:
 
+A `SemanticLocation` addresses a Case the way the spec binds one (`core_domain_model.vocabulary_binding.Case`): by **workspace identity plus canonical reference identity/digest plus the selected RunId**. It MUST NOT mint a short "Case id" — that would be a replacement identity for state Gauntlet already identifies (`identifiers_and_normalization.primary_id_rule`).
+
 ```ts
+type CaseRef = {
+  workspace: string        // configured workspace identity
+  reference: string        // canonical reference identity/digest
+  run?: string             // selected RunId; absent before a run exists
+}
+
 type SemanticLocation = {
-  workspace: { kind: "case"; id: string }
+  workspace: CaseRef
   horizon?: FocusRef
   surface?: SurfaceId
   view?: ViewId
@@ -1156,26 +1173,32 @@ type SemanticLocation = {
 }
 ```
 
-Example serialized locations:
+Example serialized locations (the `case` segment carries the workspace identity; `ref` and `run` carry canonical identity — no new identifier is minted):
 
 ```text
 gauntlet://cases
-gauntlet://case/C17
-gauntlet://case/C17/work/T23
-gauntlet://case/C17/run/R17
-gauntlet://case/C17?view=trace
-gauntlet://case/C17/work/T23?focus=evidence:EV991
-gauntlet://horizon/verification?case=C17
+gauntlet://case/journey-integrity?ref=1d457ec9
+gauntlet://case/journey-integrity?ref=1d457ec9&run=R17
+gauntlet://case/journey-integrity?ref=1d457ec9&view=trace
+gauntlet://case/journey-integrity?ref=1d457ec9&run=R17&focus=unit:T23
+gauntlet://case/journey-integrity?ref=1d457ec9&focus=evidence:EV-991
+gauntlet://horizon/verification?case=journey-integrity&ref=1d457ec9
 ```
 
-A semantic location identifies a reproducible projection/horizon. It does not create canonical domain state.
+A semantic location identifies a reproducible projection/horizon. It does not create canonical domain state. A location whose reference digest no longer resolves fails visibly and recovers to the nearest valid parent Horizon.
 
 ### React implementation structure
 
 Prefer semantic responsibility over generic “pages/components” organization.
 
+The workbench package root is `workbench/`, a new top-level directory sibling to `crates/` — DECIDED in the plan's
+`verification.workbench_package_root` (this repository is otherwise a Cargo workspace; the Bun/TypeScript workbench does
+not belong at the repository root or nested inside a Cargo crate — see `AGENTS.md`, *Project structure*, and the plan's
+recorded scanner-scope rationale). The tree below is relative to that root. `harness/` is intentionally absent from
+`views/` — the Harness View is roadmap-only (see *Roadmap-only design surfaces*, `DSN-015`); do not scaffold it:
+
 ```text
-src/tui/
+workbench/src/
 ├── environment/
 ├── workspace/
 ├── surfaces/
@@ -1188,7 +1211,6 @@ src/tui/
 │   ├── files/
 │   ├── domain/
 │   ├── kernel/
-│   ├── harness/
 │   └── attention/
 ├── focus/
 ├── cues/
@@ -1339,7 +1361,7 @@ Do not imitate web glassmorphism with noisy character shading or gradients. Pres
 - Do not show unavailable actions merely to demonstrate product capability.
 - Do not make React Router the canonical state/navigation model.
 - Do not create multiple implementations of the same affordance across UI/kernel/CLI/agent surfaces.
-- Do not turn Jupyter/IPython outputs directly into evidence without admission.
+- Do not turn Python REPL kernel outputs directly into evidence without explicit admission.
 - Do not make the terminal panel the only way to operate Gauntlet.
 - Do not create a second Prime agent model in the UI.
 - Do not hide failure behind automatic fallback.
@@ -1446,11 +1468,11 @@ The same Workspace must remain usable locally, over SSH, and in constrained term
 
 ### Width classes
 
-These are design defaults and may be tuned by evidence without changing the semantic model.
+The class **boundaries** are fixed by spec `REQ-UX-005` and are not tunable by design preference: the full layout is required to work at **120x40**, one primary pane is required to work at **80x24**, and below 80x24 the shell shows a recoverable compact-size prompt. What each class *renders inside* those bounds is a design default and may be tuned by evidence.
 
 #### Wide: `>= 140 columns`
 
-Preferred layout:
+Same layout as Full, with room used rather than added structure:
 
 ```text
 Navigator | Primary | Inspector
@@ -1458,58 +1480,54 @@ Bottom Surface
 Composer
 ```
 
-- Navigator and Inspector may remain visible simultaneously.
 - Primary may show richer inline evidence/relations.
 - Operational posture can use denser metadata.
+- No Surface appears here that does not also exist at Full.
 
-#### Standard: `100–139 columns`
-
-Preferred layout:
+#### Full: `120–139 columns`, `>= 40 rows` — **normative floor for the full layout**
 
 ```text
-Navigator | Primary
-Inspector as toggle/sidecar
+Navigator | Primary | Inspector
 Bottom Surface
 Composer
 ```
 
-- Inspector is demand-driven.
-- Metadata moves from inline to Inspector when necessary.
+- Navigator and Inspector remain visible simultaneously. This is required, not preferred: `REQ-UX-005` names 120x40 as the full-layout geometry, so a design that first drops the Inspector at 139 columns is nonconforming.
+- Below 40 rows at this width, collapse the Bottom Surface first (see *Height constraints*), keeping all three columns.
+- Metadata may move from inline to Inspector as width tightens toward 120.
 
-#### Compact: `80–99 columns`
+#### Compact: `80–119 columns`, `>= 24 rows`
 
-Preferred layout:
+Degrades continuously toward the normative `80x24` floor:
 
 ```text
 Primary
-Navigator / Inspector as switchable side surfaces
+Navigator / Inspector as switchable side surfaces (overlay at the narrow end)
 Bottom Surface collapsed by default
 Composer
 ```
 
+- At exactly `80x24` this MUST be **one primary pane** that still retains Case identity, workbench health, the attention summary, and the current action destination (`REQ-UX-005`).
 - Preserve breadcrumbs/Horizon at all times.
-- Replace wide tab strips with compact selector/command palette where needed.
-- Favor one primary perceptual task at a time.
+- Replace wide tab strips with a compact selector or the command palette.
+- Favor one primary perceptual task at a time; reach the others through the palette rather than shrinking columns.
 
-#### Narrow: `< 80 columns`
+#### Below minimum: `< 80 columns` or `< 24 rows`
 
-The TUI MUST degrade intentionally rather than crush the full dashboard into unreadable columns.
-
-Preferred behavior:
+The TUI MUST NOT attempt to render a degraded workbench here. It shows a **recoverable compact-size prompt** (`REQ-UX-005`): the current terminal size, the required minimum, and a reachable way out — resize, detach, or quit — with terminal modes intact.
 
 ```text
-single Surface/View
-persistent semantic location
-command palette for navigation
-overlay Inspector
-compact composer
+Gauntlet needs at least 80x24. This terminal is 72x20.
+Resize the window, or press q to quit.  (admitted work keeps running)
 ```
 
-If a View cannot be made usable at the current dimensions, report the constraint explicitly and offer a reachable alternative rather than rendering corrupted layout.
+The prompt is recoverable: growing the terminal back to 80x24 re-enters Compact without losing the semantic location, and admitted Gauntlet/Prime work is never cancelled by a resize (`REQ-PRIME-009`).
+
+If an individual View cannot be made usable at a size at or above the minimum, report that constraint explicitly and offer a reachable alternative rather than rendering corrupted layout.
 
 ### Height constraints
 
-Low-height terminals should collapse the Bottom Surface first, then reduce nonessential metadata, while preserving:
+Between 40 and 24 rows, collapse in this order — Bottom Surface first, then nonessential metadata, then Navigator/Inspector to overlay — while always preserving:
 
 - current Focus;
 - current View;
@@ -1517,6 +1535,8 @@ Low-height terminals should collapse the Bottom Surface first, then reduce nones
 - Attention cue;
 - composer or required approval input;
 - current consequential status.
+
+Below 24 rows, the below-minimum prompt applies.
 
 ### Color capability
 
@@ -1568,19 +1588,42 @@ The workbench is a projection. The projection can disappear.
 
 ---
 
+## Design conformance index
+
+The spec's `conformance_traceability.clause_coverage_rule` requires every normative clause to have an owning plan task. This file also carries normative clauses, so they are indexed here. Each `DSN-###` is a design clause the implementation must satisfy and the conformance report must cite; each names the spec requirement it serves and the plan task that settles it. A `DSN` clause never adds scope beyond its spec basis — where the two could be read apart, the spec basis governs.
+
+| ID | Design clause | Spec basis | Owning task |
+|---|---|---|---|
+| DSN-001 | Components resolve semantic theme tokens; raw colour literals appear only in theme/token adapters and their tests. | `REQ-TUI-001` | T12 |
+| DSN-002 | Consequential state stays legible through glyph + label + emphasis + ordering when colour degrades; the theme lowers to truecolor, 256-colour, and monochrome. | `REQ-UX-005` | T12, T20 |
+| DSN-003 | `brand.gold` carries only proof, independent confirmation, sanctioned authority, explicit decision, or an evidentiary/authoritative selected route — never selection, hover, importance, ordinary success, or decoration. | `REQ-UX-005` | T12 |
+| DSN-004 | Authority, execution, evidence, settlement, readiness, integrity, and capability remain distinct token families and distinct labels even where they share a default colour. | `REQ-UX-003` | T12 |
+| DSN-005 | No component-local authority: a control's existence and enablement come from the affordance resolver, never from a component-local predicate over domain status. | `REQ-AFF-001`, `REQ-AFF-003` | T09, T12 |
+| DSN-006 | Every rendered occurrence of a Focus is a placement of one `FocusRef`; no placement copies or forks canonical object state. | `REQ-FOCUS-001`, `REQ-FOCUS-002` | T08, T12 |
+| DSN-007 | Geometry classes honour the spec floors exactly: full layout at 120x40, one primary pane at 80x24, recoverable compact-size prompt below 80x24. | `REQ-UX-005` | T12, T20 |
+| DSN-008 | Evidence and authority render as inspectable record objects carrying claim, producer, result, identity, and provenance — not badges; superseded or contradictory evidence is not erased by a later pass. | `REQ-UX-003`, `proof_and_observability.evidence_policy` | T12 |
+| DSN-009 | An important blocked affordance materialises with its blocking gate and a valid next step; an irrelevant impossible action is absent from the View but remains discoverable with its reason through the command palette or Inspector. | `REQ-AFF-005`, `REQ-UX-003` | T09, T12 |
+| DSN-010 | Chat is one View among several; Trace projects durable execution history and never takes Chat as its input. | `REQ-DATA-005`, `REQ-TUI-003` | T07, T12 |
+| DSN-011 | No React/OpenTUI component holds canonical truth; every semantic View could be rendered by another frontend without changing its meaning. | `REQ-DATA-001`, `REQ-TUI-005` | T07, T19 |
+| DSN-012 | Plugin-provided Views, renderers, cues, relations, inspector sections, and artifact viewers register and unregister cleanly; unload returns the host projection to baseline with no leaked subscription or UI state. | `REQ-PLUGIN-003`, `REQ-PLUGIN-004` | T15 |
+| DSN-013 | Motion is optional: with motion suppressed the interface remains fully understandable, and a reduced-motion mode exists. | `REQ-UX-005` | T12 |
+| DSN-014 | Untrusted repository, model, process, and tool text renders as text; ANSI/OSC control sequences, hyperlinks, and clipboard requests do not escape into the host terminal outside a deliberate PTY viewport. | `REQ-UX-006`, `REQ-SEC-005` | T13, T18 |
+| DSN-015 | No roadmap surface is built: no Harness View, no rich cross-model semantic overlay, no second production renderer. Only the seams the spec requires are preserved. | `roadmap_boundaries` | T25 |
+
+---
+
 ## Agent Prompt Guide
 
 ### Mandatory reading order
 
 Before implementing or materially changing Gauntlet TUI code, an agent should read:
 
-1. `gauntlet-tui-prime-workbench.spec.yaml` for normative behavioral requirements;
-2. this `DESIGN.md` for TUI visual and interaction design;
-3. the current task from `gauntlet-tui-prime-workbench.plan.yaml`;
-4. repository-native implementation context and existing components;
-5. the GodSpeed visual-language source when a design question is not resolved here.
+1. `.agents/specs/gauntlet-tui-prime-workbench.spec.yaml` for normative behavioral requirements;
+2. this `DESIGN.md` for TUI visual and interaction design, including the *Design conformance index* (`DSN-001`…`DSN-015`);
+3. the current task from `.agents/plans/gauntlet-tui-prime-workbench.plan.yaml`;
+4. repository-native implementation context and existing components.
 
-The plan does not override the spec or this design contract.
+The plan does not override the spec or this design contract. If a design question is resolved by neither, record it as an open decision in the plan's decision log — do not resolve it by reading an unpinned sibling repository at implementation time.
 
 ### Core prompt
 
@@ -1683,7 +1726,7 @@ Before considering a screen/view complete, answer all of these:
 5. Are blocked consequential actions explained?
 6. Is gold carrying proof/authority rather than ornament?
 7. Does the screen still work without color?
-8. Does it remain coherent at the required terminal width?
+8. Does it remain coherent at 120x40 and at 80x24, and does it yield to the recoverable compact-size prompt below 80x24?
 9. Is Chat subordinate to the actual work rather than becoming the product shell?
 10. Does the layout expose real operational state rather than status theater?
 11. Could the same semantic View be rendered by another frontend without changing its meaning?

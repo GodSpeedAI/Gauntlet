@@ -1,0 +1,118 @@
+schema: agent.current_status
+schema_version: '1.0'
+
+metadata:
+  plan_id: gauntlet-tui-prime-workbench
+  plan_version: '0.3.0'
+  spec_id: gauntlet-tui-prime-workbench
+  spec_version: '0.3.0'
+  initialized: true
+  last_updated: '2026-09-08'
+  updated_by: >-
+    Orchestrator (T07 settled — implementation + tests + evidence were found
+    complete on the tree after an interrupted session; the orchestrator
+    personally re-ran the full gate battery [prereg-check hash-verified,
+    tui-check 0 errors, tui-lint exit 0, tui-preflight bootstrap PASS x5,
+    bun test 45/45 across 12 suites, both T07 selector suites 2/2 each]
+    before recording settlement. Nothing had been committed; this settlement
+    commit carries T00-T07 together.)
+
+execution:
+  last_settled_task: T07
+  in_flight_task: null
+  ready_tasks: [T08]
+  blocked_tasks:
+    T09: [T08]
+    T10: [T08, T09]
+    T12: [T08, T09]
+    T11: [T09, T10]
+    T13: [T12]
+    T14: [T08, T12]
+    T15: [T09, T12]
+    T16: [T10, T12]
+    T14B: [T09, T12, T14]
+    T17: [T08, T12, T13]
+    T18: [T09, T13, T15, T16]
+    T19: [T12, T16, T18, T14B]
+    T20: [T12, T13, T16, T18, T14B]
+    T21: [T17, T20]
+    T22: [T16, T18, T19, T20, T14B]
+    T23: [T11, T12, T18, T20, T14B]
+    T24: [T10, T16, T20, T22]
+    T25: [T14, T15, T19, T21, T22, T23, T24, T14B]
+
+active:
+  task: T08
+  phase: dispatch-prep
+  title: T08 Focus, Relation, Horizon, and progressive materialization model
+  blocker: null
+
+next_action:
+  task: T08
+  action: >-
+    Execute task T08 (P2, peer confirmation):
+    1. Freeze T08 research preregistration (claims/falsifier/confounds from the
+       plan's T08 preregistration block) and verify with
+       just prereg-check gauntlet-tui-prime-workbench-T08.
+    2. Implement FocusRef identity, placements, Relation queries, Horizon
+       hoist/de-hoist, saved-horizon persistence, and horizon-driven
+       materialization (subscriptions/queries/prefetch/context candidates).
+    3. Gates: tui-test focus-identity, horizon-hoist, horizon-materialization;
+       tui-check. Teeth: placement-label mutation and hoist-narrowing attacks.
+
+latest_evidence:
+  T00:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T00/
+    artifacts:
+      - workbench-toolchain.md
+      - surfaces-gate-closure.md
+      - baseline-inventory.md
+    confirmation: builder CONFIRM (all 4 gate aliases PASS; all 6 teeth attacks validated load-bearing)
+  T00A:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T00A/
+    artifacts:
+      - dependency-admissions.md
+      - operator-journey.md
+    confirmation: builder CONFIRM (12/12 tests PASS, full/compact/below-min geometries, escalation-first, read-only preview, zero overlap deps)
+  T01:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T01/
+    artifacts:
+      - canonical-boundary.md
+    confirmation: builder CONFIRM (all 6 gate commands PASS; all 3 teeth attacks validated load-bearing)
+  T02:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T02/
+    artifacts:
+      - config-preflight.md
+    confirmation: peer CONFIRM (all gates pass, both teeth attacks confirmed load-bearing)
+  T03:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T03/
+    artifacts:
+      - dependency-admission-ledger.md
+    confirmation: peer CONFIRM (ledger covers every overlapping capability; both teeth attacks confirmed)
+  T04:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T04/
+    artifacts:
+      - prime-host-topology.md
+    confirmation: fresh_target_reproduction CONFIRM (all gates pass, both teeth attacks confirmed load-bearing)
+  T05:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T05/
+    artifacts:
+      - prime-kernel.md
+    confirmation: peer CONFIRM (kernel serialization, mediation, object lifecycle, liveness/non-success separation evidenced)
+  T06:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T06/
+    artifacts:
+      - sqlite-projection-store.md
+    confirmation: independent CONFIRM (reconstructibility + stale-generation rejection verified; delete/corrupt/rebuild and delayed-G1 attacks repelled)
+  T07:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T07/
+    artifacts:
+      - workbench-model.md
+    confirmation: >-
+      peer CONFIRM (2026-09-08) — gates re-verified personally by the
+      orchestrator at settlement: prereg hash 4b89b0be... matches;
+      tui-check 0 errors; tui-lint exit 0; tui-preflight bootstrap PASS
+      (pinned deps, lockfile sync, bun audit clean, spec+DESIGN hashes
+      match); bun test 45/45 across 12 suites; tui-test workbench-model
+      2/2; tui-test projection-fanout 2/2 (both teeth attacks: Chat
+      non-canonical for Trace; single-event fan-out without starvation).

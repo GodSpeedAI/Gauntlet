@@ -37,3 +37,6 @@ mutants.out/
 .agents/reports/task24/compile.lock
 # task25 compile-lock scratch: same discipline as task24
 .agents/reports/task25/compile.lock
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

@@ -47,11 +47,15 @@ pub mod views;
 
 pub use action::{
     ActionAccepted, ActionCommand, ActionFailure, ActionKind, ActionOutcome, ActionRefusal,
-    OperatorActionHandler, SnapshotDisclosure,
+    OperatorActionHandler, SessionAuthError, SessionAuthenticator, SnapshotDisclosure,
+    TokenSessionAuthenticator,
 };
 pub use http::{SurfaceHttp, SurfaceHttpError};
 pub use memory::MemorySurface;
-pub use views::{RunScopedReader, RunView, SettlementFact, UnitView, VerificationFact};
+pub use views::{
+    EscalationFact, EvidenceRequiredFact, RunScopedError, RunScopedReader, RunView, SettlementFact,
+    UnitInspectionView, UnitView, VerificationFact,
+};
 
 /// The suite-facing factory (the P8 pattern): the shared contract suite
 /// builds the surface under test over its own seeded snapshot; the echo

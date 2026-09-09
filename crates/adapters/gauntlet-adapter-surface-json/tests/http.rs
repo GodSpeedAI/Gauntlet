@@ -13,8 +13,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use gauntlet_adapter_surface_json::action::{
-    ActionCommand, ActionKind, ActionOutcome, ActionRefusal, OperatorActionHandler,
-    SnapshotDisclosure,
+    ActionAccepted, ActionCommand, ActionKind, ActionOutcome, ActionRefusal, OperatorActionHandler,
+    SnapshotDisclosure, TokenSessionAuthenticator,
 };
 use gauntlet_adapter_surface_json::views::{RunScopedReader, RunView, UnitView};
 use gauntlet_adapter_surface_json::{MemorySurface, SurfaceHttp, snapshot_json};
@@ -138,6 +138,40 @@ fn with_server(
         Box::new(ScriptedActions(actions)),
         Box::new(FixedDisclosure),
     );
+    server.serve_while(listener, stop);
+    let joined = outcome.join().expect("the client thread joins");
+    assert!(joined.is_ok(), "the client assertions failed: {:?}", joined);
+}
+
+fn with_authenticated_server(
+    snapshot: RuntimeSnapshot,
+    actions: ActionOutcome,
+    authenticator: TokenSessionAuthenticator,
+    client: impl FnOnce(&str) + Send + 'static,
+) {
+    let listener = SurfaceHttp::bind("127.0.0.1:0").expect("the loopback bind opens");
+    let addr = SurfaceHttp::local_addr(&listener).expect("the local address reads");
+    let address = format!("{addr}");
+    let running = Arc::new(AtomicBool::new(true));
+    let stop = Arc::clone(&running);
+    let outcome = std::thread::spawn(move || {
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client(&address);
+        }));
+        running.store(false, Ordering::SeqCst);
+        if let Ok(mut stream) = TcpStream::connect(&address) {
+            let _ = stream.write_all(b"GET /api/v1/state HTTP/1.1\r\nHost: stop\r\n\r\n");
+            let _ = stream.flush();
+        }
+        result
+    });
+    let server = SurfaceHttp::new(
+        Box::new(MemorySurface::new(snapshot)),
+        Box::new(NoReader),
+        Box::new(ScriptedActions(actions)),
+        Box::new(FixedDisclosure),
+    )
+    .with_authenticator(Box::new(authenticator));
     server.serve_while(listener, stop);
     let joined = outcome.join().expect("the client thread joins");
     assert!(joined.is_ok(), "the client assertions failed: {:?}", joined);
@@ -459,5 +493,103 @@ fn the_snapshot_json_carries_the_2022_field_vocabulary_in_order() {
             Some(JsonValue::Number(_))
         ),
         "cost stays an integer on the wire: {text}"
+    );
+}
+
+#[test]
+fn capabilities_handshake_serves_version_and_supported_operations() {
+    with_server(seeded_snapshot(), refused(), |address| {
+        let (head, body) = request(
+            address,
+            "GET /api/v1/capabilities HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+        );
+        assert!(head.contains("200 OK"), "capabilities serves 200: {head}");
+        let parsed = gauntlet_ports::json::parse(&body).expect("capabilities parses as json");
+        assert_eq!(
+            parsed.get("protocol_version"),
+            Some(&JsonValue::Str("1.0.0".to_owned()))
+        );
+        assert!(body.contains("unit_inspection"));
+        assert!(body.contains("session_auth"));
+        assert!(body.contains("unsupported_operations"));
+    });
+}
+
+#[test]
+fn attack1_mutation_without_bound_session_or_with_asserted_actor_is_refused() {
+    let auth = TokenSessionAuthenticator::new("valid-token-xyz", "operator-alice");
+    with_authenticated_server(
+        seeded_snapshot(),
+        ActionOutcome::Accepted(ActionAccepted {
+            run_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_owned(),
+            unit_id: "AK-001".to_owned(),
+            tickets_resolved: vec!["t-1".to_owned()],
+            committed_now: true,
+        }),
+        auth,
+        |address| {
+            let payload = "{\"note\": \"attempting mutation\"}";
+
+            // 1. Unauthenticated mutation from loopback (no Authorization header) -> 401
+            let raw_unauthenticated = format!(
+                "POST /api/v1/units/AK-001/resolve HTTP/1.1\r\nHost: localhost\r\nX-Gauntlet-Operator: operator-alice\r\n\
+                 Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+            let (head, body) = request(address, &raw_unauthenticated);
+            assert!(
+                head.contains("401 Unauthorized"),
+                "unauthenticated mutation is 401: {head}"
+            );
+            assert!(
+                body.contains("actor_authentication_required"),
+                "reports required auth: {body}"
+            );
+
+            // 2. Invalid token -> 401
+            let raw_invalid_token = format!(
+                "POST /api/v1/units/AK-001/resolve HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer wrong-token\r\n\
+                 X-Gauntlet-Operator: operator-alice\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+            let (head, body) = request(address, &raw_invalid_token);
+            assert!(
+                head.contains("401 Unauthorized"),
+                "invalid token is 401: {head}"
+            );
+            assert!(
+                body.contains("invalid_session_credentials"),
+                "reports invalid credentials: {body}"
+            );
+
+            // 3. Client-asserted operator mismatch -> 403 (client asserted Bob, but token is Alice)
+            let raw_asserted_mismatch = format!(
+                "POST /api/v1/units/AK-001/resolve HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer valid-token-xyz\r\n\
+                 X-Gauntlet-Operator: attacker-bob\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+            let (head, body) = request(address, &raw_asserted_mismatch);
+            assert!(
+                head.contains("403 Forbidden"),
+                "client-asserted mismatch is 403: {head}"
+            );
+            assert!(
+                body.contains("client_asserted_authority_refused"),
+                "reports client authority refused: {body}"
+            );
+
+            // 4. Authenticated with matching operator -> 200 OK
+            let raw_valid = format!(
+                "POST /api/v1/units/AK-001/resolve HTTP/1.1\r\nHost: localhost\r\nAuthorization: Bearer valid-token-xyz\r\n\
+                 X-Gauntlet-Operator: operator-alice\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+                payload.len()
+            );
+            let (head, body) = request(address, &raw_valid);
+            assert!(
+                head.contains("200 OK"),
+                "valid authenticated request is 200: {head}"
+            );
+            assert!(body.contains("committed_now"), "action completes: {body}");
+        },
     );
 }

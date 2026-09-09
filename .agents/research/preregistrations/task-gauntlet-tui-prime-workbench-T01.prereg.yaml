@@ -1,0 +1,112 @@
+# Task gauntlet-tui-prime-workbench-T01 preregistration — research instrumentation, non-normative.
+# Written BEFORE any T01 implementation exists. Immutable once frozen.
+# Derived from:
+#   .agents/CURRENT_STATUS.yml
+#   .agents/specs/gauntlet-tui-prime-workbench.spec.yaml
+#   .agents/plans/gauntlet-tui-prime-workbench.plan.yaml
+#   DESIGN.md
+
+schema_version: 1
+task: "gauntlet-tui-prime-workbench-T01"
+
+frozen_at:
+  git_commit: "HEAD"
+  timestamp_utc: "2026-09-08T23:55:00Z"
+  prereg_sha256: "see .agents/research/preregistrations/task-gauntlet-tui-prime-workbench-T01.prereg.sha256"
+
+source_scope:
+  - ".agents/CURRENT_STATUS.yml"
+  - ".agents/specs/gauntlet-tui-prime-workbench.spec.yaml"
+  - ".agents/plans/gauntlet-tui-prime-workbench.plan.yaml"
+  - "DESIGN.md"
+
+pre_run:
+  current_problem_model:
+    summary: >
+      Task T01 establishes the canonical Gauntlet state and operation boundary for the
+      terminal workbench. It proves that Reference, Run, Unit, evidence, verification,
+      escalation, and settlement truth remain strictly owned by Gauntlet core/app layers,
+      and that workbench-requested mutations cannot become presentation-specific side effects.
+      The key architectural challenge is separating loopback reachability from actor
+      authorization, introducing version negotiation and capability handshake, and
+      providing a rich Unit inspection read contract (over answer-key, verification records,
+      evidence store, and escalation tickets) without creating duplicate canonical aggregates.
+
+    important_distinctions:
+      - id: D1
+        statement: >
+          Loopback reachability is transport containment, NOT actor authentication. A mutation
+          request arriving from 127.0.0.1 with a client-asserted X-Gauntlet-Operator header
+          or no verified session token MUST be refused before any consequential side effect.
+      - id: D2
+        statement: >
+          Case, WorkItem, and AttentionItem are source-referencing workbench projections,
+          NOT new canonical aggregates. RunId, UnitId, and TicketId retain their canonical
+          ownership in gauntlet-domain and gauntlet-app.
+      - id: D3
+        statement: >
+          The existing gauntlet serve HTTP endpoint provided only basic snapshot reads and
+          unauthenticated operator action submission. Capability handshake, version
+          negotiation, actor/session authentication, and deep Unit inspection are new
+          canonical contracts, not pre-existing guarantees.
+
+    known_blindspots:
+      - "Existing HTTP server in gauntlet-adapter-surface-json is serial and std-only."
+      - "Tests in gauntlet-cli must maintain parity between CLI flags and HTTP endpoints."
+
+  visible_intervention_classes:
+    - id: A1
+      class: "Contract definition & DTO extension in gauntlet-app and gauntlet-adapter-surface-json"
+      why_visible_now: "Unit inspection requires detailed requirement text, verification facts, and ticket details."
+    - id: A2
+      class: "Authentication & version negotiation middleware in HTTP adapter"
+      why_visible_now: "REQ-OPS-003 and T01 teeth require token/session verification and /api/v1/capabilities."
+    - id: A3
+      class: "Automated teeth and boundary tests in both Rust and Bun/TypeScript"
+      why_visible_now: "Narrow gate requires just tui-test canonical-boundary alongside crate checks."
+
+  predictions:
+    - id: P1
+      claim: "Submitting an operator action with client-asserted credentials or invalid token from localhost fails with HTTP 401/403 before any state mutation occurs."
+      kind: "implementation_defect"
+      supporting_observation: "POST /api/v1/units/{id}/resolve without valid session token yields 401/403 and zero state store modifications."
+      disconfirming_observation: "The request succeeds or modifies state based solely on localhost origin or unverified header."
+    - id: P2
+      claim: "Unit inspection endpoint returns rich evidence, requirement, verification, and escalation ticket details for known units, and fails closed with 404 for unknown units."
+      kind: "expected_later_scope"
+      supporting_observation: "GET /api/v1/units/{id}/inspection returns requirement text, evidence refs, and ticket details."
+      disconfirming_observation: "Only existing basic UnitView is returned or unavailable fields are hallucinated."
+    - id: P3
+      claim: "Replaying canonical events/state through the headless boundary succeeds independently of any UI renderer or Prime session."
+      kind: "representation_inadequacy"
+      supporting_observation: "Headless client receives identical canonical facts directly from the operation boundary."
+      disconfirming_observation: "Headless client requires OpenTUI, React, or active Prime REPL to reconstruct state."
+
+  representation_revision_triggers:
+    - id: R1
+      trigger: >
+        If existing CLI/serve handlers own business logic that cannot be called without
+        spawning CLI subprocesses or coupling to presentation layers.
+
+  predicted_revision_effects:
+    - trigger_ref: R1
+      expected_new_intervention_class: "Extract application-layer service in gauntlet-app beneath both CLI and HTTP adapters."
+
+  transfer_tests:
+    replay:
+      level: L1
+      description: "Client-asserted operator header without token is rejected."
+      preregistered_expectation: "HTTP 401/403 refusal."
+    parametric_variation:
+      level: L2
+      description: "Arbitrary fake tokens, expired tokens, or malformed auth headers are rejected."
+      preregistered_expectation: "HTTP 401/403 refusal without reaching execute_operator_action."
+    structural_transfer:
+      level: L3
+      description: "Direct side-path mutation attempts in workbench client fail compilation or runtime enforcement."
+      preregistered_expectation: "No direct mutation path exists outside canonical operation boundary."
+
+  explicit_nonclaims:
+    - "Does not prove OpenTUI rendering behavior or React reconciler."
+    - "Does not prove Prime persistent REPL lifecycle (deferred to T04/T05)."
+    - "Does not prove local Bun SQLite projection cache (deferred to T03/T06)."
