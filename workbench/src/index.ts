@@ -7,11 +7,14 @@
  * See .agents/plans/gauntlet-tui-prime-workbench.plan.yaml and DESIGN.md.
  */
 
+export * from "./affordance";
 export * from "./client";
 export * from "./config";
 export * from "./focus";
 export * from "./geometry";
 export * from "./horizon";
+export * from "./operation-gateway";
+export * from "./operation-registry";
 export * from "./preflight";
 export * from "./preview";
 export * from "./prime-host";

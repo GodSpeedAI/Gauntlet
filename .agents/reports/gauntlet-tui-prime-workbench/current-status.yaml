@@ -7,29 +7,33 @@ metadata:
   spec_id: gauntlet-tui-prime-workbench
   spec_version: '0.3.0'
   initialized: true
-  last_updated: '2026-09-08'
+  last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (T08 settled — builder r1 [60/60, both teeth] -> peer CONFIRM
-    with 2 MAJOR latent multi-source identity-fork findings + 1 minor ->
-    correction round 1 closed all three RED-first [5 new tests; cross-source
-    link attribution + focus_changed attribution/refusal + horizon guards] ->
-    65/65 green, gates re-verified personally).
+    Orchestrator (T09 settled on the full adversarial ladder: recovery builder
+    completed an interrupted session's partial gateway [98/98] -> independent
+    adversarial r1 NOT_CONFIRM [3 BLOCKING: bind-time key ledger armed the
+    re-drive gate-skip so refused+retried invocations EXECUTED; HTTP observe
+    non-throwing so re-drives/reconcile committed under dead reads; a
+    concurrency split refusal+execution; MAJOR: stub used a fabricated
+    budget_exhausted admission gate absent from the real Rust vocabulary] ->
+    COR-1 RED-first -> adversarial r2 NOT_CONFIRM [1 BLOCKING: failed outcomes
+    armed the same skip — HTTP 503 then retry executed an unaffordable op] ->
+    COR-2 surgical [arm only accepted] -> focused r3 CONFIRM_NO_BYPASS [23/23
+    verifier probes, scope clean]; gates re-verified personally.
 
 execution:
-  last_settled_task: T08
+  last_settled_task: T09
   in_flight_task: null
-  ready_tasks: [T09]
+  ready_tasks: [T10, T12]
   blocked_tasks:
-    T10: [T09]
-    T12: [T09]
-    T11: [T09, T10]
+    T11: [T10]
     T13: [T12]
     T14: [T12]
-    T15: [T09, T12]
+    T15: [T12]
     T16: [T10, T12]
-    T14B: [T09, T12, T14]
+    T14B: [T12, T14]
     T17: [T12, T13]
-    T18: [T09, T13, T15, T16]
+    T18: [T13, T15, T16]
     T19: [T12, T16, T18, T14B]
     T20: [T12, T13, T16, T18, T14B]
     T21: [T17, T20]
@@ -39,26 +43,23 @@ execution:
     T25: [T14, T15, T19, T21, T22, T23, T24, T14B]
 
 active:
-  task: T09
+  task: T10+T12
   phase: dispatch-prep
-  title: T09 Canonical affordance resolver and isomorphic operation gateway
+  title: T10 Prime recursive delegation (P3) + T12 OpenTUI semantic shell (P2), parallel
   blocker: null
 
 next_action:
-  task: T09
+  task: T10+T12
   action: >-
-    Execute task T09 (P3, independent_adversarial confirmation; prereg frozen
-    0c07f855...): 1. Implement the canonical operation registry/gateway keyed
-    by stable Gauntlet operation identity over the T01 boundary
-    (durable_surface perform/unit_inspection + surface-json adapter), with
-    AffordanceDescriptor resolution from Focus/Horizon and
-    visibility/reachability/payment/governance/settlement/recovery reasons.
-    2. Invocation-time revalidation + idempotency/outcome-unknown
-    reconciliation. 3. Gates: tui-test affordance-resolver,
-    operation-isomorphism, deny-bypass; tui-check; check/test-package
-    gauntlet-app if Rust side touched. 4. Teeth: stale-authority denial
-    post-render; deny-equivalence across every currently implemented route.
-    5. Fresh independent-adversarial verifier after builder evidence.
+    Dispatch T10 (P3 fresh_target_reproduction; prereg frozen 4c38c0e1) and
+    T12 (P2 peer; prereg frozen 6d0425a8) builders in parallel. T10: bounded
+    context envelopes from the active Horizon over actual Prime child
+    sessions, mailbox/completion separation, detach-survives. T12: semantic
+    shell over immutable snapshots, Work/Chat/Trace, Inspector, Composer
+    takeover, DSN-001..010/013/015 clauses, geometry floors. Both re-run the
+    T09 deny matrix over their newly implemented routes (trigger-records:
+    accepted-record re-drive shape anchored-vs-unanchored; reconcile
+    unanchored audit-UX residual).
 
 latest_evidence:
   T00:
@@ -128,3 +129,18 @@ latest_evidence:
       personally by the orchestrator at settlement. Trigger-records:
       governanceScope whole-Case fallback for non-WorkItem roots (T12);
       unescaped ':' id grammar if source/kind become free text.
+  T09:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T09/
+    artifacts:
+      - operation-gateway.md
+    confirmation: >-
+      CONFIRM_NO_BYPASS (2026-09-09, focused adversarial round 3 after two
+      NOT_CONFIRM rounds with four BLOCKING + one MAJOR total, all closed
+      RED-first: bind-time ledger arm; non-throwing HTTP observe; concurrency
+      split; fabricated budget_exhausted stub gate; failed-arm skip). 98/98
+      bun tests; gates re-verified personally. Trigger-records for T10/T15
+      matrix re-runs and T18: accepted-record re-drive shape (anchored vs
+      unanchored); reconcile unanchored committed-truth audit-UX; observe
+      head-of-line bounded stall; non-crypto 64-bit payload digest;
+      compromised-transport forged-accepted exposure via ledger + fresh
+      observation.
