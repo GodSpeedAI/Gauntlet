@@ -38,6 +38,8 @@ import type { PrimeDelegationDispatcher } from "./prime-recursion";
 import { projectHostToSessionRecords } from "./prime-recursion";
 import type { PrimeTopologyNode } from "./prime-topology";
 import { reconstructTopology } from "./prime-topology";
+import type { SubstrateProvenanceRow } from "./substrate-inventory";
+import { substrateProvenanceMap } from "./substrate-inventory";
 
 // --- Mailbox delivery as semantic operator choices (REQ-PRIME-005) ------------
 
@@ -240,6 +242,51 @@ export type SubstrateStrategyOutcome = {
   /** The honest absence reason; the substrate is never simulated. */
   readonly reason: "not_exposed_by_installed_prime_adapter_model";
 };
+
+/**
+ * RE-QUALIFIED substrate strategy refusal (T24): same typed unsupported
+ * outcome as `requestSubstrateStrategy`, carrying the feature's typed
+ * three-way provenance row (real binary / adapter model / workbench) from
+ * substrate-inventory.ts. The refusal itself is unchanged — the ADAPTER MODEL
+ * still exposes no substrate controls, so the strategy is still refused, never
+ * simulated; what is new is that the refusal now cites the re-qualified
+ * provenance map instead of leaving the real binary's surface unrecorded
+ * (T10 trigger-record MAJOR 2 discharge, REQ-PRIME-008).
+ */
+export type RequalifiedSubstrateOutcome = SubstrateStrategyOutcome & {
+  /** The feature's three-way provenance row (canonical fields LITERAL false). */
+  readonly provenance: SubstrateProvenanceRow;
+};
+
+/**
+ * Attempt to map an admitted Gauntlet strategy onto a long-running Prime
+ * control, WITH the T24 three-way provenance attached. Every REQ-PRIME-008
+ * substrate is still refused with a typed unsupported outcome — the adapter
+ * model exposes none of them and T24's requalification did not change the
+ * adapter model — but the outcome now names exactly which layer exposes what,
+ * so the real binary's surface is recorded without being promoted into the
+ * model or the workbench path.
+ */
+export function requestSubstrateStrategyWithProvenance(
+  substrate: PrimeSubstrateKind,
+  sessionId: string,
+): RequalifiedSubstrateOutcome {
+  const row = substrateProvenanceMap().find(
+    (candidate) => candidate.req_prime_008_class === substrate,
+  );
+  if (row === undefined) {
+    throw new Error(
+      `prime substrate requalification: REQ-PRIME-008 substrate '${substrate}' has no provenance row; the map is incomplete`,
+    );
+  }
+  return Object.freeze({
+    class: "unsupported_substrate" as const,
+    substrate,
+    session_id: sessionId,
+    reason: "not_exposed_by_installed_prime_adapter_model" as const,
+    provenance: row,
+  });
+}
 
 /**
  * Attempt to map an admitted Gauntlet strategy onto a long-running Prime

@@ -1,0 +1,31 @@
+{
+  "baseline": 0,
+  "receipts": [
+    "queued",
+    "queued"
+  ],
+  "assistant_growth_observed": true,
+  "materialized": true,
+  "transcript": [
+    {
+      "role": "user",
+      "text": "Run this exact shell command and then report its exit code: sleep 25 && echo t24-phase-one-done"
+    },
+    {
+      "role": "assistant",
+      "text": "I started the command. I will report the exit code when it finishes."
+    },
+    {
+      "role": "toolResult",
+      "text": "911776"
+    },
+    {
+      "role": "assistant",
+      "text": ""
+    },
+    {
+      "role": "toolResult",
+      "text": "---------------------------------------------------------------------------\nRuntimeError                              Tr"
+    }
+  ]
+}

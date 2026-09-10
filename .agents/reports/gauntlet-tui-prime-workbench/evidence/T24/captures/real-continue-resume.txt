@@ -1,0 +1,3 @@
+$ prime-agent -c -p "What number did you compute in your previous answer? Reply with just the number." --offline --cwd /tmp/t24-cap   (fresh process, same --session-dir; continues the prior session)
+42
+EXIT=0

@@ -9,50 +9,57 @@ metadata:
   initialized: true
   last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (the final three-builder wave settled: T21 payment
-    benchmark on peer CONFIRM after two correction rounds — round 0
-    honestly recorded three MISSes [HC4 focus-switch, HC5 horizon
-    movement, HC9a stream absorb], COR-1 optimized the two measured
-    bottlenecks [relations.ts O(E*U)->linear owners index;
-    workbench-model.ts version-keyed per-input caches + immutableArrayView],
-    peer r2 reproduced HC9a p99 as variance-straddling (NOT_CONFIRM on
-    that budget alone), COR-2 eliminated the O(history) trace copy
-    [length-bounded immutable views] -> HC9a 5/5 within budget with
-    32-54% margin under ambient load, focused r2 CONFIRM with
-    independent bench runs; T22 recovery matrix on
-    CONFIRM_RECOVERY + COR-1 [corruption auditor made bidirectional:
-    three new typed finding codes, 4 RED-first shapes]; T23 cross-surface
-    isomorphism on CONFIRM_AFFORDANCE_ISOMORPHISM + COR-1 [gateway
-    importer pin converted to a whole-tree scan after the verifier
-    proved the fixed-list pin blind to new files]. Consolidated focused
-    r2: T21=CONFIRM, T22=CONFIRM, T23=CONFIRM. Final tree green in the
-    orchestrator's hands: 581 tests/55 files (5 named gated skips),
-    large-case bench ALL PASS, tsc clean, biome 0 errors, preflight
-    PASS, preregs T21/T22/T23 intact.
+    Orchestrator (T24 settled: builder delivered the substrate-inventory
+    requalification [prime-agent 0.8.0 build 8d7deea-dirty qualified; typed
+    three-way provenance map over 16 features with literal-false canonical
+    fields — discharging the T10 carried trigger-record without
+    overwriting any layer's honest unsupported] plus the gated
+    real-substrate battery [GAUNTLET_T24_REAL_PRIME=1: real -p
+    goal+autonomous runs with the real Python kernel, daemon agents via
+    the real TUI under PTY, concurrent send during a busy turn, misleading
+    "you are done" delivery leaving the agent live, TUI SIGKILL survival
+    with identical ids, cache-deleted reattachment from authoritative
+    records, stop + fresh-process -c resume, schedule add round-trip;
+    11/0 in 32.85s] and the honest cross-process boundary [real substrate
+    resumes cross-process; in-model adapter reconstructs read-only
+    topology only]) on CONFIRM_PRIME_REPL_LIFECYCLE [verifier cold-ran
+    the gated battery 11/0, executed its own attacks incl. its own
+    daemon+agent misleading-delivery and cache-deleted reattachment;
+    one MINOR transcription error in the pinned launcher sha256,
+    corrected at settlement with the independent identity confirmation
+    named]. Orchestrator adjudication: the plan gate selector
+    `just tui-test kernel-serialization` (T24) matches no test file —
+    the T05 suite is selector `prime-kernel` (5/0 green, semantic content
+    identical: serialization without interleaving + liveness!=success);
+    `prime-kernel` accepted as the canonical selector; the frozen plan
+    text is NOT edited; the divergence is recorded here and in the T24
+    evidence.
 
 execution:
-  last_settled_task: T23
+  last_settled_task: T24
   in_flight_task: null
-  ready_tasks: [T24]
-  blocked_tasks:
-    T25: [T24]
+  ready_tasks: [T25]
+  blocked_tasks: {}
 
 active:
-  task: T24
+  task: T25
   phase: dispatch-prep
-  title: fresh-target Prime/Python lifecycle + substrate inventory re-run
+  title: whole-system independent conformance and capability settlement
   blocker: null
 
 next_action:
-  task: T24
+  task: T25
   action: >-
-    Dispatch T24 (P3 fresh_target_reproduction; prereg 7c2e07a3? read the
-    frozen file): real-runtime Prime child admission/topology, REPL
-    serialization, mailbox/completion separation, detach survival,
-    authoritative reattachment — plus the OWNED substrate-inventory re-run
-    (real prime 0.8.0 exposes goals/budget/autonomous/schedules the T04/T10
-    adapter model records unsupported; re-qualify and map REQ-PRIME-008
-    provenance honestly). Then T25 whole-system conformance + settlement.
+    Dispatch T25 (P3 independent_adversarial; prereg frozen 88a06f?): run
+    the preregistered end-to-end acceptance/variation/recovery/performance/
+    plugin/semantic/cross-surface proof matrix on the real target; produce
+    the final requirement-to-evidence index (104 REQs + 15 DSN clauses,
+    mechanically recomputed); implement the two long-NOT_IMPLEMENTED modes
+    for real (tui-test all, tui-preflight conformance); run the final
+    gates (just verify + just ruler + all tui gates + benches); fresh
+    independent verifier issues CONFIRM_BOUNDED_CONFORMANCE; the
+    orchestrator alone records whole-plan settlement after total-evidence
+    review.
 
 latest_evidence:
   T00:
@@ -335,3 +342,22 @@ latest_evidence:
       two-host idempotency race = 1 settlement; least-obvious-path denials
       byte-identical; static single-admission-body pins. Trigger-records:
       textual implementor pin; prereg frozen_at wall-clock cosmetic.
+  T24:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T24/
+    artifacts: [prime-fresh-target.md, CAPTURES.sha256, captures/]
+    confirmation: >-
+      CONFIRM_PRIME_REPL_LIFECYCLE (2026-09-09, fresh-target reproduction;
+      verifier cold-ran the gated battery 11/0 and executed its own
+      attacks: own daemon+agent misleading-delivery — agent stayed live;
+      SIGKILL mid-turn + cache-deleted reattachment from authoritative
+      records; cross-process resume chain across two process generations;
+      three-way map adjudicated honest — T10 trigger-record discharged
+      without overwriting any layer). MINOR corrected: launcher sha256
+      transcription error fixed in substrate-inventory.ts + evidence.
+      Orchestrator adjudication: plan gate selector kernel-serialization
+      has no matching file — prime-kernel accepted as canonical selector
+      (semantic content identical; frozen plan not edited; divergence
+      recorded). Trigger-records: send --steer/--follow-up
+      documented-but-refused (drift captured); schedule list/cancel
+      socket binding; RLM RuntimeError loop quirk; attach surface-probed;
+      dual session-identity spaces; load-sensitivity.

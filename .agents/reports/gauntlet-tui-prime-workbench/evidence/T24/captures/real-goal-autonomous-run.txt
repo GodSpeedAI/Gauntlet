@@ -1,0 +1,3 @@
+$ prime-agent -p "Use the python tool to compute 6*7, then reply with just the number." --autonomous --autonomous-gate "true" --goal "compute correctly" --goal-token-budget 5000 --offline --cwd /tmp/t24-cap
+42
+EXIT=0

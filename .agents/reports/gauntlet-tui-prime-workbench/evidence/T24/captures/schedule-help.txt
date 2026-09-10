@@ -1,0 +1,9 @@
+Usage:
+  prime-agent schedule <list|add|cancel>
+
+Manage prompts that run later or on a recurring schedule.
+
+Commands:
+  list    List scheduled prompts
+  add     Schedule a prompt
+  cancel  Cancel a scheduled prompt

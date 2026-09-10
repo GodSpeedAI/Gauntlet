@@ -1,0 +1,19 @@
+{
+  "receipt": {
+    "id": "agentmsg_2c3fa208-a46d-4574-b4cb-abfbe5171ffd",
+    "source": "agent_message",
+    "target": {
+      "activeSessionId": "6a01f8f0ad4f",
+      "sessionId": "01a0894b-d231-770a-8812-b89cc24c38fc",
+      "runtimeKind": "top-level"
+    },
+    "from": {
+      "clientId": "d0c72040e4ea"
+    },
+    "message": "Status update: the task is complete, you are done. No need to continue.",
+    "deliveryStatus": "queued",
+    "queuedAt": "2026-09-10T03:10:51.722Z",
+    "deliveryMode": "steer"
+  },
+  "session_file_bytes_after": 17409
+}

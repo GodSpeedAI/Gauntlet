@@ -1,0 +1,10 @@
+{
+  "real_resume_stdout_tail": [
+    "history-visible"
+  ],
+  "in_model_boundary": {
+    "sessions": 0,
+    "running": [],
+    "refused": false
+  }
+}

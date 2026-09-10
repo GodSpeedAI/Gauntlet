@@ -1,0 +1,24 @@
+{
+  "workbench_to_prime_runtime_ids": {
+    "t24-real-child-left": "01a0894b-c111-7019-af14-64357a9b23de",
+    "t24-real-child-right": "01a0894b-c175-7389-a3a6-ffffc64b4623",
+    "t24-real-child-nested": "01a0894b-c190-7747-af07-8bdef964fd63"
+  },
+  "durable_prime_session_files": [
+    "01a0894b-bdf0-70f7-a6bc-59e6317c5b23.jsonl",
+    "01a0894b-be02-737b-9b92-e826e6b7fca5.jsonl",
+    "01a0894b-bdbe-767c-870c-a8d265d2075f.jsonl"
+  ],
+  "topology": [
+    {
+      "id": "t24-real-child-left",
+      "parent": null,
+      "status": "running"
+    },
+    {
+      "id": "t24-real-child-right",
+      "parent": null,
+      "status": "running"
+    }
+  ]
+}

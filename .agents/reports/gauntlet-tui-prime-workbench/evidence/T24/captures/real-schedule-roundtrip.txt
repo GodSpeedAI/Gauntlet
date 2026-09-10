@@ -1,0 +1,11 @@
+$ prime-agent schedule add --daemon-socket <isolated> 01f5052d6f67 "0 5 1 1 *" -- "probe ping (fires Jan 1, cancelled/killed before)"
+Scheduled 027f48ea-871a-4785-83d8-f1a26b21fb7b next=2027-01-01T10:00:00.000Z
+(exit 0)
+
+$ prime-agent schedule add --daemon-socket <isolated> 01f5052d6f67 "0 0 31 2 *" -- "invalid cron"
+Error: Cron schedule did not match within one year: 0 0 31 2 *
+(exit 1)
+
+$ prime-agent schedule list --daemon-socket <isolated>
+Error: Usage: prime-agent schedule list [--all] [agent] [--json]
+(exit 1) — DRIFT: list rejects --daemon-socket (bound to default socket) while add accepts it

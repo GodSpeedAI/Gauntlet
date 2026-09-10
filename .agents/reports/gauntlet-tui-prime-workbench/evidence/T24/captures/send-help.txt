@@ -1,0 +1,10 @@
+Usage:
+  prime-agent send [--from <agent>] <agent> <message>
+
+Send a message to an agent.
+
+Options:
+  --from <agent>  Identify the sending agent
+  --steer         Deliver as steering when the agent is busy
+  --follow-up     Queue the message after the current turn
+  --json          Print JSON

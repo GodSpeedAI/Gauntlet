@@ -1,0 +1,18 @@
+Usage:
+  prime-agent stop <agent> [--json]
+
+Stop an agent.
+=== ATTACH ===
+Usage:
+  prime-agent attach <agent>
+
+Attach the interactive UI to an agent.
+=== LIST ===
+Usage:
+  prime-agent list [--all] [--json]
+
+List agents.
+
+Options:
+  -a, --all  Include saved agents
+  --json      Print JSON
