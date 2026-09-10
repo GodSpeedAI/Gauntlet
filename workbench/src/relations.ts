@@ -84,6 +84,9 @@ function attributedSource(
   return { source: claimedSource, valid: false };
 }
 
+/** Shared empty owner list for ids that resolve to no row (read-only use). */
+const NO_OWNERS: readonly string[] = Object.freeze([]);
+
 /**
  * Derive the relation graph from authoritative projection rows:
  *   - unit → evidence links (kind "has_evidence")
@@ -93,13 +96,42 @@ function attributedSource(
  * a cross-source link yields an INVALID edge with the endpoint still attributed to
  * the true owner, never a second identity for an object that already has one.
  * Provenance always reflects the row that asserted the link.
+ *
+ * Ownership is resolved through a linear-time id → source-owners index built once
+ * per call (identical resolution semantics to the previous per-row scans: the
+ * owner array for an id is the same source_ids in the same world order, so every
+ * edge is byte-identical). Total cost is O(units + evidence + sessions + edges)
+ * instead of the former O(evidence·units + sessions²) scans, which dominated the
+ * hoisted materialization fold at T21 target scale (measured ~1.1 s at
+ * 3,000 × 25,000 rows).
  */
 export function deriveRelations(world: ProjectionWorld): readonly RelationEdge[] {
   const edges: RelationEdge[] = [];
 
+  const unitOwners = new Map<string, string[]>();
+  for (const unit of world.units) {
+    const owners = unitOwners.get(unit.unit_id);
+    if (owners === undefined) {
+      unitOwners.set(unit.unit_id, [unit.source_id]);
+    } else {
+      owners.push(unit.source_id);
+    }
+  }
+
+  const sessionOwners = new Map<string, string[]>();
+  for (const session of world.sessions) {
+    const owners = sessionOwners.get(session.session_id);
+    if (owners === undefined) {
+      sessionOwners.set(session.session_id, [session.source_id]);
+    } else {
+      owners.push(session.source_id);
+    }
+  }
+
   for (const evidence of world.evidence) {
-    const unitEndpoint = attributedSource(evidence.source_id, () =>
-      world.units.filter((unit) => unit.unit_id === evidence.unit_id).map((unit) => unit.source_id),
+    const unitEndpoint = attributedSource(
+      evidence.source_id,
+      () => unitOwners.get(evidence.unit_id) ?? NO_OWNERS,
     );
     edges.push(
       Object.freeze({
@@ -121,10 +153,10 @@ export function deriveRelations(world: ProjectionWorld): readonly RelationEdge[]
     if (session.parent_id === null) {
       continue;
     }
-    const parentEndpoint = attributedSource(session.source_id, () =>
-      world.sessions
-        .filter((candidate) => candidate.session_id === session.parent_id)
-        .map((candidate) => candidate.source_id),
+    const parentId: string = session.parent_id;
+    const parentEndpoint = attributedSource(
+      session.source_id,
+      () => sessionOwners.get(parentId) ?? NO_OWNERS,
     );
     edges.push(
       Object.freeze({

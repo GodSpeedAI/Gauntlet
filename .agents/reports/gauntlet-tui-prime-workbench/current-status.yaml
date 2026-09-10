@@ -9,56 +9,50 @@ metadata:
   initialized: true
   last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (the T19+T20 wave settled: T19 on independent
-    CONFIRM_HEADLESS_EQUIVALENCE [own-fixture replay with independent fold,
-    renderer truth-move attacks, typed unavailability contract, store
-    deletion, 7 smuggling shapes incl. transitive chains all captured, 0
-    blocking/0 major; 1 minor trigger-recorded]; T20 on peer CONFIRM
-    [20 probes: 10 planner-swap supersession races, 8 lens shape-abuse,
-    2 transport edges — all repelled; release artifact rebuilt
-    byte-identical and independently launched; 0 blocking/0 major] with
-    COR: the mislabeled work-view journey frame fixed [untilFrame
-    fresh-frame assertion replaces accumulated-output matching; class
-    eliminated], three minors trigger-recorded [presence-only lens gate;
-    REQ-UX-007 live-endpoint breadth partially future, noted for T25;
-    planner refreshInFlight clearing micro-waste]. BOTH tracked
-    obligations discharged and probe-survived: T17 planner swap wired
-    into the production snapshot path [async refresh + inline fallback,
-    cache-validity generation/horizon/world-version triple]; Inspector
-    lens wiring [T14/T14B sections appended data-source-gated via
-    publishLensData]. SSH reality: sshd inactive on this host — real-SSH
-    leg a visible gated skip naming the probe failure; tmux 3.6 legs REAL
-    (render/resize/client-death/reattach, cancel_calls_issued:0). Release
-    artifact: bun build --compile bun-linux-x64, sha256 ec110d78...,
-    launched in a real PTY at 120x40, manifest with support facts; clean
-    rebuild byte-identical. Final tree green in the orchestrator's hands:
-    531 tests/51 files (5 gated skips, all named), release build PASS,
-    gated PTY journeys 3/3, tsc clean, biome 0 errors, preflight PASS,
-    preregs T19/T20 intact.
+    Orchestrator (the final three-builder wave settled: T21 payment
+    benchmark on peer CONFIRM after two correction rounds — round 0
+    honestly recorded three MISSes [HC4 focus-switch, HC5 horizon
+    movement, HC9a stream absorb], COR-1 optimized the two measured
+    bottlenecks [relations.ts O(E*U)->linear owners index;
+    workbench-model.ts version-keyed per-input caches + immutableArrayView],
+    peer r2 reproduced HC9a p99 as variance-straddling (NOT_CONFIRM on
+    that budget alone), COR-2 eliminated the O(history) trace copy
+    [length-bounded immutable views] -> HC9a 5/5 within budget with
+    32-54% margin under ambient load, focused r2 CONFIRM with
+    independent bench runs; T22 recovery matrix on
+    CONFIRM_RECOVERY + COR-1 [corruption auditor made bidirectional:
+    three new typed finding codes, 4 RED-first shapes]; T23 cross-surface
+    isomorphism on CONFIRM_AFFORDANCE_ISOMORPHISM + COR-1 [gateway
+    importer pin converted to a whole-tree scan after the verifier
+    proved the fixed-list pin blind to new files]. Consolidated focused
+    r2: T21=CONFIRM, T22=CONFIRM, T23=CONFIRM. Final tree green in the
+    orchestrator's hands: 581 tests/55 files (5 named gated skips),
+    large-case bench ALL PASS, tsc clean, biome 0 errors, preflight
+    PASS, preregs T21/T22/T23 intact.
 
 execution:
-  last_settled_task: T20
+  last_settled_task: T23
   in_flight_task: null
-  ready_tasks: [T21, T22, T23]
+  ready_tasks: [T24]
   blocked_tasks:
-    T24: [T22]
-    T25: [T21, T22, T23, T24]
+    T25: [T24]
 
 active:
-  task: T21+T22+T23
+  task: T24
   phase: dispatch-prep
-  title: final three-builder wave
+  title: fresh-target Prime/Python lifecycle + substrate inventory re-run
   blocker: null
 
 next_action:
-  task: T21+T22+T23
+  task: T24
   action: >-
-    Dispatch T21 (P2 peer; prereg 55.. frozen 88a06f? see T21 hash):
-    payment benchmark with frozen budgets. T22 (P3 indep adversarial):
-    destructive recovery matrix over RECOV cases. T23 (P3 indep
-    adversarial): fresh cross-surface isomorphism confirmation. Then T24
-    (fresh-target Prime/Python lifecycle + substrate inventory re-run),
-    then T25 whole-system conformance + plan settlement.
+    Dispatch T24 (P3 fresh_target_reproduction; prereg 7c2e07a3? read the
+    frozen file): real-runtime Prime child admission/topology, REPL
+    serialization, mailbox/completion separation, detach survival,
+    authoritative reattachment — plus the OWNED substrate-inventory re-run
+    (real prime 0.8.0 exposes goals/budget/autonomous/schedules the T04/T10
+    adapter model records unsupported; re-qualify and map REQ-PRIME-008
+    provenance honestly). Then T25 whole-system conformance + settlement.
 
 latest_evidence:
   T00:
@@ -298,3 +292,46 @@ latest_evidence:
       inactive); tmux 3.6 legs real; release artifact bun-compile
       bun-linux-x64 sha256 ec110d78... launched in a real PTY, clean rebuild
       byte-identical.
+  T21:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T21/
+    artifacts: [payment-benchmark.md]
+    confirmation: >-
+      peer CONFIRM (2026-09-09) after NOT_CONFIRM r2 on HC9a alone: COR-1
+      optimized the two measured bottlenecks (relations linear owners
+      index; workbench-model version-keyed caches + immutableArrayView);
+      COR-2 eliminated the O(history) trace copy (length-bounded immutable
+      views; coalescing publication REJECTED — T07 pins per-event counts);
+      HC9a settled 5/5 within budget (p50 158-167ms <=250; p99 228-341ms
+      <=500) under ambient load; focused r2 CONFIRM with 3 independent
+      bench runs + 24-check view-contract probe + replacement-safety
+      adjudication. Horizon-shape claim proven decisively (hot set
+      byte-flat 41.8k->103.6k events; eager plan grows 184->28,600 and
+      violates the same ceiling at every size). Trigger-records: stale
+      bench-header comments (T25 sweep); Object.freeze(view)-throws +
+      isFrozen-false divergences (disclosed, zero observers).
+  T22:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T22/
+    artifacts: [recovery-matrix.md]
+    confirmation: >-
+      CONFIRM_RECOVERY (2026-09-09, independent adversarial) + COR-1
+      RED-first (auditor made bidirectional: expected_row_missing_from_file /
+      row_updated_at_disagrees / focus_row_disagrees finding codes; 4
+      audit-silent shapes now detected; readiness-wait deadline). All 7
+      cases pass incl. real SIGKILL under concurrent load; failed rounds
+      append-only preserved (naive rebuild first); T19 digest referee.
+      Trigger-records: retention-expired cursor false-positive direction;
+      T16 forged-but-plausible persisted position (presentation-only);
+      quarantine-evidence hostile repair.
+  T23:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T23/
+    artifacts: [cross-surface-isomorphism.md]
+    confirmation: >-
+      CONFIRM_AFFORDANCE_ISOMORPHISM (2026-09-09, independent adversarial)
+      + COR-1 RED-first (gateway-importer pin converted to a whole-tree
+      readdirSync scan after the verifier proved the fixed-list pin blind
+      to new files; barrel-bypass binding also closed; vanished-allowlist
+      fails). 8-route registry (gateway-http/shim, direct-api/cli, kernel,
+      plugin, prime-delegation, shell-effect) with frozen representatives;
+      two-host idempotency race = 1 settlement; least-obvious-path denials
+      byte-identical; static single-admission-body pins. Trigger-records:
+      textual implementor pin; prereg frozen_at wall-clock cosmetic.

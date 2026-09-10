@@ -38,8 +38,11 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T18/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T19/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T20/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T21/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T22/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T23/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
-  next_action: "Execute the final three-builder wave: T21 (payment benchmark), T22 (recovery matrix), T23 (cross-surface isomorphism confirmation). Then T24, then T25 whole-system settlement."
+  next_action: "Execute T24 (fresh-target Prime/Python lifecycle + substrate-inventory re-run), then T25 whole-system conformance + plan settlement."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name

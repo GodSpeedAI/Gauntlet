@@ -61,6 +61,98 @@ export class WorkbenchModelError extends Error {
   }
 }
 
+/**
+ * Publish a length-bounded immutable view over an append-only history array
+ * under the frozen-array contract, with O(1) publication cost (T21 correction;
+ * COR-2 removed the last O(history) per-event cost — the full-history copy).
+ *
+ * Snapshot arrays are immutable: every mutation attempt — push, index write,
+ * delete, in-place sort/reverse, length reassignment, prototype swap,
+ * freeze/preventExtensions — throws a TypeError, exactly as Object.freeze
+ * makes it. The previous COR-1 mechanism copied the history and handed out a
+ * guarded view of the copy: correct, but the copy itself was O(history) per
+ * published snapshot (~1 MB and ~10 ms per event at the TARGET fixture's
+ * 100k+ record Trace history — the measured HC9a stream-tail contributor).
+ * This view instead bounds the model's OWN history array at its
+ * publication-time length. That is sound because the history backing is
+ * append-only between whole-array replacements: records are pushed, never
+ * mutated in place, and resets (generation start, chat disable) replace the
+ * array object — so the prefix a view was published at can never change, and
+ * every snapshot observes exactly the records that existed at its publication,
+ * forever. Appends after publication are invisible (length and out-of-range
+ * indices are bounded by the published length). Publication allocates one
+ * proxy: zero copies, zero per-event history garbage.
+ *
+ * Divergences from Object.freeze, both disclosed and swept (see T21 evidence,
+ * Correction Round 2): Object.isFrozen(view) reports false (the immutability
+ * guard is enforced by traps, not extensibility state), and Object.freeze(view)
+ * THROWS (a freeze attempt must not silently non-extensible the shared backing,
+ * which would break future appends) where freezing an already-frozen array was
+ * previously a silent no-op. No runtime or test observer of snapshot arrays
+ * performs either operation.
+ */
+function immutableHistoryView<T>(backing: readonly T[], lengthAtPublication: number): readonly T[] {
+  const publishedLength = lengthAtPublication;
+  const refuse = (): never => {
+    throw new TypeError("snapshot arrays are immutable (frozen-array contract)");
+  };
+  const indexKey = (property: PropertyKey): number | null => {
+    if (typeof property !== "string") {
+      return null;
+    }
+    const index = Number(property);
+    return Number.isInteger(index) && index >= 0 ? index : null;
+  };
+  return new Proxy(backing, {
+    get(target, property, receiver) {
+      if (property === "length") {
+        return publishedLength;
+      }
+      const index = indexKey(property);
+      if (index !== null) {
+        return index < publishedLength ? target[index] : undefined;
+      }
+      return Reflect.get(target, property, receiver);
+    },
+    has(target, property) {
+      if (property === "length") {
+        return true;
+      }
+      const index = indexKey(property);
+      if (index !== null) {
+        return index < publishedLength;
+      }
+      return Reflect.has(target, property);
+    },
+    ownKeys() {
+      const keys: string[] = new Array(publishedLength + 1);
+      for (let i = 0; i < publishedLength; i += 1) {
+        keys[i] = String(i);
+      }
+      keys[publishedLength] = "length";
+      return keys;
+    },
+    getOwnPropertyDescriptor(target, property) {
+      if (property === "length") {
+        return { value: publishedLength, writable: true, enumerable: false, configurable: false };
+      }
+      const index = indexKey(property);
+      if (index !== null) {
+        if (index < publishedLength) {
+          return { value: target[index], writable: true, enumerable: true, configurable: true };
+        }
+        return undefined;
+      }
+      return Reflect.getOwnPropertyDescriptor(target, property);
+    },
+    set: refuse,
+    deleteProperty: refuse,
+    defineProperty: refuse,
+    setPrototypeOf: refuse,
+    preventExtensions: refuse,
+  });
+}
+
 export interface TraceRecord {
   readonly trace_id: string;
   readonly unit_id: string;
@@ -188,6 +280,21 @@ export interface WorkbenchModelOptions {
   readonly foldExecutor?: FoldExecutor;
 }
 
+/**
+ * One assembled presentation input set, cached per world version (T21 correction):
+ * the raw store snapshot, the ProjectionWorld the folds read, and Case-wide
+ * attention — all derived from the same store read. The store's snapshot content
+ * is horizon-independent (the horizon only tags snapshot meta and scopes the
+ * plan), so the cache key is the world version plus the active generation id.
+ */
+interface BaseSnapshotCache {
+  readonly version: number;
+  readonly generationId: string | null;
+  readonly base: WorkbenchSnapshot;
+  readonly world: ProjectionWorld;
+  readonly attention: readonly AttentionEntry[];
+}
+
 export class WorkbenchModel {
   readonly store: SqliteProjectionStore;
   private currentHorizon: Horizon | null = null;
@@ -218,6 +325,41 @@ export class WorkbenchModel {
   /** The planVersion captured when the current in-flight fold was dispatched. */
   private dispatchedPlanVersion = -1;
 
+  // T21 correction (measured HC4/HC9a bottleneck): presentation-input caches.
+  // Invalidation discipline mirrors the T20 plan cache: a version counter is
+  // bumped by exactly the mutations that change the cached content, so identical
+  // store/model states reuse identical content and identical store states assemble
+  // byte-identical snapshots. No canonical truth is cached — the authoritative
+  // store stays the only source; only its assembled presentation inputs are reused.
+  /** Bumped when the authoritative world changes (applied events, generation start). */
+  private worldVersion = 0;
+  /** Bumped when the Trace history changes (applied events, generation start). */
+  private traceVersion = 0;
+  /** Bumped when the Chat history changes (chat push, generation start, disable). */
+  private chatVersion = 0;
+  /** Bumped when declared capability observations change. */
+  private capabilitiesVersion = 0;
+  /** Cached store snapshot + world + Case-wide attention for the current world version. */
+  private baseCache: BaseSnapshotCache | null = null;
+  /** Immutable bounded Trace history view for the current trace version. */
+  private traceCache: { readonly version: number; readonly frozen: readonly TraceRecord[] } | null =
+    null;
+  /** Immutable bounded Chat history view for the current chat version. */
+  private chatCache: { readonly version: number; readonly frozen: readonly ChatMessage[] } | null =
+    null;
+  /** Frozen resolved capability statuses for the current capabilities version. */
+  private capabilityCache: {
+    readonly version: number;
+    readonly frozen: readonly CapabilityStatus[];
+  } | null = null;
+  /** Frozen horizon-scoped affordance ids for the current (world, plan, capabilities) context. */
+  private affordanceCache: {
+    readonly worldVersion: number;
+    readonly plan: MaterializationPlan;
+    readonly capabilitiesVersion: number;
+    readonly frozen: readonly string[];
+  } | null = null;
+
   /**
    * Invalidate the plan cache for a changed context. Clearing the in-flight
    * guard here lets a changed context schedule a fresh refresh even if an
@@ -229,7 +371,11 @@ export class WorkbenchModel {
     this.refreshInFlight = false;
   }
 
-  // In-memory projection reducers (mirrored/derived from durable log)
+  // In-memory projection reducers (mirrored/derived from durable log).
+  // Append-only discipline (COR-2 soundness invariant): records are pushed,
+  // never mutated in place; resets replace the whole array object. Published
+  // snapshot views (immutableHistoryView) are length-bounded at their
+  // publication time, so their observed prefix is immutable forever.
   private traceRecords: TraceRecord[] = [];
   private chatMessages: ChatMessage[] = [];
 
@@ -282,6 +428,10 @@ export class WorkbenchModel {
     // New generation = new world: any previously accepted plan is for a
     // superseded generation context.
     this.invalidatePlan();
+    // New generation = new presentation inputs (T21 correction cache discipline).
+    this.worldVersion += 1;
+    this.traceVersion += 1;
+    this.chatVersion += 1;
   }
 
   /**
@@ -299,6 +449,7 @@ export class WorkbenchModel {
     this.chatEnabled = enabled;
     if (!enabled) {
       this.chatMessages = [];
+      this.chatVersion += 1;
     }
     this.notifySubscribers();
   }
@@ -361,8 +512,11 @@ export class WorkbenchModel {
       this.storeFocusRef = attributedFocus;
     }
     // The authoritative world changed: a previously accepted plan no longer
-    // describes it (T20 planner swap validity tracking).
+    // describes it (T20 planner swap validity tracking), and the presentation
+    // inputs derived from it are stale (T21 correction cache discipline).
     this.invalidatePlan();
+    this.worldVersion += 1;
+    this.traceVersion += 1;
 
     // 2. Fan-out to Trace projection reducer
     this.traceRecords.push({
@@ -381,6 +535,7 @@ export class WorkbenchModel {
         content: `Unit ${frame.payload["unit_id"]} updated: status = ${frame.payload["status"]}`,
         timestamp_ms: frame.timestamp_ms,
       });
+      this.chatVersion += 1;
     }
 
     // 4. Notify subscribers with a new immutable snapshot
@@ -516,6 +671,7 @@ export class WorkbenchModel {
     for (const observation of observations) {
       this.capabilities.set(observation.capability, observation);
     }
+    this.capabilitiesVersion += 1;
     this.notifySubscribers();
   }
 
@@ -573,6 +729,15 @@ export class WorkbenchModel {
   /**
    * Build immutable FullWorkbenchSnapshot.
    *
+   * T21 correction (measured HC4/HC9a bottleneck): the expensive presentation
+   * inputs — the store read + ProjectionWorld, Case-wide attention, the frozen
+   * Trace/Chat histories, resolved capability statuses, and the horizon-scoped
+   * affordance ids — are cached under the SAME invalidation discipline as the
+   * T20 plan cache: version counters bumped by exactly the mutations that change
+   * each input, so identical store states assemble byte-identical snapshots
+   * without re-reading SQLite or copying O(history) arrays per interaction.
+   * Snapshot CONTENT is unchanged; only identical rebuilds are eliminated.
+   *
    * T20 planner swap: the materialization plan comes from the fold
    * coordinator's last-accepted worker plan whenever one is valid for the
    * CURRENT (generation, horizon, world-version) context; otherwise it is
@@ -583,25 +748,17 @@ export class WorkbenchModel {
    */
   getSnapshot(): FullWorkbenchSnapshot {
     const horizonId = this.currentHorizon?.id ?? null;
-    const baseSnapshot = this.store.getSnapshot(horizonId);
-    const world = this.worldFromBase(baseSnapshot);
+    const { base: baseSnapshot, world, attention } = this.currentBase();
     const plan = this.currentPlan(world);
-    const attention = deriveAttention(world);
-    const capabilityStatuses = [...this.capabilities.values()].map(resolveCapabilityStatus);
+    const capabilityStatuses = this.currentCapabilityStatuses();
     const availableCapabilityAffordances = capabilityStatuses
       .filter((capability) => capability.status === "available")
       .map((capability) => `affordance:capability:${capability.capability}`);
-
-    // Hoisting constrains visible affordances to the horizon working set (REQ-FOCUS-003).
-    const workingUnitIds = new Set(
-      plan.working_set.filter((focus) => focus.kind === "WorkItem").map((focus) => focus.source_id),
+    const affordanceIds = this.currentAffordanceIds(
+      plan,
+      baseSnapshot.affordance_ids,
+      availableCapabilityAffordances,
     );
-    const scopedUnitAffordances = baseSnapshot.affordance_ids.filter((affordanceId) => {
-      if (!affordanceId.startsWith("affordance-")) {
-        return true;
-      }
-      return workingUnitIds.has(affordanceId.slice("affordance-".length));
-    });
 
     const breadcrumb = [
       "Case",
@@ -612,10 +769,10 @@ export class WorkbenchModel {
       ...baseSnapshot,
       horizon: horizonId,
       focus: this.currentFocus ?? this.storeFocusRef,
-      trace_records: Object.freeze([...this.traceRecords]),
-      chat_messages: Object.freeze([...this.chatMessages]),
+      trace_records: this.currentTraceRecords(),
+      chat_messages: this.currentChatMessages(),
       chat_enabled: this.chatEnabled,
-      affordance_ids: Object.freeze([...scopedUnitAffordances, ...availableCapabilityAffordances]),
+      affordance_ids: affordanceIds,
       placements: Object.freeze([...this.placements.values()]),
       active_horizon: this.currentHorizon,
       horizon_breadcrumb: Object.freeze(breadcrumb),
@@ -626,8 +783,122 @@ export class WorkbenchModel {
       }),
       attention,
       context_candidates: plan.context_candidates,
-      capability_reasons: Object.freeze(capabilityStatuses),
+      capability_reasons: capabilityStatuses,
     };
+  }
+
+  /**
+   * The store snapshot + world + Case-wide attention for the CURRENT world
+   * version, re-read from SQLite only when the version (or active generation)
+   * changed since the last assembly. The store's snapshot content is
+   * horizon-independent — the horizon id only tags snapshot meta, which the
+   * returned FullWorkbenchSnapshot overrides — so the base is keyed on
+   * (worldVersion, generationId), the same invalidation sites as the plan cache.
+   */
+  private currentBase(): BaseSnapshotCache {
+    const cached = this.baseCache;
+    const generationId = this.store.getActiveGeneration()?.id ?? null;
+    if (
+      cached !== null &&
+      cached.version === this.worldVersion &&
+      cached.generationId === generationId
+    ) {
+      return cached;
+    }
+    const base = this.store.getSnapshot(this.currentHorizon?.id ?? null);
+    const world = this.worldFromBase(base);
+    const entry: BaseSnapshotCache = {
+      version: this.worldVersion,
+      generationId,
+      base,
+      world,
+      attention: deriveAttention(world),
+    };
+    this.baseCache = entry;
+    return entry;
+  }
+
+  /**
+   * Immutable Trace history for the current trace version — a length-bounded
+   * view over the append-only backing (COR-2: O(1) publication, no per-snapshot
+   * history copy), rebuilt only on append/reset.
+   */
+  private currentTraceRecords(): readonly TraceRecord[] {
+    const cached = this.traceCache;
+    if (cached !== null && cached.version === this.traceVersion) {
+      return cached.frozen;
+    }
+    const frozen = immutableHistoryView(this.traceRecords, this.traceRecords.length);
+    this.traceCache = { version: this.traceVersion, frozen };
+    return frozen;
+  }
+
+  /**
+   * Immutable Chat history for the current chat version — a length-bounded
+   * view over the append-only backing, rebuilt only on push/reset.
+   */
+  private currentChatMessages(): readonly ChatMessage[] {
+    const cached = this.chatCache;
+    if (cached !== null && cached.version === this.chatVersion) {
+      return cached.frozen;
+    }
+    const frozen = immutableHistoryView(this.chatMessages, this.chatMessages.length);
+    this.chatCache = { version: this.chatVersion, frozen };
+    return frozen;
+  }
+
+  /** Resolved capability statuses for the current capabilities version. */
+  private currentCapabilityStatuses(): readonly CapabilityStatus[] {
+    const cached = this.capabilityCache;
+    if (cached !== null && cached.version === this.capabilitiesVersion) {
+      return cached.frozen;
+    }
+    const frozen = Object.freeze([...this.capabilities.values()].map(resolveCapabilityStatus));
+    this.capabilityCache = { version: this.capabilitiesVersion, frozen };
+    return frozen;
+  }
+
+  /**
+   * Horizon-scoped affordance ids (REQ-FOCUS-003) for the current
+   * (world version, plan, capabilities) context. The plan participates by
+   * identity: a re-folded or re-admitted plan is a different object, so its
+   * working set rescopes the affordances exactly once.
+   */
+  private currentAffordanceIds(
+    plan: MaterializationPlan,
+    baseAffordanceIds: readonly string[],
+    availableCapabilityAffordances: readonly string[],
+  ): readonly string[] {
+    const cached = this.affordanceCache;
+    if (
+      cached !== null &&
+      cached.worldVersion === this.worldVersion &&
+      cached.plan === plan &&
+      cached.capabilitiesVersion === this.capabilitiesVersion
+    ) {
+      return cached.frozen;
+    }
+    const workingUnitIds = new Set<string>();
+    for (const focus of plan.working_set) {
+      if (focus.kind === "WorkItem") {
+        workingUnitIds.add(focus.source_id);
+      }
+    }
+    const scopedUnitAffordances = baseAffordanceIds.filter((affordanceId) => {
+      if (!affordanceId.startsWith("affordance-")) {
+        return true;
+      }
+      return workingUnitIds.has(affordanceId.slice("affordance-".length));
+    });
+    const scoped = [...scopedUnitAffordances, ...availableCapabilityAffordances];
+    const frozen = immutableHistoryView(scoped, scoped.length);
+    this.affordanceCache = {
+      worldVersion: this.worldVersion,
+      plan,
+      capabilitiesVersion: this.capabilitiesVersion,
+      frozen,
+    };
+    return frozen;
   }
 
   /**
@@ -738,7 +1009,11 @@ export class WorkbenchModel {
   }
 
   private worldSnapshot(): ProjectionWorld {
-    return this.worldFromBase(this.store.getSnapshot(this.currentHorizon?.id ?? null));
+    // T21 correction: reuse the cached base when current (same invalidation key
+    // as getSnapshot). The fold-refresh path calls this right after snapshot
+    // assembly, so this removes a second full store read per interaction/event
+    // while still reading fresh state whenever the world version moved.
+    return this.currentBase().world;
   }
 
   private worldFromBase(base: WorkbenchSnapshot): ProjectionWorld {
