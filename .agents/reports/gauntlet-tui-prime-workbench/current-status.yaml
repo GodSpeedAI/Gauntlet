@@ -9,57 +9,53 @@ metadata:
   initialized: true
   last_updated: '2026-09-09'
   updated_by: >-
-    Orchestrator (T24 settled: builder delivered the substrate-inventory
-    requalification [prime-agent 0.8.0 build 8d7deea-dirty qualified; typed
-    three-way provenance map over 16 features with literal-false canonical
-    fields — discharging the T10 carried trigger-record without
-    overwriting any layer's honest unsupported] plus the gated
-    real-substrate battery [GAUNTLET_T24_REAL_PRIME=1: real -p
-    goal+autonomous runs with the real Python kernel, daemon agents via
-    the real TUI under PTY, concurrent send during a busy turn, misleading
-    "you are done" delivery leaving the agent live, TUI SIGKILL survival
-    with identical ids, cache-deleted reattachment from authoritative
-    records, stop + fresh-process -c resume, schedule add round-trip;
-    11/0 in 32.85s] and the honest cross-process boundary [real substrate
-    resumes cross-process; in-model adapter reconstructs read-only
-    topology only]) on CONFIRM_PRIME_REPL_LIFECYCLE [verifier cold-ran
-    the gated battery 11/0, executed its own attacks incl. its own
-    daemon+agent misleading-delivery and cache-deleted reattachment;
-    one MINOR transcription error in the pinned launcher sha256,
-    corrected at settlement with the independent identity confirmation
-    named]. Orchestrator adjudication: the plan gate selector
-    `just tui-test kernel-serialization` (T24) matches no test file —
-    the T05 suite is selector `prime-kernel` (5/0 green, semantic content
-    identical: serialization without interleaving + liveness!=success);
-    `prime-kernel` accepted as the canonical selector; the frozen plan
-    text is NOT edited; the divergence is recorded here and in the T24
-    evidence.
+    Orchestrator (T25 settled -> PLAN SETTLED. T25 delivered the two
+    long-NOT_IMPLEMENTED modes for real [tui-test all: mechanical
+    plan-traceability runner over 49 normative suites, 529/0/9;
+    tui-preflight conformance: every required capability classified
+    EXECUTED / visibly GATED / UNQUALIFIED with evidence-backed rows and
+    an unbacked-gate sweep], the mechanical coverage recomputation
+    [104/104 REQs + 15/15 DSNs, 0 unmapped, negative controls proving
+    the checker fails on missing evidence], and the full proof matrix
+    [all 7 benches ALL PASS; tui-build release rebuilt byte-identical
+    59f28222...; just verify 1710+17+261 clean; just ruler PASS; all
+    three gated real batteries re-run green]. Independent adversarial
+    verification: CONFIRM_BOUNDED_CONFORMANCE [0 BLOCKING / 0 MAJOR;
+    all ten gates re-run; 15 REQs + 4 DSNs traced to load-bearing test
+    assertions; two of three final teeth independently re-executed;
+    release build reproduced byte-identical; DSN-015 confirmed]. Two
+    MINORs trigger-recorded at settlement: the unbacked-gate sweep
+    idiom scope (widen to any GAUNTLET_T<n>_* comparison literal at
+    next preflight touch) and the T25 evidence SS2.1 presentation lag
+    (live mechanical suite authoritative). The orchestrator reviewed
+    total evidence and records: PLAN SETTLED — none — plan settled.
 
 execution:
-  last_settled_task: T24
+  last_settled_task: T25
   in_flight_task: null
-  ready_tasks: [T25]
+  ready_tasks: []
   blocked_tasks: {}
+  plan_settled: true
 
 active:
-  task: T25
-  phase: dispatch-prep
-  title: whole-system independent conformance and capability settlement
+  task: null
+  phase: plan-settled
+  title: none — plan settled
   blocker: null
 
 next_action:
-  task: T25
+  task: null
   action: >-
-    Dispatch T25 (P3 independent_adversarial; prereg frozen 88a06f?): run
-    the preregistered end-to-end acceptance/variation/recovery/performance/
-    plugin/semantic/cross-surface proof matrix on the real target; produce
-    the final requirement-to-evidence index (104 REQs + 15 DSN clauses,
-    mechanically recomputed); implement the two long-NOT_IMPLEMENTED modes
-    for real (tui-test all, tui-preflight conformance); run the final
-    gates (just verify + just ruler + all tui gates + benches); fresh
-    independent verifier issues CONFIRM_BOUNDED_CONFORMANCE; the
-    orchestrator alone records whole-plan settlement after total-evidence
-    review.
+    None — plan settled. The Gauntlet Prime-Native Terminal Workbench plan
+    (27 tasks: T00, T00A, T01-T25 including T14B) is fully settled. All
+    104 normative requirements and 15 DSN design clauses carry settled
+    evidence (mechanically recomputed, independently traced); every
+    confirmation mode ran at its declared level with honest
+    NOT_CONFIRM rounds closed RED-first; the final independent verdict
+    is CONFIRM_BOUNDED_CONFORMANCE; all global gates green on the final
+    tree. Standing trigger-records (all evidence-backed, none blocking)
+    are consolidated in evidence/T25/whole-system-conformance.md's
+    handoff section.
 
 latest_evidence:
   T00:
@@ -361,3 +357,19 @@ latest_evidence:
       documented-but-refused (drift captured); schedule list/cancel
       socket binding; RLM RuntimeError loop quirk; attach surface-probed;
       dual session-identity spaces; load-sensitivity.
+  T25:
+    report: .agents/reports/gauntlet-tui-prime-workbench/evidence/T25/
+    artifacts: [whole-system-conformance.md]
+    confirmation: >-
+      CONFIRM_BOUNDED_CONFORMANCE (2026-09-09, fresh independent
+      adversarial verifier; 0 BLOCKING / 0 MAJOR): all ten declared gates
+      re-run exit 0 (tui-test all 49 suites 529/0/9; all 7 benches; both
+      preflight modes; tui-build release byte-identical twice; just verify
+      1710+17+261 clean; ruler PASS); coverage 104/104 REQs + 15/15 DSNs
+      mechanically recomputed with negative controls and independently
+      traced (15 REQs + 4 DSNs to load-bearing assertions); two of three
+      final teeth independently re-executed with own probes, third cited
+      to settled suites; DSN-015 confirmed; release digest movement
+      explained and reproduced. MINORs trigger-recorded at settlement:
+      unbacked-gate sweep idiom scope; T25 evidence SS2.1 presentation
+      lag. PLAN SETTLED by the orchestrator after total-evidence review.

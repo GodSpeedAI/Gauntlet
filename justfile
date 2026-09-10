@@ -117,17 +117,19 @@ tui-check:
     cd workbench && bun run check
 
 # Bun test suite. Omitted selector runs everything currently implemented;
-# `all` means full normative conformance per the plan's recipe contract,
-# which is not yet reachable and reports NOT_IMPLEMENTED rather than a green
-# placeholder over a suite that doesn't exist; any other value is forwarded
-# to `bun test` as a file/name filter.
+# `all` is the full normative conformance run (plan T25): it mechanically
+# enumerates every registered normative suite — each `just tui-test <selector>`
+# gate entry of plan task blocks T00A..T24, resolved by
+# workbench/src/plan-traceability.ts — runs each one, prints a per-suite table,
+# and fails if any normative suite fails, is missing, or selects zero tests.
+# Any other value is forwarded to `bun test` as a file/name filter.
 tui-test selector='':
     #!/usr/bin/env bash
     set -euo pipefail
     cd workbench
     if [ "{{selector}}" = "all" ]; then
-        echo "tui-test all: NOT_IMPLEMENTED — no normative suite is registered yet" >&2
-        exit 2
+        bun run src/tui-test-all.ts
+        exit $?
     fi
     bun test {{selector}}
 
@@ -144,7 +146,10 @@ tui-lint:
 tui-preflight mode:
     ./scripts/tui-preflight.sh {{mode}}
 
-# TUI benchmark runner — supports plan T03 bun-substrate benchmark.
+# TUI benchmark runner — one selector per frozen benchmark suite
+# (bun-substrate T03, sqlite-replay T06, terminal-path T13, focus-latency and
+# projection-worker T17, large-case and long-horizon T21); `all-required`
+# includes every required benchmark, per the plan's recipe contract.
 tui-bench selector:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -159,8 +164,18 @@ tui-bench selector:
         bun run src/sqlite-replay.bench.ts
     elif [ "{{selector}}" = "terminal-path" ]; then
         bun run src/terminal-path.bench.ts
+    elif [ "{{selector}}" = "large-case" ]; then
+        bun run src/large-case.bench.ts
+    elif [ "{{selector}}" = "long-horizon" ]; then
+        bun run src/long-horizon.bench.ts
+    elif [ "{{selector}}" = "all-required" ]; then
+        for bench in bun-substrate sqlite-replay focus-latency projection-worker terminal-path large-case long-horizon; do
+            echo "=== tui-bench all-required: $bench ==="
+            bun run "src/$bench.bench.ts" || exit 1
+        done
+        echo "tui-bench all-required: PASS — all 7 required benchmarks exited 0"
     else
-        echo "tui-bench {{selector}}: NOT_IMPLEMENTED — no benchmark suite exists yet (plan T17/T21)" >&2
+        echo "tui-bench {{selector}}: NOT_IMPLEMENTED — unknown benchmark selector (registered: bun-substrate, focus-latency, projection-worker, sqlite-replay, terminal-path, large-case, long-horizon, all-required)" >&2
         exit 2
     fi
 

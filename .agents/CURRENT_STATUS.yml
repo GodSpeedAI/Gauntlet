@@ -2,7 +2,7 @@ schema: agent.current_status
 schema_version: "1.0"
 
 workbench_document_review:
-  status: in_execution
+  status: plan_settled
   updated: "2026-09-08"
   scope: >-
     TUI Prime Workbench implementation underway; T00, T00A, T01, T02, T03,
@@ -42,8 +42,9 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T22/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T23/
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T24/
+    - .agents/reports/gauntlet-tui-prime-workbench/evidence/T25/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
-  next_action: "Execute T25: whole-system conformance + capability settlement (final proof matrix, 104 REQ + 15 DSN coverage recomputation, tui-test all + tui-preflight conformance implemented for real, fresh independent CONFIRM_BOUNDED_CONFORMANCE, orchestrator records whole-plan settlement)."
+  next_action: "None — plan settled (2026-09-09). The settled_next_action_rule is discharged: T25 CONFIRM_BOUNDED_CONFORMANCE received; the orchestrator reviewed total evidence and recorded whole-plan settlement."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name

@@ -4,10 +4,12 @@
  *
  * The horizon-shape proof at TARGET scale: a one-Focus Horizon is forced over
  * Cases of growing history (the frozen small/medium/large ladder — 4,110,
- * 41,505, and 103,610 authoritative events), and the HOT SET — focus-scoped
+ * 41,805, and 103,610 authoritative events), and the HOT SET — focus-scoped
  * subscriptions, planned queries, prefetch keys, and context candidates the
  * T17/T08 materialization machinery actually derives — is inspected at every
- * size.
+ * size. (Header figure corrected in the T25 trigger-record sweep per the T21
+ * COR-1 freeze story: the MEDIUM ladder point is 600 sessions / 41,805 events;
+ * the bench body's frozen registry always used the correct value.)
  *
  *   PASS shape: the hot set stays bounded by the DECLARED relations (a
  *   constant ceiling independent of Case size) and is byte-flat from medium to
@@ -19,10 +21,11 @@
  *   computed and checked against the ceiling at every size so the bound is
  *   proven discriminating, not decorative (prereg P1 falsifier).
  *
- * Fold wall-time is also recorded per size WITHOUT a budget: it is the known
- * adjacent-scope confound (deriveRelations is O(E*U); T17 evidence gap 1), and
- * this bench's claim is about the hot SET, which stays flat while fold work
- * does not shrink proportionally — both facts are printed.
+ * Fold wall-time is also recorded per size WITHOUT a budget. Since T21 COR-1
+ * `deriveRelations` is linear, so hoisted fold work sits at eager-fold parity
+ * at every ladder size; the pre-COR-1 confound note (deriveRelations O(E*U))
+ * was stale and was removed in the T25 sweep. This bench's claim is about the
+ * hot SET, which stays flat — both facts are printed.
  *
  * All thresholds/ceilings come from payment-budgets.ts (frozen before any
  * measurement); no threshold lives in this file.
