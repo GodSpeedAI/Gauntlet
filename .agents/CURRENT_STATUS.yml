@@ -1,6 +1,72 @@
 schema: agent.current_status
 schema_version: "1.0"
 
+tui_gui_redesign:
+  status: in_progress
+  updated: "2026-09-11"
+  scope: >-
+    GUI-grade, direct-manipulation, trace-native redesign of the Gauntlet TUI
+    per DESIGN.md, .agents/specs/tui/INTERACTION_COMMAND_MAP.md (ICM) and
+    .agents/specs/tui/UI_ELEMENT_STATE_CATALOG.md (UESC): mouse + keyboard
+    converge on one semantic command layer; terminal is the renderer, not the
+    interaction metaphor. Phase 1 (characterization) complete: RealityTrace
+    spec revisions committed (1d4d46e), 4/5 recon reports + 34 baseline
+    captures + gate outputs under .agents/reports/tui-gui-redesign/ (fifth
+    area's report lost to a usage limit; its artifacts survive in baseline/),
+    contract conflicts C1-C8/C10 resolved (C9 standing: DESIGN.md + spec
+    sha256-frozen; ICM/UESC drafts remain editable), consolidated
+    characterization in 02-substrate-characterization.md (preserve / replace /
+    violates / missing). Phase 2 next: Hallmark redesign pass over
+    presentation, then incremental implementation (semantic command layer ->
+    GUI shell primitives -> mouse convergence -> chrome/surfaces ->
+    responsive -> interaction-isomorphism + adversarial verification).
+  files:
+    - .agents/specs/tui/INTERACTION_COMMAND_MAP.md (C2 Prime Python REPL wording; C7 harness roadmap-only)
+    - .agents/specs/tui/UI_ELEMENT_STATE_CATALOG.md (C2; C7)
+    - PRODUCT.md (C8 keyboard-first + additive GUI-grade mouse context)
+    - .agents/reports/tui-gui-redesign/ (conflicts, characterization, recon, baseline)
+  verification:
+    - "No workbench/src code changed in this slice; baseline gates remain current (tui-check 0, tui-test 697/22/0 across 73 files, tui-lint 1 on 6 pre-existing findings in untouched files)"
+  phase_2:
+    status: in_progress
+    design: ".agents/reports/tui-gui-redesign/03-hallmark-redesign.md (committed fedbad1)"
+    increments_settled:
+      - "1 (6e84eff): semantic command layer — command registry, keymap resolver, handleCommand single dispatcher"
+      - "2a (516f5cb): UESC §23 token set + DESIGN surface/fg tokens + capability detection (V6) + reduced-motion wiring (M15)"
+      - "2b (f984245): wire honesty W1-W4 vs the real Rust surface + client.ts mutateUnit twin-fix"
+      - "2c (1740dd6): retained render tree + frozen hitMap + reuse proof"
+      - "7-core (b4bbd27): V1 fixed — Full/Wide keep three columns below 40 rows; heightBand/collapseOrder ladder data"
+      - "6-core (5ad863a): TraceStream pure machine (follow/hold/unseen/loadOlder/selection, 46 tests)"
+      - "4/5/6-integration (ed32694): trace ledger live in shell; palette query; bottom/inspector-pin commands; V3 header order; tab strip"
+      - "3 (618616a): mouse convergence — PointerGesture + handlePointer + renderer gesture emission + useMouse:true; keyboard-equivalence pinned"
+      - "5a (4d12b73): state.refresh §30 honesty (host-side) + V3 main.ts header integration"
+      - "8-evidence (7b8fe60): 12 after-state tmux captures vs the real surface + agent reports + lint baseline repair"
+    verification:
+      - "tsc clean; 848 tests / 22 gated skips / 0 fail (was 697 at baseline); biome at the 6-error pre-existing baseline; tui-preflight bootstrap PASS"
+    next_increment: >-
+      Redesign queue COMPLETE through the recorded depth: §30 activation gate
+      landed T23-coherently; ActionControl object; V2 compact drawers; Bottom
+      surface + height ladder; back/forward; viewport follow; notice reason
+      grammar; RealityTrace lane projection module. Remaining FOLLOW-ONS
+      (none blocking): BUSY_SUBMISSION host wiring during in-flight invokes,
+      RealityTrace lane host binding (executeSxrRefresh epoch + Trace view
+      lane), chrome menu bar + breadcrumb-click hoisting + hover tooltips +
+      context menus, pane resize gesture, mouse PTY qualification battery.
+  residuals:
+    - >-
+      W1-W4 wire defects (workbench vs Rust surface: nested error body, JSON
+      note body, unserved /state gate fields, stubs encoding the assumed wire)
+      recorded in 02-substrate-characterization.md section 4; fix belongs to
+      the redesign's command-layer work, not presentation alone.
+    - >-
+      ICM section 30 activation gate (VISIBLE_DISABLED must not activate) and
+      the state.refresh host short-circuit (workbench-host.ts invoke) deferred
+      to the ActionControl increment: the frozen T23 cross-surface matrix pins
+      the shell route forwarding post-render-mutated affordances so the
+      gateway revalidation denies; the gate landed briefly (RED-proven) and
+      was reconciled against T23 — see increment-1 commit 6e84eff.
+  next_action: "Increment 2: GUI shell primitives per 03-hallmark-redesign.md section 8 step 2"
+
 tui_rhythm_pass:
   status: complete
   updated: "2026-09-10"
@@ -464,7 +530,7 @@ metadata:
 # ─────────────────────────────────────────────────────────────────────────
 execution:
   last_settled_task: task27           # PLAN COMPLETE — all 27 tasks settled
-  in_flight_task: null                # nothing in flight; task27 settled
+  in_flight_task: tui_gui_redesign    # operator-directed GUI-grade TUI redesign (post-plan; see tui_gui_redesign above)
 
   ready_tasks: []                     # none — the plan has no tasks left
 
