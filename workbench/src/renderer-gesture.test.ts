@@ -31,8 +31,7 @@ test("click on a Navigator row emits a click gesture with the row's line id", as
     await mouse.click((hit?.x ?? 0) + 2, (hit?.y ?? 0) + row);
 
     const clicks = gestures.filter(
-      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> =>
-        g.kind === "click",
+      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> => g.kind === "click",
     );
     expect(clicks.length).toBeGreaterThanOrEqual(1);
     const last = clicks.at(-1);

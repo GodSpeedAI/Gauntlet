@@ -66,8 +66,8 @@ describe("T02 Configuration, Preflight, and Degraded-Mode Contract (REQ-CONFIG-0
           session_token: "super-secret-production-token",
         },
       });
-      const redacted = redactConfig(config);
-      expect(redacted["session_token"]).toBe("[REDACTED]");
+      const redacted: { session_token?: string } = redactConfig(config);
+      expect(redacted.session_token).toBe("[REDACTED]");
       expect(JSON.stringify(redacted)).not.toContain("super-secret-production-token");
     });
   });

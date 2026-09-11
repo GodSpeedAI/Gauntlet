@@ -1,0 +1,30 @@
+Gauntlet · gauntlet/canonical surface · Case · gen gen-1 · connected
+
+NAVIGATOR                   ▸ PRIMARY ▸[WORK] [CHAT] [TRACE] [EVIDENCE] [AGENTS] [ATTENTION]  INSPECTOR
+  · Case outline            ↑ 3 line(s) above (scroll anchored)                               No Focus selected. Choose an item in
+    ? AK-901                ? OPEN    AK-901  AK-901  authority unknown
+    ? AK-902                ? OPEN    AK-902  AK-902  authority unknown
+    ? AK-903                ? OPEN    AK-903  AK-903  authority unknown
+
+                            No Focus selected. Choose a unit in the Navigator.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e composer · es

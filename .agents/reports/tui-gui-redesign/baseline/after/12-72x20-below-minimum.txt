@@ -1,0 +1,20 @@
+Gauntlet · gauntlet/canonical surface · Case · gen gen-1 · connected
+
+! Gauntlet needs at least 80x24. This terminal is 72x20.
+Resize the window, or press q to quit.
+(admitted work keeps running)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

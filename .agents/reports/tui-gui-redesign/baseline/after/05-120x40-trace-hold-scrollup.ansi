@@ -1,0 +1,40 @@
+[1m[38;2;255;255;255mGauntlet [0m[38;2;255;255;255m· gauntlet/canonical surface [1m· Case [0;2m[38;2;255;255;255m· gen gen-1 · connected[0m[38;2;255;255;255m
+
+[2mNAVIGATOR[0m[38;2;255;255;255m                   [38;2;96;165;250m▸ [1m[38;2;255;255;255mPRIMARY [0m[38;2;255;255;255m[WORK] [CHAT] [1m[38;2;96;165;250m▸[TRACE] [0m[38;2;255;255;255m[EVIDENCE] [AGENTS] [A [2mINSPECTOR[0m[38;2;255;255;255m
+  · Case outline            [1mTRACE: what actually happened?[0m[38;2;255;255;255m                          [2mNo Focus selected. Choose an item in
+    [0m[38;2;197;138;42m? [38;2;255;255;255mAK-901                [38;2;197;138;42m◷ INSPECTING history[2m[38;2;255;255;255m · g return to live[0m[38;2;255;255;255m
+    [38;2;197;138;42m? [38;2;255;255;255mAK-902                [1m[38;2;37;99;235m● UNIT_UPDATED [0m[38;2;255;255;255m[gauntlet] unit_updated (cursor-22p6) [2mun[0m[38;2;255;255;255m
+    [38;2;197;138;42m? [38;2;255;255;255mAK-903                [1m[38;2;37;99;235m● UNIT_UPDATED [0m[38;2;255;255;255m[gauntlet] unit_updated (cursor-1wl7) [2mun[0m[38;2;255;255;255m
+                            [1m[38;2;37;99;235m● UNIT_UPDATED [0m[38;2;255;255;255m[gauntlet] unit_updated (cursor-1qh8) [2mun[0m[38;2;255;255;255m
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[2m[38;2;86;105;120mCOMPOSER [0;1m[38;2;255;255;255m[message][38;2;37;99;235m → workbench[0m[38;2;255;255;255m
+[38;2;96;165;250m> [38;2;255;255;255m
+[2mmessage text does not execute or change mode · enter submits[0m[38;2;255;255;255m
+[2mkeys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e com

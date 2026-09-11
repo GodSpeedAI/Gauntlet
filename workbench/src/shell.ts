@@ -914,6 +914,8 @@ export function filterPaletteEntries(
           .includes(q);
       case "focus":
         return entry.label.toLowerCase().includes(q);
+      default:
+        return false;
     }
   });
 }

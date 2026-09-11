@@ -36,10 +36,7 @@ async function run(): Promise<void> {
         // it pushed Case identity/breadcrumb/attention off 80-col terminals.
         // The run id already renders in the shell header's metadata span; the
         // host appends only its connection status, clipped first by design.
-        spans: [
-          ...rendered.header.spans,
-          { text: ` · ${host.status}`, emphasis: "dim" as const },
-        ],
+        spans: [...rendered.header.spans, { text: ` · ${host.status}`, emphasis: "dim" as const }],
       },
       attention: [
         ...(host.notice
