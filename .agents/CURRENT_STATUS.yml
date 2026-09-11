@@ -41,17 +41,18 @@ tui_gui_redesign:
       - "3 (618616a): mouse convergence — PointerGesture + handlePointer + renderer gesture emission + useMouse:true; keyboard-equivalence pinned"
       - "5a (4d12b73): state.refresh §30 honesty (host-side) + V3 main.ts header integration"
       - "8-evidence (7b8fe60): 12 after-state tmux captures vs the real surface + agent reports + lint baseline repair"
+      - "follow-on (c1c7bca): BUSY_SUBMISSION host wiring — WorkbenchHost tracks in-flight ${operation}:${focus.id} keys around the real gateway.invoke round-trip (never state.refresh's local read); Work bar + Inspector AFFORDANCES substitute busySubmission() after resolver derivation (never descriptor-derived), rendering on the existing readiness.degraded token"
     verification:
-      - "tsc clean; 848 tests / 22 gated skips / 0 fail (was 697 at baseline); biome at the 6-error pre-existing baseline; tui-preflight bootstrap PASS"
+      - "tsc clean; 906 tests / 22 gated skips / 0 fail (was 848 before this follow-on); biome at the 6-error pre-existing baseline, 0 new findings in changed files; tui-preflight bootstrap PASS"
     next_increment: >-
       Redesign queue COMPLETE through the recorded depth: §30 activation gate
       landed T23-coherently; ActionControl object; V2 compact drawers; Bottom
       surface + height ladder; back/forward; viewport follow; notice reason
-      grammar; RealityTrace lane projection module. Remaining FOLLOW-ONS
-      (none blocking): BUSY_SUBMISSION host wiring during in-flight invokes,
-      RealityTrace lane host binding (executeSxrRefresh epoch + Trace view
-      lane), chrome menu bar + breadcrumb-click hoisting + hover tooltips +
-      context menus, pane resize gesture, mouse PTY qualification battery.
+      grammar; RealityTrace lane projection module; BUSY_SUBMISSION host
+      wiring. Remaining FOLLOW-ONS (none blocking): RealityTrace lane host
+      binding (executeSxrRefresh epoch + Trace view lane), chrome menu bar +
+      breadcrumb-click hoisting + hover tooltips + context menus, pane resize
+      gesture, mouse PTY qualification battery.
   residuals:
     - >-
       W1-W4 wire defects (workbench vs Rust surface: nested error body, JSON

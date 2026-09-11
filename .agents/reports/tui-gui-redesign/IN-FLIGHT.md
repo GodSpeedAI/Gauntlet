@@ -1,8 +1,16 @@
 # IN-FLIGHT — TUI GUI-grade redesign (operator-directed, post-plan)
 
-Updated: 2026-09-11 (final push — remaining queue closed; 11 commits total across the two sessions).
+Updated: 2026-09-11 (follow-on: BUSY_SUBMISSION host wiring, c1c7bca — queue was already closed at 11 commits; this is the first of the recorded non-blocking follow-ons).
 
-## FINAL STATE (this push): c624f60 + f0523f8
+## LATEST: c1c7bca — BUSY_SUBMISSION host wiring
+- `busySubmission()` (action-control.ts) existed but was unused since the ActionControl increment landed — nothing ever minted it.
+- `WorkbenchHost.invoke()` now tracks `${operation}:${focus.id}` in a `pendingOperationKeys` set: added before `this.gateway.invoke(...)`, removed in `finally` (covers accepted/refused/outcome_unknown/throw alike). `state.refresh`'s local-read short-circuit is untouched — never marked busy.
+- Threaded read-only as `ShellRenderOptions.pendingOperations` → `ViewRenderArgs`/`InspectorArgs` → `main.ts`'s `session.render(...)`.
+- Work bar + Inspector AFFORDANCES substitute `busySubmission(operation)` for the resolver-derived control AFTER derivation (never descriptor-derived — action-control.ts's invariant held), rendering on the existing `readiness.degraded` token with a `"… "` glyph and no reasons/next-step text (not a domain-success or blocked claim).
+- Gates: tsc clean; 906 tests / 22 gated skips / 0 fail (was 848); biome 6-error pre-existing baseline, 0 new findings in the 7 changed files.
+- Implemented by a delegated Sonnet subagent from a bounded, file/line-anchored brief; independently re-verified (diff read, gates re-run) by the orchestrator before commit.
+
+## Prior FINAL STATE (queue-close push): c624f60 + f0523f8
 - §30 activation gate LANDED with the T23 coherent update (shellDrive synthesizes pre-activation refusals from the fresh descriptor's canonical reason vocabulary; racing teeth preserved; staging fixtures now activatable).
 - ActionControl object (action-control.ts) renders the Work bar + Inspector AFFORDANCES (byte-identical text, all DSN pins green).
 - V2 closed: Compact drawers (n/i, Esc closes, clicks route through the same select edge) — Inspector reachable at 80–119 cols for the first time.
@@ -47,15 +55,13 @@ Five agents partitioned BY FILE OWNERSHIP (theme/config/main; gateway+stub+affor
 - OpenTUI quirks pinned: scroll only dispatches via generic `onMouse`; useMouse must be explicitly enabled; `capabilities.rgb` for color detection.
 - biome useLiteralKeys vs tsc TS4111 conflict on Record-cast types: resolve via declared-property shapes (see client.ts readSnapshot comment).
 
-## Next (depth remaining, priority order)
+## Next (non-blocking follow-ons, priority order)
 
-1. ActionControl presentation object (HIDDEN/VISIBLE_DISABLED(reason)/VISIBLE_ENABLED/BUSY_SUBMISSION) across Work bar + palette rows + menus; lands the §30 palette gate + T23 expectation update together.
-2. Notice reason grammar (class/summary/related_focus/next_affordance) replacing the flat host notice.
-3. V2: Compact drawers (Navigator/Inspector as switchable overlays, Ctrl+←/→ + edge tabs) — shares the "drawers" rung with the short-height ladder (consume heightBand/collapseOrder).
-4. Chrome remainder: back/forward over location history, breadcrumb-click hoisting, menu bar, Bottom surface rendering + pane resize.
-5. RealityTrace production binding: refresh lane off the render loop, refresh-epoch staleness, pending/unverified lanes, Evidence/Trace exposure.
-6. Navigator viewport-follow + expand/collapse; hover tooltips; context menus (right-click gesture plumbing already exists).
-7. Final regression: operator-journey sweeps + equivalence matrix + captures refresh.
+1. ~~ActionControl BUSY_SUBMISSION host wiring~~ — DONE (c1c7bca).
+2. RealityTrace production binding: refresh lane off the render loop, refresh-epoch staleness, pending/unverified lanes, Evidence/Trace exposure. (Lane projection module landed in f0523f8; host binding still open.)
+3. Chrome remainder: menu bar, breadcrumb-click hoisting, hover tooltips, context menus (right-click gesture plumbing already exists), pane resize gesture.
+4. Mouse PTY qualification battery.
+5. Final regression: operator-journey sweeps + equivalence matrix + captures refresh.
 
 ## Standing notes
 
