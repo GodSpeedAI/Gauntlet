@@ -162,18 +162,18 @@ describe("T20 real-PTY operator journeys (gated: GAUNTLET_T20_REAL_PTY=1)", () =
         // carries [WORK] from the cold start, so only a fresh-frame wait
         // proves the "1" press genuinely redrew into the work view.
         session.write("2");
-        await untilFrame(session, "PRIMARY [CHAT]");
+        await untilFrame(session, "▸[CHAT]");
         captureFrame("journey-120x40-chat-view", session);
         session.write("3");
-        await untilFrame(session, "PRIMARY [TRACE]");
+        await untilFrame(session, "▸[TRACE]");
         session.write("1");
-        await untilFrame(session, "PRIMARY [WORK]");
+        await untilFrame(session, "▸[WORK]");
         captureFrame("journey-120x40-work-view", session);
 
         // Resize propagation: 80x24 → compact, one primary pane, Case and
         // attention retained (REQ-UX-005).
         session.resize(80, 24);
-        await untilFrame(session, "PRIMARY [WORK]");
+        await untilFrame(session, "▸[WORK]");
         const compactDeadline = Date.now() + 8000;
         let compact = lastFrame(session);
         while (Date.now() < compactDeadline && compact.includes("NAVIGATOR")) {
@@ -235,7 +235,7 @@ describe("T20 real-PTY operator journeys (gated: GAUNTLET_T20_REAL_PTY=1)", () =
         await untilFrame(session, "Gauntlet needs at least 80x24. This terminal is 60x18.");
         const promptFrame = lastFrame(session);
         expect(promptFrame).toContain("press q to quit");
-        expect(promptFrame).not.toContain("PRIMARY [WORK]"); // no work surface below minimum
+        expect(promptFrame).not.toContain("▸[WORK]"); // no work surface below minimum
         captureFrame("journey-60x18-launch-prompt", session);
 
         // Only q acts below minimum: other keys leave the prompt up.

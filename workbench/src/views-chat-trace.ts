@@ -131,31 +131,89 @@ export function renderTraceView(args: ViewRenderArgs): ViewContent {
     return { view: "trace", question: "What actually happened?", lines, records };
   }
 
-  for (const record of snapshot.trace_records) {
-    const token = traceEventToken(record.event_type);
+  // GUI redesign (UESC §16.2, ICM §16.4-16.6): when the shell passes the
+  // TraceStream window, the ledger renders the window with its follow state
+  // and an explicit unseen-count affordance; it NEVER jumps to the live tail
+  // while the operator holds on history.
+  if (args.traceWindow !== undefined) {
+    const { followState, unseenCount } = args.traceWindow;
+    const stateLabel =
+      followState === "LIVE_FOLLOW"
+        ? "LIVE · following"
+        : followState === "INSPECTION_HOLD"
+          ? `INSPECTING history${unseenCount > 0 ? ` · ${unseenCount} new` : ""}`
+          : followState === "HYDRATING"
+            ? "HYDRATING"
+            : "COLD";
+    const stateToken =
+      followState === "LIVE_FOLLOW"
+        ? ("execution.running" as const)
+        : unseenCount > 0
+          ? ("attention.required" as const)
+          : ("evidence.stale" as const);
     lines.push({
-      id: `trace.${record.trace_id}`,
+      id: "trace.follow",
       spans: [
-        { text: `${SEMANTIC_TOKENS[token].glyph} `, token },
-        { text: `${record.event_type.toUpperCase()} `, token, emphasis: "bold" },
-        { text: `${record.summary} `, emphasis: "normal" },
-        { text: `unit ${record.unit_id} · ${record.trace_id}`, emphasis: "dim" },
+        { text: `${SEMANTIC_TOKENS[stateToken].glyph} ${stateLabel}`, token: stateToken },
+        ...(followState === "INSPECTION_HOLD"
+          ? [
+              {
+                text: unseenCount > 0 ? " ▾ g return to live" : " · g return to live",
+                emphasis: "dim" as const,
+                ...(unseenCount > 0
+                  ? { token: "attention.required" as const, emphasis: "bold" as const }
+                  : {}),
+              },
+            ]
+          : []),
       ],
     });
-    records.push({
-      id: `trace-record:${record.trace_id}`,
-      kind: "relation",
-      fields: {
-        event_type: record.event_type,
-        unit_id: record.unit_id,
-        trace_id: record.trace_id,
-        timestamp_ms: String(record.timestamp_ms),
-        summary: record.summary,
-      },
-      token,
-    });
+    for (const record of args.traceWindow.records) {
+      pushTraceRow(lines, records, record);
+    }
+    if (args.traceWindow.records.length === 0) {
+      lines.push({
+        id: "trace.window.empty",
+        spans: [{ text: "Window empty at this scroll position.", emphasis: "dim" }],
+      });
+    }
+    return { view: "trace", question: "What actually happened?", lines, records };
+  }
+
+  for (const record of snapshot.trace_records) {
+    pushTraceRow(lines, records, record);
   }
   return { view: "trace", question: "What actually happened?", lines, records };
+}
+
+/** One ledger row: glyph + typed event + summary + machine provenance. */
+function pushTraceRow(
+  lines: RenderedLine[],
+  records: RenderedRecord[],
+  record: import("./workbench-model").TraceRecord,
+): void {
+  const token = traceEventToken(record.event_type);
+  lines.push({
+    id: `trace.${record.trace_id}`,
+    spans: [
+      { text: `${SEMANTIC_TOKENS[token].glyph} `, token },
+      { text: `${record.event_type.toUpperCase()} `, token, emphasis: "bold" },
+      { text: `${record.summary} `, emphasis: "normal" },
+      { text: `unit ${record.unit_id} · ${record.trace_id}`, emphasis: "dim" },
+    ],
+  });
+  records.push({
+    id: `trace-record:${record.trace_id}`,
+    kind: "relation",
+    fields: {
+      event_type: record.event_type,
+      unit_id: record.unit_id,
+      trace_id: record.trace_id,
+      timestamp_ms: String(record.timestamp_ms),
+      summary: record.summary,
+    },
+    token,
+  });
 }
 
 /** Evidence lower surface: inspectable evidence record objects (DSN-008). */

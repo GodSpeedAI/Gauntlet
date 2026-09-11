@@ -74,11 +74,7 @@ describe("palette grouping (layout)", () => {
     const model = seededModel();
     const session = new ShellSession(HOST, FULL_DIMS);
     session.key("p", model.getSnapshot());
-    const entries = paletteEntries(
-      session.state,
-      model.getSnapshot(),
-      {},
-    );
+    const entries = paletteEntries(session.state, model.getSnapshot(), {});
     const agentsIndex = entries.findIndex(
       (entry) => entry.type === "view" && entry.view === "agents",
     );
@@ -127,7 +123,10 @@ describe("legend and title rhythm (layout)", () => {
     const session = new ShellSession(HOST, FULL_DIMS);
     const rendered = session.render(model.getSnapshot(), renderOptions(model));
     const title = shellText(rendered, "Primary")[0] ?? "";
-    expect(title).toContain("PRIMARY [WORK]");
+    // GUI redesign tab strip: fixed-order tabs, ▸ marks the active tab.
+    expect(title).toContain("▸[WORK]");
+    expect(title).toContain("[CHAT]");
+    expect(title).toContain("[TRACE]");
     expect(title).not.toContain("What are we trying");
   });
 });

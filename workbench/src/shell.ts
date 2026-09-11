@@ -61,10 +61,20 @@ import { calculateColumns, classifyGeometry, renderBelowMinimumPrompt } from "./
 import { renderInspector } from "./inspector";
 import type { ProjectionWorld } from "./relations";
 import { focusForEvidence, focusForSession, focusForUnit } from "./relations";
-import type { RenderedLine, ViewContent } from "./render-tree";
+import type { RenderedLine, RenderedSpan, ViewContent } from "./render-tree";
 import { lineText } from "./render-tree";
 import type { ColorCapability, MotionPreference, SemanticToken } from "./theme";
 import { runningIndicatorFrames, SEMANTIC_TOKENS } from "./theme";
+import {
+  createTraceStream,
+  streamAppend,
+  streamHydrated,
+  streamReturnToLive,
+  streamScrollDown,
+  streamScrollUp,
+  streamVisibleWindow,
+  type TraceStream,
+} from "./trace-stream";
 import type { ViewContentRenderer } from "./views-chat-trace";
 import { defaultViewRegistry } from "./views-chat-trace";
 import { materializeAffordances, statusToken } from "./views-work";
@@ -429,6 +439,18 @@ export interface ShellState {
   readonly focusedSurface: SurfaceId;
   readonly paletteOpen: boolean;
   readonly paletteIndex: number;
+  /** Palette text query (UESC §22.8). Empty string = unfiltered. */
+  readonly paletteQuery: string;
+  /** Bottom Surface visibility (UESC §7.5); collapsed by default below Wide-tall. */
+  readonly bottomOpen: boolean;
+  /**
+   * Inspector pin (UESC §7.4): null = FOLLOW_SELECTION (the Inspector targets
+   * the current selection); set = PINNED (the Inspector keeps one Focus until
+   * explicitly released). Pinning never mutates selection.
+   */
+  readonly inspectorPin: { readonly ref: FocusRef } | null;
+  /** Trace ledger presentation machine (UESC §16.2); see reconcileTrace. */
+  readonly trace: TraceStream;
   /** Staged invoke awaiting a second Enter (harden: no one-Enter consequential invoke). */
   readonly pendingConfirm: { readonly operation: string; readonly ref: FocusRef } | null;
   readonly navigatorIndex: number;
@@ -452,6 +474,10 @@ export function createShellState(host: ShellHostConfig, dims: Dimensions): Shell
     focusedSurface: "Primary",
     paletteOpen: false,
     paletteIndex: 0,
+    paletteQuery: "",
+    bottomOpen: false,
+    inspectorPin: null,
+    trace: createTraceStream(64),
     pendingConfirm: null,
     navigatorIndex: 0,
     scroll: Object.freeze({}),
@@ -591,7 +617,7 @@ export function paletteEntries(
   );
 
   const actionRows: PaletteEntry[] = [];
-  const focus = snapshot.focus ?? state.location.focus;
+  const focus = inspectorTarget(state, snapshot);
   if (focus !== null && context.observation !== undefined) {
     for (const item of materializeAffordances(focus, context.observation, {
       session: context.session,
@@ -652,11 +678,106 @@ export function handleKey(
           ? "palette_open"
           : "shell",
   };
+  // Palette query editing is TEXT INPUT, not command intent (the composer
+  // precedent): printable graphemes and backspace edit the query while the
+  // palette owns the keyboard. Control keys fall through to the registry.
+  if (context.surface === "palette_open") {
+    const edited = editPaletteQuery(state, key);
+    if (edited !== null) {
+      return { state: edited, effects: [] };
+    }
+  }
+
   const command = commandForKey(key, context);
   if (command === null) {
     return { state, effects: [] };
   }
   return handleCommand(state, snapshot, command, paletteContext);
+}
+
+/** Keys terminalKey reports as literal characters (no modifiers, not a
+ * control name). Multi-codepoint graphemes arrive as one key. */
+function isPrintableKey(key: string): boolean {
+  if (key.length === 0 || key.includes("+") || key.startsWith("ctrl")) return false;
+  const controlNames = new Set([
+    "escape",
+    "enter",
+    "return",
+    "tab",
+    "shift+tab",
+    "backspace",
+    "delete",
+    "left",
+    "right",
+    "up",
+    "down",
+    "home",
+    "end",
+    "pageup",
+    "pagedown",
+    "space",
+  ]);
+  return !controlNames.has(key);
+}
+
+/** Edit the palette query with one input key; null when the key is not input. */
+function editPaletteQuery(state: ShellState, key: string): ShellState | null {
+  if (key === "backspace") {
+    const chars = Array.from(state.paletteQuery);
+    if (chars.length === 0) return state;
+    const next = chars.slice(0, -1).join("");
+    return Object.freeze({ ...state, paletteQuery: next, paletteIndex: 0, pendingConfirm: null });
+  }
+  if (isPrintableKey(key)) {
+    return Object.freeze({
+      ...state,
+      paletteQuery: state.paletteQuery + key,
+      paletteIndex: 0,
+      pendingConfirm: null,
+    });
+  }
+  return null;
+}
+
+/**
+ * Filter palette entries by the active query (UESC §22.8). Matching is
+ * case-insensitive over every identity field a row exposes: view name +
+ * command id + shortcut, operation + status + reason codes, focus label.
+ * Headers drop out while filtering (groups collapse to matches).
+ */
+export function filterPaletteEntries(
+  entries: readonly PaletteEntry[],
+  query: string,
+): readonly PaletteEntry[] {
+  const q = query.trim().toLowerCase();
+  if (q.length === 0) return entries;
+  return entries.filter((entry) => {
+    switch (entry.type) {
+      case "header":
+        return false;
+      case "view":
+        return [entry.view, entry.commandId, entry.shortcut ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+      case "affordance":
+        return [entry.operation, entry.status, entry.reasons.join(" ")]
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+      case "focus":
+        return entry.label.toLowerCase().includes(q);
+    }
+  });
+}
+
+/** The entries palette movement and activation walk (query-filtered). */
+function activePaletteEntries(
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+  paletteContext: PaletteContext,
+): readonly PaletteEntry[] {
+  return filterPaletteEntries(paletteEntries(state, snapshot, paletteContext), state.paletteQuery);
 }
 
 /**
@@ -719,6 +840,7 @@ export function handleCommand(
           ...state,
           paletteOpen: true,
           paletteIndex: 0,
+          paletteQuery: "",
           focusedSurface: "Overlay",
         }),
         effects: [],
@@ -738,6 +860,18 @@ export function handleCommand(
         };
       }
       if (state.focusedSurface === "Primary") {
+        // The Trace view is a ledger window (UESC §16.2): up/down drive the
+        // follow/hold machine, not the line scroller. Scrolling up suspends
+        // live-follow; reaching the tail resumes it.
+        if (state.location.view === "trace") {
+          return {
+            state: Object.freeze({
+              ...state,
+              trace: delta < 0 ? streamScrollUp(state.trace) : streamScrollDown(state.trace),
+            }),
+            effects: [],
+          };
+        }
         const current = state.scroll[state.location.view] ?? 0;
         return {
           state: Object.freeze({
@@ -752,6 +886,11 @@ export function handleCommand(
       }
       return { state, effects: [] };
     }
+    case "trace.follow.resume":
+      return {
+        state: Object.freeze({ ...state, trace: streamReturnToLive(state.trace) }),
+        effects: [],
+      };
     case "nav.focus.select": {
       if (state.focusedSurface === "Navigator") {
         const row = navigatorOutline(snapshot)[state.navigatorIndex];
@@ -795,9 +934,57 @@ export function handleCommand(
     }
     case "ui.composer.focus":
       return { state: Object.freeze({ ...state, focusedSurface: "Composer" }), effects: [] };
+    case "ui.bottom.toggle":
+      // Bottom Surface visibility is presentation state only (UESC §7.5):
+      // collapsing it never stops or detaches anything it hosts.
+      return { state: Object.freeze({ ...state, bottomOpen: !state.bottomOpen }), effects: [] };
+    case "ui.inspector.pin.toggle": {
+      // UESC §7.4 PINNED ↔ FOLLOW_SELECTION. Pinning captures the CURRENT
+      // inspector target; it never mutates selection. Unpinning resumes
+      // following the live selection.
+      if (state.inspectorPin !== null) {
+        return { state: Object.freeze({ ...state, inspectorPin: null }), effects: [] };
+      }
+      const target = inspectorTarget(state, snapshot);
+      if (target === null) return { state, effects: [] };
+      return {
+        state: Object.freeze({ ...state, inspectorPin: Object.freeze({ ref: target }) }),
+        effects: [],
+      };
+    }
+    case "ui.inspector.toggle":
+      // Drawer docking materialises with the chrome increment; the command
+      // identity and keyboard equivalent land first (ICM §34.2).
+      return { state, effects: [] };
     default:
       return { state, effects: [] };
   }
+}
+
+/** Derive the trace ledger window for the Trace view: follow state, unseen
+ * count, and the snapshot records visible in the stream's current window. */
+function traceLedgerWindow(
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+): import("./views-work").TraceLedgerWindow {
+  const window = streamVisibleWindow(state.trace);
+  const byId = new Map(snapshot.trace_records.map((record) => [record.trace_id, record]));
+  const records = window
+    .map((entry) => byId.get(entry.id))
+    .filter(
+      (record): record is FullWorkbenchSnapshot["trace_records"][number] => record !== undefined,
+    );
+  return {
+    followState: state.trace.followState,
+    unseenCount: state.trace.unseenCount,
+    records,
+  };
+}
+
+/** The Inspector's current target: the pinned Focus when PINNED, else the
+ * live selection (snapshot first, shell location as presentation fallback). */
+function inspectorTarget(state: ShellState, snapshot: FullWorkbenchSnapshot): FocusRef | null {
+  return state.inspectorPin?.ref ?? snapshot.focus ?? state.location.focus;
 }
 
 /** Palette-open context: the palette owns the keyboard (shell keys inert). */
@@ -809,13 +996,24 @@ function handlePaletteCommand(
 ): { state: ShellState; effects: readonly ShellEffect[] } {
   switch (command) {
     case "ui.palette.dismiss":
-      // Escape backs out one level: staged confirm, then the palette itself.
-      // It never cancels admitted work.
+      // Escape backs out one level: staged confirm, then a non-empty query,
+      // then the palette itself. It never cancels admitted work.
+      if (state.pendingConfirm !== null) {
+        return { state: Object.freeze({ ...state, pendingConfirm: null }), effects: [] };
+      }
+      if (state.paletteQuery.length > 0) {
+        return {
+          state: Object.freeze({ ...state, paletteQuery: "", paletteIndex: 0 }),
+          effects: [],
+        };
+      }
       return {
-        state:
-          state.pendingConfirm !== null
-            ? Object.freeze({ ...state, pendingConfirm: null })
-            : Object.freeze({ ...state, paletteOpen: false, focusedSurface: "Primary" }),
+        state: Object.freeze({
+          ...state,
+          paletteOpen: false,
+          paletteQuery: "",
+          focusedSurface: "Primary",
+        }),
         effects: [],
       };
     case "ui.palette.close":
@@ -823,6 +1021,7 @@ function handlePaletteCommand(
         state: Object.freeze({
           ...state,
           paletteOpen: false,
+          paletteQuery: "",
           focusedSurface: "Primary",
           pendingConfirm: null,
         }),
@@ -830,10 +1029,10 @@ function handlePaletteCommand(
       };
     case "ui.palette.move.prev":
     case "ui.palette.move.next": {
-      // Navigation walks the same entry list activation uses, so the
-      // highlighted row and the Enter target can never diverge. Moving
-      // drops any staged confirm.
-      const entries = paletteEntries(state, snapshot, paletteContext);
+      // Navigation walks the same (query-filtered) entry list activation
+      // uses, so the highlighted row and the Enter target can never diverge.
+      // Moving drops any staged confirm.
+      const entries = activePaletteEntries(state, snapshot, paletteContext);
       const last = Math.max(0, entries.length - 1);
       const delta = command === "ui.palette.move.prev" ? -1 : 1;
       return {
@@ -846,7 +1045,7 @@ function handlePaletteCommand(
       };
     }
     case "ui.palette.activate": {
-      const entries = paletteEntries(state, snapshot, paletteContext);
+      const entries = activePaletteEntries(state, snapshot, paletteContext);
       const entry = entries[state.paletteIndex];
       if (entry === undefined || entry.type === "header") {
         return { state, effects: [] };
@@ -967,29 +1166,31 @@ export function renderShell(
   const columns = calculateColumns(state.dimensions);
   const breadcrumb = [...snapshot.horizon_breadcrumb];
 
+  // Clip-priority order (GUI redesign, DESIGN Responsive/Compact: identity,
+  // Case, breadcrumb and attention outlive the tail-clip at 80 cols; run and
+  // generation are metadata and clip FIRST because they sit last).
   const header: RenderedLine = {
     id: "shell.header",
     spans: [
       { text: "Gauntlet ", emphasis: "bold" },
       {
-        text: `· ${state.location.workspace.workspace}/${state.location.workspace.reference}`,
+        text: `· ${state.location.workspace.workspace}/${state.location.workspace.reference} `,
       },
-      ...(state.location.workspace.run !== undefined
-        ? [{ text: ` · run ${state.location.workspace.run}` }]
-        : []),
-      // The header carries an 8-char generation prefix so identity, location
-      // and attention outlive this metadata span when a narrow terminal clips
-      // the line tail-first; the full id stays visible in Inspector PROVENANCE.
-      { text: ` · gen ${snapshot.generation.slice(0, 8)} `, emphasis: "dim" },
-      { text: `· ${breadcrumb.join(" › ")} ` },
+      { text: `· ${breadcrumb.join(" › ")} `, emphasis: "bold" },
       ...(snapshot.attention.length > 0
         ? [
             {
-              text: `· ! attention ${snapshot.attention.length}`,
+              text: `· ! attention ${snapshot.attention.length} `,
               token: "attention.required" as const,
+              emphasis: "bold" as const,
             },
           ]
         : []),
+      ...(state.location.workspace.run !== undefined
+        ? [{ text: `· run ${state.location.workspace.run} `, emphasis: "dim" as const }]
+        : []),
+      // 8-char generation prefix; full id stays visible in Inspector PROVENANCE.
+      { text: `· gen ${snapshot.generation.slice(0, 8)}`, emphasis: "dim" },
     ],
   };
 
@@ -1074,6 +1275,9 @@ export function renderShell(
           observation: options.observation,
           session: options.session,
           paymentEstimates: options.paymentEstimates,
+          ...(state.location.view === "trace"
+            ? { traceWindow: traceLedgerWindow(state, snapshot) }
+            : {}),
         })
       : {
           view: state.location.view,
@@ -1094,13 +1298,35 @@ export function renderShell(
 
   const scrollOffset = state.scroll[state.location.view] ?? 0;
   const primaryEmphasis = state.focusedSurface === "Primary" ? "bold" : "dim";
+  // Tab strip (GUI redesign, UESC §7.3): fixed-order primary tabs plus
+  // provider-gated promotable tabs (REQ-AFF-004 — an absent provider is no
+  // tab, it is absent with a reason reachable via the palette). The ▸ marker
+  // rides the ACTIVE tab so activation state survives monochrome and text
+  // capture. Tabs are presentation: closing/switching never stops work.
+  const tabOrder: readonly ViewId[] = ["work", "chat", "trace"];
+  const promotable = availableViews(snapshot)
+    .filter(
+      (availability) =>
+        availability.status === "available" && !tabOrder.includes(availability.view),
+    )
+    .map((availability) => availability.view);
+  const primaryTabs: RenderedLine = {
+    id: "primary.tabs",
+    spans: [
+      { text: "PRIMARY ", emphasis: primaryEmphasis },
+      ...[...tabOrder, ...promotable].map((view, index, all): RenderedSpan => {
+        const active = view === state.location.view;
+        return {
+          text: `${active ? "▸[" : "["}${view.toUpperCase()}]${
+            index === all.length - 1 ? "" : " "
+          }`,
+          ...(active ? { token: "focus.ring" as const, emphasis: "bold" as const } : {}),
+        };
+      }),
+    ],
+  };
   const primaryLines: RenderedLine[] = [
-    {
-      id: "primary.title",
-      spans: [
-        { text: `PRIMARY [${state.location.view.toUpperCase()}]`, emphasis: primaryEmphasis },
-      ],
-    },
+    primaryTabs,
     ...(scrollOffset > 0
       ? [
           {
@@ -1121,7 +1347,7 @@ export function renderShell(
   });
 
   // Inspector — sections from the selected Focus.
-  const inspectorFocus = snapshot.focus ?? state.location.focus;
+  const inspectorFocus = inspectorTarget(state, snapshot);
   const inspectorEmphasis = state.focusedSurface === "Inspector" ? "bold" : "dim";
   const inspectorLines: RenderedLine[] = [
     { id: "inspector.title", spans: [{ text: "INSPECTOR", emphasis: inspectorEmphasis }] },
@@ -1215,7 +1441,7 @@ export function renderShell(
 
   const palette: RenderedPalette | null = state.paletteOpen
     ? (() => {
-        const entries = paletteEntries(state, snapshot, {
+        const entries = activePaletteEntries(state, snapshot, {
           observation: options.observation,
           session: options.session,
           paymentEstimates: options.paymentEstimates,
@@ -1433,9 +1659,50 @@ export class ShellSession {
 
   /** Render the full shell for one snapshot; consumes it read-only. */
   render(snapshot: FullWorkbenchSnapshot, options: ShellRenderOptions): RenderedShell {
+    this.shell = reconcileTrace(this.shell, snapshot);
     return renderShell(this.shell, snapshot, this.registry, {
       ...options,
       composer: composerRender(this.composer),
     });
   }
+}
+
+/**
+ * Fold snapshot trace records into the ledger machine (UESC §16.2). Pure.
+ * Tail-append when the stream's last known id still exists; re-hydrate when
+ * history was reset (generation change) so stale ids never linger. Gauntlet
+ * execution history is source "gauntlet"; RealityTrace records join through
+ * their own future integration lane, never merged here.
+ */
+export function reconcileTrace(state: ShellState, snapshot: FullWorkbenchSnapshot): ShellState {
+  const records = snapshot.trace_records;
+  if (records.length === 0 && state.trace.records.length === 0) return state;
+  if (records.length === 0) {
+    return Object.freeze({ ...state, trace: streamHydrated(state.trace, []) });
+  }
+  if (state.trace.records.length === 0) {
+    return Object.freeze({
+      ...state,
+      trace: streamHydrated(state.trace, toStreamRecords(records)),
+    });
+  }
+  const lastKnown = state.trace.records[state.trace.records.length - 1]?.id;
+  const index = records.findIndex((record) => record.trace_id === lastKnown);
+  if (index < 0) {
+    return Object.freeze({
+      ...state,
+      trace: streamHydrated(state.trace, toStreamRecords(records)),
+    });
+  }
+  const fresh = records.slice(index + 1);
+  if (fresh.length === 0) return state;
+  return Object.freeze({ ...state, trace: streamAppend(state.trace, toStreamRecords(fresh)) });
+}
+
+function toStreamRecords(records: readonly FullWorkbenchSnapshot["trace_records"][number][]) {
+  return records.map((record) => ({
+    id: record.trace_id,
+    source: "gauntlet" as const,
+    timestampMs: record.timestamp_ms,
+  }));
 }

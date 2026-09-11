@@ -149,6 +149,20 @@ export interface ViewRenderArgs {
   readonly observation: AffordanceObservation;
   readonly session?: AffordanceSessionContext | undefined;
   readonly paymentEstimates?: Readonly<Record<string, PaymentEstimate>> | undefined;
+  /**
+   * GUI redesign (UESC §16.2): when the shell drives the Trace view through
+   * the TraceStream machine, it passes the derived ledger window here. Absent
+   * = legacy whole-history rendering.
+   */
+  readonly traceWindow?: TraceLedgerWindow | undefined;
+}
+
+/** The trace ledger projection the shell derives from its TraceStream. */
+export interface TraceLedgerWindow {
+  readonly followState: "COLD" | "HYDRATING" | "LIVE_FOLLOW" | "INSPECTION_HOLD";
+  readonly unseenCount: number;
+  /** Snapshot records visible in the current window, in window order. */
+  readonly records: readonly import("./workbench-model").TraceRecord[];
 }
 
 /** One blank rhythm line before a Work group (DESIGN.md space.2/space.3). */

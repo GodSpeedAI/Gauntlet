@@ -26,6 +26,10 @@ export type SemanticCommandId =
   | "ui.surface.prev"
   | "ui.dismiss"
   | "ui.composer.focus"
+  // Bottom surface / inspector presentation
+  | "ui.bottom.toggle"
+  | "ui.inspector.toggle"
+  | "ui.inspector.pin.toggle"
   // Palette
   | "ui.palette.open"
   | "ui.palette.close"
@@ -37,6 +41,8 @@ export type SemanticCommandId =
   | "nav.move.prev"
   | "nav.move.next"
   | "nav.focus.select"
+  // Trace stream
+  | "trace.follow.resume"
   // Horizon
   | "nav.horizon.hoist"
   | "nav.horizon.dehoist";
@@ -119,6 +125,34 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     commandClass: "PRESENTATION_LOCAL",
     surfaces: ["shell"],
     defaultKeys: { shell: "e" },
+  },
+  {
+    id: "trace.follow.resume",
+    title: "Return trace to live",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "g" },
+  },
+  {
+    id: "ui.bottom.toggle",
+    title: "Toggle bottom surface",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "b" },
+  },
+  {
+    id: "ui.inspector.toggle",
+    title: "Toggle inspector drawer",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "i" },
+  },
+  {
+    id: "ui.inspector.pin.toggle",
+    title: "Pin/unpin inspector target",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "I" },
   },
   {
     id: "ui.palette.open",

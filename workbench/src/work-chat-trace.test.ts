@@ -220,7 +220,14 @@ describe("T12 DSN-002: monochrome lowering keeps every consequential state disti
 describe("T12 DSN-003: gold is reserved for proof and sanctioned authority", () => {
   it("only the sanctioned authority and independent proof tokens carry brand gold", () => {
     const GOLD = "#D7A84A";
-    expect([...goldReservedTokens()].sort()).toEqual(["authority.sanctioned", "proof.independent"]);
+    // GUI redesign (UESC §23): the gold set grew by the two named proof
+    // members; the discipline is unchanged — proof/sanctioned only.
+    expect([...goldReservedTokens()].sort()).toEqual([
+      "authority.sanctioned",
+      "proof.independent",
+      "proof.independently_confirmed",
+      "proof.sanctioned_authority",
+    ]);
     for (const token of Object.keys(SEMANTIC_TOKENS) as SemanticToken[]) {
       const spec = SEMANTIC_TOKENS[token];
       if (goldReservedTokens().includes(token)) {
