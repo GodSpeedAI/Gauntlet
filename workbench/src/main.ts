@@ -27,6 +27,7 @@ async function run(): Promise<void> {
     const rendered = session.render(host.model.getSnapshot(), {
       observation: host.observation,
       session: host.sessionContext,
+      pendingOperations: host.pendingOperations,
     });
     return {
       ...rendered,

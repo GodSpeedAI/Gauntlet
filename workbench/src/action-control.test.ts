@@ -406,6 +406,85 @@ describe("Increment 5: the Work ACTIONS bar renders through actionControlFor", (
   });
 });
 
+describe("ICM §30 BUSY_SUBMISSION host wiring: the Work bar and Inspector substitute the busy control (follow-on)", () => {
+  it("the Work ACTIONS bar renders a materialized affordance's pending key as BUSY_SUBMISSION — degraded token, no ready/blocked glyph, no reasons", () => {
+    const model = modelWithFailingUnit();
+    const flaky = FocusRef.for("gauntlet", "WorkItem", "u-flaky");
+    model.selectFocus(flaky);
+    const pendingKey = `unit.retry:${flaky.id}`;
+    const content = renderWorkView({
+      snapshot: model.getSnapshot(),
+      observation: observationFor(model),
+      session: OPERATOR_SESSION,
+      pendingOperations: new Set([pendingKey]),
+    });
+    const text = viewText(content);
+    // Never the resolver-derived enabled glyph/label while pending.
+    expect(text).not.toContain("✓ UNIT.RETRY ready");
+    expect(text).not.toContain("× UNIT.RETRY");
+    expect(text).toContain("… UNIT.RETRY submitting");
+    const record = content.records.find(
+      (candidate) =>
+        candidate.kind === "affordance" && candidate.fields["operation"] === "unit.retry",
+    );
+    expect(record).toBeDefined();
+    expect(record?.fields["control_state"]).toBe("BUSY_SUBMISSION");
+    expect(record?.token).toBe("readiness.degraded");
+    const busyLine = content.lines.find((line) => line.id === "work.affordance.unit.retry");
+    expect(busyLine).toBeDefined();
+    // No reasons row: BUSY_SUBMISSION carries none, so no "· next:" suffix.
+    expect(busyLine?.spans.some((span) => span.text.includes("· next:"))).toBe(false);
+    expect(busyLine?.spans.some((span) => span.text.includes("BLOCKED"))).toBe(false);
+  });
+
+  it("a pending key for an operation NOT rendered this frame changes nothing (pending is looked up per-row, never globally)", () => {
+    const model = modelWithFailingUnit();
+    const flaky = FocusRef.for("gauntlet", "WorkItem", "u-flaky");
+    model.selectFocus(flaky);
+    const plain = viewText(
+      renderWorkView({
+        snapshot: model.getSnapshot(),
+        observation: observationFor(model),
+        session: OPERATOR_SESSION,
+        pendingOperations: new Set(["unit.resolve:some-other-focus"]),
+      }),
+    );
+    expect(plain).toContain("✓ UNIT.RETRY ready");
+  });
+
+  it("Inspector AFFORDANCES record for a pending key reflects BUSY_SUBMISSION and the degraded token, never a stale ready/blocked token", () => {
+    const model = modelWithFailingUnit();
+    const flaky = FocusRef.for("gauntlet", "WorkItem", "u-flaky");
+    const pendingKey = `unit.retry:${flaky.id}`;
+    const { sections } = renderInspector({
+      snapshot: model.getSnapshot(),
+      focus: flaky,
+      observation: observationFor(model),
+      session: OPERATOR_SESSION,
+      pendingOperations: new Set([pendingKey]),
+    });
+    const records = sections.find((section) => section.id === "affordances")?.records ?? [];
+    const record = records.find((candidate) => candidate.fields["operation"] === "unit.retry");
+    expect(record).toBeDefined();
+    expect(record?.fields["control_state"]).toBe("BUSY_SUBMISSION");
+    expect(record?.token).toBe("readiness.degraded");
+
+    // With no pending set at all, the same operation records its ordinary
+    // resolver-derived state (never BUSY without an explicit pending key).
+    const withoutPending = renderInspector({
+      snapshot: model.getSnapshot(),
+      focus: flaky,
+      observation: observationFor(model),
+      session: OPERATOR_SESSION,
+    });
+    const plainRecord = (
+      withoutPending.sections.find((section) => section.id === "affordances")?.records ?? []
+    ).find((candidate) => candidate.fields["operation"] === "unit.retry");
+    expect(plainRecord?.fields["control_state"]).toBe("VISIBLE_ENABLED");
+    expect(plainRecord?.token).toBe("readiness.ready");
+  });
+});
+
 describe("Increment 5: Inspector AFFORDANCES records carry the ActionControl state", () => {
   it("every operation stays inspectable with its state; palette-only ones record HIDDEN with reasons (DSN-009)", () => {
     const model = seededModel();

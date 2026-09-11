@@ -1401,6 +1401,13 @@ export interface ShellRenderOptions {
   readonly session?: AffordanceSessionContext | undefined;
   readonly paymentEstimates?: Readonly<Record<string, PaymentEstimate>> | undefined;
   readonly composer?: RenderedComposer | undefined;
+  /**
+   * ICM §30 BUSY_SUBMISSION wiring: the host's in-flight `${operation}:
+   * ${focus.id}` keys (WorkbenchHost.pendingOperations), threaded through to
+   * the Primary view renderer so it can show a control as busy while its
+   * invoke is awaiting admission/result. Absent = no invoke in flight.
+   */
+  readonly pendingOperations?: ReadonlySet<string> | undefined;
 }
 
 const KEY_LEGEND_COMPACT_0 =
@@ -1596,6 +1603,7 @@ export function renderShell(
           observation: options.observation,
           session: options.session,
           paymentEstimates: options.paymentEstimates,
+          pendingOperations: options.pendingOperations,
           ...(state.location.view === "trace"
             ? { traceWindow: traceLedgerWindow(state, snapshot) }
             : {}),

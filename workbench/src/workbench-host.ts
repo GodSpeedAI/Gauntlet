@@ -85,6 +85,20 @@ export class WorkbenchHost {
   private changed: () => void = () => {};
   private closed = false;
   private pending: Promise<void> | null = null;
+  /**
+   * ICM §30 BUSY_SUBMISSION wiring: the `${operation}:${focus.id}` keys with
+   * an admission round-trip currently in flight through `this.gateway.invoke`
+   * (matches the `affordance:${operation}:${focus.id}` record-id convention
+   * in inspector.ts/views-work.ts, minus the `affordance:` prefix since this
+   * set is keyed by operation+focus alone, not by record kind). Never
+   * includes `state.refresh`, which is a local read short-circuit, not a
+   * gateway submission. Read-only to callers.
+   */
+  private readonly pendingOperationKeys = new Set<string>();
+
+  get pendingOperations(): ReadonlySet<string> {
+    return this.pendingOperationKeys;
+  }
 
   constructor(
     readonly config: WorkbenchConfig,
@@ -272,30 +286,42 @@ export class WorkbenchHost {
       return;
     }
     this.notice = `Submitting ${operation}…`;
+    // ICM §30 BUSY_SUBMISSION (GUI redesign follow-on): mint the pending key
+    // for this operation+focus BEFORE the admission round-trip, so the very
+    // next render can show the control as busy — and clear it in `finally`
+    // so it drops whether the outcome is accepted/refused/outcome_unknown or
+    // the gateway call throws. Never a domain-success claim by itself.
+    const pendingKey = `${operation}:${focus.id}`;
+    this.pendingOperationKeys.add(pendingKey);
     this.changed();
-    const outcome = await this.gateway.invoke({
-      operation,
-      focus,
-      session: this.session,
-      payload: { note, run: this.runId ?? undefined },
-    });
-    if (this.closed) return;
-    // ICM §33 reason grammar (V5 fix): the refusal carries its reason CODES
-    // through to the operator — the old flat notice dropped them, showing
-    // only the pre-admission class token. The structured fields stay on the
-    // outcome; the notice renders them.
-    if (outcome.class === "accepted") {
-      this.notice = `${operation}: accepted by Gauntlet`;
-    } else if (outcome.class === "outcome_unknown") {
-      this.notice = `${operation}: outcome unknown; do not resubmit (${outcome.idempotency_key})`;
-    } else if (outcome.class === "refused") {
-      const reasons =
-        outcome.reason_codes.length > 0 ? ` (${outcome.reason_codes.join(", ")})` : "";
-      this.notice = `${operation}: refused — ${outcome.code}${reasons}`;
-    } else {
-      this.notice = `${operation}: ${outcome.class} — ${outcome.code}`;
+    try {
+      const outcome = await this.gateway.invoke({
+        operation,
+        focus,
+        session: this.session,
+        payload: { note, run: this.runId ?? undefined },
+      });
+      if (this.closed) return;
+      // ICM §33 reason grammar (V5 fix): the refusal carries its reason CODES
+      // through to the operator — the old flat notice dropped them, showing
+      // only the pre-admission class token. The structured fields stay on the
+      // outcome; the notice renders them.
+      if (outcome.class === "accepted") {
+        this.notice = `${operation}: accepted by Gauntlet`;
+      } else if (outcome.class === "outcome_unknown") {
+        this.notice = `${operation}: outcome unknown; do not resubmit (${outcome.idempotency_key})`;
+      } else if (outcome.class === "refused") {
+        const reasons =
+          outcome.reason_codes.length > 0 ? ` (${outcome.reason_codes.join(", ")})` : "";
+        this.notice = `${operation}: refused — ${outcome.code}${reasons}`;
+      } else {
+        this.notice = `${operation}: ${outcome.class} — ${outcome.code}`;
+      }
+      await this.refresh();
+    } finally {
+      this.pendingOperationKeys.delete(pendingKey);
+      this.changed();
     }
-    await this.refresh();
   }
 
   async submit(mode: ComposerMode, destination: string, draft: string): Promise<void> {

@@ -25,7 +25,12 @@
  */
 
 import type { MaterializationOutcome } from "./action-control";
-import { actionControlFor, materializationOutcomeFor, reasonNextStep } from "./action-control";
+import {
+  actionControlFor,
+  busySubmission,
+  materializationOutcomeFor,
+  reasonNextStep,
+} from "./action-control";
 import type {
   AffordanceDescriptor,
   AffordanceObservation,
@@ -138,6 +143,15 @@ export interface ViewRenderArgs {
    * = legacy whole-history rendering.
    */
   readonly traceWindow?: TraceLedgerWindow | undefined;
+  /**
+   * ICM §30 BUSY_SUBMISSION wiring: the `${operation}:${focus.id}` keys the
+   * host currently has an invoke in flight for (WorkbenchHost.pendingOperations,
+   * threaded through ShellRenderOptions). When the current row's key is a
+   * member, the bar renders BUSY_SUBMISSION instead of the resolver-derived
+   * control — never the other way around (action-control.ts's invariant:
+   * BUSY_SUBMISSION is never descriptor-derived).
+   */
+  readonly pendingOperations?: ReadonlySet<string> | undefined;
 }
 
 /** The trace ledger projection the shell derives from its TraceStream. */
@@ -318,7 +332,15 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
       // rows keep ✓ ready / ! responds-to-attention; disabled rows keep
       // × BLOCKED + reasons + next; hidden rows are absent from the bar but
       // stay palette-discoverable with their reason (DSN-009).
-      const control = actionControlFor(item.descriptor, item.outcome);
+      // ICM §30 BUSY_SUBMISSION (host follow-on): the host — never a
+      // resolver-status predicate — decides busy; this substitution happens
+      // AFTER the resolver derivation, so the invariant that BUSY_SUBMISSION
+      // is never descriptor-derived stays with action-control.ts alone.
+      const pendingKey = `${item.descriptor.operation}:${focus.id}`;
+      const busy = args.pendingOperations?.has(pendingKey) === true;
+      const control = busy
+        ? busySubmission(item.descriptor.operation)
+        : actionControlFor(item.descriptor, item.outcome);
       if (control.state === "HIDDEN") {
         continue;
       }
@@ -328,21 +350,31 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
         id: `work.affordance.${item.descriptor.operation}`,
         spans: [
           {
-            text: enabled ? (attention ? "! " : "✓ ") : "× ",
-            token: attention
-              ? "attention.required"
-              : enabled
-                ? "readiness.ready"
-                : "readiness.blocked",
+            text: busy ? "… " : enabled ? (attention ? "! " : "✓ ") : "× ",
+            token: busy
+              ? "readiness.degraded"
+              : attention
+                ? "attention.required"
+                : enabled
+                  ? "readiness.ready"
+                  : "readiness.blocked",
           },
           { text: `${control.operation.toUpperCase()} `, emphasis: "bold" },
           {
-            text: attention
-              ? `responds to ${control.attentionItem ?? "an attention item"}`
+            text: busy
+              ? "submitting… awaiting result"
+              : attention
+                ? `responds to ${control.attentionItem ?? "an attention item"}`
+                : enabled
+                  ? "ready"
+                  : `BLOCKED: ${control.reasons.join(", ")}`,
+            token: busy
+              ? "readiness.degraded"
               : enabled
-                ? "ready"
-                : `BLOCKED: ${control.reasons.join(", ")}`,
-            token: enabled ? undefined : attention ? "attention.required" : "readiness.blocked",
+                ? undefined
+                : attention
+                  ? "attention.required"
+                  : "readiness.blocked",
           },
           ...(control.state === "VISIBLE_DISABLED" && control.nextStep !== undefined
             ? [{ text: ` · next: ${control.nextStep}`, emphasis: "dim" as const }]
@@ -352,7 +384,13 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
       records.push({
         id: `affordance:${item.descriptor.operation}:${focus.id}`,
         kind: "affordance",
-        token: attention ? "attention.required" : enabled ? "readiness.ready" : "readiness.blocked",
+        token: busy
+          ? "readiness.degraded"
+          : attention
+            ? "attention.required"
+            : enabled
+              ? "readiness.ready"
+              : "readiness.blocked",
         fields: {
           operation: item.descriptor.operation,
           status: item.descriptor.status,

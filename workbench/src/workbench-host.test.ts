@@ -344,6 +344,176 @@ describe("WorkbenchHost: Phase D — Prime reattachment survives projection-stor
   }, 15_000);
 });
 
+describe("WorkbenchHost: ICM §30 BUSY_SUBMISSION wiring (host pendingOperations, follow-on)", () => {
+  it("keys `${operation}:${focus.id}` as pending only for the admission round-trip, clearing it for accepted and refused outcomes alike", async () => {
+    const gate: { release: (() => void) | null } = { release: null };
+    let postMode: "accept" | "refuse" = "accept";
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      async fetch(request) {
+        const url = new URL(request.url);
+        if (request.method === "POST") {
+          // Held open until the test explicitly releases it, so the pending
+          // key can be observed mid-flight — the whole point of this suite.
+          await new Promise<void>((resolve) => {
+            gate.release = resolve;
+          });
+          if (postMode === "refuse") {
+            return Response.json(
+              { error: { code: "denied", message: "not permitted right now" } },
+              { status: 409 },
+            );
+          }
+          return Response.json({
+            run_id: "run-1",
+            unit_id: "AK-901",
+            committed_now: true,
+            tickets_resolved: [],
+          });
+        }
+        if (url.pathname === "/api/v1/state") {
+          return Response.json({
+            run: null,
+            units: [{ id: "AK-901", status: "fail", tier: "contained" }],
+            escalated: [],
+            budget: { tokens: 99 },
+          });
+        }
+        if (url.pathname === "/api/v1/capabilities")
+          return Response.json({
+            protocol_version: "1.0.0",
+            server_version: "test",
+            capabilities: ["action_retry"],
+            unsupported_operations: [],
+          });
+        return Response.json({
+          unit_id: "AK-901",
+          claim: "Canonical unit",
+          authority: "operator",
+          blast_radius: "local",
+          verifications: [],
+        });
+      },
+    });
+    const host = new WorkbenchHost(
+      resolveConfig({
+        env: {},
+        cli: {
+          gauntlet_endpoint: server.url.toString(),
+          projection_store: ":memory:",
+          session_token: "test-only",
+        },
+      }),
+      { actor: "operator" },
+    );
+    try {
+      await host.refresh();
+      const ref = FocusRef.for("gauntlet", "WorkItem", "AK-901");
+      const key = `unit.retry:${ref.id}`;
+
+      // Accepted outcome: pending mid-flight, cleared once settled.
+      expect(host.pendingOperations.has(key)).toBe(false);
+      const accepted = host.invoke("unit.retry", ref, "probe 1");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(host.pendingOperations.has(key)).toBe(true);
+      gate.release?.();
+      await accepted;
+      expect(host.pendingOperations.has(key)).toBe(false);
+      expect(host.notice).toContain("accepted");
+
+      // Refused outcome: same pending window, same clearing guarantee — the
+      // `finally` block is not conditioned on the outcome class.
+      postMode = "refuse";
+      const refused = host.invoke("unit.retry", ref, "probe 2");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(host.pendingOperations.has(key)).toBe(true);
+      gate.release?.();
+      await refused;
+      expect(host.pendingOperations.has(key)).toBe(false);
+      expect(host.notice).toContain("refused");
+    } finally {
+      host.close();
+      await server.stop(true);
+    }
+  });
+
+  it("never marks state.refresh as pending — it is a local read short-circuit, not a gateway submission", async () => {
+    const host = new WorkbenchHost(
+      resolveConfig({ env: {}, cli: { projection_store: ":memory:" } }),
+    );
+    try {
+      const focus = FocusRef.for("gauntlet", "WorkItem", "u-any");
+      await host.invoke("state.refresh", focus);
+      expect(host.pendingOperations.has(`state.refresh:${focus.id}`)).toBe(false);
+      expect(host.pendingOperations.size).toBe(0);
+    } finally {
+      host.close();
+    }
+  });
+
+  it("clears the pending key even when the server goes unreachable between admission and dispatch", async () => {
+    // A REAL server first, so refresh() seeds a unit whose resolver status
+    // permits unit.retry — then the server is stopped before invoking.
+    // OperationGateway revalidates reachability at invocation time and
+    // refuses pre-admission (surface_unreachable) rather than ever calling
+    // fetch; invoke() still never rethrows, and this pins the same
+    // finally-clears-regardless guarantee for a failure path distinct from a
+    // canonical accept/refuse round trip.
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch(request) {
+        const url = new URL(request.url);
+        if (url.pathname === "/api/v1/state") {
+          return Response.json({
+            run: null,
+            units: [{ id: "AK-901", status: "fail", tier: "contained" }],
+            escalated: [],
+            budget: { tokens: 99 },
+          });
+        }
+        if (url.pathname === "/api/v1/capabilities")
+          return Response.json({
+            protocol_version: "1.0.0",
+            server_version: "test",
+            capabilities: ["action_retry"],
+            unsupported_operations: [],
+          });
+        return Response.json({
+          unit_id: "AK-901",
+          claim: "Canonical unit",
+          authority: "operator",
+          blast_radius: "local",
+          verifications: [],
+        });
+      },
+    });
+    const host = new WorkbenchHost(
+      resolveConfig({
+        env: {},
+        cli: {
+          gauntlet_endpoint: server.url.toString(),
+          projection_store: ":memory:",
+          session_token: "test-only",
+        },
+      }),
+      { actor: "operator" },
+    );
+    try {
+      await host.refresh();
+      const ref = FocusRef.for("gauntlet", "WorkItem", "AK-901");
+      const key = `unit.retry:${ref.id}`;
+      await server.stop(true);
+      await host.invoke("unit.retry", ref, "probe");
+      expect(host.pendingOperations.has(key)).toBe(false);
+      expect(host.notice).toContain("surface_unreachable");
+    } finally {
+      host.close();
+    }
+  });
+});
+
 describe("WorkbenchHost: ICM §30 state.refresh honesty (GUI redesign, increment 5)", () => {
   it("activating the VISIBLE_DISABLED state.refresh row surfaces its reason instead of silently refreshing", async () => {
     const host = new WorkbenchHost(

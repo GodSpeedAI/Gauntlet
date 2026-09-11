@@ -17,7 +17,12 @@
  *     Work bar and palette derive for the same resolution.
  */
 
-import { actionControlFor, materializationOutcomeFor, reasonNextStep } from "./action-control";
+import {
+  actionControlFor,
+  busySubmission,
+  materializationOutcomeFor,
+  reasonNextStep,
+} from "./action-control";
 import type {
   AffordanceDescriptor,
   AffordanceObservation,
@@ -71,6 +76,13 @@ export interface InspectorArgs {
   readonly observation: AffordanceObservation;
   readonly session?: AffordanceSessionContext | undefined;
   readonly paymentEstimates?: Readonly<Record<string, PaymentEstimate>> | undefined;
+  /**
+   * ICM §30 BUSY_SUBMISSION wiring: the host's in-flight `${operation}:
+   * ${focus.id}` keys (WorkbenchHost.pendingOperations), threaded through so
+   * an AFFORDANCES record can show BUSY_SUBMISSION instead of the
+   * resolver-derived control while an invoke is in flight for that key.
+   */
+  readonly pendingOperations?: ReadonlySet<string> | undefined;
   /**
    * Value-column cell width for wrapping long field values (word boundaries;
    * unbreakable tokens hard-split at cells; nothing dropped). Absent ⇒ legacy
@@ -188,6 +200,7 @@ function affordanceSection(
   observation: AffordanceObservation,
   session: AffordanceSessionContext | undefined,
   paymentEstimates: Readonly<Record<string, PaymentEstimate>> | undefined,
+  pendingOperations: ReadonlySet<string> | undefined,
 ): InspectorSection {
   const lines: RenderedLine[] = [];
   const records: RenderedRecord[] = [];
@@ -244,11 +257,23 @@ function affordanceSection(
     // field above is preserved, so a row means the same thing in every
     // projection (REQ-AFF-002). Palette-only rows record HIDDEN: absent from
     // the bar, still addressable here and in the palette (DSN-009).
-    const control = actionControlFor(descriptor, materializationOutcomeFor(descriptor));
+    //
+    // ICM §30 BUSY_SUBMISSION (host follow-on): the host's pending-operations
+    // set — never the descriptor — decides busy, applied AFTER the resolver
+    // derivation, exactly as the Work bar applies it (action-control.ts's
+    // invariant: BUSY_SUBMISSION is never descriptor-derived).
+    const busy = pendingOperations?.has(`${operation}:${focus.id}`) === true;
+    const control = busy
+      ? busySubmission(operation)
+      : actionControlFor(descriptor, materializationOutcomeFor(descriptor));
     records.push({
       id: `affordance:${operation}:${focus.id}`,
       kind: "affordance",
-      token: descriptor.status === "available" ? "readiness.ready" : "readiness.blocked",
+      token: busy
+        ? "readiness.degraded"
+        : descriptor.status === "available"
+          ? "readiness.ready"
+          : "readiness.blocked",
       fields: {
         operation,
         status: descriptor.status,
@@ -409,7 +434,15 @@ export function renderInspector(args: InspectorArgs): {
   }
 
   // Affordances — every operation with reasons and next steps (DSN-009).
-  sections.push(affordanceSection(focus, observation, args.session, args.paymentEstimates));
+  sections.push(
+    affordanceSection(
+      focus,
+      observation,
+      args.session,
+      args.paymentEstimates,
+      args.pendingOperations,
+    ),
+  );
 
   return { focus, sections };
 }
