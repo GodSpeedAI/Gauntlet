@@ -23,21 +23,51 @@ export const FULL_MIN_COLS = 120;
 export const FULL_MIN_ROWS = 40;
 export const WIDE_MIN_COLS = 140;
 
+/** Vertical fit band; the boundary (40 rows) is DESIGN "Height constraints". */
+export type HeightBand = "tall" | "short";
+
 /**
  * Classifies terminal dimensions into normative geometry classes.
  * Boundaries are fixed by spec REQ-UX-005 and are not design-tunable.
+ *
+ * Height never drops columns: per DESIGN.md "Responsive Behavior" Full
+ * (line 1496), below 40 rows at >=120 cols the Bottom Surface collapses
+ * first while all three columns remain, so Full/Wide/Compact key on columns
+ * alone above the 24-row floor, and the height ladder is carried separately
+ * by heightBand/collapseOrder for the shell to consume.
  */
 export function classifyGeometry(dims: Dimensions): GeometryClass {
   if (dims.cols < MIN_COLS || dims.rows < MIN_ROWS) {
     return "BelowMinimum";
   }
-  if (dims.cols >= WIDE_MIN_COLS && dims.rows >= FULL_MIN_ROWS) {
+  if (dims.cols >= WIDE_MIN_COLS) {
     return "Wide";
   }
-  if (dims.cols >= FULL_MIN_COLS && dims.rows >= FULL_MIN_ROWS) {
+  if (dims.cols >= FULL_MIN_COLS) {
     return "Full";
   }
   return "Compact";
+}
+
+/**
+ * Height band for the DESIGN.md "Height constraints" ladder (lines 1528-1539):
+ * 40+ rows is tall; 24-39 rows is short. Consumers must gate on
+ * classifyGeometry !== "BelowMinimum" first — below 24 rows the recoverable
+ * prompt applies and no band is meaningful.
+ */
+export function heightBand(dims: Dimensions): HeightBand {
+  return dims.rows >= FULL_MIN_ROWS ? "tall" : "short";
+}
+
+/**
+ * The DESIGN.md height-constraint collapse order as data the shell consumes:
+ * Bottom Surface first, then nonessential metadata, then the Navigator and
+ * Inspector drawers to overlay — always preserving current Focus, current
+ * View, Horizon/location, the attention cue, composer/required approval
+ * input, and consequential status. Tall terminals collapse nothing.
+ */
+export function collapseOrder(band: HeightBand): readonly string[] {
+  return band === "short" ? ["bottom", "metadata", "drawers"] : [];
 }
 
 /**
