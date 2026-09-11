@@ -1,0 +1,40 @@
+Gauntlet · gauntlet/canonical surface · Case · gen gen-1 · connected
+
+NAVIGATOR                   ▸ PRIMARY [WORK] [CHAT] ▸[TRACE] [EVIDENCE] [AGENTS] [A INSPECTOR
+  · Case outline            TRACE: what actually happened?                          No Focus selected. Choose an item in
+    ? AK-901                ● LIVE · following
+    ? AK-902                ● UNIT_UPDATED [gauntlet] unit_updated (cursor-22p6) un
+    ? AK-903                ● UNIT_UPDATED [gauntlet] unit_updated (cursor-1wl7) un
+                            ● UNIT_UPDATED [gauntlet] unit_updated (cursor-1qh8) un
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+▸ bottom (b) · evidence · agents
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e com

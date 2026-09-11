@@ -6,10 +6,15 @@ import {
   filterPaletteEntries,
   handleCommand,
   handleKey,
+  handlePointer,
+  navigatorOutline,
   paletteEntries,
+  renderShell,
+  ShellSession,
   type ShellState,
 } from "./shell";
-import { FULL_DIMS, seededModel } from "./testing/shell-harness";
+import { FULL_DIMS, renderOptions, seededModel } from "./testing/shell-harness";
+import { defaultViewRegistry } from "./views-chat-trace";
 import type { FullWorkbenchSnapshot } from "./workbench-model";
 
 /**
@@ -130,5 +135,118 @@ describe("inspector pin (UESC §7.4 FOLLOW_SELECTION/PINNED)", () => {
     expect(commandForKey("I", { surface: "shell" })).toBe("ui.inspector.pin.toggle");
     expect(commandForKey("i", { surface: "shell" })).toBe("ui.inspector.toggle");
     expect(validateCommandRegistry()).toEqual([]);
+  });
+});
+
+describe("navigator viewport follow (V4, REQ-UX-005 visible focus)", () => {
+  it("the highlighted row stays inside the rendered Navigator window no matter how far the selection walks", () => {
+    const model = seededModel();
+    const outlineLength = navigatorOutline(model.getSnapshot()).length;
+    // Last row: beyond any plausible pane-top window at Compact heights.
+    const state: ShellState = {
+      ...stateAt(),
+      focusedSurface: "Navigator",
+      navigatorIndex: outlineLength - 1,
+    };
+    const rendered = renderShell(
+      state,
+      model.getSnapshot(),
+      defaultViewRegistry(),
+      renderOptions(model),
+    );
+    const navigator = rendered.surfaces.find((surface) => surface.id === "Navigator");
+    expect(navigator).toBeDefined();
+    const text = navigator!.lines.map((line) => line.spans.map((span) => span.text).join(""));
+    const highlightRow = text.find((row) => row.includes("◉"));
+    expect(highlightRow).toBeDefined();
+    if (outlineLength > state.dimensions.rows - 10) {
+      expect(text.some((row) => row.includes("row(s) above"))).toBe(true);
+    }
+  });
+});
+
+describe("compact drawers (V2, UESC Compact switchable side surfaces)", () => {
+  const COMPACT = { cols: 100, rows: 30 };
+
+  it("i opens the Inspector drawer and n the Navigator drawer at Compact; both inert at Full", () => {
+    const snap = snapshot();
+    const compact = createShellState(HOST, COMPACT);
+    const opened = handleCommand(compact, snap, "ui.inspector.toggle");
+    expect(opened.state.drawer).toBe("Inspector");
+    const closed = handleCommand(opened.state, snap, "ui.inspector.toggle");
+    expect(closed.state.drawer).toBeNull();
+
+    const nav = handleCommand(compact, snap, "ui.navigator.toggle");
+    expect(nav.state.drawer).toBe("Navigator");
+
+    const full = handleCommand(stateAt(), snap, "ui.inspector.toggle");
+    expect(full.state.drawer).toBeNull();
+  });
+
+  it("escape closes the drawer before blurring; the render carries the drawer at Compact", () => {
+    const model = seededModel();
+    const session = new ShellSession(HOST, COMPACT);
+    session.key("n", model.getSnapshot());
+    expect(session.state.drawer).toBe("Navigator");
+    session.key("escape", model.getSnapshot());
+    expect(session.state.drawer).toBeNull();
+
+    session.key("n", model.getSnapshot());
+    const rendered = session.render(model.getSnapshot(), renderOptions(model));
+    expect(rendered.drawer).not.toBeNull();
+    expect(rendered.drawer?.surface).toBe("Navigator");
+    expect(rendered.drawer?.lines.length).toBeGreaterThan(1);
+  });
+
+  it("drawer navigator clicks select the same focus as docked rows (DSN-06 placements)", () => {
+    const snap = snapshot();
+    const base: ShellState = { ...createShellState(HOST, COMPACT), drawer: "Navigator" };
+    const result = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "Drawer",
+      lineId: "outline.unit.u-far",
+      x: 2,
+    });
+    const select = result.effects.find((e) => e.type === "select_focus");
+    expect(select).toBeDefined();
+  });
+});
+
+describe("bottom surface render + height ladder (UESC §7.5, DESIGN Height constraints)", () => {
+  it("renders the bottom entry row at Full/tall, opens with b, and hides at short heights", () => {
+    const model = seededModel();
+    const tall = new ShellSession(HOST, FULL_DIMS);
+    const closed = tall.render(model.getSnapshot(), renderOptions(model));
+    expect(closed.bottom).not.toBeNull();
+    expect(closed.bottom?.open).toBe(false);
+    expect(closed.bottom?.tabs).toContain("evidence");
+
+    tall.key("b", model.getSnapshot());
+    const opened = tall.render(model.getSnapshot(), renderOptions(model));
+    expect(opened.bottom?.open).toBe(true);
+
+    // 120x30 = Full/short (V1 fix keeps columns): the bottom collapses first.
+    tall.resize({ cols: 120, rows: 30 });
+    const short = tall.render(model.getSnapshot(), renderOptions(model));
+    expect(short.bottom).toBeNull();
+    expect(short.surfaces.map((s) => s.id)).toContain("Navigator");
+    expect(short.surfaces.map((s) => s.id)).toContain("Inspector");
+  });
+});
+
+describe("back/forward history (ICM §6.6)", () => {
+  it("view switches and selections leave a trail; [ and ] walk it without effects", () => {
+    const model = seededModel();
+    const session = new ShellSession(HOST, FULL_DIMS);
+    session.key("3", model.getSnapshot()); // trace
+    session.key("2", model.getSnapshot()); // chat
+    expect(session.state.location.view).toBe("chat");
+
+    session.key("[", model.getSnapshot());
+    expect(session.state.location.view).toBe("trace");
+    session.key("[", model.getSnapshot());
+    expect(session.state.location.view).toBe("work");
+    session.key("]", model.getSnapshot());
+    expect(session.state.location.view).toBe("trace");
   });
 });

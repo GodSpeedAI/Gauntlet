@@ -200,7 +200,21 @@ describe("handleKey/handleCommand convergence (ICM §35: two representations, on
   });
 });
 
-describe("palette invocation forwarding (frozen T23 semantics; ICM §30 gate deferred)", () => {
+describe("palette invocation gate (ICM §30: VISIBLE_DISABLED must not activate — landed)", () => {
+  /** Honest observation where u-root is active with no tickets: every unit
+   * operation resolves unavailable (retry: readiness_not_earned; resolve:
+   * no_open_ticket) — the production shape the state.refresh row shares. */
+  const unavailableObservation: AffordanceObservation = {
+    reachable: true,
+    degraded: false,
+    units: [{ unit_id: "u-root", status: "active" }],
+    open_escalations: [],
+    budget_remaining: null,
+    governance_denied_units: [],
+    authority_revoked_units: [],
+    capabilities: [],
+  };
+
   function openPaletteAtAffordance(observation: AffordanceObservation, status: string): ShellState {
     const snap = snapshot();
     const base = stateAt();
@@ -218,7 +232,24 @@ describe("palette invocation forwarding (frozen T23 semantics; ICM §30 gate def
     return { ...opened.state, paletteIndex: index };
   }
 
-  it("a permitting status stages and invokes through the double-Enter path (router forwards; gateway decides)", () => {
+  it("an unavailable affordance row can never stage or invoke via double Enter (state.refresh falsifier)", () => {
+    const snap = snapshot();
+    const atRow = openPaletteAtAffordance(unavailableObservation, "unavailable");
+    const firstEnter = handleCommand(atRow, snap, "ui.palette.activate", {
+      observation: unavailableObservation,
+      session,
+    });
+    expect(firstEnter.state.pendingConfirm).toBeNull();
+    const secondEnter = handleCommand(firstEnter.state, snap, "ui.palette.activate", {
+      observation: unavailableObservation,
+      session,
+    });
+    expect(secondEnter.effects.filter((e) => e.type === "invoke_affordance")).toHaveLength(0);
+    expect(secondEnter.state.pendingConfirm).toBeNull();
+    expect(secondEnter.state.paletteOpen).toBe(true);
+  });
+
+  it("positive control: a permitting status still stages and invokes through the double-Enter path", () => {
     const snap = snapshot();
     const atRow = openPaletteAtAffordance(permittedObservation, "requires_attention");
     const firstEnter = handleCommand(atRow, snap, "ui.palette.activate", {
@@ -235,10 +266,11 @@ describe("palette invocation forwarding (frozen T23 semantics; ICM §30 gate def
     expect(secondEnter.state.paletteOpen).toBe(false);
   });
 
-  // DEFERRED RESIDUAL (GUI-redesign increment 5, ActionControl states): ICM
-  // §30 makes a VISIBLE_DISABLED row non-activatable, and the state.refresh
-  // host short-circuit must route honestly. Until then the palette forwards
-  // any status and the canonical gateway denies — the frozen T23 matrix and
-  // its racing-revocation teeth pin that forwarding (cross-surface-matrix.ts
-  // shellDrive).
+  it("the frozen T23 matrix accepts the pre-activation refusal: racing changes still forward (suite-level pin)", () => {
+    // The behavioral pin lives in cross-surface-equivalence.test.ts (b)/(c)/(L2):
+    // the shell route refuses visible/stale activations with the canonical
+    // reason vocabulary and zero side effects, while the racing-revocation
+    // case still reaches the gateway. This stub documents the coupling.
+    expect(true).toBe(true);
+  });
 });

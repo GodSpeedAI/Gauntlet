@@ -1,0 +1,40 @@
+Gauntlet · gauntlet/canonical surface · Case · gen gen-1 · connected
+ ┌─ Palette · ↑/↓ select · Enter open · Esc dismiss ──────────────────────────────────────────────────────────────────┐
+N│                                                                                                                    │
+ │                                                                                                                    │n
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+▸ bottom (b) · evidence · agents
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e com

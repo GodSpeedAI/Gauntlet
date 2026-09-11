@@ -106,6 +106,7 @@ interface OverlayPlacement {
 interface FramePlan {
   readonly regions: readonly RegionPlacement[];
   readonly overlay: OverlayPlacement | null;
+  readonly drawer: OverlayPlacement | null;
 }
 
 /**
@@ -153,13 +154,49 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
       width,
       rows: planRows(shell.prompt.lines, 0, 2, width, shell.prompt.lines.length, height),
     });
-    return { regions, overlay: null };
+    return { regions, overlay: null, drawer: null };
   }
   const composer = shell.surfaces.find((surface) => surface.id === "Composer");
   const helpRows = Math.min(shell.help.length, 2);
   const composerRows = Math.min(composer?.lines.length ?? 0, Math.max(3, height - 8));
   const attentionRows = Math.min(shell.attention.length, 3);
-  const footerTop = height - helpRows - composerRows - attentionRows;
+  // Bottom Surface (UESC §7.5): a collapsed entry row, or the open row plus
+  // an honest no-provider note; hidden entirely at short heights because the
+  // shell renders bottom: null there (collapse order: bottom first).
+  const bottomLines: RenderedLine[] =
+    shell.bottom === null
+      ? []
+      : [
+          {
+            id: "bottom.entry",
+            spans: [
+              {
+                text: shell.bottom.open
+                  ? `▾ bottom (b) · ${shell.bottom.tabs.join(" · ")}`
+                  : `▸ bottom (b) · ${shell.bottom.tabs.join(" · ")}`,
+                emphasis: "dim" as const,
+              },
+            ],
+          },
+          ...(shell.bottom.open
+            ? [
+                {
+                  id: "bottom.note",
+                  spans: [
+                    {
+                      text:
+                        shell.bottom.tabs.length > 0
+                          ? "select a tab above · providers absent are not shown (REQ-AFF-004)"
+                          : "no bottom provider is currently materialized (REQ-AFF-004)",
+                      emphasis: "dim" as const,
+                    },
+                  ],
+                },
+              ]
+            : []),
+        ];
+  const bottomRows = Math.min(bottomLines.length, 3);
+  const footerTop = height - helpRows - composerRows - attentionRows - bottomRows;
   let x = 0;
   const columns = shell.surfaces.filter((surface) => surface.id !== "Composer");
   columns.forEach((surface, columnIndex) => {
@@ -184,24 +221,34 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
     });
     x += surface.width;
   });
+  if (bottomRows > 0) {
+    regions.push({
+      key: "bottom",
+      surfaceId: "Bottom",
+      x: 0,
+      y: footerTop,
+      width,
+      rows: planRows(bottomLines, 0, footerTop, width, bottomRows, height),
+    });
+  }
   regions.push({
     key: "attention",
     surfaceId: "attention",
     x: 0,
-    y: footerTop,
+    y: footerTop + bottomRows,
     width,
-    rows: planRows(shell.attention, 0, footerTop, width, attentionRows, height),
+    rows: planRows(shell.attention, 0, footerTop + bottomRows, width, attentionRows, height),
   });
   regions.push({
     key: "surface:Composer",
     surfaceId: "Composer",
     x: 0,
-    y: footerTop + attentionRows,
+    y: footerTop + bottomRows + attentionRows,
     width,
     rows: planRows(
       composer?.lines ?? [],
       0,
-      footerTop + attentionRows,
+      footerTop + bottomRows + attentionRows,
       width,
       composerRows,
       height,
@@ -215,7 +262,29 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
     width,
     rows: planRows(shell.help, 0, height - helpRows, width, helpRows, height),
   });
-  if (!shell.palette) return { regions, overlay: null };
+  // Compact drawer (V2): planned before the palette branch so it renders
+  // whether or not the palette is open (the palette overlays it, z-tiers
+  // keep stacking deterministic).
+  const drawerPlacement = drawerPlan(shell, width, footerTop);
+  if (shell.drawer !== null && drawerPlacement !== null) {
+    const drawerRows = Math.max(1, drawerPlacement.height - 1);
+    regions.push({
+      key: "drawer",
+      surfaceId: "Drawer",
+      x: drawerPlacement.x + 1,
+      y: drawerPlacement.y + 1,
+      width: Math.max(1, drawerPlacement.width - 2),
+      rows: planRows(
+        shell.drawer.lines,
+        drawerPlacement.x + 1,
+        drawerPlacement.y + 1,
+        Math.max(1, drawerPlacement.width - 2),
+        drawerRows,
+        height,
+      ),
+    });
+  }
+  if (!shell.palette) return { regions, overlay: null, drawer: drawerPlacement };
   // The overlay gets a bounded scrolling viewport, including the selected row.
   const available = Math.max(1, footerTop - 4);
   const selected = Math.min(shell.palette.index, shell.palette.lines.length - 1);
@@ -243,6 +312,25 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
       width: Math.max(1, width - 2),
       height: Math.max(1, footerTop - 1),
     },
+    drawer: drawerPlacement,
+  };
+}
+
+/** Compact side drawer placement (V2): bordered left/right overlay sharing
+ * the palette's z-tiers. Rows join the region list with surfaceId "Drawer". */
+function drawerPlan(
+  shell: RenderedShell,
+  width: number,
+  footerTop: number,
+): OverlayPlacement | null {
+  if (shell.drawer === null) return null;
+  const height = Math.max(1, footerTop - 2);
+  const width42 = Math.min(Math.max(24, Math.floor(width / 3)), Math.max(1, width - 4));
+  return {
+    x: shell.drawer.side === "left" ? 1 : Math.max(1, width - width42 - 1),
+    y: 1,
+    width: width42,
+    height,
   };
 }
 
@@ -315,6 +403,7 @@ export class TerminalShellRenderer {
   private regionKeys: readonly string[] = [];
   private readonly regionRows = new Map<string, TextRenderable[]>();
   private overlayBox: BoxRenderable | null = null;
+  private drawerBox: BoxRenderable | null = null;
   private createdCount = 0;
   private lastHitMap: ShellHitMap = EMPTY_HIT_MAP;
   private readonly onGesture: ((gesture: PointerGesture) => void) | null;
@@ -401,6 +490,7 @@ export class TerminalShellRenderer {
     this.regionKeys = [];
     this.regionRows.clear();
     this.overlayBox = null;
+    this.drawerBox = null;
     this.lastHitMap = EMPTY_HIT_MAP;
   }
 
@@ -505,6 +595,32 @@ export class TerminalShellRenderer {
     } else if (this.overlayBox !== null) {
       this.overlayBox.destroy();
       this.overlayBox = null;
+    }
+    if (plan.drawer !== null && shell.drawer !== null) {
+      if (this.drawerBox === null) {
+        this.drawerBox = new BoxRenderable(this.renderer, {
+          id: "drawer-background",
+          position: "absolute",
+          left: plan.drawer.x,
+          top: plan.drawer.y,
+          width: plan.drawer.width,
+          height: plan.drawer.height,
+          backgroundColor: RGBA.defaultBackground(),
+          border: true,
+          title: ` ${shell.drawer.title} · Esc closes `,
+          zIndex: 1,
+        });
+        this.frame.add(this.drawerBox);
+        created++;
+      } else {
+        this.drawerBox.left = plan.drawer.x;
+        this.drawerBox.top = plan.drawer.y;
+        this.drawerBox.width = plan.drawer.width;
+        this.drawerBox.height = plan.drawer.height;
+      }
+    } else if (this.drawerBox !== null) {
+      this.drawerBox.destroy();
+      this.drawerBox = null;
     }
     this.createdCount = created;
     this.lastHitMap = freezeHitMap(plan);

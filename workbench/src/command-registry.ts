@@ -29,6 +29,7 @@ export type SemanticCommandId =
   // Bottom surface / inspector presentation
   | "ui.bottom.toggle"
   | "ui.inspector.toggle"
+  | "ui.navigator.toggle"
   | "ui.inspector.pin.toggle"
   // Palette
   | "ui.palette.open"
@@ -45,7 +46,9 @@ export type SemanticCommandId =
   | "trace.follow.resume"
   // Horizon
   | "nav.horizon.hoist"
-  | "nav.horizon.dehoist";
+  | "nav.horizon.dehoist"
+  | "nav.history.back"
+  | "nav.history.forward";
 
 /** Command classes follow ICM §5 (presentation-only → navigation → query → runtime → canonical). */
 export type SemanticCommandClass = "PRESENTATION_LOCAL" | "NAVIGATION_LOCAL" | "DERIVED_QUERY";
@@ -134,6 +137,20 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     defaultKeys: { shell: "g" },
   },
   {
+    id: "nav.history.back",
+    title: "Navigate back",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "[" },
+  },
+  {
+    id: "nav.history.forward",
+    title: "Navigate forward",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "]" },
+  },
+  {
     id: "ui.bottom.toggle",
     title: "Toggle bottom surface",
     commandClass: "PRESENTATION_LOCAL",
@@ -146,6 +163,13 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     commandClass: "PRESENTATION_LOCAL",
     surfaces: ["shell"],
     defaultKeys: { shell: "i" },
+  },
+  {
+    id: "ui.navigator.toggle",
+    title: "Toggle navigator drawer",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "n" },
   },
   {
     id: "ui.inspector.pin.toggle",

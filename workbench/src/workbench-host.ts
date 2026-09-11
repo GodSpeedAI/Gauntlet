@@ -280,12 +280,21 @@ export class WorkbenchHost {
       payload: { note, run: this.runId ?? undefined },
     });
     if (this.closed) return;
-    this.notice =
-      outcome.class === "accepted"
-        ? `${operation}: accepted by Gauntlet`
-        : outcome.class === "outcome_unknown"
-          ? `${operation}: outcome unknown; do not resubmit (${outcome.idempotency_key})`
-          : `${operation}: ${outcome.class} — ${outcome.code}`;
+    // ICM §33 reason grammar (V5 fix): the refusal carries its reason CODES
+    // through to the operator — the old flat notice dropped them, showing
+    // only the pre-admission class token. The structured fields stay on the
+    // outcome; the notice renders them.
+    if (outcome.class === "accepted") {
+      this.notice = `${operation}: accepted by Gauntlet`;
+    } else if (outcome.class === "outcome_unknown") {
+      this.notice = `${operation}: outcome unknown; do not resubmit (${outcome.idempotency_key})`;
+    } else if (outcome.class === "refused") {
+      const reasons =
+        outcome.reason_codes.length > 0 ? ` (${outcome.reason_codes.join(", ")})` : "";
+      this.notice = `${operation}: refused — ${outcome.code}${reasons}`;
+    } else {
+      this.notice = `${operation}: ${outcome.class} — ${outcome.code}`;
+    }
     await this.refresh();
   }
 

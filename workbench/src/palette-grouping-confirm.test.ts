@@ -14,12 +14,26 @@ const HOST = {
   workspace: { workspace: "gauntlet", reference: "ref-1d457ec9", run: "R17" },
 } as const;
 
-/** Palette entries for a freshly opened palette, with a real observation. */
+/** Palette entries for a freshly opened palette, with a real observation.
+ * GUI redesign (ICM §30): the affordance rows must be legitimately
+ * ACTIVATABLE for the staging/revalidation teeth — u-root failed with an
+ * open ticket under an authenticated session resolves unit.resolve to
+ * requires_attention (permitting). The old fixture's all-unavailable rows
+ * pinned the since-gated any-status activation. */
 function openedPalette() {
   const model = seededModel();
   model.selectFocus(FocusRef.for("gauntlet", "WorkItem", "u-root"));
   const snapshot = model.getSnapshot();
-  const context = { observation: observationFor(model) };
+  const context = {
+    observation: observationFor(model, {
+      units: snapshot.units.map((unit) => ({
+        unit_id: unit.unit_id,
+        status: unit.unit_id === "u-root" ? "fail" : unit.status,
+      })),
+      open_escalations: [{ ticket_id: "t-1", unit_id: "u-root" }],
+    }),
+    session: { actor: "t12-operator", authenticated: true },
+  };
   const state = handleKey(createShellState(HOST, FULL_DIMS), snapshot, "p").state;
   return { model, snapshot, context, state };
 }

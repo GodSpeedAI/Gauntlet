@@ -27,11 +27,12 @@
  *     inspectable reason.
  */
 
-import type {
-  AffordanceObservation,
-  AffordanceSessionContext,
-  AffordanceStatus,
-  PaymentEstimate,
+import {
+  type AffordanceObservation,
+  type AffordanceSessionContext,
+  type AffordanceStatus,
+  type PaymentEstimate,
+  statusPermitsInvocation,
 } from "./affordance";
 import {
   type CommandKeyContext,
@@ -57,8 +58,23 @@ import {
 } from "./composer";
 import type { FocusPlacement, FocusRef } from "./focus";
 import type { ColumnLayout, Dimensions, GeometryClass } from "./geometry";
-import { calculateColumns, classifyGeometry, renderBelowMinimumPrompt } from "./geometry";
+import {
+  calculateColumns,
+  classifyGeometry,
+  heightBand,
+  renderBelowMinimumPrompt,
+} from "./geometry";
 import { renderInspector } from "./inspector";
+import {
+  createLocationHistory,
+  currentLocation,
+  canGoBack as historyCanGoBack,
+  canGoForward as historyCanGoForward,
+  type LocationHistory,
+  locationBack,
+  locationForward,
+  locationPush,
+} from "./navigation-history";
 import type { ProjectionWorld } from "./relations";
 import { focusForEvidence, focusForSession, focusForUnit } from "./relations";
 import type { RenderedLine, RenderedSpan, ViewContent } from "./render-tree";
@@ -305,6 +321,20 @@ export interface RenderedShell {
   readonly help: readonly RenderedLine[];
   readonly palette: RenderedPalette | null;
   readonly prompt: RenderedPrompt | null;
+  /** Compact side drawer (V2, UESC Compact: switchable side surfaces). */
+  readonly drawer: {
+    readonly side: "left" | "right";
+    readonly surface: "Navigator" | "Inspector";
+    readonly title: string;
+    readonly lines: readonly RenderedLine[];
+  } | null;
+  /** Bottom Surface (UESC §7.5): tabs of AVAILABLE bottom-candidate views
+   * (REQ-AFF-004 — absent providers are not tabs). Null = not rendered
+   * (Compact, or short heights where Bottom collapses first). */
+  readonly bottom: {
+    readonly open: boolean;
+    readonly tabs: readonly ViewId[];
+  } | null;
   readonly motion: MotionPreference;
 }
 
@@ -570,6 +600,30 @@ export function handlePointer(
     return handleCommand(state, snapshot, "ui.composer.focus", paletteContext);
   }
 
+  // Compact drawer rows (V2): the drawer renders placements of the same
+  // rows, so clicks route exactly like the docked surface (DSN-06).
+  if (surfaceId === "Drawer" && lineId !== null && state.drawer === "Navigator") {
+    const rows = navigatorOutline(snapshot);
+    const index = rows.findIndex((row) => row.id === lineId);
+    if (index < 0) return { state, effects: [] };
+    const row = rows[index];
+    const moved: ShellState = Object.freeze({ ...state, navigatorIndex: index });
+    if (row?.ref === undefined || row.ref === null) {
+      return { state: moved, effects: [] };
+    }
+    return {
+      state: Object.freeze({
+        ...moved,
+        location: Object.freeze({ ...moved.location, focus: row.ref }),
+      }),
+      effects: [{ type: "select_focus", ref: row.ref }],
+    };
+  }
+  // Inspector drawer rows are detail projections: click only keeps the drawer.
+  if (surfaceId === "Drawer") {
+    return { state, effects: [] };
+  }
+
   return { state, effects: [] };
 }
 
@@ -598,6 +652,12 @@ export interface ShellState {
   readonly inspectorPin: { readonly ref: FocusRef } | null;
   /** Trace ledger presentation machine (UESC §16.2); see reconcileTrace. */
   readonly trace: TraceStream;
+  /** Compact side drawer (V2): overlays the Navigator or Inspector at
+   * 80–119 cols; null when closed. Full/Wide render them docked instead. */
+  readonly drawer: "Navigator" | "Inspector" | null;
+  /** Back/forward perceptual-location history (ICM §6.6): cursor-only
+   * navigation; entries are never rewritten, domain state never mutated. */
+  readonly history: LocationHistory;
   /** Staged invoke awaiting a second Enter (harden: no one-Enter consequential invoke). */
   readonly pendingConfirm: { readonly operation: string; readonly ref: FocusRef } | null;
   readonly navigatorIndex: number;
@@ -625,6 +685,16 @@ export function createShellState(host: ShellHostConfig, dims: Dimensions): Shell
     bottomOpen: false,
     inspectorPin: null,
     trace: createTraceStream(64),
+    drawer: null,
+    history: createLocationHistory(
+      Object.freeze({
+        workspace: host.workspace,
+        horizon: null,
+        surface: "Primary" as const,
+        view: "work" as const,
+        focus: null,
+      }),
+    ),
     pendingConfirm: null,
     navigatorIndex: 0,
     scroll: Object.freeze({}),
@@ -974,8 +1044,12 @@ export function handleCommand(
         effects: [],
       };
     case "ui.dismiss":
-      // Escape dismisses local UI (REQ-UX-004): blur auxiliary surfaces back
-      // to the Primary surface. It never cancels admitted work.
+      // Escape dismisses local UI (REQ-UX-004): the Compact drawer first,
+      // then auxiliary surfaces blur back to Primary. It never cancels
+      // admitted work.
+      if (state.drawer !== null) {
+        return { state: Object.freeze({ ...state, drawer: null }), effects: [] };
+      }
       return {
         state:
           state.focusedSurface === "Primary"
@@ -1034,6 +1108,34 @@ export function handleCommand(
         };
       }
       return { state, effects: [] };
+    }
+    case "nav.history.back": {
+      if (!historyCanGoBack(state.history)) return { state, effects: [] };
+      const back = locationBack(state.history);
+      const target = currentLocation(back);
+      if (target === null) return { state, effects: [] };
+      return {
+        state: Object.freeze({
+          ...state,
+          history: back,
+          location: Object.freeze({ ...target }) as SemanticLocation,
+        }),
+        effects: [],
+      };
+    }
+    case "nav.history.forward": {
+      if (!historyCanGoForward(state.history)) return { state, effects: [] };
+      const forward = locationForward(state.history);
+      const target = currentLocation(forward);
+      if (target === null) return { state, effects: [] };
+      return {
+        state: Object.freeze({
+          ...state,
+          history: forward,
+          location: Object.freeze({ ...target }) as SemanticLocation,
+        }),
+        effects: [],
+      };
     }
     case "trace.follow.resume":
       return {
@@ -1102,9 +1204,27 @@ export function handleCommand(
       };
     }
     case "ui.inspector.toggle":
-      // Drawer docking materialises with the chrome increment; the command
-      // identity and keyboard equivalent land first (ICM §34.2).
-      return { state, effects: [] };
+      // V2: at Compact the Inspector is a switchable right drawer (UESC
+      // Compact); at Full/Wide it is docked and always visible — the toggle
+      // is inert there until docking chrome exists.
+      if (geo !== "Compact") return { state, effects: [] };
+      return {
+        state: Object.freeze({
+          ...state,
+          drawer: state.drawer === "Inspector" ? null : "Inspector",
+        }),
+        effects: [],
+      };
+    case "ui.navigator.toggle":
+      // V2: the Navigator as a Compact left drawer (keyboard n, edge-visible).
+      if (geo !== "Compact") return { state, effects: [] };
+      return {
+        state: Object.freeze({
+          ...state,
+          drawer: state.drawer === "Navigator" ? null : "Navigator",
+        }),
+        effects: [],
+      };
     default:
       return { state, effects: [] };
   }
@@ -1214,14 +1334,16 @@ function handlePaletteCommand(
         };
       }
       if (entry.type === "affordance") {
-        // NOTE (GUI-redesign, increment 5 residual): ICM §30 makes a
-        // VISIBLE_DISABLED row non-activatable; today the palette forwards any
-        // status and the canonical gateway's fresh revalidation denies (the
-        // frozen T23 matrix pins that forwarding, and the racing-revocation
-        // teeth depend on it). The activation gate lands with the
-        // ActionControl increment, together with the state.refresh host
-        // short-circuit (workbench-host.ts invoke) — one coherent change.
-        //
+        // ICM §30 (landed with the ActionControl increment): a row whose
+        // FRESH resolution does not permit invocation is VISIBLE_DISABLED —
+        // it never stages and never activates; its reasons stay visible in
+        // the row itself. Racing changes the fresh resolution cannot see
+        // still reach the gateway, whose canonical revalidation denies
+        // (the T23 racing teeth are preserved; the visible/stale cases are
+        // refused here, before any drive).
+        if (!statusPermitsInvocation(entry.status)) {
+          return { state: Object.freeze({ ...state, pendingConfirm: null }), effects: [] };
+        }
         // Consequential operations never fire on a single Enter: the first
         // stages a confirm naming the invoke, the second performs it. The
         // staged pair revalidates against the fresh entry list, so a stale
@@ -1301,6 +1423,33 @@ function promptLines(dims: Dimensions): readonly RenderedLine[] {
     }));
 }
 
+/** One Navigator outline row as a rendered line (shared by the docked
+ * surface and the Compact drawer so both render placements of the SAME
+ * FocusRef rows — DSN-06). */
+function outlineRowLine(row: OutlineRow, highlighted: boolean): RenderedLine {
+  const glyph = row.token !== undefined ? SEMANTIC_TOKENS[row.token].glyph : "·";
+  return {
+    id: row.id,
+    spans: [
+      ...(highlighted
+        ? [{ text: "◉ ", token: "focus.ring" as const, emphasis: "bold" as const }]
+        : [{ text: "  " }]),
+      { text: "  ".repeat(row.depth) },
+      { text: `${glyph} `, token: row.token },
+      { text: row.label, emphasis: highlighted ? "bold" : "normal" },
+      ...(row.alias !== undefined
+        ? [
+            {
+              text: ` ≈ ${row.alias}`,
+              token: "structure.neutral" as const,
+              emphasis: "dim" as const,
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
 /** Primary tab order: the three required primaries, then provider-gated
  * promotable views (REQ-AFF-004). ONE source for the tab strip render AND
  * pointer span resolution so they can never diverge. */
@@ -1366,6 +1515,8 @@ export function renderShell(
       breadcrumb,
       header,
       surfaces: [],
+      drawer: null,
+      bottom: null,
       attention: [],
       help: prompt,
       palette: null,
@@ -1384,29 +1535,25 @@ export function renderShell(
     const lines: RenderedLine[] = [
       { id: "navigator.title", spans: [{ text: "NAVIGATOR", emphasis: navigatorEmphasis }] },
     ];
-    rows.forEach((row, index) => {
-      const highlighted = state.focusedSurface === "Navigator" && index === state.navigatorIndex;
-      const glyph = row.token !== undefined ? SEMANTIC_TOKENS[row.token].glyph : "·";
+    // Viewport follow (V4 fix, REQ-UX-005 visible focus): the window keeps
+    // the selection in view with two rows of context; the renderer used to
+    // slice from the top, letting the ◉ highlight scroll out of the pane.
+    const viewport = Math.max(6, state.dimensions.rows - 10);
+    const clamp = Math.max(0, rows.length - viewport);
+    let start = Math.min(clamp, Math.max(0, state.navigatorIndex - 2));
+    // Keep the tail reachable: when the selection is near the end, pin the
+    // window to the last full page.
+    if (state.navigatorIndex >= start + viewport) start = Math.min(clamp, state.navigatorIndex - 2);
+    if (start > 0) {
       lines.push({
-        id: row.id,
-        spans: [
-          ...(highlighted
-            ? [{ text: "◉ ", token: "focus.ring" as const, emphasis: "bold" as const }]
-            : [{ text: "  " }]),
-          { text: "  ".repeat(row.depth) },
-          { text: `${glyph} `, token: row.token },
-          { text: row.label, emphasis: highlighted ? "bold" : "normal" },
-          ...(row.alias !== undefined
-            ? [
-                {
-                  text: ` ≈ ${row.alias}`,
-                  token: "structure.neutral" as const,
-                  emphasis: "dim" as const,
-                },
-              ]
-            : []),
-        ],
+        id: "navigator.scroll.above",
+        spans: [{ text: `↑ ${start} row(s) above`, emphasis: "dim" as const }],
       });
+    }
+    rows.slice(start, start + viewport).forEach((row, windowIndex) => {
+      const index = windowIndex + start;
+      const highlighted = state.focusedSurface === "Navigator" && index === state.navigatorIndex;
+      lines.push(outlineRowLine(row, highlighted));
     });
     if (rows.length <= 1) {
       lines.push({
@@ -1415,6 +1562,17 @@ export function renderShell(
           {
             text: "Nothing outlined yet. Bind a source and sync a generation to populate the Case.",
             emphasis: "dim",
+          },
+        ],
+      });
+    }
+    if (start + viewport < rows.length) {
+      lines.push({
+        id: "navigator.scroll.below",
+        spans: [
+          {
+            text: `↓ ${rows.length - start - viewport} row(s) below`,
+            emphasis: "dim" as const,
           },
         ],
       });
@@ -1660,6 +1818,54 @@ export function renderShell(
       })()
     : null;
 
+  // Compact side drawer (V2): the Navigator/Inspector as switchable
+  // overlays — the same line builders the docked surfaces use (DSN-06
+  // placements, never copies).
+  let drawer: RenderedShell["drawer"] = null;
+  if (geo === "Compact" && state.drawer !== null) {
+    if (state.drawer === "Navigator") {
+      const rows = navigatorOutline(snapshot);
+      const drawerLines: RenderedLine[] = [
+        {
+          id: "drawer.navigator.title",
+          spans: [{ text: "NAVIGATOR (n closes)", emphasis: "bold" }],
+        },
+        ...rows.map((row, index) => outlineRowLine(row, index === state.navigatorIndex)),
+      ];
+      drawer = { side: "left", surface: "Navigator", title: "NAVIGATOR", lines: drawerLines };
+    } else {
+      drawer = {
+        side: "right",
+        surface: "Inspector",
+        title: "INSPECTOR",
+        lines: [
+          {
+            id: "drawer.inspector.title",
+            spans: [{ text: "INSPECTOR (i closes)", emphasis: "bold" }],
+          },
+          ...inspectorLines.slice(1),
+        ],
+      };
+    }
+  }
+
+  // Bottom Surface (UESC §7.5): tabs are the AVAILABLE bottom candidates
+  // (REQ-AFF-004); at short heights it collapses first (DESIGN Height
+  // constraints) and renders null regardless of bottomOpen.
+  let bottom: RenderedShell["bottom"] = null;
+  if (geo === "Full" || geo === "Wide") {
+    if (heightBand(state.dimensions) === "tall") {
+      const candidates: readonly ViewId[] = ["evidence", "agents"];
+      const tabs = availableViews(snapshot)
+        .filter(
+          (availability) =>
+            availability.status === "available" && candidates.includes(availability.view),
+        )
+        .map((availability) => availability.view);
+      bottom = { open: state.bottomOpen, tabs };
+    }
+  }
+
   return {
     geometryClass: geo,
     columns,
@@ -1667,6 +1873,8 @@ export function renderShell(
     breadcrumb,
     header,
     surfaces,
+    drawer,
+    bottom,
     attention: attentionLines,
     help,
     palette,
@@ -1724,6 +1932,23 @@ export class ShellSession {
     this.shell = Object.freeze({ ...this.shell, dimensions: dims });
   }
 
+  /** Commit a reducer result: location changes join the back/forward
+   * history (ICM §6.6); history commands themselves never push. */
+  private commit(
+    before: SemanticLocation,
+    result: { state: ShellState; effects: readonly ShellEffect[] },
+    viaHistoryCommand: boolean,
+  ): { state: ShellState; effects: readonly ShellEffect[] } {
+    if (viaHistoryCommand || result.state.location === before) return result;
+    return {
+      ...result,
+      state: Object.freeze({
+        ...result.state,
+        history: locationPush(result.state.history, result.state.location),
+      }),
+    };
+  }
+
   /** Route one keypress through takeover → composer → shell precedence. */
   key(raw: string, snapshot: FullWorkbenchSnapshot, paletteContext: PaletteContext = {}): void {
     const geo = classifyGeometry(this.shell.dimensions);
@@ -1772,7 +1997,11 @@ export class ShellSession {
       return;
     }
 
-    const result = handleKey(this.shell, snapshot, raw, paletteContext);
+    const result = this.commit(
+      this.shell.location,
+      handleKey(this.shell, snapshot, raw, paletteContext),
+      raw === "[" || raw === "]",
+    );
     this.shell = result.state;
     applyShellEffects(result.effects, this.interactions);
   }
@@ -1783,7 +2012,11 @@ export class ShellSession {
     snapshot: FullWorkbenchSnapshot,
     paletteContext: PaletteContext = {},
   ): void {
-    const result = handlePointer(this.shell, snapshot, gesture, paletteContext);
+    const result = this.commit(
+      this.shell.location,
+      handlePointer(this.shell, snapshot, gesture, paletteContext),
+      false,
+    );
     this.shell = result.state;
     applyShellEffects(result.effects, this.interactions);
   }

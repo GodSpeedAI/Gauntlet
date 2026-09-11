@@ -1,0 +1,30 @@
+Gauntlet · gauntlet/canonical surface · Case · gen gen-1 · connected
+                                                                  ┌─ INSPECTOR · Esc closes ──────┐
+▸ PRIMARY ▸[WORK] [CHAT] [TRACE] [EVIDENCE] [AGENTS] [ATTENTION]  │                               │
+WORK: what are we trying to move?                                 │                               │
+3 units · 0 blocked 0 in flight · budget: unavailable (host budget│                               │n
+                                                                  │                               │
+? OPEN    AK-901  AK-901  authority unknown                       │                               │
+? OPEN    AK-902  AK-902  authority unknown                       │                               │
+? OPEN    AK-903  AK-903  authority unknown                       │                               │
+                                                                  │                               │
+No Focus selected. Choose a unit in the Navigator.                │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  │                               │
+                                                                  └───────────────────────────────┘
+
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select
+keys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit

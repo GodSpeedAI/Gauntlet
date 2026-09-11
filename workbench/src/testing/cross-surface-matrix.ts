@@ -29,7 +29,9 @@
 import {
   type AffordanceDescriptor,
   type AffordanceObservation,
+  type AffordanceStatus,
   resolveAffordance,
+  statusPermitsInvocation,
 } from "../affordance";
 import { FocusRef } from "../focus";
 import { createHorizon, planMaterialization } from "../horizon";
@@ -769,6 +771,35 @@ export class CrossSurfaceHarness {
     next = open.state;
     for (let step = 0; step < index; step += 1) {
       next = handleKey(next, this.shellSnapshot, "down", paletteContext).state;
+    }
+    // ICM §30 (GUI redesign): when the FRESH resolution does not permit
+    // invocation, the shell route refuses BEFORE activation — no staging, no
+    // gateway drive, zero side effects. The refusal is typed with the fresh
+    // descriptor's canonical reason codes (same vocabulary the gateway's
+    // pre-admission denial uses). Racing changes the fresh read cannot see
+    // still forward, and the gateway denies as before.
+    const freshEntry = entries[index];
+    if (
+      freshEntry !== undefined &&
+      freshEntry.type === "affordance" &&
+      !statusPermitsInvocation(freshEntry.status as AffordanceStatus)
+    ) {
+      const reasonCodes =
+        freshEntry.type === "affordance" && freshEntry.reasons.length > 0
+          ? freshEntry.reasons
+          : [freshEntry.type === "affordance" ? String(freshEntry.status) : "unavailable"];
+      return Promise.resolve(
+        this.finish({
+          class: "refused",
+          operation: request.operation,
+          idempotency_key: "shell-pre-activation",
+          code: reasonCodes[0] ?? "unavailable",
+          message: "shell refused before activation (ICM 30: visible-disabled row)",
+          reason_codes: Object.freeze([...reasonCodes]),
+          stale: true,
+          descriptor: null,
+        }),
+      );
     }
     const staged = handleKey(next, this.shellSnapshot, "enter", paletteContext);
     // The shell stages consequential invokes: first Enter names the invoke and

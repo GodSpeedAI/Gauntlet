@@ -1,0 +1,30 @@
+Gauntlet · gauntlet/canonical surface · Case · gen gen-1 · connected
+ ┌─ NAVIGATOR · Esc closes ──────┐
+▸│                               │EVIDENCE] [AGENTS] [ATTENTION]
+W│                               │
+3│                               │budget: unavailable (host budget read not bound to this projection
+ │                               │
+?│                               │y unknown
+?│                               │y unknown
+?│                               │y unknown
+ │                               │
+N│                               │n the Navigator.
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ │                               │
+ └───────────────────────────────┘
+
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select
+keys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit
