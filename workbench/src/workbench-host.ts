@@ -1,6 +1,11 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { type AffordanceObservation, EMPTY_AFFORDANCE_OBSERVATION } from "./affordance";
+import {
+  type AffordanceObservation,
+  EMPTY_AFFORDANCE_OBSERVATION,
+  resolveAffordance,
+  statusPermitsInvocation,
+} from "./affordance";
 import { CanonicalSurfaceStreamPort } from "./canonical-surface-stream-port";
 import { GauntletReadClient } from "./client";
 import type { ComposerMode } from "./composer";
@@ -250,6 +255,19 @@ export class WorkbenchHost {
 
   async invoke(operation: string, focus: FocusRef, note = ""): Promise<void> {
     if (operation === "state.refresh") {
+      // ICM §30 honesty (GUI redesign, closes the increment-1 residual): a
+      // read may refresh locally, but ONLY when the resolver currently
+      // permits it — the palette row renders VISIBLE_DISABLED
+      // (not_action_admitted), and activating a disabled control must not
+      // silently do the thing anyway. The reason surfaces as the notice.
+      const resolved = resolveAffordance(operation, focus, this.observation, {
+        session: this.sessionContext,
+      });
+      if (!statusPermitsInvocation(resolved.status)) {
+        this.notice = `state.refresh: ${resolved.status} (${resolved.reason_codes.join(", ")})`;
+        this.changed();
+        return;
+      }
       await this.refresh();
       return;
     }

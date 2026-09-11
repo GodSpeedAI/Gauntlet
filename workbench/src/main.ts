@@ -32,12 +32,13 @@ async function run(): Promise<void> {
       ...rendered,
       header: {
         ...rendered.header,
+        // V3 (GUI redesign): health sits in the METADATA tail — prepending
+        // it pushed Case identity/breadcrumb/attention off 80-col terminals.
+        // The run id already renders in the shell header's metadata span; the
+        // host appends only its connection status, clipped first by design.
         spans: [
-          {
-            text: `${host.status}${host.runId ? ` · run ${host.runId}` : ""} · `,
-            emphasis: "dim" as const,
-          },
           ...rendered.header.spans,
+          { text: ` · ${host.status}`, emphasis: "dim" as const },
         ],
       },
       attention: [

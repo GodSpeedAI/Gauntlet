@@ -343,3 +343,22 @@ describe("WorkbenchHost: Phase D — Prime reattachment survives projection-stor
     }
   }, 15_000);
 });
+
+describe("WorkbenchHost: ICM §30 state.refresh honesty (GUI redesign, increment 5)", () => {
+  it("activating the VISIBLE_DISABLED state.refresh row surfaces its reason instead of silently refreshing", async () => {
+    const host = new WorkbenchHost(
+      resolveConfig({ env: {}, cli: { projection_store: ":memory:" } }),
+    );
+    try {
+      // Production default observation is the honest empty read: the
+      // registry inventories state.refresh but does not action-admit it.
+      const focus = FocusRef.for("gauntlet", "WorkItem", "u-any");
+      await host.invoke("state.refresh", focus);
+      const refused = host.notice ?? "";
+      expect(refused.startsWith("state.refresh:")).toBe(true);
+      expect(refused).toContain("not_action_admitted");
+    } finally {
+      host.close();
+    }
+  });
+});
