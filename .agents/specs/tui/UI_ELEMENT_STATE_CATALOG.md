@@ -4,11 +4,17 @@
 
 > **Purpose:** Make the Gauntlet TUI difficult to misimplement during a radical GUI-grade redesign.
 
-> **Applies to:** React + OpenTUI workbench, mouse/keyboard interaction, traceability UI, Prime/Jupyter projections, DomainForge projections, and plugin-contributed UI.
+> **Applies to:** React + OpenTUI workbench, mouse/keyboard interaction, traceability UI (the Trace surface over Gauntlet execution history and RealityTrace), Prime/Jupyter projections, DomainForge projections, and plugin-contributed UI.
 
 > **Upstream authority:** `gauntlet-tui-prime-workbench.spec.yaml`, `DESIGN.md`, the GodSpeed Visual Language, and canonical Gauntlet/Prime/DomainForge semantics.
 
 > **Downstream consumers:** Hallmark redesign work, React/OpenTUI component design, workbench-model implementation, UI tests, interaction tests, plugin authors, and agent-generated frontend changes.
+
+> **Trace terminology:** "Trace" means the Trace surface: one ordered, source-typed ledger over two sources.
+> 1. **Gauntlet execution history** — canonical frames folded by `WorkbenchModel` into `trace_records` (identity `trace-<source_id>-<cursor>`). Always present.
+> 2. **RealityTrace** — the SXR consequence ledger (`../sxr`), read through `workbench/src/sxr-adapter.ts`. Present only when explicitly bound.
+>
+> The sources are never merged. A RealityTrace record is not a Gauntlet Event. A RealityTrace settlement is not a Gauntlet Settlement. RealityTrace evidence becomes Gauntlet evidence only through `evidence.offer` and canonical admission. Spec basis: REQ-SXR-001..004, REQ-DATA-005, REQ-TUI-003. Detail: §16.0 here and `INTERACTION_COMMAND_MAP.md` §16.0.
 
 ---
 
@@ -57,6 +63,12 @@ These are hard design invariants.
 | agent completion ↔ WorkItem settlement | Worker termination does not establish settlement. |
 | React state ↔ canonical state | Presentation/projection state is disposable. |
 | Bun SQLite projection ↔ canonical state | Read model is reconstructible cache/projection. |
+| RealityTrace record ↔ Gauntlet Event | An external consequence observation is not Gauntlet's own execution occurrence. |
+| RealityTrace settlement ↔ Gauntlet Settlement | SXR settlement is source-typed; it never settles a WorkItem or Run. |
+| RealityTrace evidence ↔ admitted Gauntlet Evidence | Admission requires `evidence.offer` + canonical admission against the frozen Reference. |
+| pending RealityTrace record ↔ committed record | `spooled` / `queued_for_commit` is not committed ledger state. |
+| label match ↔ RealityTrace binding | RealityTrace and Gauntlet identities join only through explicit bindings. |
+| Trace interleaving ↔ causal order | Cross-source row order is a derived presentation; only per-source order is authoritative. |
 | green color ↔ “success” | Multiple distinct semantic states may share a visual color. |
 | hover ↔ availability | Pointer state does not establish affordance legitimacy. |
 | enabled control ↔ guaranteed authorization | Every consequential invocation revalidates current admission. |
@@ -132,6 +144,12 @@ The UI MUST know which layer is allowed to change which truth.
 | Domain semantic identity | DomainForge when present | Project concepts/relations/policies. |
 | Files/repository | Filesystem/VCS | Project; mutations go through canonical operations/tools. |
 | Local read models | Workbench/Bun SQLite | Reconstructible projections only. |
+| Gauntlet execution history (Trace source 1) | Gauntlet canonical event log | Fold frames into `trace_records`; reject stale generations. |
+| RealityTrace ledger records, ordinal, entry hash (Trace source 2) | RealityTrace (SXR) | Project through bounded refresh; never append; show absence/invalidity with reason. |
+| RealityTrace durability (`committed` / `spooled` / `queued_for_commit`) | RealityTrace (SXR) command output | Render pending apart from committed; never promote. |
+| RealityTrace settlement status | RealityTrace (SXR) | Render as a source-typed record; never as Gauntlet Settlement. |
+| RealityTrace ↔ Gauntlet identity bindings | Explicit binding inputs (`admitSxrUnitBindings`) | Project; refuse label joins. |
+| Trace cross-source row order | Workbench (derived presentation) | Own; per-source order stays authoritative. |
 | Current selection | Workbench | Own. |
 | Open tabs/windows/pane sizes | Workbench | Own. |
 | Hover/pointer state | OpenTUI/workbench | Own. |
@@ -215,6 +233,7 @@ optional_capabilities:
   prime: AVAILABLE | DEGRADED | UNAVAILABLE
   kernel: AVAILABLE | RECONNECTING | UNAVAILABLE
   domainforge: AVAILABLE | UNAVAILABLE
+  reality_trace: UNBOUND | BOUND_CURRENT | BOUND_ABSENT | BOUND_INVALID | BOUND_INCOMPATIBLE
   images: SUPPORTED | UNSUPPORTED
   mouse: SUPPORTED | UNSUPPORTED
   truecolor: SUPPORTED | REDUCED | MONOCHROME
@@ -243,6 +262,7 @@ DEGRADED RECONNECTING FATAL
 
 - DomainForge absence does not imply total environment failure.
 - Kernel reconnecting does not imply Run failure.
+- RealityTrace being unbound or unavailable does not imply Trace failure.
 - Workbench fatal state must not rewrite underlying canonical state.
 
 ---
@@ -541,7 +561,7 @@ Activity and data state are independent.
 | ReferenceView | What frozen representation governs long-horizon work? | Reference, purposeful artifacts |
 | WayfinderView | What distinctions are still missing? | WayfinderArtifact, unresolved question |
 | RunsView | What long-horizon attempts exist? | Run |
-| TraceView | What actually happened? | Event, ToolCall, RoleInvocation, Verification |
+| TraceView | What actually happened? (Gauntlet execution history + RealityTrace consequence ledger when bound) | Event, ToolCall, RoleInvocation, Verification, RealityTraceRecord |
 | EvidenceView | What supports/contradicts claims? | Evidence, Verification |
 | AgentsView | Where is execution capacity allocated? | Orchestrator, SpecialistAgent, PrimeSession |
 | FilesView | What project artifacts are involved? | File, Diff, Artifact |
@@ -1230,15 +1250,31 @@ Examples:
 ---
 
 # 16. Traceability system
-Trace is execution history, not merely chat or logs.
+Trace is execution and consequence history, not merely chat or logs. The Trace surface is one ordered ledger over two source-typed streams: Gauntlet execution history (always) and the RealityTrace consequence ledger (when explicitly bound). It builds on the existing pipelines — `WorkbenchModel.trace_records` for Gauntlet, `sxr-adapter.ts` for RealityTrace — and adds no parallel trace model or renderer-side shadow state beside them.
+
+## 16.0 Trace sources
+| Source | Truth owner | Identity | Authoritative order | Presence |
+| --- | --- | --- | --- | --- |
+| Gauntlet execution history | Gauntlet canonical event log → `WorkbenchModel.trace_records` | `trace-<source_id>-<cursor>` + projection generation | cursor | always |
+| RealityTrace ledger | RealityTrace (SXR) → `parseSxrLedgerExport` → `projectSxrEvidenceLens` | `ledger_id` + `ordinal` + `entry_hash` | ordinal within `ledger_id` | when bound |
+
+Composition rules:
+
+- rows keep their source; one source is never styled as the other;
+- per-source order is authoritative; cross-source interleaving is derived and marked derived; interleave by time only when both rows carry a recorded timestamp (the RealityTrace export omits `committed_at`);
+- cross-source relations come only from explicit bindings (`admitSxrUnitBindings`);
+- RealityTrace pending state renders apart from committed records;
+- absent / invalid / incompatible RealityTrace is a visible source status; Gauntlet-only Trace stays fully usable;
+- rendering never invokes the RealityTrace adapter; refresh is an explicit bounded `RUNTIME_ADAPTER` command (`INTERACTION_COMMAND_MAP.md` §16.11).
 
 ## 16.1 `TraceView`
-**Primary representation:** turn-aware/event-aware ledger with compact central rows and rich local Inspector detail.
+**Primary representation:** turn-aware/event-aware ledger with compact central rows, a source marker on every row, and rich local Inspector detail.
 
 The primary ledger should favor:
 
 - index/identity;
-- event kind/actor;
+- source;
+- event kind/actor (or RealityTrace record kind);
 - concise content/result;
 - critical semantic Cue.
 Secondary information belongs in Inspector:
@@ -1252,7 +1288,8 @@ Secondary information belongs in Inspector:
 - files/artifacts;
 - evidence;
 - authority;
-- settlement relevance.
+- settlement relevance;
+- for RealityTrace records: kind, ordinal, entry hash, durability, verification path, unknowns, export omissions, explicit bindings.
 
 ---
 
@@ -1291,6 +1328,25 @@ LIVE
 ```
 Frames from an older generation after a newer generation is active MUST be rejected.
 
+The stream and reconnect machines above govern the Gauntlet source. The follow machine also governs rows added by RealityTrace refresh.
+
+### RealityTrace source machine
+
+```text
+UNBOUND
+   ↓ explicit binding
+BOUND_ABSENT (no_ledger_export)
+   ↓ trace.reality.refresh
+REFRESHING
+ ┌─┼──────────┬──────────────┬────────────────────────────────────────────┐
+ ↓ ↓          ↓              ↓
+CURRENT    INVALID    INCOMPATIBLE    REFUSED | DEADLINE_EXCEEDED | OUTPUT_LIMIT | SPAWN_FAILED
+   ↓ later refresh
+REFRESHING
+
+```
+A refresh that completes after a newer refresh is discarded. A failed refresh keeps the last `CURRENT` lens visible and marks it stale; it never clears recorded rows or invents replacements.
+
 **Attention rule:** operator inspection outranks streaming novelty.
 
 ---
@@ -1302,7 +1358,7 @@ Frames from an older generation after a newer generation is active MUST be rejec
 
 **Contains:** TraceSteps/TraceRows.
 
-**Forbidden:** turn boundary must not fabricate canonical event grouping if the underlying event stream does not support it; derived grouping must remain identifiable as derived.
+**Forbidden:** turn boundary must not fabricate canonical event grouping if the underlying event stream does not support it; derived grouping must remain identifiable as derived. RealityTrace records are never grouped into a Gauntlet turn; they may appear adjacent to one only through an explicit binding.
 
 ---
 
@@ -1319,6 +1375,7 @@ Frames from an older generation after a newer generation is active MUST be rejec
 **State vector:**
 
 ```text
+source: GAUNTLET | REALITY_TRACE
 visibility: VISIBLE | VIRTUALIZED
 selection: UNSELECTED | SELECTED
 disclosure: COLLAPSED | EXPANDED_WHERE_ALLOWED
@@ -1360,6 +1417,54 @@ Interaction does not mutate history.
 **May show:** tool, concise input, concise result, duration, artifacts, errors.
 
 **Forbidden:** successful tool return == WorkItem settlement.
+
+---
+
+## 16.8 `RealityTraceRecord`
+**Kind:** Focus / external consequence-observation record
+
+**Truth owner:** RealityTrace (SXR) ledger
+
+**Identity:** `ledger_id` + `ordinal` + `entry_hash` (`SxrOrdinal`, `SxrEntryHash`)
+
+**Kinds the lens interprets:** question, threshold, semantic snapshot, run, evidence, settlement. Other kinds are preserved with `kind_known: false` and never interpreted.
+
+### State vector
+
+```text
+durability: COMMITTED | SPOOLED | QUEUED_FOR_COMMIT
+kind:       KNOWN | UNKNOWN_PRESERVED
+binding:    BOUND(<Gauntlet FocusRef>) | UNBOUND
+lens:       CURRENT | STALE
+
+```
+Committed records are immutable. Pending durability is never rendered as committed and never offered.
+
+**Forbidden:** RealityTrace record == Gauntlet Event; RealityTrace settlement == Gauntlet Settlement; label match == binding.
+
+---
+
+## 16.9 `RealityTraceVerificationPath`
+**Kind:** Derived relation projection
+
+**Truth owner:** Derived from RealityTrace records + explicit bindings (`sxrVerificationPath`)
+
+Steps: declaration → unit binding → question → threshold → evidence → RealityTrace settlement, each carrying ordinal + entry hash.
+
+```text
+chain_complete: TRUE | FALSE(missing[])
+
+```
+Completeness is an observation about RealityTrace records, never a Gauntlet Verification result. Missing links are shown, never invented.
+
+---
+
+## 16.10 `RealityTraceBinding`
+**Kind:** Relation
+
+**Truth owner:** explicit binding inputs admitted by `admitSxrUnitBindings`
+
+Binds RealityTrace repository/run/entity/question identities to Gauntlet workspace/reference/Run/Unit identities. A declaration name is never an identity. Unbound records stay in the RealityTrace segment with no Gauntlet adjacency.
 
 ---
 
@@ -1412,6 +1517,15 @@ EV-17:
 ```
 Historical evidence MUST NOT be rewritten merely because fresher evidence exists.
 
+### Source
+
+```text
+GAUNTLET
+REALITY_TRACE
+
+```
+RealityTrace evidence records keep their source and ledger identity (§16.8). They enter Gauntlet admission only through `evidence.offer` (`INTERACTION_COMMAND_MAP.md` §16.14). Offer ≠ admission ≠ verification ≠ settlement.
+
 ---
 
 ## 17.2 `Verification`
@@ -1451,6 +1565,8 @@ ACCEPTED       REJECTED       ESCALATED     QUARANTINED
 
 ```
 Correction creates later linked settlement/correction evidence, not silent history mutation.
+
+RealityTrace settlement records (`settled`, `settled_with_debt`, other producer words) are a separate source-typed channel rendered as `RealityTraceRecord` (§16.8), never as this Focus.
 
 ---
 
@@ -2027,6 +2143,7 @@ The GUI redesign MUST add interaction projections, not parallel behavior systems
 | Scroll | wheel/drag scrollbar | arrows/PageUp/PageDown | viewport movement |
 | Invoke operation | visible button/menu | shortcut/palette | one Gauntlet operation |
 | Return to live Trace | click new-events marker | end/live shortcut | Trace stream state |
+| Refresh RealityTrace | click source-status refresh control | shortcut/palette | bounded RealityTrace adapter refresh |
 | Answer approval/question | click visible choice | keyboard selection | canonical response operation |
 
 A keyboard expert must not lose capability. A mouse-first novice must not need undocumented shortcuts.
@@ -2164,7 +2281,10 @@ Do not default to a giant node graph.
 - scroll upward → freeze live-follow;
 - new events while inspecting → increment unseen counter, do not steal attention;
 - return-to-live → resume live-follow;
-- relation traversal → navigate without losing history/back capability.
+- relation traversal → navigate without losing history/back capability;
+- source marker on every row; source filter (Gauntlet / RealityTrace);
+- RealityTrace source status (unbound / absent / invalid / incompatible / stale) is visible and clickable → Inspector reason + refresh when afforded;
+- selecting a RealityTrace record → Inspector shows ordinal, entry hash, durability, verification path, bindings.
 
 ---
 
@@ -2304,7 +2424,7 @@ Wayfinder gives missing distinctions a representation.
 Reference gives long-horizon work a frozen contract.
 Run gives long-horizon action a governed substrate.
 Specialist agents give bounded execution capacity.
-Trace gives history an inspectable ledger.
+Trace gives history an inspectable ledger: Gauntlet execution history plus RealityTrace consequence observations, source-typed.
 Evidence gives consequence something observable.
 Verification evaluates claims.
 Settlement determines what becomes consequential.

@@ -4,13 +4,19 @@
 
 > **Purpose:** Ensure that every mouse, keyboard, menu, palette, tab, window, composer, and contextual interaction in the Gauntlet TUI either changes presentation only or converges on one existing semantic/canonical operation.
 
-> **Applies to:** React + OpenTUI, Hallmark redesign work, command palette, menu bar, mouse input, keyboard bindings, context menus, trace interactions, Prime/Jupyter controls, plugin-contributed actions, and GUI-grade terminal interaction.
+> **Applies to:** React + OpenTUI, Hallmark redesign work, command palette, menu bar, mouse input, keyboard bindings, context menus, Trace interactions (Gauntlet execution history and RealityTrace), Prime/Jupyter controls, plugin-contributed actions, and GUI-grade terminal interaction.
 
 > **Companion artifact:** `UI_ELEMENT_STATE_CATALOG.md`
 
 > **Upstream authority:** Gauntlet workbench specification, `DESIGN.md`, canonical Gauntlet/Prime/DomainForge behavior.
 
 > **Important:** Backend function names in this document are semantic command identities, not permission to invent new APIs. Any consequential command marked `BIND_EXISTING` MUST be bound to the repository's actual operation/adapter after inspection.
+
+> **Trace terminology:** "Trace" means the Trace surface: one ordered, source-typed ledger over two sources.
+> 1. **Gauntlet execution history** — canonical frames folded by `WorkbenchModel` into `trace_records` (identity `trace-<source_id>-<cursor>`). Always present.
+> 2. **RealityTrace** — the SXR consequence ledger (`../sxr`), read through `workbench/src/sxr-adapter.ts`. Present only when explicitly bound.
+>
+> The sources are never merged. A RealityTrace record is not a Gauntlet Event. A RealityTrace settlement is not a Gauntlet Settlement. RealityTrace evidence becomes Gauntlet evidence only through `evidence.offer` and canonical admission. Spec basis: REQ-SXR-001..004, REQ-DATA-005, REQ-TUI-003. Detail: §16.0 here and `UI_ELEMENT_STATE_CATALOG.md` §16.0.
 
 ---
 
@@ -94,6 +100,10 @@ This artifact operationalizes the following existing workbench requirements.
 | REQ-DATA-002..004 | Reconnect interactions use generations/cursors and reject stale frames. |
 | REQ-DATA-005 | Chat and Trace actions operate on distinct projections. |
 | REQ-DATA-006 | One View cannot consume state such that another View misses it. |
+| REQ-SXR-001 | When RealityTrace is bound, its committed evidence, ledger history/verification, and question/threshold context appear in Trace, Evidence, and Inspector with ledger ordinal, entry hash, and committed/pending status. Binding to Gauntlet IDs is explicit, never by label. |
+| REQ-SXR-002 | RealityTrace interactions never mutate Gauntlet Settlement, Residual, or EvidenceRef. RealityTrace evidence reaches Gauntlet only through `evidence.offer` + canonical admission. |
+| REQ-SXR-003 | RealityTrace refresh/verify are bounded `RUNTIME_ADAPTER` commands with side effects classified before invocation. Never run during render. Never append to the RealityTrace ledger or start its autonomous run. |
+| REQ-SXR-004 | Every Trace interaction works in Gauntlet-only, RealityTrace-only, and combined binding modes. An absent source is shown with its reason. |
 | REQ-TUI-001 | OpenTUI/React receives snapshots + callbacks, not business-state ownership. |
 | REQ-TUI-002 | Interactions preserve Environment → Workspace → Surface → View → Focus semantics. |
 | REQ-TUI-003 | Work, Chat, and Trace remain distinct interaction questions. |
@@ -178,7 +188,8 @@ Examples:
 - Jupyter interrupt/restart/input response;
 - terminal PTY resize/input;
 - open file externally;
-- artifact preview load.
+- artifact preview load;
+- RealityTrace ledger refresh / ledger verify / evidence query (`executeSxrRefresh`, side effects pre-classified in `SXR_SIDE_EFFECT_CLASSES`).
 A runtime control that is consequential under Gauntlet governance MUST still pass through the appropriate Gauntlet admission boundary before reaching the adapter.
 
 ---
@@ -1160,6 +1171,26 @@ Mailbox delivery remains communication only.
 
 # 16. Trace interactions
 
+## 16.0 Trace sources, identity, and order
+The Trace surface is one ordered ledger over two source-typed streams.
+
+| Source | Truth owner | Row identity | Authoritative order | Presence |
+| --- | --- | --- | --- | --- |
+| Gauntlet execution history | Gauntlet canonical event log, folded by `WorkbenchModel` into `trace_records` | `trace-<source_id>-<cursor>` + projection generation | source cursor | always |
+| RealityTrace ledger | RealityTrace (SXR), read via `sxr-adapter.ts` (`parseSxrLedgerExport` → `projectSxrEvidenceLens`) | `ledger_id` + `ordinal` + `entry_hash` | ordinal within `ledger_id` | only when explicitly bound |
+
+Rules:
+
+1. Every row carries its source. A renderer never styles one source as the other.
+2. Per-source order is authoritative. Cross-source interleaving is a derived presentation order and is marked derived. Interleave by time only when both rows carry a recorded timestamp. The RealityTrace ledger export omits `committed_at`, so RealityTrace rows render in ordinal order in their own segment.
+3. Cross-source adjacency comes only from explicit bindings (`admitSxrUnitBindings`), never from label matches.
+4. Pending RealityTrace state (`spooled`, `queued_for_commit`) renders apart from committed records and is never offerable.
+5. Unbound, absent (`no_ledger_export`), invalid (`export_invalid`), or incompatible RealityTrace renders as an inspectable source status, not as an empty ledger. Gauntlet-only Trace stays fully operable.
+6. RealityTrace records arrive only through bounded refresh (§16.11). Rendering never invokes the adapter.
+7. No Trace interaction mutates Gauntlet Settlement, Residual, or EvidenceRef, or appends to the RealityTrace ledger.
+
+---
+
 ## 16.1 Select Trace row
 **ID:** `trace.event.select`
 
@@ -1167,18 +1198,18 @@ Mailbox delivery remains communication only.
 
 **Binding:** `LOCAL_DEFINED`
 
-Inspector follows Event unless pinned.
+Inspector follows the selected row unless pinned: a Gauntlet Event, or a RealityTrace record (kind, ordinal, entry hash, durability, payload fields, unknowns, export omissions, bound Gauntlet identities).
 
 ---
 
-## 16.2 Open Trace event
+## 16.2 Open Trace row
 **ID:** `trace.event.open`
 
 **Class:** `NAVIGATION_LOCAL` / query
 
 **Binding:** `LOCAL_DEFINED`
 
-Shows richer details without mutating trace.
+Shows richer details without mutating either source. For a RealityTrace question, threshold, evidence, or settlement record it opens the verification path (§16.13).
 
 ---
 
@@ -1188,6 +1219,8 @@ Shows richer details without mutating trace.
 **Class:** `PRESENTATION_LOCAL` / query
 
 **Binding:** `LOCAL_DEFINED`
+
+Turn/step grouping is derived from Gauntlet execution events and marked derived. RealityTrace records are never folded into a Gauntlet turn.
 
 ---
 
@@ -1204,7 +1237,7 @@ Effect:
 
 - state → `INSPECTION_HOLD`;
 - do not yank viewport;
-- unseen event count increments.
+- unseen row count increments for arrivals from either source (Gauntlet frames, or rows added by a RealityTrace refresh), counted per source.
 
 ---
 
@@ -1217,7 +1250,7 @@ Effect:
 
 Sources:
 
-- click `↓ N new events`;
+- click `↓ N new`;
 - End/live shortcut;
 - palette command.
 
@@ -1230,7 +1263,7 @@ Sources:
 
 **Binding:** `DERIVED_QUERY`
 
-Preserve current selection/scroll anchor.
+Preserve current selection/scroll anchor. Applies per source: Gauntlet history pages from the projection; RealityTrace history is the last refreshed export, and newer or older ledger rows come only from a new `ledger_export` refresh.
 
 ---
 
@@ -1241,7 +1274,7 @@ Preserve current selection/scroll anchor.
 
 **Binding:** `DERIVED_QUERY`
 
-Search result navigation is `NAVIGATION_LOCAL`.
+Search result navigation is `NAVIGATION_LOCAL`. Results keep their source.
 
 ---
 
@@ -1254,14 +1287,16 @@ Search result navigation is `NAVIGATION_LOCAL`.
 
 Possible filters:
 
+- source (Gauntlet / RealityTrace);
 - actor;
-- type;
-- WorkItem;
+- type / RealityTrace record kind;
+- WorkItem (Gauntlet Unit, or RealityTrace records explicitly bound to it);
 - agent;
 - evidence-producing;
 - authority-changing;
 - errors;
-- verification.
+- verification;
+- RealityTrace durability (committed / pending).
 Filters are projections, not event deletion.
 
 ---
@@ -1279,7 +1314,8 @@ Examples:
 - parent WorkItem;
 - Agent;
 - File;
-- authority record.
+- authority record;
+- Gauntlet Unit/Run explicitly bound to a RealityTrace record, and the reverse.
 
 ---
 
@@ -1290,9 +1326,53 @@ Examples:
 
 **Binding:** `CONDITIONAL_BIND_EXISTING`
 
-Expose only when Gauntlet/Prime actually supports the corresponding governed operation.
+Expose only when Gauntlet/Prime actually supports the corresponding governed operation. Not applicable to RealityTrace records: the workbench never launches a RealityTrace run and never uses its placeholder explain command.
 
 Never fake replay/fork by changing UI location.
+
+---
+
+## 16.11 Refresh RealityTrace
+**ID:** `trace.reality.refresh`
+
+**Class:** `RUNTIME_ADAPTER`
+
+**Binding:** `ADAPTER_BIND_EXISTING` → `executeSxrRefresh` with `{ kind: "ledger_export" }` over `SxrProcessRunner`
+
+Materializes only when RealityTrace is explicitly bound. Side effects are declared before invocation (`SXR_SIDE_EFFECT_CLASSES.ledger_export`: may initialize local storage; never appends; never launches a run). Bounded by deadline and output cap; runs off the render loop. Outcome (`refreshed`, `producer_refused`, `deadline_exceeded`, `output_limit_exceeded`, `spawn_failed`) and parse status (`parsed`, `invalid`, `incompatible`, `unknown`) render as source status. A refresh result that completes after a newer one is discarded.
+
+---
+
+## 16.12 Verify RealityTrace ledger
+**ID:** `trace.reality.verify`
+
+**Class:** `RUNTIME_ADAPTER`
+
+**Binding:** `ADAPTER_BIND_EXISTING` → `executeSxrRefresh` with `{ kind: "ledger_verify" }`
+
+The export alone checks ordinal density (`ordinal_density_ok`); hash-chain linkage is checked producer-side by `ledger_verify`. Show which check ran. A verified RealityTrace ledger is not a Gauntlet Verification.
+
+---
+
+## 16.13 Inspect RealityTrace verification path
+**ID:** `trace.reality.path.inspect`
+
+**Class:** `QUERY_ONLY`
+
+**Binding:** `DERIVED_QUERY` → `sxrVerificationPath(lens, declarationRef, bindings)`
+
+Shows declaration → unit binding → question → threshold → evidence → RealityTrace settlement, each with ordinal + entry hash, plus `chain_complete` and explicit `missing` links. No invented causal links.
+
+---
+
+## 16.14 Offer RealityTrace evidence to Gauntlet
+**ID:** `evidence.offer` (source: RealityTrace)
+
+**Class:** `CANONICAL_OPERATION`
+
+**Binding:** `BIND_EXISTING` → `offerSxrEvidenceAsGauntletEvidence`, then the canonical admission decision applied through `SxrEvidenceAdmissionGate.admit`
+
+Materializes only on committed RealityTrace evidence records bound to a Gauntlet Unit. Refusals render with their reason: `pending_evidence`, `evidence_not_in_qualified_ledger`, `repository_mismatch`, `settlement_is_sxr_only`. An offer is not admission; admission is not verification or settlement.
 
 ---
 
@@ -1337,6 +1417,11 @@ Does not change admission/verification.
 **Binding:** `BIND_EXISTING`
 
 Only if existing Gauntlet mechanism recognizes candidate→admission flow.
+
+One command identity for every source; the source only selects the offer constructor:
+
+- RealityTrace evidence record → §16.14 (`offerSxrEvidenceAsGauntletEvidence` + `SxrEvidenceAdmissionGate`);
+- kernel artifact → §23.6.
 
 ---
 
@@ -2001,6 +2086,8 @@ LIVE_FOLLOW
 ```
 Never steal attention simply because new output arrives.
 
+In Trace this applies to arrivals from both sources: Gauntlet frames and rows added by a RealityTrace refresh. The unseen count is kept per source.
+
 ---
 
 # 38. Responsive interaction mapping
@@ -2130,6 +2217,7 @@ Copying content never changes provenance or canonical identity.
 | WorkItem | inspect | open/hoist | current Work affordances |
 | Agent | inspect | open Agent detail/Trace | stop/message only if afforded |
 | Event | inspect | open Event detail | related/replay/fork if afforded |
+| RealityTraceRecord | inspect | open record / verification path | bound Gauntlet Focus, refresh, copy ordinal + entry hash, `evidence.offer` on committed bound evidence only |
 | Evidence | inspect | open Evidence | compare/open artifact/etc. |
 | Verification | inspect | open Verification detail | retry if afforded |
 | Settlement | inspect | open record | normally immutable/query actions |
@@ -2172,6 +2260,8 @@ resulting authoritative event(s)
 This enables Trace to answer:
 
 > What did the operator ask the UI to do, what operation actually ran, and what happened?
+
+When bound, RealityTrace separately answers what was observed about consequence. The two answers link only through explicit bindings, never by label or adjacency.
 
 Presentation-only actions need not pollute canonical Gauntlet Trace but may be locally diagnosable if useful.
 
@@ -2276,6 +2366,18 @@ For presentation-only commands:
 | Resize panel | no canonical event/state mutation |
 | Back navigation | canonical world unchanged |
 
+For Trace sources:
+
+| Test | Expected |
+| --- | --- |
+| Gauntlet-only mode | Trace fully operable; RealityTrace shows `UNBOUND` with reason |
+| RealityTrace-only and combined modes | every row keeps its source; per-source order preserved |
+| RealityTrace refresh during keyboard/mouse navigation | render loop stays responsive; bounded outcome shown |
+| Refresh completes after a newer refresh | older result discarded |
+| Pending RealityTrace evidence | rendered as pending; `evidence.offer` refused `pending_evidence` from every projection |
+| RealityTrace settlement record | never rendered as Gauntlet Settlement; not offerable |
+| Label-only RealityTrace ↔ Unit match | no adjacency, no binding |
+
 ---
 
 # 50. High-risk adversarial tests
@@ -2341,6 +2443,38 @@ Expected:
 
 - viewport does not move;
 - unseen count increases.
+
+## 50.9 RealityTrace settlement-as-Gauntlet-settlement attack
+A bound RealityTrace ledger records `settled` for a question bound to Unit T23.
+
+Expected:
+
+- the record renders as a RealityTrace settlement record;
+- T23's Gauntlet lifecycle, Settlement, and Evidence do not change;
+- `evidence.offer` on it is refused `settlement_is_sxr_only`.
+
+## 50.10 Pending-as-committed attack
+RealityTrace output carries `spooled` or `queued_for_commit` durability.
+
+Expected:
+
+- rendered as pending, apart from committed rows;
+- no projection offers it; `evidence.offer` refused `pending_evidence`.
+
+## 50.11 Label-join attack
+A RealityTrace declaration name equals a Gauntlet Unit label with no explicit binding.
+
+Expected:
+
+- no binding, no adjacency, no Inspector relation.
+
+## 50.12 Render-time refresh attack
+Force a render path to invoke the RealityTrace adapter, or hang the producer during navigation.
+
+Expected:
+
+- render never invokes `executeSxrRefresh`;
+- deadline/output bounds end the refresh; navigation stays responsive.
 
 ---
 
