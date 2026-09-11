@@ -1,0 +1,3 @@
+tui-check exit=0 secs=1
+tui-test exit=0 secs=22
+tui-lint exit=1 secs=0

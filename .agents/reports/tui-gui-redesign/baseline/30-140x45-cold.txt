@@ -1,0 +1,45 @@
+disconnected · Gauntlet · gauntlet/canonical surface · gen 0aa0fbd7 · Case
+
+NAVIGATOR                       ▸ PRIMARY [WORK]                                                INSPECTOR
+  · Case outline                WORK: what are we trying to move?                               No Focus selected. Choose an item in the Nav
+Nothing outlined yet. Bind a so 0 units · 0 blocked 0 in flight · budget: unavailable (host bud
+
+                                No authoritative source has reported.
+                                Start 'gauntlet serve' and bind a source, then sync a generatio
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e composer · esc dismiss

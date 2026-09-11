@@ -1,0 +1,40 @@
+connected · Gauntlet · gauntlet/canonical surface · gen gen-1 · Case
+ ┌─ Palette · ↑/↓ select · Enter open · Esc dismiss ──────────────────────────────────────────────────────────────────┐
+N│  Views (11)                                                                                                        │
+ │  view work                                                                                                         │
+ │  view chat                                                                                                         │
+ │  view trace                                                                                                        │
+ │  view evidence                                                                                                     │
+ │  view agents                                                                                                       │
+ │  view attention                                                                                                    │
+ │  view files: ABSENT (provider 'changes' is not published by the current snapshot)                                  │
+ │  view kernel: ABSENT (provider 'kernel' is not published by the current snapshot)                                  │
+ │  view problems: ABSENT (provider 'problems' is not published by the current snapshot)                              │
+ │  view terminal: ABSENT (provider 'terminal' is not published by the current snapshot)                              │
+ │  view domain: ABSENT (provider 'domain_model' is not published by the current snapshot)                            │
+ │  Actions (3)                                                                                                       │
+ │  action unit.resolve: unavailable (actor_authentication_required, no_open_ticket)                                  │
+ │  action unit.retry: unavailable (actor_authentication_required, readiness_not_earned)                              │
+ │  action state.refresh: unavailable (not_action_admitted)                                                           │
+ │                                                                                                                    │
+ │                                                                                                                    │i
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e com

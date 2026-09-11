@@ -1,0 +1,24 @@
+connected · Gauntlet · gauntlet/canonical surface · gen gen-1 · Case
+ ┌─ Palette · ↑/↓ select · Enter open · Esc dismiss ──────────────────────────┐
+P│  Views (11)                                                                │
+W│  view work                                                                 │
+3│  view chat                                                                 │n
+ │  view trace                                                                │
+?│  view evidence                                                             │
+?│  view agents                                                               │
+?│  view attention                                                            │
+ │  view files: ABSENT (provider 'changes' is not published by the current sna│
+A│  view kernel: ABSENT (provider 'kernel' is not published by the current sna│
+×│  view problems: ABSENT (provider 'problems' is not published by the current│u
+×│  view terminal: ABSENT (provider 'terminal' is not published by the current│t
+1│  view domain: ABSENT (provider 'domain_model' is not published by the curre│
+ │  Actions (3)                                                               │
+ │  action unit.resolve: unavailable (actor_authentication_required, no_open_t│
+ │  action unit.retry: unavailable (actor_authentication_required, readiness_n│
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────────┘
+COMPOSER [message] → workbench
+> hello draft
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select
+keys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit

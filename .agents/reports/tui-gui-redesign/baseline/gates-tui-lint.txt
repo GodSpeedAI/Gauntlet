@@ -1,0 +1,474 @@
+cd workbench && bun run lint
+$ biome check .
+src/client.ts:144:31 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    143 │       const data = (await res.json()) as Record<string, unknown>;
+  > 144 │       const run = typeof data["run"] === "string" ? data["run"] : null;
+        │                               ^^^^^
+    145 │       const escalated = Array.isArray(data["escalated"])
+    146 │         ? data["escalated"].filter((x): x is string => typeof x === "string")
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    142 142 │   
+    143 143 │         const data = (await res.json()) as Record<string, unknown>;
+    144     │ - ······const·run·=·typeof·data["run"]·===·"string"·?·data["run"]·:·null;
+        144 │ + ······const·run·=·typeof·data.run·===·"string"·?·data["run"]·:·null;
+    145 145 │         const escalated = Array.isArray(data["escalated"])
+    146 146 │           ? data["escalated"].filter((x): x is string => typeof x === "string")
+  
+
+src/config-preflight.test.ts:70:23 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    68 │       });
+    69 │       const redacted = redactConfig(config);
+  > 70 │       expect(redacted["session_token"]).toBe("[REDACTED]");
+       │                       ^^^^^^^^^^^^^^^
+    71 │       expect(JSON.stringify(redacted)).not.toContain("super-secret-production-token");
+    72 │     });
+  
+  i Unsafe fix: Use a literal key instead.
+  
+     68  68 │         });
+     69  69 │         const redacted = redactConfig(config);
+     70     │ - ······expect(redacted["session_token"]).toBe("[REDACTED]");
+         70 │ + ······expect(redacted.session_token).toBe("[REDACTED]");
+     71  71 │         expect(JSON.stringify(redacted)).not.toContain("super-secret-production-token");
+     72  72 │       });
+  
+
+src/config.ts:101:33 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    100 │   // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+  > 101 │   const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+        │                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    102 │   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+    103 │   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+  
+  i Unsafe fix: Use a literal key instead.
+  
+     99  99 │   
+    100 100 │     // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+    101     │ - ··const·envGauntlet·=·envSource["GAUNTLET_WORKBENCH_ENDPOINT"]·??·envSource["GAUNTLET_ENDPOINT"];
+        101 │ + ··const·envGauntlet·=·envSource.GAUNTLET_WORKBENCH_ENDPOINT·??·envSource["GAUNTLET_ENDPOINT"];
+    102 102 │     const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+    103 103 │     const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+  
+
+src/config.ts:101:77 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    100 │   // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+  > 101 │   const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+        │                                                                             ^^^^^^^^^^^^^^^^^^^
+    102 │   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+    103 │   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+  
+  i Unsafe fix: Use a literal key instead.
+  
+     99  99 │   
+    100 100 │     // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+    101     │ - ··const·envGauntlet·=·envSource["GAUNTLET_WORKBENCH_ENDPOINT"]·??·envSource["GAUNTLET_ENDPOINT"];
+        101 │ + ··const·envGauntlet·=·envSource["GAUNTLET_WORKBENCH_ENDPOINT"]·??·envSource.GAUNTLET_ENDPOINT;
+    102 102 │     const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+    103 103 │     const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+  
+
+src/config.ts:102:30 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    100 │   // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+    101 │   const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+  > 102 │   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+        │                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    103 │   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+    104 │   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    100 100 │     // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+    101 101 │     const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+    102     │ - ··const·envPrime·=·envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"]·??·envSource["PRIME_ENDPOINT"];
+        102 │ + ··const·envPrime·=·envSource.GAUNTLET_WORKBENCH_PRIME_ENDPOINT·??·envSource["PRIME_ENDPOINT"];
+    103 103 │     const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+    104 104 │     const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+  
+
+src/config.ts:102:80 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    100 │   // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+    101 │   const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+  > 102 │   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+        │                                                                                ^^^^^^^^^^^^^^^^
+    103 │   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+    104 │   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    100 100 │     // Environment variables mapping (documented fields only, REQ-CONFIG-001)
+    101 101 │     const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+    102     │ - ··const·envPrime·=·envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"]·??·envSource["PRIME_ENDPOINT"];
+        102 │ + ··const·envPrime·=·envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"]·??·envSource.PRIME_ENDPOINT;
+    103 103 │     const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+    104 104 │     const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+  
+
+src/config.ts:103:36 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    101 │   const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+    102 │   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+  > 103 │   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+        │                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    104 │   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+    105 │   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    101 101 │     const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
+    102 102 │     const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+    103     │ - ··const·envPrimeBinary·=·envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+        103 │ + ··const·envPrimeBinary·=·envSource.GAUNTLET_WORKBENCH_PRIME_BINARY;
+    104 104 │     const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+    105 105 │     const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+  
+
+src/config.ts:104:36 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    102 │   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+    103 │   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+  > 104 │   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+        │                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    105 │   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+    106 │   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    102 102 │     const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+    103 103 │     const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+    104     │ - ··const·envPrimeSocket·=·envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+        104 │ + ··const·envPrimeSocket·=·envSource.GAUNTLET_WORKBENCH_PRIME_SOCKET;
+    105 105 │     const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+    106 106 │     const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+  
+
+src/config.ts:105:35 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    103 │   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+    104 │   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+  > 105 │   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+        │                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    106 │   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+    107 │   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    103 103 │     const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+    104 104 │     const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+    105     │ - ··const·envProjection·=·envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+        105 │ + ··const·envProjection·=·envSource.GAUNTLET_WORKBENCH_PROJECTION_STORE;
+    106 106 │     const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+    107 107 │     const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+  
+
+src/config.ts:106:30 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    104 │   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+    105 │   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+  > 106 │   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+        │                              ^^^^^^^^^^^^^^^^^^^^^^^^
+    107 │   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+    108 │ 
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    104 104 │     const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+    105 105 │     const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+    106     │ - ··const·envToken·=·envSource["GAUNTLET_SESSION_TOKEN"]·??·envSource["GAUNTLET_API_TOKEN"];
+        106 │ + ··const·envToken·=·envSource.GAUNTLET_SESSION_TOKEN·??·envSource["GAUNTLET_API_TOKEN"];
+    107 107 │     const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+    108 108 │   
+  
+
+src/config.ts:106:69 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    104 │   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+    105 │   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+  > 106 │   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+        │                                                                     ^^^^^^^^^^^^^^^^^^^^
+    107 │   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+    108 │ 
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    104 104 │     const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+    105 105 │     const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+    106     │ - ··const·envToken·=·envSource["GAUNTLET_SESSION_TOKEN"]·??·envSource["GAUNTLET_API_TOKEN"];
+        106 │ + ··const·envToken·=·envSource["GAUNTLET_SESSION_TOKEN"]·??·envSource.GAUNTLET_API_TOKEN;
+    107 107 │     const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+    108 108 │   
+  
+
+src/config.ts:107:34 lint/complexity/useLiteralKeys  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  i The computed expression can be simplified without the use of a string literal.
+  
+    105 │   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+    106 │   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+  > 107 │   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+        │                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    108 │ 
+    109 │   // 1. Gauntlet endpoint
+  
+  i Unsafe fix: Use a literal key instead.
+  
+    105 105 │     const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
+    106 106 │     const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
+    107     │ - ··const·envTransport·=·envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+        107 │ + ··const·envTransport·=·envSource.GAUNTLET_WORKBENCH_TRANSPORT;
+    108 108 │   
+    109 109 │     // 1. Gauntlet endpoint
+  
+
+src/bun-substrate.bench.ts:8:1 lint/suspicious/noConsole  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Don't use console.
+  
+     6 │ import { Database } from "bun:sqlite";
+     7 │ 
+   > 8 │ console.log("=== Bun 1.4 Native Substrate Benchmark ===");
+       │ ^^^^^^^^^^^
+     9 │ 
+    10 │ // 1. Benchmark bun:sqlite
+  
+  i The use of console is often reserved for debugging.
+  
+  i Unsafe fix: Remove console.
+  
+     5  5 │   
+     6  6 │   import { Database } from "bun:sqlite";
+     7    │ - 
+     8    │ - console.log("===·Bun·1.4·Native·Substrate·Benchmark·===");
+     9  7 │   
+    10  8 │   // 1. Benchmark bun:sqlite
+  
+
+src/bun-substrate.bench.ts:24:1 lint/suspicious/noConsole  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Don't use console.
+  
+    22 │ const insertTime = performance.now() - startInsert;
+    23 │ const insertOps = Math.round((insertCount / insertTime) * 1000);
+  > 24 │ console.log(
+       │ ^^^^^^^^^^^
+    25 │   `[bun:sqlite] Insert ${insertCount} rows: ${insertTime.toFixed(2)}ms (${insertOps.toLocaleString()} ops/sec)`,
+    26 │ );
+  
+  i The use of console is often reserved for debugging.
+  
+  i Unsafe fix: Remove console.
+  
+    22 22 │   const insertTime = performance.now() - startInsert;
+    23 23 │   const insertOps = Math.round((insertCount / insertTime) * 1000);
+    24    │ - console.log(
+    25    │ - ··`[bun:sqlite]·Insert·${insertCount}·rows:·${insertTime.toFixed(2)}ms·(${insertOps.toLocaleString()}·ops/sec)`,
+    26    │ - );
+    27 24 │   
+    28 25 │   const select = db.prepare("SELECT * FROM bench WHERE id = ?");
+  
+
+src/bun-substrate.bench.ts:36:1 lint/suspicious/noConsole  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Don't use console.
+  
+    34 │ const selectTime = performance.now() - startSelect;
+    35 │ const selectOps = Math.round((selectCount / selectTime) * 1000);
+  > 36 │ console.log(
+       │ ^^^^^^^^^^^
+    37 │   `[bun:sqlite] Select ${selectCount} rows: ${selectTime.toFixed(2)}ms (${selectOps.toLocaleString()} ops/sec)`,
+    38 │ );
+  
+  i The use of console is often reserved for debugging.
+  
+  i Unsafe fix: Remove console.
+  
+    34 34 │   const selectTime = performance.now() - startSelect;
+    35 35 │   const selectOps = Math.round((selectCount / selectTime) * 1000);
+    36    │ - console.log(
+    37    │ - ··`[bun:sqlite]·Select·${selectCount}·rows:·${selectTime.toFixed(2)}ms·(${selectOps.toLocaleString()}·ops/sec)`,
+    38    │ - );
+    39 36 │   
+    40 37 │   // 2. Benchmark native compression
+  
+
+src/bun-substrate.bench.ts:46:1 lint/suspicious/noConsole  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Don't use console.
+  
+    44 │ const gzipTime = performance.now() - startGzip;
+    45 │ const gzipMBps = (1 / (gzipTime / 1000)).toFixed(2);
+  > 46 │ console.log(
+       │ ^^^^^^^^^^^
+    47 │   `[Bun.gzipSync] 1MB buffer: ${gzipTime.toFixed(2)}ms (${gzipMBps} MB/sec, ratio: ${(compressed.length / payload.length).toFixed(4)})`,
+    48 │ );
+  
+  i The use of console is often reserved for debugging.
+  
+  i Unsafe fix: Remove console.
+  
+    44 44 │   const gzipTime = performance.now() - startGzip;
+    45 45 │   const gzipMBps = (1 / (gzipTime / 1000)).toFixed(2);
+    46    │ - console.log(
+    47    │ - ··`[Bun.gzipSync]·1MB·buffer:·${gzipTime.toFixed(2)}ms·(${gzipMBps}·MB/sec,·ratio:·${(compressed.length·/·payload.length).toFixed(4)})`,
+    48    │ - );
+    49 46 │   
+    50 47 │   // 3. Benchmark native crypto
+  
+
+src/bun-substrate.bench.ts:59:1 lint/suspicious/noConsole  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Don't use console.
+  
+    57 │ const digest = hasher.digest("hex");
+    58 │ const hashTime = performance.now() - startHash;
+  > 59 │ console.log(
+       │ ^^^^^^^^^^^
+    60 │   `[Bun.CryptoHasher] 10k chunks sha256: ${hashTime.toFixed(2)}ms (${digest.slice(0, 16)}...)`,
+    61 │ );
+  
+  i The use of console is often reserved for debugging.
+  
+  i Unsafe fix: Remove console.
+  
+    57 57 │   const digest = hasher.digest("hex");
+    58 58 │   const hashTime = performance.now() - startHash;
+    59    │ - console.log(
+    60    │ - ··`[Bun.CryptoHasher]·10k·chunks·sha256:·${hashTime.toFixed(2)}ms·(${digest.slice(0,·16)}...)`,
+    61    │ - );
+    62 59 │   
+    63 60 │   console.log("=== Benchmark Complete: Substrate Meets All Performance Floors ===");
+  
+
+src/bun-substrate.bench.ts:63:1 lint/suspicious/noConsole  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ! Don't use console.
+  
+    61 │ );
+    62 │ 
+  > 63 │ console.log("=== Benchmark Complete: Substrate Meets All Performance Floors ===");
+       │ ^^^^^^^^^^^
+    64 │ db.close();
+    65 │ 
+  
+  i The use of console is often reserved for debugging.
+  
+  i Unsafe fix: Remove console.
+  
+    60 60 │     `[Bun.CryptoHasher] 10k chunks sha256: ${hashTime.toFixed(2)}ms (${digest.slice(0, 16)}...)`,
+    61 61 │   );
+    62    │ - 
+    63    │ - console.log("===·Benchmark·Complete:·Substrate·Meets·All·Performance·Floors·===");
+    64 62 │   db.close();
+    65 63 │   
+  
+
+src/cell-fit.test.ts:1:1 assist/source/organizeImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Sort these imports.
+  
+   > 1 │ import { describe, expect, it } from "bun:test";
+       │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   > 2 │ import { createTestRenderer } from "@opentui/core/testing";
+   > 3 │ import {
+   > 4 │   cellWidth,
+        ...
+  > 15 │ } from "./testing/shell-harness";
+  > 16 │ import { FocusRef } from "./focus";
+       │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    17 │ 
+    18 │ /** ESC as code, so no raw escape byte ever lives in test sources. */
+  
+  i Safe fix: Organize imports and exports (Biome)
+  
+     1  1 │   import { describe, expect, it } from "bun:test";
+     2  2 │   import { createTestRenderer } from "@opentui/core/testing";
+     3    │ - import·{
+     4    │ - ··cellWidth,
+     5    │ - ··fitCellText,
+     6    │ - ··sanitizeCellText,
+     7    │ - }·from·"./geometry";
+     8    │ - import·{·TerminalShellRenderer·}·from·"./terminal-renderer";
+     9    │ - import·{
+    10    │ - ··FULL_DIMS,
+    11    │ - ··modelWiredSession,
+    12    │ - ··renderOptions,
+    13    │ - ··seededModel,
+    14    │ - ··unitEvent,
+    15    │ - }·from·"./testing/shell-harness";
+    16    │ - import·{·FocusRef·}·from·"./focus";
+        3 │ + import·{·FocusRef·}·from·"./focus";
+        4 │ + import·{
+        5 │ + ··cellWidth,
+        6 │ + ··fitCellText,
+        7 │ + ··sanitizeCellText,
+        8 │ + }·from·"./geometry";
+        9 │ + import·{·TerminalShellRenderer·}·from·"./terminal-renderer";
+       10 │ + import·{
+       11 │ + ··FULL_DIMS,
+       12 │ + ··modelWiredSession,
+       13 │ + ··renderOptions,
+       14 │ + ··seededModel,
+       15 │ + ··unitEvent,
+       16 │ + }·from·"./testing/shell-harness";
+    17 17 │   
+    18 18 │   /** ESC as code, so no raw escape byte ever lives in test sources. */
+  
+
+src/cell-fit.test.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   import { describe, expect, it } from "bun:test";
+     2  2 │   import { createTestRenderer } from "@opentui/core/testing";
+     3    │ - import·{
+     4    │ - ··cellWidth,
+     5    │ - ··fitCellText,
+     6    │ - ··sanitizeCellText,
+     7    │ - }·from·"./geometry";
+        3 │ + import·{·cellWidth,·fitCellText,·sanitizeCellText·}·from·"./geometry";
+     8  4 │   import { TerminalShellRenderer } from "./terminal-renderer";
+     9  5 │   import {
+  
+
+The number of diagnostics exceeds the limit allowed. Use --max-diagnostics to increase it.
+Diagnostics not shown: 640.
+Checked 142 files in 453ms. No fixes applied.
+Found 6 errors.
+Found 83 warnings.
+Found 571 infos.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+
+error: script "lint" exited with code 1
+error: recipe `tui-lint` failed on line 139 with exit code 1

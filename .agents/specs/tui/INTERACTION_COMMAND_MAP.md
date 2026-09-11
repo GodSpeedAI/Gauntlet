@@ -4,7 +4,7 @@
 
 > **Purpose:** Ensure that every mouse, keyboard, menu, palette, tab, window, composer, and contextual interaction in the Gauntlet TUI either changes presentation only or converges on one existing semantic/canonical operation.
 
-> **Applies to:** React + OpenTUI, Hallmark redesign work, command palette, menu bar, mouse input, keyboard bindings, context menus, Trace interactions (Gauntlet execution history and RealityTrace), Prime/Jupyter controls, plugin-contributed actions, and GUI-grade terminal interaction.
+> **Applies to:** React + OpenTUI, Hallmark redesign work, command palette, menu bar, mouse input, keyboard bindings, context menus, Trace interactions (Gauntlet execution history and RealityTrace), Prime Python REPL controls, plugin-contributed actions, and GUI-grade terminal interaction.
 
 > **Companion artifact:** `UI_ELEMENT_STATE_CATALOG.md`
 
@@ -35,7 +35,7 @@ Every user interaction must terminate in exactly one of these outcomes:
 
 4. RUNTIME_ADAPTER
    Requests a runtime-owned control through the owning structured adapter
-   (Prime/Jupyter/filesystem/etc.), subject to Gauntlet governance where applicable.
+   (Prime Python REPL/filesystem/etc.), subject to Gauntlet governance where applicable.
 
 5. CANONICAL_OPERATION
    Requests one consequential Gauntlet operation identity that owns
@@ -94,7 +94,7 @@ This artifact operationalizes the following existing workbench requirements.
 | REQ-FOCUS-005 | Saved Horizons remain projections, never independent truth. |
 | REQ-PRIME-003 | Spawn admission is not child completion. UI must display these separately. |
 | REQ-PRIME-005 | Mailbox/message actions remain communication, not completion. |
-| REQ-PRIME-006 | Kernel input/control returns through Prime/Jupyter mediation. |
+| REQ-PRIME-006 | Kernel input/control returns through Prime Python REPL mediation. |
 | REQ-PRIME-009 | Closing TUI/presentation never implicitly stops admitted Prime work. |
 | REQ-PRIME-010 | Reattachment uses Prime/Gauntlet truth, not stale UI. |
 | REQ-DATA-002..004 | Reconnect interactions use generations/cursors and reject stale frames. |
@@ -185,7 +185,7 @@ Controls a runtime whose lifecycle is owned outside React/OpenTUI.
 Examples:
 
 - Prime session reattach;
-- Jupyter interrupt/restart/input response;
+- Python REPL interrupt/restart/input response;
 - terminal PTY resize/input;
 - open file externally;
 - artifact preview load;
@@ -228,7 +228,7 @@ Because this artifact is written before final repository binding, use these stat
 | LOCAL_DEFINED | Workbench presentation/navigation behavior may be implemented directly. |
 | BIND_EXISTING | Semantic operation is required, but exact existing backend command/function/API MUST be discovered. |
 | CONDITIONAL_BIND_EXISTING | Expose only if the repository already supports/admits the operation or the normative implementation plan explicitly adds it. |
-| ADAPTER_BIND_EXISTING | Bind to actual Prime/Jupyter/filesystem/etc. adapter; do not invent protocol. |
+| ADAPTER_BIND_EXISTING | Bind to actual Prime Python REPL/filesystem/etc. adapter; do not invent protocol. |
 | DERIVED_QUERY | Implement against read-model/projection/query layer only. |
 | PLUGIN_PROVIDED | Plugin contributes the action through the same registry/affordance contract. |
 
@@ -272,7 +272,7 @@ availability:
 
 revalidation:
   required: true_or_false
-  owner: "Workbench | Gauntlet | Prime/Jupyter adapter | other"
+  owner: "Workbench | Gauntlet | Prime Python REPL adapter | other"
 
 parameters:
   - "typed parameter"
@@ -525,7 +525,7 @@ Do not add `Save` unless there is an actual meaningful operation; canonical stat
 | view.activate.reference | NAVIGATION_LOCAL | LOCAL_DEFINED |
 | view.activate.domain | NAVIGATION_LOCAL | LOCAL_DEFINED |
 | view.activate.kernel | NAVIGATION_LOCAL | LOCAL_DEFINED |
-| view.activate.harness | NAVIGATION_LOCAL | LOCAL_DEFINED |
+| view.activate.harness | NAVIGATION_LOCAL | LOCAL_DEFINED — roadmap-only (DSN-015); must not register while the boundary holds (§25) |
 | ui.navigator.toggle | PRESENTATION_LOCAL | LOCAL_DEFINED |
 | ui.inspector.toggle | PRESENTATION_LOCAL | LOCAL_DEFINED |
 | ui.bottom.toggle | PRESENTATION_LOCAL | LOCAL_DEFINED |
@@ -791,7 +791,7 @@ Exact operation identity comes from the owning AttentionItem, not from hardcoded
 
 **Binding:** `ADAPTER_BIND_EXISTING`
 
-Must return through Prime/Jupyter mediation.
+Must return through Prime Python REPL mediation.
 
 ---
 
@@ -1600,7 +1600,7 @@ Presentation convenience only unless governance requires admission.
 
 ---
 
-# 23. Kernel/Jupyter interactions
+# 23. Kernel interactions
 
 ## 23.1 Run computation
 **ID:** `kernel.execute`
@@ -1623,7 +1623,7 @@ Hard rule:
 
 **Binding:** `ADAPTER_BIND_EXISTING`
 
-Return through Prime-owned Jupyter control mediation.
+Return through Prime-owned Python REPL control mediation.
 
 ---
 
@@ -1705,6 +1705,8 @@ Any authoring operation is consequential and MUST bind to actual DomainForge/Gau
 ---
 
 # 25. Harness interactions
+
+**Status: roadmap-only — not buildable now.** `DESIGN.md` DSN-015 and the spec `roadmap_boundaries.prime_harness_metabolization_ui` forbid the harness-metabolization UI in the current effort. No Harness View, harness command, or harness interaction may be registered or dispatched until that boundary is lifted by operator-approved plan change. This section records the contract for that future work only.
 
 ## 25.1 Inspect Skill / HarnessRevision
 Navigation/query only.
@@ -2590,7 +2592,7 @@ If any consequential command cannot answer these questions, it is not ready to i
           │              │                     ▼
           │              │            Canonical Operation
           │              │                     │
-          │              │         Prime/Jupyter/tools as needed
+          │              │         Prime Python REPL/tools as needed
           │              │                     │
           └──────────────┴─────────────────────┘
                          │

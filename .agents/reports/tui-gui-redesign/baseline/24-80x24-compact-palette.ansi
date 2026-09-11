@@ -1,0 +1,24 @@
+[2m[38;2;255;255;255mconnected · [0;1m[38;2;255;255;255mGauntlet [0m[38;2;255;255;255m· gauntlet/canonical surface[2m · gen gen-1 [0m[38;2;255;255;255m· Case
+ ┌─ Palette · ↑/↓ select · Enter open · Esc dismiss ──────────────────────────┐
+[2mP[0m[38;2;255;255;255m│[2m  Views (11)[0m[38;2;255;255;255m                                                                │
+[1mW[0m[38;2;255;255;255m│  view work                                                                 │
+[2m3[0m[38;2;255;255;255m│  view chat                                                                 │[2mn
+ [0m[38;2;255;255;255m│  view trace                                                                │[2m
+?[0m[38;2;255;255;255m│  view evidence                                                             │
+?│  view agents                                                               │
+?│  view attention                                                            │
+ │  view files: ABSENT (provider 'changes' is not published by the current sna│
+[1mA[0m[38;2;255;255;255m│  view kernel: ABSENT (provider 'kernel' is not published by the current sna│
+[1m×[0m[38;2;255;255;255m│  view problems: ABSENT (provider 'problems' is not published by the current│[2mu
+[1m×[0m[38;2;255;255;255m│  view terminal: ABSENT (provider 'terminal' is not published by the current│[2mt
+1[0m[38;2;255;255;255m│  view domain: ABSENT (provider 'domain_model' is not published by the curre│
+ │[2m  Actions (3)[0m[38;2;255;255;255m                                                               │
+ │  action unit.resolve: unavailable (actor_authentication_required, no_open_t│
+ │  action unit.retry: unavailable (actor_authentication_required, readiness_n│
+ │                                                                            │
+ └────────────────────────────────────────────────────────────────────────────┘
+[2mCOMPOSER [0;1m[38;2;255;255;255m[message] → workbench[0m[38;2;255;255;255m
+> hello draft
+[2mmessage text does not execute or change mode · enter submits[0m[38;2;255;255;255m
+[2mkeys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select[0m[38;2;255;255;255m
+[2mkeys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit[0m[38;2;255;255;255m

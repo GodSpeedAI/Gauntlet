@@ -1,0 +1,40 @@
+[2m[38;2;255;255;255mdisconnected · [0;1m[38;2;255;255;255mGauntlet [0m[38;2;255;255;255m· gauntlet/canonical surface[2m · gen 0aa0fbd7 [0m[38;2;255;255;255m· Case
+ ┌─ Palette · ↑/↓ select · Enter open · Esc dismiss ──────────────────────────────────────────────────────────────────┐
+[2mN[0m[38;2;255;255;255m│[2m  Views (11)[0m[38;2;255;255;255m                                                                                                        │
+ │  view work                                                                                                         │[2mn
+N[0m[38;2;255;255;255m│  view chat                                                                                                         │
+ │  view trace                                                                                                        │
+ │  view evidence                                                                                                     │
+ │  view agents                                                                                                       │
+ │  view attention                                                                                                    │
+ │  view files: ABSENT (provider 'changes' is not published by the current snapshot)                                  │
+ │  view kernel: ABSENT (provider 'kernel' is not published by the current snapshot)                                  │
+ │  view problems: ABSENT (provider 'problems' is not published by the current snapshot)                              │
+ │  view terminal: ABSENT (provider 'terminal' is not published by the current snapshot)                              │
+ │  view domain: ABSENT (provider 'domain_model' is not published by the current snapshot)                            │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ │                                                                                                                    │
+ └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+[2mCOMPOSER [0;1m[38;2;255;255;255m[message] → workbench[0m[38;2;255;255;255m
+>
+[2mmessage text does not execute or change mode · enter submits[0m[38;2;255;255;255m
+[2mkeys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e com

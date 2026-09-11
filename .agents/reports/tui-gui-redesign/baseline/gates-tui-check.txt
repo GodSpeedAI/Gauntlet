@@ -1,0 +1,2 @@
+cd workbench && bun run check
+$ tsc --noEmit -p tsconfig.json

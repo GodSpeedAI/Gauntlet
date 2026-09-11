@@ -1,0 +1,40 @@
+[2m[38;2;255;255;255mconnected · [0;1m[38;2;255;255;255mGauntlet [0m[38;2;255;255;255m· gauntlet/canonical surface[2m · gen gen-1 [0m[38;2;255;255;255m· Case
+
+▸ [1mNAVIGATOR[0m[38;2;255;255;255m                 [2mPRIMARY [WORK][0m[38;2;255;255;255m                                          [2mINSPECTOR[0m[38;2;255;255;255m
+  · Case outline            [1mWORK: what are we trying to move?[0m[38;2;255;255;255m                       [1mIDENTITY [0m[38;2;255;255;255m
+  [2m  ? [0m[38;2;255;255;255mAK-901[2m                3 units · 0 blocked 0 in flight · budget: unavailable ([0m[38;2;255;255;255m [2mref          [0m[38;2;255;255;255mfocus:gauntlet:
+[1m◉ [0m[38;2;255;255;255m  ? [1mAK-902[0m[38;2;255;255;255m                                                                                     WorkItem:AK-902
+    ? AK-903                ? [1mOPEN    [0m[38;2;255;255;255mAK-901  AK-901[2m  authority unknown[0m[38;2;255;255;255m             [2mkind         [0m[38;2;255;255;255mWorkItem
+                            ? [1mOPEN    [0m[38;2;255;255;255mAK-902  AK-902[2m  authority unknown[0m[38;2;255;255;255m             [2msource       [0m[38;2;255;255;255mgauntlet
+                            ? [1mOPEN    [0m[38;2;255;255;255mAK-903  AK-903[2m  authority unknown[0m[38;2;255;255;255m             [2mobject       [0m[38;2;255;255;255mAK-902
+
+                            [1mACTIONS [0;2m[38;2;255;255;255mfor focus:gauntlet:WorkItem:AK-902[0m[38;2;255;255;255m              [1mSTATE [0m[38;2;255;255;255m
+                            [1m× UNIT.RESOLVE BLOCKED: actor_authentication_required, [0m[38;2;255;255;255m [2mtitle        [0m[38;2;255;255;255mAK-902
+                            [1m× UNIT.RETRY BLOCKED: actor_authentication_required, re[0m[38;2;255;255;255m [2mphase        [0m[38;2;255;255;255mcontained
+                            [2m1 more in command palette (state.refresh: not_action_ad[0m[38;2;255;255;255m [2mstatus       [0m[38;2;255;255;255mopen
+                                                                                    [2mauthority    [0m[38;2;255;255;255munknown
+                                                                                    [2mblast radius [0m[38;2;255;255;255munknown
+                                                                                    [2mupdated      [0m[38;2;255;255;255m1789142941209
+
+                                                                                    [1mRELATIONS [0m[38;2;255;255;255m
+                                                                                    [2mno relations in the current projecti
+[0m[38;2;255;255;255m
+                                                                                    [1;2mAUTHORITY [0m[38;2;255;255;255m
+                                                                                    [2mactor        [0m[38;2;255;255;255munknown
+                                                                                    [2moperation    [0m[38;2;255;255;255munavailable
+                                                                                    [2mresource     [0m[38;2;255;255;255mAK-902
+                                                                                    [2mdecision     [0m[38;2;255;255;255munavailable
+                                                                                    [2mblast_radius [0m[38;2;255;255;255munknown
+                                                                                    [2mbasis        [0m[38;2;255;255;255mgeneration gen-1 ·
+                                                                                                 source gauntlet @
+                                                                                                 cursor cursor-1wl7
+
+                                                                                    [1mEVIDENCE [0m[38;2;255;255;255m
+                                                                                    [2m! none in the current projection[0m[38;2;255;255;255m
+
+                                                                                    [1mPROVENANCE [0m[38;2;255;255;255m
+                                                                                    [2mgeneration   [0m[38;2;255;255;255mgen-1
+[2mCOMPOSER [0;1m[38;2;255;255;255m[message] → workbench[0m[38;2;255;255;255m
+>
+[2mmessage text does not execute or change mode · enter submits[0m[38;2;255;255;255m
+[2mkeys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e com

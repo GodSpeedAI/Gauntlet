@@ -1,0 +1,20 @@
+disconnected · Gauntlet · gauntlet/canonical surface · gen 0aa0fbd7 · Ca
+
+! Gauntlet needs at least 80x24. This terminal is 72x20.
+Resize the window, or press q to quit.
+(admitted work keeps running)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,30 @@
+disconnected · Gauntlet · gauntlet/canonical surface · gen 0aa0fbd7 · Case
+
+▸ PRIMARY [WORK]
+WORK: what are we trying to move?
+0 units · 0 blocked 0 in flight · budget: unavailable (host budget read not bound to this projection
+
+No authoritative source has reported.
+Start 'gauntlet serve' and bind a source, then sync a generation.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select
+keys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit

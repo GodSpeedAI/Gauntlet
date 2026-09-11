@@ -8,7 +8,7 @@ product
 
 Solo operator supervising long-horizon agent work from a terminal. The operator runs a bounded work contract, leaves it executing, returns to inspect what actually happened, and settles whether the target stayed fixed while the work changed underneath it.
 
-Context: Bun + OpenTUI terminal workbench, typically 120x40 down to 80x24 minimum geometry. Keyboard-first, no mouse assumption, no browser DOM conventions. The operator's scarcest resource is attention across Foci (Case, WorkItem, Run, Agent, Evidence, File, AttentionItem), not pixels.
+Context: Bun + OpenTUI terminal workbench, typically 120x40 down to 80x24 minimum geometry. Keyboard-first with additive GUI-grade mouse interaction: the terminal is the renderer, not the interaction metaphor, and mouse gestures must converge on the same semantic commands as keys. No browser DOM conventions. The operator's scarcest resource is attention across Foci (Case, WorkItem, Run, Agent, Evidence, File, AttentionItem), not pixels.
 
 Job to be done: know where I am, what is happening, what requires attention, what evidence exists, and what can legitimately be done next. Then spend the next affordable, governable, recoverable move through the canonical gateway.
 
@@ -51,4 +51,4 @@ What this should explicitly NOT look like:
 
 ## Accessibility & Inclusion
 
-Terminal baseline. Keyboard-only operation with stable focus identity. Minimum 80x24 geometry supported, 120x40 as the primary composition target. Consequential state remains intelligible in monochrome through glyph plus label plus emphasis (DSN-002 discipline). No color-only signaling. Text fitting uses terminal cell width, not UTF-16 length. Standalone Escape, Shift-Tab, and resize paths must resolve without indefinite waits.
+Terminal baseline. Keyboard-only operation with stable focus identity; every keyboard path remains fully usable when mouse is unavailable. Minimum 80x24 geometry supported, 120x40 as the primary composition target. Consequential state remains intelligible in monochrome through glyph plus label plus emphasis (DSN-002 discipline). No color-only signaling. Text fitting uses terminal cell width, not UTF-16 length. Standalone Escape, Shift-Tab, and resize paths must resolve without indefinite waits.

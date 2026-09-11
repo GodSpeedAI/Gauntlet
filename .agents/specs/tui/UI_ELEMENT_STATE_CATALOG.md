@@ -4,7 +4,7 @@
 
 > **Purpose:** Make the Gauntlet TUI difficult to misimplement during a radical GUI-grade redesign.
 
-> **Applies to:** React + OpenTUI workbench, mouse/keyboard interaction, traceability UI (the Trace surface over Gauntlet execution history and RealityTrace), Prime/Jupyter projections, DomainForge projections, and plugin-contributed UI.
+> **Applies to:** React + OpenTUI workbench, mouse/keyboard interaction, traceability UI (the Trace surface over Gauntlet execution history and RealityTrace), Prime Python REPL projections, DomainForge projections, and plugin-contributed UI.
 
 > **Upstream authority:** `gauntlet-tui-prime-workbench.spec.yaml`, `DESIGN.md`, the GodSpeed Visual Language, and canonical Gauntlet/Prime/DomainForge semantics.
 
@@ -139,7 +139,7 @@ The UI MUST know which layer is allowed to change which truth.
 | Prime session lifecycle | Prime host | Project/reattach/request control through adapter. |
 | Prime child lifecycle | Prime host | Project admission and later result separately. |
 | Prime messages | Prime mailbox | Project communication, not completion. |
-| Jupyter kernel lifecycle | Prime/Jupyter host | Project, request control through adapter. |
+| Prime Python REPL kernel lifecycle | Prime Python REPL host | Project, request control through adapter. |
 | Kernel variables | Kernel | Project ephemeral/pinned/artifactized references. |
 | Domain semantic identity | DomainForge when present | Project concepts/relations/policies. |
 | Files/repository | Filesystem/VCS | Project; mutations go through canonical operations/tools. |
@@ -206,7 +206,7 @@ A renderer MUST NOT promote interaction or presentation state into canonical lif
 
 **Truth owner:** Composite; no single canonical store.
 
-**Purpose:** Presents the currently reachable Gauntlet + Prime + Jupyter + repository + DomainForge + plugin world.
+**Purpose:** Presents the currently reachable Gauntlet + Prime + repository + DomainForge + plugin world.
 
 **Contains:**
 
@@ -567,7 +567,7 @@ Activity and data state are independent.
 | FilesView | What project artifacts are involved? | File, Diff, Artifact |
 | DomainView | What semantic world are we operating against? | DomainConcept, DomainRelation, Policy |
 | KernelView | What live computation exists? | KernelObject, KernelExecution |
-| HarnessView | What reusable harness capabilities/revisions exist? | Skill, HarnessRevision |
+| HarnessView | (roadmap-only — DSN-015; must not register while the boundary holds) | Skill, HarnessRevision |
 | AttentionView | What genuinely requires operator judgment? | AttentionItem |
 | SettingsView | What operator/render configuration is active? | settings |
 | HelpView | How can the current application be operated? | documentation/commands |
@@ -1659,12 +1659,12 @@ Image support is enrichment only. Understanding/operation must survive without i
 
 ---
 
-# 19. Jupyter/kernel elements
+# 19. Kernel elements
 
 ## 19.1 `KernelObject`
 **Kind:** Focus / computational working object
 
-**Truth owner:** persistent IPython/Jupyter kernel until artifactized/admitted
+**Truth owner:** persistent Prime Python REPL kernel until artifactized/admitted
 
 ### Classification machine
 
@@ -1687,7 +1687,7 @@ EVIDENCE
 ## 19.2 `KernelExecution`
 **Kind:** Focus / computation event
 
-**Truth owner:** Jupyter/Prime host
+**Truth owner:** Prime host (Python REPL)
 
 Possible states:
 
@@ -1751,6 +1751,8 @@ Only materialize when a Case is bound to relevant SEA semantics.
 ---
 
 # 21. Harness/runtime elements
+
+**Status:** `Skill` and `HarnessRevision` (21.1–21.2) are roadmap-only per `DESIGN.md` DSN-015 (`prime_harness_metabolization_ui`); no harness View or harness interaction may be registered until that boundary is lifted. `Plugin` (21.3) is not roadmap-bound.
 
 ## 21.1 `Skill`
 **Kind:** Focus / reusable agent capability representation
@@ -2405,7 +2407,7 @@ It does **not** have authority to redefine:
 - Settlement;
 - Capability;
 - canonical command/admission path;
-- Prime/Jupyter lifecycle semantics;
+- Prime Python REPL lifecycle semantics;
 - Focus identity;
 - affordance legitimacy;
 - truth ownership.

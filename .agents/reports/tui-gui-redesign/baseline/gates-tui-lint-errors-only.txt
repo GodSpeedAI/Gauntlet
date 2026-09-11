@@ -1,0 +1,165 @@
+src/cell-fit.test.ts:1:1 assist/source/organizeImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Sort these imports.
+  
+   > 1 │ import { describe, expect, it } from "bun:test";
+       │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   > 2 │ import { createTestRenderer } from "@opentui/core/testing";
+   > 3 │ import {
+   > 4 │   cellWidth,
+        ...
+  > 15 │ } from "./testing/shell-harness";
+  > 16 │ import { FocusRef } from "./focus";
+       │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    17 │ 
+    18 │ /** ESC as code, so no raw escape byte ever lives in test sources. */
+  
+  i Safe fix: Organize imports and exports (Biome)
+  
+     1  1 │   import { describe, expect, it } from "bun:test";
+     2  2 │   import { createTestRenderer } from "@opentui/core/testing";
+     3    │ - import·{
+     4    │ - ··cellWidth,
+     5    │ - ··fitCellText,
+     6    │ - ··sanitizeCellText,
+     7    │ - }·from·"./geometry";
+     8    │ - import·{·TerminalShellRenderer·}·from·"./terminal-renderer";
+     9    │ - import·{
+    10    │ - ··FULL_DIMS,
+    11    │ - ··modelWiredSession,
+    12    │ - ··renderOptions,
+    13    │ - ··seededModel,
+    14    │ - ··unitEvent,
+    15    │ - }·from·"./testing/shell-harness";
+    16    │ - import·{·FocusRef·}·from·"./focus";
+        3 │ + import·{·FocusRef·}·from·"./focus";
+        4 │ + import·{
+        5 │ + ··cellWidth,
+        6 │ + ··fitCellText,
+        7 │ + ··sanitizeCellText,
+        8 │ + }·from·"./geometry";
+        9 │ + import·{·TerminalShellRenderer·}·from·"./terminal-renderer";
+       10 │ + import·{
+       11 │ + ··FULL_DIMS,
+       12 │ + ··modelWiredSession,
+       13 │ + ··renderOptions,
+       14 │ + ··seededModel,
+       15 │ + ··unitEvent,
+       16 │ + }·from·"./testing/shell-harness";
+    17 17 │   
+    18 18 │   /** ESC as code, so no raw escape byte ever lives in test sources. */
+  
+
+src/cell-fit.test.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   import { describe, expect, it } from "bun:test";
+     2  2 │   import { createTestRenderer } from "@opentui/core/testing";
+     3    │ - import·{
+     4    │ - ··cellWidth,
+     5    │ - ··fitCellText,
+     6    │ - ··sanitizeCellText,
+     7    │ - }·from·"./geometry";
+        3 │ + import·{·cellWidth,·fitCellText,·sanitizeCellText·}·from·"./geometry";
+     8  4 │   import { TerminalShellRenderer } from "./terminal-renderer";
+     9  5 │   import {
+  
+
+src/palette-grouping-confirm.test.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     75  75 │       const session = new ShellSession(HOST, FULL_DIMS);
+     76  76 │       session.key("p", model.getSnapshot());
+     77     │ - ····const·entries·=·paletteEntries(
+     78     │ - ······session.state,
+     79     │ - ······model.getSnapshot(),
+     80     │ - ······{},
+     81     │ - ····);
+         77 │ + ····const·entries·=·paletteEntries(session.state,·model.getSnapshot(),·{});
+     82  78 │       const agentsIndex = entries.findIndex(
+     83  79 │         (entry) => entry.type === "view" && entry.view === "agents",
+  
+
+src/preview-grid.test.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+     1  1 │   import { describe, expect, it } from "bun:test";
+     2    │ - import·{
+     3    │ - ··clipCell,
+     4    │ - ··PREVIEW_COMPACT_COLUMNS,
+     5    │ - ··PREVIEW_FULL_COLUMNS,
+     6    │ - }·from·"./geometry";
+        2 │ + import·{·clipCell,·PREVIEW_COMPACT_COLUMNS,·PREVIEW_FULL_COLUMNS·}·from·"./geometry";
+     7  3 │   
+     8  4 │   describe("preview grid extraction (single layout truth)", () => {
+  
+
+src/preview.ts format ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Formatter would have printed the following content:
+  
+    345 345 │         if (i < escalated.length) {
+    346 346 │           const t = escalated[i];
+    347     │ - ··········lines.push(`│···•·Ticket:·${clipCell(String(t),·PREVIEW_COMPACT_COLUMNS.ticket)}·│`);
+        347 │ + ········lines.push(`│···•·Ticket:·${clipCell(String(t),·PREVIEW_COMPACT_COLUMNS.ticket)}·│`);
+    348 348 │         } else {
+    349 349 │           lines.push("│                                                                        │");
+    ······· │ 
+    355 355 │       if (focusedUnit) {
+    356 356 │         const st = formatStatus(focusedUnit.status);
+    357     │ - ········lines.push(`│·Unit·ID:······${clipCell(focusedUnit.unit_id,·PREVIEW_COMPACT_COLUMNS.fieldId)}·│`);
+    358     │ - ········lines.push(`│·Status:·······${st.glyph}·${clipCell(st.label,·PREVIEW_COMPACT_COLUMNS.fieldStatus)}·│`);
+    359     │ - ········lines.push(`│·Tier:·········${clipCell(focusedUnit.tier·??·"default",·PREVIEW_COMPACT_COLUMNS.fieldId)}·│`);
+        357 │ + ······lines.push(
+        358 │ + ········`│·Unit·ID:······${clipCell(focusedUnit.unit_id,·PREVIEW_COMPACT_COLUMNS.fieldId)}·│`,
+        359 │ + ······);
+        360 │ + ······lines.push(
+        361 │ + ········`│·Status:·······${st.glyph}·${clipCell(st.label,·PREVIEW_COMPACT_COLUMNS.fieldStatus)}·│`,
+        362 │ + ······);
+        363 │ + ······lines.push(
+        364 │ + ········`│·Tier:·········${clipCell(focusedUnit.tier·??·"default",·PREVIEW_COMPACT_COLUMNS.fieldId)}·│`,
+        365 │ + ······);
+    360 366 │         lines.push("│ Evidence:     (metadata preview mode)                                  │");
+    361 367 │         lines.push("│ Explanation:  unavailable (T01 read contract required)                 │");
+  
+
+src/terminal-renderer.ts:1:1 assist/source/organizeImports  FIXABLE  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Sort these imports.
+  
+   > 1 │ import {
+       │ ^^^^^^^^
+   > 2 │   BoxRenderable,
+   > 3 │   type CliRenderer,
+   > 4 │   type KeyEvent,
+        ...
+  > 11 │ import type { RenderedShell } from "./shell";
+  > 12 │ import { cellWidth, fitCellText, sanitizeCellText } from "./geometry";
+       │ ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    13 │ import { resolveToken } from "./theme";
+    14 │ 
+  
+  i Safe fix: Organize imports and exports (Biome)
+  
+      8   8 │     TextRenderable,
+      9   9 │   } from "@opentui/core";
+     10     │ - import·type·{·RenderedLine,·RenderedSpan·}·from·"./render-tree";
+     11     │ - import·type·{·RenderedShell·}·from·"./shell";
+     12     │ - import·{·cellWidth,·fitCellText,·sanitizeCellText·}·from·"./geometry";
+         10 │ + import·{·cellWidth,·fitCellText,·sanitizeCellText·}·from·"./geometry";
+         11 │ + import·type·{·RenderedLine,·RenderedSpan·}·from·"./render-tree";
+         12 │ + import·type·{·RenderedShell·}·from·"./shell";
+     13  13 │   import { resolveToken } from "./theme";
+     14  14 │   
+  
+
+Checked 142 files in 292ms. No fixes applied.
+Found 6 errors.
+check ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  × Some errors were emitted while running checks.
+  
+

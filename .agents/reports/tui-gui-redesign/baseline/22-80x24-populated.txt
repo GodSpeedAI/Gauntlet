@@ -1,0 +1,24 @@
+connected · Gauntlet · gauntlet/canonical surface · gen gen-1 · Case
+
+▸ PRIMARY [WORK]
+WORK: what are we trying to move?
+3 units · 0 blocked 0 in flight · budget: unavailable (host budget read not boun
+
+? OPEN    AK-901  AK-901  authority unknown
+? OPEN    AK-902  AK-902  authority unknown
+? OPEN    AK-903  AK-903  authority unknown
+
+ACTIONS for focus:gauntlet:WorkItem:AK-902
+× UNIT.RESOLVE BLOCKED: actor_authentication_required, no_open_ticket · next: au
+× UNIT.RETRY BLOCKED: actor_authentication_required, readiness_not_earned · next
+1 more in command palette (state.refresh: not_action_admitted)
+
+
+
+
+
+COMPOSER [message] → workbench
+> hello draft
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select
+keys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit

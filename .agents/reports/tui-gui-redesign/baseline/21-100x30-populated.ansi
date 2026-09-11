@@ -1,0 +1,30 @@
+[2m[38;2;255;255;255mconnected · [0;1m[38;2;255;255;255mGauntlet [0m[38;2;255;255;255m· gauntlet/canonical surface[2m · gen gen-1 [0m[38;2;255;255;255m· Case
+
+▸ [1mPRIMARY [WORK][0m[38;2;255;255;255m
+[1mWORK: what are we trying to move?[0m[38;2;255;255;255m
+[2m3 units · 0 blocked 0 in flight · budget: unavailable (host budget read not bound to this projection
+
+? [0;1m[38;2;255;255;255mOPEN    [0m[38;2;255;255;255mAK-901  AK-901[2m  authority unknown[0m[38;2;255;255;255m
+? [1mOPEN    [0m[38;2;255;255;255mAK-902  AK-902[2m  authority unknown[0m[38;2;255;255;255m
+? [1mOPEN    [0m[38;2;255;255;255mAK-903  AK-903[2m  authority unknown[0m[38;2;255;255;255m
+
+[1mACTIONS [0;2m[38;2;255;255;255mfor focus:gauntlet:WorkItem:AK-902[0m[38;2;255;255;255m
+[1m× UNIT.RESOLVE BLOCKED: actor_authentication_required, no_open_ticket[0;2m[38;2;255;255;255m · next: authenticate an operat
+[1m× UNIT.RETRY BLOCKED: actor_authentication_required, readiness_not_earned[0;2m[38;2;255;255;255m · next: authenticate an op
+1 more in command palette (state.refresh: not_action_admitted)[0m[38;2;255;255;255m
+
+
+
+
+
+
+
+
+
+
+
+[2mCOMPOSER [0;1m[38;2;255;255;255m[message] → workbench[0m[38;2;255;255;255m
+> hello draft
+[2mmessage text does not execute or change mode · enter submits[0m[38;2;255;255;255m
+[2mkeys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select[0m[38;2;255;255;255m
+[2mkeys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit[0m[38;2;255;255;255m
