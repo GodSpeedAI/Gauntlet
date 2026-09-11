@@ -1,6 +1,18 @@
 # IN-FLIGHT — TUI GUI-grade redesign (operator-directed, post-plan)
 
-Updated: 2026-09-11 (afternoon session — 5-agent parallel increment run).
+Updated: 2026-09-11 (final push — remaining queue closed; 11 commits total across the two sessions).
+
+## FINAL STATE (this push): c624f60 + f0523f8
+- §30 activation gate LANDED with the T23 coherent update (shellDrive synthesizes pre-activation refusals from the fresh descriptor's canonical reason vocabulary; racing teeth preserved; staging fixtures now activatable).
+- ActionControl object (action-control.ts) renders the Work bar + Inspector AFFORDANCES (byte-identical text, all DSN pins green).
+- V2 closed: Compact drawers (n/i, Esc closes, clicks route through the same select edge) — Inspector reachable at 80–119 cols for the first time.
+- Bottom surface renders (available-candidates tabs, REQ-AFF-004) and collapses FIRST at short heights (heightBand consumed; three columns survive).
+- Back/forward ([/]) over the pure navigation-history module; session commits every location change (key + pointer).
+- Navigator viewport follow (V4) — plus a latent window-index off-by-start bug fixed.
+- Host notice carries refusal reason codes (V5 partial).
+- RealityTrace lane projection module ready for host binding.
+- 19 after-state captures incl. drawers, bottom, live back/forward, affordance query.
+- Gates: tsc clean; 922 tests / 22 gated skips / 0 fail; biome 6-error pre-existing baseline; preflight PASS.
 
 ## What this task is
 
