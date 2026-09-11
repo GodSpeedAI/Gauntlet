@@ -30,8 +30,15 @@
 import type {
   AffordanceObservation,
   AffordanceSessionContext,
+  AffordanceStatus,
   PaymentEstimate,
 } from "./affordance";
+import {
+  type CommandKeyContext,
+  commandForKey,
+  commandShortcut,
+  type SemanticCommandId,
+} from "./command-registry";
 import type {
   ComposerMode,
   ComposerReplacement,
@@ -245,12 +252,16 @@ export type PaletteEntry =
       readonly view: ViewId;
       readonly status: "available" | "absent";
       readonly reason?: string;
+      /** Semantic command this row activates (ICM §28: rows expose identity). */
+      readonly commandId: SemanticCommandId;
+      /** Default shortcut for the command, when one exists (ICM §28). */
+      readonly shortcut: string | null;
     }
   | {
       readonly type: "affordance";
       readonly operation: string;
       readonly ref: FocusRef;
-      readonly status: string;
+      readonly status: AffordanceStatus;
       readonly reasons: readonly string[];
       readonly outcome: string;
     }
@@ -502,11 +513,30 @@ export interface PaletteContext {
   readonly paymentEstimates?: Readonly<Record<string, PaymentEstimate>> | undefined;
 }
 
-const VIEW_SWITCH_KEYS: Readonly<Record<string, PrimaryViewId>> = Object.freeze({
-  "1": "work",
-  "2": "chat",
-  "3": "trace",
+/** Primary-view activation targets keyed by the view.activate.<view> suffix.
+ * The command id is type-validated (SemanticCommandId), so the suffix is
+ * always a primary view; lower/promotable views activate through the palette. */
+const VIEW_COMMAND_TARGETS: Readonly<Record<string, PrimaryViewId>> = Object.freeze({
+  work: "work",
+  chat: "chat",
+  trace: "trace",
 });
+
+/** The semantic command that activates a view (registry-keyed, ICM §4). */
+function viewCommandFor(view: ViewId): SemanticCommandId {
+  switch (view) {
+    case "work":
+      return "view.activate.work";
+    case "chat":
+      return "view.activate.chat";
+    case "trace":
+      return "view.activate.trace";
+    default:
+      // Lower/promotable views have no dedicated activation command yet;
+      // their palette rows carry the id of the generic activation path.
+      return "ui.palette.activate";
+  }
+}
 
 function visibleSurfaces(geo: GeometryClass): readonly SurfaceId[] {
   if (geo === "Full" || geo === "Wide") {
@@ -543,12 +573,20 @@ export function paletteEntries(
 ): readonly PaletteEntry[] {
   const viewRows: PaletteEntry[] = availableViews(snapshot).map((availability) =>
     availability.status === "available"
-      ? ({ type: "view", view: availability.view, status: "available" } as PaletteEntry)
+      ? ({
+          type: "view",
+          view: availability.view,
+          status: "available",
+          commandId: viewCommandFor(availability.view),
+          shortcut: commandShortcut(viewCommandFor(availability.view)),
+        } as PaletteEntry)
       : ({
           type: "view",
           view: availability.view,
           status: "absent",
           reason: availability.reason,
+          commandId: viewCommandFor(availability.view),
+          shortcut: commandShortcut(viewCommandFor(availability.view)),
         } as PaletteEntry),
   );
 
@@ -595,9 +633,10 @@ export function paletteEntries(
 }
 
 /**
- * Pure keyboard routing. Returns the next shell state plus the effects the
- * host must perform. No model access, no side effects here. `paletteContext`
- * is only consulted for palette affordance activation.
+ * Pure keyboard routing: keys are one representation of intent (ICM §34). The
+ * physical key resolves through the command registry to a SemanticCommandId,
+ * then `handleCommand` performs it. Pointer gestures and future menus call
+ * `handleCommand` with the same ids, so representations cannot fork behavior.
  */
 export function handleKey(
   state: ShellState,
@@ -605,140 +644,66 @@ export function handleKey(
   key: string,
   paletteContext: PaletteContext = {},
 ): { state: ShellState; effects: readonly ShellEffect[] } {
+  const context: CommandKeyContext = {
+    surface:
+      classifyGeometry(state.dimensions) === "BelowMinimum"
+        ? "below_minimum"
+        : state.paletteOpen
+          ? "palette_open"
+          : "shell",
+  };
+  const command = commandForKey(key, context);
+  if (command === null) {
+    return { state, effects: [] };
+  }
+  return handleCommand(state, snapshot, command, paletteContext);
+}
+
+/**
+ * The single semantic dispatcher (ICM §4/§35 convergence point). Keyboard,
+ * pointer, palette rows, and future menus all reduce to this function; there
+ * is no second behavior pipeline. No model access, no side effects here.
+ */
+export function handleCommand(
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+  command: SemanticCommandId,
+  paletteContext: PaletteContext = {},
+): { state: ShellState; effects: readonly ShellEffect[] } {
   const geo = classifyGeometry(state.dimensions);
 
   // Below the minimum the recoverable prompt owns the input (DSN-007).
   if (geo === "BelowMinimum") {
-    return key === "q" ? { state, effects: [{ type: "quit" }] } : { state, effects: [] };
+    return command === "app.quit" ? { state, effects: [{ type: "quit" }] } : { state, effects: [] };
   }
 
   if (state.paletteOpen) {
-    switch (key) {
-      case "escape":
-        // Escape backs out one level: staged confirm, then the palette itself.
-        // It never cancels admitted work.
-        return {
-          state:
-            state.pendingConfirm !== null
-              ? Object.freeze({ ...state, pendingConfirm: null })
-              : Object.freeze({ ...state, paletteOpen: false, focusedSurface: "Primary" }),
-          effects: [],
-        };
-      case "p":
-        return {
-          state: Object.freeze({
-            ...state,
-            paletteOpen: false,
-            focusedSurface: "Primary",
-            pendingConfirm: null,
-          }),
-          effects: [],
-        };
-      case "up":
-      case "down": {
-        // Navigation walks the same entry list activation uses, so the
-        // highlighted row and the Enter target can never diverge. Moving
-        // drops any staged confirm.
-        const entries = paletteEntries(state, snapshot, paletteContext);
-        const last = Math.max(0, entries.length - 1);
-        const delta = key === "up" ? -1 : 1;
-        return {
-          state: Object.freeze({
-            ...state,
-            paletteIndex: Math.min(Math.max(0, state.paletteIndex + delta), last),
-            pendingConfirm: null,
-          }),
-          effects: [],
-        };
-      }
-      case "enter": {
-        const entries = paletteEntries(state, snapshot, paletteContext);
-        const entry = entries[state.paletteIndex];
-        if (entry === undefined || entry.type === "header") {
-          return { state, effects: [] };
-        }
-        if (entry.type === "view" && entry.status === "available") {
-          return {
-            state: switchView(
-              Object.freeze({
-                ...state,
-                paletteOpen: false,
-                focusedSurface: "Primary",
-                pendingConfirm: null,
-              }),
-              entry.view,
-            ),
-            effects: [],
-          };
-        }
-        if (entry.type === "affordance") {
-          // Consequential operations never fire on a single Enter: the first
-          // stages a confirm naming the invoke, the second performs it. The
-          // staged pair revalidates against the fresh entry list, so a stale
-          // confirm can never invoke a different operation.
-          const staged = state.pendingConfirm;
-          if (
-            staged !== null &&
-            staged.operation === entry.operation &&
-            staged.ref.id === entry.ref.id
-          ) {
-            return {
-              state: Object.freeze({
-                ...state,
-                paletteOpen: false,
-                focusedSurface: "Primary",
-                pendingConfirm: null,
-              }),
-              effects: [{ type: "invoke_affordance", operation: entry.operation, ref: entry.ref }],
-            };
-          }
-          return {
-            state: Object.freeze({
-              ...state,
-              pendingConfirm: Object.freeze({ operation: entry.operation, ref: entry.ref }),
-            }),
-            effects: [],
-          };
-        }
-        if (entry.type === "focus") {
-          return {
-            state: Object.freeze({
-              ...state,
-              paletteOpen: false,
-              focusedSurface: "Primary",
-              pendingConfirm: null,
-              location: Object.freeze({ ...state.location, focus: entry.ref }),
-            }),
-            effects: [{ type: "select_focus", ref: entry.ref }],
-          };
-        }
-        return {
-          state: Object.freeze({ ...state, pendingConfirm: null }),
-          effects: [],
-        };
-      }
-      default:
-        return { state, effects: [] };
+    return handlePaletteCommand(state, snapshot, command, paletteContext);
+  }
+
+  // Shell context: palette commands are inert while the palette is closed.
+  switch (command) {
+    case "app.quit":
+      return { state, effects: [{ type: "quit" }] };
+    case "view.activate.work":
+    case "view.activate.chat":
+    case "view.activate.trace": {
+      const switchTo = VIEW_COMMAND_TARGETS[command.slice("view.activate.".length)];
+      return switchTo !== undefined
+        ? { state: switchView(state, switchTo), effects: [] }
+        : { state, effects: [] };
     }
-  }
-
-  const switchTo = VIEW_SWITCH_KEYS[key];
-  if (switchTo !== undefined) {
-    return { state: switchView(state, switchTo), effects: [] };
-  }
-
-  switch (key) {
-    case "shift+tab":
+    case "ui.surface.prev":
       return {
         state: Object.freeze({ ...state, focusedSurface: nextSurface(state, geo, -1) }),
         effects: [],
       };
-    case "tab":
+    case "ui.surface.next":
       return {
         state: Object.freeze({ ...state, focusedSurface: nextSurface(state, geo) }),
         effects: [],
       };
-    case "escape":
+    case "ui.dismiss":
       // Escape dismisses local UI (REQ-UX-004): blur auxiliary surfaces back
       // to the Primary surface. It never cancels admitted work.
       return {
@@ -748,7 +713,7 @@ export function handleKey(
             : Object.freeze({ ...state, focusedSurface: "Primary" }),
         effects: [],
       };
-    case "p":
+    case "ui.palette.open":
       return {
         state: Object.freeze({
           ...state,
@@ -758,16 +723,16 @@ export function handleKey(
         }),
         effects: [],
       };
-    case "up":
-    case "down": {
-      const delta = key === "up" ? -1 : 1;
+    case "nav.move.prev":
+    case "nav.move.next": {
+      const delta = command === "nav.move.prev" ? -1 : 1;
       if (state.focusedSurface === "Navigator") {
         const rows = navigatorOutline(snapshot);
         const bound = Math.max(rows.length - 1, 0);
         return {
           state: Object.freeze({
             ...state,
-            navigatorIndex: Math.min(Math.max(state.navigatorIndex + delta, 0), bound),
+            navigatorIndex: Math.min(Math.max(0, state.navigatorIndex + delta, 0), bound),
           }),
           effects: [],
         };
@@ -787,7 +752,7 @@ export function handleKey(
       }
       return { state, effects: [] };
     }
-    case "enter": {
+    case "nav.focus.select": {
       if (state.focusedSurface === "Navigator") {
         const row = navigatorOutline(snapshot)[state.navigatorIndex];
         if (row?.ref !== undefined && row.ref !== null) {
@@ -803,7 +768,7 @@ export function handleKey(
       }
       return { state, effects: [] };
     }
-    case "h": {
+    case "nav.horizon.hoist": {
       const target = snapshot.focus ?? state.location.focus;
       if (target !== null) {
         return {
@@ -816,7 +781,7 @@ export function handleKey(
       }
       return { state, effects: [] };
     }
-    case "u": {
+    case "nav.horizon.dehoist": {
       if (snapshot.active_horizon !== null || state.location.horizon !== null) {
         return {
           state: Object.freeze({
@@ -828,10 +793,132 @@ export function handleKey(
       }
       return { state, effects: [] };
     }
-    case "e":
+    case "ui.composer.focus":
       return { state: Object.freeze({ ...state, focusedSurface: "Composer" }), effects: [] };
-    case "q":
-      return { state, effects: [{ type: "quit" }] };
+    default:
+      return { state, effects: [] };
+  }
+}
+
+/** Palette-open context: the palette owns the keyboard (shell keys inert). */
+function handlePaletteCommand(
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+  command: SemanticCommandId,
+  paletteContext: PaletteContext,
+): { state: ShellState; effects: readonly ShellEffect[] } {
+  switch (command) {
+    case "ui.palette.dismiss":
+      // Escape backs out one level: staged confirm, then the palette itself.
+      // It never cancels admitted work.
+      return {
+        state:
+          state.pendingConfirm !== null
+            ? Object.freeze({ ...state, pendingConfirm: null })
+            : Object.freeze({ ...state, paletteOpen: false, focusedSurface: "Primary" }),
+        effects: [],
+      };
+    case "ui.palette.close":
+      return {
+        state: Object.freeze({
+          ...state,
+          paletteOpen: false,
+          focusedSurface: "Primary",
+          pendingConfirm: null,
+        }),
+        effects: [],
+      };
+    case "ui.palette.move.prev":
+    case "ui.palette.move.next": {
+      // Navigation walks the same entry list activation uses, so the
+      // highlighted row and the Enter target can never diverge. Moving
+      // drops any staged confirm.
+      const entries = paletteEntries(state, snapshot, paletteContext);
+      const last = Math.max(0, entries.length - 1);
+      const delta = command === "ui.palette.move.prev" ? -1 : 1;
+      return {
+        state: Object.freeze({
+          ...state,
+          paletteIndex: Math.min(Math.max(0, state.paletteIndex + delta), last),
+          pendingConfirm: null,
+        }),
+        effects: [],
+      };
+    }
+    case "ui.palette.activate": {
+      const entries = paletteEntries(state, snapshot, paletteContext);
+      const entry = entries[state.paletteIndex];
+      if (entry === undefined || entry.type === "header") {
+        return { state, effects: [] };
+      }
+      if (entry.type === "view" && entry.status === "available") {
+        return {
+          state: switchView(
+            Object.freeze({
+              ...state,
+              paletteOpen: false,
+              focusedSurface: "Primary",
+              pendingConfirm: null,
+            }),
+            entry.view,
+          ),
+          effects: [],
+        };
+      }
+      if (entry.type === "affordance") {
+        // NOTE (GUI-redesign, increment 5 residual): ICM §30 makes a
+        // VISIBLE_DISABLED row non-activatable; today the palette forwards any
+        // status and the canonical gateway's fresh revalidation denies (the
+        // frozen T23 matrix pins that forwarding, and the racing-revocation
+        // teeth depend on it). The activation gate lands with the
+        // ActionControl increment, together with the state.refresh host
+        // short-circuit (workbench-host.ts invoke) — one coherent change.
+        //
+        // Consequential operations never fire on a single Enter: the first
+        // stages a confirm naming the invoke, the second performs it. The
+        // staged pair revalidates against the fresh entry list, so a stale
+        // confirm can never invoke a different operation.
+        const staged = state.pendingConfirm;
+        if (
+          staged !== null &&
+          staged.operation === entry.operation &&
+          staged.ref.id === entry.ref.id
+        ) {
+          return {
+            state: Object.freeze({
+              ...state,
+              paletteOpen: false,
+              focusedSurface: "Primary",
+              pendingConfirm: null,
+            }),
+            effects: [{ type: "invoke_affordance", operation: entry.operation, ref: entry.ref }],
+          };
+        }
+        return {
+          state: Object.freeze({
+            ...state,
+            pendingConfirm: Object.freeze({ operation: entry.operation, ref: entry.ref }),
+          }),
+          effects: [],
+        };
+      }
+      if (entry.type === "focus") {
+        return {
+          state: Object.freeze({
+            ...state,
+            paletteOpen: false,
+            focusedSurface: "Primary",
+            pendingConfirm: null,
+            location: Object.freeze({ ...state.location, focus: entry.ref }),
+          }),
+          effects: [{ type: "select_focus", ref: entry.ref }],
+        };
+      }
+      return {
+        state: Object.freeze({ ...state, pendingConfirm: null }),
+        effects: [],
+      };
+    }
     default:
       return { state, effects: [] };
   }
@@ -1167,11 +1254,22 @@ export function renderShell(
               : entry.type === "affordance"
                 ? `action ${entry.operation}: ${entry.status}${entry.reasons.length > 0 ? ` (${entry.reasons.join(", ")})` : ""}`
                 : `focus ${entry.label}`;
+          // ICM §28: every result exposes its semantic command id and, where
+          // one exists, the default shortcut that reaches it.
+          const identity =
+            entry.type === "view"
+              ? entry.shortcut !== null
+                ? `${entry.commandId} · ${entry.shortcut}`
+                : entry.commandId
+              : entry.type === "affordance"
+                ? entry.operation
+                : "nav.focus.select";
           return {
             id: `palette.${index}`,
             spans: [
               ...(selected ? [{ text: "◉ ", token: "focus.ring" as const }] : [{ text: "  " }]),
               { text: description, emphasis: selected ? "bold" : "normal" },
+              { text: `  ${identity}`, emphasis: "dim" as const },
             ],
           };
         });
