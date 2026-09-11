@@ -90,7 +90,10 @@ async function run(): Promise<void> {
     renderer = await createCliRenderer({
       exitOnCtrlC: false,
       exitSignals: [],
-      useMouse: false,
+      // Pointer input is additive (DESIGN Input modality): gestures resolve
+      // to the same semantic commands as keys through handlePointer; every
+      // consequential path stays keyboard-reachable.
+      useMouse: true,
       screenMode: "alternate-screen",
       openConsoleOnError: false,
     });
@@ -106,7 +109,15 @@ async function run(): Promise<void> {
       { cols: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
       host.interactions(quit),
     );
-    view = new TerminalShellRenderer(renderer);
+    view = new TerminalShellRenderer(renderer, {
+      onGesture: (gesture) => {
+        session.pointer(gesture, host.model.getSnapshot(), {
+          observation: host.observation,
+          session: host.sessionContext,
+        });
+        draw();
+      },
+    });
     const draw = () => {
       if (stopped || !renderer || !view) return;
       session.resize({ cols: renderer.width, rows: renderer.height });

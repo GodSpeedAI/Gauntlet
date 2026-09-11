@@ -2,6 +2,7 @@ import {
   BoxRenderable,
   type CliRenderer,
   type KeyEvent,
+  type MouseEvent,
   RGBA,
   StyledText,
   TextAttributes,
@@ -9,7 +10,7 @@ import {
 } from "@opentui/core";
 import { cellWidth, fitCellText, sanitizeCellText } from "./geometry";
 import type { RenderedLine, RenderedSpan } from "./render-tree";
-import type { RenderedShell } from "./shell";
+import type { PointerGesture, RenderedShell } from "./shell";
 import { resolveToken } from "./theme";
 
 /** Native parsing owns escape timeouts, modifiers and Unicode decoding. */
@@ -297,6 +298,16 @@ function freezeHitMap(plan: FramePlan): ShellHitMap {
  * not depend on insertion history — base regions occupy disjoint row bands
  * (z 0), the palette background is z 1, and palette rows are z 2, which is
  * exactly the rebuild order's stacking. */
+/** Optional pointer plumbing: when onGesture is supplied, row renderables
+ * forward native mouse events; the renderer resolves them against the last
+ * hit map and emits click/double_click/wheel gestures for the shell's
+ * handlePointer (ICM §35 — gestures, not business mutations). */
+export interface TerminalShellRendererOptions {
+  readonly onGesture?: ((gesture: PointerGesture) => void) | undefined;
+}
+
+const DOUBLE_CLICK_MS = 500;
+
 export class TerminalShellRenderer {
   private frame: BoxRenderable | null = null;
   private frameWidth = -1;
@@ -306,8 +317,81 @@ export class TerminalShellRenderer {
   private overlayBox: BoxRenderable | null = null;
   private createdCount = 0;
   private lastHitMap: ShellHitMap = EMPTY_HIT_MAP;
+  private readonly onGesture: ((gesture: PointerGesture) => void) | null;
+  private pendingDown: { x: number; y: number; button: number; time: number } | null = null;
+  private lastClick: { x: number; y: number; time: number } | null = null;
 
-  constructor(private readonly renderer: CliRenderer) {}
+  constructor(
+    private readonly renderer: CliRenderer,
+    options: TerminalShellRendererOptions = {},
+  ) {
+    this.onGesture = options.onGesture ?? null;
+  }
+
+  /** Shared row mouse handler: synthesizes click/double/wheel gestures. */
+  private readonly rowMouseEvent = (event: MouseEvent): void => {
+    if (this.onGesture === null) return;
+    if (event.type === "scroll") {
+      const direction = event.scroll?.direction === "up" ? -1 : 1;
+      const magnitude = Math.max(1, Math.abs(event.scroll?.delta ?? 1));
+      const hit = this.resolveAt(event.x, event.y);
+      if (hit === null) return;
+      this.onGesture({
+        kind: "wheel",
+        surfaceId: hit.surfaceId,
+        delta: direction * magnitude,
+      });
+      return;
+    }
+    if (event.button !== 0) return; // left button only for now (§35.3 context menu: increment 5)
+    if (event.type === "down") {
+      this.pendingDown = { x: event.x, y: event.y, button: event.button, time: Date.now() };
+      return;
+    }
+    if (event.type !== "up") return;
+    const down = this.pendingDown;
+    this.pendingDown = null;
+    if (down === null || Math.abs(down.x - event.x) > 1 || Math.abs(down.y - event.y) > 1) {
+      return;
+    }
+    const hit = this.resolveAt(event.x, event.y);
+    if (hit === null) return;
+    const now = Date.now();
+    const isDouble =
+      this.lastClick !== null &&
+      now - this.lastClick.time <= DOUBLE_CLICK_MS &&
+      Math.abs(this.lastClick.x - event.x) <= 2 &&
+      Math.abs(this.lastClick.y - event.y) <= 2;
+    this.lastClick = { x: event.x, y: event.y, time: now };
+    this.onGesture({
+      kind: isDouble ? "double_click" : "click",
+      surfaceId: hit.surfaceId,
+      lineId: hit.lineId,
+      x: event.x - hit.regionX,
+    });
+  };
+
+  /** Resolve terminal coordinates against the last hit map. */
+  private resolveAt(
+    x: number,
+    y: number,
+  ): { surfaceId: string; lineId: string | null; regionX: number } | null {
+    for (const region of this.lastHitMap.regions) {
+      if (
+        x >= region.x &&
+        x < region.x + region.width &&
+        y >= region.y &&
+        y < region.y + region.height
+      ) {
+        return {
+          surfaceId: region.surfaceId,
+          lineId: region.rows[y - region.y] ?? null,
+          regionX: region.x,
+        };
+      }
+    }
+    return null;
+  }
 
   destroy(): void {
     this.frame?.destroyRecursively();
@@ -377,6 +461,9 @@ export class TerminalShellRenderer {
             truncate: true,
             zIndex: region.key === "palette" ? 2 : 0,
             content: styledContent(row.spans, row.cols),
+            // The generic onMouse handler is the only one that receives
+            // scroll events (named onScroll does not dispatch in 0.5.11).
+            ...(this.onGesture !== null ? { onMouse: this.rowMouseEvent } : {}),
           });
           this.frame.add(renderable);
           retained[index] = renderable;

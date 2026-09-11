@@ -72,6 +72,7 @@ import {
   streamReturnToLive,
   streamScrollDown,
   streamScrollUp,
+  streamSelect,
   streamVisibleWindow,
   type TraceStream,
 } from "./trace-stream";
@@ -424,6 +425,152 @@ export function worldFromSnapshot(snapshot: FullWorkbenchSnapshot): ProjectionWo
     sessions: snapshot.sessions,
     source_cursors: snapshot.source_cursors,
   };
+}
+
+// --- Pointer gestures (ICM §35: two representations, one behavior) ------------
+
+/** A pointer gesture resolved against the renderer's hit map. surfaceId is
+ * the hit-map region id; lineId the span-tree line id under the pointer
+ * (null when the region row carries no stable identity); x the column
+ * offset within the surface (for span-level resolution, e.g. tabs). */
+export type PointerGesture =
+  | {
+      readonly kind: "click" | "double_click";
+      readonly surfaceId: string;
+      readonly lineId: string | null;
+      readonly x: number;
+    }
+  | { readonly kind: "wheel"; readonly surfaceId: string; readonly delta: number };
+
+/** Wheel scroll step per notch for tall regions (Primary). */
+const PRIMARY_WHEEL_LINES = 3;
+
+/**
+ * The pointer twin of handleKey: gestures resolve to the SAME semantic
+ * commands and effects the keyboard path produces (ICM §24/§35). There is no
+ * second behavior pipeline — consequential effects are the same ShellEffects
+ * through the same outbound edge.
+ */
+export function handlePointer(
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+  gesture: PointerGesture,
+  paletteContext: PaletteContext = {},
+): { state: ShellState; effects: readonly ShellEffect[] } {
+  // Below the minimum the recoverable prompt owns ALL input (DSN-007).
+  if (classifyGeometry(state.dimensions) === "BelowMinimum") {
+    return { state, effects: [] };
+  }
+
+  if (gesture.kind === "wheel") {
+    const steps = Math.abs(gesture.delta);
+    if (steps === 0) return { state, effects: [] };
+    const command =
+      gesture.surfaceId === "Overlay"
+        ? gesture.delta > 0
+          ? ("ui.palette.move.next" as const)
+          : ("ui.palette.move.prev" as const)
+        : gesture.delta > 0
+          ? ("nav.move.next" as const)
+          : ("nav.move.prev" as const);
+    // The region under the pointer governs: Navigator selection moves when
+    // the wheel is over the Navigator, Primary scrolls when over Primary,
+    // and other regions scroll nothing. The keyboard twin is nav.move with
+    // the matching focused surface.
+    let next = state;
+    if (gesture.surfaceId === "Navigator") {
+      next = { ...state, focusedSurface: "Navigator" };
+    } else if (gesture.surfaceId === "Primary") {
+      next = { ...state, focusedSurface: "Primary" };
+    } else if (gesture.surfaceId === "Overlay" && !state.paletteOpen) {
+      return { state, effects: [] };
+    } else if (gesture.surfaceId !== "Overlay") {
+      return { state, effects: [] };
+    }
+    let result = { state: next, effects: [] as readonly ShellEffect[] };
+    const times = gesture.surfaceId === "Primary" ? steps * PRIMARY_WHEEL_LINES : steps;
+    for (let i = 0; i < times; i += 1) {
+      result = handleCommand(result.state, snapshot, command, paletteContext);
+    }
+    // Surface focus itself is presentation-local: restore the caller's focus
+    // so a wheel over Navigator does not steal keyboard focus.
+    return { state: { ...result.state, focusedSurface: state.focusedSurface }, effects: [] };
+  }
+
+  const { kind, surfaceId, lineId } = gesture;
+
+  // Palette rows: click selects the row; double-click activates it — exactly
+  // what arrow keys + Enter do (ICM §35.1/§35.2).
+  if (surfaceId === "Overlay") {
+    if (!state.paletteOpen || lineId === null || !lineId.startsWith("palette.")) {
+      return { state, effects: [] };
+    }
+    const index = Number(lineId.slice("palette.".length));
+    if (!Number.isInteger(index) || index < 0) return { state, effects: [] };
+    const selected: ShellState = Object.freeze({ ...state, paletteIndex: index });
+    if (kind === "click") {
+      return { state: Object.freeze({ ...selected, pendingConfirm: null }), effects: [] };
+    }
+    return handleCommand(selected, snapshot, "ui.palette.activate", paletteContext);
+  }
+
+  if (surfaceId === "Navigator" && lineId !== null) {
+    const rows = navigatorOutline(snapshot);
+    const index = rows.findIndex((row) => row.id === lineId);
+    if (index < 0) return { state, effects: [] };
+    const moved: ShellState = Object.freeze({
+      ...state,
+      navigatorIndex: index,
+      focusedSurface: "Navigator",
+    });
+    // Single click selects (ICM §35.1); rows without a ref only move the cursor.
+    const row = rows[index];
+    if (row?.ref === undefined || row.ref === null) {
+      return { state: moved, effects: [] };
+    }
+    const result = handleCommand(moved, snapshot, "nav.focus.select", paletteContext);
+    return {
+      state: { ...result.state, focusedSurface: state.focusedSurface },
+      effects: result.effects,
+    };
+  }
+
+  if (surfaceId === "Primary") {
+    if (lineId === "primary.tabs") {
+      // Span-level resolution: spans[0] is the "PRIMARY " prefix; tab i spans
+      // follow in primaryTabViews order (one source with the render).
+      const views = primaryTabViews(snapshot);
+      let offset = "PRIMARY ".length;
+      for (const view of views) {
+        const width = `[${view.toUpperCase()}]`.length;
+        if (gesture.x >= offset && gesture.x < offset + width + 1) {
+          return handleCommand(
+            state,
+            snapshot,
+            `view.activate.${view}` as SemanticCommandId,
+            paletteContext,
+          );
+        }
+        offset += width + 1;
+      }
+      return { state, effects: [] };
+    }
+    if (lineId !== null && lineId.startsWith("trace.")) {
+      const id = lineId.slice("trace.".length);
+      // Selection by stable id only (UESC §16.5): the window never moves.
+      return {
+        state: Object.freeze({ ...state, trace: streamSelect(state.trace, id) }),
+        effects: [],
+      };
+    }
+    return { state, effects: [] };
+  }
+
+  if (surfaceId === "Composer") {
+    return handleCommand(state, snapshot, "ui.composer.focus", paletteContext);
+  }
+
+  return { state, effects: [] };
 }
 
 // --- Shell state machine -------------------------------------------------------
@@ -1152,6 +1299,20 @@ function promptLines(dims: Dimensions): readonly RenderedLine[] {
     }));
 }
 
+/** Primary tab order: the three required primaries, then provider-gated
+ * promotable views (REQ-AFF-004). ONE source for the tab strip render AND
+ * pointer span resolution so they can never diverge. */
+function primaryTabViews(snapshot: FullWorkbenchSnapshot): readonly ViewId[] {
+  const primaries: readonly ViewId[] = ["work", "chat", "trace"];
+  const promotable = availableViews(snapshot)
+    .filter(
+      (availability) =>
+        availability.status === "available" && !primaries.includes(availability.view),
+    )
+    .map((availability) => availability.view);
+  return [...primaries, ...promotable];
+}
+
 /**
  * Render the whole shell for one snapshot. Pure: snapshot in, render tree
  * out. Geometry floors are honoured exactly (DSN-007).
@@ -1303,18 +1464,12 @@ export function renderShell(
   // tab, it is absent with a reason reachable via the palette). The ▸ marker
   // rides the ACTIVE tab so activation state survives monochrome and text
   // capture. Tabs are presentation: closing/switching never stops work.
-  const tabOrder: readonly ViewId[] = ["work", "chat", "trace"];
-  const promotable = availableViews(snapshot)
-    .filter(
-      (availability) =>
-        availability.status === "available" && !tabOrder.includes(availability.view),
-    )
-    .map((availability) => availability.view);
+  const tabOrder = primaryTabViews(snapshot);
   const primaryTabs: RenderedLine = {
     id: "primary.tabs",
     spans: [
       { text: "PRIMARY ", emphasis: primaryEmphasis },
-      ...[...tabOrder, ...promotable].map((view, index, all): RenderedSpan => {
+      ...tabOrder.map((view, index, all): RenderedSpan => {
         const active = view === state.location.view;
         return {
           text: `${active ? "▸[" : "["}${view.toUpperCase()}]${
@@ -1616,6 +1771,17 @@ export class ShellSession {
     }
 
     const result = handleKey(this.shell, snapshot, raw, paletteContext);
+    this.shell = result.state;
+    applyShellEffects(result.effects, this.interactions);
+  }
+
+  /** Pointer gestures route through the same reducer edge as keys. */
+  pointer(
+    gesture: PointerGesture,
+    snapshot: FullWorkbenchSnapshot,
+    paletteContext: PaletteContext = {},
+  ): void {
+    const result = handlePointer(this.shell, snapshot, gesture, paletteContext);
     this.shell = result.state;
     applyShellEffects(result.effects, this.interactions);
   }
