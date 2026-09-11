@@ -4,6 +4,7 @@ import { resolveConfig } from "./config";
 import { lineText } from "./render-tree";
 import { ShellSession } from "./shell";
 import { TerminalShellRenderer, terminalKey } from "./terminal-renderer";
+import { detectColorCapability, resolveMotionPreference } from "./theme";
 import { WorkbenchHost } from "./workbench-host";
 
 async function run(): Promise<void> {
@@ -19,12 +20,10 @@ async function run(): Promise<void> {
     stopped = true;
     finish();
   };
-  const session = new ShellSession(
-    { workspace: { workspace: "gauntlet", reference: "canonical surface" } },
-    { cols: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
-    host.interactions(quit),
-  );
-  const shell = () => {
+  // Motion comes from the environment alone (DSN-013); colour capability is
+  // detected per terminal below — never assumed truecolor (V6 fix).
+  const motion = resolveMotionPreference(process.env);
+  const shell = (session: ShellSession) => {
     const rendered = session.render(host.model.getSnapshot(), {
       observation: host.observation,
       session: host.sessionContext,
@@ -55,9 +54,18 @@ async function run(): Promise<void> {
     };
   };
   if (process.stdin.isTTY !== true || process.stdout.isTTY !== true) {
+    const session = new ShellSession(
+      {
+        workspace: { workspace: "gauntlet", reference: "canonical surface" },
+        motion,
+        colorCapability: detectColorCapability(process.env),
+      },
+      { cols: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
+      host.interactions(quit),
+    );
     try {
       await host.refresh();
-      const frame = shell();
+      const frame = shell(session);
       process.stdout.write(
         [
           lineText(frame.header),
@@ -86,11 +94,23 @@ async function run(): Promise<void> {
       screenMode: "alternate-screen",
       openConsoleOnError: false,
     });
+    // Colour capability is detected only after the renderer exists: the live
+    // terminal RGB report wins over env sniffing, and NO_COLOR /
+    // GAUNTLET_WORKBENCH_COLOR still override it (V6 fix).
+    const session = new ShellSession(
+      {
+        workspace: { workspace: "gauntlet", reference: "canonical surface" },
+        motion,
+        colorCapability: detectColorCapability(process.env, renderer.capabilities?.rgb === true),
+      },
+      { cols: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
+      host.interactions(quit),
+    );
     view = new TerminalShellRenderer(renderer);
     const draw = () => {
       if (stopped || !renderer || !view) return;
       session.resize({ cols: renderer.width, rows: renderer.height });
-      view.render(shell());
+      view.render(shell(session));
     };
     renderer.keyInput.on("keypress", (event) => {
       const key = terminalKey(event);

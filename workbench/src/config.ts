@@ -40,6 +40,21 @@ export interface WorkbenchConfig {
   readonly performance_budget: PerformanceBudget;
   readonly transport: TransportKind;
   readonly session_token: string | null;
+  /**
+   * Motion preference mirrored from `GAUNTLET_WORKBENCH_MOTION` (DSN-013, M15
+   * fix: the reduced-motion setting is operator-reachable). `undefined` when
+   * unset or invalid — the default lives in the theme layer's
+   * `resolveMotionPreference`, not here. The union is inlined deliberately:
+   * config is state-layer and must not bind presentation-module types.
+   */
+  readonly motion?: "full" | "reduced" | undefined;
+  /**
+   * Colour-capability override mirrored from `GAUNTLET_WORKBENCH_COLOR`
+   * (DSN-002, V6 fix). `undefined` when unset or invalid; detection and the
+   * never-assume-truecolor default live in the theme layer's
+   * `detectColorCapability`.
+   */
+  readonly color?: "truecolor" | "color256" | "monochrome" | undefined;
 }
 
 export interface RawConfigInput {
@@ -105,6 +120,8 @@ export function resolveConfig(options?: {
   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
+  const envMotion = envSource["GAUNTLET_WORKBENCH_MOTION"];
+  const envColor = envSource["GAUNTLET_WORKBENCH_COLOR"];
 
   // 1. Gauntlet endpoint
   const gauntlet_endpoint =
@@ -181,6 +198,14 @@ export function resolveConfig(options?: {
   // 7. Session token (REQ-CONFIG-002: referenced indirectly via env/cli, never in file)
   const session_token = cli.session_token ?? envToken ?? null;
 
+  // 8. Motion preference (DSN-013) and colour capability override (DSN-002):
+  //    env-mirrored only; invalid values stay undefined rather than guessed.
+  const motion = envMotion === "reduced" || envMotion === "full" ? envMotion : undefined;
+  const color =
+    envColor === "truecolor" || envColor === "color256" || envColor === "monochrome"
+      ? envColor
+      : undefined;
+
   return {
     gauntlet_endpoint,
     prime_endpoint,
@@ -191,6 +216,8 @@ export function resolveConfig(options?: {
     performance_budget,
     transport,
     session_token,
+    motion,
+    color,
   };
 }
 
