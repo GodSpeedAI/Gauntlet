@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-09-11",
+    "macrostructure": "system-managed (DESIGN.md GUI-grade workbench shell: chrome bar + 3 columns + tabs + bottom + overlay layer)",
+    "theme": "DESIGN.md locked (GodSpeed dark instrument panel, semantic tokens — no rotation)",
+    "enrichment": "none (typography/linework/rhythm only)",
+    "brief": "gauntlet TUI · GUI-grade direct-manipulation trace-native redesign · presentation/interaction projection over preserved semantic substrate · design recorded in .agents/reports/tui-gui-redesign/03-hallmark-redesign.md",
+    "scope": "app shell + surfaces + overlays + mouse convergence (implementation follows)",
+    "design_system": "DESIGN.md (hash-bound, verified untouched by just tui-preflight bootstrap)"
+  },
+  {
     "date": "2026-09-10",
     "macrostructure": "system-managed (DESIGN.md three-surface shell)",
     "theme": "DESIGN.md locked (GodSpeed dark instrument panel, semantic tokens — no rotation)",
