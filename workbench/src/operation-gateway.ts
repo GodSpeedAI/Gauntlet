@@ -543,9 +543,12 @@ function describeError(error: unknown): string {
  * admission over `gauntlet serve` (T00A/T01's seven-route JSON surface).
  * Wire conventions mirror crates/adapters/gauntlet-adapter-surface-json:
  * accepted → 200 {action, run_id, unit_id, committed_now, tickets_resolved};
- * typed refusal → 4xx/409 {code, message}; infrastructure failure → 5xx;
- * session auth failures → 401/403 {code, message}. A transport-level loss
- * (fetch rejection) THROWS so the gateway resolves outcome_unknown.
+ * every error — typed refusal (409), session auth (401/403), malformed
+ * request (400), infrastructure failure (5xx) — carries the NESTED body
+ * {"error":{"code","message"}} (lib.rs:205-213 `error_json`). A flat
+ * top-level {code,message} stays tolerated for resilience (non-Rust
+ * stand-ins); the nested shape wins. A transport-level loss (fetch
+ * rejection) THROWS so the gateway resolves outcome_unknown.
  */
 export class HttpOperatorActionRoute implements OperatorActionRoute {
   private readonly baseUrl: string;
@@ -575,19 +578,30 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
     const data = (await response.json()) as Record<string, unknown>;
     if (!Array.isArray(data["units"])) throw new Error("malformed canonical state");
     const unitsRaw = Array.isArray(data["units"]) ? data["units"] : [];
+    // W3 (wire honesty): only escalations the backend actually SERVED surface
+    // here. The real Rust /state body (snapshot_json,
+    // crates/adapters/gauntlet-adapter-surface-json/src/lib.rs:94-150) serves
+    // run, escalated, in_flight, units {id,status,tier}, budget,
+    // sandbox_denials (a denial COUNT the surface serves — never a containment
+    // claim), open_residuals, run_derivation — `escalated` carries BARE ticket
+    // ids with NO unit binding, and no `open_escalations` object list exists.
+    // A null-unit ticket matches EVERY unit in the affordance resolver, so
+    // fabricating one from `escalated` ids made unit.resolve over-available
+    // whenever any ticket existed; an absent `open_escalations` field is
+    // honest absence — [] — never a fabricated ticket (entries a surface DOES
+    // serve, including genuinely unbound unit_id:null ones, map verbatim).
     const escalationsRaw = Array.isArray(data["open_escalations"]) ? data["open_escalations"] : [];
-    const escalatedIds = Array.isArray(data["escalated"]) ? data["escalated"] : [];
-    const openEscalations = escalationsRaw.length
-      ? escalationsRaw.map((entry) => {
-          const record = entry as Record<string, unknown>;
-          return {
-            ticket_id: String(record["ticket_id"] ?? ""),
-            unit_id: typeof record["unit_id"] === "string" ? record["unit_id"] : null,
-          };
-        })
-      : // The minimal T01 state shape names only ticket ids; the binding is
-        // honestly absent rather than guessed.
-        escalatedIds.map((ticket) => ({ ticket_id: String(ticket), unit_id: null }));
+    const openEscalations = escalationsRaw.map((entry) => {
+      const record = entry as Record<string, unknown>;
+      return {
+        ticket_id: String(record["ticket_id"] ?? ""),
+        unit_id: typeof record["unit_id"] === "string" ? record["unit_id"] : null,
+      };
+    });
+    // The real surface's budget fact is served under `budget` with a different
+    // member set (lib.rs:169-199 budget_json: rounds/parallel/depth/
+    // wall_seconds/tokens/cost_usd_micro) — it is NOT conflated into this
+    // projection's budget_remaining shape; an absent field stays absent.
     const budgetRaw = data["budget_remaining"] as Record<string, unknown> | null | undefined;
     return Object.freeze({
       reachable: true,
@@ -623,13 +637,24 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
   async perform(command: CanonicalActionCommand): Promise<CanonicalOutcome> {
     const headers: Record<string, string> = {
       Accept: "application/json",
-      "Content-Type": "text/plain",
     };
     if (command.operator.length > 0) {
       headers["X-Gauntlet-Operator"] = command.operator;
     }
     if (command.session_token.length > 0) {
       headers["Authorization"] = `Bearer ${command.session_token}`;
+    }
+    // W2 (wire honesty): the Rust action path accepts ONLY an empty body or a
+    // JSON object whose "note" member is a string
+    // (crates/adapters/gauntlet-adapter-surface-json/src/http.rs:494-541 — a
+    // non-empty body is parsed as JSON; a non-object body or non-string note
+    // is a typed 400 body_unparsable). The note therefore rides as
+    // {"note":"..."} with content-type application/json; an empty note sends
+    // NO body (http.rs:497-498: an empty trimmed body IS the empty note).
+    const requestBody =
+      command.note.length === 0 ? undefined : JSON.stringify({ note: command.note });
+    if (requestBody !== undefined) {
+      headers["Content-Type"] = "application/json";
     }
     // The canonical precondition anchor (?run=) rides the query when bound.
     const query = command.run === null ? "" : `?run=${encodeURIComponent(command.run)}`;
@@ -639,7 +664,7 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
         method: "POST",
         signal: AbortSignal.timeout(5000),
         headers,
-        body: command.note,
+        body: requestBody,
       },
     );
     let body: Record<string, unknown> = {};
@@ -677,8 +702,19 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
         committed_now: committedNow,
       };
     }
-    const code = typeof body["code"] === "string" ? body["code"] : "surface_error";
-    const message = typeof body["message"] === "string" ? body["message"] : "";
+    // W1 (wire honesty): the Rust surface ALWAYS nests its typed error facts —
+    // {"error":{"code","message"}} (lib.rs:205-213 `error_json`; every error
+    // body http.rs serves is built from it). A flat top-level {code,message}
+    // stays tolerated for resilience against non-Rust stand-ins; the NESTED
+    // shape wins whenever it is present, so the canonical refusal/failure
+    // code and message flow through exactly (the gateway's "refusal code
+    // preserved" claim above).
+    const errorRecord =
+      typeof body["error"] === "object" && body["error"] !== null
+        ? (body["error"] as Record<string, unknown>)
+        : body;
+    const code = typeof errorRecord["code"] === "string" ? errorRecord["code"] : "surface_error";
+    const message = typeof errorRecord["message"] === "string" ? errorRecord["message"] : "";
     if (response.status >= 500) {
       return { kind: "failed", code, message };
     }

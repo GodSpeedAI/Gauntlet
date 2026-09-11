@@ -66,7 +66,17 @@ export interface AffordanceUnitObservation {
 /** One open escalation the observation carries. */
 export interface AffordanceEscalationObservation {
   readonly ticket_id: string;
-  /** Binding unit; null when the read names the ticket without a unit binding. */
+  /**
+   * Binding unit; null when the read names the ticket without a unit binding.
+   * A null-unit ticket matches EVERY unit at resolution (the rule below), so
+   * it is legitimate ONLY when the observation EXPLICITLY carried that unbound
+   * ticket — a producer must never fabricate one from a read that lacks the
+   * binding. The real Rust /state serves `escalated` as bare ticket ids with
+   * NO unit binding and no `open_escalations` list
+   * (gauntlet-adapter-surface-json/src/lib.rs:94-150 snapshot_json); the HTTP
+   * transport therefore surfaces NO ticket for it (honest absence), never a
+   * null-unit fabrication (recon W3).
+   */
   readonly unit_id: string | null;
 }
 
@@ -262,6 +272,12 @@ export function resolveAffordance(
     //   set-with-nothing-to-mark uses the CLI/API shape directly. Fail-closed
     //   by design; pinned by test so the strictness cannot silently drift.
     if (operation === "unit.resolve") {
+      // The null-unit arm matches an EXPLICITLY-carried unbound ticket only:
+      // observations arrive from producers that never fabricate one (see
+      // AffordanceEscalationObservation.unit_id — the real /state's bare
+      // `escalated` id list yields NO ticket, lib.rs:94-150), so absence of
+      // an escalation read resolves no_open_ticket here — fail-closed —
+      // instead of making resolve over-available on every unit.
       const hasOpenTicket = observation.open_escalations.some(
         (escalation) => escalation.unit_id === focus.source_id || escalation.unit_id === null,
       );
@@ -291,7 +307,10 @@ export function resolveAffordance(
     reasons.push("observation_degraded");
   } else if (operation === "unit.resolve") {
     // The target's open escalation is the attention item this operation
-    // responds to (REQ-UX-003 journey).
+    // responds to (REQ-UX-003 journey). The null-unit arm honors only an
+    // explicitly-carried unbound ticket (same honesty rule as the gate
+    // above); a surface that serves no escalation read yields no attention
+    // item and no requires_attention status.
     const ticket = observation.open_escalations.find(
       (escalation) => escalation.unit_id === focus.source_id || escalation.unit_id === null,
     );

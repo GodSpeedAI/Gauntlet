@@ -420,7 +420,6 @@ export class GauntletReadClient {
     try {
       const headers: Record<string, string> = {
         Accept: "application/json",
-        "Content-Type": "text/plain",
       };
       if (options?.operator !== undefined) {
         headers["X-Gauntlet-Operator"] = options.operator;
@@ -429,12 +428,16 @@ export class GauntletReadClient {
         headers["Authorization"] = `Bearer ${options.token}`;
       }
 
+      // Wire honesty (GUI redesign W2): the Rust action parser accepts an
+      // empty body or a JSON object carrying "note" (http.rs:494-541); a raw
+      // text/plain note is refused 400 body_unparsable.
+      const note = options?.note ?? "";
       const res = await fetch(
         `${this.baseUrl}/api/v1/units/${encodeURIComponent(unitId)}/${action}`,
         {
           method: "POST",
-          headers,
-          body: options?.note ?? "",
+          headers: note.length > 0 ? { ...headers, "Content-Type": "application/json" } : headers,
+          body: note.length > 0 ? JSON.stringify({ note }) : undefined,
         },
       );
 
@@ -445,8 +448,16 @@ export class GauntletReadClient {
         data = await res.json();
         if (typeof data === "object" && data !== null) {
           const rec = data as Record<string, unknown>;
-          if (typeof rec["code"] === "string") code = rec["code"];
-          if (typeof rec["message"] === "string") message = rec["message"];
+          // Wire honesty (GUI redesign W1): the surface always sends
+          // {"error":{code,message}} (lib.rs:205-213); a flat {code,message}
+          // is tolerated with the nested shape winning.
+          const nested = rec["error"];
+          const source =
+            typeof nested === "object" && nested !== null
+              ? (nested as Record<string, unknown>)
+              : rec;
+          if (typeof source["code"] === "string") code = source["code"];
+          if (typeof source["message"] === "string") message = source["message"];
         }
       } catch {
         // body might not be JSON

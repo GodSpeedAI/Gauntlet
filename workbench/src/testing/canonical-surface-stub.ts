@@ -24,7 +24,20 @@
  *   - The denial knobs SEPARATE what the READS show from what ADMISSION
  *     enforces, modeling both a stale projection (denial visible before
  *     invoke) and a denial that races past revalidation (visible only at the
- *     admission boundary).
+ *     admission boundary). Their read carriers — the /state gate fields
+ *     `open_escalations`/`budget_remaining`/`governance_denied_units`/
+ *     `authority_revoked_units` — are a TEST-SUPPORT superset the real Rust
+ *     /state does not serve (snapshot_json, lib.rs:94-150, serves
+ *     run/escalated/in_flight/units/budget/sandbox_denials/open_residuals/
+ *     run_derivation only); wire-shape.test.ts pins the gateway against the
+ *     real shape directly.
+ *   - The HTTP wire this stub SPEAKS is the real Rust wire (recon W4): every
+ *     error body is the nested {"error":{"code","message"}} shape
+ *     (lib.rs:205-213 `error_json`), and the action endpoint accepts only an
+ *     empty body or a JSON object whose "note" member is a string
+ *     (http.rs:494-541) — anything else is a typed 400 `body_unparsable`. The
+ *     most recent action request is recorded (`lastActionRequest`) so shape
+ *     suites can assert what a workbench transport actually sent.
  *   - Side-effect counters make "zero side effect" a measurable assertion.
  *
  * This is NOT production code and is NOT a second canonical authority: every
@@ -76,12 +89,27 @@ export interface StubOptions {
   readonly session_token: string;
 }
 
+/** The most recent action request the stub's HTTP surface received (wire pinning). */
+export interface StubActionWireRecord {
+  /** The raw request body text ("" when no body was sent). */
+  readonly body_text: string;
+  /** The request's Content-Type header, null when absent. */
+  readonly content_type: string | null;
+}
+
 export class CanonicalSurfaceStub {
   readonly sideEffects: StubSideEffects = {
     settlements_committed: 0,
     tickets_resolved: 0,
     admission_attempts: 0,
   };
+
+  /**
+   * The most recent action request the HTTP surface received (set by
+   * serveHttp's handler; null until one arrives). Asserts WHAT a workbench
+   * transport put on the wire, not just what admission decided.
+   */
+  lastActionRequest: StubActionWireRecord | null = null;
 
   private readonly units = new Map<string, StubUnitRecord>();
   private readonly runId: string;
@@ -378,8 +406,11 @@ export class CanonicalSurfaceStub {
    * The HTTP surface route wrapper: serves the stub's reads and admission over
    * loopback HTTP with the REAL surface's wire conventions
    * (crates/adapters/gauntlet-adapter-surface-json/src/http.rs): accepted →
-   * 200; typed refusal → 409 {code,message}; infrastructure failure → 500;
-   * formation/auth → 400/401/403 {code,message}.
+   * 200; typed refusal → 409; infrastructure failure → 500; formation/auth →
+   * 400/401/403 — and EVERY error carries the nested body
+   * {"error":{"code","message"}} (lib.rs:205-213 `error_json`). The action
+   * body follows http.rs:494-541: empty, or a JSON object whose "note" is a
+   * string; anything else is a typed 400 `body_unparsable`.
    */
   serveHttp(): ReturnType<typeof Bun.serve> {
     const stub = this;
@@ -391,10 +422,7 @@ export class CanonicalSurfaceStub {
 
         if (req.method === "GET" && path === "/api/v1/state") {
           if (!stub.reachable) {
-            return Response.json(
-              { code: "snapshot_failed", message: "the canonical surface is unreachable" },
-              { status: 500 },
-            );
+            return errorResponse(500, "snapshot_failed", "the canonical surface is unreachable");
           }
           const observation = stub.observe({ unit: null });
           return Response.json({
@@ -415,55 +443,77 @@ export class CanonicalSurfaceStub {
           const unitId = decodeURIComponent(actionMatch[1] ?? "");
           const kind = actionMatch[2] === "resolve" ? "resolve" : "retry";
           if (!UNIT_ID_PATTERN.test(unitId)) {
-            return Response.json(
-              { code: "unit_unparsable", message: `${unitId} is not a valid unit id` },
-              { status: 400 },
-            );
+            return errorResponse(400, "unit_unparsable", `${unitId} is not a valid unit id`);
           }
           const operatorHeader = req.headers.get("X-Gauntlet-Operator");
           const operator = operatorHeader === null ? "" : operatorHeader.trim();
           if (operator.length === 0) {
-            return Response.json(
-              {
-                code: "operator_identity_required",
-                message:
-                  "every action carries the operator's identity in the X-Gauntlet-Operator header (spec 16.1 condition 3); missing or blank is refused",
-              },
-              { status: 400 },
+            return errorResponse(
+              400,
+              "operator_identity_required",
+              "every action carries the operator's identity in the X-Gauntlet-Operator header (spec 16.1 condition 3); missing or blank is refused",
             );
           }
           const authHeader = req.headers.get("Authorization");
           if (authHeader === null || authHeader.replace(/^Bearer\s+/i, "").trim().length === 0) {
-            return Response.json(
-              {
-                code: "actor_authentication_required",
-                message:
-                  "mutation requests require authentication; provide bearer credentials in the Authorization header",
-              },
-              { status: 401 },
+            return errorResponse(
+              401,
+              "actor_authentication_required",
+              "mutation requests require authentication; provide bearer credentials in the Authorization header",
             );
           }
           const token = authHeader.replace(/^Bearer\s+/i, "").trim();
           if (token !== stub.sessionToken) {
-            return Response.json(
-              {
-                code: "invalid_session_credentials",
-                message: "the provided session token is invalid or expired",
-              },
-              { status: 401 },
+            return errorResponse(
+              401,
+              "invalid_session_credentials",
+              "the provided session token is invalid or expired",
             );
           }
           if (operator !== stub.boundActor) {
-            return Response.json(
-              {
-                code: "client_asserted_authority_refused",
-                message: `client-asserted operator '${operator}' does not match authenticated session actor '${stub.boundActor}'`,
-              },
-              { status: 403 },
+            return errorResponse(
+              403,
+              "client_asserted_authority_refused",
+              `client-asserted operator '${operator}' does not match authenticated session actor '${stub.boundActor}'`,
             );
           }
           const runParam = url.searchParams.get("run");
-          const note = await req.text();
+          // The REAL action-body contract (http.rs:494-541): the raw request
+          // is recorded FIRST (wire pinning), then parsed exactly as the Rust
+          // handler parses it — empty/whitespace body → note ""; a non-empty
+          // body must be a JSON object whose "note" member (when present) is
+          // a string, else a typed 400 body_unparsable BEFORE admission.
+          const bodyText = await req.text();
+          stub.lastActionRequest = {
+            body_text: bodyText,
+            content_type: req.headers.get("Content-Type"),
+          };
+          const trimmed = bodyText.trim();
+          let note = "";
+          if (trimmed.length > 0) {
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(trimmed);
+            } catch (error) {
+              return errorResponse(
+                400,
+                "body_unparsable",
+                `the action body is not parsable JSON: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+            if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+              return errorResponse(400, "body_unparsable", "the action body must be a JSON object");
+            }
+            const noteValue = (parsed as Record<string, unknown>)["note"];
+            if (noteValue !== undefined && typeof noteValue !== "string") {
+              return errorResponse(
+                400,
+                "body_unparsable",
+                "the action body's 'note' must be a JSON string",
+              );
+            }
+            note = typeof noteValue === "string" ? noteValue : "";
+          }
           const outcome = stub.perform(kind, unitId, operator, note, runParam);
           if (outcome.kind === "accepted") {
             return Response.json({
@@ -474,16 +524,14 @@ export class CanonicalSurfaceStub {
               tickets_resolved: outcome.tickets_resolved,
             });
           }
-          return Response.json(
-            { code: outcome.code, message: outcome.message },
-            { status: outcome.kind === "refused" ? 409 : 500 },
+          return errorResponse(
+            outcome.kind === "refused" ? 409 : 500,
+            outcome.code,
+            outcome.message,
           );
         }
 
-        return Response.json(
-          { code: "not_found", message: `No route for ${path}` },
-          { status: 404 },
-        );
+        return errorResponse(404, "not_found", `No route for ${path}`);
       },
     });
   }
@@ -544,6 +592,14 @@ function accepted(
     tickets_resolved: Object.freeze(tickets),
     committed_now: committedNow,
   };
+}
+
+/**
+ * The REAL error body (lib.rs:205-213 `error_json`): every error the Rust
+ * surface serves — 400 through 500 — carries {"error":{"code","message"}}.
+ */
+function errorResponse(status: number, code: string, message: string): Response {
+  return Response.json({ error: { code, message } }, { status });
 }
 
 function refused(code: string, message: string): CanonicalOutcome {
