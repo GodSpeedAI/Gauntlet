@@ -212,6 +212,7 @@ export function classifyPresentation(): {
 
 const CANONICAL_STATE_MODULES: readonly string[] = Object.freeze([
   "affordance.ts",
+  "canonical-surface-stream-port.ts",
   "client.ts",
   "config.ts",
   "focus.ts",
@@ -219,6 +220,7 @@ const CANONICAL_STATE_MODULES: readonly string[] = Object.freeze([
   "live-streams.ts",
   "operation-gateway.ts",
   "operation-registry.ts",
+  "planned-operations.ts",
   "preflight.ts",
   "prime-context-envelope.ts",
   "prime-host.ts",
@@ -227,6 +229,7 @@ const CANONICAL_STATE_MODULES: readonly string[] = Object.freeze([
   "prime-recursion.ts",
   "prime-topology.ts",
   "projection-store.ts",
+  "real-prime-host.ts",
   "relations.ts",
   "workbench-model.ts",
   "worker-folds.ts",

@@ -291,6 +291,23 @@ else
   check_backing "T24 real-substrate battery" "T24/prime-fresh-target.md" "GAUNTLET_T24_REAL_PRIME=1"
 fi
 
+# G3b: Phase C2 real-substrate battery (RealPrimeHost over the real binary).
+if [[ "${GAUNTLET_C2_REAL_PRIME:-}" == "1" ]]; then
+  pass "GATED GAUNTLET_C2_REAL_PRIME=1 is SET — the Phase C2 real-substrate battery runs inside \`just tui-test\` on this invocation"
+else
+  echo "tui-preflight.sh: conformance: GATED — Phase C2 RealPrimeHost real-substrate battery: set GAUNTLET_C2_REAL_PRIME=1 to execute (owns REQ-GOAL-003/REQ-PRIME-001/003 real production-adapter integration)"
+  check_backing "C2 real-substrate battery" "workbench-intent-closure/phase-c2/prime-substrate-binding.md" "GAUNTLET_C2_REAL_PRIME=1"
+fi
+
+# G3c: Phase D real-substrate lifecycle battery (qualified-record
+# reattachment + explicit stop over the real binary).
+if [[ "${GAUNTLET_D_REAL_PRIME_LIFECYCLE:-}" == "1" ]]; then
+  pass "GATED GAUNTLET_D_REAL_PRIME_LIFECYCLE=1 is SET — the Phase D real-substrate lifecycle battery runs inside \`just tui-test\` on this invocation"
+else
+  echo "tui-preflight.sh: conformance: GATED — Phase D real-substrate lifecycle battery: set GAUNTLET_D_REAL_PRIME_LIFECYCLE=1 to execute (owns REQ-VERIFY-005/REQ-PRIME-009/010 real cross-process reattachment integration)"
+  check_backing "D real-substrate lifecycle battery" "workbench-intent-closure/phase-d/prime-lifecycle-reattachment.md" "GAUNTLET_D_REAL_PRIME_LIFECYCLE=1"
+fi
+
 # G4: real-sshd SSH transport leg — environment-gated. If sshd IS reachable the
 # required integration is executed HERE (skipping it then would be a silent gap).
 ssh_probe_output="$(ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no \
@@ -328,12 +345,26 @@ echo "tui-preflight.sh: conformance: UNQUALIFIED — release entry is a cold-sta
 check_backing "T20 release-entry breadth" "T20/release-qualification.md" "cold-start host loop"
 
 # --- Sweep: every boolean env gate declared in the test tree must have a row ----
-# The sweep matches the gating idiom `process.env["GAUNTLET_T.."] === "1"` — a
+# The sweep matches the gating idiom `process.env["GAUNTLET_<TAG>.."] === "1"` — a
 # comparison that ENABLES hidden behavior. Env vars that merely parameterize a
 # test (e.g. a capture-output directory) are not gates and do not match.
-declared_env_gates="GAUNTLET_T13_REAL_PTY GAUNTLET_T20_REAL_PTY GAUNTLET_T24_REAL_PRIME"
-found_env_gates="$(grep -rhoE 'GAUNTLET_T[0-9]+_[A-Z_]+"?\]? *=== *"1"' "$workbench_dir/src" --include='*.test.ts' 2>/dev/null \
-  | grep -oE 'GAUNTLET_T[0-9]+_[A-Z_]+' | sort -u || true)"
+# WIDENED at the Phase C2 touch (workbench-intent-closure.md): the pattern was
+# `GAUNTLET_T[0-9]+_` only (plan-task-numbered gates), which silently missed
+# `GAUNTLET_C2_REAL_PRIME` (a phase-lettered gate, this plan's own vocabulary)
+# — recorded as a MINOR trigger-record at T25 settlement ("widen at next
+# preflight touch"); that touch made the digit-suffix optional-in-name but
+# still REQUIRED one character class to carry a digit implicitly by requiring
+# `[0-9]+` right after the phase letter — which silently missed
+# `GAUNTLET_D_REAL_PRIME_LIFECYCLE` (Phase D: a BARE-lettered phase gate, no
+# digit at all — D/E/F carry no task number the way C2/T13 do). Caught at the
+# Phase D touch the same way the C2 gap was caught: the sweep ran green with
+# zero row for a real gate. WIDENED AGAIN: the digit suffix is now optional
+# (`[0-9]*`), so this matches any `GAUNTLET_<PHASE-LETTERS><optional digits>_
+# <UPPER_SNAKE>` shape — task-numbered, phase-numbered, and bare-lettered
+# gates alike.
+declared_env_gates="GAUNTLET_T13_REAL_PTY GAUNTLET_T20_REAL_PTY GAUNTLET_T24_REAL_PRIME GAUNTLET_C2_REAL_PRIME GAUNTLET_D_REAL_PRIME_LIFECYCLE"
+found_env_gates="$(grep -rhoE 'GAUNTLET_[A-Z][0-9]*_[A-Z_]+"?\]? *=== *"1"' "$workbench_dir/src" --include='*.test.ts' 2>/dev/null \
+  | grep -oE 'GAUNTLET_[A-Z][0-9]*_[A-Z_]+' | sort -u || true)"
 if [[ -n "$found_env_gates" ]]; then
   while IFS= read -r env_gate; do
     [[ -z "$env_gate" ]] && continue

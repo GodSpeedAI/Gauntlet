@@ -20,6 +20,8 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import { CanonicalSurfaceStreamPort } from "./canonical-surface-stream-port";
+import { GauntletReadClient } from "./client";
 import { FocusRef } from "./focus";
 import {
   canonicalStreamOrder,
@@ -32,6 +34,7 @@ import {
 import type { OperationInvocationRequest, OperatorActionRoute } from "./operation-gateway";
 import { OperationGateway } from "./operation-gateway";
 import { OPERATION_IDS } from "./operation-registry";
+import { startCanonicalFixture } from "./testing/canonical-fixture-server";
 import { CanonicalSurfaceStub } from "./testing/canonical-surface-stub";
 import { WorkbenchModel } from "./workbench-model";
 
@@ -478,5 +481,56 @@ describe("T16 reconnect races (plan Attack 1; REQ-DATA-002/003, REQ-SYNC-001/002
     ).toBe(true);
 
     model.close();
+  });
+});
+
+describe("Phase B — mid-poll backend restart against the DERIVED port (workbench-intent-closure.md tooth 5)", () => {
+  it("a real server restart mid-poll (server_version changes) produces a VISIBLE resyncing transition and a fresh generation — never a silent cursor advance over the old server's sequence", async () => {
+    const fixture = startCanonicalFixture({
+      run: "run-b5",
+      units: [{ id: "AK-501", status: "open" }],
+      server_version: "build-1",
+    });
+    try {
+      const port = new CanonicalSurfaceStreamPort(new GauntletReadClient(fixture.endpoint));
+      await port.observe();
+      const model = new WorkbenchModel();
+      const transitions: StreamStateTransition[] = [];
+      const client = new LiveStreamClient({ model, port, mintGenerationId: (n) => `b5-${n}` });
+      client.onStateChange((t) => transitions.push(t));
+      client.connect();
+      const generationBefore = client.generationId;
+      expect(client.state).toBe("live");
+
+      // Ordinary poll: content-only change, same server, same membership —
+      // no restart, no resync.
+      const unit = fixture.state.units[0];
+      if (unit) unit.status = "blocked";
+      await port.observe();
+      const ordinaryPoll = client.poll();
+      expect(ordinaryPoll.resync_triggered).toBeNull();
+      expect(client.generationId).toBe(generationBefore);
+
+      // Now the backend actually restarts (a redeploy: server_version moves).
+      fixture.state.server_version = "build-2";
+      await port.observe();
+      const restartPoll = client.poll();
+
+      expect(restartPoll.resync_triggered).not.toBeNull();
+      expect(restartPoll.resync_triggered).toContain("epoch_change");
+      // The resyncing state was actually entered and recorded — not inferred,
+      // not skipped straight to "live" (REQ-SAFE-005: visible, never silent).
+      expect(transitions.some((t) => t.to === "resyncing")).toBe(true);
+      expect(client.state).toBe("live");
+      expect(client.resyncCount).toBe(1);
+      // A genuinely NEW generation was minted for the restart — the fresh
+      // baseline is not folded into the pre-restart generation's cursor.
+      expect(client.generationId).not.toBe(generationBefore);
+      expect(model.getUnits().find((u) => u.unit_id === "AK-501")?.status).toBe("blocked");
+
+      model.close();
+    } finally {
+      await fixture.stop();
+    }
   });
 });

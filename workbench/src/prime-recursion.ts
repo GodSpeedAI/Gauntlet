@@ -45,7 +45,7 @@ import type {
 import { OperationGateway } from "./operation-gateway";
 import type { PrimeContextEnvelope } from "./prime-context-envelope";
 import { envelopeToJSON, PRIME_CONTEXT_ENVELOPE_SCHEMA } from "./prime-context-envelope";
-import type { PrimeAdmissionHandle, PrimeHostAdapter, PrimeSessionState } from "./prime-host";
+import type { PrimeAdmissionHandle, PrimeHostPort, PrimeSessionState } from "./prime-host";
 import type { PrimeSessionRecord, PrimeTopologyNode } from "./prime-topology";
 import { reconstructTopology } from "./prime-topology";
 
@@ -190,7 +190,7 @@ export interface DelegationRecoveryReport {
 }
 
 export interface PrimeDispatcherOptions {
-  readonly adapter: PrimeHostAdapter;
+  readonly adapter: PrimeHostPort;
   /** The canonical admission route (the ONE write path); delegation wraps it, never replaces it. */
   readonly canonical_route: OperatorActionRoute;
   readonly policy?: RecursionPolicy | undefined;
@@ -201,9 +201,7 @@ export interface PrimeDispatcherOptions {
 const DEFAULT_CONTRACT_BASE = ".agents/reports/gauntlet-tui-prime-workbench/evidence/T10/contracts";
 
 /** Project the adapter's actual sessions into durable T04 session records. */
-export function projectHostToSessionRecords(
-  adapter: PrimeHostAdapter,
-): readonly PrimeSessionRecord[] {
+export function projectHostToSessionRecords(adapter: PrimeHostPort): readonly PrimeSessionRecord[] {
   return adapter.listSessions().map((session: PrimeSessionState) => ({
     sessionId: session.handle.session_id,
     parentId: session.handle.parent_session_id,
@@ -219,7 +217,7 @@ export function projectHostToSessionRecords(
  * Depth of a session in the adapter's REAL parent chains (root = 0), or null when
  * the adapter does not know the session. Never reads workbench bookkeeping.
  */
-export function sessionDepth(adapter: PrimeHostAdapter, sessionId: string): number | null {
+export function sessionDepth(adapter: PrimeHostPort, sessionId: string): number | null {
   let current: PrimeSessionState | null = adapter.getSession(sessionId);
   if (current === null) {
     return null;
@@ -254,7 +252,7 @@ export class DuplicateSpawnError extends Error {
 class PrimeDelegationRoute implements OperatorActionRoute {
   constructor(
     private readonly inner: OperatorActionRoute,
-    private readonly adapter: PrimeHostAdapter,
+    private readonly adapter: PrimeHostPort,
     private readonly context: {
       readonly envelope: PrimeContextEnvelope;
       readonly child_session_id: string;
@@ -298,6 +296,11 @@ class PrimeDelegationRoute implements OperatorActionRoute {
       sessionId: this.context.child_session_id,
       parentSessionId: this.context.parent_session_id,
       contractPath: this.context.contract_path,
+      // Real hosts (RealPrimeHost, plan Phase C2) need the goal text to
+      // actually launch a process; the in-memory test double ignores it —
+      // the mailbox message below remains the inspectable received-context
+      // record either way.
+      task: this.context.task,
     });
     // The child's RECEIVED CONTEXT is exactly the envelope plus the task —
     // serialized into the mailbox as communication, inspectable afterwards.
@@ -335,7 +338,7 @@ class PrimeDelegationRoute implements OperatorActionRoute {
  * workbench host; it owns NO session lifecycle — the adapter (Prime) does.
  */
 export class PrimeDelegationDispatcher {
-  private readonly adapter: PrimeHostAdapter;
+  private readonly adapter: PrimeHostPort;
   private readonly inner: OperatorActionRoute;
   private readonly policy: RecursionPolicy;
   private readonly contractBase: string;

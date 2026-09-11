@@ -291,3 +291,89 @@ describe("T09 Operation Isomorphism (REQ-AFF-001/002, REQ-OPS-002/003, REQ-OUT-0
     expect(reference.status).toBe("requires_attention");
   });
 });
+
+describe("Phase B — hard containment: pre-admission never reads through the stream projection (workbench-intent-closure.md tooth 3)", () => {
+  it("operation-gateway.ts imports neither live-streams.ts nor canonical-surface-stream-port.ts — the gateway has no way to reach the stream projection even by accident", async () => {
+    const source = await Bun.file(new URL("./operation-gateway.ts", import.meta.url)).text();
+    const imports = [...source.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);
+    for (const spec of imports) {
+      expect(spec).not.toMatch(/live-streams/);
+      expect(spec).not.toMatch(/canonical-surface-stream-port/);
+    }
+  });
+
+  it("WorkbenchHost.invoke() revalidates against a FRESH route.observe() HTTP call, not the LiveStreamClient/CanonicalSurfaceStreamPort's buffered projection: a governance denial that appears AFTER the last refresh still refuses the very next invoke with no intervening refresh", async () => {
+    const { WorkbenchHost } = await import("./workbench-host");
+    const { resolveConfig } = await import("./config");
+    const { FocusRef: FocusRefCtor } = await import("./focus");
+
+    let governanceDenied = false;
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch(request) {
+        const url = new URL(request.url);
+        if (url.pathname === "/api/v1/state") {
+          return Response.json({
+            run: null,
+            units: [{ id: "AK-901", status: "open", tier: "P2" }],
+            escalated: [],
+            governance_denied_units: governanceDenied ? ["AK-901"] : [],
+          });
+        }
+        if (url.pathname === "/api/v1/capabilities") {
+          return Response.json({
+            protocol_version: "1.0.0",
+            server_version: "test",
+            capabilities: [],
+            unsupported_operations: [],
+          });
+        }
+        if (request.method === "POST") {
+          return Response.json({
+            run_id: "run-1",
+            unit_id: "AK-901",
+            committed_now: true,
+            tickets_resolved: [],
+          });
+        }
+        return Response.json({
+          unit_id: "AK-901",
+          claim: "Unit",
+          authority: "operator",
+          blast_radius: "local",
+          verifications: [],
+        });
+      },
+    });
+    const host = new WorkbenchHost(
+      resolveConfig({
+        env: {},
+        cli: {
+          gauntlet_endpoint: server.url.toString(),
+          projection_store: ":memory:",
+          session_token: "test-only",
+        },
+      }),
+      { actor: "operator" },
+    );
+    try {
+      await host.refresh();
+      expect(host.status).toBe("connected");
+
+      // The governance denial appears on the surface AFTER the last refresh —
+      // the port's buffered stream projection was never told. If invoke()
+      // pulled admission facts from the stream instead of a fresh
+      // route.observe(), it would still see the unit as allowed.
+      governanceDenied = true;
+      const ref = FocusRefCtor.for("gauntlet", "WorkItem", "AK-901");
+      await host.invoke("unit.resolve", ref, "operator resolves");
+
+      expect(host.notice).not.toContain("accepted");
+      expect(host.notice).toContain("refused");
+    } finally {
+      host.close();
+      await server.stop(true);
+    }
+  });
+});

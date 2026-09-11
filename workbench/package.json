@@ -2,7 +2,7 @@
   "name": "gauntlet-workbench",
   "private": true,
   "version": "0.0.0",
-  "description": "Gauntlet terminal-native operator workbench (Bun + OpenTUI). Scaffolding only — see .agents/plans/gauntlet-tui-prime-workbench.plan.yaml.",
+  "description": "Gauntlet terminal-native operator workbench with canonical surface integration (Bun + OpenTUI).",
   "type": "module",
   "engines": {
     "bun": ">=1.4.0"

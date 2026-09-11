@@ -534,6 +534,7 @@ const GATEWAY_IMPORT_ALLOWLIST: readonly string[] = Object.freeze([
   "kernel-affordances.ts",
   "prime-recursion.ts",
   "security-hardening.ts",
+  "workbench-host.ts",
   "testing/canonical-surface-stub.ts",
   "testing/cross-surface-matrix.ts",
 ]);
@@ -635,8 +636,40 @@ describe("T23 Static routing inspection — one canonical admission body, no pro
     // the host admits.
     expect(importers).toContain("kernel-affordances.ts");
     expect(importers).toContain("prime-recursion.ts");
+    expect(importers).toContain("workbench-host.ts");
     expect(importers).not.toContain("plugins.ts");
     expect(importers).not.toContain("shell.ts");
+    expect(importers).not.toContain("terminal-renderer.ts");
+  });
+
+  it("production composition owns the gateway while native renderer owns presentation only", () => {
+    const host = readSrc("workbench-host.ts");
+    expect(countOccurrences(host, "new OperationGateway(")).toBe(1);
+    expect(countOccurrences(host, "this.gateway.invoke(")).toBe(1);
+    expect(host).not.toMatch(/this\.route\.perform\s*\(/);
+    const forbidden = new Set([
+      "workbench-host",
+      "operation-gateway",
+      "projection-store",
+      "client",
+    ]);
+    const visited = new Set<string>();
+    const visit = (file: string) => {
+      if (visited.has(file)) return;
+      visited.add(file);
+      const runtimeSource = readSrc(file).replace(
+        /import\s+type\s+[\s\S]*?from\s*["'][^"']+["'];?/g,
+        "",
+      );
+      for (const specifier of relativeSpecifiers(runtimeSource)) {
+        const leaf = (specifier.split("/").pop() ?? "").replace(/\.tsx?$/, "");
+        expect(forbidden.has(leaf)).toBe(false);
+        const path = specifier.replace(/^\.\//, "");
+        const dependency = /\.tsx?$/.test(path) ? path : `${path}.ts`;
+        if (existsSync(join(srcDir(), dependency))) visit(dependency);
+      }
+    };
+    visit("terminal-renderer.ts");
   });
 
   it("only the two landed transports implement OperatorActionRoute (no fourth admission)", () => {

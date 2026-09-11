@@ -8,6 +8,48 @@
  *     never settlement; completion requires a schema-valid result contract at the contract path).
  */
 
+/** Inputs to admit one Prime child session (`PrimeHostPort.spawnChild`). */
+export interface PrimeSpawnRequest {
+  readonly sessionId: string;
+  readonly parentSessionId?: string | null | undefined;
+  readonly model?: string | undefined;
+  readonly contractPath: string;
+  /**
+   * The child's task/goal text. Optional because the in-memory
+   * `PrimeHostAdapter` test double never needed it (the fake models "task
+   * delivery" purely as an inspectable `receiveMailboxMessage` call the
+   * caller makes right after spawning). `RealPrimeHost` (plan Phase C2)
+   * REQUIRES it — a real process cannot be launched without a goal — and
+   * refuses to spawn when it is absent, honestly, rather than inventing one.
+   */
+  readonly task?: string | undefined;
+}
+
+/**
+ * The 5-method surface `PrimeDelegationDispatcher`/`PrimeDelegationRoute`
+ * drive a Prime host through (plan Phase C2, D2 "replace don't accumulate").
+ * `PrimeHostAdapter` below is the declared in-memory TEST DOUBLE
+ * implementation; `RealPrimeHost` (`real-prime-host.ts`) is the production
+ * implementation over `Bun.spawn`. Both satisfy this port identically, so
+ * `PrimeDelegationDispatcher` (prime-recursion.ts) needed zero changes beyond
+ * widening its stored type from the concrete class to this interface.
+ */
+export interface PrimeHostPort {
+  spawnChild(options: PrimeSpawnRequest): PrimeAdmissionHandle;
+  receiveMailboxMessage(
+    sessionId: string,
+    message: {
+      sender: string;
+      recipient?: string | undefined;
+      content: string;
+      kind?: "communication" | "progress" | "signal" | undefined;
+    },
+  ): PrimeMailboxMessage;
+  deliverResultContract(sessionId: string, contract: PrimeResultContract): boolean;
+  getSession(sessionId: string): PrimeSessionState | null;
+  listSessions(): PrimeSessionState[];
+}
+
 export interface PrimeAdmissionHandle {
   readonly session_id: string;
   readonly parent_session_id: string | null;
@@ -41,7 +83,16 @@ export interface PrimeSessionState {
   resultContract: PrimeResultContract | null;
 }
 
-export class PrimeHostAdapter {
+/**
+ * The in-memory Prime host TEST DOUBLE (plan Phase C2, D2). This was the
+ * only `PrimeHostPort` implementation before Phase C2; it is now explicitly
+ * declared as such — production composition (`workbench-host.ts`) binds
+ * `RealPrimeHost` (`real-prime-host.ts`) instead. Every test that constructs
+ * `new PrimeHostAdapter()` directly (prime-recursion.test.ts and siblings)
+ * keeps working unchanged: this class's public shape did not change, it only
+ * gained an explicit `implements PrimeHostPort`.
+ */
+export class PrimeHostAdapter implements PrimeHostPort {
   private readonly sessions = new Map<string, PrimeSessionState>();
   private messageCounter = 0;
 
@@ -49,12 +100,7 @@ export class PrimeHostAdapter {
    * Spawn or admit a Prime child session (REQ-PRIME-001).
    * Nonblocking: returns an admission handle immediately without awaiting execution.
    */
-  spawnChild(options: {
-    sessionId: string;
-    parentSessionId?: string | null | undefined;
-    model?: string | undefined;
-    contractPath: string;
-  }): PrimeAdmissionHandle {
+  spawnChild(options: PrimeSpawnRequest): PrimeAdmissionHandle {
     const handle: PrimeAdmissionHandle = {
       session_id: options.sessionId,
       parent_session_id: options.parentSessionId ?? null,

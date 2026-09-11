@@ -89,12 +89,13 @@ flowchart TD
 
 ## 3. Runtime Architecture & Topology
 
-When `gauntlet run` executes, the runtime manages processes, isolated filesystems, and durable storage:
+When `gauntlet run` or `gauntlet serve` executes, the runtime manages processes, isolated filesystems, durable storage, and optional interactive operator surfaces:
 
 ```mermaid
 flowchart TB
     subgraph HostOS ["Host Environment (WSL2 / Linux)"]
         CLI_PROC["gauntlet-cli Process\n(RunController, IterationEngine, Schedulers)"]
+        SURF_ADAPT["JsonOperatorSurface\n(HTTP/JSON Loopback API)"]
         
         subgraph FS_Storage ["Durable Local Storage"]
             SQLITE[("SQLite Database\n(Run state, iterations, invocations)")]
@@ -110,11 +111,23 @@ flowchart TB
             end
         end
 
+        subgraph OperatorWorkbench ["Operator Workbench (workbench/ - Bun + TypeScript + OpenTUI)"]
+            TUI_PROC["Operator Workbench Process\n(ShellSession, WorkbenchModel)"]
+            PROJ_CACHE[("SQLite Projection Cache\n(Generations & Cursors)")]
+            GATEWAY["OperationGateway\n(Router-Not-Authority)"]
+            
+            TUI_PROC <--> PROJ_CACHE
+            TUI_PROC <--> GATEWAY
+        end
+
         CLI_PROC -->|Write / Query| SQLITE
         CLI_PROC -->|Append Event| EVENT_LOG
         CLI_PROC -->|Store Artifacts| EVIDENCE_DIR
         CLI_PROC -->|Verify Digest| LOCK_FILE
         CLI_PROC -->|Spawn & Contain| Sandbox_Env
+        CLI_PROC <--> SURF_ADAPT
+        
+        GATEWAY <==>|Loopback HTTP / JSON\n(Bearer Token Auth)| SURF_ADAPT
         
         OBS_PROBES["Instrument Probes\n(cargo check, cargo nextest, git diff)"] -->|Inspect Reality| WORKTREE
         OBS_PROBES -->|Write Facts| CLI_PROC
@@ -125,6 +138,7 @@ flowchart TB
 - **Read-Only Ruler**: `.wayfinder/answer-key.md` and `.gauntlet/reference.lock` reside in the host project tree and are strictly read-only or outside the builder workspace. Builders can never write to their own grading rubric.
 - **Workspace Isolation**: Builders execute in temporary git worktrees (`/tmp/gauntlet/workspaces/<run_id>/<iteration>/`) isolated from the host repository.
 - **Evidence Immutability**: All observer output and verifier artifacts are saved content-addressed by SHA-256 in the evidence store. The `EvidenceStore` trait exposes no overwrite or delete method.
+- **Operator Surface Decoupling**: The operator workbench is a sibling client (`workbench/`) communicating via loopback HTTP/JSON (`JsonOperatorSurface`). It holds zero canonical truth and acts strictly as a projection and command router. If the TUI disconnects or terminates, running engine jobs proceed unaffected.
 
 ---
 
@@ -219,6 +233,20 @@ flowchart LR
 
 ---
 
+## 6. Operator Workbench Subsystem (`workbench/`)
+
+The terminal-native operator workbench is a sibling client subsystem designed to provide human operators with real-time operational visibility and control without violating Gauntlet's governance invariants.
+
+### Architectural Separation
+- **Sibling Boundary**: `workbench/` is located at the workspace root alongside `crates/`. It is completely decoupled from the Cargo build graph and compiler scanner tools (`crates/gauntlet-arch-tests`).
+- **Loopback Surface Protocol**: Communication between `workbench/` and Gauntlet core uses HTTP/JSON loopback streaming (`gauntlet serve` / `JsonOperatorSurface`). All operator commands require explicit bearer token and actor identity bindings.
+- **Router-Not-Authority**: `OperationGateway` routes commands and generates deterministic idempotency keys. It never authorizes mutations locally. Before dispatching any operator action, it re-queries Gauntlet core for a fresh canonical observation and fails closed if the target surface is unobservable or if requirements have shifted.
+- **Reconstructible Read Models**: The workbench maintains a private SQLite database (`SqliteProjectionStore`) with cursor-tracked event streams. Presentation views are pure projections over immutable snapshots (`FullWorkbenchSnapshot`) published by `WorkbenchModel`.
+
+For full subsystem architecture, see [`subsystems/tui.md`](subsystems/tui.md). For the normative visual and presentation design contract, see [`DESIGN.md`](../DESIGN.md).
+
+---
+
 ## Source Trail
 
 - [`crates/gauntlet-domain/src/lib.rs`](../crates/gauntlet-domain/src/lib.rs) — Domain aggregates, value objects, and invariants.
@@ -229,3 +257,9 @@ flowchart LR
 - [`crates/gauntlet-app/src/govern/gate.rs`](../crates/gauntlet-app/src/govern/gate.rs) — `AuthorityGate` pre-execution containment check.
 - [`crates/gauntlet-cli/src/compose.rs`](../crates/gauntlet-cli/src/compose.rs) — CLI adapter wiring and composition root.
 - [`crates/gauntlet-arch-tests/src/deps.rs`](../crates/gauntlet-arch-tests/src/deps.rs) — Mechanical compile-time enforcement of layer directions.
+- [`crates/adapters/gauntlet-adapter-surface-json/src/lib.rs`](../crates/adapters/gauntlet-adapter-surface-json/src/lib.rs) — `JsonOperatorSurface` loopback HTTP/JSON server.
+- [`workbench/src/main.ts`](../workbench/src/main.ts) — Operator workbench host loop and terminal lifecycle.
+- [`workbench/src/operation-gateway.ts`](../workbench/src/operation-gateway.ts) — Isomorphic command gateway and router-not-authority engine.
+- [`workbench/src/workbench-model.ts`](../workbench/src/workbench-model.ts) — Projection accumulator and immutable snapshot fan-out.
+- [`DESIGN.md`](../DESIGN.md) — Canonical TUI design system and presentation contract.
+

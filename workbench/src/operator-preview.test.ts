@@ -34,9 +34,8 @@ describe("T00A Operator Preview: Geometry & Layout Floors (REQ-UX-005, DSN-007)"
 
     const prompt = renderBelowMinimumPrompt({ cols: 72, rows: 20 });
     expect(prompt).toContain("Gauntlet needs at least 80x24. This terminal is 72x20.");
-    expect(prompt).toContain(
-      "Resize the window, or press q to quit.  (admitted work keeps running)",
-    );
+    expect(prompt.split("\n")).toContain("Resize the window, or press q to quit.");
+    expect(prompt.split("\n")).toContain("(admitted work keeps running)");
   });
 
   it("teeth: terminal resize down to <80x24 yields prompt; resize back restores layout and location", () => {

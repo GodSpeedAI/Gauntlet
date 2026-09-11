@@ -1,0 +1,23 @@
+{
+  "status": "complete",
+  "files": [
+    "src/workbench-host.ts",
+    "src/workbench-host.test.ts",
+    "src/client.ts",
+    "src/operation-gateway.ts",
+    "src/workbench-model.ts",
+    "src/shell.ts",
+    "src/cross-surface-equivalence.test.ts"
+  ],
+  "tests": [
+    "bun run check: PASS",
+    "biome check --write on six owned files: PASS (existing informational literal-key diagnostics)",
+    "bun test src/workbench-host.test.ts src/opentui-shell.test.ts src/workbench-model.test.ts: 16 PASS, 164 assertions",
+    "canonical-boundary and deny-bypass: 20 PASS; cross-surface-equivalence final rerun: 14 PASS, 473 assertions including explicit host importer registration and native renderer runtime authority isolation"
+  ],
+  "remaining": [
+    "Root integration: run all required closure gates and actual Rust backend PTY validation.",
+    "Live Prime/kernel/message submission transports are absent from existing canonical surface; host explicitly reports unsupported and unsent rather than fabricating delivery.",
+    "Canonical HTTP reads provide snapshots, not a resumable event stream. Host labels local source cursors poll-N and retains read projections across disconnect with unreachable observation. No invented durable backend stream offsets."
+  ]
+}

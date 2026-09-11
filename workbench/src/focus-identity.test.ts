@@ -1,6 +1,10 @@
 import { describe, expect, it } from "bun:test";
+import { CanonicalSurfaceStreamPort } from "./canonical-surface-stream-port";
+import { GauntletReadClient } from "./client";
 import { FocusRef } from "./focus";
+import { LiveStreamClient } from "./live-streams";
 import type { AuthoritativeEventFrame } from "./projection-store";
+import { startCanonicalFixture } from "./testing/canonical-fixture-server";
 import type { FullWorkbenchSnapshot } from "./workbench-model";
 import { WorkbenchModel } from "./workbench-model";
 
@@ -277,5 +281,53 @@ describe("T08 Correction Round 1 (peer findings)", () => {
     expect(admitted.applied).toBe(true);
     expect(model.getSnapshot().focus).toBe(FocusRef.for("prime", "WorkItem", "u-z"));
     model.close();
+  });
+});
+
+describe("Phase B — focus survives LiveStreamClient reconciliation over the real derived port (workbench-intent-closure.md tooth 6)", () => {
+  it("connect/poll/resync never clear the operator's selected Focus themselves — LiveStreamClient has no opinion on presentation focus; only WorkbenchHost decides to clear it, and only on a genuine membership/run change", async () => {
+    const fixture = startCanonicalFixture({
+      run: "run-b6",
+      units: [{ id: "AK-601", status: "open" }],
+    });
+    try {
+      const port = new CanonicalSurfaceStreamPort(new GauntletReadClient(fixture.endpoint));
+      await port.observe();
+      const model = new WorkbenchModel();
+      const client = new LiveStreamClient({ model, port, mintGenerationId: (n) => `b6-${n}` });
+      client.connect();
+
+      const ref = FocusRef.for("gauntlet", "WorkItem", "AK-601");
+      model.selectFocus(ref);
+      expect(model.getSnapshot().focus).toBe(ref);
+
+      // An ordinary content-only poll: same membership, same run. Neither
+      // connect() (already happened) nor poll() below touches currentFocus —
+      // that field is presentation state LiveStreamClient never writes.
+      const unit = fixture.state.units[0];
+      if (unit) unit.status = "blocked";
+      await port.observe();
+      client.poll();
+      expect(model.getSnapshot().focus).toBe(ref);
+
+      // Even a resync (membership change forces a fresh generation) leaves
+      // currentFocus untouched BY THE CLIENT — startGeneration() resets
+      // placements/horizons/storeFocusRef but explicitly retains Focus
+      // identity across generations (workbench-model.ts startGeneration
+      // docstring). Clearing it when the focused unit has actually
+      // disappeared is WorkbenchHost's decision (see workbench-host.test.ts),
+      // not LiveStreamClient's or WorkbenchModel's.
+      fixture.state.units = [
+        { id: "AK-601", status: "open" },
+        { id: "AK-602", status: "open" },
+      ];
+      await port.observe();
+      client.poll();
+      expect(model.getSnapshot().focus).toBe(ref);
+
+      model.close();
+    } finally {
+      await fixture.stop();
+    }
   });
 });

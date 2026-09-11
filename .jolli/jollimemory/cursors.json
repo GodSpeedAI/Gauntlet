@@ -106,20 +106,65 @@
 			"lineNumber": 122,
 			"updatedAt": "2026-08-31T14:20:22.012Z"
 		},
-		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl": {
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl",
-			"lineNumber": 626,
-			"updatedAt": "2026-08-31T14:20:21.754Z"
+		"/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-35-13-01a07981-50d9-7593-8ebb-d16631f82dbe.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-35-13-01a07981-50d9-7593-8ebb-d16631f82dbe.jsonl",
+			"lineNumber": 1123,
+			"updatedAt": "2026-09-09T01:16:04.108Z"
 		},
-		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl": {
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl",
-			"lineNumber": 668,
-			"updatedAt": "2026-09-02T05:28:08.559Z"
+		"/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-44-15-01a07989-9733-7333-a471-cdf4c21c5ef4.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-44-15-01a07989-9733-7333-a471-cdf4c21c5ef4.jsonl",
+			"lineNumber": 203,
+			"updatedAt": "2026-09-09T01:16:04.116Z"
 		},
-		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl": {
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl",
-			"lineNumber": 672,
-			"updatedAt": "2026-09-02T05:28:08.570Z"
+		"/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-44-55-01a0798a-3237-7821-b6e4-ece70c4304db.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-44-55-01a0798a-3237-7821-b6e4-ece70c4304db.jsonl",
+			"lineNumber": 150,
+			"updatedAt": "2026-09-09T01:16:04.122Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-44-55-01a0798a-3543-7710-833e-2a248b03b237.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-44-55-01a0798a-3543-7710-833e-2a248b03b237.jsonl",
+			"lineNumber": 26,
+			"updatedAt": "2026-09-09T01:16:04.124Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-56-59-01a07995-3dd9-7da2-a78f-11cb899993fe.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-56-59-01a07995-3dd9-7da2-a78f-11cb899993fe.jsonl",
+			"lineNumber": 92,
+			"updatedAt": "2026-09-09T01:16:04.128Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-56-59-01a07995-408f-7b51-a634-eddd35c73cec.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/06/rollout-2026-09-06T21-56-59-01a07995-408f-7b51-a634-eddd35c73cec.jsonl",
+			"lineNumber": 26,
+			"updatedAt": "2026-09-09T01:16:04.130Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/07/rollout-2026-09-07T09-09-07-01a07bfc-9994-7c81-91c4-a8b0b4ddbfd7.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/07/rollout-2026-09-07T09-09-07-01a07bfc-9994-7c81-91c4-a8b0b4ddbfd7.jsonl",
+			"lineNumber": 70,
+			"updatedAt": "2026-09-09T02:28:37.032Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/07/rollout-2026-09-07T09-24-11-01a07c0a-6586-72c0-9520-37e883c16532.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/07/rollout-2026-09-07T09-24-11-01a07c0a-6586-72c0-9520-37e883c16532.jsonl",
+			"lineNumber": 715,
+			"updatedAt": "2026-09-09T02:28:37.079Z"
+		},
+		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/ce946ac4-8df1-4885-8229-53ea1fc4ed89.jsonl": {
+			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/ce946ac4-8df1-4885-8229-53ea1fc4ed89.jsonl",
+			"lineNumber": 1454,
+			"updatedAt": "2026-09-10T05:16:28.371Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-57-01a0824c-5a07-7123-a9bb-597bfc24ea26.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-57-01a0824c-5a07-7123-a9bb-597bfc24ea26.jsonl",
+			"lineNumber": 837,
+			"updatedAt": "2026-09-10T05:16:28.728Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-58-01a0824c-6125-7d82-a59c-08a632f89398.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-58-01a0824c-6125-7d82-a59c-08a632f89398.jsonl",
+			"lineNumber": 139,
+			"updatedAt": "2026-09-10T05:16:28.856Z"
+		},
+		"/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T17-36-23-01a082f3-605a-7131-a73b-e765d8f55aba.jsonl": {
+			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T17-36-23-01a082f3-605a-7131-a73b-e765d8f55aba.jsonl",
+			"lineNumber": 17,
+			"updatedAt": "2026-09-10T05:16:28.877Z"
 		}
 	}
 }

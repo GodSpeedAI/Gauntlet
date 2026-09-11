@@ -1,0 +1,11 @@
+[
+  {
+    "date": "2026-09-10",
+    "macrostructure": "system-managed (DESIGN.md three-surface shell)",
+    "theme": "DESIGN.md locked (GodSpeed dark instrument panel, semantic tokens — no rotation)",
+    "enrichment": "none (typography/rhythm only)",
+    "brief": "gauntlet TUI · rhythm pass over flat Work-view internals + inspector provenance wrap · closes recorded tui_layout_pass/tui_critique_actions residuals",
+    "scope": "component-layer views (work view, inspector fields, shell header)",
+    "design_system": "DESIGN.md (hash-bound, verified untouched by just tui-preflight bootstrap)"
+  }
+]

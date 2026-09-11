@@ -234,6 +234,165 @@
 			"updatedAt": "2026-08-31T14:20:24.223Z",
 			"commitHash": "d447a221309be775bca15d55a864d063d3e8bcdb",
 			"contentHashAtCommit": "2efccb52b5bb4341bc390fb8b53671027749092c7491439440ed04cf15fe2ec7"
+		},
+		"opus-task26-independent-verification": {
+			"slug": "opus-task26-independent-verification",
+			"title": "Task 26 Independent Verification",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/opus-task26-independent-verification.md",
+			"addedAt": "2026-09-08T18:55:56.881Z",
+			"updatedAt": "2026-09-08T22:57:08.464Z",
+			"commitHash": "742d08ad474e2f3a1abc3701aeba15a1cd17ab87",
+			"contentHashAtCommit": "2ea805f9dfd64ea93f5b62ece53c2be7fcce37568e85e0d4508f1f655834c96b"
+		},
+		"task26-followup-independent-verification": {
+			"slug": "task26-followup-independent-verification",
+			"title": "Task 26 D+Critic Follow-Up — Independent Verification",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task26-followup-independent-verification.md",
+			"addedAt": "2026-09-08T21:52:42.768Z",
+			"updatedAt": "2026-09-08T22:57:08.466Z",
+			"commitHash": "742d08ad474e2f3a1abc3701aeba15a1cd17ab87",
+			"contentHashAtCommit": "2d532328d48498c98901fd42b9924b60817e66bb1f53ae602cef37e2ac124997"
+		},
+		"diagnosis": {
+			"slug": "diagnosis",
+			"title": "Task 26 D+Critic Apparatus Repair — Diagnosis",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task26-dcritic-apparatus-repair/diagnosis.md",
+			"addedAt": "2026-09-08T22:54:42.387Z",
+			"updatedAt": "2026-09-08T22:57:08.469Z",
+			"commitHash": "742d08ad474e2f3a1abc3701aeba15a1cd17ab87",
+			"contentHashAtCommit": "062bbe2c20458abe033ff1f6052b73735aecd851c5b68f4662b930d38006fcf6"
+		},
+		"candidate-revision-producer-instrument": {
+			"slug": "candidate-revision-producer-instrument",
+			"title": "CandidateRevision: `evidence_required.producer: instrument` ambiguity",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task26-dcritic-apparatus-repair/candidate-revision-producer-instrument.md",
+			"addedAt": "2026-09-08T22:54:42.387Z",
+			"updatedAt": "2026-09-08T22:57:08.472Z",
+			"commitHash": "742d08ad474e2f3a1abc3701aeba15a1cd17ab87",
+			"contentHashAtCommit": "75687173e792a6de436f3fa08bfbf1f7fd0e516602fad2e1871139958d7c0e75"
+		},
+		"repair-plan": {
+			"slug": "repair-plan",
+			"title": "Task 26 D+Critic Apparatus Repair — Plan",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task26-dcritic-apparatus-repair/repair-plan.md",
+			"addedAt": "2026-09-08T22:54:42.387Z",
+			"updatedAt": "2026-09-08T22:57:08.475Z",
+			"commitHash": "742d08ad474e2f3a1abc3701aeba15a1cd17ab87",
+			"contentHashAtCommit": "541625fd08cceedc826103a7cf1b05fc15b2ad00f0c6bd69615458321666bc3d"
+		},
+		"repair-evidence": {
+			"slug": "repair-evidence",
+			"title": "Task 26 D+Critic Apparatus Repair — Evidence",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task26-dcritic-apparatus-repair/repair-evidence.md",
+			"addedAt": "2026-09-08T22:54:42.387Z",
+			"updatedAt": "2026-09-08T22:57:08.478Z",
+			"commitHash": "742d08ad474e2f3a1abc3701aeba15a1cd17ab87",
+			"contentHashAtCommit": "704a1107afb66c612a9befeb7c56dcdae4ade280bfa82a4913a51dae07c07a22"
+		},
+		"handoff": {
+			"slug": "handoff",
+			"title": "Task 26 D+Critic Apparatus — Handoff to the Experimental Agent",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/task26-dcritic-apparatus-repair/handoff.md",
+			"addedAt": "2026-09-08T22:54:42.387Z",
+			"updatedAt": "2026-09-08T22:57:08.480Z",
+			"commitHash": "742d08ad474e2f3a1abc3701aeba15a1cd17ab87",
+			"contentHashAtCommit": "5a5dfe6fab5d0edb1d698b14ea2466834b617b5a5ede72c0670f91679bc56b9f"
+		},
+		"GAP-VERDICT": {
+			"slug": "GAP-VERDICT",
+			"title": "Bounded-gap feasibility verdict — 2026-09-10",
+			"sourcePath": "/home/sprime01/projects/gauntlet/workbench/repair/GAP-VERDICT.md",
+			"addedAt": "2026-09-10T13:52:39.606Z",
+			"updatedAt": "2026-09-10T13:52:39.606Z",
+			"commitHash": null
+		},
+		"workbench-intent-closure": {
+			"slug": "workbench-intent-closure",
+			"title": "Workbench intent closure — binding what is already built",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/plans/workbench-intent-closure.md",
+			"addedAt": "2026-09-10T14:01:06.859Z",
+			"updatedAt": "2026-09-10T14:01:06.859Z",
+			"commitHash": null
+		},
+		"release-qualification": {
+			"slug": "release-qualification",
+			"title": "T20 Evidence — Linux/WSL same-host, SSH/tmux terminal, and release qualification",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/T20/release-qualification.md",
+			"addedAt": "2026-09-10T14:18:44.510Z",
+			"updatedAt": "2026-09-10T14:18:44.510Z",
+			"commitHash": null
+		},
+		"projection-integrity": {
+			"slug": "projection-integrity",
+			"title": "Phase B — bind the projection integrity contract in production",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-b/projection-integrity.md",
+			"addedAt": "2026-09-10T14:52:55.388Z",
+			"updatedAt": "2026-09-10T14:52:55.388Z",
+			"commitHash": null
+		},
+		"operation-declarations": {
+			"slug": "operation-declarations",
+			"title": "Phase C1 — declare the Prime operation contract (nothing executes)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-c1/operation-declarations.md",
+			"addedAt": "2026-09-10T16:07:31.978Z",
+			"updatedAt": "2026-09-10T16:07:31.978Z",
+			"commitHash": null
+		},
+		"prime-substrate-binding": {
+			"slug": "prime-substrate-binding",
+			"title": "Phase C2 — bind the real Prime substrate",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-c2/prime-substrate-binding.md",
+			"addedAt": "2026-09-10T17:38:27.932Z",
+			"updatedAt": "2026-09-10T17:38:27.932Z",
+			"commitHash": null
+		},
+		"prime-lifecycle-reattachment": {
+			"slug": "prime-lifecycle-reattachment",
+			"title": "Phase D — long-running lifecycle and reattachment in production",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-d/prime-lifecycle-reattachment.md",
+			"addedAt": "2026-09-10T19:27:28.117Z",
+			"updatedAt": "2026-09-10T19:27:28.117Z",
+			"commitHash": null
+		},
+		"tui-runtime-repair-followup": {
+			"slug": "tui-runtime-repair-followup",
+			"title": "TUI runtime repair follow-up — settled 2026-09-10",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/plans/tui-runtime-repair-followup.md",
+			"addedAt": "2026-09-10T20:13:04.834Z",
+			"updatedAt": "2026-09-10T20:13:04.834Z",
+			"commitHash": null
+		},
+		"operate-the-tui": {
+			"slug": "operate-the-tui",
+			"title": "How-To: Operate the Gauntlet Workbench TUI",
+			"sourcePath": "/home/sprime01/projects/gauntlet/docs/how-to/operate-the-tui.md",
+			"addedAt": "2026-09-10T20:34:00.094Z",
+			"updatedAt": "2026-09-10T20:34:00.094Z",
+			"commitHash": null
+		},
+		"troubleshooting": {
+			"slug": "troubleshooting",
+			"title": "Operational Troubleshooting Guide",
+			"sourcePath": "/home/sprime01/projects/gauntlet/docs/troubleshooting.md",
+			"addedAt": "2026-09-10T20:34:00.094Z",
+			"updatedAt": "2026-09-10T20:34:00.094Z",
+			"commitHash": null
+		},
+		"tui": {
+			"slug": "tui",
+			"title": "Subsystem: Terminal-Native Operator Workbench (`workbench/`)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/docs/subsystems/tui.md",
+			"addedAt": "2026-09-10T20:34:00.094Z",
+			"updatedAt": "2026-09-10T20:34:00.094Z",
+			"commitHash": null
+		},
+		"tui-53826f48": {
+			"slug": "tui-53826f48",
+			"title": "Reference: Operator Workbench (`workbench/`)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/docs/reference/tui.md",
+			"addedAt": "2026-09-10T20:34:00.094Z",
+			"updatedAt": "2026-09-10T20:34:00.094Z",
+			"commitHash": null
 		}
 	},
 	"skills": {

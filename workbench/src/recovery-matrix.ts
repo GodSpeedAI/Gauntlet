@@ -22,6 +22,7 @@ import {
   LiveStreamClient,
   projectionDifferences,
 } from "./live-streams";
+import type { PrimeHostPort } from "./prime-host";
 import { PrimeHostAdapter } from "./prime-host";
 import { PrimeReplKernel } from "./prime-kernel";
 import { loggingPrimeAdapter, reattachToPrime } from "./prime-long-running";
@@ -856,7 +857,7 @@ export interface MatrixWorld {
   readonly client: LiveStreamClient;
   readonly adapter: PrimeHostAdapter;
   /** Call-logging wrapper — proves no cancel/stop ever rides host operations. */
-  readonly observedAdapter: PrimeHostAdapter;
+  readonly observedAdapter: PrimeHostPort;
   /** The LIVE adapter call log (kept current as calls happen). */
   readonly adapterCalls: readonly string[];
   readonly kernel: PrimeReplKernel | null;

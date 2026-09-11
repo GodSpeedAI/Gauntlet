@@ -33,7 +33,7 @@
  *     Prime-side facts (T04's adapter contracts).
  */
 
-import type { PrimeHostAdapter, PrimeMailboxMessage, PrimeSessionState } from "./prime-host";
+import type { PrimeHostPort, PrimeMailboxMessage, PrimeSessionState } from "./prime-host";
 import type { PrimeDelegationDispatcher } from "./prime-recursion";
 import { projectHostToSessionRecords } from "./prime-recursion";
 import type { PrimeTopologyNode } from "./prime-topology";
@@ -137,7 +137,7 @@ export interface DeliverMessageOptions {
  * containing "done" before a valid result leaves the child NON-complete.
  */
 export function deliverOperatorMessage(
-  adapter: PrimeHostAdapter,
+  adapter: PrimeHostPort,
   options: DeliverMessageOptions,
 ): DeliveredOperatorMessage {
   const plan = mapDeliveryIntent(options.intent);
@@ -325,8 +325,8 @@ export interface DetachReceipt {
  * recorded by name, so tests can PROVE a host operation (detach/close) issues no
  * cancel/stop against the adapter (the plan's "assert on the adapter call log").
  */
-export function loggingPrimeAdapter(adapter: PrimeHostAdapter): {
-  readonly logged: PrimeHostAdapter;
+export function loggingPrimeAdapter(adapter: PrimeHostPort): {
+  readonly logged: PrimeHostPort;
   readonly calls: readonly string[];
 } {
   const calls: string[] = [];
@@ -343,7 +343,7 @@ export function loggingPrimeAdapter(adapter: PrimeHostAdapter): {
     },
   });
   return {
-    logged: logged as PrimeHostAdapter,
+    logged: logged as PrimeHostPort,
     // The LIVE log (callers observe it after operations complete); typed
     // read-only so callers cannot mutate it.
     calls,
@@ -360,7 +360,7 @@ export class PrimeHostLifecycleError extends Error {
 
 export interface PrimeWorkbenchHostOptions {
   /** The Prime-side session model (T04 adapter). The host is a disposable viewer of it. */
-  readonly adapter: PrimeHostAdapter;
+  readonly adapter: PrimeHostPort;
   /** The gateway-gated delegation dispatcher, when the host delegates work. */
   readonly delegation?: PrimeDelegationDispatcher | undefined;
 }
@@ -373,7 +373,7 @@ export interface PrimeWorkbenchHostOptions {
  * from qualified Prime records (`reattachToPrime`).
  */
 export class PrimeWorkbenchHost {
-  readonly adapter: PrimeHostAdapter;
+  readonly adapter: PrimeHostPort;
   private delegationDispatcher: PrimeDelegationDispatcher | undefined;
   private closed = false;
 
@@ -408,7 +408,7 @@ export class PrimeWorkbenchHost {
    * authorized work continues in Prime. The optional argument accepts a call-
    * logging adapter wrapper so tests can verify the absence on the call log.
    */
-  detach(observedAdapter: PrimeHostAdapter = this.adapter): DetachReceipt {
+  detach(observedAdapter: PrimeHostPort = this.adapter): DetachReceipt {
     const records = projectHostToSessionRecords(observedAdapter);
     return Object.freeze({
       detached: true as const,
@@ -451,7 +451,7 @@ export interface ReattachmentReceipt {
  * projection. Never reads a prior host's memory; never infers status from
  * messages, liveness, or session-directory presence (REQ-PRIME-010).
  */
-export function reattachToPrime(adapter: PrimeHostAdapter): ReattachmentReceipt {
+export function reattachToPrime(adapter: PrimeHostPort): ReattachmentReceipt {
   const records = projectHostToSessionRecords(adapter);
   const topology = reconstructTopology(records);
   return Object.freeze({

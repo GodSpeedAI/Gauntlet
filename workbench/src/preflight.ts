@@ -4,6 +4,7 @@
  */
 
 import type { WorkbenchConfig } from "./config";
+import { probePrimeSurface } from "./substrate-inventory";
 
 export type PreflightErrorCode =
   | "missing_config_error"
@@ -89,9 +90,13 @@ export function evaluatePreflight(
     );
   }
 
-  // 2. Evaluate Prime Agent Integration
+  // 2. Evaluate Prime Agent Integration. Two independent configuration
+  //    shapes: `prime_endpoint` (remote/HTTP) and `prime_binary` (same-host,
+  //    RealPrimeHost over Bun.spawn — plan Phase C2). Either configures Prime;
+  //    neither is REQUIRED (D6: absence never degrades Gauntlet).
+  const primeConfigured = config.prime_endpoint !== null || config.prime_binary !== null;
   let prime_status: PrimeStatus = "unavailable";
-  if (config.prime_endpoint === null && !probes.prime_reachable) {
+  if (!primeConfigured && !probes.prime_reachable) {
     // Prime is optional: absence permits core read-only inspection (REQ-CONFIG-012, Attack 1)
     prime_status = "unavailable";
     warnings.push(
@@ -103,13 +108,17 @@ export function evaluatePreflight(
     allowed_capabilities.push("prime_chat", "prime_steering", "prime_subagent_spawn");
   } else {
     prime_status = "unavailable";
+    const configuredVia =
+      config.prime_binary !== null
+        ? `binary ${config.prime_binary}`
+        : `endpoint ${config.prime_endpoint}`;
     errors.push({
       code: "prime_integration_error",
-      message: `Prime endpoint configured (${config.prime_endpoint}) but unreachable or incompatible.`,
+      message: `Prime integration configured (${configuredVia}) but unreachable or incompatible.`,
       blast_radius:
         "Prime-dependent views and agent steering blocked; core Gauntlet inspection unaffected.",
       recoverability_hint:
-        "Check Prime process or unset PRIME_ENDPOINT to run in Gauntlet-only mode.",
+        "Check the Prime process/binary or unset PRIME_ENDPOINT/prime_binary to run in Gauntlet-only mode.",
       source: "prime",
     });
     blocked_capabilities.push("prime_chat", "prime_steering", "prime_subagent_spawn");
@@ -179,9 +188,20 @@ export async function runRuntimePreflight(
     gauntlet_reachable = false;
   }
 
-  // Probe live Prime endpoint (if configured)
+  // Probe Prime (same-host binary preferred over a remote HTTP endpoint —
+  // T24 qualified the real substrate as a binary, never an HTTP /health
+  // surface; probing the binary directly is the honest same-host check).
   let prime_reachable = false;
-  if (config.prime_endpoint) {
+  let prime_version: string | undefined;
+  if (config.prime_binary) {
+    try {
+      const probe = await probePrimeSurface(config.prime_binary);
+      prime_reachable = true;
+      prime_version = probe.version;
+    } catch {
+      prime_reachable = false;
+    }
+  } else if (config.prime_endpoint) {
     try {
       const res = await fetch(`${config.prime_endpoint.replace(/\/+$/, "")}/health`, {
         method: "GET",
@@ -196,6 +216,7 @@ export async function runRuntimePreflight(
     gauntlet_reachable,
     gauntlet_protocol_version,
     prime_reachable,
+    prime_version,
     projection_store_writable: true,
   });
 }

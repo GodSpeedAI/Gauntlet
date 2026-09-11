@@ -555,6 +555,13 @@ export class WorkbenchModel {
     this.notifySubscribers();
   }
 
+  /** Clear a selection whose source disappeared from a rebuilt projection. */
+  clearFocus(): void {
+    this.currentFocus = null;
+    this.storeFocusRef = null;
+    this.notifySubscribers();
+  }
+
   /**
    * Interaction callback: activate a specific Horizon (or none for the whole-Case
    * world). Activating a horizon resets the hoist stack to that horizon.

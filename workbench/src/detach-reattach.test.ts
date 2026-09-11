@@ -21,6 +21,8 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import { CanonicalSurfaceStreamPort } from "./canonical-surface-stream-port";
+import { GauntletReadClient } from "./client";
 import {
   canonicalStreamOrder,
   InMemoryStreamPort,
@@ -31,6 +33,7 @@ import {
 import { PrimeHostAdapter } from "./prime-host";
 import { loggingPrimeAdapter } from "./prime-long-running";
 import { findSessionInTopology } from "./prime-topology";
+import { startCanonicalFixture } from "./testing/canonical-fixture-server";
 import { WorkbenchModel } from "./workbench-model";
 
 function seed(gauntlet: InMemoryStreamSource, prime: InMemoryStreamSource): void {
@@ -356,5 +359,94 @@ describe("T16 detach/reattach (plan Attack 2; REQ-PRIME-009/010, REQ-VERIFY-005/
     host1.model.close();
     referenceA.close();
     referenceB.close();
+  });
+});
+
+describe("Phase B — detach/reattach against the DERIVED port (workbench-intent-closure.md tooth 4)", () => {
+  it("a cursor persisted at detach is honoured on reattach through CanonicalSurfaceStreamPort, not just InMemoryStreamPort — a real content change since detach (same membership, so no epoch change) is reconciled in as an incremental catch-up, not a fresh baseline", async () => {
+    const fixture = startCanonicalFixture({
+      run: "run-b4",
+      units: [{ id: "AK-410", status: "open" }],
+    });
+    try {
+      const port = new CanonicalSurfaceStreamPort(new GauntletReadClient(fixture.endpoint));
+      await port.observe();
+      const model = new WorkbenchModel();
+      const client = new LiveStreamClient({ model, port, mintGenerationId: (n) => `b4-${n}` });
+      client.connect();
+      expect(model.getUnits().some((unit) => unit.unit_id === "AK-410")).toBe(true);
+
+      const receipt = client.detach();
+      expect(receipt.cancel_calls_issued).toBe(0);
+      expect(receipt.persisted.source_positions["gauntlet"]?.sequence).toBeGreaterThan(0);
+      client.close();
+
+      // Real change to the surface WHILE detached — same membership (AK-410
+      // still the only unit), so this is an increment, not a new epoch.
+      const unit = fixture.state.units[0];
+      if (unit) unit.status = "fail";
+      await port.observe();
+
+      const model2 = new WorkbenchModel();
+      const client2 = new LiveStreamClient({
+        model: model2,
+        port,
+        mintGenerationId: (n) => `b4-reattach-${n}`,
+      });
+      const reattachReceipt = client2.reattach({ persisted: receipt.persisted });
+      expect(reattachReceipt.presentation_source).toBe("persisted_noncanonical_cursor_state");
+      const reconciliation = reattachReceipt.handshake.per_source.find(
+        (entry) => entry.source_id === "gauntlet",
+      );
+      expect(reconciliation?.cursor_validation).toBe("valid");
+      expect(reconciliation?.strategy).toBe("baseline_with_cursor_validation");
+      expect(reconciliation?.reconciled_since_cursor).toBeGreaterThan(0);
+      expect(model2.getUnits().find((u) => u.unit_id === "AK-410")?.status).toBe("fail");
+
+      model.close();
+      model2.close();
+    } finally {
+      await fixture.stop();
+    }
+  });
+
+  it("a membership change while detached forces epoch_changed on reattach — the derived port never lets a stale cursor validate against a store whose shape moved", async () => {
+    const fixture = startCanonicalFixture({
+      run: "run-b4b",
+      units: [{ id: "AK-420", status: "open" }],
+    });
+    try {
+      const port = new CanonicalSurfaceStreamPort(new GauntletReadClient(fixture.endpoint));
+      await port.observe();
+      const model = new WorkbenchModel();
+      const client = new LiveStreamClient({ model, port, mintGenerationId: (n) => `b4b-${n}` });
+      client.connect();
+      const receipt = client.detach();
+      client.close();
+
+      // Membership changes while detached — same run, different unit set.
+      fixture.state.units = [{ id: "AK-421", status: "open" }];
+      await port.observe();
+
+      const model2 = new WorkbenchModel();
+      const client2 = new LiveStreamClient({
+        model: model2,
+        port,
+        mintGenerationId: (n) => `b4b-reattach-${n}`,
+      });
+      const reattachReceipt = client2.reattach({ persisted: receipt.persisted });
+      const reconciliation = reattachReceipt.handshake.per_source.find(
+        (entry) => entry.source_id === "gauntlet",
+      );
+      expect(reconciliation?.cursor_validation).toBe("epoch_changed");
+      expect(reconciliation?.strategy).toBe("fresh_baseline");
+      expect(model2.getUnits().some((unit) => unit.unit_id === "AK-420")).toBe(false);
+      expect(model2.getUnits().some((unit) => unit.unit_id === "AK-421")).toBe(true);
+
+      model.close();
+      model2.close();
+    } finally {
+      await fixture.stop();
+    }
   });
 });

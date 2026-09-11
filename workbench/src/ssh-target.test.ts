@@ -155,6 +155,21 @@ function capturePane(session: string): string {
   return tmuxOrFail(["capture-pane", "-t", session, "-p", "-S", "-60"], "capture pane");
 }
 
+/**
+ * True only while the pane's foreground process has entered the terminal
+ * alternate screen (DEC 1049) — the mode OpenTUI's `createCliRenderer`
+ * (`screenMode: "alternate-screen"`) requires and the non-TTY dump branch in
+ * `main.ts` never enters. tmux tracks this itself; it is not a text match.
+ */
+function paneAlternateOn(session: string): boolean {
+  return (
+    tmuxOrFail(
+      ["display-message", "-p", "-t", session, "#{alternate_on}"],
+      "alternate_on",
+    ).trim() === "1"
+  );
+}
+
 function panePid(session: string): string {
   return tmuxOrFail(["list-panes", "-t", session, "-F", "#{pane_pid}"], "pane pid").trim();
 }
@@ -215,26 +230,108 @@ describe("T20 target probes (recorded honestly)", () => {
   });
 });
 
+/**
+ * Builds the ssh command driving the workbench entry. `-tt` forces the
+ * remote sshd to allocate a pseudo-tty for the given command even though
+ * ssh was invoked non-interactively (a command was supplied); without it,
+ * OpenSSH connects the remote command's stdio to plain pipes, so
+ * `process.stdin.isTTY`/`process.stdout.isTTY` are false on the remote end
+ * and `main.ts:57` takes the one-shot non-TTY dump branch instead of
+ * mounting OpenTUI — printing exactly the marker text this leg used to
+ * assert and exiting before any keystroke could ever be consumed.
+ */
+function buildSshWorkbenchCommand(withTty: boolean, knownHosts: string): string {
+  return `ssh ${withTty ? "-tt" : ""} -o StrictHostKeyChecking=no -o UserKnownHostsFile=${knownHosts} -o ConnectTimeout=5 localhost 'cd ${WORKBENCH_DIR} && bun run src/main.ts'`;
+}
+
+/**
+ * The full interactive qualification for the ssh-driven workbench entry:
+ * remote pty entry into the terminal alternate screen, a keystroke effect
+ * that only a process reading raw remote stdin can produce (opening the
+ * command palette), a geometry change delivered by SIGWINCH through the ssh
+ * channel itself (resizing the LOCAL tmux window), and a clean exit reached
+ * only after that keystroke. Every assertion here is unreachable by the
+ * non-TTY dump path, so running this against a non-tty session (tooth 1,
+ * the negative control below) throws before the first one is satisfied.
+ */
+async function runInteractiveSshLeg(withTty: boolean): Promise<void> {
+  const knownHosts = join(mkdtempSync(join(tmpdir(), "gauntlet-t20-ssh-")), "known_hosts");
+  const sshCommand = buildSshWorkbenchCommand(withTty, knownHosts);
+  const wb = spawnWorkbenchInTmux(120, 40, sshCommand);
+  spawnedSessions.push(wb.session);
+  spawnedWorkDirs.push(wb.workDir);
+  try {
+    const rendered = await untilPane(wb.session, "Gauntlet", 20_000);
+    if (!rendered.includes("NAVIGATOR") || !rendered.includes("INSPECTOR")) {
+      throw new Error("interactive layout markers (NAVIGATOR/INSPECTOR) absent from the pane");
+    }
+    if (!paneAlternateOn(wb.session)) {
+      throw new Error("remote process never entered the terminal alternate screen");
+    }
+
+    // Raw-mode-only keystroke effect: "p" opens the command palette, which
+    // renders entries ("view work") that the static dump never prints.
+    tmuxOrFail(["send-keys", "-t", wb.session, "p"], "open palette");
+    const withPalette = await untilPane(wb.session, "view work", 8_000);
+    if (!withPalette.includes("view work")) {
+      throw new Error("the 'p' keystroke produced no visible palette effect");
+    }
+    tmuxOrFail(["send-keys", "-t", wb.session, "Escape"], "close palette");
+
+    // SIGWINCH delivered through the ssh channel: resizing the LOCAL tmux
+    // window changes the local pane's pty geometry, which ssh forwards as a
+    // window-change request down the channel to the remote process.
+    tmuxOrFail(["resize-window", "-t", wb.session, "-x", "80", "-y", "24"], "resize compact");
+    const deadline = Date.now() + 12_000;
+    let compact = "";
+    while (Date.now() < deadline) {
+      compact = capturePane(wb.session);
+      if (compact.includes("PRIMARY") && !compact.includes("NAVIGATOR")) break;
+      await Bun.sleep(200);
+    }
+    if (!compact.includes("PRIMARY") || compact.includes("NAVIGATOR")) {
+      throw new Error("SIGWINCH through the ssh channel produced no layout change");
+    }
+
+    tmuxOrFail(["send-keys", "-t", wb.session, "q"], "quit");
+    const exitMarker = await waitForExitFile(wb.exitFile, 15_000);
+    if (!exitMarker.includes("__T20_EXIT_0__")) {
+      throw new Error(`unexpected exit marker: ${exitMarker}`);
+    }
+  } finally {
+    killSession(wb.session);
+  }
+}
+
 describe("T20 SSH client leg (gated on a REAL reachable sshd)", () => {
+  // Reachable only when the probe above succeeded. The SAME loopback HTTP
+  // surface serves the SSH-session terminal — no remote server is invented
+  // (prereg D1); the SSH leg proves the terminal path.
   it.skipIf(!SSH.available)(
-    `drives the workbench entry through a real 'ssh localhost' session under tmux (${SSH.detail})`,
+    `drives the workbench entry through a real 'ssh -tt localhost' session under tmux, entering the alternate screen, consuming a raw keystroke, and re-laying out on SIGWINCH through the ssh channel (${SSH.detail})`,
     async () => {
-      // Reachable only when the probe above succeeded. The SAME loopback
-      // HTTP surface serves the SSH-session terminal — no remote server is
-      // invented (prereg D1); the SSH leg proves the terminal path.
-      const knownHosts = join(mkdtempSync(join(tmpdir(), "gauntlet-t20-ssh-")), "known_hosts");
-      const sshCommand = `ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=${knownHosts} -o ConnectTimeout=5 localhost 'cd ${WORKBENCH_DIR} && bun run src/main.ts'`;
-      const wb = spawnWorkbenchInTmux(120, 40, sshCommand);
-      spawnedSessions.push(wb.session);
-      spawnedWorkDirs.push(wb.workDir);
-      const rendered = await untilPane(wb.session, "Gauntlet", 30_000);
-      expect(rendered).toContain("NAVIGATOR");
-      expect(rendered).toContain("INSPECTOR");
-      tmuxOrFail(["send-keys", "-t", wb.session, "q"], "quit");
-      const exitMarker = await waitForExitFile(wb.exitFile, 15_000);
-      expect(exitMarker).toContain("__T20_EXIT_0__");
+      await runInteractiveSshLeg(true);
     },
     60_000,
+  );
+
+  // Tooth 1 (load-bearing): the same assertions run against the SAME
+  // command minus `-tt` — reproducing the leg's former shape — must fail.
+  // This is what converts the leg from a tautology (it always printed the
+  // markers it checked for, whether or not a pty was ever allocated) into a
+  // real qualification: only the -tt path can satisfy these assertions.
+  it.skipIf(!SSH.available)(
+    "negative control: withholding -tt reproduces the former false-green shape — no remote pty is allocated, so the interactive assertions above cannot be satisfied",
+    async () => {
+      let failed = false;
+      try {
+        await runInteractiveSshLeg(false);
+      } catch {
+        failed = true;
+      }
+      expect(failed).toBe(true);
+    },
+    30_000,
   );
 });
 

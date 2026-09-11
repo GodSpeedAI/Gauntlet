@@ -103,3 +103,36 @@ Layering and vendor-freedom rules are strictly enforced by `crates/gauntlet-arch
 | **Literal Scanner** | [`crates/gauntlet-arch-tests/src/literals.rs`](../crates/gauntlet-arch-tests/src/literals.rs) | Hardcoded timeouts, model names, absolute paths, or URLs outside `config/defaults.rs`. |
 | **Single Writer** | [`crates/gauntlet-arch-tests/src/single_writer.rs`](../crates/gauntlet-arch-tests/src/single_writer.rs) | Multiple modules writing to `.wayfinder/answer-key.md` or `.gauntlet/reference.lock`. |
 | **Scope Escapes** | [`crates/gauntlet-arch-tests/src/escapes.rs`](../crates/gauntlet-arch-tests/src/escapes.rs) | `#[path]` and `include!` directives bypassing crate boundary scans. |
+
+---
+
+## 6. Operator Workbench Subsystem (`workbench/`)
+
+Canonical mapping of the Bun + TypeScript + OpenTUI operator workbench modules, interfaces, state objects, and test suites.
+
+| Subsystem Component | Source Implementation | Primary Symbols & Roles | Test & Benchmark Locus |
+|---|---|---|---|
+| **Workbench Host Loop** | [`workbench/src/main.ts`](../workbench/src/main.ts) | `run()`, `renderFrame()`, `enableRawMode()`, `restoreTerminal()` | [`operator-journeys.test.ts`](../workbench/src/operator-journeys.test.ts) |
+| **Semantic Shell** | [`workbench/src/shell.ts`](../workbench/src/shell.ts) | `ShellSession`, `renderShell()`, `handleKey()`, `SurfaceId`, `ViewId` | [`opentui-shell.test.ts`](../workbench/src/opentui-shell.test.ts) |
+| **Workbench Model** | [`workbench/src/workbench-model.ts`](../workbench/src/workbench-model.ts) | `WorkbenchModel`, `FullWorkbenchSnapshot`, `immutableHistoryView()` | [`workbench-model.test.ts`](../workbench/src/workbench-model.test.ts) |
+| **Projection Store** | [`workbench/src/projection-store.ts`](../workbench/src/projection-store.ts) | `SqliteProjectionStore`, `ProjectionGeneration`, `AuthoritativeEventFrame` | [`cold-rebuild.test.ts`](../workbench/src/cold-rebuild.test.ts), [`stale-frame.test.ts`](../workbench/src/stale-frame.test.ts) |
+| **Operation Gateway** | [`workbench/src/operation-gateway.ts`](../workbench/src/operation-gateway.ts) | `OperationGateway::drive()`, `idempotencyKey()`, `revalidate()` | [`canonical-boundary.test.ts`](../workbench/src/canonical-boundary.test.ts) |
+| **Operation Registry** | [`workbench/src/operation-registry.ts`](../workbench/src/operation-registry.ts) | `lookupOperation()`, `operationIds`, `OperationSpec` | [`operation-isomorphism.test.ts`](../workbench/src/operation-isomorphism.test.ts) |
+| **Affordance Resolver** | [`workbench/src/affordance.ts`](../workbench/src/affordance.ts) | `resolveAffordance()`, `AffordanceDescriptor`, `ReasonCode` | [`affordance-resolver.test.ts`](../workbench/src/affordance-resolver.test.ts) |
+| **Focus & Placement** | [`workbench/src/focus.ts`](../workbench/src/focus.ts) | `FocusRef`, `FocusPlacement`, `createPlacement()` | [`focus-identity.test.ts`](../workbench/src/focus-identity.test.ts) |
+| **Horizon & Hoist** | [`workbench/src/horizon.ts`](../workbench/src/horizon.ts) | `createHorizon()`, `deriveAttention()`, `SavedHorizonRegistry` | [`horizon-hoist.test.ts`](../workbench/src/horizon-hoist.test.ts) |
+| **Composer & Takeover** | [`workbench/src/composer.ts`](../workbench/src/composer.ts) | `createComposerState()`, `beginTakeover()`, `completeTakeover()` | [`composer-takeover.test.ts`](../workbench/src/composer-takeover.test.ts) |
+| **Inspector & Lenses** | [`workbench/src/inspector.ts`](../workbench/src/inspector.ts) | `renderInspector()`, `InspectorSection`, `renderEvidenceRecord()` | [`inspector-lens-wiring.test.ts`](../workbench/src/inspector-lens-wiring.test.ts) |
+| **Work View** | [`workbench/src/views-work.ts`](../workbench/src/views-work.ts) | `renderWorkView()`, `workUnitOrder()`, `statusToken()` | [`work-chat-trace.test.ts`](../workbench/src/work-chat-trace.test.ts) |
+| **Chat & Trace Views** | [`workbench/src/views-chat-trace.ts`](../workbench/src/views-chat-trace.ts) | `renderChatView()`, `renderTraceView()`, `defaultViewRegistry()` | [`work-chat-trace.test.ts`](../workbench/src/work-chat-trace.test.ts) |
+| **Geometry Engine** | [`workbench/src/geometry.ts`](../workbench/src/geometry.ts) | `classifyGeometry()`, `calculateColumns()`, `renderBelowMinimumPrompt()` | [`opentui-shell.test.ts`](../workbench/src/opentui-shell.test.ts) |
+| **Theme & Tokens** | [`workbench/src/theme.ts`](../workbench/src/theme.ts) | `resolveToken()`, `SEMANTIC_TOKENS`, `statusDescriptor()` | [`theme.ts`](../workbench/src/theme.ts) |
+| **Prime Host Bridge** | [`workbench/src/prime-host.ts`](../workbench/src/prime-host.ts) | `PrimeHost`, `SessionHandle`, `admitPrimeCall()` | [`prime-host.test.ts`](../workbench/src/prime-host.test.ts) |
+| **Prime Kernel Bridge** | [`workbench/src/prime-kernel.ts`](../workbench/src/prime-kernel.ts) | `PrimeKernel`, `KernelState`, `serializeKernel()` | [`prime-kernel.test.ts`](../workbench/src/prime-kernel.test.ts) |
+| **DomainForge Adapter** | [`workbench/src/domainforge-adapter.ts`](../workbench/src/domainforge-adapter.ts) | `DomainForgeAdapter`, `renderSemanticSection()`, `ASTProjection` | [`domainforge-adapter.test.ts`](../workbench/src/domainforge-adapter.test.ts) |
+| **SXR RealityTrace Lens** | [`workbench/src/sxr-adapter.ts`](../workbench/src/sxr-adapter.ts) | `SxrAdapter`, `renderSxrEvidenceSection()`, `VerificationPath` | [`sxr-evidence-adapter.test.ts`](../workbench/src/sxr-evidence-adapter.test.ts) |
+| **Plugin Lifecycle** | [`workbench/src/plugins.ts`](../workbench/src/plugins.ts) | `PluginRegistry`, `registerPlugin()`, `unloadPlugin()` | [`plugin-lifecycle.test.ts`](../workbench/src/plugin-lifecycle.test.ts) |
+| **Preflight Verifier** | [`scripts/tui-preflight.sh`](../scripts/tui-preflight.sh) | `bootstrap`, `conformance` mode verification | [`config-preflight.test.ts`](../workbench/src/config-preflight.test.ts) |
+| **Normative Test Runner** | [`workbench/src/tui-test-all.ts`](../workbench/src/tui-test-all.ts) | `just tui-test all` full normative conformance execution | All normative task suites (T00A..T24) |
+| **Design Contract** | [`DESIGN.md`](../DESIGN.md) | DSN-001 through DSN-015 design conformance index | Preflight hash binding (`02ce58a2...`) |
+

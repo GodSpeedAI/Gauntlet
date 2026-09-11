@@ -237,6 +237,10 @@ export interface RenderedSurface {
 
 export type PaletteEntry =
   | {
+      readonly type: "header";
+      readonly label: string;
+    }
+  | {
       readonly type: "view";
       readonly view: ViewId;
       readonly status: "available" | "absent";
@@ -414,6 +418,8 @@ export interface ShellState {
   readonly focusedSurface: SurfaceId;
   readonly paletteOpen: boolean;
   readonly paletteIndex: number;
+  /** Staged invoke awaiting a second Enter (harden: no one-Enter consequential invoke). */
+  readonly pendingConfirm: { readonly operation: string; readonly ref: FocusRef } | null;
   readonly navigatorIndex: number;
   /** Per-view scroll offsets; preserved across view switches (REQ-UX-005). */
   readonly scroll: Readonly<Partial<Record<ViewId, number>>>;
@@ -435,6 +441,7 @@ export function createShellState(host: ShellHostConfig, dims: Dimensions): Shell
     focusedSurface: "Primary",
     paletteOpen: false,
     paletteIndex: 0,
+    pendingConfirm: null,
     navigatorIndex: 0,
     scroll: Object.freeze({}),
     dimensions: dims,
@@ -508,10 +515,10 @@ function visibleSurfaces(geo: GeometryClass): readonly SurfaceId[] {
   return ["Primary", "Composer"];
 }
 
-function nextSurface(state: ShellState, geo: GeometryClass): SurfaceId {
+function nextSurface(state: ShellState, geo: GeometryClass, direction = 1): SurfaceId {
   const surfaces = visibleSurfaces(geo);
   const index = surfaces.indexOf(state.focusedSurface);
-  return surfaces[(index + 1) % surfaces.length] ?? "Primary";
+  return surfaces[(index + direction + surfaces.length) % surfaces.length] ?? "Primary";
 }
 
 function switchView(state: ShellState, view: ViewId): ShellState {
@@ -526,13 +533,15 @@ function switchView(state: ShellState, view: ViewId): ShellState {
  * Palette entries: every view (available or absent WITH reason) plus, when a
  * Focus is selected and the host supplied an observation, every affordance
  * resolution — including palette-only ones with their reasons (DSN-009).
+ * Non-empty groups lead with a non-actionable header row carrying the count,
+ * so the list scans as chunks instead of one flat wall.
  */
 export function paletteEntries(
   state: ShellState,
   snapshot: FullWorkbenchSnapshot,
   context: PaletteContext,
 ): readonly PaletteEntry[] {
-  const entries: PaletteEntry[] = availableViews(snapshot).map((availability) =>
+  const viewRows: PaletteEntry[] = availableViews(snapshot).map((availability) =>
     availability.status === "available"
       ? ({ type: "view", view: availability.view, status: "available" } as PaletteEntry)
       : ({
@@ -543,13 +552,14 @@ export function paletteEntries(
         } as PaletteEntry),
   );
 
+  const actionRows: PaletteEntry[] = [];
   const focus = snapshot.focus ?? state.location.focus;
   if (focus !== null && context.observation !== undefined) {
     for (const item of materializeAffordances(focus, context.observation, {
       session: context.session,
       payment_estimates: context.paymentEstimates,
     })) {
-      entries.push({
+      actionRows.push({
         type: "affordance",
         operation: item.descriptor.operation,
         ref: focus,
@@ -562,12 +572,24 @@ export function paletteEntries(
 
   // Compact geometry has no Navigator surface: outline Foci join the palette
   // so every journey stays keyboard-only at 80x24 (REQ-UX-005).
+  const focusRows: PaletteEntry[] = [];
   if (classifyGeometry(state.dimensions) === "Compact") {
     for (const row of navigatorOutline(snapshot)) {
       if (row.ref !== null) {
-        entries.push({ type: "focus", ref: row.ref, label: `${row.kind}: ${row.label}` });
+        focusRows.push({ type: "focus", ref: row.ref, label: `${row.kind}: ${row.label}` });
       }
     }
+  }
+
+  const entries: PaletteEntry[] = [];
+  if (viewRows.length > 0) {
+    entries.push({ type: "header", label: `Views (${viewRows.length})` }, ...viewRows);
+  }
+  if (actionRows.length > 0) {
+    entries.push({ type: "header", label: `Actions (${actionRows.length})` }, ...actionRows);
+  }
+  if (focusRows.length > 0) {
+    entries.push({ type: "header", label: `Focus (${focusRows.length})` }, ...focusRows);
   }
   return entries;
 }
@@ -593,40 +615,89 @@ export function handleKey(
   if (state.paletteOpen) {
     switch (key) {
       case "escape":
+        // Escape backs out one level: staged confirm, then the palette itself.
+        // It never cancels admitted work.
+        return {
+          state:
+            state.pendingConfirm !== null
+              ? Object.freeze({ ...state, pendingConfirm: null })
+              : Object.freeze({ ...state, paletteOpen: false, focusedSurface: "Primary" }),
+          effects: [],
+        };
       case "p":
         return {
-          state: Object.freeze({ ...state, paletteOpen: false, focusedSurface: "Primary" }),
+          state: Object.freeze({
+            ...state,
+            paletteOpen: false,
+            focusedSurface: "Primary",
+            pendingConfirm: null,
+          }),
           effects: [],
         };
       case "up":
+      case "down": {
+        // Navigation walks the same entry list activation uses, so the
+        // highlighted row and the Enter target can never diverge. Moving
+        // drops any staged confirm.
+        const entries = paletteEntries(state, snapshot, paletteContext);
+        const last = Math.max(0, entries.length - 1);
+        const delta = key === "up" ? -1 : 1;
         return {
-          state: Object.freeze({ ...state, paletteIndex: Math.max(0, state.paletteIndex - 1) }),
+          state: Object.freeze({
+            ...state,
+            paletteIndex: Math.min(Math.max(0, state.paletteIndex + delta), last),
+            pendingConfirm: null,
+          }),
           effects: [],
         };
-      case "down":
-        return {
-          state: Object.freeze({ ...state, paletteIndex: state.paletteIndex + 1 }),
-          effects: [],
-        };
+      }
       case "enter": {
         const entries = paletteEntries(state, snapshot, paletteContext);
         const entry = entries[state.paletteIndex];
-        if (entry === undefined) {
+        if (entry === undefined || entry.type === "header") {
           return { state, effects: [] };
         }
         if (entry.type === "view" && entry.status === "available") {
           return {
             state: switchView(
-              Object.freeze({ ...state, paletteOpen: false, focusedSurface: "Primary" }),
+              Object.freeze({
+                ...state,
+                paletteOpen: false,
+                focusedSurface: "Primary",
+                pendingConfirm: null,
+              }),
               entry.view,
             ),
             effects: [],
           };
         }
         if (entry.type === "affordance") {
+          // Consequential operations never fire on a single Enter: the first
+          // stages a confirm naming the invoke, the second performs it. The
+          // staged pair revalidates against the fresh entry list, so a stale
+          // confirm can never invoke a different operation.
+          const staged = state.pendingConfirm;
+          if (
+            staged !== null &&
+            staged.operation === entry.operation &&
+            staged.ref.id === entry.ref.id
+          ) {
+            return {
+              state: Object.freeze({
+                ...state,
+                paletteOpen: false,
+                focusedSurface: "Primary",
+                pendingConfirm: null,
+              }),
+              effects: [{ type: "invoke_affordance", operation: entry.operation, ref: entry.ref }],
+            };
+          }
           return {
-            state: Object.freeze({ ...state, paletteOpen: false, focusedSurface: "Primary" }),
-            effects: [{ type: "invoke_affordance", operation: entry.operation, ref: entry.ref }],
+            state: Object.freeze({
+              ...state,
+              pendingConfirm: Object.freeze({ operation: entry.operation, ref: entry.ref }),
+            }),
+            effects: [],
           };
         }
         if (entry.type === "focus") {
@@ -635,12 +706,16 @@ export function handleKey(
               ...state,
               paletteOpen: false,
               focusedSurface: "Primary",
+              pendingConfirm: null,
               location: Object.freeze({ ...state.location, focus: entry.ref }),
             }),
             effects: [{ type: "select_focus", ref: entry.ref }],
           };
         }
-        return { state, effects: [] };
+        return {
+          state: Object.freeze({ ...state, pendingConfirm: null }),
+          effects: [],
+        };
       }
       default:
         return { state, effects: [] };
@@ -653,6 +728,11 @@ export function handleKey(
   }
 
   switch (key) {
+    case "shift+tab":
+      return {
+        state: Object.freeze({ ...state, focusedSurface: nextSurface(state, geo, -1) }),
+        effects: [],
+      };
     case "tab":
       return {
         state: Object.freeze({ ...state, focusedSurface: nextSurface(state, geo) }),
@@ -766,8 +846,12 @@ export interface ShellRenderOptions {
   readonly composer?: RenderedComposer | undefined;
 }
 
+const KEY_LEGEND_COMPACT_0 =
+  "keys: 1/2/3 work/chat/trace · tab surface · up/down move · enter select";
+const KEY_LEGEND_COMPACT_1 =
+  "keys: h hoist · u unhoist · p palette · e composer · esc dismiss · q quit";
 const KEY_LEGEND =
-  "keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u return · p palette · e composer · esc dismiss · q quit";
+  "keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e composer · esc dismiss · q quit";
 
 function promptLines(dims: Dimensions): readonly RenderedLine[] {
   return renderBelowMinimumPrompt(dims)
@@ -806,7 +890,10 @@ export function renderShell(
       ...(state.location.workspace.run !== undefined
         ? [{ text: ` · run ${state.location.workspace.run}` }]
         : []),
-      { text: ` · gen ${snapshot.generation} `, emphasis: "dim" },
+      // The header carries an 8-char generation prefix so identity, location
+      // and attention outlive this metadata span when a narrow terminal clips
+      // the line tail-first; the full id stays visible in Inspector PROVENANCE.
+      { text: ` · gen ${snapshot.generation.slice(0, 8)} `, emphasis: "dim" },
       { text: `· ${breadcrumb.join(" › ")} ` },
       ...(snapshot.attention.length > 0
         ? [
@@ -842,8 +929,9 @@ export function renderShell(
   // Navigator — the semantic outline keyed by FocusRef placements.
   if (multi) {
     const rows = navigatorOutline(snapshot);
+    const navigatorEmphasis = state.focusedSurface === "Navigator" ? "bold" : "dim";
     const lines: RenderedLine[] = [
-      { id: "navigator.title", spans: [{ text: "NAVIGATOR", emphasis: "bold" }] },
+      { id: "navigator.title", spans: [{ text: "NAVIGATOR", emphasis: navigatorEmphasis }] },
     ];
     rows.forEach((row, index) => {
       const highlighted = state.focusedSurface === "Navigator" && index === state.navigatorIndex;
@@ -874,7 +962,7 @@ export function renderShell(
         id: "navigator.empty",
         spans: [
           {
-            text: "Nothing outlined yet — bind a source and sync a generation to populate the Case.",
+            text: "Nothing outlined yet. Bind a source and sync a generation to populate the Case.",
             emphasis: "dim",
           },
         ],
@@ -918,19 +1006,19 @@ export function renderShell(
         };
 
   const scrollOffset = state.scroll[state.location.view] ?? 0;
+  const primaryEmphasis = state.focusedSurface === "Primary" ? "bold" : "dim";
   const primaryLines: RenderedLine[] = [
     {
       id: "primary.title",
       spans: [
-        { text: `PRIMARY [${state.location.view.toUpperCase()}]`, emphasis: "bold" },
-        { text: ` ${viewContent.question}`, emphasis: "dim" },
+        { text: `PRIMARY [${state.location.view.toUpperCase()}]`, emphasis: primaryEmphasis },
       ],
     },
     ...(scrollOffset > 0
       ? [
           {
             id: "primary.scroll.anchor",
-            spans: [{ text: `↑ ${scrollOffset} line(s) above — scroll anchored`, emphasis: "dim" }],
+            spans: [{ text: `↑ ${scrollOffset} line(s) above (scroll anchored)`, emphasis: "dim" }],
           } as RenderedLine,
         ]
       : []),
@@ -947,13 +1035,14 @@ export function renderShell(
 
   // Inspector — sections from the selected Focus.
   const inspectorFocus = snapshot.focus ?? state.location.focus;
+  const inspectorEmphasis = state.focusedSurface === "Inspector" ? "bold" : "dim";
   const inspectorLines: RenderedLine[] = [
-    { id: "inspector.title", spans: [{ text: "INSPECTOR", emphasis: "bold" }] },
+    { id: "inspector.title", spans: [{ text: "INSPECTOR", emphasis: inspectorEmphasis }] },
   ];
   if (inspectorFocus === null) {
     inspectorLines.push({
       id: "inspector.empty",
-      spans: [{ text: "No Focus selected — choose an item in the Navigator.", emphasis: "dim" }],
+      spans: [{ text: "No Focus selected. Choose an item in the Navigator.", emphasis: "dim" }],
     });
   } else {
     const sections = renderInspector({
@@ -962,8 +1051,17 @@ export function renderShell(
       observation: options.observation,
       session: options.session,
       paymentEstimates: options.paymentEstimates,
+      // The real value-column budget: inspector width minus the 1-cell gutter,
+      // the 12-cell label and its gap. Long provenance wraps instead of clipping.
+      valueWidth: columns.inspectorWidth - 14,
     });
-    for (const section of sections.sections) {
+    for (const [sectionIndex, section] of sections.sections.entries()) {
+      if (sectionIndex > 0) {
+        inspectorLines.push({
+          id: `inspector.gap.${section.id}`,
+          spans: [{ text: " " }],
+        });
+      }
       inspectorLines.push({
         id: `inspector.section.${section.id}`,
         spans: [{ text: `${section.title} `, emphasis: "bold" }],
@@ -986,7 +1084,7 @@ export function renderShell(
 
   // Composer strip.
   const composerLines: readonly RenderedLine[] = options.composer?.lines ?? [
-    { id: "composer.default", spans: [{ text: "COMPOSER — press e to focus", emphasis: "dim" }] },
+    { id: "composer.default", spans: [{ text: "COMPOSER: press e to focus", emphasis: "normal" }] },
   ];
   surfaces.push({
     id: "Composer",
@@ -1007,8 +1105,17 @@ export function renderShell(
     ],
   }));
 
+  // Compact geometry wraps the legend to two short lines so every bound key
+  // stays inside 80 cells; the joined text still names the full binding set.
+  const legendLines: readonly RenderedLine[] =
+    geo === "Compact"
+      ? [
+          { id: "shell.help.0", spans: [{ text: KEY_LEGEND_COMPACT_0, emphasis: "dim" }] },
+          { id: "shell.help.1", spans: [{ text: KEY_LEGEND_COMPACT_1, emphasis: "dim" }] },
+        ]
+      : [{ id: "shell.help", spans: [{ text: KEY_LEGEND, emphasis: "dim" }] }];
   const help: RenderedLine[] = [
-    { id: "shell.help", spans: [{ text: KEY_LEGEND, emphasis: "dim" }] },
+    ...legendLines,
     ...(state.motion === "reduced"
       ? [
           {
@@ -1027,14 +1134,38 @@ export function renderShell(
           paymentEstimates: options.paymentEstimates,
         });
         const lines = entries.map((entry, index): RenderedLine => {
+          if (entry.type === "header") {
+            return {
+              id: `palette.header.${index}`,
+              spans: [{ text: `  ${entry.label}`, emphasis: "dim" as const }],
+            };
+          }
           const selected = index === state.paletteIndex;
+          const staged =
+            entry.type === "affordance" &&
+            state.pendingConfirm !== null &&
+            state.pendingConfirm.operation === entry.operation &&
+            state.pendingConfirm.ref.id === entry.ref.id;
+          if (staged && entry.type === "affordance") {
+            return {
+              id: `palette.${index}`,
+              spans: [
+                ...(selected ? [{ text: "◉ ", token: "focus.ring" as const }] : [{ text: "  " }]),
+                {
+                  text: `Invoke ${entry.operation} on ${entry.ref.kind}:${entry.ref.source_id}? Enter confirms, Esc backs out`,
+                  token: "attention.required" as const,
+                  emphasis: "bold" as const,
+                },
+              ],
+            };
+          }
           const description =
             entry.type === "view"
               ? entry.status === "available"
                 ? `view ${entry.view}`
-                : `view ${entry.view} — ABSENT: ${entry.reason ?? "unavailable"}`
+                : `view ${entry.view}: ABSENT (${entry.reason ?? "unavailable"})`
               : entry.type === "affordance"
-                ? `affordance ${entry.operation} — ${entry.status}${entry.reasons.length > 0 ? ` (${entry.reasons.join(", ")})` : ""}`
+                ? `action ${entry.operation}: ${entry.status}${entry.reasons.length > 0 ? ` (${entry.reasons.join(", ")})` : ""}`
                 : `focus ${entry.label}`;
           return {
             id: `palette.${index}`,
@@ -1113,7 +1244,7 @@ export class ShellSession {
   }
 
   /** Route one keypress through takeover → composer → shell precedence. */
-  key(raw: string, snapshot: FullWorkbenchSnapshot): void {
+  key(raw: string, snapshot: FullWorkbenchSnapshot, paletteContext: PaletteContext = {}): void {
     const geo = classifyGeometry(this.shell.dimensions);
 
     if (geo === "BelowMinimum") {
@@ -1160,9 +1291,26 @@ export class ShellSession {
       return;
     }
 
-    const result = handleKey(this.shell, snapshot, raw);
+    const result = handleKey(this.shell, snapshot, raw, paletteContext);
     this.shell = result.state;
     applyShellEffects(result.effects, this.interactions);
+  }
+
+  /** Pasted data is input text, never a keyboard command or submission. */
+  paste(text: string): void {
+    if (this.shell.focusedSurface !== "Composer") return;
+    if (this.composer.takeover !== null) {
+      this.composer = Object.freeze({
+        ...this.composer,
+        takeoverInput: this.composer.takeoverInput + text,
+      });
+    } else {
+      this.composer = Object.freeze({
+        ...this.composer,
+        draft: this.composer.draft + text,
+        notice: null,
+      });
+    }
   }
 
   /** Host admits one takeover request (approval/question/recovery/kernel). */

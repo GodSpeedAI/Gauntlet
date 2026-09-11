@@ -1,9 +1,266 @@
 schema: agent.current_status
 schema_version: "1.0"
 
+tui_rhythm_pass:
+  status: complete
+  updated: "2026-09-10"
+  scope: >-
+    Hallmark redesign pass over the TUI presentation layer, closing the two
+    recorded residuals: tui_layout_pass's "Primary view internals (views-work.ts)
+    left flat; a follow-up rhythm pass there is deferred" and
+    tui_critique_actions's "provenance values can still clip in the 36-col
+    column". Work view gains the Inspector's blank rhythm-line idiom between
+    adjacent non-empty groups, tabular status + machine-id columns in unit rows
+    (per-frame dynamic widths, ids capped at 16 cells), an attention glyph on
+    the blocked count only while blocked work exists, the budget reason split
+    to a trailing span so the state survives narrow-column clipping, and empty
+    states split into statement + next-step lines. Inspector field values wrap
+    at word/delimiter boundaries into the value column (width supplied by the
+    shell from the real geometry; nothing clips mid-token; direct callers keep
+    legacy single-line behavior unless they pass valueWidth). Shell header
+    shortens the generation to an 8-char prefix so identity, location, and
+    attention outlive metadata in tail-first clip order; the full generation
+    remains fully visible in Inspector PROVENANCE. Spec, DESIGN.md, theme
+    tokens, palette semantics, geometry floors, escalation-first ordering, and
+    the frozen ruler untouched.
+  files:
+    - workbench/src/geometry.ts (padCellText + delimiter-aware wrapCellText)
+    - workbench/src/views-work.ts (group rhythm, tabular unit rows, summary + empty-state discipline)
+    - workbench/src/inspector.ts (fieldLine value wrap + InspectorArgs.valueWidth)
+    - workbench/src/shell.ts (header gen prefix; passes inspector value width)
+    - workbench/src/work-rhythm.test.ts (new, 9 tests, RED-first observed)
+    - workbench/src/operator-journeys.test.ts (one deliberate pin update: exact target identity now matched whitespace-insensitively across the value-column wrap; same characters, same order)
+  verification:
+    - just tui-check (PASS)
+    - just tui-test (697 pass, 22 skip, 0 fail, 8044 assertions, 73 files)
+    - just tui-test all (49 suites PASS, 542 pass, 0 fail, 10 skip)
+    - just tui-lint exits 1 on the 6 pre-existing errors in untouched worktree files; zero findings in every file this pass touched (was 11 errors before; this pass's biome --write also cleared the pre-existing useLiteralKeys findings inside inspector.ts)
+    - just tui-build release (OK, artifact sha256 59df9537…, 120x40 PTY launch exit 0, manifest valid, T20 frame rewritten)
+    - bun test src/production-entry.test.ts (PASS against the rebuilt artifact)
+    - just tui-preflight bootstrap (PASS; spec + DESIGN.md hash-bound intact)
+    - graft build (PASS)
+    - just verify not run (no Rust source changed, gate decoupling applies)
+  residuals:
+    - >-
+      Group rhythm costs three rows of the scrollable Primary window at
+      Compact 80x24 by design (consistency across geometry classes); scrolling
+      absorbs it.
+    - >-
+      Adjacent issue recorded, not widened: the Inspector's one-line prose
+      empty rows ("No Focus selected. Choose an item in the Navigator.",
+      navigator.empty) still tail-clip at their column widths — one-line
+      prose rows outside this pass's field-wrap scope.
+    - >-
+      .hallmark/log.json added at the repo root for the Hallmark skill's
+      project memory (design system: DESIGN.md, no rotation).
+  next_action: "None - awaiting operator review and commit of the working tree."
+
+tui_runtime_repair:
+  status: settled
+  updated: "2026-09-10"
+  scope: Fix seven production composition, rendering, input, and verification findings.
+  task_ledger: workbench/repair/IN-FLIGHT.md
+  plan: .agents/plans/tui-runtime-repair-followup.md
+  verification:
+    - just tui-check (PASS)
+    - just tui-lint (PASS, exit 0; 78 warnings + 543 infos pre-existing informational)
+    - just tui-test (611 pass, 12 skip, 0 fail, 7576 assertions, 623 tests across 62 files)
+    - just tui-test all (49 suites, 530 pass / 0 fail / 9 skip, PASS)
+    - focused: workbench-host + production-entry (3 pass, 41 assertions); operator-preview + terminal-renderer (12 pass, 154 assertions); ssh-target (5 pass, 1 expected SSH skip, 26 assertions)
+    - just tui-build release (OK, artifact sha256 1cb5a1b3ef7d88d0, launch 120x40 exit 0, manifest valid, T20 frame written)
+    - just tui-preflight bootstrap (PASS)
+    - just ruler (PASS)
+    - graft build (PASS, 12696 nodes, 19175 edges, 432 cards)
+    - just verify not run: no Rust source changed (git diff --name-only HEAD -- crates/ empty); gate decoupling applies
+  residuals:
+    - Live Prime/kernel/message submission transports absent; host reports unsupported and never fabricates delivery (intended, fail-closed).
+    - Canonical HTTP reads are snapshots with poll-N local cursors, not a resumable event stream (intended, disclosed).
+    - ssh-target real-sshd leg remains an expected gated skip (sshd inactive on this host; recorded in release-manifest support_facts).
+  next_action: None — repair settled; implementation committed as working-tree changes awaiting operator commit.
+
+workbench_intent_closure:
+  status: settled
+  updated: "2026-09-10"
+  plan: .agents/plans/workbench-intent-closure.md
+  spec: .agents/specs/gauntlet-tui-prime-workbench.spec.yaml (v0.3.0, frozen — untouched by this plan, per plan §2)
+  scope: >-
+    Binds capability already built-but-unbound in the T00-T25 campaign, per plan §1's
+    correction of an earlier verdict. Ordering executed: A -> B -> (C1 || B) -> C2 -> D -> F;
+    Phase E (Unix-socket local transport) remains explicitly deferred/out-of-band, not
+    attempted. Debt rules D1-D7 (plan §3) held at every phase gate; every RED round was
+    preserved and disclosed, never silently fixed.
+  phases:
+    - id: A
+      title: Repair the false-green SSH leg
+      status: settled
+      evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/T20/release-qualification.md (Addendum, 2026-09-10)
+      summary: >-
+        ssh-target.test.ts invoked ssh with no -t/-tt, so the remote process never entered
+        the TTY path and the leg's assertions were satisfiable whether or not a real
+        interactive session was reached — a false-green defect in settled T20 evidence, not
+        a new requirement. Fixed: -tt added; assertions now require alternate-screen entry, a
+        raw-mode-only keystroke effect, and a SIGWINCH-driven geometry change delivered
+        through the ssh channel; a negative control (same command minus -tt) is asserted to
+        throw, converting the leg from a tautology into a real qualification. This host has
+        no sshd installed, so the repaired leg remains an honest gated skip here; the exact
+        three checks were independently verified for real over a plain tmux session (no ssh)
+        to confirm the assertion logic is sound before trusting it.
+    - id: B
+      title: Bind the projection integrity contract in production
+      status: settled
+      evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-b/projection-integrity.md
+      summary: >-
+        WorkbenchHost's production read path rewired from the poll-N cursor onto
+        LiveStreamClient over a real HTTP canonical surface (D2: the poll-N mechanism
+        deleted, not left beside its replacement), declaring source identity/epoch/cursor/
+        retention/granularity per D1 and reconciling baseline-plus-incremental through a
+        ProjectionGeneration. Closes REQ-DATA-002/003/004/007, REQ-SYNC-001, REQ-SAFE-005,
+        REQ-VERIFY-006, and the observation half of REQ-OUT-003 in production.
+    - id: C1
+      title: Declare the Prime operation contract
+      status: settled
+      evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-c1/operation-declarations.md
+      summary: >-
+        Every planned Prime/message mutation now names owner, actors, typed inputs/results,
+        preconditions, authority, containment, budget, idempotency, and evidence contract in
+        the versioned capability handshake, distinguishing existing from planned. Closes
+        REQ-OPS-003's declaration half. Closes no binding — every planned operation remains
+        exactly as unsupported as before (D7), by design, until C2.
+    - id: C2
+      title: Declare, then bind, the Prime operation contract (real substrate)
+      status: settled
+      evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-c2/prime-substrate-binding.md
+      summary: >-
+        RealPrimeHost binds a real prime-agent child process (real Bun.spawn, receipt before
+        spawn, mailbox ne completion, T13 spawn boundary extended to a real Prime child) as a
+        confirmed operator-approved mechanism choice. Gated real-substrate battery
+        (GAUNTLET_C2_REAL_PRIME=1) green against the real installed binary. Closes
+        REQ-GOAL-003 in production, REQ-PRIME-001/002/003/005, REQ-SEC-005 extended. Explicitly
+        not closed: REQ-PRIME-004/006/007 and REQ-OUT-004's kernel-path half (Python REPL
+        mediation binding), composer-level prime/message submission routing, and
+        config.prime_socket (declared, unconsumed — RealPrimeHost is one-shot-per-child, not
+        a persistent daemon).
+    - id: D
+      title: Long-running lifecycle and reattachment in production
+      status: settled
+      evidence: .agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-d/prime-lifecycle-reattachment.md
+      summary: >-
+        RealPrimeHost writes a durable *.qualified.json manifest at spawn time and a fresh
+        instance reattaches topology from qualified records ONLY (never inferred from
+        directory presence or stale UI) per REQ-PRIME-010; a new local, non-canonical
+        stopChild() is the only thing that ever signals a real child (REQ-PRIME-009), with an
+        executed attack (real.prime.host.stop, D3) proving a forged manifest's blast radius is
+        bounded to exactly its recorded pid. Gated real-substrate battery
+        (GAUNTLET_D_REAL_PRIME_LIFECYCLE=1) green against the real installed binary: real
+        cross-instance mid-flight reattachment and a real SIGKILL termination both proven.
+        Closes REQ-VERIFY-005, REQ-PRIME-009/010, and the remaining half of REQ-OUT-003.
+        Explicitly not closed: composer-level stopChild/prime.cancel routing; the
+        REQ-PRIME-004/006/007 + REQ-OUT-004 kernel-path residual carried from C2.
+    - id: F
+      title: Re-level the claim ledger and settle
+      status: settled
+      summary: >-
+        No code. Claim levels re-leveled below (tracked here, not in the frozen spec — see
+        claims_reassessed). Residual section of tui-runtime-repair-followup.md rewritten to
+        point to this plan and carry only its own §6 surviving residual.
+  claims_reassessed:
+    note: >-
+      The spec's claim_discipline ledger (.agents/specs/gauntlet-tui-prime-workbench.spec.yaml,
+      lines ~488-561) is part of the frozen spec and is NOT edited by this plan (plan §2:
+      "does not change, at any phase: the frozen spec"). The levels below are this plan's
+      own re-assessment against the spec's unmodified claim_discipline.levels definitions,
+      tracked here as the current-status record of record.
+    - id: CLAIM-001
+      claim: Prime Agent provides each relevant session a persistent Python REPL kernel and a native recursive sub-agent interface whose TypeScript host owns child lifecycle.
+      level_was: partially_proven
+      level_now: evidence_backed
+      evidence: >-
+        T24's gated real-substrate battery (11/0) against the real installed prime-agent
+        0.8.0 proved the Python kernel persisting across turns (answering 42) and the
+        recursive sub-agent interface for real; Phase C2's RealPrimeHost now owns real child
+        spawn/lifecycle in production (receipt before spawn, mailbox, T13 boundary); Phase D's
+        RealPrimeHost owns lifecycle across detach/reattach/stopChild. No open gap.
+    - id: CLAIM-003
+      claim: Bun PTY plus OpenTUI EmbeddedTerminal can provide the primary embedded terminal path without a separate PTY/emulator dependency.
+      level_was: partially_proven
+      level_now: evidence_backed
+      evidence: >-
+        Target integration is proven for resize, interactive shells, tmux, Unicode, signals,
+        and shutdown/recovery (T20 real tmux/PTY legs, composer-unicode.test.ts, recovery
+        matrix). Phase A repaired a false-green defect in the SSH leg specifically and proved
+        the repaired assertion logic sound over a real tmux session; the SSH-over-network leg
+        itself remains a named, disclosed GATED-UNAVAILABLE skip (no sshd installed on this
+        host) rather than a design or implementation gap — the mechanism is proven and will
+        execute unchanged the moment sshd is reachable. evidence_backed per
+        claim_discipline's own definition ("implementation, tests, ... or other inspectable
+        evidence"); the host-environment SSH-reachability gap is carried, not hidden.
+    - id: CLAIM-006
+      claim: A version-qualified structured Prime host interface is sufficient for Gauntlet TUI integration without scraping or embedding Prime's own TUI.
+      level_was: assumption
+      level_now: evidence_backed
+      evidence: >-
+        T24 ran the exact required_evidence integration test (session lifecycle, messaging,
+        kernel events via the real Python kernel, steering via concurrent send, extension
+        prompts via the misleading-completion scenario, and reattachment via SIGKILL-survival
+        + fresh-process resume) against the real installed Prime version, 11/0. Phase C2 built
+        a structured production host (RealPrimeHost) directly on that qualified protocol;
+        Phase D extended it to reattachment/stop. The claim is about sufficiency of the
+        structured-interface approach, which is now proven; production ROUTING completeness
+        for every Prime surface is a separate, already-tracked residual
+        (REQ-PRIME-004/006/007, composer-level routing — see phase C2/D summaries), not a gap
+        in this claim.
+  verification_phase_f:
+    - just tui-preflight conformance (PASS — see gate output at settlement time; unbacked-gate sweep clean)
+  residual: >-
+    Only one surviving residual (plan §6): the canonical Gauntlet surface exposes snapshots,
+    not an ordered durable event stream (no event/offset route in the frozen §20.2 table); the
+    workbench reconciles baseline-plus-incremental through a port that declares its
+    granularity as snapshot-interval, minting nothing (D1). A durable resumable stream would
+    require a new public route and persisted sequence/epoch in the core — not attempted
+    without explicit approval. Tripwires: any proposal to persist a workbench cursor as
+    though it addressed backend state; any core change introducing a monotonic event
+    sequence; any operator-visible symptom traced to between-observation invisibility.
+  next_action: >-
+    None — plan settled 2026-09-10. No commit made yet for phases A-F; committing is an
+    operator decision. Phase E (Unix-socket local transport) remains explicitly deferred, not
+    a pending task unless separately requested.
+
 workbench_document_review:
   status: plan_settled
   updated: "2026-09-08"
+
+tui_documentation_pass:
+  status: settled
+  updated: "2026-09-10"
+  scope: >-
+    Gauntlet TUI documentation pass completed as a first-class subsystem.
+    Preserved Diátaxis-informed documentation architecture without creating a
+    disjoint TUI silo. Documented the operator workbench across subsystems
+    (docs/subsystems/tui.md), end-to-end execution traces (docs/workflows/tui-session.md),
+    operator how-to (docs/how-to/operate-the-tui.md), reference catalog and
+    design matrix (docs/reference/tui.md), integrated runtime topology & Section 6
+    in docs/architecture.md, added workbench vocabulary to docs/concepts.md,
+    integrated navigation in docs/index.md, mapped all Diátaxis links in
+    docs/documentation-map.md, added 23-component source-to-test mapping in
+    docs/source-map.md, and added TUI failure diagnosis in docs/troubleshooting.md.
+    Canonical root DESIGN.md established as design authority with hash-bound integrity.
+  artifacts:
+    - docs/subsystems/tui.md
+    - docs/workflows/tui-session.md
+    - docs/how-to/operate-the-tui.md
+    - docs/reference/tui.md
+    - docs/architecture.md
+    - docs/concepts.md
+    - docs/documentation-map.md
+    - docs/source-map.md
+    - docs/troubleshooting.md
+    - docs/index.md
+    - DESIGN.md
+  verification:
+    - just tui-check (PASS)
+    - just tui-preflight bootstrap (PASS)
+    - just tui-test bun-native-smoke (PASS)
+    - just ruler (PASS)
   scope: >-
     TUI Prime Workbench implementation underway; T00, T00A, T01, T02, T03,
     T04, T05, T06, T07, and T08 settled. T07 was found implemented-and-
@@ -45,6 +302,119 @@ workbench_document_review:
     - .agents/reports/gauntlet-tui-prime-workbench/evidence/T25/
   report: .agents/reports/gauntlet-tui-prime-workbench/current-status.yaml
   next_action: "None — plan settled (2026-09-09). The settled_next_action_rule is discharged: T25 CONFIRM_BOUNDED_CONFORMANCE received; the orchestrator reviewed total evidence and recorded whole-plan settlement."
+
+tui_layout_pass:
+  status: complete
+  updated: "2026-09-10"
+  scope: >-
+    Impeccable layout pass over the terminal workbench. PRODUCT.md created via
+    teach interview (register product, solo operator, precise/quiet/evidence-bearing).
+    Spacing and hierarchy only; geometry sums, surface membership, spec, DESIGN.md,
+    and frozen ruler untouched. Column titles carry focus weight (focused bold,
+    unfocused dim), one-cell negative-space gutters sit inside existing column
+    widths, Inspector sections separate with a blank rhythm line, composer default
+    invitation reads normal instead of dim.
+  files:
+    - PRODUCT.md (new)
+    - >-
+      workbench/src/shell.ts (5 hunks - 3 title weights, inspector gaps,
+      composer emphasis)
+    - >-
+      workbench/src/terminal-renderer.ts (inter-column gutters, x-advance
+      unchanged)
+  verification:
+    - just tui-check (PASS)
+    - just tui-test (670 pass, 22 skip, 0 fail, 7873 assertions, 69 files)
+    - just tui-test all (49 suites PASS, 542 pass, 0 fail, 10 skip)
+    - >-
+      just tui-test production-entry (PASS, real PTY
+      120x40/80x24/below-minimum/resize)
+    - just tui-preflight bootstrap (PASS)
+    - graft build (PASS, 12781 nodes, 19561 edges)
+    - >-
+      just verify not run (no Rust source changed, gate decoupling applies)
+  residuals:
+    - >-
+      just tui-lint exits 1 from pre-existing diagnostics in uncommitted
+      worktree files (for example src/client.ts useLiteralKeys); zero findings
+      in shell.ts or terminal-renderer.ts.
+    - >-
+      Compact help legend proposal reverted because keyboard-accessibility pins
+      the full key legend at COMPACT_DIMS, so the 80-col cell truncation of the
+      legend tail stands as settled behavior; palette retains discovery.
+    - >-
+      Primary view internals (views-work.ts) left flat; a follow-up rhythm pass
+      there is deferred, not started.
+  next_action: "None - awaiting operator review and commit of the working tree."
+
+tui_critique_actions:
+  status: complete
+  updated: "2026-09-10"
+  scope: >-
+    Executed all five critique actions at once, in dependency order. Palette
+    leads with non-actionable counted group headers, navigation walks the same
+    entry list activation uses with down clamped, Compact legend wraps to two
+    short lines, primary title drops the restated view question, affordance
+    invokes stage a confirm (second Enter fires, Esc backs out one level),
+    user strings drop em dashes for colons and periods, preview widths live in
+    one geometry table with byte-identical frames. Spec, DESIGN.md, and frozen
+    ruler untouched.
+  files:
+    - workbench/src/shell.ts (headers, unified nav, confirm staging, legend split, title dedupe, copy)
+    - workbench/src/views-work.ts (copy)
+    - workbench/src/views-chat-trace.ts (copy)
+    - workbench/src/inspector.ts (copy)
+    - workbench/src/geometry.ts (clipCell plus preview width tables)
+    - workbench/src/preview.ts (consumes shared widths, banner copy)
+    - workbench/src/palette-grouping-confirm.test.ts (new, 11 tests)
+    - workbench/src/preview-grid.test.ts (new, 3 tests)
+    - workbench/src/testing/cross-surface-matrix.ts (driver follows two-step invoke)
+  verification:
+    - just tui-check (PASS)
+    - just tui-test (684 pass, 22 skip, 0 fail, 7923 assertions, 71 files)
+    - just tui-test all (49 suites PASS, 542 pass, 0 fail, 10 skip)
+    - just tui-preflight bootstrap (PASS)
+    - graft build (PASS)
+    - just verify not run (no Rust source changed, gate decoupling applies)
+    - T23 cross-surface-equivalence adaption is driver-only; all five suites
+      pass with identical convergence assertions
+  residuals:
+    - >-
+      just tui-lint still exits 1 from pre-existing diagnostics in untouched
+      workbench files; zero findings in any file this pass touched.
+    - Inspector keeps 12-cell label padding for cross-file form-column
+      consistency; provenance values can still clip in the 36-col column.
+    - Strict PyYAML still rejects CURRENT_STATUS.yml at the pre-existing
+      intent-closure block; this entry parses standalone.
+  next_action: "None - awaiting operator review and commit of the working tree."
+
+tui_cell_fit:
+  status: complete
+  updated: "2026-09-10"
+  scope: >-
+    Fixed right-column cutoff reported under just tui-dev-up. Root cause was
+    cell fitting that counted UTF-16 length while the terminal counts cells,
+    so wide glyphs spilled past their column. geometry.ts gains cellWidth,
+    fitCellText, and sanitizeCellText; terminal-renderer fits every row span
+    by span with focus markers keeping priority. No new dependency. Spec,
+    DESIGN.md, and frozen ruler untouched.
+  files:
+    - workbench/src/geometry.ts (cell fitting primitives)
+    - workbench/src/terminal-renderer.ts (fitSpans at the cell boundary)
+    - workbench/src/cell-fit.test.ts (new, 4 tests)
+  verification:
+    - just tui-check (PASS)
+    - just tui-test (688 pass, 22 skip, 0 fail, 7980 assertions, 72 files)
+    - just tui-test all (49 suites PASS)
+    - just tui-preflight bootstrap (PASS)
+    - graft build (PASS)
+    - just verify not run (no Rust source changed, gate decoupling applies)
+  residuals:
+    - dist/gauntlet-workbench predates current source; rebuild it before
+      retesting the dev-up path by eye.
+    - Preview ASCII frames keep code-unit clipping; unifying them on cell
+      widths is deferred.
+  next_action: "None - awaiting operator review and commit of the working tree."
 
 metadata:
   plan_id: gauntlet-impl              # stable slug, matches evidence dir name

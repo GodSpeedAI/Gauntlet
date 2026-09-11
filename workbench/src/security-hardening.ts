@@ -189,6 +189,36 @@ export const PRIVILEGED_BOUNDARY_INVENTORY: readonly PrivilegedBoundary[] = Obje
     requirements: ["REQ-OPS-001", "REQ-SEC-002"],
   }),
   Object.freeze({
+    id: "real.prime.host.spawn",
+    area: "prime_execution",
+    side_effect_class:
+      "a REAL Bun.spawn child process launched from operator-configured prime_binary",
+    attack_route:
+      "RealPrimeHost construction/spawnChild with a relative/bare/metacharacter-bearing/traversal-shaped binary path, and a denial-class canonical route racing spawnChild",
+    module: "real-prime-host.ts",
+    owning_task: "workbench-intent-closure Phase C2",
+    enforcement: "typed_boundary_validator",
+    enforcement_symbol: "validateSpawnRequest",
+    denial_shape:
+      "TerminalBoundaryError at construction for an unbindable path; canonical refusal with ZERO real process spawned for a denial-class route (RealPrimeHost.spawnChild is never reached)",
+    requirements: ["REQ-SEC-005", "REQ-OPS-001", "REQ-PRIME-003"],
+  }),
+  Object.freeze({
+    id: "real.prime.host.stop",
+    area: "prime_execution",
+    side_effect_class:
+      "SIGKILL delivered to a pid recovered either from a live Bun.Subprocess handle or from a qualified on-disk manifest",
+    attack_route:
+      "stopChild on an unknown/already-terminal session id (must refuse, zero signal sent); a forged *.qualified.json manifest naming an arbitrary pid, bounded by sessionDir's 0700 same-user directory permission",
+    module: "real-prime-host.ts",
+    owning_task: "workbench-intent-closure Phase D",
+    enforcement: "typed_boundary_validator",
+    enforcement_symbol: "RealPrimeHost.stopChild",
+    denial_shape:
+      "PrimeStopOutcome{stopped:false} with no process.kill call for an unknown or terminal session id; a signal is only ever sent to the exact pid this host itself recorded (spawned directly, or reattached from a manifest whose directory only this OS user can write)",
+    requirements: ["REQ-SEC-005", "REQ-PRIME-009", "REQ-PRIME-010"],
+  }),
+  Object.freeze({
     id: "prime.mailbox.completion",
     area: "prime_execution",
     side_effect_class: "mailbox text attempting to change completion state",

@@ -78,6 +78,11 @@ flowchart TB
         SETTLE --> MEM["Developmental Memory"]
         MEM -->|N Settlements + Variation + Recovery| CAP["Capability Ledger (Promoted)"]
     end
+
+    subgraph Interface ["3. Interactive Operator Control Plane"]
+        CTRL <==>|Loopback HTTP / JSON\n(JsonOperatorSurface)| WORKBENCH["Operator Workbench (workbench/)\nBun + TypeScript + OpenTUI\n(Router-Not-Authority)"]
+        WORKBENCH -.-> DESIGN["Canonical Design System\n(DESIGN.md)"]
+    end
 ```
 
 ---
@@ -127,6 +132,9 @@ Find what you need based on what you are trying to accomplish:
 | **Understand Why** | [Explanations Directory](explanations/why-separate-critic-verifier.md) | Architectural rationale: why critic $\neq$ verifier, structural blindness, and 3-state logic. |
 | **Look Something Up** | [CLI Reference](reference/cli.md) · [Config](reference/configuration.md) · [Domain Types](reference/domain-types.md) · [Ports API](reference/ports-api.md) | Exact syntax, trait signatures, error enums, environment variables, and proof obligations. |
 | **Follow Execution** | [Run Lifecycle Workflow](workflows/run-lifecycle.md) → [Iteration Loop](workflows/iteration-loop.md) | Trace end-to-end execution paths, state transitions, and sequence diagrams. |
+| **Operate the TUI** | [How-To: Operate the TUI](how-to/operate-the-tui.md) → [TUI Subsystem](subsystems/tui.md) · [TUI Workflow](workflows/tui-session.md) | Launch the workbench, navigate cases and units, hoist horizons, and handle escalations. |
+| **TUI Design & Tokens** | [Design Contract](../DESIGN.md) → [TUI Reference](reference/tui.md) | Normative visual grammar, semantic tokens, color degradation, and geometry thresholds. |
 | **Trace the Code** | [Source Map](source-map.md) → [Subsystems](subsystems/domain.md) | Connect every concept directly to concrete files, structs, traits, and tests. |
 | **Debug a Problem** | [Troubleshooting Guide](troubleshooting.md) | Diagnostic flows, preflight error resolutions, quarantine inspection, and crash recovery. |
 | **Full Map of Docs** | [Documentation Map](documentation-map.md) | Complete inventory of every page classified by Diátaxis and audience need. |
+

@@ -8,7 +8,7 @@
 
 export interface UnitSnapshot {
   readonly unit_id: string;
-  readonly status: "pass" | "fail" | "inconclusive" | "pending" | "running" | "blocked";
+  readonly status: string;
   readonly tier?: string | undefined;
   readonly iteration?: number | undefined;
 }
@@ -131,6 +131,7 @@ export class GauntletReadClient {
   async fetchState(): Promise<RuntimeSnapshot> {
     try {
       const res = await fetch(`${this.baseUrl}/api/v1/state`, {
+        signal: AbortSignal.timeout(5000),
         method: "GET",
         headers: { Accept: "application/json" },
       });
@@ -144,12 +145,22 @@ export class GauntletReadClient {
       const escalated = Array.isArray(data["escalated"])
         ? data["escalated"].filter((x): x is string => typeof x === "string")
         : [];
-      const unitsRaw = Array.isArray(data["units"]) ? data["units"] : [];
+      if (
+        !Array.isArray(data["units"]) ||
+        !(data["run"] === null || typeof data["run"] === "string")
+      ) {
+        return this.createEmptySnapshot("disconnected");
+      }
+      const unitsRaw = data["units"];
       const units: UnitSnapshot[] = unitsRaw.map((u: unknown) => {
+        if (typeof u !== "object" || u === null) throw new Error("invalid unit");
         const item = u as Record<string, unknown>;
+        const id = item["id"] ?? item["unit_id"];
+        if (typeof id !== "string" || id.length === 0 || typeof item["status"] !== "string")
+          throw new Error("invalid unit");
         return {
-          unit_id: String(item["unit_id"] ?? "unknown"),
-          status: (item["status"] as UnitSnapshot["status"]) ?? "pending",
+          unit_id: id,
+          status: item["status"],
           tier: typeof item["tier"] === "string" ? item["tier"] : undefined,
           iteration: typeof item["iteration"] === "number" ? item["iteration"] : undefined,
         };
@@ -162,7 +173,7 @@ export class GauntletReadClient {
         run_derivation:
           typeof data["run_derivation"] === "string" ? data["run_derivation"] : undefined,
         fetched_at: new Date().toISOString(),
-        status: run ? "connected" : "empty",
+        status: run || units.length > 0 ? "connected" : "empty",
       };
     } catch {
       return this.createEmptySnapshot("disconnected");
@@ -288,6 +299,7 @@ export class GauntletReadClient {
   async fetchCapabilities(): Promise<CapabilitiesResponse | null> {
     try {
       const res = await fetch(`${this.baseUrl}/api/v1/capabilities`, {
+        signal: AbortSignal.timeout(5000),
         method: "GET",
         headers: { Accept: "application/json" },
       });
@@ -323,6 +335,7 @@ export class GauntletReadClient {
         `${this.baseUrl}/api/v1/units/${encodeURIComponent(unitId)}/inspection${query}`,
         {
           method: "GET",
+          signal: AbortSignal.timeout(5000),
           headers: { Accept: "application/json" },
         },
       );

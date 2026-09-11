@@ -132,8 +132,10 @@ describe("REQ-UX-003: blocked Unit inspection before resolve/retry", () => {
     // State: the blocked status with its gate (projection-cased in Inspector).
     expect(inspectorText).toContain("status       blocked");
     expect(inspectorText).toContain("orchestrator"); // governing authority
-    // Target identity is exact.
-    expect(inspectorText).toContain("focus:gauntlet:WorkItem:u-far");
+    // Target identity is exact: every character in order. Long ids wrap at
+    // the Inspector value-column boundary (delimiter-aware), so the match is
+    // whitespace-insensitive across the wrap.
+    expect(inspectorText.replace(/\s/g, "")).toContain("focus:gauntlet:WorkItem:u-far");
     // Denial reason: resolve is blocked with no open ticket and says the next step.
     expect(inspectorText).toContain("unit.resolve");
     expect(inspectorText).toContain("no_open_ticket");

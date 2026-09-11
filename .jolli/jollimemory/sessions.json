@@ -1,22 +1,16 @@
 {
 	"version": 1,
 	"sessions": {
-		"b1b4f6ef-92bc-41e0-b990-b729bcb10482": {
-			"sessionId": "b1b4f6ef-92bc-41e0-b990-b729bcb10482",
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/b1b4f6ef-92bc-41e0-b990-b729bcb10482.jsonl",
-			"updatedAt": "2026-08-30T23:53:30.987Z",
+		"ce946ac4-8df1-4885-8229-53ea1fc4ed89": {
+			"sessionId": "ce946ac4-8df1-4885-8229-53ea1fc4ed89",
+			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/ce946ac4-8df1-4885-8229-53ea1fc4ed89.jsonl",
+			"updatedAt": "2026-09-08T23:41:53.968Z",
 			"source": "claude"
 		},
-		"980eb9ed-52f6-4d6b-924e-8dad342964ef": {
-			"sessionId": "980eb9ed-52f6-4d6b-924e-8dad342964ef",
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/980eb9ed-52f6-4d6b-924e-8dad342964ef.jsonl",
-			"updatedAt": "2026-08-31T12:08:40.030Z",
-			"source": "claude"
-		},
-		"f4ce910f-1452-4b1f-a51c-0245cef0c22b": {
-			"sessionId": "f4ce910f-1452-4b1f-a51c-0245cef0c22b",
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/f4ce910f-1452-4b1f-a51c-0245cef0c22b.jsonl",
-			"updatedAt": "2026-08-31T14:13:21.884Z",
+		"1be20ded-4f20-4faf-b358-feee6f6a94e6": {
+			"sessionId": "1be20ded-4f20-4faf-b358-feee6f6a94e6",
+			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/1be20ded-4f20-4faf-b358-feee6f6a94e6.jsonl",
+			"updatedAt": "2026-09-10T21:10:16.593Z",
 			"source": "claude"
 		}
 	}

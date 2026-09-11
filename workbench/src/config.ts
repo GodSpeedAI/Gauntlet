@@ -19,6 +19,22 @@ export interface PerformanceBudget {
 export interface WorkbenchConfig {
   readonly gauntlet_endpoint: string;
   readonly prime_endpoint: string | null;
+  /**
+   * Path to a real Prime binary for same-host integration (plan Phase C2;
+   * REQ-CONFIG-003 names "socket" as a MUST-configurable surface, and T24
+   * qualified the real substrate as a binary, not an HTTP endpoint).
+   * `prime_endpoint` stays for remote/HTTP-shaped Prime; this is the
+   * same-host `RealPrimeHost` path. Additive: `null` (unconfigured) behaves
+   * exactly as it did before this field existed (D6).
+   */
+  readonly prime_binary: string | null;
+  /**
+   * Unix socket path for a same-host Prime daemon (REQ-BUN-005 prefers a
+   * local socket for same-host integration). Declared additively; whether
+   * `RealPrimeHost` connects to it is independent of this field's presence
+   * — an honest declaration is not itself a claim of use (D1).
+   */
+  readonly prime_socket: string | null;
   readonly projection_store: string;
   readonly plugin_roots: readonly string[];
   readonly performance_budget: PerformanceBudget;
@@ -29,6 +45,8 @@ export interface WorkbenchConfig {
 export interface RawConfigInput {
   gauntlet_endpoint?: string | undefined;
   prime_endpoint?: string | null | undefined;
+  prime_binary?: string | null | undefined;
+  prime_socket?: string | null | undefined;
   projection_store?: string | undefined;
   plugin_roots?: readonly string[] | undefined;
   performance_budget?: PerformanceBudget | undefined;
@@ -39,6 +57,8 @@ export interface RawConfigInput {
 export const DEFAULT_CONFIG: WorkbenchConfig = {
   gauntlet_endpoint: "http://127.0.0.1:4000",
   prime_endpoint: null,
+  prime_binary: null,
+  prime_socket: null,
   projection_store: ".gauntlet/projections.db",
   plugin_roots: [],
   performance_budget: {
@@ -80,6 +100,8 @@ export function resolveConfig(options?: {
   // Environment variables mapping (documented fields only, REQ-CONFIG-001)
   const envGauntlet = envSource["GAUNTLET_WORKBENCH_ENDPOINT"] ?? envSource["GAUNTLET_ENDPOINT"];
   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
+  const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
+  const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
@@ -101,6 +123,30 @@ export function resolveConfig(options?: {
     prime_endpoint = file.prime_endpoint;
   } else {
     prime_endpoint = DEFAULT_CONFIG.prime_endpoint;
+  }
+
+  // 2b. Prime binary (same-host RealPrimeHost path, plan Phase C2)
+  let prime_binary: string | null = null;
+  if (cli.prime_binary !== undefined) {
+    prime_binary = cli.prime_binary;
+  } else if (envPrimeBinary !== undefined) {
+    prime_binary = envPrimeBinary.trim() === "" ? null : envPrimeBinary;
+  } else if (file.prime_binary !== undefined) {
+    prime_binary = file.prime_binary;
+  } else {
+    prime_binary = DEFAULT_CONFIG.prime_binary;
+  }
+
+  // 2c. Prime socket (same-host daemon path, REQ-BUN-005)
+  let prime_socket: string | null = null;
+  if (cli.prime_socket !== undefined) {
+    prime_socket = cli.prime_socket;
+  } else if (envPrimeSocket !== undefined) {
+    prime_socket = envPrimeSocket.trim() === "" ? null : envPrimeSocket;
+  } else if (file.prime_socket !== undefined) {
+    prime_socket = file.prime_socket;
+  } else {
+    prime_socket = DEFAULT_CONFIG.prime_socket;
   }
 
   // 3. Projection store
@@ -138,6 +184,8 @@ export function resolveConfig(options?: {
   return {
     gauntlet_endpoint,
     prime_endpoint,
+    prime_binary,
+    prime_socket,
     projection_store,
     plugin_roots,
     performance_budget,

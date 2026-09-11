@@ -1,6 +1,7 @@
 /**
  * Work view: "What are we trying to move?" (plan T12, REQ-UX-001/003,
- * REQ-TUI-003, DSN-005, DSN-009, DESIGN.md Work view + Affordance state).
+ * REQ-TUI-003, DSN-005, DSN-009, DESIGN.md Work view + Affordance state +
+ * Grid and spacing / Row density / text.machine tabular alignment).
  *
  * Core invariants:
  *   - Escalation-first ordering matches OperatorSurface priorities
@@ -14,6 +15,10 @@
  *   - Blocked-but-informative affordances materialise with their blocking
  *     gate and a next step; not-currently-legitimate ones stay absent from
  *     the view but discoverable in the palette with their reason (DSN-009).
+ *   - Group rhythm: one blank line before each non-empty group after the
+ *     header block (DESIGN.md space.2/space.3, the Inspector's own rhythm
+ *     idiom); an empty group leaves no gap. Empty groups and per-frame
+ *     column widths are presentation, never state.
  */
 
 import type {
@@ -24,6 +29,7 @@ import type {
 } from "./affordance";
 import { resolveAffordance } from "./affordance";
 import type { FocusRef } from "./focus";
+import { cellWidth, padCellText } from "./geometry";
 import { reasonNextStep } from "./inspector";
 import { operationIds } from "./operation-registry";
 import type { UnitProjection } from "./projection-store";
@@ -145,57 +151,89 @@ export interface ViewRenderArgs {
   readonly paymentEstimates?: Readonly<Record<string, PaymentEstimate>> | undefined;
 }
 
-function statusGlyphLine(unit: UnitProjection): RenderedLine {
-  const token = statusToken(unit.status);
-  const glyph = SEMANTIC_TOKENS[token].glyph;
-  return {
-    id: `work.unit.${unit.unit_id}`,
-    spans: [
-      { text: `${glyph} `, token },
-      { text: `${unit.status.toUpperCase()} `, token, emphasis: "bold" },
-      { text: `${unit.unit_id} `, emphasis: "normal" },
-      { text: unit.title || "unavailable" },
-      { text: `  authority ${unit.authority}`, emphasis: "dim" },
-    ],
-  };
+/** One blank rhythm line before a Work group (DESIGN.md space.2/space.3). */
+function gapLine(group: string): RenderedLine {
+  return { id: `work.gap.${group}`, spans: [{ text: " " }] };
+}
+
+/**
+ * Tabular unit rows: glyph | STATUS | id | title | dim authority meta. The
+ * status and machine-id columns pad to one width per frame so the title
+ * column starts at a stable cell (DESIGN.md text.machine "tabular alignment";
+ * "do not visually flatten labels, prose, hashes, and statuses"). Ids longer
+ * than the 16-cell cap are not padded — an outlier pushes, it never truncates.
+ */
+function unitRows(units: readonly UnitProjection[]): readonly RenderedLine[] {
+  if (units.length === 0) return [];
+  const ordered = workUnitOrder(units);
+  const statusWidth = ordered.reduce(
+    (width, unit) => Math.max(width, cellWidth(unit.status.toUpperCase())),
+    7,
+  );
+  const idWidth = Math.min(
+    16,
+    ordered.reduce((width, unit) => Math.max(width, cellWidth(unit.unit_id)), 0),
+  );
+  return ordered.map((unit) => {
+    const token = statusToken(unit.status);
+    const glyph = SEMANTIC_TOKENS[token].glyph;
+    return {
+      id: `work.unit.${unit.unit_id}`,
+      spans: [
+        { text: `${glyph} `, token },
+        {
+          text: `${padCellText(unit.status.toUpperCase(), statusWidth)} `,
+          token,
+          emphasis: "bold",
+        },
+        { text: `${padCellText(unit.unit_id, idWidth)}  ` },
+        { text: unit.title || "unavailable" },
+        { text: `  authority ${unit.authority}`, emphasis: "dim" },
+      ],
+    };
+  });
 }
 
 /** Render the Work primary projection for one snapshot. */
 export function renderWorkView(args: ViewRenderArgs): ViewContent {
   const { snapshot, observation } = args;
-  const lines: RenderedLine[] = [];
   const records: RenderedRecord[] = [];
 
-  lines.push({
-    id: "work.question",
-    spans: [{ text: "WORK — what are we trying to move?", emphasis: "bold" }],
-  });
-
-  // Honest aggregate header: counts + what the projection does NOT carry.
+  // Header block: the view question plus the honest aggregate. The aggregate
+  // carries the attention glyph only while escalation work exists ("quiet
+  // until judgment is required"), and the budget reason is the LAST span so a
+  // narrow column clips the explanation, never the state.
   const blocked = snapshot.units.filter((unit) => unit.status === "blocked").length;
   const inFlight = snapshot.units.filter(
     (unit) => unit.status === "running" || unit.status === "active",
   ).length;
-  lines.push({
-    id: "work.summary",
-    spans: [
-      { text: `${snapshot.units.length} units · `, emphasis: "dim" },
-      { text: `! ${blocked} blocked `, token: "attention.required" },
-      { text: `${inFlight} in flight · `, emphasis: "dim" },
-      {
-        text: "budget: unavailable (host budget read not bound to this projection)",
-        emphasis: "dim",
-      },
-    ],
-  });
+  const headerBlock: readonly RenderedLine[] = [
+    {
+      id: "work.question",
+      spans: [{ text: "WORK: what are we trying to move?", emphasis: "bold" }],
+    },
+    {
+      id: "work.summary",
+      spans: [
+        { text: `${snapshot.units.length} units · `, emphasis: "dim" },
+        ...(blocked > 0
+          ? [{ text: `! ${blocked} blocked `, token: "attention.required" as const }]
+          : [{ text: `${blocked} blocked `, emphasis: "dim" as const }]),
+        { text: `${inFlight} in flight · `, emphasis: "dim" },
+        { text: "budget: unavailable", emphasis: "dim" },
+        { text: " (host budget read not bound to this projection)", emphasis: "dim" },
+      ],
+    },
+  ];
 
   // Environment honesty (REQ-UX-006): capabilities the host observed as
   // unavailable stay listed with their gate reasons — never faked available.
+  const capabilityLines: RenderedLine[] = [];
   for (const capability of snapshot.capability_reasons) {
     if (capability.status !== "unavailable") {
       continue;
     }
-    lines.push({
+    capabilityLines.push({
       id: `work.capability.${capability.capability}`,
       spans: [
         { text: "○ ", token: "capability.attempted" },
@@ -210,31 +248,41 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
   }
 
   if (snapshot.units.length === 0) {
-    // Honest empty state with a named next step (REQ-UX-001/006).
+    // Honest empty state with a named next step (REQ-UX-001/006): statement
+    // first, guidance on its own line so the actionable part survives narrow
+    // columns instead of clipping mid-sentence.
     const anySource = Object.keys(snapshot.source_cursors).length > 0;
-    lines.push({
-      id: "work.empty",
-      spans: [
-        {
-          text: anySource
-            ? "No units reported yet. Wait for the authoritative source to admit units, or run a Gauntlet run."
-            : "No authoritative source has reported. Start 'gauntlet serve' and bind a source, then sync a generation.",
-          token: "readiness.degraded",
-        },
-      ],
-    });
+    const [statement, guidance] = anySource
+      ? [
+          "No units reported yet.",
+          "Wait for the authoritative source to admit units, or run a Gauntlet run.",
+        ]
+      : [
+          "No authoritative source has reported.",
+          "Start 'gauntlet serve' and bind a source, then sync a generation.",
+        ];
+    const lines: RenderedLine[] = [...headerBlock];
+    if (capabilityLines.length > 0) {
+      lines.push(gapLine("capability"), ...capabilityLines);
+    }
+    lines.push(
+      gapLine("empty"),
+      { id: "work.empty", spans: [{ text: statement, token: "readiness.degraded" }] },
+      { id: "work.empty.next", spans: [{ text: guidance, emphasis: "dim" }] },
+    );
     return { view: "work", question: "What are we trying to move?", lines, records };
   }
 
   // Escalation attention first (REQ-UX-001), independent of the Horizon.
+  const attentionLines: RenderedLine[] = [];
   for (const entry of snapshot.attention) {
-    lines.push({
+    attentionLines.push({
       id: `work.attention.${entry.focus.id}`,
       spans: [
         { text: "! ", token: "attention.required", emphasis: "bold" },
         { text: `${entry.reason.toUpperCase()} `, token: "attention.required" },
         { text: `${entry.focus.kind}:${entry.focus.source_id} `, emphasis: "bold" },
-        { text: "— open the escalation to resolve", emphasis: "dim" },
+        { text: "· open the escalation to resolve", emphasis: "dim" },
       ],
     });
     records.push({
@@ -250,19 +298,17 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
     });
   }
 
-  // Unit rows, escalation-first.
-  for (const unit of workUnitOrder(snapshot.units)) {
-    lines.push(statusGlyphLine(unit));
-  }
+  const unitLineRows = unitRows(snapshot.units);
 
   // Affordance bar for the current Focus — resolver-driven (DSN-005).
+  const affordanceLines: RenderedLine[] = [];
   const focus: FocusRef | null = snapshot.focus;
   if (focus !== null) {
     const materialized = materializeAffordances(focus, observation, {
       session: args.session,
       payment_estimates: args.paymentEstimates,
     });
-    lines.push({
+    affordanceLines.push({
       id: "work.affordances.header",
       spans: [
         { text: "ACTIONS ", emphasis: "bold" },
@@ -275,7 +321,7 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
       }
       const available = item.descriptor.status === "available";
       const attention = item.descriptor.status === "requires_attention";
-      lines.push({
+      affordanceLines.push({
         id: `work.affordance.${item.descriptor.operation}`,
         spans: [
           {
@@ -292,7 +338,7 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
               ? `responds to ${item.descriptor.required_attention_item ?? "an attention item"}`
               : available
                 ? "ready"
-                : `BLOCKED — ${item.descriptor.reason_codes.join(", ")}`,
+                : `BLOCKED: ${item.descriptor.reason_codes.join(", ")}`,
             token: available ? undefined : attention ? "attention.required" : "readiness.blocked",
           },
           ...(item.nextStep !== null && !available
@@ -321,7 +367,7 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
     const paletteOnly = materialized.filter((item) => item.outcome === "palette_only");
     if (paletteOnly.length > 0) {
       // Absent from the view's action bar but discoverable WITH reasons (DSN-009).
-      lines.push({
+      affordanceLines.push({
         id: "work.affordances.palette",
         spans: [
           { text: `${paletteOnly.length} more in command palette `, emphasis: "dim" },
@@ -337,10 +383,27 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
       });
     }
   } else {
-    lines.push({
+    affordanceLines.push({
       id: "work.affordances.none",
-      spans: [{ text: "No Focus selected — choose a unit in the Navigator.", emphasis: "dim" }],
+      spans: [{ text: "No Focus selected. Choose a unit in the Navigator.", emphasis: "dim" }],
     });
+  }
+
+  // Rhythm: one blank line before each non-empty group after the header block,
+  // the same blank rhythm-line idiom the Inspector sections use; an empty
+  // group leaves no gap.
+  const lines: RenderedLine[] = [...headerBlock];
+  const groups: readonly { readonly id: string; readonly lines: readonly RenderedLine[] }[] = [
+    { id: "capability", lines: capabilityLines },
+    { id: "attention", lines: attentionLines },
+    { id: "units", lines: unitLineRows },
+    { id: "affordances", lines: affordanceLines },
+  ];
+  for (const group of groups) {
+    if (group.lines.length === 0) {
+      continue;
+    }
+    lines.push(gapLine(group.id), ...group.lines);
   }
 
   return { view: "work", question: "What are we trying to move?", lines, records };

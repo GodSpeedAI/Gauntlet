@@ -560,6 +560,7 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
 
   async observe(_target: { unit: string | null }): Promise<AffordanceObservation> {
     const response = await fetch(`${this.baseUrl}/api/v1/state`, {
+      signal: AbortSignal.timeout(5000),
       method: "GET",
       headers: { Accept: "application/json" },
     });
@@ -572,6 +573,7 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
       throw new Error(`the canonical surface state read failed (HTTP ${response.status})`);
     }
     const data = (await response.json()) as Record<string, unknown>;
+    if (!Array.isArray(data["units"])) throw new Error("malformed canonical state");
     const unitsRaw = Array.isArray(data["units"]) ? data["units"] : [];
     const escalationsRaw = Array.isArray(data["open_escalations"]) ? data["open_escalations"] : [];
     const escalatedIds = Array.isArray(data["escalated"]) ? data["escalated"] : [];
@@ -592,10 +594,15 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
       degraded: false,
       units: Object.freeze(
         unitsRaw.map((entry) => {
+          if (typeof entry !== "object" || entry === null)
+            throw new Error("malformed canonical unit");
           const record = entry as Record<string, unknown>;
+          const id = record["id"] ?? record["unit_id"];
+          if (typeof id !== "string" || !id || typeof record["status"] !== "string")
+            throw new Error("malformed canonical unit");
           return {
-            unit_id: String(record["unit_id"] ?? ""),
-            status: String(record["status"] ?? "pending"),
+            unit_id: id,
+            status: record["status"],
           };
         }),
       ),
@@ -630,6 +637,7 @@ export class HttpOperatorActionRoute implements OperatorActionRoute {
       `${this.baseUrl}/api/v1/units/${encodeURIComponent(command.unit)}/${command.action_kind}${query}`,
       {
         method: "POST",
+        signal: AbortSignal.timeout(5000),
         headers,
         body: command.note,
       },

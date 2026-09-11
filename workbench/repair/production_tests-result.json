@@ -1,0 +1,14 @@
+{
+  "status": "complete",
+  "files": ["src/production-entry.test.ts"],
+  "tests": [
+    "Pre-repair real PTY + EmbeddedTerminal emulator test: expected FAIL, entry never contacted loopback backend; screen reproduced incorrect columns and ellipses on empty rows.",
+    "Initial post-repair run reached the Unicode draft assertion after backend, geometry, palette, Escape, Shift-Tab and focus assertions passed; it exposed the composer astral-Unicode defect, which was corrected with grapheme-safe input and reverified below.",
+    "bun run check: PASS after test additions and renderer integration.",
+    "bun x biome check src/production-entry.test.ts: PASS.",
+    "Root authorized final verification: bun test src/workbench-host.test.ts src/production-entry.test.ts — PASS 3, fail 0, 41 assertions, 6.69s.",
+    "Final focused verification after prompt correction: bun test src/operator-preview.test.ts src/terminal-renderer.test.ts — PASS 12, fail 0, 154 assertions.",
+    "Final tmux verification: bun test src/ssh-target.test.ts — PASS 5, skip 1 expected SSH leg, fail 0, 26 assertions."
+  ],
+  "remaining": []
+}

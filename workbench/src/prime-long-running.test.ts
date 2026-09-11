@@ -14,6 +14,9 @@
  */
 
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { lookupOperation, operationIds } from "./operation-registry";
 import { PrimeHostAdapter } from "./prime-host";
 import type { ChildCompletionStatus } from "./prime-long-running";
@@ -30,6 +33,8 @@ import {
   requestSubstrateStrategy,
   substrateInventory,
 } from "./prime-long-running";
+import { RealPrimeHost } from "./real-prime-host";
+import { writeFakePrimeAgent } from "./testing/fake-prime-binary";
 
 const CHILD = "sess-long-running-child";
 const CONTRACT =
@@ -303,4 +308,56 @@ describe("T10 Attack 2 — detach is not cancel; authorized work outlives the TU
     // cancel (proven above), and lifecycle changes come only from Prime-side
     // facts (the result contract, proven above).
   });
+});
+
+describe("Phase D — the SAME long-running semantics reproduced against a REAL PrimeHostPort (RealPrimeHost, D2 reuse)", () => {
+  it("detach/reattach/messaging behave IDENTICALLY over RealPrimeHost: zero cancel calls, work outlives the host object, a fresh reattach sees real state", async () => {
+    const root = mkdtempSync(join(tmpdir(), "d-cross-substrate-"));
+    try {
+      const binary = join(root, "fake-prime-agent.sh");
+      writeFakePrimeAgent(binary, { assistantText: "halfway through the investigation" });
+      const host = new RealPrimeHost({
+        binary,
+        agentDir: join(root, "agent"),
+        sessionDir: join(root, "sessions"),
+      });
+      const sessionId = "sess-d-cross-substrate";
+      const contractPath = join(root, `${sessionId}.result.json`);
+      host.spawnChild({
+        sessionId,
+        parentSessionId: null,
+        contractPath,
+        task: "say hi",
+      });
+
+      // detach() and PrimeWorkbenchHost never needed to know they were now
+      // driving a REAL process host instead of the in-memory fake — the
+      // widened PrimeHostPort typing is the whole story (D2).
+      const hostA = new PrimeWorkbenchHost({ adapter: host });
+      const { logged, calls } = loggingPrimeAdapter(host);
+      const receipt = hostA.detach(logged);
+      expect(receipt.cancel_calls_issued).toBe(0);
+      for (const call of calls) {
+        expect(/cancel|stop|terminate|abort|interrupt|kill/i.test(call)).toBe(false);
+      }
+
+      hostA.close();
+      expect(hostA.isClosed()).toBe(true);
+
+      // The REAL child keeps running (or completes) with no host at all.
+      const deadline = Date.now() + 10_000;
+      while (host.getSession(sessionId)?.handle.status === "running" && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(host.getSession(sessionId)?.handle.status).toBe("completed");
+      expect(host.getSession(sessionId)?.resultContract?.schema_valid).toBe(true);
+
+      const reattached = reattachToPrime(host);
+      expect(reattached.source).toBe("qualified_prime_adapter_records");
+      expect(reattached.completed_sessions).toEqual([sessionId]);
+      expect(reattached.running_sessions).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 15_000);
 });

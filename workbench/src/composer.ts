@@ -303,8 +303,16 @@ export function expireTakeovers(state: ComposerState, nowMs: number): ComposerSt
   });
 }
 
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
 function isPrintable(key: string): boolean {
-  return key.length === 1 && key.charCodeAt(0) >= 32;
+  const first = graphemes.segment(key)[Symbol.iterator]().next().value;
+  return first?.segment === key && !/[\p{Cc}\p{Cs}]/u.test(key);
+}
+
+function eraseLastGrapheme(text: string): string {
+  const last = graphemes.segment(text).containing(Math.max(0, text.length - 1));
+  return text.slice(0, last?.index ?? 0);
 }
 
 function modeForTakeover(kind: TakeoverKind): ComposerMode {
@@ -341,7 +349,7 @@ export function composeKeypress(
       return {
         state: Object.freeze({
           ...state,
-          takeoverInput: state.takeoverInput.slice(0, -1),
+          takeoverInput: eraseLastGrapheme(state.takeoverInput),
         }),
         submitted: null,
       };
@@ -366,7 +374,7 @@ export function composeKeypress(
   }
   if (key === "backspace") {
     return {
-      state: Object.freeze({ ...state, draft: state.draft.slice(0, -1) }),
+      state: Object.freeze({ ...state, draft: eraseLastGrapheme(state.draft) }),
       submitted: null,
     };
   }

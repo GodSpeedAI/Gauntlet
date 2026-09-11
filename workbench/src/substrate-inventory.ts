@@ -518,7 +518,8 @@ export const SUBSTRATE_PROVENANCE_MAP: readonly SubstrateProvenanceRow[] = Objec
         "gateway-gated PrimeDelegationDispatcher: canonical accepted receipt BEFORE child spawn; the handle is never the result (REQ-PRIME-003)",
     }),
     provenance_note:
-      "The one feature where all three layers agree — and the battery proves the composed path on real processes (fresh-target leg a).",
+      "The one feature where all three layers agree — and the battery proves the composed path on real processes (fresh-target leg a). " +
+      "Plan Phase C2 (workbench-intent-closure.md): RealPrimeHost (real-prime-host.ts) now performs this EXACT composition in PRODUCTION code — PrimeDelegationDispatcher driving RealPrimeHost.spawnChild over a real Bun.spawn, bound through the T13 program/argv/cwd boundary — where previously only T24's standalone test battery drove the real binary, independently of the workbench's own admission path. real.prime.host.spawn (security-hardening.ts inventory) is the C2 privileged-boundary entry for this; prime-delegation-real.test.ts proves canonical-dispatch-before-spawn, concurrent-same-key-spawns-once, and mailbox-never-completes hold against the real Bun.spawn-backed host, not only the in-memory fake.",
     canonical_direction: false,
     canonical_settlement: false,
     canonical_capability: false,

@@ -46,7 +46,7 @@ export function renderChatView(args: ViewRenderArgs): ViewContent {
 
   lines.push({
     id: "chat.question",
-    spans: [{ text: "CHAT — what was communicated?", emphasis: "bold" }],
+    spans: [{ text: "CHAT: what was communicated?", emphasis: "bold" }],
   });
 
   if (!snapshot.chat_enabled) {
@@ -120,7 +120,7 @@ export function renderTraceView(args: ViewRenderArgs): ViewContent {
 
   lines.push({
     id: "trace.question",
-    spans: [{ text: "TRACE — what actually happened?", emphasis: "bold" }],
+    spans: [{ text: "TRACE: what actually happened?", emphasis: "bold" }],
   });
 
   if (snapshot.trace_records.length === 0) {
@@ -166,7 +166,7 @@ export function renderEvidenceView(args: ViewRenderArgs): ViewContent {
 
   lines.push({
     id: "evidence.question",
-    spans: [{ text: "EVIDENCE — what supports or contradicts settlement?", emphasis: "bold" }],
+    spans: [{ text: "EVIDENCE: what supports or contradicts settlement?", emphasis: "bold" }],
   });
 
   if (snapshot.evidence.length === 0) {
@@ -218,7 +218,7 @@ export function renderAgentsView(args: ViewRenderArgs): ViewContent {
 
   lines.push({
     id: "agents.question",
-    spans: [{ text: "AGENTS — where is execution capacity allocated?", emphasis: "bold" }],
+    spans: [{ text: "AGENTS: where is execution capacity allocated?", emphasis: "bold" }],
   });
 
   for (const session of snapshot.sessions) {
@@ -275,7 +275,7 @@ export function renderAttentionView(args: ViewRenderArgs): ViewContent {
 
   lines.push({
     id: "attention.question",
-    spans: [{ text: "ATTENTION — what genuinely requires resolution?", emphasis: "bold" }],
+    spans: [{ text: "ATTENTION: what genuinely requires resolution?", emphasis: "bold" }],
   });
 
   if (snapshot.attention.length === 0) {

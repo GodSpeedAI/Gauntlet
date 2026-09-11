@@ -1,0 +1,14 @@
+--- a/.agents/CURRENT_STATUS.yml
++++ b/.agents/CURRENT_STATUS.yml
+@@
+ tui_runtime_repair:
+-  status: in_progress
++  status: handoff_ready
+   updated: "2026-09-10"
+   scope: Fix seven production composition, rendering, input, and verification findings.
+   task_ledger: workbench/repair/IN-FLIGHT.md
+-  next_action: Renderer, host, and production-test builders dispatched; independently verify production composition.
++  plan: .agents/plan/tui-runtime-repair-followup.md
++  next_action: >-
++    Run release evidence and complete TUI suites with loopback/tmux permissions,
++    rerun graft build, then settle or record the bounded transport residuals.

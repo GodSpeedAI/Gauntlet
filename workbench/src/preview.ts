@@ -5,7 +5,14 @@
  */
 
 import type { RuntimeSnapshot, RunView, UnitView } from "./client";
-import { classifyGeometry, type Dimensions, renderBelowMinimumPrompt } from "./geometry";
+import {
+  classifyGeometry,
+  clipCell,
+  type Dimensions,
+  PREVIEW_COMPACT_COLUMNS,
+  PREVIEW_FULL_COLUMNS,
+  renderBelowMinimumPrompt,
+} from "./geometry";
 import { formatStatus } from "./theme";
 
 export interface PreviewState {
@@ -153,7 +160,7 @@ export function renderPreview(state: PreviewState): string {
   if (!state.snapshot || state.snapshot.status === "disconnected") {
     return [
       "╔════════════════════════════════════════════════════════════════════════════════╗",
-      "║ GAUNTLET PRIME WORKBENCH — [PREVIEW / READ-ONLY]                               ║",
+      "║ GAUNTLET PRIME WORKBENCH: [PREVIEW / READ-ONLY]                               ║",
       "╚════════════════════════════════════════════════════════════════════════════════╝",
       "",
       "  Status: DISCONNECTED (127.0.0.1:4000 unreachable)",
@@ -168,7 +175,7 @@ export function renderPreview(state: PreviewState): string {
   if (state.snapshot.status === "empty" || state.snapshot.units.length === 0) {
     return [
       "╔════════════════════════════════════════════════════════════════════════════════╗",
-      "║ GAUNTLET PRIME WORKBENCH — [PREVIEW / READ-ONLY]                               ║",
+      "║ GAUNTLET PRIME WORKBENCH: [PREVIEW / READ-ONLY]                               ║",
       "╚════════════════════════════════════════════════════════════════════════════════╝",
       "",
       `  Run: ${state.snapshot.run ?? "No active run"}`,
@@ -197,10 +204,10 @@ function renderFullLayout(state: PreviewState): string {
   lines.push(
     "┌─ GAUNTLET WORKBENCH ────────────────────────────────────────────────────────── [PREVIEW / READ-ONLY] ─ 120x40 FULL ─┐",
   );
-  const runHeader =
-    `│ Run: ${runName} (${runDerivation}) | Escalations: ${state.snapshot?.escalated.length ?? 0} open | Focus: [${state.focusedUnitId ?? "none"}]`
-      .padEnd(118)
-      .slice(0, 118);
+  const runHeader = clipCell(
+    `│ Run: ${runName} (${runDerivation}) | Escalations: ${state.snapshot?.escalated.length ?? 0} open | Focus: [${state.focusedUnitId ?? "none"}]`,
+    PREVIEW_FULL_COLUMNS.runHeader,
+  );
   lines.push(`${runHeader}│`);
   lines.push(
     "├────────────────────────────┬────────────────────────────────────────────┬───────────────────────────────────────────┤",
@@ -273,9 +280,9 @@ function renderFullLayout(state: PreviewState): string {
       }
     }
 
-    const pad1 = col1.padEnd(26).slice(0, 26);
-    const pad2 = col2.padEnd(42).slice(0, 42);
-    const pad3 = col3.padEnd(41).slice(0, 41);
+    const pad1 = clipCell(col1, PREVIEW_FULL_COLUMNS.nav);
+    const pad2 = clipCell(col2, PREVIEW_FULL_COLUMNS.primary);
+    const pad3 = clipCell(col3, PREVIEW_FULL_COLUMNS.inspector);
     lines.push(`│ ${pad1} │ ${pad2} │ ${pad3} │`);
   }
 
@@ -286,7 +293,7 @@ function renderFullLayout(state: PreviewState): string {
     "│ Controls: [↑/↓] Select Unit  [Enter] Inspect  [Tab] Cycle Surface  [Esc] Return  [q] Quit                          │",
   );
   if (state.lastActionMessage) {
-    lines.push(`│ Note: ${state.lastActionMessage.padEnd(110).slice(0, 110)} │`);
+    lines.push(`│ Note: ${clipCell(state.lastActionMessage, PREVIEW_FULL_COLUMNS.note)} │`);
   }
   lines.push(
     "└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘",
@@ -325,7 +332,7 @@ function renderCompactLayout(state: PreviewState): string {
           const pointer = isSelected ? "▶ " : "  ";
           const st = formatStatus(u.status);
           const line = `${pointer}${u.unit_id} [${st.glyph} ${st.label}] ${u.tier ? `(${u.tier})` : ""}`;
-          lines.push(`│ ${line.padEnd(70).slice(0, 70)} │`);
+          lines.push(`│ ${clipCell(line, PREVIEW_COMPACT_COLUMNS.unit)} │`);
         }
       } else {
         lines.push("│                                                                        │");
@@ -337,7 +344,7 @@ function renderCompactLayout(state: PreviewState): string {
     for (let i = 0; i < 14; i++) {
       if (i < escalated.length) {
         const t = escalated[i];
-        lines.push(`│   • Ticket: ${String(t).padEnd(58).slice(0, 58)} │`);
+          lines.push(`│   • Ticket: ${clipCell(String(t), PREVIEW_COMPACT_COLUMNS.ticket)} │`);
       } else {
         lines.push("│                                                                        │");
       }
@@ -347,9 +354,9 @@ function renderCompactLayout(state: PreviewState): string {
     lines.push("│ UNIT DETAILS:                                                          │");
     if (focusedUnit) {
       const st = formatStatus(focusedUnit.status);
-      lines.push(`│ Unit ID:      ${focusedUnit.unit_id.padEnd(54)} │`);
-      lines.push(`│ Status:       ${st.glyph} ${st.label.padEnd(52)} │`);
-      lines.push(`│ Tier:         ${(focusedUnit.tier ?? "default").padEnd(54)} │`);
+        lines.push(`│ Unit ID:      ${clipCell(focusedUnit.unit_id, PREVIEW_COMPACT_COLUMNS.fieldId)} │`);
+        lines.push(`│ Status:       ${st.glyph} ${clipCell(st.label, PREVIEW_COMPACT_COLUMNS.fieldStatus)} │`);
+        lines.push(`│ Tier:         ${clipCell(focusedUnit.tier ?? "default", PREVIEW_COMPACT_COLUMNS.fieldId)} │`);
       lines.push("│ Evidence:     (metadata preview mode)                                  │");
       lines.push("│ Explanation:  unavailable (T01 read contract required)                 │");
     } else {

@@ -26,6 +26,7 @@ import { resolveAffordance } from "./affordance";
 import type { SemanticEnrichment } from "./domainforge-adapter";
 import { renderSemanticSection } from "./domainforge-adapter";
 import type { FocusRef } from "./focus";
+import { wrapCellText } from "./geometry";
 import { operationIds } from "./operation-registry";
 import type { EvidenceProjection, SessionProjection, UnitProjection } from "./projection-store";
 import type { ProjectionWorld, RelationEdge } from "./relations";
@@ -63,6 +64,13 @@ export interface InspectorArgs {
   readonly observation: AffordanceObservation;
   readonly session?: AffordanceSessionContext | undefined;
   readonly paymentEstimates?: Readonly<Record<string, PaymentEstimate>> | undefined;
+  /**
+   * Value-column cell width for wrapping long field values (word boundaries;
+   * unbreakable tokens hard-split at cells; nothing dropped). Absent ⇒ legacy
+   * single-line fields. The production caller passes the Inspector column's
+   * real value budget so provenance stays fully visible instead of clipping.
+   */
+  readonly valueWidth?: number | undefined;
 }
 
 /**
@@ -99,10 +107,20 @@ export function reasonNextStep(reason: string): string {
   }
 }
 
-function fieldLine(key: string, value: string): RenderedLine {
-  return {
-    spans: [{ text: `${key.padEnd(12)} `, emphasis: "dim" }, { text: value }],
-  };
+/**
+ * One label/value form line; a value wider than `valueWidth` (when supplied)
+ * wraps onto continuation lines indented to the value column, so long
+ * provenance stays fully visible instead of clipping mid-token in the
+ * 36-cell Inspector column.
+ */
+function fieldLine(key: string, value: string, valueWidth?: number): RenderedLine[] {
+  const chunks = valueWidth === undefined ? [value] : wrapCellText(value, valueWidth);
+  return chunks.map(
+    (chunk, index): RenderedLine =>
+      index === 0
+        ? { spans: [{ text: `${key.padEnd(12)} `, emphasis: "dim" }, { text: chunk }] }
+        : { spans: [{ text: " ".repeat(13) }, { text: chunk }] },
+  );
 }
 
 /**
@@ -224,7 +242,7 @@ function affordanceSection(
         ...(descriptor.reason_codes.length > 0
           ? [
               {
-                text: ` — ${descriptor.reason_codes.join(", ")}`,
+                text: ` (${descriptor.reason_codes.join(", ")})`,
                 emphasis: "dim" as const,
               },
             ]
@@ -276,6 +294,7 @@ export function renderInspector(args: InspectorArgs): {
   sections: readonly InspectorSection[];
 } {
   const { snapshot, focus, observation } = args;
+  const valueWidth = args.valueWidth;
   const sections: InspectorSection[] = [];
 
   // Identity — the one FocusRef identity, distinct from any placement.
@@ -283,11 +302,11 @@ export function renderInspector(args: InspectorArgs): {
     id: "identity",
     title: "IDENTITY",
     lines: [
-      fieldLine("ref", focus.id),
-      fieldLine("kind", focus.kind),
-      fieldLine("source", focus.source),
-      fieldLine("object", focus.source_id),
-      ...(focus.human_label !== undefined ? [fieldLine("label", focus.human_label)] : []),
+      ...fieldLine("ref", focus.id, valueWidth),
+      ...fieldLine("kind", focus.kind, valueWidth),
+      ...fieldLine("source", focus.source, valueWidth),
+      ...fieldLine("object", focus.source_id, valueWidth),
+      ...(focus.human_label !== undefined ? fieldLine("label", focus.human_label, valueWidth) : []),
     ],
     records: [],
   });
@@ -300,12 +319,12 @@ export function renderInspector(args: InspectorArgs): {
       id: "state",
       title: "STATE",
       lines: [
-        fieldLine("title", unit.title || "unavailable"),
-        fieldLine("phase", unit.phase || "unavailable"),
-        fieldLine("status", unit.status || "unavailable"),
-        fieldLine("authority", unit.authority || "unavailable"),
-        fieldLine("blast radius", unit.blast_radius || "unavailable"),
-        fieldLine("updated", String(unit.updated_at)),
+        ...fieldLine("title", unit.title || "unavailable", valueWidth),
+        ...fieldLine("phase", unit.phase || "unavailable", valueWidth),
+        ...fieldLine("status", unit.status || "unavailable", valueWidth),
+        ...fieldLine("authority", unit.authority || "unavailable", valueWidth),
+        ...fieldLine("blast radius", unit.blast_radius || "unavailable", valueWidth),
+        ...fieldLine("updated", String(unit.updated_at), valueWidth),
       ],
       records: [],
     });
@@ -344,7 +363,9 @@ export function renderInspector(args: InspectorArgs): {
     sections.push({
       id: "authority",
       title: "AUTHORITY",
-      lines: Object.entries(authorityRecord.fields).map(([key, value]) => fieldLine(key, value)),
+      lines: Object.entries(authorityRecord.fields).flatMap(([key, value]) =>
+        fieldLine(key, value, valueWidth),
+      ),
       records: [authorityRecord],
     });
   }
@@ -389,9 +410,9 @@ export function renderInspector(args: InspectorArgs): {
     id: "provenance",
     title: "PROVENANCE",
     lines: [
-      fieldLine("generation", snapshot.generation),
-      fieldLine("source", focus.source),
-      fieldLine("cursor", cursor),
+      ...fieldLine("generation", snapshot.generation, valueWidth),
+      ...fieldLine("source", focus.source, valueWidth),
+      ...fieldLine("cursor", cursor, valueWidth),
     ],
     records: [],
   });

@@ -90,3 +90,40 @@ In the Gauntlet runtime, names are load-bearing architectural constructs across 
 - `cross_cutting`: Modifies repository-wide configuration, toolchains, or boundaries.
 - `irreversible`: Actions that cannot be automatically rolled back (e.g. production deployments, secret rotations, publishing packages). **Always requires human authority.**
 - **Implementation locus**: [`BlastRadius`](../crates/gauntlet-domain/src/values.rs).
+
+---
+
+## Operator Workbench & TUI Vocabulary
+
+In the terminal-native operator workbench, presentation concepts preserve strict semantic boundaries:
+
+### Surface vs. View
+- **Surface**: A stable physical or layout region of the terminal screen (`Navigator`, `Primary`, `Inspector`, `Bottom`, `Composer`, `Overlay`). Surfaces host projections and maintain geometry bounds.
+- **View**: A question-oriented projection over underlying data (`Work`, `Chat`, `Trace`, `Evidence`, `Agents`, `Attention`, `Files`, `Kernel`, `Problems`, `Terminal`, `Domain`). A View answers a specific operational question (e.g. "What actually happened?").
+- **Why it matters**: A Surface is a layout host; a View is an evidentiary query. One Surface can switch between multiple Views without resizing or altering terminal layout.
+- **Implementation locus**: [`SurfaceId`](../workbench/src/shell.ts), [`ViewId`](../workbench/src/shell.ts), [`DESIGN.md`](../DESIGN.md).
+
+### Focus vs. Selection
+- **Focus**: The primary entity identity currently under inspection (represented by an interned `FocusRef`). Focus coordinates context across all visible surfaces simultaneously (perceptual coincidence).
+- **Selection**: A transient navigational highlight (such as the currently highlighted row under the cursor in a list) before being confirmed as active Focus.
+- **Why it matters**: Multiple items may be visibly listed, but only one entity coordinates relational inspection in the Inspector.
+- **Implementation locus**: [`FocusRef`](../workbench/src/focus.ts), [`FocusPlacement`](../workbench/src/focus.ts).
+
+### Horizon & Hoisting
+- **Horizon**: The active perceptual boundary that filters what entities, events, and relations are currently visible and computationally adjacent.
+- **Hoist (`h`)**: Narrows the visible working world to a specific entity (e.g. Case $\rightarrow$ Run $\rightarrow$ Unit). Breadcrumbs reflect the narrowed scope.
+- **Unhoist (`u`)**: Returns the horizon to the parent scope.
+- **Why it matters**: Hoisting reduces cognitive and visual noise during debugging without deleting or mutating the surrounding Case state.
+- **Implementation locus**: [`Horizon`](../workbench/src/horizon.ts), [`shell.ts`](../workbench/src/shell.ts).
+
+### Affordance vs. Capability
+- **Capability**: Installed inventory or tool existence in the system (e.g. "an escalation resolver exists").
+- **Affordance**: A spendable, currently legitimate path through state space, resolved against the active Focus, Horizon, and canonical observation.
+- **Why it matters**: Having code installed does not mean an action is currently permissible. If a unit is not blocked or authority is missing, the affordance is unavailable and communicates its blocking reason code.
+- **Implementation locus**: [`resolveAffordance`](../workbench/src/affordance.ts), [`OperationGateway`](../workbench/src/operation-gateway.ts).
+
+### Operation Gateway
+- **What it means**: An isomorphic command router that translates operator UI actions into canonical engine commands, binding actor, session, and deterministic idempotency keys. It re-validates affordances against a fresh canonical observation and fails closed if the engine is unobservable.
+- **What it does not mean**: The gateway is not an authority; it cannot grant permissions or approve mutations locally.
+- **Implementation locus**: [`OperationGateway`](../workbench/src/operation-gateway.ts).
+

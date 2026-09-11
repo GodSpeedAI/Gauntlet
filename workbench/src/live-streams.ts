@@ -43,7 +43,7 @@
  * million-event scale is T21.
  */
 
-import type { PrimeHostAdapter } from "./prime-host";
+import type { PrimeHostPort } from "./prime-host";
 import type { ReattachmentReceipt } from "./prime-long-running";
 import { reattachToPrime } from "./prime-long-running";
 import type { AuthoritativeEventFrame, WorkbenchSnapshot } from "./projection-store";
@@ -69,6 +69,20 @@ export interface StreamEvent {
   readonly timestamp_ms: number;
 }
 
+/**
+ * What kind of durability the source can honestly promise between two
+ * observations of it (plan Phase B, workbench-intent-closure.md §4, D1):
+ *   - "event_stream": every authoritative change is individually retained and
+ *     delivered — nothing between two observations is lost.
+ *   - "snapshot_interval": the source is observed by periodic polling. Two
+ *     real changes to the same field between two observations fold into one
+ *     delivered event; the intermediate state was never durably observable.
+ *     This is a declared property of the port, not a defect — a durable
+ *     backend-ordered stream is a separate, unbuilt capability (see the
+ *     residual in workbench-intent-closure.md §6).
+ */
+export type SourceGranularity = "event_stream" | "snapshot_interval";
+
 /** The source-declared stream position metadata a client may rely on. */
 export interface SourceDescriptor {
   readonly source_id: string;
@@ -79,6 +93,8 @@ export interface SourceDescriptor {
   readonly watermark_sequence: number;
   /** Opaque cursor at the watermark (baseline position for a cold client). */
   readonly watermark_cursor: string;
+  /** What this source can honestly promise between two observations (D1). */
+  readonly granularity: SourceGranularity;
 }
 
 /**
@@ -409,6 +425,10 @@ export class InMemoryStreamSource {
       earliest_sequence: this.earliest,
       watermark_sequence: this.watermark,
       watermark_cursor: this.watermarkCursor,
+      // The in-process reference source retains every appended event
+      // individually — it is the durable-event-log fake T16's tests are
+      // written against, so it honestly declares "event_stream".
+      granularity: "event_stream",
     };
   }
 
@@ -470,6 +490,9 @@ export type CursorValidation =
 export interface SourceReconciliation {
   readonly source_id: string;
   readonly store_epoch: string;
+  /** The source's declared unobservability disclosure (D1) — surfaced on
+   *  every handshake so a caller never has to infer it from behaviour. */
+  readonly granularity: SourceGranularity;
   /** A fresh generation starts with an empty T06 projection, so every
    *  reconciliation lays the full baseline through the watermark; the persisted
    *  cursor decides whether that baseline is a cold rebuild or a validated
@@ -563,7 +586,7 @@ export interface ReattachOptions {
   readonly persisted?: DetachedPresentationState | undefined;
   /** When provided, Prime topology/session refs are rebuilt from these
    *  qualified records via T10's `reattachToPrime` — never from liveness. */
-  readonly prime_adapter?: PrimeHostAdapter | undefined;
+  readonly prime_adapter?: PrimeHostPort | undefined;
 }
 
 export interface StreamReattachReceipt {
@@ -816,6 +839,7 @@ export class LiveStreamClient {
     return {
       source_id: descriptor.source_id,
       store_epoch: descriptor.store_epoch,
+      granularity: descriptor.granularity,
       strategy,
       cursor_validation: validation,
       persisted_sequence: persistedSequence,

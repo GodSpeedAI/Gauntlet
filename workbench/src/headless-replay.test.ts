@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AffordanceObservation } from "./affordance";
+import { CanonicalSurfaceStreamPort } from "./canonical-surface-stream-port";
+import { GauntletReadClient } from "./client";
 import {
   authoritativeEvidenceFrame,
   type CanonicalEvidenceAdmissionDecision,
@@ -29,7 +31,9 @@ import {
 // (headless-replay.ts) nor the consumer (testing/minimal-projection.ts) may
 // import them — that ban is policed by renderer-boundary.test.ts.
 import { renderInspector } from "./inspector";
+import { canonicalStreamOrder, LiveStreamClient } from "./live-streams";
 import type { AuthoritativeEventFrame } from "./projection-store";
+import { startCanonicalFixture } from "./testing/canonical-fixture-server";
 import {
   minimalAffordanceReasons,
   minimalEvidenceFor,
@@ -740,5 +744,118 @@ describe("T19 Attack 2: minimal non-OpenTUI consumer matches the shell views (DS
 
   afterAll(() => {
     model.close();
+  });
+});
+
+describe("Phase B — headless-replay equivalence: streamed host vs. direct fold (workbench-intent-closure.md tooth 1)", () => {
+  it("the CanonicalSurfaceStreamPort+LiveStreamClient-driven model's normalized projection is byte-identical to folding the SAME unit/evidence facts directly with WorkbenchModel.applyEvent — the reconciliation layer loses and corrupts nothing it faithfully receives", async () => {
+    const fixture = startCanonicalFixture({
+      run: "run-b1",
+      units: [
+        { id: "AK-701", status: "open", tier: "P2" },
+        { id: "AK-702", status: "blocked", tier: "P1" },
+      ],
+    });
+    try {
+      // --- Path A: the streamed production path ---------------------------
+      const port = new CanonicalSurfaceStreamPort(new GauntletReadClient(fixture.endpoint));
+      await port.observe();
+      const modelA = new WorkbenchModel();
+      const clientA = new LiveStreamClient({
+        model: modelA,
+        port,
+        mintGenerationId: (n) => `b1-${n}`,
+      });
+      clientA.connect();
+
+      const projectionA = normalizeLiveFold({
+        run_id: "run-b1",
+        generation_id: "GEN",
+        storeSnapshot: modelA.store.getSnapshot(null),
+        trace: modelA.getTrace(),
+        kernelObjects: [],
+        kernelAlive: false,
+      });
+
+      // --- Path B: fold the port's OWN observed events directly, bypassing
+      //     LiveStreamClient's reconciliation entirely (the same
+      //     `referenceModel` idiom `detach-reattach.test.ts`/
+      //     `reconnect-races.test.ts` already use against InMemoryStreamPort,
+      //     here run against the real derived port instead) ---
+      const referenceEvents = canonicalStreamOrder(
+        port
+          .describeSources()
+          .flatMap((descriptor) => port.baselineWindow(descriptor.source_id).events),
+      );
+      const modelB = new WorkbenchModel();
+      modelB.startGeneration("GEN");
+      for (const event of referenceEvents) {
+        const applied = modelB.applyEvent({
+          generation_id: "GEN",
+          source_id: event.source_id,
+          cursor: event.cursor,
+          event_type: event.event_type,
+          payload: event.payload,
+          timestamp_ms: event.timestamp_ms,
+        });
+        if (!applied.applied) {
+          throw new Error(
+            `reference fold refused an authoritative event: ${String(applied.reason)}`,
+          );
+        }
+      }
+      modelB.markReady("GEN");
+
+      const projectionB = normalizeLiveFold({
+        run_id: "run-b1",
+        generation_id: "GEN",
+        storeSnapshot: modelB.store.getSnapshot(null),
+        trace: modelB.getTrace(),
+        kernelObjects: [],
+        kernelAlive: false,
+      });
+
+      expect(projectionDigest(canonicalSections(projectionA))).toBe(
+        projectionDigest(canonicalSections(projectionB)),
+      );
+
+      // Negative control: the digest comparison is load-bearing, not
+      // vacuously equal — a genuinely different fold (one unit's status
+      // tampered) produces a DIFFERENT digest.
+      const modelWrong = new WorkbenchModel();
+      modelWrong.startGeneration("GEN");
+      for (const event of referenceEvents) {
+        const tampered =
+          event.payload["unit_id"] === "AK-701"
+            ? { ...event.payload, status: "fail" }
+            : event.payload;
+        modelWrong.applyEvent({
+          generation_id: "GEN",
+          source_id: event.source_id,
+          cursor: event.cursor,
+          event_type: event.event_type,
+          payload: tampered,
+          timestamp_ms: event.timestamp_ms,
+        });
+      }
+      modelWrong.markReady("GEN");
+      const projectionWrong = normalizeLiveFold({
+        run_id: "run-b1",
+        generation_id: "GEN",
+        storeSnapshot: modelWrong.store.getSnapshot(null),
+        trace: modelWrong.getTrace(),
+        kernelObjects: [],
+        kernelAlive: false,
+      });
+      expect(projectionDigest(canonicalSections(projectionWrong))).not.toBe(
+        projectionDigest(canonicalSections(projectionA)),
+      );
+
+      modelA.close();
+      modelB.close();
+      modelWrong.close();
+    } finally {
+      await fixture.stop();
+    }
   });
 });

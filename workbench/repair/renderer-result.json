@@ -1,0 +1,24 @@
+{
+  "status": "complete",
+  "files": [
+    "src/main.ts",
+    "src/terminal-renderer.ts",
+    "src/terminal-renderer.test.ts",
+    "src/composer.ts",
+    "src/composer-unicode.test.ts",
+    "src/geometry.ts",
+    "src/operator-preview.test.ts",
+    "package.json"
+  ],
+  "tests": [
+    "XDG_RUNTIME_DIR=/tmp just -f ../justfile tui-check: passed",
+    "XDG_RUNTIME_DIR=/tmp just -f ../justfile tui-test terminal-renderer: 1 passed, 14 assertions; native cell capture proves columns, palette, composer, attention, bold styling, Unicode, Escape, shift-tab and resize including visible quit at 60x18",
+    "XDG_RUNTIME_DIR=/tmp just -f ../justfile tui-test composer: 12 passed, 82 assertions",
+    "composer-unicode first reproduced missing astral input; passes after grapheme-safe input/backspace fix",
+    "Biome check on owned files: passed (informational existing-style suggestions only)",
+    "production-entry PTY regression passed under orchestrator verification",
+    "60x18 native prompt regression first failed hidden quit, then passed after splitting prompt into short lines",
+    "Correction 2: operator-preview asserts separate complete quit and running-work lines; tui-test operator-preview: 11 passed, 140 assertions; tui-test terminal-renderer: 1 passed, 14 assertions"
+  ],
+  "remaining": []
+}

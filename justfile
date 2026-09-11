@@ -196,4 +196,180 @@ tui-build mode:
         exit 2
     fi
 
+# Bring up everything needed to use the workbench interactively: builds and
+# starts the core canonical surface (`gauntlet serve`, --features surfaces)
+# in the background on a loopback bind, waits for it to answer, installs
+# workbench dependencies if missing, auto-detects a local `prime-agent`
+# binary so Prime delegation is live when one is installed (D6: skipped
+# harmlessly, never degrading Gauntlet, when absent), then launches the
+# workbench TUI in THIS terminal so you can start prompting immediately.
+#
+# `gauntlet serve` refuses to open until a real run has been composed
+# somewhere (durable state must exist — nothing is fabricated). This
+# repo's OWN root GAUNTLET.md is its real self-hosting configuration, not
+# a demo target, so this recipe never composes a run there. Instead, on
+# first use it seeds an isolated scratch project at
+# workbench/.dev/scratch-project (a copy of this repo's own
+# tests/fixtures/target E2E fixture) and composes one zero-cost run there
+# with the deterministic mock runner — entirely separate from this repo's
+# real config, safe to delete any time. The backend then serves from that
+# scratch project. Quit the TUI with `q` any time — the backend keeps
+# running in the background; stop it with `just tui-dev-down`. Safe to
+# re-run: reuses an already-answering backend instead of starting a
+# second one, and an already-seeded scratch project instead of reseeding.
+tui-dev-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ROOT="$(pwd)"
+    DEV_DIR="$ROOT/workbench/.dev"
+    SCRATCH="$DEV_DIR/scratch-project"
+    PIDFILE="$DEV_DIR/gauntlet-serve.pid"
+    LOGFILE="$DEV_DIR/gauntlet-serve.log"
+    BIND="${GAUNTLET_API_BIND:-127.0.0.1:4000}"
+    GAUNTLET_BIN="$ROOT/target/debug/gauntlet"
+    mkdir -p "$DEV_DIR"
+
+    for tool in cargo bun curl; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "tui-dev-up: '$tool' is not on PATH — install it first (see docs/how-to/operate-the-tui.md, Prerequisites)." >&2
+            exit 1
+        fi
+    done
+
+    probe() { curl -fsS -o /dev/null --max-time 1 "http://$BIND/api/v1/capabilities" 2>/dev/null; }
+
+    if probe; then
+        echo "tui-dev-up: something is already answering at http://$BIND — reusing it."
+    else
+        if [ -f "$PIDFILE" ] && ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+            echo "tui-dev-up: clearing a stale pidfile from a previous run."
+            rm -f "$PIDFILE"
+        fi
+
+        echo "tui-dev-up: building the core surface (cargo build -p gauntlet-cli --features surfaces) — first run can take a minute..."
+        cargo build -p gauntlet-cli --features surfaces
+
+        if [ ! -f "$SCRATCH/GAUNTLET.md" ]; then
+            echo "tui-dev-up: seeding an isolated local dev project at workbench/.dev/scratch-project"
+            echo "tui-dev-up: (a copy of this repo's own E2E fixture target — not this repo's real config; safe to delete any time)."
+            rm -rf "$SCRATCH"
+            cp -r "$ROOT/tests/fixtures/target" "$SCRATCH"
+            chmod +x "$SCRATCH/scripts/check.sh"
+        fi
+
+        compose_scratch_run() {
+            echo "tui-dev-up: composing a first run in the scratch project (deterministic mock runner — zero cost, zero real dispatch)..."
+            (cd "$SCRATCH" && \
+                GAUNTLET_MOCK_SCENARIO=e2e-happy \
+                GAUNTLET_TOOL_TEST=./scripts/check.sh \
+                GAUNTLET_CLOCK=deterministic \
+                GAUNTLET_STALL_TIMEOUT_MS=60000 \
+                GAUNTLET_RETRY_BASE_MS=100 \
+                GAUNTLET_RETRY_MAX_MS=2000 \
+                GAUNTLET_MAX_ATTEMPTS_PER_UNIT=3 \
+                "$GAUNTLET_BIN" run "workbench dev bootstrap: seed a run so the surface has state to serve" \
+                >"$DEV_DIR/scratch-run.log" 2>&1) || true
+        }
+
+        start_serve() {
+            echo "tui-dev-up: starting 'gauntlet serve' on $BIND (project: workbench/.dev/scratch-project, log: workbench/.dev/gauntlet-serve.log)..."
+            # A single simple command backgrounded on its own line (not a
+            # `cd X && CMD &` compound list) so `$!` is unambiguously the
+            # 'gauntlet serve' pid itself, not a wrapper subshell's pid.
+            (
+                cd "$SCRATCH"
+                GAUNTLET_API_BIND="$BIND" nohup "$GAUNTLET_BIN" serve >"$LOGFILE" 2>&1 &
+                echo $! > "$PIDFILE"
+            )
+        }
+
+        attempt_ready() {
+            ready=0
+            for _ in $(seq 1 "$1"); do
+                if probe; then
+                    ready=1
+                    return
+                fi
+                if [ -f "$PIDFILE" ] && ! kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
+                    return
+                fi
+                sleep 0.25
+            done
+        }
+
+        start_serve
+        attempt_ready 20
+
+        if [ "$ready" -ne 1 ] && grep -q "no run has been composed here yet" "$LOGFILE" 2>/dev/null; then
+            compose_scratch_run
+            rm -f "$PIDFILE"
+            start_serve
+            attempt_ready 20
+        fi
+
+        if [ "$ready" -ne 1 ]; then
+            echo "tui-dev-up: 'gauntlet serve' did not answer at http://$BIND. Last log lines:" >&2
+            tail -n 20 "$LOGFILE" >&2 || true
+            rm -f "$PIDFILE"
+            exit 1
+        fi
+        echo "tui-dev-up: core surface is up at http://$BIND"
+    fi
+
+    if [ ! -d workbench/node_modules ]; then
+        echo "tui-dev-up: installing workbench dependencies (first run only)..."
+        (cd workbench && bun install)
+    fi
+
+    if command -v prime-agent >/dev/null 2>&1; then
+        PRIME_BIN="$(command -v prime-agent)"
+        echo "tui-dev-up: found prime-agent at $PRIME_BIN — Prime delegation will be live."
+        export GAUNTLET_WORKBENCH_PRIME_BINARY="$PRIME_BIN"
+    else
+        echo "tui-dev-up: no 'prime-agent' on PATH — Gauntlet inspection works fully; Prime delegation stays unavailable until one is installed (D6: no degradation)."
+    fi
+
+    echo "tui-dev-up: launching the workbench — press 'q' to quit (the backend keeps running; 'just tui-dev-down' stops it)."
+    export GAUNTLET_ENDPOINT="http://$BIND"
+    cd workbench
+    exec bun run src/main.ts
+
+# Tear down what `just tui-dev-up` started: stops the tracked 'gauntlet
+# serve' background process, if any. Safe to run any time, including when
+# nothing is running — it only ever touches a process it started itself
+# (tracked by pidfile), never guesses at what else might be on the port.
+tui-dev-down:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    DEV_DIR="workbench/.dev"
+    PIDFILE="$DEV_DIR/gauntlet-serve.pid"
+    LOGFILE="$DEV_DIR/gauntlet-serve.log"
+
+    if [ ! -f "$PIDFILE" ]; then
+        echo "tui-dev-down: nothing to stop (no tracked 'gauntlet serve' process)."
+        exit 0
+    fi
+
+    PID="$(cat "$PIDFILE")"
+    if ! kill -0 "$PID" 2>/dev/null; then
+        echo "tui-dev-down: the tracked process (pid $PID) was already stopped."
+        rm -f "$PIDFILE"
+        exit 0
+    fi
+
+    echo "tui-dev-down: stopping 'gauntlet serve' (pid $PID)..."
+    kill "$PID" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+        if ! kill -0 "$PID" 2>/dev/null; then
+            break
+        fi
+        sleep 0.25
+    done
+    if kill -0 "$PID" 2>/dev/null; then
+        echo "tui-dev-down: still running after 5s — sending SIGKILL."
+        kill -9 "$PID" 2>/dev/null || true
+    fi
+    rm -f "$PIDFILE"
+    echo "tui-dev-down: stopped. Log kept at $LOGFILE if you want to check it."
+
 verify: ci

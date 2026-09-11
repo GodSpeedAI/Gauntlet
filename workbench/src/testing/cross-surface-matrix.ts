@@ -770,7 +770,14 @@ export class CrossSurfaceHarness {
     for (let step = 0; step < index; step += 1) {
       next = handleKey(next, this.shellSnapshot, "down", paletteContext).state;
     }
-    const activated = handleKey(next, this.shellSnapshot, "enter", paletteContext);
+    const staged = handleKey(next, this.shellSnapshot, "enter", paletteContext);
+    // The shell stages consequential invokes: first Enter names the invoke and
+    // fires nothing, second Enter performs it. The driver follows the designed
+    // interaction and pins both halves of the contract.
+    if (staged.effects.some((candidate) => candidate.type === "invoke_affordance")) {
+      throw new Error("cross-surface harness: staged Enter must not invoke yet");
+    }
+    const activated = handleKey(staged.state, this.shellSnapshot, "enter", paletteContext);
     const effect: ShellEffect | undefined = activated.effects.find(
       (candidate) => candidate.type === "invoke_affordance",
     );

@@ -27,7 +27,7 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
-import { existsSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GauntletReadClient } from "./client";
@@ -38,11 +38,17 @@ import {
   KernelObjectLedger,
 } from "./evidence-promotion";
 import { FocusRef } from "./focus";
+import { createHorizon, planMaterialization } from "./horizon";
 import { InMemoryStreamPort, InMemoryStreamSource, LiveStreamClient } from "./live-streams";
 import { OperationGateway, type OperatorActionRoute } from "./operation-gateway";
+import { OPERATION_IDS } from "./operation-registry";
 import { PluginActivationError, PluginCompositionManager, parsePluginManifest } from "./plugins";
+import { constructBoundedContextEnvelope } from "./prime-context-envelope";
 import { PrimeReplKernel } from "./prime-kernel";
+import { PrimeDelegationDispatcher } from "./prime-recursion";
 import { SqliteProjectionStore } from "./projection-store";
+import { buildRealPrimeEnv, RealPrimeHost } from "./real-prime-host";
+import type { ProjectionWorld } from "./relations";
 import {
   assertNoSilentFallback,
   detectSecretPatterns,
@@ -54,6 +60,7 @@ import {
 } from "./security-hardening";
 import { bindTerminalAutomation, FakeProcessProvider, TerminalSession } from "./terminal-session";
 import { CanonicalSurfaceStub } from "./testing/canonical-surface-stub";
+import { writeFakePrimeAgent } from "./testing/fake-prime-binary";
 import { WorkbenchModel } from "./workbench-model";
 
 // --- the seeded secrets (synthetic, well-marked, approved sources only) --------------
@@ -656,5 +663,128 @@ describe("T18 store and fallback attestation", () => {
     const resolved = resolveConfig({ env: { GAUNTLET_WORKBENCH_ENDPOINT: "http://127.0.0.1:1" } });
     expect(resolved.gauntlet_endpoint).toBe("http://127.0.0.1:1"); // visible, never substituted
     expect(resolved.transport).toBe("local"); // honest classification of the loopback
+  });
+});
+
+// --- C2 tooth 5: no auth material appears in any RealPrimeHost projection ------------
+
+describe("Phase C2 tooth 5 — no auth material in RealPrimeHost mailbox/result rows or thrown errors", () => {
+  const SEEDED_SECRET = "sk-t18c2-FAKE-PRIME-SECRET-4f8a2c";
+
+  it("a secret-shaped ambient env value is passed to the real child's env but never appears in bookkeeping rows", async () => {
+    const root = mkdtempSync(join(tmpdir(), "c2-secret-leakage-"));
+    try {
+      const binary = join(root, "bin", "prime-agent");
+      writeFakePrimeAgent(binary, { assistantText: "working normally" });
+      const host = new RealPrimeHost({
+        binary,
+        agentDir: join(root, "agent"),
+        sessionDir: join(root, "sessions"),
+      });
+
+      // The env RealPrimeHost WOULD build for a real child carries whatever
+      // secret-shaped values are in the ambient process env — that is
+      // correct (the child needs its own credentials) — but the built env
+      // itself, and any value from it, must never appear in any
+      // projection this host exposes.
+      const builtEnv = buildRealPrimeEnv(
+        { ...(process.env as Record<string, string>), PRIME_AGENT_API_KEY: SEEDED_SECRET },
+        join(root, "agent"),
+      );
+      expect(builtEnv["PRIME_AGENT_API_KEY"]).toBe(SEEDED_SECRET); // sanity: it IS in the built env
+
+      const world: ProjectionWorld = {
+        generation: "gen-c2-secret",
+        units: [],
+        evidence: [],
+        sessions: [],
+        source_cursors: {},
+      };
+      const horizon = createHorizon({
+        root_focus: FocusRef.for("gauntlet", "WorkItem", "u-c2-secret"),
+        generation: "gen-c2-secret",
+        relation_queries: [],
+        horizon_id: "horizon-c2-secret",
+      });
+      const envelope = constructBoundedContextEnvelope({
+        horizon,
+        plan: planMaterialization(world, horizon),
+        role_instructions: ["secret-leakage probe"],
+        constructed_at_ms: 1_790_000_000_000,
+      });
+      const stub = new CanonicalSurfaceStub({
+        run_id: "01JC2SECRETRUN000000001",
+        bound_actor: "operator-c2-secret",
+        session_token: "c2-secret-token",
+      }).addUnit({
+        unit_id: "AK-295",
+        status: "blocked",
+        tier: "P3",
+        settled: false,
+        authority: "granted",
+        authority_visible_in_reads: true,
+        governance_denied: false,
+        governance_visible_in_reads: true,
+        open_ticket: "ESC-295",
+      });
+      const dispatcher = new PrimeDelegationDispatcher({
+        adapter: host,
+        canonical_route: stub.asInProcessRoute(),
+      });
+      await dispatcher.delegate({
+        operation_request: {
+          operation: OPERATION_IDS.UNIT_RESOLVE,
+          focus: FocusRef.for("gauntlet", "WorkItem", "AK-295"),
+          session: { actor: "operator-c2-secret", token: "c2-secret-token" },
+          payload: { note: "secret-leakage probe", run: "01JC2SECRETRUN000000001" },
+        },
+        envelope,
+        child_session_id: "sess-c2-secret",
+        parent_session_id: null,
+        task: "run normally",
+        contract_path: join(root, "sess-c2-secret.result.json"),
+      });
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const session = host.getSession("sess-c2-secret");
+      expect(session).not.toBeNull();
+      const projected = text(session);
+      expect(projected.includes(SEEDED_SECRET)).toBe(false);
+      expect(detectSecretPatterns(projected).length).toBe(0);
+
+      // The written evidence file (the one channel that mirrors the real
+      // child's own stdout/stderr) must also carry no trace of the secret —
+      // the fake script never echoes its env, matching a well-behaved real
+      // binary that never prints credentials to stdout/stderr either.
+      if (existsSync(join(root, "sess-c2-secret.result.json"))) {
+        const evidence = await Bun.file(join(root, "sess-c2-secret.result.json")).text();
+        expect(evidence.includes(SEEDED_SECRET)).toBe(false);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("RealPrimeHost construction/spawn refusal error TEXT never carries an env value", () => {
+    const root = mkdtempSync(join(tmpdir(), "c2-secret-leakage-err-"));
+    try {
+      const binary = join(root, "bin", "prime-agent");
+      writeFakePrimeAgent(binary);
+      const host = new RealPrimeHost({
+        binary,
+        agentDir: join(root, "agent"),
+        sessionDir: join(root, "sessions"),
+      });
+      try {
+        host.spawnChild({ sessionId: "s", contractPath: join(root, "c.json") }); // no task
+        throw new Error("expected a throw");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        expect(message.includes(SEEDED_SECRET)).toBe(false);
+        expect(detectSecretPatterns(message).length).toBe(0);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

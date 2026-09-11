@@ -216,3 +216,75 @@ Post-fix confirmation gates (verbatim, 2026-09-09):
 | `just tui-lint` | exit 0 — 34 warnings, 528 infos (warn-level only), 102 files (dist/ ignored) |
 | `just tui-check` | exit 0 |
 | `cd workbench && bun test` | exit 0 — 526 pass, 5 skip, 0 fail across 51 files, 5821 expect() calls |
+
+## Addendum, 2026-09-10 — Phase A of `.agents/plans/workbench-intent-closure.md`: SSH leg repaired (defect, not settlement, fixed)
+
+**Defect found (post-settlement review against the workbench spec, `workbench/repair/GAP-VERDICT.md`):**
+the SSH client leg (`ssh-target.test.ts`, then lines 218-239) invoked
+`ssh -o … localhost 'cd … && bun run src/main.ts'` with **no `-t`/`-tt`**. Because a remote command was
+supplied, OpenSSH does not allocate a remote pty without an explicit `-t`; the remote `bun run
+src/main.ts` therefore ran with `process.stdin.isTTY`/`process.stdout.isTTY` both false, taking
+`main.ts:57`'s one-shot non-TTY dump branch — which prints exactly `Gauntlet`/`NAVIGATOR`/`INSPECTOR`
+and exits before the leg's `send-keys -t wb.session "q"` was ever received. The leg's assertions were
+satisfiable whether or not a real interactive session was ever reached: it could not fail. This was
+not caught at T20 settlement or by peer confirmation; it is a correctness defect in previously
+recorded evidence, not a new requirement.
+
+**Fix (`workbench/src/ssh-target.test.ts`):**
+- Added `-tt` to the ssh invocation (`buildSshWorkbenchCommand`).
+- Replaced the single assertion (`untilPane` on `Gauntlet`, then blind `q`) with
+  `runInteractiveSshLeg`, which additionally asserts: (1) the remote process entered the terminal
+  **alternate screen** (`tmux display-message -p "#{alternate_on}"` — a mode the non-TTY dump path
+  never enters and OpenTUI's `createCliRenderer({ screenMode: "alternate-screen" })` requires); (2) a
+  **raw-mode-only keystroke effect** — sending `p` opens the command palette, rendering `view work`,
+  text the static dump never prints; (3) a **geometry change delivered by SIGWINCH through the ssh
+  channel itself** — resizing the LOCAL tmux window (120x40 → 80x24) collapses the remote render to
+  the compact layout (`PRIMARY` present, `NAVIGATOR` absent), the same three-state assertion the tmux
+  leg already made; (4) clean exit 0 reached only *after* that keystroke sequence.
+- **Tooth 1 (load-bearing, the negative control):** `runInteractiveSshLeg(false)` — the identical
+  command minus `-tt` — is asserted to **throw**. This is what converts the leg from a tautology
+  (satisfiable with or without a real pty) into a real qualification: only the `-tt` path can satisfy
+  the interactive assertions above. Both the positive and negative-control tests are `it.skipIf(!SSH.
+  available)`, matching the existing honest gated-skip idiom — neither is faked when no sshd is
+  reachable.
+- **Not added this round:** a self-contained, env-gated local sshd fixture (own host keys, isolated
+  `known_hosts`, `GAUNTLET_T20_REAL_SSHD=1`-gated, same idiom as `GAUNTLET_T24_REAL_PRIME`). This host
+  has no `sshd` binary installed at all (`which sshd` → not found), so fixture code spawning and
+  configuring a real sshd could not be exercised even once here — landing it unverified would be
+  exactly the "mechanism that looks more rigorous than what it replaced while being less honest"
+  failure mode Phase A exists to avoid (plan §3). Deferred, not omitted: the env-gate name is reserved
+  above so a host with `sshd` installed can add the fixture without renegotiating the gating shape.
+
+**Verification performed.** This host still has no reachable sshd (`ssh localhost` → `Connection
+timed out`, unchanged from the original T20 run), so the new SSH-leg tests remain honest, visible
+`skip`s here — the repair could not be exercised end-to-end over a real ssh session in this
+environment. What WAS verified for real, before trusting the new assertions inside the ssh leg: the
+exact same three checks (`#{alternate_on}`, the `p`-keystroke → `view work` palette effect, and the
+120x40→80x24 SIGWINCH-driven compact-layout collapse) were run against a REAL `bun run src/main.ts`
+under a plain tmux session (no ssh) on this host, and all three behaved exactly as asserted —
+confirming the assertion logic is sound, though not that it has run over an actual ssh transport.
+
+**This does not close CLAIM-003's SSH gap.** It removes the tautology and leaves a leg that will
+genuinely qualify the ssh transport the moment sshd is reachable, with an honest gated skip until
+then — a correction of a settled-evidence defect, not a new confirmation. `just tui-preflight
+conformance`'s SSH row is unchanged in kind: `GATED-UNAVAILABLE — real-sshd SSH transport leg: no
+reachable sshd on this host … executes unchanged via src/ssh-target.test.ts once sshd is reachable`.
+
+**Gates (verbatim, 2026-09-10):**
+
+| Gate | Result |
+| :--- | :--- |
+| `bun test src/ssh-target.test.ts` | exit 0 — 5 pass, 2 skip (both ssh-gated, honest), 0 fail |
+| `just tui-test release-manifest` | exit 0 — 5 pass, 0 fail |
+| `just tui-test transport-equivalence` | exit 0 — 8 pass, 0 fail |
+| `just tui-build release` | exit 0 — `dist/gauntlet-workbench` sha256 `1cb5a1b3ef7d88d0…`, clean 120x40 PTY launch |
+| `just tui-test all` | exit 0 — 49 suites, **530 pass / 0 fail / 10 skip** (deliberately +1 skip vs. the T25-settled 530/0/9 shape — the split of the single ssh leg into positive + negative-control tests, both gated identically; re-baselined on purpose, per plan §4 Phase A) |
+| `just tui-preflight conformance` | PASS — SSH row unchanged in kind (`GATED-UNAVAILABLE`, named probe failure) |
+| `just tui-check` | exit 0 |
+| `just tui-lint` | exit 0 |
+| `just ruler` | PASS — answer-key/manifest digests match the frozen lock, unmodified |
+
+**Closes:** the false-green defect in the SSH leg. **Does not close:** CLAIM-003's open SSH-transport
+gap, which remains `partially_proven` pending an actual reachable sshd (this host's or another's) to
+execute the now-repaired leg for real. **Tripwire respected:** no frozen reference, answer-key, or
+`reference.lock` content was touched (`just ruler` PASS, unmodified digests).
