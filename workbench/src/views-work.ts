@@ -15,12 +15,17 @@
  *   - Blocked-but-informative affordances materialise with their blocking
  *     gate and a next step; not-currently-legitimate ones stay absent from
  *     the view but discoverable in the palette with their reason (DSN-009).
+ *   - The ACTIONS bar renders through the ICM §30 ActionControl presentation
+ *     object (actionControlFor, increment 5): glyph/label language per state
+ *     is preserved exactly; the bar chooses no state itself.
  *   - Group rhythm: one blank line before each non-empty group after the
  *     header block (DESIGN.md space.2/space.3, the Inspector's own rhythm
  *     idiom); an empty group leaves no gap. Empty groups and per-frame
  *     column widths are presentation, never state.
  */
 
+import type { MaterializationOutcome } from "./action-control";
+import { actionControlFor, materializationOutcomeFor, reasonNextStep } from "./action-control";
 import type {
   AffordanceDescriptor,
   AffordanceObservation,
@@ -30,12 +35,16 @@ import type {
 import { resolveAffordance } from "./affordance";
 import type { FocusRef } from "./focus";
 import { cellWidth, padCellText } from "./geometry";
-import { reasonNextStep } from "./inspector";
 import { operationIds } from "./operation-registry";
 import type { UnitProjection } from "./projection-store";
 import type { RenderedLine, RenderedRecord, ViewContent } from "./render-tree";
 import { SEMANTIC_TOKENS } from "./theme";
 import type { FullWorkbenchSnapshot } from "./workbench-model";
+
+// API stability (increment 5): the outcome vocabulary moved to action-control
+// (the §30 HIDDEN state is defined by it); the re-export keeps this module's
+// and the package barrel's surface unchanged.
+export type { MaterializationOutcome } from "./action-control";
 
 /** Presentation-only mapping from a projected status word to a semantic token. */
 export function statusToken(status: string): SemanticTokenForStatus {
@@ -81,8 +90,6 @@ export function workUnitOrder(units: readonly UnitProjection[]): readonly UnitPr
   });
 }
 
-export type MaterializationOutcome = "materialized" | "blocked_with_reason" | "palette_only";
-
 export interface MaterializedAffordance {
   readonly outcome: MaterializationOutcome;
   readonly descriptor: AffordanceDescriptor;
@@ -90,21 +97,14 @@ export interface MaterializedAffordance {
   readonly nextStep: string | null;
 }
 
-const PALETTE_ONLY_REASONS: readonly string[] = Object.freeze([
-  "target_not_visible",
-  "unsupported_operation",
-  "not_action_admitted",
-]);
-
 /**
- * Progressive Affordance Materialization policy (DSN-009, DESIGN.md
- * "Affordance state"): the RESOLVER decides existence and enablement; this
- * policy only decides WHERE a resolved descriptor materialises.
- *   - available / requires_attention / degraded → materialized;
- *   - unavailable on a visible target (a real blocking gate) → blocked with
- *     reason and a next step;
- *   - unavailable because the target is not visible or the operation is not
- *     an action → palette-only with its reason.
+ * Progressive Affordance Materialization (DSN-009, DESIGN.md
+ * "Affordance state"): the RESOLVER decides existence and enablement; the
+ * WHERE policy (materializationOutcomeFor, action-control.ts — its single
+ * source since increment 5) decides only where each resolved descriptor
+ * materialises: available/requires_attention/degraded → materialized;
+ * unavailable on a visible target → blocked with reason and a next step;
+ * unavailable on an illegitimate target → palette-only with its reason.
  */
 export function materializeAffordances(
   focus: FocusRef,
@@ -116,30 +116,13 @@ export function materializeAffordances(
 ): readonly MaterializedAffordance[] {
   return operationIds().map((operation) => {
     const descriptor = resolveAffordance(operation, focus, observation, options);
-    if (descriptor.status !== "unavailable") {
-      return {
-        outcome: "materialized" as const,
-        descriptor,
-        nextStep:
-          descriptor.reason_codes.length > 0
-            ? reasonNextStep(descriptor.reason_codes[0] ?? "")
-            : null,
-      };
-    }
-    const paletteOnly = descriptor.reason_codes.some((reason) =>
-      PALETTE_ONLY_REASONS.includes(reason),
-    );
-    if (paletteOnly) {
-      return {
-        outcome: "palette_only" as const,
-        descriptor,
-        nextStep: reasonNextStep(descriptor.reason_codes[0] ?? ""),
-      };
-    }
     return {
-      outcome: "blocked_with_reason" as const,
+      outcome: materializationOutcomeFor(descriptor),
       descriptor,
-      nextStep: reasonNextStep(descriptor.reason_codes[0] ?? ""),
+      nextStep:
+        descriptor.reason_codes.length > 0
+          ? reasonNextStep(descriptor.reason_codes[0] ?? "")
+          : null,
     };
   });
 }
@@ -330,50 +313,53 @@ export function renderWorkView(args: ViewRenderArgs): ViewContent {
       ],
     });
     for (const item of materialized) {
-      if (item.outcome === "palette_only") {
+      // ICM §30 (increment 5): the bar DERIVES its control state — it never
+      // chooses one. Glyph/label language per state is unchanged: enabled
+      // rows keep ✓ ready / ! responds-to-attention; disabled rows keep
+      // × BLOCKED + reasons + next; hidden rows are absent from the bar but
+      // stay palette-discoverable with their reason (DSN-009).
+      const control = actionControlFor(item.descriptor, item.outcome);
+      if (control.state === "HIDDEN") {
         continue;
       }
-      const available = item.descriptor.status === "available";
-      const attention = item.descriptor.status === "requires_attention";
+      const enabled = control.state === "VISIBLE_ENABLED";
+      const attention = enabled && control.attentionItem !== undefined;
       affordanceLines.push({
         id: `work.affordance.${item.descriptor.operation}`,
         spans: [
           {
-            text: available ? "✓ " : attention ? "! " : "× ",
-            token: available
-              ? "readiness.ready"
-              : attention
-                ? "attention.required"
+            text: enabled ? (attention ? "! " : "✓ ") : "× ",
+            token: attention
+              ? "attention.required"
+              : enabled
+                ? "readiness.ready"
                 : "readiness.blocked",
           },
-          { text: `${item.descriptor.operation.toUpperCase()} `, emphasis: "bold" },
+          { text: `${control.operation.toUpperCase()} `, emphasis: "bold" },
           {
             text: attention
-              ? `responds to ${item.descriptor.required_attention_item ?? "an attention item"}`
-              : available
+              ? `responds to ${control.attentionItem ?? "an attention item"}`
+              : enabled
                 ? "ready"
-                : `BLOCKED: ${item.descriptor.reason_codes.join(", ")}`,
-            token: available ? undefined : attention ? "attention.required" : "readiness.blocked",
+                : `BLOCKED: ${control.reasons.join(", ")}`,
+            token: enabled ? undefined : attention ? "attention.required" : "readiness.blocked",
           },
-          ...(item.nextStep !== null && !available
-            ? [{ text: ` · next: ${item.nextStep}`, emphasis: "dim" as const }]
+          ...(control.state === "VISIBLE_DISABLED" && control.nextStep !== undefined
+            ? [{ text: ` · next: ${control.nextStep}`, emphasis: "dim" as const }]
             : []),
         ],
       });
       records.push({
         id: `affordance:${item.descriptor.operation}:${focus.id}`,
         kind: "affordance",
-        token: available
-          ? "readiness.ready"
-          : attention
-            ? "attention.required"
-            : "readiness.blocked",
+        token: attention ? "attention.required" : enabled ? "readiness.ready" : "readiness.blocked",
         fields: {
           operation: item.descriptor.operation,
           status: item.descriptor.status,
           reasons: item.descriptor.reason_codes.join(",") || "none",
-          next_step: item.nextStep ?? "none",
+          next_step: control.nextStep ?? "none",
           materialization: item.outcome,
+          control_state: control.state,
           target: focus.id,
         },
       });

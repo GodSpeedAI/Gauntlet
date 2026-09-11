@@ -13,9 +13,11 @@
  *     snapshot's own projection rows, with provenance.
  *   - ALL affordances for the focus stay inspectable here — including
  *     palette-only ones — each with its machine reason and a next step
- *     (DSN-009).
+ *     (DSN-009), and (ICM §30, increment 5) with the ActionControl state the
+ *     Work bar and palette derive for the same resolution.
  */
 
+import { actionControlFor, materializationOutcomeFor, reasonNextStep } from "./action-control";
 import type {
   AffordanceDescriptor,
   AffordanceObservation,
@@ -34,6 +36,11 @@ import { deriveRelations } from "./relations";
 import type { RenderedLine, RenderedRecord } from "./render-tree";
 import type { SxrLensProjection, SxrVerificationPath } from "./sxr-adapter";
 import { renderSxrEvidenceSection } from "./sxr-adapter";
+
+// API stability (increment 5): the reason grammar moved to action-control.ts
+// (the ActionControl object and its next-step vocabulary share one source);
+// the re-export preserves this module's public surface and the package barrel.
+export { reasonNextStep } from "./action-control";
 
 export interface InspectorSection {
   readonly id: string;
@@ -71,40 +78,6 @@ export interface InspectorArgs {
    * real value budget so provenance stays fully visible instead of clipping.
    */
   readonly valueWidth?: number | undefined;
-}
-
-/**
- * Map one canonical refusal/reason code to a valid operator next step
- * (DSN-009). The mapping restates the canonical gate vocabulary of T09's
- * resolver in operator language; it is presentation text, never authority.
- */
-export function reasonNextStep(reason: string): string {
-  switch (reason) {
-    case "target_not_visible":
-      return "select a unit the current reads name";
-    case "surface_unreachable":
-      return "restore the canonical surface connection";
-    case "actor_authentication_required":
-      return "authenticate an operator session";
-    case "authority_not_permitted":
-      return "obtain authority for this target";
-    case "blocking_residual_open":
-      return "resolve the open residual denial first";
-    case "budget_exhausted":
-      return "increase remaining budget or choose a cheaper action";
-    case "no_open_ticket":
-      return "requires an open escalation ticket for this unit";
-    case "readiness_not_earned":
-      return "retry requires a failed verification on this unit";
-    case "observation_degraded":
-      return "refresh reads before acting on degraded data";
-    case "unsupported_operation":
-      return "served by no canonical operation";
-    case "not_action_admitted":
-      return "read-shaped; served by the canonical read path";
-    default:
-      return "inspect the blocking gate in the canonical record";
-  }
 }
 
 /**
@@ -266,6 +239,12 @@ function affordanceSection(
         ],
       });
     }
+    // ICM §30 (increment 5): the record carries the same ActionControl state
+    // the Work bar and the palette derive — a FIELD ADDITION; every existing
+    // field above is preserved, so a row means the same thing in every
+    // projection (REQ-AFF-002). Palette-only rows record HIDDEN: absent from
+    // the bar, still addressable here and in the palette (DSN-009).
+    const control = actionControlFor(descriptor, materializationOutcomeFor(descriptor));
     records.push({
       id: `affordance:${operation}:${focus.id}`,
       kind: "affordance",
@@ -281,6 +260,7 @@ function affordanceSection(
         ...(descriptor.required_attention_item !== undefined
           ? { required_attention_item: descriptor.required_attention_item }
           : {}),
+        control_state: control.state,
         target: focus.id,
       },
     });
