@@ -48,22 +48,17 @@ tui_gui_redesign:
       - "follow-on (5506759): Composer focus-ring marker fix — planFrame's column loop applies the ▸ focus.ring marker to each focusable surface's first row, but Composer is excluded from that columns array (footer layout, not a column) and silently lost the marker too, though its `focused` field is populated correctly; Composer's lines now go through the same marker transform"
       - "follow-on (b3603cd): real-PTY lastFrame() resize-boundary fix — traced @opentui/core's processResize (non-split-footer path): it never emits a fresh clear-screen or forces a repaint on resize, so lastFrame()'s 'slice from the last clear-screen' heuristic had nothing to anchor to across a resize; PtySession now records the byte offset of output() at each resize() call and lastFrame() takes the later of that offset and the last clear-screen index. Fixes the previously-failing not.toContain('NAVIGATOR') resize-compaction assertion"
       - "follow-on (2ab8f3c): real-PTY Case-state hermeticity fix — the :memory: projection-store override did NOT fix the '0 units' drift, disproving that theory; actual cause was a real, reachable gauntlet serve process on the default endpoint (127.0.0.1:4000, an orphaned dev process on this host) that the spawned workbench syncs real generation data from mid-test. tui-preflight.sh already records the release entry as RECORDED-UNQUALIFIED 'cold-start host loop: no live gauntlet serve endpoint binding' — spawnWorkbench now defaults every spawn's endpoint to the unreachable-port sentinel 'http://127.0.0.1:1' (already used by secret-leakage.test.ts), making both cold-Case assertions deterministic; the one test needing real synced data (mouse-wheel journey) explicitly opts back into the real endpoint via a documented override"
+      - "chrome-remainder item 1 (breadcrumb-click hoisting): header click jumps to that breadcrumb depth. Investigation found two premises in the prior scoping note were wrong — the header WAS already a hit-map region, and no FocusRef-per-segment snapshot field was needed (segment index already equals hoist depth by construction: breadcrumb = ['Case', ...horizonStack.map(...)]). Reuses the existing nav.horizon.dehoist effect, looped (currentDepth - targetDepth times), mirroring the wheel-gesture accumulation pattern — no new PointerGesture kind, command, or model API. Two shared helpers (headerIdentitySpans, breadcrumbHeaderPrefix) keep the click math and rendered text from drifting. Caught and fixed a real bug pre-commit: the first loop implementation dropped all but the last effect (replaced {state,effects} each iteration instead of accumulating) — caught by a 2-level-hoist test expecting 2 dehoist effects and getting 1"
     verification:
-      - "tsc clean; 918 tests / 24 gated skips / 0 fail (unaffected by any of these fixes); biome at the 6-error pre-existing baseline, 0 new findings in changed files; gated real-PTY suite now 5/5 real pass (was 4/5), reproduced clean across 3 consecutive runs"
+      - "tsc clean; 925 tests / 24 gated skips / 0 fail (was 918; +6 shell-pointer.test.ts, +1 renderer-gesture.test.ts for breadcrumb hoisting); biome at the 6-error pre-existing baseline, 0 new findings in changed files; gated real-PTY suite 5/5 real pass, reproduced clean across 3 consecutive runs (breadcrumb hoisting has pure + renderer-hit-map coverage only; no real-PTY leg added — marginal value over the already-qualified SGR-click wire format)"
     next_increment: >-
-      Redesign queue COMPLETE through the recorded depth: §30 activation gate
-      landed T23-coherently; ActionControl object; V2 compact drawers; Bottom
-      surface + height ladder; back/forward; viewport follow; notice reason
-      grammar; RealityTrace lane projection module + host binding;
-      BUSY_SUBMISSION host wiring; mouse PTY qualification battery; palette
-      hit-testing order fix; Composer focus-ring marker fix; real-PTY
-      lastFrame() resize-boundary fix; real-PTY Case-state hermeticity fix
-      (gated suite now 5/5 real pass, all follow-ons from the original
-      mouse-PTY qualification battery closed). Remaining FOLLOW-ONS (none
-      blocking): chrome remainder (menu bar, breadcrumb-click hoisting, hover
-      tooltips, context menus, pane resize gesture — each needs a genuinely
-      new PointerGesture primitive, none is "already half-done"; see
-      IN-FLIGHT.md for the corrected per-item scope); final regression sweep
+      Redesign queue COMPLETE through the recorded depth, plus chrome-remainder
+      item 1 (breadcrumb-click hoisting) now DONE. Remaining FOLLOW-ONS (none
+      blocking): chrome remainder items 2-4 (menu bar, hover tooltips, context
+      menus, pane resize gesture — each still needs a genuinely new
+      PointerGesture primitive or net-new surface, unlike breadcrumb hoisting
+      which turned out to be pure recombination of existing pieces; see
+      IN-FLIGHT.md for per-item scope); final regression sweep
       (operator-journey sweeps + equivalence matrix + captures refresh) not
       yet run. Residuals discovered but NOT fixed (not blocking, not
       scheduled): RealityTrace TraceStream unseen-count integration, visible
