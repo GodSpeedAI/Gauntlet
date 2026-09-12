@@ -624,7 +624,61 @@ export function handlePointer(
     return { state, effects: [] };
   }
 
+  // Breadcrumb hoisting (ICM §6.6-adjacent: cursor-only navigation, domain
+  // state never mutated by the click itself — only by the SAME
+  // nav.horizon.dehoist effect the "u" key already produces). Span-level
+  // x-offset resolution mirrors the Primary tab-strip pattern above; the
+  // offsets here MUST stay derived from the identical literal text
+  // renderShell's header builds (breadcrumbHeaderPrefix), never duplicated
+  // as separate magic numbers, so a header text change can't silently
+  // desync the click target from what's drawn. Segment index IS the
+  // target horizon depth (breadcrumb[0] = "Case" = depth 0,
+  // breadcrumb[i] = horizonStack[i - 1] = depth i) — no FocusRef lookup or
+  // label match is involved, only a position count, so this can't run into
+  // the "label match ≠ binding" hazard RealityTrace bindings guard against.
+  if (surfaceId === "header" && lineId === "shell.header") {
+    const breadcrumb = [...snapshot.horizon_breadcrumb];
+    const currentDepth = breadcrumb.length - 1;
+    let offset = breadcrumbHeaderPrefix(state);
+    for (let index = 0; index < breadcrumb.length; index += 1) {
+      const segment = breadcrumb[index] ?? "";
+      if (gesture.x >= offset && gesture.x < offset + segment.length) {
+        const targetDepth = index;
+        if (targetDepth >= currentDepth) return { state, effects: [] };
+        // Accumulate every step's effect (unlike the wheel-gesture loop
+        // above, which only needs the final state — nav.move has no host
+        // effect, but each nav.horizon.dehoist step DOES, and every one of
+        // them must reach the host, not just the last).
+        let steppedState = state;
+        const effects: ShellEffect[] = [];
+        for (let step = 0; step < currentDepth - targetDepth; step += 1) {
+          const stepResult = handleCommand(
+            steppedState,
+            snapshot,
+            "nav.horizon.dehoist",
+            paletteContext,
+          );
+          steppedState = stepResult.state;
+          effects.push(...stepResult.effects);
+        }
+        return { state: steppedState, effects };
+      }
+      offset += segment.length + " › ".length;
+    }
+    return { state, effects: [] };
+  }
+
   return { state, effects: [] };
+}
+
+/**
+ * Character offset where the breadcrumb text begins in shell.header's single
+ * joined line. Sums headerIdentitySpans' own lengths plus the breadcrumb
+ * span's "· " opener, so it can never drift from what renderShell drew.
+ */
+function breadcrumbHeaderPrefix(state: ShellState): number {
+  const [identitySpanText, workspaceSpanText] = headerIdentitySpans(state);
+  return identitySpanText.length + workspaceSpanText.length + "· ".length;
 }
 
 // --- Shell state machine -------------------------------------------------------
@@ -1491,6 +1545,17 @@ function primaryTabViews(snapshot: FullWorkbenchSnapshot): readonly ViewId[] {
   return [...primaries, ...promotable];
 }
 
+/** The two literal header spans that precede the breadcrumb (identity +
+ * workspace reference). ONE source for the header render AND
+ * breadcrumbHeaderPrefix's click-offset math, so they can never diverge
+ * (same discipline as primaryTabViews above). */
+function headerIdentitySpans(state: ShellState): readonly [string, string] {
+  return [
+    "Gauntlet ",
+    `· ${state.location.workspace.workspace}/${state.location.workspace.reference} `,
+  ];
+}
+
 /**
  * Render the whole shell for one snapshot. Pure: snapshot in, render tree
  * out. Geometry floors are honoured exactly (DSN-007).
@@ -1508,13 +1573,12 @@ export function renderShell(
   // Clip-priority order (GUI redesign, DESIGN Responsive/Compact: identity,
   // Case, breadcrumb and attention outlive the tail-clip at 80 cols; run and
   // generation are metadata and clip FIRST because they sit last).
+  const [identitySpanText, workspaceSpanText] = headerIdentitySpans(state);
   const header: RenderedLine = {
     id: "shell.header",
     spans: [
-      { text: "Gauntlet ", emphasis: "bold" },
-      {
-        text: `· ${state.location.workspace.workspace}/${state.location.workspace.reference} `,
-      },
+      { text: identitySpanText, emphasis: "bold" },
+      { text: workspaceSpanText },
       { text: `· ${breadcrumb.join(" › ")} `, emphasis: "bold" },
       ...(snapshot.attention.length > 0
         ? [

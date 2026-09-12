@@ -139,6 +139,36 @@ test("click on an open palette row (overlapping Navigator's cells) resolves to t
   }
 });
 
+test("click on the header emits a click gesture on shell.header (breadcrumb hoisting entry point)", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const hit = view.hitMap().regions.find((region) => region.surfaceId === "header");
+    expect(hit).toBeDefined();
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.click((hit?.x ?? 0) + 5, hit?.y ?? 0);
+
+    const clicks = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> => g.kind === "click",
+    );
+    expect(clicks.length).toBeGreaterThanOrEqual(1);
+    const last = clicks.at(-1);
+    expect(last?.surfaceId).toBe("header");
+    expect(last?.lineId).toBe("shell.header");
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
 test("no onGesture callback: mouse events are simply not forwarded (no crash)", async () => {
   const terminal = await createTestRenderer({ width: 120, height: 40 });
   const view = new TerminalShellRenderer(terminal.renderer);

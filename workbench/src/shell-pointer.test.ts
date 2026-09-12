@@ -5,6 +5,7 @@ import {
   handleCommand,
   handlePointer,
   reconcileTrace,
+  ShellSession,
   type ShellState,
 } from "./shell";
 import { FULL_DIMS, seededModel } from "./testing/shell-harness";
@@ -189,5 +190,104 @@ describe("pointer gestures are inert in contexts that own their input", () => {
     });
     expect(result.state).toBe(base);
     expect(result.effects).toEqual([]);
+  });
+});
+
+describe("breadcrumb hoisting (click a header segment to jump to that depth)", () => {
+  /** Header prefix length ahead of the breadcrumb text (mirrors shell.ts's
+   * own header span construction exactly — see headerIdentitySpans). */
+  const BREADCRUMB_START =
+    "Gauntlet ".length +
+    `· ${HOST.workspace.workspace}/${HOST.workspace.reference} `.length +
+    "· ".length;
+
+  function twoLevelSnapshot(): FullWorkbenchSnapshot {
+    const model = seededModel();
+    model.hoistToFocus(FocusRef.for("gauntlet", "unit", "u-root", "Root Unit"));
+    model.hoistToFocus(FocusRef.for("gauntlet", "unit", "u-other", "Other Unit"));
+    return model.getSnapshot();
+  }
+
+  it("clicking the root 'Case' segment two levels deep dehoists all the way (identity, never label-matched)", () => {
+    const snap = twoLevelSnapshot();
+    expect([...snap.horizon_breadcrumb]).toEqual(["Case", "Root Unit", "Other Unit"]);
+    const base = stateAt();
+    const result = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "header",
+      lineId: "shell.header",
+      x: BREADCRUMB_START, // first char of "Case"
+    });
+    expect(result.effects).toEqual([{ type: "dehoist" }, { type: "dehoist" }]);
+  });
+
+  it("clicking a middle breadcrumb segment dehoists exactly one level (position count, not a stack search)", () => {
+    const snap = twoLevelSnapshot();
+    const base = stateAt();
+    // "Case" then " › " (3 chars) then "Root Unit".
+    const middleStart = BREADCRUMB_START + "Case".length + " › ".length;
+    const result = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "header",
+      lineId: "shell.header",
+      x: middleStart + 1,
+    });
+    expect(result.effects).toEqual([{ type: "dehoist" }]);
+  });
+
+  it("clicking the current (last) breadcrumb segment is a no-op — already there", () => {
+    const snap = twoLevelSnapshot();
+    const base = stateAt();
+    const lastStart = BREADCRUMB_START + "Case › Root Unit".length + " › ".length;
+    const result = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "header",
+      lineId: "shell.header",
+      x: lastStart + 1,
+    });
+    expect(result.effects).toEqual([]);
+    expect(result.state).toBe(base);
+  });
+
+  it("clicking past the end of the breadcrumb text is a no-op", () => {
+    const snap = twoLevelSnapshot();
+    const base = stateAt();
+    const result = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "header",
+      lineId: "shell.header",
+      x: 900,
+    });
+    expect(result.effects).toEqual([]);
+    expect(result.state).toBe(base);
+  });
+
+  it("clicking 'Case' at the unhoisted (single-segment) depth is a no-op", () => {
+    const snap = snapshot();
+    expect([...snap.horizon_breadcrumb]).toEqual(["Case"]);
+    const base = stateAt();
+    const result = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "header",
+      lineId: "shell.header",
+      x: BREADCRUMB_START,
+    });
+    expect(result.effects).toEqual([]);
+  });
+
+  it("end to end: clicking the root segment on a REAL model pops the real horizon stack fully", () => {
+    const model = seededModel();
+    model.hoistToFocus(FocusRef.for("gauntlet", "unit", "u-root", "Root Unit"));
+    model.hoistToFocus(FocusRef.for("gauntlet", "unit", "u-other", "Other Unit"));
+    const session = new ShellSession(HOST, FULL_DIMS, {
+      dehoist: () => model.dehoist(),
+    });
+    expect(model.getSnapshot().active_horizon).not.toBeNull();
+    session.pointer(
+      { kind: "click", surfaceId: "header", lineId: "shell.header", x: BREADCRUMB_START },
+      model.getSnapshot(),
+    );
+    expect(model.getSnapshot().active_horizon).toBeNull();
+    expect([...model.getSnapshot().horizon_breadcrumb]).toEqual(["Case"]);
   });
 });
