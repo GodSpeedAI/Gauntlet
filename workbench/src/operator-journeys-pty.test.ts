@@ -142,7 +142,10 @@ describe("T20 real-PTY operator journeys (gated: GAUNTLET_T20_REAL_PTY=1)", () =
         expect(lastFrame(session)).toContain("INSPECTOR");
         expect(lastFrame(session)).toContain("PRIMARY");
         expect(lastFrame(session)).toContain("COMPOSER");
-        expect(lastFrame(session)).toContain("Gauntlet · gauntlet/unbound");
+        // "canonical surface" is main.ts's workspace reference literal since
+        // increment 2a (516f5cb) — this gated real-PTY assertion had drifted
+        // (found by the mouse-PTY qualification increment's real run).
+        expect(lastFrame(session)).toContain("Gauntlet · gauntlet/canonical surface");
         // REQ-UX-001: a cold start launches no work and says what would move it.
         expect(lastFrame(session)).toContain("No authoritative source has");
         captureFrame("journey-120x40-full-cold", session);
@@ -182,7 +185,7 @@ describe("T20 real-PTY operator journeys (gated: GAUNTLET_T20_REAL_PTY=1)", () =
         }
         expect(compact).not.toContain("NAVIGATOR");
         // Case + health survive compaction (the cold Case has zero units).
-        expect(compact).toContain("0 units · ! 0 blocked");
+        expect(compact).toContain("0 units · 0 blocked");
         captureFrame("journey-80x24-compact", session);
 
         // Below minimum: the recoverable prompt names current and required size.
@@ -208,13 +211,13 @@ describe("T20 real-PTY operator journeys (gated: GAUNTLET_T20_REAL_PTY=1)", () =
     async () => {
       const session = spawnWorkbench(80, 24);
       try {
-        await untilFrame(session, "Gauntlet · gauntlet/unbound");
+        await untilFrame(session, "Gauntlet · gauntlet/canonical surface");
         const frame = lastFrame(session);
         expect(frame).not.toContain("NAVIGATOR");
         expect(frame).toContain("PRIMARY");
         expect(frame).toContain("COMPOSER");
         // Case + health survive compaction (REQ-UX-005; cold Case: zero units).
-        expect(frame).toContain("0 units · ! 0 blocked");
+        expect(frame).toContain("0 units · 0 blocked");
         captureFrame("journey-80x24-cold-compact", session);
 
         session.write("q");
@@ -254,4 +257,128 @@ describe("T20 real-PTY operator journeys (gated: GAUNTLET_T20_REAL_PTY=1)", () =
     },
     30_000,
   );
+
+  /**
+   * Mouse journeys (T20 increment: byte-level mouse hop). Nothing above
+   * exercises raw terminal mouse bytes → OpenTUI's SGR mouse parser →
+   * MouseEvent → TerminalShellRenderer.rowMouseEvent → PointerGesture →
+   * handlePointer end to end; handlePointer/handlePointer-equivalence is
+   * pinned at the unit level (shell.test.ts), and this file's keyboard
+   * journeys prove the semantic commands work through the real renderer,
+   * but nothing before this proved a mouse byte ever reaches them.
+   *
+   * The wire format was verified directly against
+   * `@opentui/core`'s bundled `MouseParser2.parseSgrSequence` /
+   * `decodeSgrEvent` (chunk-bun-*.js): xterm SGR protocol,
+   * `\x1b[<{Cb};{Cx};{Cy}M` for press (or a wheel notch — wheel events are
+   * ALWAYS terminated "M", never "m"), `\x1b[<{Cb};{Cx};{Cy}m` for release;
+   * Cb=0 is the left button; Cb=64/65 is wheel-up/wheel-down (the parser
+   * takes `rawButtonCode & 3` for the scroll direction index and requires
+   * the "M" terminator for the scroll branch); Cx/Cy are 1-based screen
+   * columns/rows (the parser subtracts 1). OpenTUI's own mouse-mode-enable
+   * sequences (`\x1b[?1000h` etc.) are OUTPUT the renderer sends to a real
+   * terminal to ask for reports — they gate nothing on the parsing side, so
+   * a raw PTY write of SGR bytes is interpreted exactly as if a terminal
+   * had sent them, with no prior "enable" step needed from the test.
+   *
+   * Screen coordinates below were confirmed empirically against the real
+   * 120x40 cold-start frame (cursor-position escapes dumped from a live
+   * run): the Primary tab strip's "[CHAT]" label renders at row 3 (1-based)
+   * starting column 47; the Navigator's outline rows start at row 4
+   * (1-based, "Case outline"); the palette's "view chat" row renders at
+   * row 5 (1-based) once opened. All all use 0-based (x, y) converted to
+   * 1-based (Cx, Cy) for the wire format.
+   */
+  it.skipIf(!REAL_PTY)(
+    "120x40 FULL: a real mouse click on the Primary tab strip's [CHAT] label converges on the same ▸[CHAT] marker the '2' keyboard journey produces",
+    async () => {
+      const session = spawnWorkbench(120, 40);
+      try {
+        await untilFrame(session, "NAVIGATOR");
+        expect(lastFrame(session)).toContain("▸[WORK]"); // cold start: Work view selected
+
+        // Real SGR left-click (press then release) inside the "[CHAT]"
+        // glyph run: row 3, columns 47-52 (1-based). Column 49 lands
+        // squarely inside the label.
+        session.write("\x1b[<0;49;3M\x1b[<0;49;3m");
+        await untilFrame(session, "▸[CHAT]");
+        captureFrame("journey-120x40-mouse-click-chat", session);
+
+        session.write("q");
+        const code = await session.exited();
+        expect(code).toBe(0);
+      } finally {
+        session.kill();
+      }
+    },
+    30_000,
+  );
+
+  it.skipIf(!REAL_PTY)(
+    "120x40 FULL: a real mouse wheel over the Navigator moves the selection the same way the down-arrow key does",
+    async () => {
+      const session = spawnWorkbench(120, 40);
+      try {
+        // Wait for the generation to load so the outline has real rows
+        // beneath "Case outline" to move onto.
+        await untilFrame(session, "AK-901");
+        // Focus Navigator by keyboard first: a wheel over Navigator moves
+        // navigatorIndex regardless of which surface is focused (the
+        // gesture only borrows focus for the duration of the command, per
+        // handlePointer's wheel branch), but the "◉" highlight marker only
+        // renders while Navigator IS the focused surface — focusing it
+        // first lets this test assert on that rendered marker.
+        session.write("\t");
+        session.write("\t");
+        session.write("\t");
+        await untilFrame(session, "▸ NAVIGATOR");
+
+        // Real SGR wheel-down notches (button code 65 = scroll bit set,
+        // direction index 1 = "down"; terminator is always "M" for wheel)
+        // over the Navigator body (row 4, column 11 — inside the "Case
+        // outline" row, but any row within Navigator's bounds resolves to
+        // surfaceId "Navigator", which is all the wheel path needs). Two
+        // notches move the highlight Case outline → AK-901 → AK-902, the
+        // same nav.move.next effect the down-arrow key produces.
+        session.write("\x1b[<65;11;4M");
+        await untilFrame(session, "◉ AK-901");
+        session.write("\x1b[<65;11;4M");
+        await untilFrame(session, "◉ AK-902");
+        captureFrame("journey-120x40-mouse-wheel-navigator", session);
+
+        session.write("q");
+        const code = await session.exited();
+        expect(code).toBe(0);
+      } finally {
+        session.kill();
+      }
+    },
+    30_000,
+  );
+
+  // Double-click sub-case (2c) DROPPED after genuine debugging effort: the
+  // one concrete double-click-bound affordance reachable from cold start is
+  // the command palette's row-activate branch (shell.ts's Overlay clause —
+  // single click only moves paletteIndex, double_click also fires
+  // ui.palette.activate). But it is UNREACHABLE by real mouse input: the
+  // real renderer's terminal-renderer.ts resolveAt() (used by rowMouseEvent
+  // to turn screen (x, y) into a surfaceId/lineId) does a forward,
+  // first-match scan over `this.lastHitMap.regions`, and those regions are
+  // pushed in a fixed order — header, then each surface column
+  // (Navigator/Primary/Inspector, each already spanning from y=2 down
+  // through its own row count), then bottom/attention/Composer/help/drawer,
+  // and the "palette" region LAST, only once `shell.palette` is non-null.
+  // The palette's z-index (1/2 vs. the background's 0, see the z-tier
+  // comment near this file's "zIndex: region.key === "palette" ? 2 : 0")
+  // governs PAINT order only — resolveAt never consults it. Every screen
+  // cell the palette visually covers is therefore ALREADY claimed by the
+  // Navigator/Primary/Inspector region drawn under it, so a click resolves
+  // to that background surface, not "Overlay" — the palette is not
+  // clickable through the real pointer path at all. Verified empirically
+  // (`bun run` against a live PTY): clicking the rendered "view chat"
+  // palette row at its exact screen coordinates produces no state change
+  // (no "◉" selection marker, palette stays open) because the click lands
+  // on the Navigator region beneath it. Fixing resolveAt's hit-test
+  // precedence is a terminal-renderer.ts change — out of scope for this
+  // test-only increment (no non-test files touched).
 });
