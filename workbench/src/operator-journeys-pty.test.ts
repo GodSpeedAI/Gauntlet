@@ -38,6 +38,8 @@ interface PtySession {
   output(): string;
   write(data: string): void;
   resize(cols: number, rows: number): void;
+  /** Byte offset into output() at the moment of the most recent resize() call (0 if none yet). */
+  resizeOffset(): number;
   exited(): Promise<number | "TIMEOUT">;
   kill(): void;
 }
@@ -45,6 +47,7 @@ interface PtySession {
 /** Spawn the REAL workbench entry in a REAL Bun PTY. */
 function spawnWorkbench(cols: number, rows: number): PtySession {
   let output = "";
+  let resizeOffset = 0;
   const proc = Bun.spawn(["bun", "run", "src/main.ts"], {
     cwd: WORKBENCH_DIR,
     env: { ...process.env, TERM: "xterm-256color" },
@@ -66,7 +69,17 @@ function spawnWorkbench(cols: number, rows: number): PtySession {
     pid: proc.pid,
     output: () => output,
     write: (data) => terminal.write(data),
-    resize: (nextCols, nextRows) => terminal.resize(nextCols, nextRows),
+    resize: (nextCols, nextRows) => {
+      // Mark the boundary BEFORE resizing: OpenTUI's processResize (verified
+      // against @opentui/core's non-split-footer path) never emits a fresh
+      // \x1b[2J or forces a full repaint on resize, so bytes written before
+      // this point are addressed to columns/rows the new geometry may not
+      // even have — they are stale from lastFrame()'s perspective even
+      // though no clear-screen sequence marks them as such.
+      resizeOffset = output.length;
+      terminal.resize(nextCols, nextRows);
+    },
+    resizeOffset: () => resizeOffset,
     exited: () => Promise.race([proc.exited, Bun.sleep(10_000).then(() => "TIMEOUT" as const)]),
     kill: () => proc.kill(),
   };
@@ -115,12 +128,21 @@ function stripAnsi(text: string): string {
   return result;
 }
 
-/** The LAST drawn frame (after the final clear-screen) with escape sequences stripped. */
+/**
+ * The LAST drawn frame with escape sequences stripped. Isolated from the raw
+ * byte log (not a real terminal-grid emulation) by finding the later of: the
+ * final clear-screen sequence, or the byte offset of the most recent
+ * resize() call. The resize boundary matters because OpenTUI's resize path
+ * does not itself emit a fresh clear-screen (verified against
+ * @opentui/core's processResize) — without it, content written for the
+ * PRE-resize geometry (e.g. a column that no longer exists at the new width)
+ * stays in the raw log forever with nothing marking it stale.
+ */
 function lastFrame(session: PtySession): string {
   const raw = session.output();
   const lastClear = raw.lastIndexOf("\x1b[2J");
-  const frame = lastClear >= 0 ? raw.slice(lastClear) : raw;
-  return stripAnsi(frame);
+  const boundary = Math.max(lastClear >= 0 ? lastClear : 0, session.resizeOffset());
+  return stripAnsi(raw.slice(boundary));
 }
 
 function captureFrame(name: string, session: PtySession): void {
