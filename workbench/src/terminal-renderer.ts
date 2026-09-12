@@ -239,6 +239,11 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
     width,
     rows: planRows(shell.attention, 0, footerTop + bottomRows, width, attentionRows, height),
   });
+  const composerLines = (composer?.lines ?? []).map((row, index) =>
+    index === 0 && composer?.focused
+      ? { ...row, spans: [{ text: "▸ ", token: "focus.ring" as const }, ...row.spans] }
+      : row,
+  );
   regions.push({
     key: "surface:Composer",
     surfaceId: "Composer",
@@ -246,7 +251,7 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
     y: footerTop + bottomRows + attentionRows,
     width,
     rows: planRows(
-      composer?.lines ?? [],
+      composerLines,
       0,
       footerTop + bottomRows + attentionRows,
       width,
