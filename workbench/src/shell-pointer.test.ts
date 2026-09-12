@@ -15,7 +15,7 @@ import {
   ShellSession,
   type ShellState,
 } from "./shell";
-import { FULL_DIMS, seededModel } from "./testing/shell-harness";
+import { FULL_DIMS, modelWiredSession, renderOptions, seededModel } from "./testing/shell-harness";
 import type { FullWorkbenchSnapshot } from "./workbench-model";
 
 /**
@@ -848,5 +848,159 @@ describe("column-splitter drag-to-resize (ICM §36.1, UESC §22.11 SplitPane)", 
     });
     expect(started.state).toBe(compactState);
     expect(started.state.columnResize).toBeNull();
+  });
+});
+
+/**
+ * Hover tooltip (UESC §22.6: HIDDEN -> hover -> VISIBLE -> leave -> HIDDEN;
+ * ICM §35 rule 7: "hover never becomes the only way to access critical
+ * information"). Content is deliberately just the same FocusRef identity
+ * right-click already resolves (focusRefForLine) — no new information, no
+ * new commands. Design note (see terminal-renderer.ts / main.ts): the host
+ * render loop has no general-purpose timer-driven redraw (only a ~2s host
+ * data poll, unrelated to pointer state), so this is an IMMEDIATE
+ * (no-delay) tooltip on hover, not a genuine §22.6 hover-DELAY — an honest
+ * simplification given the render loop's actual constraints, not a hidden
+ * gap. What IS pinned here is the reducer's own state machine: hover set,
+ * cleared on leave/Escape/unresolvable row, and never shown alongside the
+ * palette/context-menu/menu-bar.
+ */
+describe("hover tooltip (UESC §22.6, ICM §35 rule 7)", () => {
+  it("hovering a Navigator row with a resolvable FocusRef shows its identity — the same identity a click/right-click already resolves", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const result = handlePointer(base, snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    expect(result.effects).toEqual([]); // PRESENTATION_LOCAL: never a ShellEffect
+    expect(result.state.hover).not.toBeNull();
+    expect(result.state.hover?.ref.source_id).toBe("u-far");
+    expect(result.state.hover?.surfaceId).toBe("Navigator");
+    expect(result.state.hover?.lineId).toBe("outline.unit.u-far");
+    // Never mutates selection/inspection identity.
+    expect(result.state.navigatorIndex).toBe(base.navigatorIndex);
+    expect(result.state.location.focus).toBeNull();
+  });
+
+  it("hovering a rowless line (null lineId) shows nothing", () => {
+    const snap = snapshot();
+    const result = handlePointer(stateAt(), snap, {
+      kind: "hover",
+      surfaceId: "Composer",
+      lineId: null,
+    });
+    expect(result.state.hover).toBeNull();
+    expect(result.effects).toEqual([]);
+  });
+
+  it("hovering an unresolvable line id shows nothing", () => {
+    const snap = snapshot();
+    const result = handlePointer(stateAt(), snap, {
+      kind: "hover",
+      surfaceId: "Primary",
+      lineId: "not.a.row",
+    });
+    expect(result.state.hover).toBeNull();
+    expect(result.effects).toEqual([]);
+  });
+
+  it("leaving the hovered region (out) hides the tooltip", () => {
+    const snap = snapshot();
+    const hovered = handlePointer(stateAt(), snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    expect(hovered.state.hover).not.toBeNull();
+    const left = handlePointer(hovered.state, snap, {
+      kind: "hover",
+      surfaceId: "",
+      lineId: null,
+    });
+    expect(left.state.hover).toBeNull();
+    expect(left.effects).toEqual([]);
+  });
+
+  it("moving the hover to a different resolvable row updates it, without ever leaving a stale null gap", () => {
+    const snap = snapshot();
+    const first = handlePointer(stateAt(), snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    const second = handlePointer(first.state, snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-root",
+    });
+    expect(second.state.hover?.ref.source_id).toBe("u-root");
+  });
+
+  it("re-hovering the exact same row is a no-op (stable state identity)", () => {
+    const snap = snapshot();
+    const hovered = handlePointer(stateAt(), snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    const again = handlePointer(hovered.state, snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    expect(again.state).toBe(hovered.state);
+  });
+
+  it("Escape hides an open tooltip", () => {
+    const snap = snapshot();
+    const hovered = handlePointer(stateAt(), snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    expect(hovered.state.hover).not.toBeNull();
+    const dismissed = handleKey(hovered.state, snap, "escape");
+    expect(dismissed.state.hover).toBeNull();
+    expect(dismissed.effects).toEqual([]);
+  });
+
+  it("hover is inert while the palette is open (mutual exclusivity, same discipline as contextMenu/menuBar)", () => {
+    const snap = snapshot();
+    const opened = handleCommand(stateAt(), snap, "ui.palette.open");
+    const result = handlePointer(opened.state, snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    expect(result.state.hover).toBeNull();
+  });
+
+  it("hover is inert below the minimum geometry", () => {
+    const snap = snapshot();
+    const small = createShellState(HOST, { cols: 72, rows: 20 });
+    const result = handlePointer(small, snap, {
+      kind: "hover",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+    });
+    expect(result.state).toBe(small);
+    expect(result.effects).toEqual([]);
+  });
+
+  it("renderShell surfaces the SAME identity already shown in the Navigator row label — no invented content", () => {
+    const model = seededModel();
+    const session = modelWiredSession(model, FULL_DIMS);
+    session.pointer(
+      { kind: "hover", surfaceId: "Navigator", lineId: "outline.unit.u-far" },
+      model.getSnapshot(),
+    );
+    const rendered = session.render(model.getSnapshot(), renderOptions(model));
+    expect(rendered.tooltip).not.toBeNull();
+    expect(rendered.tooltip?.surfaceId).toBe("Navigator");
+    expect(rendered.tooltip?.lineId).toBe("outline.unit.u-far");
+    const text = rendered.tooltip?.lines[0]?.spans.map((s) => s.text).join("") ?? "";
+    expect(text).toContain("u-far");
   });
 });

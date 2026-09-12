@@ -106,10 +106,26 @@ interface OverlayPlacement {
   readonly title?: string;
 }
 
+/** Hover tooltip placement (UESC §22.6): a small, NON-hit-tested box near the
+ * hovered row — it is never pushed onto `regions`, so resolveAt (and thus
+ * every click/double-click/right-click/drag gesture) never resolves to it;
+ * a tooltip must never suppress interaction with whatever is under or beside
+ * it (ICM §35 rule 7). Positioned one row below the hovered cell (or above,
+ * if the hovered row is the last one) so it never covers the cell it
+ * describes — the one placement the campaign's own constraint calls out by
+ * name ("never...on the same cell"). */
+interface TooltipPlacement {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly lines: readonly RenderedLine[];
+}
+
 interface FramePlan {
   readonly regions: readonly RegionPlacement[];
   readonly overlay: OverlayPlacement | null;
   readonly drawer: OverlayPlacement | null;
+  readonly tooltip: TooltipPlacement | null;
 }
 
 /**
@@ -170,7 +186,7 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
       width,
       rows: planRows(shell.prompt.lines, 0, 2, width, shell.prompt.lines.length, height),
     });
-    return { regions, overlay: null, drawer: null };
+    return { regions, overlay: null, drawer: null, tooltip: null };
   }
   const composer = shell.surfaces.find((surface) => surface.id === "Composer");
   const helpRows = Math.min(shell.help.length, 2);
@@ -305,6 +321,14 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
       ),
     });
   }
+  // Hover tooltip (UESC §22.6): resolved against the rows already planned
+  // above (base columns, bottom, attention, composer, help, drawer) — the
+  // SAME row placement a click/right-click would hit-test against, so the
+  // tooltip can never drift from where the hovered row actually paints.
+  // shell.tooltip is already null whenever the palette/context-menu/menu-bar
+  // owns the surface (renderShell's own mutual-exclusivity guard), so this
+  // is safe to compute unconditionally and reuse in every branch below.
+  const tooltipPlacement = tooltipPlan(shell, regions, width, height);
   // MenuBar dropdown (UESC §22.7): a small overlay anchored under the open
   // title, sharing the same Overlay z-tier/hit-testing path as the palette
   // and context menu — mutually exclusive with both (ShellState enforces
@@ -344,6 +368,7 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
         title: ` ${shell.menuBar.titleLabel} · ↑/↓ select · Enter activate · Esc close `,
       },
       drawer: drawerPlacement,
+      tooltip: tooltipPlacement,
     };
   }
   // ContextMenu (ICM §6.4, UESC §22.5): a small overlay anchored near the
@@ -388,9 +413,11 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
         title: " Context Menu · ↑/↓ select · Enter activate · Esc close ",
       },
       drawer: drawerPlacement,
+      tooltip: tooltipPlacement,
     };
   }
-  if (!shell.palette) return { regions, overlay: null, drawer: drawerPlacement };
+  if (!shell.palette)
+    return { regions, overlay: null, drawer: drawerPlacement, tooltip: tooltipPlacement };
   // The overlay gets a bounded scrolling viewport, including the selected row.
   const available = Math.max(1, footerTop - 4);
   const selected = Math.min(shell.palette.index, shell.palette.lines.length - 1);
@@ -420,7 +447,42 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
       title: " Palette · ↑/↓ select · Enter open · Esc dismiss ",
     },
     drawer: drawerPlacement,
+    tooltip: tooltipPlacement,
   };
+}
+
+/**
+ * Placement for the hover tooltip, resolved against rows already placed in
+ * `regions` (the SAME row geometry click/right-click hit-test against — see
+ * resolveAt). Returns null when nothing is hovered, the hovered row is no
+ * longer present in this frame's regions (its surface scrolled/collapsed
+ * since the hover started), or the terminal is too narrow for even a
+ * one-cell box. Placed one row BELOW the hovered cell (or above it, if the
+ * hovered row is the last visible one) — deliberately never on top of the
+ * cell it describes, so it can never suppress a click/drag on that cell.
+ */
+function tooltipPlan(
+  shell: RenderedShell,
+  regions: readonly RegionPlacement[],
+  width: number,
+  height: number,
+): TooltipPlacement | null {
+  if (shell.tooltip === null) return null;
+  const region = regions.find((candidate) => candidate.surfaceId === shell.tooltip?.surfaceId);
+  const row = region?.rows.find((candidate) => candidate.lineId === shell.tooltip?.lineId);
+  if (region === undefined || row === undefined) return null;
+  const contentWidth = shell.tooltip.lines.reduce(
+    (max, line) =>
+      Math.max(
+        max,
+        line.spans.reduce((sum, span) => sum + span.text.length, 0),
+      ),
+    4,
+  );
+  const tooltipWidth = Math.min(contentWidth, Math.max(1, width - row.x));
+  const below = row.y + 1;
+  const y = below < height ? below : Math.max(0, row.y - 1);
+  return { x: row.x, y, width: tooltipWidth, lines: shell.tooltip.lines };
 }
 
 /** Compact side drawer placement (V2): bordered left/right overlay sharing
@@ -511,6 +573,11 @@ export class TerminalShellRenderer {
   private readonly regionRows = new Map<string, TextRenderable[]>();
   private overlayBox: BoxRenderable | null = null;
   private drawerBox: BoxRenderable | null = null;
+  /** Hover tooltip text (UESC §22.6) — a plain TextRenderable, never a
+   * BoxRenderable: it carries no onMouse handler and is never pushed into
+   * `regions`/the hit map, so it can never occlude a click/drag meant for
+   * whatever is under or beside it. */
+  private tooltipText: TextRenderable | null = null;
   private createdCount = 0;
   private lastHitMap: ShellHitMap = EMPTY_HIT_MAP;
   private readonly onGesture: ((gesture: PointerGesture) => void) | null;
@@ -642,7 +709,39 @@ export class TerminalShellRenderer {
         x: event.x - hit.regionX,
       });
     }
-    // Other event types (over/out/drop) carry no gesture here.
+    // Hover tooltip (UESC §22.6, chrome remainder item 6): OpenTUI's own
+    // renderer synthesizes real over/out MouseEvents with no button held,
+    // distinct from the drag-tracking move/drag this handler already
+    // consumes above (confirmed by reading CliRenderer's own event routing —
+    // it recomputes hit-target-changed over/out on every button-less move,
+    // then separately dispatches the raw move/drag event afterward, which is
+    // why the move/drag branch above must stay a no-op whenever no resize is
+    // pending — this branch is where hover-tracking actually lives). Guarded
+    // off entirely whenever ANY button interaction is in flight (a held
+    // button, or a pending/active column resize) so hover can never race or
+    // interfere with click/drag/resize detection on the same gesture.
+    if (event.type === "over" || event.type === "out") {
+      if (
+        this.pendingDown !== null ||
+        this.pendingRightDown !== null ||
+        this.pendingResize !== null ||
+        this.activeResize !== null
+      ) {
+        return;
+      }
+      if (event.type === "out") {
+        this.onGesture({ kind: "hover", surfaceId: "", lineId: null });
+        return;
+      }
+      const hit = this.resolveAt(event.x, event.y);
+      this.onGesture({
+        kind: "hover",
+        surfaceId: hit?.surfaceId ?? "",
+        lineId: hit?.lineId ?? null,
+      });
+    }
+    // `drop` carries no gesture here (only meaningful for drag-and-drop,
+    // which this shell has no drop targets for).
   };
 
   /**
@@ -716,6 +815,7 @@ export class TerminalShellRenderer {
     this.regionRows.clear();
     this.overlayBox = null;
     this.drawerBox = null;
+    this.tooltipText = null;
     this.lastHitMap = EMPTY_HIT_MAP;
   }
 
@@ -852,6 +952,46 @@ export class TerminalShellRenderer {
     } else if (this.drawerBox !== null) {
       this.drawerBox.destroy();
       this.drawerBox = null;
+    }
+    if (plan.tooltip !== null) {
+      const content = styledContent(plan.tooltip.lines[0]?.spans ?? [], plan.tooltip.width);
+      if (this.tooltipText === null) {
+        this.tooltipText = new TextRenderable(this.renderer, {
+          id: "tooltip",
+          position: "absolute",
+          left: plan.tooltip.x,
+          top: plan.tooltip.y,
+          width: plan.tooltip.width,
+          height: 1,
+          wrapMode: "none",
+          truncate: true,
+          zIndex: 1,
+          content,
+          // The tooltip is never part of our OWN hit map (see the field
+          // comment / tooltipPlan — it's never pushed onto `regions`), but it
+          // is still a real OpenTUI renderable drawn on top of whatever cells
+          // it occupies. Without an onMouse handler here, OpenTUI's native
+          // dispatch delivers the event to this topmost renderable and drops
+          // it — silently swallowing a real click on the row underneath it
+          // (confirmed empirically: a click landing on the tooltip's cells
+          // produced zero gestures before this fix). Wiring the SAME
+          // rowMouseEvent handler here routes it through resolveAt exactly
+          // like any other click, which resolves against our own hit map —
+          // one that never contains the tooltip — so it falls straight
+          // through to whatever real region is actually there.
+          ...(this.onGesture !== null ? { onMouse: this.rowMouseEvent } : {}),
+        });
+        this.frame.add(this.tooltipText);
+        created++;
+      } else {
+        this.tooltipText.left = plan.tooltip.x;
+        this.tooltipText.top = plan.tooltip.y;
+        this.tooltipText.width = plan.tooltip.width;
+        this.tooltipText.content = content;
+      }
+    } else if (this.tooltipText !== null) {
+      this.tooltipText.destroy();
+      this.tooltipText = null;
     }
     this.createdCount = created;
     this.lastHitMap = freezeHitMap(plan);

@@ -413,6 +413,156 @@ test("a plain click at the Navigator|Primary seam (no drag past the threshold) n
   }
 });
 
+/**
+ * Hover tooltip (UESC §22.6, chrome remainder item 6, final increment).
+ * `createMockMouse`'s `moveTo` with no button held emits a raw ANSI "move"
+ * event with the SGR no-button motion code (confirmed by reading
+ * testing.js's `generateMouseEvent`: `case "move": buttonCode = 32 | 3`) —
+ * the exact same encoding a real terminal sends for a plain hover move.
+ * OpenTUI's CliRenderer synthesizes real over/out MouseEvents from that (its
+ * own `if (!sameElement && (type === "drag" || type === "move"))` hit-target
+ * check in chunk-bun-*.js), so `moveTo` genuinely exercises hover, not a
+ * simulated approximation — confirmed against the actual source the same
+ * way prior increments checked mock-mouse capability before assuming a gap.
+ */
+test("moving the mouse (no button held) over a Navigator row emits a hover gesture and renders the tooltip in the hit map", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const hit = view.hitMap().regions.find((region) => region.surfaceId === "Navigator");
+    expect(hit).toBeDefined();
+    // A row carrying a resolvable FocusRef, not "navigator.title" (rowless
+    // chrome) — outline rows are the "outline.*" ids navigatorOutline emits.
+    const row = hit?.rows.findIndex((id) => id?.startsWith("outline.unit.")) ?? -1;
+    expect(row).toBeGreaterThanOrEqual(0);
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.moveTo((hit?.x ?? 0) + 2, (hit?.y ?? 0) + row);
+
+    const hovers = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "hover" }> => g.kind === "hover",
+    );
+    expect(hovers.length).toBeGreaterThanOrEqual(1);
+    const last = hovers.at(-1);
+    expect(last?.surfaceId).toBe("Navigator");
+    expect(last?.lineId).toBe(hit?.rows[row] ?? null);
+
+    // Feed the gesture through the real reducer and re-render: the tooltip
+    // must show up in the NEXT frame's RenderedShell, and never register as
+    // a hit-map region of its own (a tooltip must never suppress a
+    // click/drag on whatever it sits near — see tooltipPlan's own comment).
+    if (last !== undefined) {
+      session.pointer(last, model.getSnapshot());
+    }
+    const rendered = session.render(model.getSnapshot(), renderOptions(model));
+    expect(rendered.tooltip).not.toBeNull();
+    view.render(rendered);
+    await terminal.renderOnce();
+    expect(view.hitMap().regions.some((region) => region.surfaceId === "Tooltip")).toBe(false);
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
+test("a click on the row occluded by an open tooltip still registers (regression: the tooltip's own renderable was swallowing it)", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const navigatorHit = view.hitMap().regions.find((region) => region.surfaceId === "Navigator");
+    expect(navigatorHit).toBeDefined();
+    const rows = navigatorHit?.rows ?? [];
+    let hoverRow = -1;
+    for (let i = 0; i < rows.length - 1; i += 1) {
+      if (rows[i]?.startsWith("outline.unit.") === true && rows[i + 1] !== null) {
+        hoverRow = i;
+        break;
+      }
+    }
+    expect(hoverRow).toBeGreaterThanOrEqual(0);
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.moveTo((navigatorHit?.x ?? 0) + 2, (navigatorHit?.y ?? 0) + hoverRow);
+
+    const hovers = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "hover" }> => g.kind === "hover",
+    );
+    expect(hovers.length).toBeGreaterThanOrEqual(1);
+    for (const hover of hovers) session.pointer(hover, model.getSnapshot());
+    const rendered = session.render(model.getSnapshot(), renderOptions(model));
+    expect(rendered.tooltip).not.toBeNull();
+    view.render(rendered);
+    await terminal.renderOnce();
+
+    // tooltipPlan places the tooltip one row below the hovered cell — click
+    // that exact cell (a real, different Navigator row) while it's showing.
+    gestures.length = 0;
+    await mouse.click((navigatorHit?.x ?? 0) + 2, (navigatorHit?.y ?? 0) + hoverRow + 1);
+    const clicks = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> => g.kind === "click",
+    );
+    expect(clicks.length).toBeGreaterThanOrEqual(1);
+    expect(clicks.at(-1)?.surfaceId).toBe("Navigator");
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
+test("moving the mouse off the hovered row (a subsequent move elsewhere) clears the tooltip", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const navigatorHit = view.hitMap().regions.find((region) => region.surfaceId === "Navigator");
+    const composerHit = view.hitMap().regions.find((region) => region.surfaceId === "Composer");
+    expect(navigatorHit).toBeDefined();
+    expect(composerHit).toBeDefined();
+    const row = navigatorHit?.rows.findIndex((id) => id?.startsWith("outline.unit.")) ?? -1;
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.moveTo((navigatorHit?.x ?? 0) + 2, (navigatorHit?.y ?? 0) + row);
+    await mouse.moveTo((composerHit?.x ?? 0) + 1, composerHit?.y ?? 0);
+
+    const hovers = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "hover" }> => g.kind === "hover",
+    );
+    expect(hovers.length).toBeGreaterThanOrEqual(2);
+    // The renderer forwards whatever row it hit-tested (composer.mode has no
+    // FocusRef); resolving "no ref here" is the pure reducer's job, not the
+    // renderer's — so feed both gestures through the real reducer and assert
+    // the RESULTING state, the same layering every other gesture uses here.
+    for (const hover of hovers) {
+      session.pointer(hover, model.getSnapshot());
+    }
+    const state = session.render(model.getSnapshot(), renderOptions(model));
+    expect(state.tooltip).toBeNull();
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
 test("no onGesture callback: mouse events are simply not forwarded (no crash)", async () => {
   const terminal = await createTestRenderer({ width: 120, height: 40 });
   const view = new TerminalShellRenderer(terminal.renderer);

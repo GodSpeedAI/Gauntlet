@@ -565,6 +565,20 @@ export interface RenderedShell {
   readonly menuBarLine: RenderedLine | null;
   /** MenuBar dropdown when a title is MENU_OPEN; null in CLOSED. */
   readonly menuBar: RenderedMenuBarDropdown | null;
+  /**
+   * Hover tooltip (UESC §22.6): supplementary identity for the FocusRef
+   * carried by the currently hovered row — the same kind/id/label already
+   * rendered in the Navigator outline, never new content (ICM §35 rule 7:
+   * "hover never becomes the only way to access critical information").
+   * Null whenever nothing is hovered, or a palette/context-menu/menu-bar
+   * overlay owns the surface (mutual exclusivity with those, same discipline
+   * as contextMenu/menuBar above).
+   */
+  readonly tooltip: {
+    readonly surfaceId: string;
+    readonly lineId: string;
+    readonly lines: readonly RenderedLine[];
+  } | null;
   readonly prompt: RenderedPrompt | null;
   /** Compact side drawer (V2, UESC Compact: switchable side surfaces). */
   readonly drawer: {
@@ -741,7 +755,19 @@ export type PointerGesture =
       readonly x: number;
     }
   | { readonly kind: "column_resize_move"; readonly boundary: ColumnBoundary; readonly x: number }
-  | { readonly kind: "column_resize_end"; readonly boundary: ColumnBoundary; readonly x: number };
+  | { readonly kind: "column_resize_end"; readonly boundary: ColumnBoundary; readonly x: number }
+  | {
+      /** UESC §22.6 Tooltip: HIDDEN -> hover -> VISIBLE -> leave -> HIDDEN.
+       * Emitted from the renderer's native over/out events (no button held —
+       * distinct from the drag-tracking move/drag this same handler already
+       * consumes for column resize). `lineId: null` means "left the hovered
+       * region" (out, or over a rowless cell) — the reducer treats it as
+       * HIDDEN regardless of which surfaceId it carries. PRESENTATION_LOCAL:
+       * never produces a ShellEffect. */
+      readonly kind: "hover";
+      readonly surfaceId: string;
+      readonly lineId: string | null;
+    };
 
 /** Which column seam a resize drag targets: the Navigator|Primary boundary,
  * or the Primary|Inspector one (ICM §36.1, UESC §22.11 SplitPane). */
@@ -864,6 +890,60 @@ function handleColumnResize(
   };
 }
 
+/** Freeze a hover HIDDEN transition only when it actually changes something
+ * (mirrors the resize/menu no-op precedent above: an inert gesture returns
+ * the SAME state reference, never a fresh object). */
+function hoverCleared(state: ShellState): { state: ShellState; effects: readonly ShellEffect[] } {
+  return state.hover === null
+    ? { state, effects: [] }
+    : { state: Object.freeze({ ...state, hover: null }), effects: [] };
+}
+
+/**
+ * UESC §22.6 Tooltip (HIDDEN -> hover -> VISIBLE -> leave -> HIDDEN).
+ * PRESENTATION_LOCAL: resolves the SAME FocusRef right-click already resolves
+ * (focusRefForLine — one source of truth for "what does this row mean"), and
+ * never mutates selection/inspection identity or produces a ShellEffect.
+ * Mutually exclusive with the palette/context-menu/menu-bar, same as
+ * contextMenu/menuBar: while any of those own the surface, hover stays
+ * HIDDEN rather than layering a tooltip under/behind an open overlay.
+ */
+function handleHover(
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+  gesture: Extract<PointerGesture, { kind: "hover" }>,
+): { state: ShellState; effects: readonly ShellEffect[] } {
+  if (state.paletteOpen || state.contextMenu !== null || state.menuBar !== null) {
+    return hoverCleared(state);
+  }
+  if (gesture.lineId === null) {
+    return hoverCleared(state);
+  }
+  const ref = focusRefForLine(snapshot, gesture.surfaceId, gesture.lineId);
+  if (ref === null) {
+    return hoverCleared(state);
+  }
+  if (
+    state.hover !== null &&
+    state.hover.surfaceId === gesture.surfaceId &&
+    state.hover.lineId === gesture.lineId
+  ) {
+    return { state, effects: [] }; // already hovering this exact row
+  }
+  return {
+    state: Object.freeze({
+      ...state,
+      hover: Object.freeze({
+        surfaceId: gesture.surfaceId,
+        lineId: gesture.lineId,
+        ref,
+        label: resolveFocusLabel(snapshot, ref),
+      }),
+    }),
+    effects: [],
+  };
+}
+
 /**
  * The pointer twin of handleKey: gestures resolve to the SAME semantic
  * commands and effects the keyboard path produces (ICM §24/§35). There is no
@@ -887,6 +967,10 @@ export function handlePointer(
     gesture.kind === "column_resize_end"
   ) {
     return handleColumnResize(state, gesture);
+  }
+
+  if (gesture.kind === "hover") {
+    return handleHover(state, snapshot, gesture);
   }
 
   if (gesture.kind === "right_click") {
@@ -1242,6 +1326,20 @@ export interface ShellState {
    * discipline as the palette/context-menu pair.
    */
   readonly menuBar: { readonly menu: MenuBarMenuId; readonly index: number } | null;
+  /**
+   * Hover tooltip state (UESC §22.6): HIDDEN when null; set while the
+   * pointer sits over a row with a resolvable FocusRef. `label` is captured
+   * at hover time from the same resolveFocusLabel every Navigator row
+   * already uses — never new content, just this row's existing identity
+   * surfaced at the hover point (ICM §35 rule 7). PRESENTATION_LOCAL, mutually
+   * exclusive with paletteOpen/contextMenu/menuBar (handleHover enforces it).
+   */
+  readonly hover: {
+    readonly surfaceId: string;
+    readonly lineId: string;
+    readonly ref: FocusRef;
+    readonly label: string;
+  } | null;
   readonly navigatorIndex: number;
   /**
    * Column-splitter RESIZING state (UESC §22.11 SplitPane: STABLE → drag
@@ -1301,6 +1399,7 @@ export function createShellState(host: ShellHostConfig, dims: Dimensions): Shell
     pendingConfirm: null,
     contextMenu: null,
     menuBar: null,
+    hover: null,
     navigatorIndex: 0,
     columnResize: null,
     columnWidthOverride: null,
@@ -1521,11 +1620,22 @@ export function handleKey(
     }
   }
 
+  // Escape hides an open tooltip too (UESC §22.6 leave -> HIDDEN), whatever
+  // else it does — a bare `state` fallback below would otherwise leave a
+  // stale hover surfaced under/behind whatever Escape just closed.
+  const clearHover = (result: {
+    state: ShellState;
+    effects: readonly ShellEffect[];
+  }): { state: ShellState; effects: readonly ShellEffect[] } =>
+    key === "escape" && result.state.hover !== null
+      ? { state: Object.freeze({ ...result.state, hover: null }), effects: result.effects }
+      : result;
+
   const command = commandForKey(key, context);
   if (command === null) {
-    return { state, effects: [] };
+    return clearHover({ state, effects: [] });
   }
-  return handleCommand(state, snapshot, command, paletteContext);
+  return clearHover(handleCommand(state, snapshot, command, paletteContext));
 }
 
 /** Keys terminalKey reports as literal characters (no modifiers, not a
@@ -2320,6 +2430,7 @@ export function renderShell(
       contextMenu: null,
       menuBarLine: null,
       menuBar: null,
+      tooltip: null,
       prompt: { lines: prompt, exitKey: "q" },
       motion: state.motion,
     };
@@ -2766,6 +2877,33 @@ export function renderShell(
     }
   }
 
+  // Hover tooltip (UESC §22.6): only when nothing else already owns the
+  // surface — mutual exclusivity with palette/context-menu/menu-bar mirrors
+  // the enforcement in handleHover, checked again here defensively (e.g. a
+  // menu opened via keyboard after a stale hover, with no intervening `out`
+  // gesture to clear it).
+  const tooltip: RenderedShell["tooltip"] =
+    state.hover !== null &&
+    !state.paletteOpen &&
+    state.contextMenu === null &&
+    state.menuBar === null
+      ? {
+          surfaceId: state.hover.surfaceId,
+          lineId: state.hover.lineId,
+          lines: [
+            {
+              id: "tooltip.line",
+              spans: [
+                {
+                  text: ` ${state.hover.ref.kind} · ${state.hover.ref.source_id} · ${state.hover.label} `,
+                  emphasis: "dim" as const,
+                },
+              ],
+            },
+          ],
+        }
+      : null;
+
   return {
     geometryClass: geo,
     columns,
@@ -2781,6 +2919,7 @@ export function renderShell(
     contextMenu,
     menuBarLine,
     menuBar,
+    tooltip,
     prompt: null,
     motion: state.motion,
   };
