@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { DEFAULT_CONFIG } from "./config";
 
 /**
  * T20 real-PTY operator journeys (plan T20; REQ-UX-005/007; the REQ-UX-005
@@ -44,13 +45,45 @@ interface PtySession {
   kill(): void;
 }
 
-/** Spawn the REAL workbench entry in a REAL Bun PTY. */
-function spawnWorkbench(cols: number, rows: number): PtySession {
+/**
+ * Spawn the REAL workbench entry in a REAL Bun PTY.
+ *
+ * `env` overrides merge over two isolating defaults:
+ *   - GAUNTLET_WORKBENCH_PROJECTION_STORE=":memory:" (workbench-host.ts's
+ *     supported non-file value, already used by cold-rebuild.test.ts and
+ *     others) — without it every spawn shares and mutates the checked-in
+ *     workbench/.gauntlet/projections.db.
+ *   - GAUNTLET_WORKBENCH_ENDPOINT="http://127.0.0.1:1" (the unreachable-port
+ *     sentinel already used by secret-leakage.test.ts) — matches this
+ *     release entry's own documented posture (tui-preflight.sh: "release
+ *     entry is a cold-start host loop: no live gauntlet serve endpoint
+ *     binding", a RECORDED-UNQUALIFIED T20 limitation, not a bug to route
+ *     around). Without it, a spawn's default endpoint (127.0.0.1:4000) can
+ *     reach whatever real `gauntlet serve` process happens to be running on
+ *     the host — real generation syncs land mid-test and any "cold Case"
+ *     assertion becomes ambient-state-dependent instead of deterministic.
+ *     A test whose whole POINT is exercising a live-synced Case (e.g. the
+ *     mouse-wheel journey scrolling real units) passes an explicit
+ *     `{ GAUNTLET_WORKBENCH_ENDPOINT: DEFAULT_CONFIG.gauntlet_endpoint }`
+ *     override to opt back into the real ambient endpoint — a documented,
+ *     deliberate choice for that one test, not the default for this file.
+ */
+function spawnWorkbench(
+  cols: number,
+  rows: number,
+  env: Record<string, string | undefined> = {},
+): PtySession {
   let output = "";
   let resizeOffset = 0;
   const proc = Bun.spawn(["bun", "run", "src/main.ts"], {
     cwd: WORKBENCH_DIR,
-    env: { ...process.env, TERM: "xterm-256color" },
+    env: {
+      ...process.env,
+      TERM: "xterm-256color",
+      GAUNTLET_WORKBENCH_PROJECTION_STORE: ":memory:",
+      GAUNTLET_WORKBENCH_ENDPOINT: "http://127.0.0.1:1",
+      ...env,
+    },
     terminal: {
       cols,
       rows,
@@ -339,7 +372,13 @@ describe("T20 real-PTY operator journeys (gated: GAUNTLET_T20_REAL_PTY=1)", () =
   it.skipIf(!REAL_PTY)(
     "120x40 FULL: a real mouse wheel over the Navigator moves the selection the same way the down-arrow key does",
     async () => {
-      const session = spawnWorkbench(120, 40);
+      // Deliberately opts back into the real ambient endpoint (see
+      // spawnWorkbench's doc comment): this journey's whole point is
+      // scrolling through REAL synced units, which only exist if this
+      // spawn can actually reach a running `gauntlet serve`.
+      const session = spawnWorkbench(120, 40, {
+        GAUNTLET_WORKBENCH_ENDPOINT: DEFAULT_CONFIG.gauntlet_endpoint,
+      });
       try {
         // Wait for the generation to load so the outline has real rows
         // beneath "Case outline" to move onto.
