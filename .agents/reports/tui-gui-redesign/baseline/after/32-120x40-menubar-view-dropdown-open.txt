@@ -1,0 +1,40 @@
+Gauntlet · gauntlet/canonical surface · Case · gen gen-1 · connected
+ File┌─ View · ↑/↓ select · Enter activate · Esc close ──────────────────────────────────────────┐
+▸ NAV│◉ Work view  view.activate.work · 1                                                        │
+  · C│  Chat view  view.activate.chat · 2                                                        │
+    ?│  Trace view  view.activate.trace · 3                                                      │ocus:gauntlet:
+◉   ?│  Toggle Navigator drawer: docked (always visible) at this width  ui.navigator.toggle · n  │orkItem:AK-902
+    ?│  Toggle Inspector drawer: docked (always visible) at this width  ui.inspector.toggle · i  │orkItem
+     │  Show bottom surface  ui.bottom.toggle · b                                                │auntlet
+     └───────────────────────────────────────────────────────────────────────────────────────────┘K-902
+                                         × UNIT.RESOLVE BLOCKED: actor_authenticati
+                                         × UNIT.RETRY BLOCKED: actor_authentication STATE
+                                         1 more in command palette (state.refresh:  title        AK-902
+                                                                                    phase        contained
+                                                                                    status       open
+                                                                                    authority    unknown
+                                                                                    blast radius unknown
+                                                                                    updated      1789238943680
+
+                                                                                    RELATIONS
+                                                                                    no relations in the current projecti
+
+                                                                                    AUTHORITY
+                                                                                    actor        unknown
+                                                                                    operation    unavailable
+                                                                                    resource     AK-902
+                                                                                    decision     unavailable
+                                                                                    blast_radius unknown
+                                                                                    basis        generation gen-1 ·
+                                                                                                 source gauntlet @
+                                                                                                 cursor cursor-1wl7
+
+                                                                                    EVIDENCE
+                                                                                    ! none in the current projection
+
+                                                                                    PROVENANCE
+▸ bottom (b) · evidence · agents
+COMPOSER [message] → workbench
+>
+message text does not execute or change mode · enter submits
+keys: 1/2/3 work·chat·trace · tab surface · up/down move+scroll · enter select · h hoist · u unhoist · p palette · e com
