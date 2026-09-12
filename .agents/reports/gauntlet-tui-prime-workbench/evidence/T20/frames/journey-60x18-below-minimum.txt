@@ -1,6 +1,1 @@
-Gauntlet · gauntlet/unbound · gen gen-local-1 · Case        
-
-! Gauntlet needs at least 80x24. This terminal is 60x18.    
-Resize the window, or press q to quit.  (admitted work keep…
-
-[geometry: BelowMinimum]                                    
+Gauntlet · gauntlet/canonical surface · Case · gen 4e46b377                                                             ! Gauntlet needs at least 80x24. This terminal is 60x18.    Resize the window, or press q to quit.                      (admitted work keeps running)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           

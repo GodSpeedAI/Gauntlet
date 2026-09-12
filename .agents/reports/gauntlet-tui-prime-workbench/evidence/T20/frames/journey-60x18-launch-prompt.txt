@@ -1,6 +1,1 @@
-Gauntlet · gauntlet/unbound · gen gen-local-1 · Case        
-
-! Gauntlet needs at least 80x24. This terminal is 60x18.    
-Resize the window, or press q to quit.  (admitted work keep…
-
-[geometry: BelowMinimum]                                    
+]10;?]11;?P+q4d73\]99;i=opentui-notifications:p=?;\]1337;Capabilities\_Gi=31337,s=1,v=1,a=q,t=d,f=24;AAAA\]66;w=1; \]66;s=2; \Gauntlet · gauntlet/canonical surface · Case · gen 169002f8                                                             ! Gauntlet needs at least 80x24. This terminal is 60x18.    Resize the window, or press q to quit.                      (admitted work keeps running)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
