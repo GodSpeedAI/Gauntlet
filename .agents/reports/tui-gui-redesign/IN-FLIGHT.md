@@ -1,8 +1,15 @@
 # IN-FLIGHT — TUI GUI-grade redesign (operator-directed, post-plan)
 
-Updated: 2026-09-12 (chrome remainder, item 5/final: hover tooltips — the full chrome-remainder backlog is now CLOSED; only the final regression sweep remains).
+Updated: 2026-09-12 (final regression sweep — the entire follow-on backlog from the queue-close push is now CLOSED).
 
-## LATEST: hover tooltips (UESC §22.6) + a swallowed-click fix
+## LATEST: final regression sweep (captures refresh + full gate re-verification)
+- Gated real-PTY operator-journey suite (`GAUNTLET_T20_REAL_PTY=1`): 5/5 pass, unaffected by the five chrome-remainder increments.
+- `operator-journeys.test.ts` + `cross-surface-equivalence.test.ts` + `transport-equivalence.test.ts`: 32/32 pass.
+- Full default suite: 981/24/0. tsc clean. `scripts/tui-preflight.sh bootstrap`: PASS.
+- Captures refresh: launched the real workbench against a live `gauntlet serve` backend (tmux, the established `baseline/after` convention) and drove all five chrome-remainder increments through raw SGR mouse sequences, confirming each one live end-to-end (not just under test) — breadcrumb-click hoisting (28-29), right-click context menu (30), column-splitter drag-resize (31), MenuBar dropdown (32), hover tooltip (33). Committed at `8477b8a`.
+- **This closes the entire non-blocking follow-on backlog recorded at the original queue-close push.** RealityTrace residuals (TraceStream unseen-count integration, visible "unbound" source status, automatic polling) remain explicitly out of scope by original design (ICM §16.11), not part of this queue.
+
+## Prior: hover tooltips (UESC §22.6) + a swallowed-click fix
 - New `PointerGesture` kind `"hover"`, fed from OpenTUI's own real `over`/`out` MouseEvents (confirmed by reading `CliRenderer`'s event routing, not assumed) — distinct from the drag-tracking `move`/`drag` the pane-resize increment already consumes, guarded off entirely whenever any button interaction or resize is in flight so hover can never race click/drag/resize.
 - Content is strictly supplementary — the same focus identity info the context menu's `focusRefForLine`/`resolveFocusLabel` already surface, nothing new (UESC's own "never hide required information exclusively in a tooltip" constraint).
 - **Delay honestly simplified**: immediate-on-hover, not the spec's literal ARMED-after-delay. Investigation found `main.ts`'s render loop is purely gesture/key/resize-driven with no general timer-redraw path (the only existing timer is the ~2s host poll, unrelated and far too coarse) — building new timer infrastructure for a feature UESC itself calls "never required" would be disproportionate. Documented plainly rather than faked.
@@ -154,7 +161,7 @@ Five agents partitioned BY FILE OWNERSHIP (theme/config/main; gateway+stub+affor
 4. ~~Mouse PTY qualification battery~~ — DONE (e2f8bfe). Real click/wheel coverage now passes through the actual byte-level path. Three residuals it surfaced: (a) ~~command palette not clickable via real mouse~~ — FIXED (85e49f7, see above); (b) ~~Composer `▸ ` focus-ring marker missing when Tab-focused~~ — FIXED (5506759, see LATEST above); (c) two now-fixed stale assertions in this same suite are evidence the gated suite drifts silently because it's off by default — consider running it periodically, not only when directly relevant.
 5. ~~lastFrame() resize-boundary blindness~~ — FIXED (b3603cd). Confirmed via `@opentui/core` source that resize never emits a fresh clear/forced repaint; `lastFrame()` now also anchors to the byte offset of the last `resize()` call.
 6. ~~Real-PTY Case-state hermeticity gap~~ — FIXED (2ab8f3c). Root cause was a real, reachable `gauntlet serve` process on the default endpoint, not projections.db (that theory was tested and disproven). `spawnWorkbench` now defaults to an unreachable endpoint sentinel for deterministic "cold Case" tests; the one test that needs real synced data opts back in explicitly. Gated suite: 5/5 real pass.
-7. Final regression: operator-journey sweeps + equivalence matrix + captures refresh.
+7. ~~Final regression: operator-journey sweeps + equivalence matrix + captures refresh~~ — DONE (see LATEST above, `8477b8a`). **The entire follow-on backlog is now closed.**
 
 ## Standing notes
 
