@@ -23,6 +23,26 @@ export const FULL_MIN_COLS = 120;
 export const FULL_MIN_ROWS = 40;
 export const WIDE_MIN_COLS = 140;
 
+/**
+ * Session-only column width preference (ICM §36.1 presentation drag: "resize
+ * pane"; UESC §22.11 SplitPane — "Pane size is user/workbench preference,
+ * never Case truth"). Widths are raw drag positions; calculateColumns clamps
+ * them to sane bounds, so callers never need to pre-validate.
+ */
+export interface ColumnWidthOverride {
+  readonly navigatorWidth: number;
+  readonly inspectorWidth: number;
+}
+
+/** Minimums so a dragged-to-zero column can never break layout invariants —
+ * mirrors the existing per-geometry primary-width floor below. */
+export const MIN_NAVIGATOR_WIDTH = 20;
+export const MIN_INSPECTOR_WIDTH = 24;
+
+function clampColumnWidth(width: number, min: number, max: number): number {
+  return Math.min(Math.max(min, max), Math.max(min, Math.round(width)));
+}
+
 /** Vertical fit band; the boundary (40 rows) is DESIGN "Height constraints". */
 export type HeightBand = "tall" | "short";
 
@@ -74,33 +94,25 @@ export function collapseOrder(band: HeightBand): readonly string[] {
  * Computes column allocation across the surfaces.
  * Full/Wide allocate Navigator, Primary, and Inspector simultaneously.
  * Compact yields a single primary pane with switchable tabs.
+ *
+ * `override` is the session-only drag preference (ColumnWidthOverride,
+ * ICM §36.1 / UESC §22.11): when present at Full/Wide it replaces the
+ * default navigator/inspector widths, clamped so Primary can never be
+ * squeezed below its existing per-geometry floor (the same floor a plain,
+ * un-overridden layout already enforces). Compact/BelowMinimum never carry
+ * columns to override, so the override is ignored there exactly as before.
  */
-export function calculateColumns(dims: Dimensions): ColumnLayout {
+export function calculateColumns(
+  dims: Dimensions,
+  override?: ColumnWidthOverride | null,
+): ColumnLayout {
   const geo = classifyGeometry(dims);
 
   switch (geo) {
-    case "Wide": {
-      const nav = 32;
-      const inspector = 44;
-      const primary = Math.max(40, dims.cols - nav - inspector);
-      return {
-        navigatorWidth: nav,
-        primaryWidth: primary,
-        inspectorWidth: inspector,
-        isMultiColumn: true,
-      };
-    }
-    case "Full": {
-      const nav = 28;
-      const inspector = 36;
-      const primary = Math.max(36, dims.cols - nav - inspector);
-      return {
-        navigatorWidth: nav,
-        primaryWidth: primary,
-        inspectorWidth: inspector,
-        isMultiColumn: true,
-      };
-    }
+    case "Wide":
+      return columnsForGeometry(dims, 32, 44, 40, override);
+    case "Full":
+      return columnsForGeometry(dims, 28, 36, 36, override);
     case "Compact":
     case "BelowMinimum":
       return {
@@ -110,6 +122,39 @@ export function calculateColumns(dims: Dimensions): ColumnLayout {
         isMultiColumn: false,
       };
   }
+}
+
+/**
+ * Shared Full/Wide column math. Clamping is sequential — navigator first
+ * (bounded so Inspector's minimum and Primary's floor still fit), then
+ * inspector against the ALREADY-clamped navigator — which guarantees
+ * navigatorWidth + inspectorWidth + minPrimary never exceeds dims.cols,
+ * however far either override drags past a sane value.
+ */
+function columnsForGeometry(
+  dims: Dimensions,
+  defaultNavigatorWidth: number,
+  defaultInspectorWidth: number,
+  minPrimaryWidth: number,
+  override: ColumnWidthOverride | null | undefined,
+): ColumnLayout {
+  const navigatorMax = Math.max(
+    MIN_NAVIGATOR_WIDTH,
+    dims.cols - MIN_INSPECTOR_WIDTH - minPrimaryWidth,
+  );
+  const navigatorWidth = clampColumnWidth(
+    override?.navigatorWidth ?? defaultNavigatorWidth,
+    MIN_NAVIGATOR_WIDTH,
+    navigatorMax,
+  );
+  const inspectorMax = Math.max(MIN_INSPECTOR_WIDTH, dims.cols - navigatorWidth - minPrimaryWidth);
+  const inspectorWidth = clampColumnWidth(
+    override?.inspectorWidth ?? defaultInspectorWidth,
+    MIN_INSPECTOR_WIDTH,
+    inspectorMax,
+  );
+  const primaryWidth = Math.max(minPrimaryWidth, dims.cols - navigatorWidth - inspectorWidth);
+  return { navigatorWidth, primaryWidth, inspectorWidth, isMultiColumn: true };
 }
 
 /**

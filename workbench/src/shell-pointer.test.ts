@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import type { AffordanceObservation } from "./affordance";
 import { FocusRef } from "./focus";
+import { calculateColumns, MIN_INSPECTOR_WIDTH, MIN_NAVIGATOR_WIDTH } from "./geometry";
 import {
   contextMenuEntries,
   createShellState,
@@ -464,5 +465,212 @@ describe("context menu (ICM §6.4: right-click opens contextual Affordances)", (
     });
     expect(clickedAway.state.contextMenu).toBeNull();
     expect(clickedAway.effects).toEqual([]);
+  });
+});
+
+/**
+ * Column-splitter drag-to-resize (ICM §36.1 presentation drag — "resize
+ * pane" is the canonical PRESENTATION_LOCAL example, no admission semantics,
+ * §36.2 does not apply; UESC §22.11 SplitPane: STABLE → drag splitter →
+ * RESIZING → release → STABLE, "pane size is user/workbench preference,
+ * never Case truth"). handlePointer never mutates Case/domain state here and
+ * never produces a ShellEffect — every case below asserts `effects` is empty.
+ */
+describe("column-splitter drag-to-resize (ICM §36.1, UESC §22.11 SplitPane)", () => {
+  it("drag-start on the Navigator|Primary boundary begins RESIZING with the current widths captured", () => {
+    const base = stateAt(); // Full: default navigatorWidth 28, inspectorWidth 36
+    const started = handlePointer(base, snapshot(), {
+      kind: "column_resize_start",
+      boundary: "navigator",
+      x: 28,
+    });
+    expect(started.effects).toEqual([]);
+    expect(started.state.columnResize).toEqual({
+      boundary: "navigator",
+      startX: 28,
+      startNavigatorWidth: 28,
+      startInspectorWidth: 36,
+    });
+    // STABLE→RESIZING must not touch the committed preference itself.
+    expect(started.state.columnWidthOverride).toBeNull();
+  });
+
+  it("drag-start on the Primary|Inspector boundary captures both current widths the same way", () => {
+    const started = handlePointer(stateAt(), snapshot(), {
+      kind: "column_resize_start",
+      boundary: "inspector",
+      x: 84, // 120 - 36 (default inspectorWidth)
+    });
+    expect(started.state.columnResize).toEqual({
+      boundary: "inspector",
+      startX: 84,
+      startNavigatorWidth: 28,
+      startInspectorWidth: 36,
+    });
+  });
+
+  it("drag-move widens the navigator by the pointer delta while RESIZING", () => {
+    const started = handlePointer(stateAt(), snapshot(), {
+      kind: "column_resize_start",
+      boundary: "navigator",
+      x: 28,
+    });
+    const moved = handlePointer(started.state, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "navigator",
+      x: 40, // +12
+    });
+    expect(moved.effects).toEqual([]);
+    expect(moved.state.columnResize).not.toBeNull(); // still RESIZING
+    expect(moved.state.columnWidthOverride).toEqual({ navigatorWidth: 40, inspectorWidth: 36 });
+  });
+
+  it("drag-move shrinks the inspector as the pointer moves right (its right edge is pinned to the terminal edge)", () => {
+    const started = handlePointer(stateAt(), snapshot(), {
+      kind: "column_resize_start",
+      boundary: "inspector",
+      x: 84,
+    });
+    const moved = handlePointer(started.state, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "inspector",
+      x: 94, // +10 right => inspector 10 narrower
+    });
+    expect(moved.state.columnWidthOverride).toEqual({ navigatorWidth: 28, inspectorWidth: 26 });
+  });
+
+  it("drag-move bounds the pending width at the minimum instead of collapsing the column", () => {
+    const started = handlePointer(stateAt(), snapshot(), {
+      kind: "column_resize_start",
+      boundary: "navigator",
+      x: 28,
+    });
+    const moved = handlePointer(started.state, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "navigator",
+      x: -1000, // way past zero
+    });
+    expect(moved.state.columnWidthOverride?.navigatorWidth).toBe(MIN_NAVIGATOR_WIDTH);
+    // Layout invariant: calculateColumns never lets Primary go negative or
+    // below its floor even at this extreme.
+    const columns = calculateColumns(moved.state.dimensions, moved.state.columnWidthOverride);
+    expect(columns.primaryWidth).toBeGreaterThanOrEqual(36);
+  });
+
+  it("dragging past either extreme clamps rather than breaking the layout invariant (nav+primary+inspector == terminal width)", () => {
+    const started = handlePointer(stateAt(), snapshot(), {
+      kind: "column_resize_start",
+      boundary: "inspector",
+      x: 84,
+    });
+    // Dragging the Primary|Inspector seam far to the RIGHT moves the
+    // Inspector's (right-edge-pinned) left edge toward the terminal's own
+    // right edge, i.e. narrows it toward its floor.
+    const moved = handlePointer(started.state, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "inspector",
+      x: 10_000,
+    });
+    const columns = calculateColumns(moved.state.dimensions, moved.state.columnWidthOverride);
+    expect(columns.inspectorWidth).toBe(MIN_INSPECTOR_WIDTH);
+    expect(columns.navigatorWidth + columns.primaryWidth + columns.inspectorWidth).toBe(
+      moved.state.dimensions.cols,
+    );
+  });
+
+  it("dragging the Primary|Inspector seam far LEFT widens the inspector, clamped to what Primary's floor still allows", () => {
+    const started = handlePointer(stateAt(), snapshot(), {
+      kind: "column_resize_start",
+      boundary: "inspector",
+      x: 84,
+    });
+    const moved = handlePointer(started.state, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "inspector",
+      x: -1000,
+    });
+    const columns = calculateColumns(moved.state.dimensions, moved.state.columnWidthOverride);
+    expect(columns.primaryWidth).toBeGreaterThanOrEqual(36);
+    expect(columns.navigatorWidth + columns.primaryWidth + columns.inspectorWidth).toBe(
+      moved.state.dimensions.cols,
+    );
+  });
+
+  it("drag-release commits the last pending width and returns columnResize to STABLE (null)", () => {
+    const started = handlePointer(stateAt(), snapshot(), {
+      kind: "column_resize_start",
+      boundary: "navigator",
+      x: 28,
+    });
+    const moved = handlePointer(started.state, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "navigator",
+      x: 32,
+    });
+    const released = handlePointer(moved.state, snapshot(), {
+      kind: "column_resize_end",
+      boundary: "navigator",
+      x: 32,
+    });
+    expect(released.effects).toEqual([]);
+    expect(released.state.columnResize).toBeNull(); // back to STABLE
+    // The committed preference survives release unchanged (release commits,
+    // it does not discard, what the last move already computed).
+    expect(released.state.columnWidthOverride).toEqual({ navigatorWidth: 32, inspectorWidth: 36 });
+  });
+
+  it("a plain click near the boundary — no column_resize_* gesture at all — never touches resize state", () => {
+    // The click-vs-drag threshold lives in terminal-renderer.ts (mirrors the
+    // existing Math.abs(...) > 1 pattern for left-button click detection):
+    // a click that never crosses it never becomes a column_resize_* gesture
+    // in the first place. At the pure handlePointer level that means a click
+    // gesture must be a complete no-op for columnResize/columnWidthOverride,
+    // whatever surface/line it lands on.
+    const base = stateAt();
+    const clicked = handlePointer(base, snapshot(), {
+      kind: "click",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+      x: 27, // one cell short of the navigator|primary seam
+    });
+    expect(clicked.state.columnResize).toBeNull();
+    expect(clicked.state.columnWidthOverride).toBeNull();
+  });
+
+  it("a column_resize_move with no matching column_resize_start is inert (boundary mismatch or never started)", () => {
+    const base = stateAt();
+    const stray = handlePointer(base, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "navigator",
+      x: 50,
+    });
+    expect(stray.state).toBe(base);
+    expect(stray.effects).toEqual([]);
+
+    const started = handlePointer(base, snapshot(), {
+      kind: "column_resize_start",
+      boundary: "navigator",
+      x: 28,
+    });
+    const mismatched = handlePointer(started.state, snapshot(), {
+      kind: "column_resize_move",
+      boundary: "inspector",
+      x: 50,
+    });
+    expect(mismatched.state).toBe(started.state); // ignored: wrong boundary
+  });
+
+  it("Compact geometry has no columns to resize — drag-start is a no-op", () => {
+    const compactState: ShellState = {
+      ...stateAt(),
+      dimensions: { cols: 80, rows: 24 },
+    };
+    const started = handlePointer(compactState, snapshot(), {
+      kind: "column_resize_start",
+      boundary: "navigator",
+      x: 10,
+    });
+    expect(started.state).toBe(compactState);
+    expect(started.state.columnResize).toBeNull();
   });
 });

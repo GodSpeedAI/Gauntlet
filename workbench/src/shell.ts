@@ -57,7 +57,7 @@ import {
   createComposerState,
 } from "./composer";
 import type { FocusPlacement, FocusRef } from "./focus";
-import type { ColumnLayout, Dimensions, GeometryClass } from "./geometry";
+import type { ColumnLayout, ColumnWidthOverride, Dimensions, GeometryClass } from "./geometry";
 import {
   calculateColumns,
   classifyGeometry,
@@ -554,7 +554,26 @@ export type PointerGesture =
       readonly lineId: string | null;
       readonly x: number;
       readonly y: number;
-    };
+    }
+  | {
+      /** ICM §36.1 presentation drag ("resize pane" is the canonical
+       * example; PRESENTATION_LOCAL, no admission semantics) / UESC §22.11
+       * SplitPane (STABLE → drag splitter → RESIZING → release → STABLE).
+       * `x` is the absolute screen column of the pointer; the renderer
+       * resolves which seam was grabbed from its own hit map so this
+       * gesture never needs to know column widths. One variant per phase
+       * (rather than a shared `kind` union) so `gesture.kind === "..."`
+       * narrows exactly like every other PointerGesture check in this file. */
+      readonly kind: "column_resize_start";
+      readonly boundary: ColumnBoundary;
+      readonly x: number;
+    }
+  | { readonly kind: "column_resize_move"; readonly boundary: ColumnBoundary; readonly x: number }
+  | { readonly kind: "column_resize_end"; readonly boundary: ColumnBoundary; readonly x: number };
+
+/** Which column seam a resize drag targets: the Navigator|Primary boundary,
+ * or the Primary|Inspector one (ICM §36.1, UESC §22.11 SplitPane). */
+export type ColumnBoundary = "navigator" | "inspector";
 
 /** Wheel scroll step per notch for tall regions (Primary). */
 const PRIMARY_WHEEL_LINES = 3;
@@ -598,6 +617,82 @@ function focusRefForLine(
 }
 
 /**
+ * Column-splitter drag (ICM §36.1 presentation drag: "resize pane" is the
+ * canonical example, class PRESENTATION_LOCAL — no admission semantics, no
+ * §36.2 confirm gate; UESC §22.11 SplitPane: STABLE → drag splitter →
+ * RESIZING → release → STABLE, "pane size is user/workbench preference,
+ * never Case truth"). This never mutates Case/domain state and never
+ * produces a ShellEffect — the width lives only in ShellState for the
+ * session, exactly like `state.scroll`.
+ *
+ * The renderer emits `_move` continuously while the button stays down (the
+ * render loop redraws after every gesture — see main.ts's onGesture — so
+ * ordinary re-renders already give live visual tracking; no separate
+ * animation path was needed), and `_start`/`_end` bracket the RESIZING
+ * window. A `_move` that arrives without a matching `_start` (boundary
+ * mismatch, or the renderer's own down/move never crossed the click-vs-drag
+ * threshold) is inert — mirrors the `Math.abs(...) > 1` disambiguation the
+ * renderer already applies for left-button click vs. drag.
+ */
+function handleColumnResize(
+  state: ShellState,
+  gesture: Extract<
+    PointerGesture,
+    { kind: "column_resize_start" | "column_resize_move" | "column_resize_end" }
+  >,
+): { state: ShellState; effects: readonly ShellEffect[] } {
+  if (gesture.kind === "column_resize_start") {
+    const current = calculateColumns(state.dimensions, state.columnWidthOverride);
+    if (!current.isMultiColumn) return { state, effects: [] };
+    return {
+      state: Object.freeze({
+        ...state,
+        columnResize: Object.freeze({
+          boundary: gesture.boundary,
+          startX: gesture.x,
+          startNavigatorWidth: current.navigatorWidth,
+          startInspectorWidth: current.inspectorWidth,
+        }),
+      }),
+      effects: [],
+    };
+  }
+  const resize = state.columnResize;
+  if (resize === null || resize.boundary !== gesture.boundary) {
+    return { state, effects: [] };
+  }
+  if (gesture.kind === "column_resize_end") {
+    return { state: Object.freeze({ ...state, columnResize: null }), effects: [] };
+  }
+  // column_resize_move: recompute via calculateColumns so the same clamp
+  // (minimums, and the sequential-clamp overflow guard) governs the live
+  // drag and the committed value — there is no second clamp to drift.
+  const delta = gesture.x - resize.startX;
+  const rawNavigatorWidth =
+    gesture.boundary === "navigator"
+      ? resize.startNavigatorWidth + delta
+      : resize.startNavigatorWidth;
+  const rawInspectorWidth =
+    gesture.boundary === "inspector"
+      ? resize.startInspectorWidth - delta
+      : resize.startInspectorWidth;
+  const clamped = calculateColumns(state.dimensions, {
+    navigatorWidth: rawNavigatorWidth,
+    inspectorWidth: rawInspectorWidth,
+  });
+  return {
+    state: Object.freeze({
+      ...state,
+      columnWidthOverride: Object.freeze({
+        navigatorWidth: clamped.navigatorWidth,
+        inspectorWidth: clamped.inspectorWidth,
+      }),
+    }),
+    effects: [],
+  };
+}
+
+/**
  * The pointer twin of handleKey: gestures resolve to the SAME semantic
  * commands and effects the keyboard path produces (ICM §24/§35). There is no
  * second behavior pipeline — consequential effects are the same ShellEffects
@@ -612,6 +707,14 @@ export function handlePointer(
   // Below the minimum the recoverable prompt owns ALL input (DSN-007).
   if (classifyGeometry(state.dimensions) === "BelowMinimum") {
     return { state, effects: [] };
+  }
+
+  if (
+    gesture.kind === "column_resize_start" ||
+    gesture.kind === "column_resize_move" ||
+    gesture.kind === "column_resize_end"
+  ) {
+    return handleColumnResize(state, gesture);
   }
 
   if (gesture.kind === "right_click") {
@@ -902,6 +1005,27 @@ export interface ShellState {
     readonly anchorY: number;
   } | null;
   readonly navigatorIndex: number;
+  /**
+   * Column-splitter RESIZING state (UESC §22.11 SplitPane: STABLE → drag
+   * splitter → RESIZING → release → STABLE); null in STABLE. `startX` is the
+   * screen column the drag began at; the start widths let every subsequent
+   * `column_resize_move` recompute the pending width from the ORIGINAL
+   * position rather than accumulating per-event rounding drift.
+   */
+  readonly columnResize: {
+    readonly boundary: ColumnBoundary;
+    readonly startX: number;
+    readonly startNavigatorWidth: number;
+    readonly startInspectorWidth: number;
+  } | null;
+  /**
+   * Committed column-width preference from a completed (or in-progress)
+   * splitter drag (ICM §36.1, UESC §22.11: "pane size is user/workbench
+   * preference, never Case truth") — session-only, never written to any host
+   * config, never a ShellEffect. null = no override; calculateColumns falls
+   * back to its normal per-geometry defaults.
+   */
+  readonly columnWidthOverride: ColumnWidthOverride | null;
   /** Per-view scroll offsets; preserved across view switches (REQ-UX-005). */
   readonly scroll: Readonly<Partial<Record<ViewId, number>>>;
   readonly dimensions: Dimensions;
@@ -939,6 +1063,8 @@ export function createShellState(host: ShellHostConfig, dims: Dimensions): Shell
     pendingConfirm: null,
     contextMenu: null,
     navigatorIndex: 0,
+    columnResize: null,
+    columnWidthOverride: null,
     scroll: Object.freeze({}),
     dimensions: dims,
     motion: host.motion ?? "full",
@@ -1856,7 +1982,7 @@ export function renderShell(
   options: ShellRenderOptions,
 ): RenderedShell {
   const geo = classifyGeometry(state.dimensions);
-  const columns = calculateColumns(state.dimensions);
+  const columns = calculateColumns(state.dimensions, state.columnWidthOverride);
   const breadcrumb = [...snapshot.horizon_breadcrumb];
 
   // Clip-priority order (GUI redesign, DESIGN Responsive/Compact: identity,

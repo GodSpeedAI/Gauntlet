@@ -10,7 +10,7 @@ import {
 } from "@opentui/core";
 import { cellWidth, fitCellText, sanitizeCellText } from "./geometry";
 import type { RenderedLine, RenderedSpan } from "./render-tree";
-import type { PointerGesture, RenderedShell } from "./shell";
+import type { ColumnBoundary, PointerGesture, RenderedShell } from "./shell";
 import { resolveToken } from "./theme";
 
 /** Native parsing owns escape timeouts, modifiers and Unicode decoding. */
@@ -463,6 +463,12 @@ export class TerminalShellRenderer {
   private pendingDown: { x: number; y: number; button: number; time: number } | null = null;
   private pendingRightDown: { x: number; y: number } | null = null;
   private lastClick: { x: number; y: number; time: number } | null = null;
+  /** Armed on a left-button down over a column-seam hit-zone (ICM §36.1);
+   * promoted to `activeResize` once movement crosses the same >1-cell
+   * threshold click-vs-drag already uses elsewhere in this handler. */
+  private pendingResize: { boundary: ColumnBoundary; startX: number } | null = null;
+  /** Non-null for the lifetime of one RESIZING drag (UESC §22.11). */
+  private activeResize: ColumnBoundary | null = null;
 
   constructor(
     private readonly renderer: CliRenderer,
@@ -515,33 +521,102 @@ export class TerminalShellRenderer {
       });
       return;
     }
-    if (event.button !== 0) return; // left button only
+    // Left button: ordinary click/double-click, AND column-splitter drag
+    // (ICM §36.1 presentation drag, UESC §22.11 SplitPane). Both share the
+    // same down/up debounce pair — a resize is just a click whose pointer
+    // crossed the click-vs-drag threshold over a column seam, so the two
+    // can never both fire for the same gesture.
     if (event.type === "down") {
+      if (event.button !== 0) return;
       this.pendingDown = { x: event.x, y: event.y, button: event.button, time: Date.now() };
+      const boundary = this.boundaryAt(event.x, event.y);
+      this.pendingResize = boundary !== null ? { boundary, startX: event.x } : null;
       return;
     }
-    if (event.type !== "up") return;
-    const down = this.pendingDown;
-    this.pendingDown = null;
-    if (down === null || Math.abs(down.x - event.x) > 1 || Math.abs(down.y - event.y) > 1) {
+    if (event.type === "move" || event.type === "drag") {
+      if (this.activeResize !== null) {
+        this.onGesture({ kind: "column_resize_move", boundary: this.activeResize, x: event.x });
+        return;
+      }
+      if (this.pendingResize !== null && Math.abs(event.x - this.pendingResize.startX) > 1) {
+        const boundary = this.pendingResize.boundary;
+        this.activeResize = boundary;
+        this.pendingResize = null;
+        // `_start` anchors on the ORIGINAL mousedown column (not the column
+        // where the threshold happened to be crossed) so the delta the
+        // shell computes on every following `_move` is relative to where
+        // the operator actually grabbed the splitter.
+        this.onGesture({
+          kind: "column_resize_start",
+          boundary,
+          x: this.pendingDown?.x ?? event.x,
+        });
+        this.onGesture({ kind: "column_resize_move", boundary, x: event.x });
+      }
       return;
     }
-    const hit = this.resolveAt(event.x, event.y);
-    if (hit === null) return;
-    const now = Date.now();
-    const isDouble =
-      this.lastClick !== null &&
-      now - this.lastClick.time <= DOUBLE_CLICK_MS &&
-      Math.abs(this.lastClick.x - event.x) <= 2 &&
-      Math.abs(this.lastClick.y - event.y) <= 2;
-    this.lastClick = { x: event.x, y: event.y, time: now };
-    this.onGesture({
-      kind: isDouble ? "double_click" : "click",
-      surfaceId: hit.surfaceId,
-      lineId: hit.lineId,
-      x: event.x - hit.regionX,
-    });
+    if (event.type === "up" || event.type === "drag-end") {
+      if (this.activeResize !== null) {
+        const boundary = this.activeResize;
+        this.activeResize = null;
+        this.pendingResize = null;
+        this.pendingDown = null;
+        this.onGesture({ kind: "column_resize_end", boundary, x: event.x });
+        return;
+      }
+      this.pendingResize = null;
+      if (event.type === "drag-end") return; // no active resize: nothing to commit or click
+      if (event.button !== 0) return;
+      const down = this.pendingDown;
+      this.pendingDown = null;
+      if (down === null || Math.abs(down.x - event.x) > 1 || Math.abs(down.y - event.y) > 1) {
+        return;
+      }
+      const hit = this.resolveAt(event.x, event.y);
+      if (hit === null) return;
+      const now = Date.now();
+      const isDouble =
+        this.lastClick !== null &&
+        now - this.lastClick.time <= DOUBLE_CLICK_MS &&
+        Math.abs(this.lastClick.x - event.x) <= 2 &&
+        Math.abs(this.lastClick.y - event.y) <= 2;
+      this.lastClick = { x: event.x, y: event.y, time: now };
+      this.onGesture({
+        kind: isDouble ? "double_click" : "click",
+        surfaceId: hit.surfaceId,
+        lineId: hit.lineId,
+        x: event.x - hit.regionX,
+      });
+    }
+    // Other event types (over/out/drop) carry no gesture here.
   };
+
+  /**
+   * Is (x, y) within one cell of a Navigator|Primary or Primary|Inspector
+   * seam? The seam itself is a 1-cell gutter with no covering renderable
+   * (planFrame spends it "from inside the existing allocation" as
+   * negative-space between columns), so the practical grab zone is that
+   * gutter plus the one rendered cell on either side of it — exactly the
+   * `Math.abs(...) <= 1` tolerance used below. Returns null outside Full/Wide
+   * (Compact renders no Navigator/Inspector regions to seam against).
+   */
+  private boundaryAt(x: number, y: number): ColumnBoundary | null {
+    const regions = this.lastHitMap.regions;
+    const navigator = regions.find((region) => region.surfaceId === "Navigator");
+    const primary = regions.find((region) => region.surfaceId === "Primary");
+    const inspector = regions.find((region) => region.surfaceId === "Inspector");
+    if (navigator !== undefined && primary !== undefined) {
+      const bottom = Math.min(navigator.y + navigator.height, primary.y + primary.height);
+      const seam = navigator.x + navigator.width;
+      if (y >= navigator.y && y < bottom && Math.abs(x - seam) <= 1) return "navigator";
+    }
+    if (primary !== undefined && inspector !== undefined) {
+      const bottom = Math.min(primary.y + primary.height, inspector.y + inspector.height);
+      const seam = primary.x + primary.width;
+      if (y >= primary.y && y < bottom && Math.abs(x - seam) <= 1) return "inspector";
+    }
+    return null;
+  }
 
   /**
    * Resolve terminal coordinates against the last hit map. Regions are

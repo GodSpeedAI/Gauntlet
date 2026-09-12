@@ -130,7 +130,9 @@ test("click on an open palette row (overlapping Navigator's cells) resolves to t
     const mouse = createMockMouse(terminal.renderer);
     await mouse.click(clickX, clickY);
 
-    const clicks = gestures.filter((g) => g.kind === "click");
+    const clicks = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> => g.kind === "click",
+    );
     expect(clicks.length).toBeGreaterThanOrEqual(1);
     expect(clicks.at(-1)?.surfaceId).toBe("Overlay");
   } finally {
@@ -198,6 +200,97 @@ test("right-click on a Navigator row emits a right_click gesture with the row's 
     // A left click at the exact same cell must NOT also have produced a
     // right_click — the button debounce state must not cross-contaminate.
     expect(gestures.some((g) => g.kind === "click")).toBe(false);
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
+/**
+ * Column-splitter drag-to-resize (ICM §36.1 presentation drag; UESC §22.11
+ * SplitPane). The grab zone is the existing 1-cell inter-column gutter
+ * planFrame already reserves as negative space PLUS the one rendered column
+ * on either side of it (the gutter itself carries no renderable, so a raw
+ * mouse event landing exactly there never reaches rowMouseEvent at all — the
+ * two adjacent covered cells are the real hit-zone, confirmed against the
+ * actual hit map below rather than assumed).
+ */
+test("dragging the Navigator|Primary seam emits column_resize_start, one or more _move, then _end", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+    const navigatorHit = view.hitMap().regions.find((region) => region.surfaceId === "Navigator");
+    expect(navigatorHit).toBeDefined();
+    // The rightmost RENDERED column of Navigator — one cell short of the
+    // true seam, but a real renderable, so the native down event actually
+    // dispatches (see the file-level comment above).
+    const grabX = (navigatorHit?.x ?? 0) + (navigatorHit?.width ?? 0) - 1;
+    const grabY = navigatorHit?.y ?? 0;
+
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.drag(grabX, grabY, grabX + 20, grabY);
+
+    const starts = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "column_resize_start" }> =>
+        g.kind === "column_resize_start",
+    );
+    const moves = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "column_resize_move" }> =>
+        g.kind === "column_resize_move",
+    );
+    const ends = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "column_resize_end" }> =>
+        g.kind === "column_resize_end",
+    );
+    expect(starts.length).toBe(1);
+    expect(starts[0]?.boundary).toBe("navigator");
+    expect(moves.length).toBeGreaterThanOrEqual(1);
+    expect(moves.every((m) => m.boundary === "navigator")).toBe(true);
+    expect(ends.length).toBe(1);
+    expect(ends[0]?.boundary).toBe("navigator");
+    // A drag that crossed the threshold must never also register as a click
+    // — the two gesture families are mutually exclusive for one down/up pair.
+    expect(gestures.some((g) => g.kind === "click" || g.kind === "double_click")).toBe(false);
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
+test("a plain click at the Navigator|Primary seam (no drag past the threshold) never emits a resize gesture", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+    const navigatorHit = view.hitMap().regions.find((region) => region.surfaceId === "Navigator");
+    const grabX = (navigatorHit?.x ?? 0) + (navigatorHit?.width ?? 0) - 1;
+    const grabY = navigatorHit?.y ?? 0;
+
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.click(grabX, grabY);
+
+    expect(
+      gestures.some(
+        (g) =>
+          g.kind === "column_resize_start" ||
+          g.kind === "column_resize_move" ||
+          g.kind === "column_resize_end",
+      ),
+    ).toBe(false);
+    expect(gestures.some((g) => g.kind === "click")).toBe(true);
   } finally {
     view.destroy();
     terminal.renderer.destroy();

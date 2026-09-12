@@ -143,3 +143,57 @@ describe("increment 7: DSN-007 / REQ-UX-005 floors are unchanged", () => {
     expect(prompt).toContain("press q to quit");
   });
 });
+
+describe("column-splitter drag-to-resize (ICM §36.1, UESC §22.11 SplitPane)", () => {
+  it("an override within range replaces only the width(s) it names", () => {
+    const dims = { cols: 120, rows: 40 }; // Full: default nav 28, inspector 36
+    const columns = calculateColumns(dims, { navigatorWidth: 34, inspectorWidth: 36 });
+    expect(columns.navigatorWidth).toBe(34);
+    expect(columns.inspectorWidth).toBe(36);
+    expect(columns.primaryWidth).toBe(50); // 120 - 34 - 36
+  });
+
+  it("clamps a dragged-to-zero navigator to its floor rather than collapsing Primary", () => {
+    const dims = { cols: 120, rows: 40 };
+    const columns = calculateColumns(dims, { navigatorWidth: 0, inspectorWidth: 36 });
+    expect(columns.navigatorWidth).toBe(20); // MIN_NAVIGATOR_WIDTH
+    expect(columns.primaryWidth).toBeGreaterThanOrEqual(36);
+  });
+
+  it("clamps a dragged-to-zero inspector to its floor rather than collapsing Primary", () => {
+    const dims = { cols: 120, rows: 40 };
+    const columns = calculateColumns(dims, { navigatorWidth: 28, inspectorWidth: 0 });
+    expect(columns.inspectorWidth).toBe(24); // MIN_INSPECTOR_WIDTH
+    expect(columns.primaryWidth).toBeGreaterThanOrEqual(36);
+  });
+
+  it("clamps an absurdly wide navigator so Primary and Inspector never go negative or below their floors", () => {
+    const dims = { cols: 120, rows: 40 };
+    const columns = calculateColumns(dims, { navigatorWidth: 10_000, inspectorWidth: 36 });
+    expect(columns.primaryWidth).toBeGreaterThanOrEqual(36);
+    expect(columns.inspectorWidth).toBeGreaterThanOrEqual(24);
+    expect(columns.navigatorWidth + columns.primaryWidth + columns.inspectorWidth).toBe(120);
+  });
+
+  it("clamps simultaneous extreme overrides on both sides — the sum never exceeds the terminal width", () => {
+    const dims = { cols: 120, rows: 40 };
+    const columns = calculateColumns(dims, { navigatorWidth: 10_000, inspectorWidth: 10_000 });
+    expect(columns.navigatorWidth + columns.primaryWidth + columns.inspectorWidth).toBe(120);
+    expect(columns.primaryWidth).toBeGreaterThanOrEqual(36);
+  });
+
+  it("Compact ignores an override entirely — it has no Navigator/Inspector columns to resize", () => {
+    const dims = { cols: 100, rows: 30 };
+    const columns = calculateColumns(dims, { navigatorWidth: 40, inspectorWidth: 40 });
+    expect(columns.isMultiColumn).toBe(false);
+    expect(columns.navigatorWidth).toBe(0);
+    expect(columns.inspectorWidth).toBe(0);
+    expect(columns.primaryWidth).toBe(100);
+  });
+
+  it("omitting the override reproduces the exact unoverridden defaults (backward compatible)", () => {
+    const dims = { cols: 200, rows: 39 }; // Wide
+    expect(calculateColumns(dims, null)).toEqual(calculateColumns(dims));
+    expect(calculateColumns(dims, undefined)).toEqual(calculateColumns(dims));
+  });
+});
