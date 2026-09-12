@@ -42,6 +42,8 @@ export type SemanticCommandId =
   | "nav.move.prev"
   | "nav.move.next"
   | "nav.focus.select"
+  | "nav.focus.open"
+  | "nav.focus.inspect"
   // Trace stream
   | "trace.follow.resume"
   // Horizon
@@ -50,7 +52,14 @@ export type SemanticCommandId =
   | "nav.history.back"
   | "nav.history.forward"
   // RealityTrace
-  | "trace.realitytrace.refresh";
+  | "trace.realitytrace.refresh"
+  // Context menu (ICM §6.4, UESC §22.10 TreeItem right-click)
+  | "ui.context_menu.open"
+  | "ui.context_menu.close"
+  | "ui.context_menu.dismiss"
+  | "ui.context_menu.move.prev"
+  | "ui.context_menu.move.next"
+  | "ui.context_menu.activate";
 
 /** Command classes follow ICM §5 (presentation-only → navigation → query → runtime → canonical). */
 export type SemanticCommandClass =
@@ -61,7 +70,7 @@ export type SemanticCommandClass =
 
 /** Input contexts that rebind keys. Mirrors the shell's input precedence:
  * below-minimum prompt and open palette own the keyboard before the shell. */
-export type CommandKeySurface = "below_minimum" | "palette_open" | "shell";
+export type CommandKeySurface = "below_minimum" | "palette_open" | "context_menu_open" | "shell";
 
 export interface CommandKeyContext {
   readonly surface: CommandKeySurface;
@@ -246,6 +255,68 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     commandClass: "NAVIGATION_LOCAL",
     surfaces: ["shell"],
     defaultKeys: { shell: "enter" },
+  },
+  {
+    // No shell-surface key binding: reached via the context menu's "Open"
+    // row (ICM §6.2 Keyboard column is Enter, which the shell already binds
+    // to nav.focus.select — pre-existing drift out of scope here) and the
+    // future command palette (ICM §6.2 Palette column).
+    id: "nav.focus.open",
+    title: "Open focus",
+    commandClass: "NAVIGATION_LOCAL",
+    surfaces: [],
+    defaultKeys: {},
+  },
+  {
+    // No shell-surface key binding: reached via the context menu's "Inspect"
+    // row (ICM §6.3).
+    id: "nav.focus.inspect",
+    title: "Inspect focus",
+    commandClass: "NAVIGATION_LOCAL",
+    surfaces: [],
+    defaultKeys: {},
+  },
+  {
+    id: "ui.context_menu.open",
+    title: "Open context menu",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "m" },
+  },
+  {
+    id: "ui.context_menu.close",
+    title: "Close context menu",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["context_menu_open"],
+    defaultKeys: { context_menu_open: "m" },
+  },
+  {
+    id: "ui.context_menu.dismiss",
+    title: "Dismiss context menu",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["context_menu_open"],
+    defaultKeys: { context_menu_open: "escape" },
+  },
+  {
+    id: "ui.context_menu.move.prev",
+    title: "Context menu selection up",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["context_menu_open"],
+    defaultKeys: { context_menu_open: "up" },
+  },
+  {
+    id: "ui.context_menu.move.next",
+    title: "Context menu selection down",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["context_menu_open"],
+    defaultKeys: { context_menu_open: "down" },
+  },
+  {
+    id: "ui.context_menu.activate",
+    title: "Activate context menu row",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["context_menu_open"],
+    defaultKeys: { context_menu_open: "enter" },
   },
   {
     id: "nav.horizon.hoist",

@@ -298,6 +298,67 @@ export type PaletteEntry =
       readonly label: string;
     };
 
+/**
+ * Context menu row (ICM §6.4, UESC §22.5 ContextMenu / §22.10 TreeItem
+ * right-click): a DISTINCT presentation component from CommandPalette
+ * (UESC §22.8) — same materialization call, its own state slice. Navigation
+ * rows reuse the ICM §6.2/§6.3 semantic ids; affordance rows are the exact
+ * shape paletteEntries' "affordance" rows carry, so both surfaces resolve
+ * through the identical `materializeAffordances` call and can never diverge.
+ */
+export type ContextMenuEntry =
+  | { readonly type: "header"; readonly label: string }
+  | {
+      readonly type: "navigation";
+      readonly commandId: "nav.focus.open" | "nav.focus.inspect";
+      readonly ref: FocusRef;
+      readonly label: string;
+    }
+  | {
+      readonly type: "affordance";
+      readonly operation: string;
+      readonly ref: FocusRef;
+      readonly status: AffordanceStatus;
+      readonly reasons: readonly string[];
+      readonly outcome: string;
+    };
+
+/**
+ * Menu contents for a right-clicked ref, in ICM §6.4 order: presentation
+ * actions (none needed beyond close, so omitted), navigation actions (Open /
+ * Inspect), then current semantic Affordances. Every FocusRef that reaches
+ * this point already resolved from a row (handlePointer's focusRefForLine),
+ * so Open/Inspect are always offered — there is no separate "does this ref
+ * support opening" guard beyond resolvability itself.
+ */
+export function contextMenuEntries(
+  ref: FocusRef,
+  context: PaletteContext,
+): readonly ContextMenuEntry[] {
+  const entries: ContextMenuEntry[] = [
+    { type: "header", label: "Navigate" },
+    { type: "navigation", commandId: "nav.focus.open", ref, label: "Open" },
+    { type: "navigation", commandId: "nav.focus.inspect", ref, label: "Inspect" },
+  ];
+  if (context.observation !== undefined) {
+    const actionRows: ContextMenuEntry[] = materializeAffordances(ref, context.observation, {
+      session: context.session,
+      payment_estimates: context.paymentEstimates,
+    }).map((item) => ({
+      type: "affordance" as const,
+      operation: item.descriptor.operation,
+      ref,
+      status: item.descriptor.status,
+      reasons: item.descriptor.reason_codes,
+      outcome: item.outcome,
+    }));
+    if (actionRows.length > 0) {
+      entries.push({ type: "header", label: `Actions (${actionRows.length})` }, ...actionRows);
+    }
+  }
+  return entries;
+}
+
 export interface RenderedPalette {
   readonly entries: readonly PaletteEntry[];
   readonly index: number;
@@ -307,6 +368,17 @@ export interface RenderedPalette {
 export interface RenderedPrompt {
   readonly lines: readonly RenderedLine[];
   readonly exitKey: string;
+}
+
+/** Rendered ContextMenu (UESC §22.5): a small overlay anchored to the
+ * right-click point, distinct from the CommandPalette overlay — only one of
+ * the two is ever non-null (ShellState enforces mutual exclusivity). */
+export interface RenderedContextMenu {
+  readonly entries: readonly ContextMenuEntry[];
+  readonly index: number;
+  readonly lines: readonly RenderedLine[];
+  readonly anchorX: number;
+  readonly anchorY: number;
 }
 
 export interface RenderedShell {
@@ -320,6 +392,7 @@ export interface RenderedShell {
   readonly attention: readonly RenderedLine[];
   readonly help: readonly RenderedLine[];
   readonly palette: RenderedPalette | null;
+  readonly contextMenu: RenderedContextMenu | null;
   readonly prompt: RenderedPrompt | null;
   /** Compact side drawer (V2, UESC Compact: switchable side surfaces). */
   readonly drawer: {
@@ -470,10 +543,59 @@ export type PointerGesture =
       readonly lineId: string | null;
       readonly x: number;
     }
-  | { readonly kind: "wheel"; readonly surfaceId: string; readonly delta: number };
+  | { readonly kind: "wheel"; readonly surfaceId: string; readonly delta: number }
+  | {
+      /** ICM §35.3/§6.4: right-click opens contextual Affordances for the
+       * ref carried by the hit row. y is genuinely not derivable from the
+       * hit map's (surfaceId, lineId) pair — unlike x, no row lookup gives
+       * back a screen row — so it travels on the gesture for anchoring. */
+      readonly kind: "right_click";
+      readonly surfaceId: string;
+      readonly lineId: string | null;
+      readonly x: number;
+      readonly y: number;
+    };
 
 /** Wheel scroll step per notch for tall regions (Primary). */
 const PRIMARY_WHEEL_LINES = 3;
+
+/**
+ * Resolve the FocusRef a hit row carries, for the context menu's right-click
+ * entry point (UESC §22.10 TreeItem: "right click = contextual Affordances").
+ * Navigator/Drawer rows resolve through the SAME navigatorOutline placements
+ * the click path already uses; Primary work-unit and trace rows resolve
+ * through the snapshot the same way their line ids were built (views-work.ts
+ * `work.unit.<id>`, shell.ts `trace.<id>`). Returns null for a rowless line,
+ * an unresolvable id, or a surface with nothing contextual (Composer,
+ * header, Overlay) — callers treat null as "no context menu" (ICM §6.4
+ * behavior 4: a no-op, never an invented empty menu).
+ */
+function focusRefForLine(
+  snapshot: FullWorkbenchSnapshot,
+  surfaceId: string,
+  lineId: string | null,
+): FocusRef | null {
+  if (lineId === null) return null;
+  if (surfaceId === "Navigator" || surfaceId === "Drawer") {
+    const row = navigatorOutline(snapshot).find((candidate) => candidate.id === lineId);
+    return row?.ref ?? null;
+  }
+  if (surfaceId === "Primary") {
+    if (lineId.startsWith("work.unit.")) {
+      const unitId = lineId.slice("work.unit.".length);
+      const unit = snapshot.units.find((candidate) => candidate.unit_id === unitId);
+      return unit !== undefined ? focusForUnit(unit) : null;
+    }
+    if (lineId.startsWith("trace.")) {
+      const traceId = lineId.slice("trace.".length);
+      const record = snapshot.trace_records.find((candidate) => candidate.trace_id === traceId);
+      if (record === undefined) return null;
+      const unit = snapshot.units.find((candidate) => candidate.unit_id === record.unit_id);
+      return unit !== undefined ? focusForUnit(unit) : null;
+    }
+  }
+  return null;
+}
 
 /**
  * The pointer twin of handleKey: gestures resolve to the SAME semantic
@@ -492,14 +614,47 @@ export function handlePointer(
     return { state, effects: [] };
   }
 
+  if (gesture.kind === "right_click") {
+    // Preview only: opening the menu must not mutate selection/inspection
+    // identity (PRESENTATION_LOCAL) — no navigatorIndex move, no
+    // location.focus change, no select_focus effect. Only one of
+    // palette/context-menu is ever open (ICM §6.4 alongside §22.8).
+    const ref = focusRefForLine(snapshot, gesture.surfaceId, gesture.lineId);
+    if (ref === null) return { state, effects: [] };
+    return {
+      state: Object.freeze({
+        ...state,
+        paletteOpen: false,
+        pendingConfirm: null,
+        contextMenu: Object.freeze({ ref, index: 0, anchorX: gesture.x, anchorY: gesture.y }),
+      }),
+      effects: [],
+    };
+  }
+
+  // Click-elsewhere closes the context menu without effect (ICM §6.4/§22.8
+  // precedent), UNLESS the click landed on the menu's own Overlay rows —
+  // that case is handled by the Overlay branch below.
+  if (
+    state.contextMenu !== null &&
+    (gesture.kind === "click" || gesture.kind === "double_click") &&
+    !(gesture.surfaceId === "Overlay" && gesture.lineId?.startsWith("contextmenu.") === true)
+  ) {
+    return { state: Object.freeze({ ...state, contextMenu: null }), effects: [] };
+  }
+
   if (gesture.kind === "wheel") {
     const steps = Math.abs(gesture.delta);
     if (steps === 0) return { state, effects: [] };
     const command =
       gesture.surfaceId === "Overlay"
-        ? gesture.delta > 0
-          ? ("ui.palette.move.next" as const)
-          : ("ui.palette.move.prev" as const)
+        ? state.contextMenu !== null
+          ? gesture.delta > 0
+            ? ("ui.context_menu.move.next" as const)
+            : ("ui.context_menu.move.prev" as const)
+          : gesture.delta > 0
+            ? ("ui.palette.move.next" as const)
+            : ("ui.palette.move.prev" as const)
         : gesture.delta > 0
           ? ("nav.move.next" as const)
           : ("nav.move.prev" as const);
@@ -512,7 +667,11 @@ export function handlePointer(
       next = { ...state, focusedSurface: "Navigator" };
     } else if (gesture.surfaceId === "Primary") {
       next = { ...state, focusedSurface: "Primary" };
-    } else if (gesture.surfaceId === "Overlay" && !state.paletteOpen) {
+    } else if (
+      gesture.surfaceId === "Overlay" &&
+      !state.paletteOpen &&
+      state.contextMenu === null
+    ) {
       return { state, effects: [] };
     } else if (gesture.surfaceId !== "Overlay") {
       return { state, effects: [] };
@@ -532,6 +691,21 @@ export function handlePointer(
   // Palette rows: click selects the row; double-click activates it — exactly
   // what arrow keys + Enter do (ICM §35.1/§35.2).
   if (surfaceId === "Overlay") {
+    if (state.contextMenu !== null) {
+      if (lineId === null || !lineId.startsWith("contextmenu.")) {
+        return { state, effects: [] };
+      }
+      const index = Number(lineId.slice("contextmenu.".length));
+      if (!Number.isInteger(index) || index < 0) return { state, effects: [] };
+      const selected: ShellState = Object.freeze({
+        ...state,
+        contextMenu: Object.freeze({ ...state.contextMenu, index }),
+      });
+      if (kind === "click") {
+        return { state: selected, effects: [] };
+      }
+      return handleCommand(selected, snapshot, "ui.context_menu.activate", paletteContext);
+    }
     if (!state.paletteOpen || lineId === null || !lineId.startsWith("palette.")) {
       return { state, effects: [] };
     }
@@ -714,6 +888,19 @@ export interface ShellState {
   readonly history: LocationHistory;
   /** Staged invoke awaiting a second Enter (harden: no one-Enter consequential invoke). */
   readonly pendingConfirm: { readonly operation: string; readonly ref: FocusRef } | null;
+  /**
+   * ContextMenu (ICM §6.4, UESC §22.5/§22.10): a DISTINCT presentation
+   * component from CommandPalette — never both open at once. Opening it is
+   * PRESENTATION_LOCAL and must not mutate selection/inspection identity;
+   * `ref` is the FocusRef the right-clicked row resolved to, captured at
+   * open time, never re-derived from a (possibly since-changed) selection.
+   */
+  readonly contextMenu: {
+    readonly ref: FocusRef;
+    readonly index: number;
+    readonly anchorX: number;
+    readonly anchorY: number;
+  } | null;
   readonly navigatorIndex: number;
   /** Per-view scroll offsets; preserved across view switches (REQ-UX-005). */
   readonly scroll: Readonly<Partial<Record<ViewId, number>>>;
@@ -750,6 +937,7 @@ export function createShellState(host: ShellHostConfig, dims: Dimensions): Shell
       }),
     ),
     pendingConfirm: null,
+    contextMenu: null,
     navigatorIndex: 0,
     scroll: Object.freeze({}),
     dimensions: dims,
@@ -952,7 +1140,9 @@ export function handleKey(
         ? "below_minimum"
         : state.paletteOpen
           ? "palette_open"
-          : "shell",
+          : state.contextMenu !== null
+            ? "context_menu_open"
+            : "shell",
   };
   // Palette query editing is TEXT INPUT, not command intent (the composer
   // precedent): printable graphemes and backspace edit the query while the
@@ -1080,10 +1270,28 @@ export function handleCommand(
     return handlePaletteCommand(state, snapshot, command, paletteContext);
   }
 
-  // Shell context: palette commands are inert while the palette is closed.
+  if (state.contextMenu !== null) {
+    return handleContextMenuCommand(state, command, paletteContext);
+  }
+
+  // Shell context: palette/context-menu commands are inert while both are closed.
   switch (command) {
     case "app.quit":
       return { state, effects: [{ type: "quit" }] };
+    case "ui.context_menu.open": {
+      // Keyboard entry point (ICM §6.4 "Keyboard: context-menu shortcut"):
+      // targets the same Focus the palette's Actions group resolves against
+      // — the current inspector target — never a stale/derived selection.
+      const focus = inspectorTarget(state, snapshot);
+      if (focus === null) return { state, effects: [] };
+      return {
+        state: Object.freeze({
+          ...state,
+          contextMenu: Object.freeze({ ref: focus, index: 0, anchorX: 2, anchorY: 2 }),
+        }),
+        effects: [],
+      };
+    }
     case "view.activate.work":
     case "view.activate.chat":
     case "view.activate.trace": {
@@ -1320,6 +1528,87 @@ function traceLedgerWindow(
  * live selection (snapshot first, shell location as presentation fallback). */
 function inspectorTarget(state: ShellState, snapshot: FullWorkbenchSnapshot): FocusRef | null {
   return state.inspectorPin?.ref ?? snapshot.focus ?? state.location.focus;
+}
+
+/**
+ * Context-menu-open context (ICM §6.4): the menu owns the keyboard. Unlike
+ * the palette's staged-confirm gate, a selected row invokes immediately and
+ * closes (task behavior 3) — the FRESH statusPermitsInvocation guard still
+ * refuses a disabled affordance, and the canonical gateway's own
+ * revalidation is the real backstop either way.
+ */
+function handleContextMenuCommand(
+  state: ShellState,
+  command: SemanticCommandId,
+  paletteContext: PaletteContext,
+): { state: ShellState; effects: readonly ShellEffect[] } {
+  const menu = state.contextMenu;
+  if (menu === null) return { state, effects: [] };
+  switch (command) {
+    case "ui.context_menu.close":
+    case "ui.context_menu.dismiss":
+    case "ui.dismiss":
+      return { state: Object.freeze({ ...state, contextMenu: null }), effects: [] };
+    case "ui.context_menu.move.prev":
+    case "ui.context_menu.move.next": {
+      const entries = contextMenuEntries(menu.ref, paletteContext);
+      const last = Math.max(0, entries.length - 1);
+      const delta = command === "ui.context_menu.move.prev" ? -1 : 1;
+      let next = Math.min(Math.max(0, menu.index + delta), last);
+      // Skip header rows (non-actionable); bounded by the walk direction so
+      // it can never loop past the ends.
+      while (entries[next]?.type === "header" && next + delta >= 0 && next + delta <= last) {
+        next += delta;
+      }
+      return {
+        state: Object.freeze({ ...state, contextMenu: Object.freeze({ ...menu, index: next }) }),
+        effects: [],
+      };
+    }
+    case "ui.context_menu.activate": {
+      const entries = contextMenuEntries(menu.ref, paletteContext);
+      const entry = entries[menu.index];
+      const closed: ShellState = Object.freeze({ ...state, contextMenu: null });
+      if (entry === undefined || entry.type === "header") {
+        return { state: closed, effects: [] };
+      }
+      if (entry.type === "navigation") {
+        if (entry.commandId === "nav.focus.inspect") {
+          // ICM §6.3: Inspector shows local details/relations — the SAME
+          // presentation-local pin mechanism ui.inspector.pin.toggle uses,
+          // never a second inspector-targeting path. Selection is untouched.
+          return {
+            state: Object.freeze({ ...closed, inspectorPin: Object.freeze({ ref: entry.ref }) }),
+            effects: [],
+          };
+        }
+        // ICM §6.2 nav.focus.open: promote into the Primary View while
+        // preserving identity — the SAME select_focus effect nav.focus.select
+        // already fires (there is no separate canonical "open" pipeline to
+        // diverge from), plus bringing Primary into keyboard focus.
+        return {
+          state: Object.freeze({
+            ...closed,
+            focusedSurface: "Primary",
+            location: Object.freeze({ ...closed.location, focus: entry.ref }),
+          }),
+          effects: [{ type: "select_focus", ref: entry.ref }],
+        };
+      }
+      // Affordance row: the identical effect paletteEntries' equivalent row
+      // produces (ICM §30 gate: a fresh status that no longer permits
+      // invocation refuses here, before any drive).
+      if (!statusPermitsInvocation(entry.status)) {
+        return { state: closed, effects: [] };
+      }
+      return {
+        state: closed,
+        effects: [{ type: "invoke_affordance", operation: entry.operation, ref: entry.ref }],
+      };
+    }
+    default:
+      return { state, effects: [] };
+  }
 }
 
 /** Palette-open context: the palette owns the keyboard (shell keys inert). */
@@ -1611,6 +1900,7 @@ export function renderShell(
       attention: [],
       help: prompt,
       palette: null,
+      contextMenu: null,
       prompt: { lines: prompt, exitKey: "q" },
       motion: state.motion,
     };
@@ -1914,6 +2204,50 @@ export function renderShell(
       })()
     : null;
 
+  // ContextMenu (ICM §6.4, UESC §22.5): DISTINCT overlay from the palette —
+  // ShellState enforces only one is ever open. lineId prefix "contextmenu."
+  // (vs the palette's "palette.") disambiguates their rows on the shared
+  // Overlay surfaceId (increment 5's z-order/hit-testing stays one path).
+  const contextMenu: RenderedContextMenu | null = state.contextMenu
+    ? (() => {
+        const menu = state.contextMenu;
+        const entries = contextMenuEntries(menu.ref, {
+          observation: options.observation,
+          session: options.session,
+          paymentEstimates: options.paymentEstimates,
+        });
+        const lines = entries.map((entry, index): RenderedLine => {
+          if (entry.type === "header") {
+            return {
+              id: `contextmenu.header.${index}`,
+              spans: [{ text: `  ${entry.label}`, emphasis: "dim" as const }],
+            };
+          }
+          const selected = index === menu.index;
+          const description =
+            entry.type === "navigation"
+              ? entry.label
+              : `action ${entry.operation}: ${entry.status}${entry.reasons.length > 0 ? ` (${entry.reasons.join(", ")})` : ""}`;
+          const identity = entry.type === "navigation" ? entry.commandId : entry.operation;
+          return {
+            id: `contextmenu.${index}`,
+            spans: [
+              ...(selected ? [{ text: "◉ ", token: "focus.ring" as const }] : [{ text: "  " }]),
+              { text: description, emphasis: selected ? "bold" : "normal" },
+              { text: `  ${identity}`, emphasis: "dim" as const },
+            ],
+          };
+        });
+        return {
+          entries,
+          index: menu.index,
+          lines,
+          anchorX: menu.anchorX,
+          anchorY: menu.anchorY,
+        };
+      })()
+    : null;
+
   // Compact side drawer (V2): the Navigator/Inspector as switchable
   // overlays — the same line builders the docked surfaces use (DSN-06
   // placements, never copies).
@@ -1974,6 +2308,7 @@ export function renderShell(
     attention: attentionLines,
     help,
     palette,
+    contextMenu,
     prompt: null,
     motion: state.motion,
   };
@@ -1988,6 +2323,7 @@ export function containsMotionFrames(rendered: RenderedShell): boolean {
     ...rendered.attention,
     ...rendered.help,
     ...(rendered.palette?.lines ?? []),
+    ...(rendered.contextMenu?.lines ?? []),
     ...(rendered.prompt?.lines ?? []),
   ];
   return allLines.some((line) => frames.some((frame) => lineText(line).includes(frame)));

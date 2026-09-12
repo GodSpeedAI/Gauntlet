@@ -1,9 +1,12 @@
 import { describe, expect, it } from "bun:test";
+import type { AffordanceObservation } from "./affordance";
 import { FocusRef } from "./focus";
 import {
+  contextMenuEntries,
   createShellState,
   handleCommand,
   handlePointer,
+  paletteEntries,
   reconcileTrace,
   ShellSession,
   type ShellState,
@@ -289,5 +292,177 @@ describe("breadcrumb hoisting (click a header segment to jump to that depth)", (
     );
     expect(model.getSnapshot().active_horizon).toBeNull();
     expect([...model.getSnapshot().horizon_breadcrumb]).toEqual(["Case"]);
+  });
+});
+
+/**
+ * GUI-redesign increment 5: right-click context menu (ICM §6.4, UESC §22.5
+ * ContextMenu / §22.10 TreeItem "right click = contextual Affordances"). The
+ * menu is a DISTINCT presentation component from CommandPalette but shares
+ * its materialization call, so a menu row's effect and a palette row's
+ * effect for the same operation must be identical, not merely both present.
+ */
+describe("context menu (ICM §6.4: right-click opens contextual Affordances)", () => {
+  const session = { actor: "operator-test", authenticated: true };
+
+  /** u-far is BLOCKED with no ticket: every affordance the resolver visits
+   * for it stays unavailable — used for the "no permitting row" no-op case
+   * is unnecessary here; the equivalence test below needs a PERMITTING row,
+   * so it targets u-root under the same observation command-registry.test.ts
+   * uses for that purpose (fail + an open ticket naming it). */
+  const permittedObservation: AffordanceObservation = {
+    reachable: true,
+    degraded: false,
+    units: [{ unit_id: "u-root", status: "fail" }],
+    open_escalations: [{ ticket_id: "t-1", unit_id: "u-root" }],
+    budget_remaining: null,
+    governance_denied_units: [],
+    authority_revoked_units: [],
+    capabilities: [],
+  };
+
+  it("right-click on a Navigator row opens the menu anchored to that row's ref, without mutating selection", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const result = handlePointer(base, snap, {
+      kind: "right_click",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+      x: 5,
+      y: 8,
+    });
+    expect(result.effects).toEqual([]);
+    expect(result.state.contextMenu).not.toBeNull();
+    expect(result.state.contextMenu?.ref.source_id).toBe("u-far");
+    expect(result.state.contextMenu?.anchorX).toBe(5);
+    expect(result.state.contextMenu?.anchorY).toBe(8);
+    // Presentation-local only: no selection/inspection identity mutated.
+    expect(result.state.navigatorIndex).toBe(base.navigatorIndex);
+    expect(result.state.location.focus).toBeNull();
+  });
+
+  it("menu contents follow ICM §6.4 order: navigation (Open/Inspect) then current semantic Affordances", () => {
+    const ref = FocusRef.for("gauntlet", "WorkItem", "u-root");
+    const entries = contextMenuEntries(ref, { observation: permittedObservation, session });
+    const navIndex = entries.findIndex(
+      (e) => e.type === "navigation" && e.commandId === "nav.focus.open",
+    );
+    const inspectIndex = entries.findIndex(
+      (e) => e.type === "navigation" && e.commandId === "nav.focus.inspect",
+    );
+    const actionIndex = entries.findIndex((e) => e.type === "affordance");
+    expect(navIndex).toBeGreaterThanOrEqual(0);
+    expect(inspectIndex).toBeGreaterThan(navIndex);
+    expect(actionIndex).toBeGreaterThan(inspectIndex);
+  });
+
+  it("selecting an affordance entry produces the IDENTICAL effect the palette's equivalent row would produce", () => {
+    const snap = snapshot();
+    const rootFocus = FocusRef.for("gauntlet", "WorkItem", "u-root");
+    const paletteContext = { observation: permittedObservation, session };
+
+    // Palette path: focus u-root, open the palette, land on the permitting
+    // affordance row, then activate through the double-Enter gate.
+    const focused: ShellState = {
+      ...stateAt(),
+      location: { ...stateAt().location, focus: rootFocus },
+    };
+    const paletteOpened = handleCommand(focused, snap, "ui.palette.open", paletteContext);
+    const paletteRows = paletteEntries(paletteOpened.state, snap, paletteContext);
+    const paletteIndex = paletteRows.findIndex(
+      (entry) => entry.type === "affordance" && entry.status === "requires_attention",
+    );
+    expect(paletteIndex).toBeGreaterThanOrEqual(0);
+    const atPaletteRow: ShellState = { ...paletteOpened.state, paletteIndex };
+    const paletteStaged = handleCommand(atPaletteRow, snap, "ui.palette.activate", paletteContext);
+    const paletteActivated = handleCommand(
+      paletteStaged.state,
+      snap,
+      "ui.palette.activate",
+      paletteContext,
+    );
+    const paletteEffect = paletteActivated.effects.find((e) => e.type === "invoke_affordance");
+    expect(paletteEffect).toBeDefined();
+
+    // Context-menu path: right-click the SAME ref, land on the SAME
+    // operation's row, activate (single-step per ICM §6.4 behavior 3).
+    const rightClicked = handlePointer(stateAt(), snap, {
+      kind: "right_click",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-root",
+      x: 3,
+      y: 4,
+    });
+    const menuEntries = contextMenuEntries(rootFocus, paletteContext);
+    const menuIndex = menuEntries.findIndex(
+      (entry) => entry.type === "affordance" && entry.status === "requires_attention",
+    );
+    expect(menuIndex).toBeGreaterThanOrEqual(0);
+    const atMenuRow: ShellState = {
+      ...rightClicked.state,
+      contextMenu: rightClicked.state.contextMenu
+        ? { ...rightClicked.state.contextMenu, index: menuIndex }
+        : null,
+    };
+    const menuActivated = handleCommand(
+      atMenuRow,
+      snap,
+      "ui.context_menu.activate",
+      paletteContext,
+    );
+    const menuEffect = menuActivated.effects.find((e) => e.type === "invoke_affordance");
+    expect(menuEffect).toBeDefined();
+
+    // Equivalence, not just presence: identical operation and ref.
+    expect(menuEffect).toEqual(paletteEffect);
+  });
+
+  it("Escape closes the context menu with no effect", () => {
+    const snap = snapshot();
+    const opened = handlePointer(stateAt(), snap, {
+      kind: "right_click",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+      x: 1,
+      y: 1,
+    });
+    expect(opened.state.contextMenu).not.toBeNull();
+    const dismissed = handleCommand(opened.state, snap, "ui.context_menu.dismiss");
+    expect(dismissed.state.contextMenu).toBeNull();
+    expect(dismissed.effects).toEqual([]);
+  });
+
+  it("right-click on a rowless line (Composer) is a no-op", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const result = handlePointer(base, snap, {
+      kind: "right_click",
+      surfaceId: "Composer",
+      lineId: null,
+      x: 2,
+      y: 30,
+    });
+    expect(result.state).toBe(base);
+    expect(result.effects).toEqual([]);
+  });
+
+  it("clicking elsewhere while the menu is open closes it without effect", () => {
+    const snap = snapshot();
+    const opened = handlePointer(stateAt(), snap, {
+      kind: "right_click",
+      surfaceId: "Navigator",
+      lineId: "outline.unit.u-far",
+      x: 1,
+      y: 1,
+    });
+    expect(opened.state.contextMenu).not.toBeNull();
+    const clickedAway = handlePointer(opened.state, snap, {
+      kind: "click",
+      surfaceId: "Primary",
+      lineId: "primary.tabs",
+      x: 0,
+    });
+    expect(clickedAway.state.contextMenu).toBeNull();
+    expect(clickedAway.effects).toEqual([]);
   });
 });

@@ -101,6 +101,9 @@ interface OverlayPlacement {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  /** Palette/context-menu box title; unused for the drawer overlay (its
+   * title comes from shell.drawer.title, set at render time instead). */
+  readonly title?: string;
 }
 
 interface FramePlan {
@@ -289,6 +292,50 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
       ),
     });
   }
+  // ContextMenu (ICM §6.4, UESC §22.5): a small overlay anchored near the
+  // right-click point, sharing the palette's z-tier and hit-testing path but
+  // never open at the same time as it (ShellState enforces mutual
+  // exclusivity, so this branch and the palette branch below can't collide).
+  if (shell.contextMenu) {
+    const lines = shell.contextMenu.lines;
+    const contentWidth = lines.reduce(
+      (max, line) =>
+        Math.max(
+          max,
+          line.spans.reduce((sum, span) => sum + span.text.length, 0),
+        ),
+      20,
+    );
+    const menuWidth = Math.min(contentWidth + 2, Math.max(1, width - 4));
+    const menuHeight = Math.min(lines.length, Math.max(1, height - 6));
+    const menuX = Math.min(
+      Math.max(0, shell.contextMenu.anchorX),
+      Math.max(0, width - menuWidth - 1),
+    );
+    const menuY = Math.min(
+      Math.max(0, shell.contextMenu.anchorY),
+      Math.max(0, height - menuHeight - 1),
+    );
+    regions.push({
+      key: "contextmenu",
+      surfaceId: "Overlay",
+      x: menuX,
+      y: menuY,
+      width: menuWidth,
+      rows: planRows(lines, menuX, menuY, menuWidth, menuHeight, height),
+    });
+    return {
+      regions,
+      overlay: {
+        x: Math.max(0, menuX - 1),
+        y: Math.max(0, menuY - 1),
+        width: Math.min(width, menuWidth + 2),
+        height: Math.min(height, menuHeight + 2),
+        title: " Context Menu · ↑/↓ select · Enter activate · Esc close ",
+      },
+      drawer: drawerPlacement,
+    };
+  }
   if (!shell.palette) return { regions, overlay: null, drawer: drawerPlacement };
   // The overlay gets a bounded scrolling viewport, including the selected row.
   const available = Math.max(1, footerTop - 4);
@@ -316,6 +363,7 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
       y: 1,
       width: Math.max(1, width - 2),
       height: Math.max(1, footerTop - 1),
+      title: " Palette · ↑/↓ select · Enter open · Esc dismiss ",
     },
     drawer: drawerPlacement,
   };
@@ -413,6 +461,7 @@ export class TerminalShellRenderer {
   private lastHitMap: ShellHitMap = EMPTY_HIT_MAP;
   private readonly onGesture: ((gesture: PointerGesture) => void) | null;
   private pendingDown: { x: number; y: number; button: number; time: number } | null = null;
+  private pendingRightDown: { x: number; y: number } | null = null;
   private lastClick: { x: number; y: number; time: number } | null = null;
 
   constructor(
@@ -437,7 +486,36 @@ export class TerminalShellRenderer {
       });
       return;
     }
-    if (event.button !== 0) return; // left button only for now (§35.3 context menu: increment 5)
+    // Right button (§35.3 context menu, increment 5): its own down/up
+    // debounce pair, tracked separately from the left button's so a stray
+    // right-down can't be paired against a left-up (or vice versa).
+    if (event.button === 2) {
+      if (event.type === "down") {
+        this.pendingRightDown = { x: event.x, y: event.y };
+        return;
+      }
+      if (event.type !== "up") return;
+      const rightDown = this.pendingRightDown;
+      this.pendingRightDown = null;
+      if (
+        rightDown === null ||
+        Math.abs(rightDown.x - event.x) > 1 ||
+        Math.abs(rightDown.y - event.y) > 1
+      ) {
+        return;
+      }
+      const hit = this.resolveAt(event.x, event.y);
+      if (hit === null) return;
+      this.onGesture({
+        kind: "right_click",
+        surfaceId: hit.surfaceId,
+        lineId: hit.lineId,
+        x: event.x - hit.regionX,
+        y: event.y,
+      });
+      return;
+    }
+    if (event.button !== 0) return; // left button only
     if (event.type === "down") {
       this.pendingDown = { x: event.x, y: event.y, button: event.button, time: Date.now() };
       return;
@@ -599,7 +677,7 @@ export class TerminalShellRenderer {
           height: plan.overlay.height,
           backgroundColor: RGBA.defaultBackground(),
           border: true,
-          title: " Palette · ↑/↓ select · Enter open · Esc dismiss ",
+          title: plan.overlay.title ?? "",
           zIndex: 1,
         });
         this.frame.add(this.overlayBox);
@@ -609,6 +687,7 @@ export class TerminalShellRenderer {
         this.overlayBox.top = plan.overlay.y;
         this.overlayBox.width = plan.overlay.width;
         this.overlayBox.height = plan.overlay.height;
+        this.overlayBox.title = plan.overlay.title ?? "";
       }
     } else if (this.overlayBox !== null) {
       this.overlayBox.destroy();

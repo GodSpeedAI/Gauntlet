@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createMockMouse, createTestRenderer } from "@opentui/core/testing";
+import { createMockMouse, createTestRenderer, MouseButtons } from "@opentui/core/testing";
 import type { PointerGesture } from "./shell";
 import { TerminalShellRenderer } from "./terminal-renderer";
 import { FULL_DIMS, modelWiredSession, renderOptions, seededModel } from "./testing/shell-harness";
@@ -163,6 +163,41 @@ test("click on the header emits a click gesture on shell.header (breadcrumb hois
     const last = clicks.at(-1);
     expect(last?.surfaceId).toBe("header");
     expect(last?.lineId).toBe("shell.header");
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
+test("right-click on a Navigator row emits a right_click gesture with the row's line id (§35.3 context menu, increment 5)", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const hit = view.hitMap().regions.find((region) => region.surfaceId === "Navigator");
+    expect(hit).toBeDefined();
+    const row = hit?.rows.findIndex((id) => id !== null) ?? -1;
+    expect(row).toBeGreaterThanOrEqual(0);
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.click((hit?.x ?? 0) + 2, (hit?.y ?? 0) + row, MouseButtons.RIGHT);
+
+    const rightClicks = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "right_click" }> => g.kind === "right_click",
+    );
+    expect(rightClicks.length).toBeGreaterThanOrEqual(1);
+    const last = rightClicks.at(-1);
+    expect(last?.surfaceId).toBe("Navigator");
+    expect(last?.lineId).toBe(hit?.rows[row] ?? null);
+    // A left click at the exact same cell must NOT also have produced a
+    // right_click — the button debounce state must not cross-contaminate.
+    expect(gestures.some((g) => g.kind === "click")).toBe(false);
   } finally {
     view.destroy();
     terminal.renderer.destroy();
