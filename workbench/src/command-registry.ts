@@ -48,10 +48,16 @@ export type SemanticCommandId =
   | "nav.horizon.hoist"
   | "nav.horizon.dehoist"
   | "nav.history.back"
-  | "nav.history.forward";
+  | "nav.history.forward"
+  // RealityTrace
+  | "trace.realitytrace.refresh";
 
 /** Command classes follow ICM §5 (presentation-only → navigation → query → runtime → canonical). */
-export type SemanticCommandClass = "PRESENTATION_LOCAL" | "NAVIGATION_LOCAL" | "DERIVED_QUERY";
+export type SemanticCommandClass =
+  | "PRESENTATION_LOCAL"
+  | "NAVIGATION_LOCAL"
+  | "DERIVED_QUERY"
+  | "RUNTIME_ADAPTER";
 
 /** Input contexts that rebind keys. Mirrors the shell's input precedence:
  * below-minimum prompt and open palette own the keyboard before the shell. */
@@ -254,6 +260,13 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     commandClass: "NAVIGATION_LOCAL",
     surfaces: ["shell"],
     defaultKeys: { shell: "u" },
+  },
+  {
+    id: "trace.realitytrace.refresh",
+    title: "Refresh RealityTrace ledger",
+    commandClass: "RUNTIME_ADAPTER",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "r" },
   },
 ] as const);
 

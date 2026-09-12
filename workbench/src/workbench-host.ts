@@ -20,7 +20,10 @@ import {
 import { plannedOperationForComposerMode } from "./planned-operations";
 import { PrimeDelegationDispatcher } from "./prime-recursion";
 import { RealPrimeHost } from "./real-prime-host";
+import { interpretSxrRefreshOutcome } from "./reality-trace-binding";
+import type { RealityTraceLane } from "./reality-trace-lane";
 import type { ShellInteractions } from "./shell";
+import { bunSxrProcessRunner, executeSxrRefresh, type SxrLensProjection } from "./sxr-adapter";
 import { WorkbenchModel } from "./workbench-model";
 
 /**
@@ -98,6 +101,28 @@ export class WorkbenchHost {
 
   get pendingOperations(): ReadonlySet<string> {
     return this.pendingOperationKeys;
+  }
+
+  /**
+   * RealityTrace (SXR) refresh state (GUI-redesign increment 6, ICM §16.11:
+   * refresh is command-triggered only, never during render). `sxrRefreshEpoch`
+   * increments on every refresh attempt so a superseded in-flight refresh can
+   * discard its result when it resolves after a newer one started.
+   */
+  private sxrRefreshEpoch = 0;
+  private sxrLensState: SxrLensProjection | undefined;
+  private sxrLaneState: RealityTraceLane | undefined;
+
+  get sxrLens(): SxrLensProjection | undefined {
+    return this.sxrLensState;
+  }
+
+  get sxrLane(): RealityTraceLane | undefined {
+    return this.sxrLaneState;
+  }
+
+  get sxrRefreshEpochCurrent(): number {
+    return this.sxrRefreshEpoch;
   }
 
   constructor(
@@ -264,6 +289,9 @@ export class WorkbenchHost {
       submitComposer: (mode, destination, draft) => {
         void this.submit(mode, destination, draft);
       },
+      refreshRealityTrace: () => {
+        void this.refreshRealityTrace();
+      },
     };
   }
 
@@ -339,6 +367,31 @@ export class WorkbenchHost {
           ? `${mode} → ${destination}: unsupported; '${planned.id}' is declared (planned, not yet bound — workbench-intent-closure.md Phase C2). Message was not sent.`
           : `${mode} → ${destination}: unsupported; no live submission adapter is connected. Message was not sent.`;
     }
+    this.changed();
+  }
+
+  /**
+   * RealityTrace (SXR) bounded on-demand refresh (GUI-redesign increment 6,
+   * ICM §16.11: command-triggered only, never during render). Unbound config
+   * = no-op — `SxrLensProjection`'s status vocabulary has no "unbound" case.
+   * A superseded in-flight refresh discards its result on resolution.
+   */
+  async refreshRealityTrace(): Promise<void> {
+    const binding = this.config.sxrBinding;
+    if (binding === undefined) return;
+    const epoch = ++this.sxrRefreshEpoch;
+    const outcome = await executeSxrRefresh(
+      {
+        binary_path: binding.binaryPath,
+        repo_id: binding.repoId,
+        command: { kind: "ledger_export" },
+      },
+      bunSxrProcessRunner(),
+    );
+    if (this.closed || epoch !== this.sxrRefreshEpoch) return;
+    const result = interpretSxrRefreshOutcome(outcome, binding.repoId, epoch);
+    if (result.lens !== undefined) this.sxrLensState = result.lens;
+    if (result.lane !== undefined) this.sxrLaneState = result.lane;
     this.changed();
   }
 

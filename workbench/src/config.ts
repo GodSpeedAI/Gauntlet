@@ -55,6 +55,23 @@ export interface WorkbenchConfig {
    * `detectColorCapability`.
    */
   readonly color?: "truecolor" | "color256" | "monochrome" | undefined;
+  /**
+   * RealityTrace (SXR) binding, resolved from `GAUNTLET_SXR_BINARY` /
+   * `GAUNTLET_SXR_REPO_ID` (GUI-redesign increment 6). `undefined` when either
+   * is unset or empty — `SxrLensProjection`'s status vocabulary has no
+   * "unbound" case, so an unbound config keeps today's behavior unchanged.
+   */
+  readonly sxrBinding?: SxrBindingConfig | undefined;
+}
+
+/**
+ * Optional RealityTrace (SXR) binding: the on-demand refresh path (GUI-redesign
+ * increment 6) is wired only when both fields resolve to non-empty strings —
+ * an unbound config is today's behavior, unchanged (D6-style additivity).
+ */
+export interface SxrBindingConfig {
+  readonly binaryPath: string;
+  readonly repoId: string;
 }
 
 export interface RawConfigInput {
@@ -122,6 +139,8 @@ export function resolveConfig(options?: {
   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
   const envMotion = envSource["GAUNTLET_WORKBENCH_MOTION"];
   const envColor = envSource["GAUNTLET_WORKBENCH_COLOR"];
+  const envSxrBinary = envSource["GAUNTLET_SXR_BINARY"];
+  const envSxrRepoId = envSource["GAUNTLET_SXR_REPO_ID"];
 
   // 1. Gauntlet endpoint
   const gauntlet_endpoint =
@@ -206,6 +225,15 @@ export function resolveConfig(options?: {
       ? envColor
       : undefined;
 
+  // 9. RealityTrace (SXR) binding: both env vars must resolve non-empty.
+  const sxrBinding: SxrBindingConfig | undefined =
+    envSxrBinary !== undefined &&
+    envSxrBinary.trim() !== "" &&
+    envSxrRepoId !== undefined &&
+    envSxrRepoId.trim() !== ""
+      ? { binaryPath: envSxrBinary, repoId: envSxrRepoId }
+      : undefined;
+
   return {
     gauntlet_endpoint,
     prime_endpoint,
@@ -218,6 +246,7 @@ export function resolveConfig(options?: {
     session_token,
     motion,
     color,
+    sxrBinding,
   };
 }
 

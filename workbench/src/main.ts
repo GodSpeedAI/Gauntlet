@@ -1,6 +1,7 @@
 /** Production host: canonical observations projected through native OpenTUI. */
 import { createCliRenderer } from "@opentui/core";
 import { resolveConfig } from "./config";
+import { publishLensData } from "./inspector";
 import { lineText } from "./render-tree";
 import { ShellSession } from "./shell";
 import { TerminalShellRenderer, terminalKey } from "./terminal-renderer";
@@ -24,11 +25,16 @@ async function run(): Promise<void> {
   // detected per terminal below — never assumed truecolor (V6 fix).
   const motion = resolveMotionPreference(process.env);
   const shell = (session: ShellSession) => {
-    const rendered = session.render(host.model.getSnapshot(), {
-      observation: host.observation,
-      session: host.sessionContext,
-      pendingOperations: host.pendingOperations,
-    });
+    const rendered = session.render(
+      publishLensData(host.model.getSnapshot(), { sxr_lens: host.sxrLens }),
+      {
+        observation: host.observation,
+        session: host.sessionContext,
+        pendingOperations: host.pendingOperations,
+        sxrLane: host.sxrLane,
+        sxrRefreshEpoch: host.sxrRefreshEpochCurrent,
+      },
+    );
     return {
       ...rendered,
       header: {

@@ -152,6 +152,14 @@ export interface ViewRenderArgs {
    * BUSY_SUBMISSION is never descriptor-derived).
    */
   readonly pendingOperations?: ReadonlySet<string> | undefined;
+  /**
+   * RealityTrace (GUI-redesign increment 6): the host's most recently
+   * projected ledger lane and the refresh epoch it was projected at, threaded
+   * through ShellRenderOptions to the Trace view only. Absent = unbound or
+   * never refreshed — unchanged current behavior.
+   */
+  readonly sxrLane?: import("./reality-trace-lane").RealityTraceLane | undefined;
+  readonly sxrRefreshEpoch?: number | undefined;
 }
 
 /** The trace ledger projection the shell derives from its TraceStream. */

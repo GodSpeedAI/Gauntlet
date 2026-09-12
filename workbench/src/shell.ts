@@ -710,7 +710,8 @@ export type ShellEffect =
   | { readonly type: "hoist"; readonly ref: FocusRef }
   | { readonly type: "dehoist" }
   | { readonly type: "quit" }
-  | { readonly type: "invoke_affordance"; readonly operation: string; readonly ref: FocusRef };
+  | { readonly type: "invoke_affordance"; readonly operation: string; readonly ref: FocusRef }
+  | { readonly type: "refresh_realitytrace" };
 
 export interface ShellInteractions {
   readonly selectFocus?: ((ref: FocusRef) => void) | undefined;
@@ -721,6 +722,7 @@ export interface ShellInteractions {
   readonly submitComposer?:
     | ((mode: ComposerMode, destination: string, draft: string) => void)
     | undefined;
+  readonly refreshRealityTrace?: (() => void) | undefined;
 }
 
 /** Apply effects to host interaction callbacks (the only outbound edge). */
@@ -744,6 +746,9 @@ export function applyShellEffects(
         break;
       case "invoke_affordance":
         interactions.invokeAffordance?.(effect.operation, effect.ref);
+        break;
+      case "refresh_realitytrace":
+        interactions.refreshRealityTrace?.();
         break;
     }
   }
@@ -1142,6 +1147,13 @@ export function handleCommand(
         state: Object.freeze({ ...state, trace: streamReturnToLive(state.trace) }),
         effects: [],
       };
+    case "trace.realitytrace.refresh":
+      // Trace-view-scoped (mirrors nav.move's per-view behavior): the host
+      // performs the actual refresh and calls changed() to re-render.
+      if (state.location.view !== "trace") {
+        return { state, effects: [] };
+      }
+      return { state, effects: [{ type: "refresh_realitytrace" }] };
     case "nav.focus.select": {
       if (state.focusedSurface === "Navigator") {
         const row = navigatorOutline(snapshot)[state.navigatorIndex];
@@ -1408,6 +1420,14 @@ export interface ShellRenderOptions {
    * invoke is awaiting admission/result. Absent = no invoke in flight.
    */
   readonly pendingOperations?: ReadonlySet<string> | undefined;
+  /**
+   * RealityTrace (GUI-redesign increment 6): the host's most recently
+   * projected ledger lane and the refresh epoch it was projected at (for
+   * `laneStale`), threaded to the Trace view renderer only. Absent = unbound
+   * or never refreshed — unchanged current behavior.
+   */
+  readonly sxrLane?: import("./reality-trace-lane").RealityTraceLane | undefined;
+  readonly sxrRefreshEpoch?: number | undefined;
 }
 
 const KEY_LEGEND_COMPACT_0 =
@@ -1605,7 +1625,11 @@ export function renderShell(
           paymentEstimates: options.paymentEstimates,
           pendingOperations: options.pendingOperations,
           ...(state.location.view === "trace"
-            ? { traceWindow: traceLedgerWindow(state, snapshot) }
+            ? {
+                traceWindow: traceLedgerWindow(state, snapshot),
+                sxrLane: options.sxrLane,
+                sxrRefreshEpoch: options.sxrRefreshEpoch,
+              }
             : {}),
         })
       : {

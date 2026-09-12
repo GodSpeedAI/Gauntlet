@@ -18,6 +18,7 @@
 
 import type { FocusRef } from "./focus";
 import { renderEvidenceRecord } from "./inspector";
+import { laneStale } from "./reality-trace-lane";
 import type { RenderedLine, RenderedRecord, ViewContent } from "./render-tree";
 import type { SemanticToken } from "./theme";
 import { SEMANTIC_TOKENS } from "./theme";
@@ -128,6 +129,7 @@ export function renderTraceView(args: ViewRenderArgs): ViewContent {
       id: "trace.empty",
       spans: [{ text: "No execution history recorded yet for this projection.", emphasis: "dim" }],
     });
+    appendRealityTraceSegment(lines, records, args);
     return { view: "trace", question: "What actually happened?", lines, records };
   }
 
@@ -177,13 +179,75 @@ export function renderTraceView(args: ViewRenderArgs): ViewContent {
         spans: [{ text: "Window empty at this scroll position.", emphasis: "dim" }],
       });
     }
+    appendRealityTraceSegment(lines, records, args);
     return { view: "trace", question: "What actually happened?", lines, records };
   }
 
   for (const record of snapshot.trace_records) {
     pushTraceRow(lines, records, record);
   }
+  appendRealityTraceSegment(lines, records, args);
   return { view: "trace", question: "What actually happened?", lines, records };
+}
+
+/**
+ * RealityTrace ledger segment (GUI-redesign increment 6, UESC §16.0/§16.2/
+ * §16.11): appended after the gauntlet trace rendering, one ordered ledger
+ * over two source-typed streams that are NEVER merged. Absent `args.sxrLane`
+ * = unbound or never refreshed — renders nothing (unchanged current
+ * behavior).
+ */
+function appendRealityTraceSegment(
+  lines: RenderedLine[],
+  records: RenderedRecord[],
+  args: ViewRenderArgs,
+): void {
+  if (args.sxrLane === undefined) {
+    return;
+  }
+  const lane = args.sxrLane;
+  const stale = args.sxrRefreshEpoch !== undefined && laneStale(lane, args.sxrRefreshEpoch);
+  lines.push({
+    id: "trace.realitytrace.header",
+    spans: [
+      { text: "REALITYTRACE", emphasis: "bold" },
+      ...(stale
+        ? [
+            {
+              text: ` · stale (last refresh epoch ${lane.refreshEpoch})`,
+              token: "evidence.stale" as const,
+            },
+          ]
+        : []),
+    ],
+  });
+  if (lane.rows.length === 0) {
+    lines.push({
+      id: "trace.realitytrace.empty",
+      spans: [{ text: "Ledger bound; no interpreted rows yet.", emphasis: "dim" }],
+    });
+    return;
+  }
+  for (const row of lane.rows) {
+    lines.push({
+      id: `trace.realitytrace.${row.id}`,
+      spans: [
+        { text: `${row.kind} `, emphasis: "dim" },
+        { text: `${row.label} `, emphasis: "bold" },
+        { text: `ordinal ${row.ordinal} · ${row.entryHash}`, emphasis: "dim" },
+      ],
+    });
+    records.push({
+      id: `trace.realitytrace.${row.id}`,
+      kind: "evidence",
+      fields: {
+        ordinal: String(row.ordinal),
+        entryHash: row.entryHash,
+        kind: row.kind,
+        label: row.label,
+      },
+    });
+  }
 }
 
 /** One ledger row: glyph + typed event + summary + machine provenance. */

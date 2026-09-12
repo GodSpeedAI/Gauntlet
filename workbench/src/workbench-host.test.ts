@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveConfig } from "./config";
@@ -529,6 +529,145 @@ describe("WorkbenchHost: ICM §30 state.refresh honesty (GUI redesign, increment
       expect(refused).toContain("not_action_admitted");
     } finally {
       host.close();
+    }
+  });
+});
+
+/**
+ * Write a tiny, deterministic stand-in for the real `sxr` binary (GUI-redesign
+ * increment 6): a POSIX shell script that ignores argv, optionally sleeps,
+ * then prints a fixed raw ledger-export JSON ARRAY on stdout (the shape
+ * `parseSxrLedgerExport` pins) — exercising `executeSxrRefresh`'s real
+ * `Bun.spawn` path end to end without a real `sxr` binary, mirroring
+ * `writeFakePrimeAgent`'s stand-in for `RealPrimeHost`.
+ */
+function writeFakeSxrLedgerBinary(
+  path: string,
+  options: { readonly ledgerId: string; readonly entrySeed: string; readonly sleepMs?: number },
+): void {
+  const rows = [
+    {
+      ledger_id: options.ledgerId,
+      append_ordinal: 1,
+      record_kind: "debt.recorded",
+      entry_hash: `sha256:${options.entrySeed.padEnd(64, "0").slice(0, 64)}`,
+      payload: {},
+    },
+  ];
+  const sleepCmd =
+    (options.sleepMs ?? 0) > 0 ? `sleep ${((options.sleepMs ?? 0) / 1000).toFixed(3)}\n` : "";
+  const script = `#!/bin/sh\n${sleepCmd}printf '%s' '${JSON.stringify(rows)}'\nexit 0\n`;
+  writeFileSync(path, script, { mode: 0o755 });
+  chmodSync(path, 0o755);
+}
+
+describe("WorkbenchHost: RealityTrace (SXR) refresh (GUI-redesign increment 6)", () => {
+  it("unbound config: refreshRealityTrace() resolves without throwing and leaves sxrLens/sxrLane undefined", async () => {
+    const host = new WorkbenchHost(
+      resolveConfig({ env: {}, cli: { projection_store: ":memory:" } }),
+    );
+    try {
+      await expect(host.refreshRealityTrace()).resolves.toBeUndefined();
+      expect(host.sxrLens).toBeUndefined();
+      expect(host.sxrLane).toBeUndefined();
+      expect(host.sxrRefreshEpochCurrent).toBe(0);
+    } finally {
+      host.close();
+    }
+  });
+
+  it("a single successful refresh populates sxrLens/sxrLane and increments the epoch by exactly 1", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sxr-refresh-"));
+    try {
+      const binPath = join(root, "sxr");
+      writeFakeSxrLedgerBinary(binPath, { ledgerId: "ledger-one", entrySeed: "a1" });
+      const host = new WorkbenchHost(
+        resolveConfig({
+          env: { GAUNTLET_SXR_BINARY: binPath, GAUNTLET_SXR_REPO_ID: "repo-one" },
+          cli: { projection_store: ":memory:" },
+        }),
+      );
+      try {
+        expect(host.sxrRefreshEpochCurrent).toBe(0);
+        await host.refreshRealityTrace();
+        expect(host.sxrRefreshEpochCurrent).toBe(1);
+        expect(host.sxrLens?.status).toBe("projected");
+        expect(host.sxrLane?.ledgerId).toBe("ledger-one");
+        expect(host.sxrLane?.repoId).toBe("repo-one");
+        expect(host.sxrLane?.refreshEpoch).toBe(1);
+      } finally {
+        host.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("epoch-discard: a slower first refresh resolving after a faster second refresh never overwrites the second's already-applied state", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sxr-race-"));
+    try {
+      const slowBinPath = join(root, "sxr-slow");
+      const fastBinPath = join(root, "sxr-fast");
+      writeFakeSxrLedgerBinary(slowBinPath, {
+        ledgerId: "ledger-slow",
+        entrySeed: "a1",
+        sleepMs: 300,
+      });
+      writeFakeSxrLedgerBinary(fastBinPath, { ledgerId: "ledger-fast", entrySeed: "a2" });
+      const host = new WorkbenchHost(
+        resolveConfig({
+          env: { GAUNTLET_SXR_BINARY: slowBinPath, GAUNTLET_SXR_REPO_ID: "repo-slow" },
+          cli: { projection_store: ":memory:" },
+        }),
+      );
+      try {
+        // First call captures the slow binding synchronously (epoch 1) before
+        // any await; reassigning config.sxrBinding afterward only affects the
+        // NEXT call's read — the host has no injection seam for the runner,
+        // so this simulates the operator re-triggering refresh against a
+        // faster-resolving invocation while the first is still in flight.
+        const first = host.refreshRealityTrace();
+        (
+          host.config as unknown as { sxrBinding: { binaryPath: string; repoId: string } }
+        ).sxrBinding = { binaryPath: fastBinPath, repoId: "repo-fast" };
+        const second = host.refreshRealityTrace();
+        await Promise.all([first, second]);
+        // The fast (epoch 2) call resolves and applies first; the slow
+        // (epoch 1) call resolves later and MUST be discarded (ICM §16.11).
+        expect(host.sxrRefreshEpochCurrent).toBe(2);
+        expect(host.sxrLane?.ledgerId).toBe("ledger-fast");
+        expect(host.sxrLane?.repoId).toBe("repo-fast");
+        expect(host.sxrLane?.refreshEpoch).toBe(2);
+      } finally {
+        host.close();
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("host.close() before an in-flight refresh resolves: no throw, and resolution never mutates state afterward", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sxr-close-"));
+    try {
+      const binPath = join(root, "sxr");
+      writeFakeSxrLedgerBinary(binPath, {
+        ledgerId: "ledger-closed",
+        entrySeed: "a1",
+        sleepMs: 200,
+      });
+      const host = new WorkbenchHost(
+        resolveConfig({
+          env: { GAUNTLET_SXR_BINARY: binPath, GAUNTLET_SXR_REPO_ID: "repo-closed" },
+          cli: { projection_store: ":memory:" },
+        }),
+      );
+      const pending = host.refreshRealityTrace();
+      host.close();
+      await expect(pending).resolves.toBeUndefined();
+      expect(host.sxrLens).toBeUndefined();
+      expect(host.sxrLane).toBeUndefined();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
     }
   });
 });
