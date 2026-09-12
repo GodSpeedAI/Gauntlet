@@ -1,11 +1,20 @@
 import { describe, expect, it } from "bun:test";
 import {
   calculateColumns,
+  cellWidth,
   classifyGeometry,
   collapseOrder,
   heightBand,
   renderBelowMinimumPrompt,
 } from "./geometry";
+import { lineText } from "./render-tree";
+import {
+  COMPACT_DIMS,
+  FULL_DIMS,
+  modelWiredSession,
+  renderOptions,
+  seededModel,
+} from "./testing/shell-harness";
 
 /**
  * Increment 7 responsive-geometry honesty suites (DESIGN.md "Responsive
@@ -195,5 +204,39 @@ describe("column-splitter drag-to-resize (ICM §36.1, UESC §22.11 SplitPane)", 
     const dims = { cols: 200, rows: 39 }; // Wide
     expect(calculateColumns(dims, null)).toEqual(calculateColumns(dims));
     expect(calculateColumns(dims, undefined)).toEqual(calculateColumns(dims));
+  });
+});
+
+describe("MenuBar chrome row honours geometry floors (UESC §22.7 — always-visible below the header)", () => {
+  const CASES: readonly {
+    readonly label: string;
+    readonly dims: { cols: number; rows: number };
+  }[] = [
+    { label: "Compact 80x24", dims: COMPACT_DIMS },
+    { label: "Full 120x40", dims: FULL_DIMS },
+    { label: "Wide 200x39", dims: { cols: 200, rows: 39 } },
+    { label: "Full at the 120x24 one-primary-pane floor", dims: { cols: 120, rows: 24 } },
+  ];
+
+  for (const { label, dims } of CASES) {
+    it(`${label}: the menu bar line never exceeds the terminal width`, () => {
+      const model = seededModel();
+      const session = modelWiredSession(model, dims);
+      const rendered = session.render(model.getSnapshot(), renderOptions(model));
+      expect(classifyGeometry(dims)).not.toBe("BelowMinimum");
+      expect(rendered.menuBarLine).not.toBeNull();
+      const text = rendered.menuBarLine ? lineText(rendered.menuBarLine) : "";
+      expect(cellWidth(text)).toBeLessThanOrEqual(dims.cols);
+    });
+  }
+
+  it("BelowMinimum renders no menu bar line — the recoverable prompt owns everything", () => {
+    const dims = { cols: 60, rows: 15 };
+    const model = seededModel();
+    const session = modelWiredSession(model, dims);
+    const rendered = session.render(model.getSnapshot(), renderOptions(model));
+    expect(classifyGeometry(dims)).toBe("BelowMinimum");
+    expect(rendered.menuBarLine).toBeNull();
+    expect(rendered.menuBar).toBeNull();
   });
 });

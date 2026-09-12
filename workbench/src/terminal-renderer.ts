@@ -148,6 +148,19 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
     width,
     rows: planRows([shell.header], 0, 0, width, 1, height),
   });
+  // MenuBar title strip (UESC §22.7): always-visible chrome directly below
+  // the header, occupying the row that previously sat blank between the
+  // header and the body (y=1) — no other region's placement math changes.
+  if (shell.menuBarLine) {
+    regions.push({
+      key: "menubar",
+      surfaceId: "menubar",
+      x: 0,
+      y: 1,
+      width,
+      rows: planRows([shell.menuBarLine], 0, 1, width, 1, height),
+    });
+  }
   if (shell.prompt) {
     regions.push({
       key: "prompt",
@@ -291,6 +304,47 @@ function planFrame(shell: RenderedShell, width: number, height: number): FramePl
         height,
       ),
     });
+  }
+  // MenuBar dropdown (UESC §22.7): a small overlay anchored under the open
+  // title, sharing the same Overlay z-tier/hit-testing path as the palette
+  // and context menu — mutually exclusive with both (ShellState enforces
+  // it), so this branch and the ones below it can never collide.
+  if (shell.menuBar) {
+    const lines = shell.menuBar.lines;
+    const contentWidth = lines.reduce(
+      (max, line) =>
+        Math.max(
+          max,
+          line.spans.reduce((sum, span) => sum + span.text.length, 0),
+        ),
+      16,
+    );
+    const menuWidth = Math.min(contentWidth + 2, Math.max(1, width - 4));
+    const menuHeight = Math.min(lines.length, Math.max(1, height - 6));
+    const menuX = Math.min(Math.max(0, shell.menuBar.anchorX), Math.max(0, width - menuWidth - 1));
+    const menuY = Math.min(
+      Math.max(0, shell.menuBar.anchorY),
+      Math.max(0, height - menuHeight - 1),
+    );
+    regions.push({
+      key: "menubar-dropdown",
+      surfaceId: "Overlay",
+      x: menuX,
+      y: menuY,
+      width: menuWidth,
+      rows: planRows(lines, menuX, menuY, menuWidth, menuHeight, height),
+    });
+    return {
+      regions,
+      overlay: {
+        x: Math.max(0, menuX - 1),
+        y: Math.max(0, menuY - 1),
+        width: Math.min(width, menuWidth + 2),
+        height: Math.min(height, menuHeight + 2),
+        title: ` ${shell.menuBar.titleLabel} · ↑/↓ select · Enter activate · Esc close `,
+      },
+      drawer: drawerPlacement,
+    };
   }
   // ContextMenu (ICM §6.4, UESC §22.5): a small overlay anchored near the
   // right-click point, sharing the palette's z-tier and hit-testing path but
@@ -720,7 +774,12 @@ export class TerminalShellRenderer {
             height: 1,
             wrapMode: "none",
             truncate: true,
-            zIndex: region.key === "palette" ? 2 : 0,
+            zIndex:
+              region.key === "palette" ||
+              region.key === "menubar-dropdown" ||
+              region.key === "contextmenu"
+                ? 2
+                : 0,
             content: styledContent(row.spans, row.cols),
             // The generic onMouse handler is the only one that receives
             // scroll events (named onScroll does not dispatch in 0.5.11).

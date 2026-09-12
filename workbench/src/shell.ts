@@ -359,6 +359,173 @@ export function contextMenuEntries(
   return entries;
 }
 
+/**
+ * MenuBar (UESC §22.7, ICM §7.1/§7.2 File/View menus): CLOSED -> click a
+ * title -> MENU_OPEN -> switch menu / invoke / dismiss -> CLOSED. This is a
+ * thin presentation surface over commands the shell already implements —
+ * "only expose real commands, do not add desktop cosplay" (§22.7). Three
+ * titles, grounded in ICM's own recommended chrome-menu groupings, limited
+ * to commands that already have a real handleCommand case today (no
+ * roadmap-only rows like case.create, run.form_or_start, or agent.spawn):
+ *   - File: app.quit (ICM §7.1).
+ *   - View: the three primary view activations plus the Navigator/Inspector/
+ *     Bottom presentation toggles (ICM §7.2 — every row listed there that
+ *     this shell actually implements).
+ *   - Navigate: back/forward history and horizon hoist/dehoist (ICM §6.6) —
+ *     flagged as a likely candidate alongside View/quit; not one of ICM's
+ *     named chrome menus, but every row is a real, already-bound command.
+ */
+export type MenuBarMenuId = "file" | "view" | "navigate";
+
+export interface MenuBarTitle {
+  readonly id: MenuBarMenuId;
+  readonly label: string;
+}
+
+export const MENU_BAR_TITLES: readonly MenuBarTitle[] = Object.freeze([
+  { id: "file", label: "File" },
+  { id: "view", label: "View" },
+  { id: "navigate", label: "Navigate" },
+]);
+
+export type MenuBarEntry = {
+  readonly commandId: SemanticCommandId;
+  readonly label: string;
+  readonly status: "available" | "absent";
+  readonly reason?: string;
+  readonly shortcut: string | null;
+};
+
+/** The Focus a hoist would target (ICM §6.6): SAME resolution
+ * nav.horizon.hoist's handleCommand case uses — ONE source, so the menu
+ * row's availability can never drift from what activating it would do. */
+function hoistTarget(state: ShellState, snapshot: FullWorkbenchSnapshot): FocusRef | null {
+  return snapshot.focus ?? state.location.focus;
+}
+
+/** Whether a dehoist is currently meaningful: SAME condition
+ * nav.horizon.dehoist's handleCommand case guards on. */
+function canDehoistNow(state: ShellState, snapshot: FullWorkbenchSnapshot): boolean {
+  return snapshot.active_horizon !== null || state.location.horizon !== null;
+}
+
+/**
+ * Contents of one MenuBar dropdown (UESC §22.7). Every row's status mirrors
+ * the exact guard handleCommand already applies for that command, so a row
+ * is never VISIBLE_ENABLED for something that would actually no-op.
+ */
+export function menuBarEntries(
+  menu: MenuBarMenuId,
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+): readonly MenuBarEntry[] {
+  const row = (
+    commandId: SemanticCommandId,
+    label: string,
+    status: "available" | "absent" = "available",
+    reason?: string,
+  ): MenuBarEntry => ({
+    commandId,
+    label,
+    status,
+    ...(reason !== undefined ? { reason } : {}),
+    shortcut: commandShortcut(commandId),
+  });
+
+  switch (menu) {
+    case "file":
+      return [row("app.quit", "Quit workbench")];
+    case "view": {
+      const compact = classifyGeometry(state.dimensions) === "Compact";
+      const dockedReason = "docked (always visible) at this width";
+      return [
+        row("view.activate.work", "Work view"),
+        row("view.activate.chat", "Chat view"),
+        row("view.activate.trace", "Trace view"),
+        row(
+          "ui.navigator.toggle",
+          "Toggle Navigator drawer",
+          compact ? "available" : "absent",
+          compact ? undefined : dockedReason,
+        ),
+        row(
+          "ui.inspector.toggle",
+          "Toggle Inspector drawer",
+          compact ? "available" : "absent",
+          compact ? undefined : dockedReason,
+        ),
+        row("ui.bottom.toggle", state.bottomOpen ? "Hide bottom surface" : "Show bottom surface"),
+      ];
+    }
+    case "navigate": {
+      const canBack = historyCanGoBack(state.history);
+      const canForward = historyCanGoForward(state.history);
+      const canHoist = hoistTarget(state, snapshot) !== null;
+      const canDehoist = canDehoistNow(state, snapshot);
+      return [
+        row(
+          "nav.history.back",
+          "Back",
+          canBack ? "available" : "absent",
+          canBack ? undefined : "no earlier location",
+        ),
+        row(
+          "nav.history.forward",
+          "Forward",
+          canForward ? "available" : "absent",
+          canForward ? undefined : "no later location",
+        ),
+        row(
+          "nav.horizon.hoist",
+          "Hoist to focus",
+          canHoist ? "available" : "absent",
+          canHoist ? undefined : "no focus selected",
+        ),
+        row(
+          "nav.horizon.dehoist",
+          "Dehoist one level",
+          canDehoist ? "available" : "absent",
+          canDehoist ? undefined : "already at Case root",
+        ),
+      ];
+    }
+  }
+}
+
+/**
+ * Character offsets of each menu title in the SAME "shell.menubar" line the
+ * render builds (ONE source for render + click resolution, exactly the
+ * primaryTabViews/headerIdentitySpans discipline used elsewhere in this
+ * file). An OPEN title renders bracketed so the strip itself carries the
+ * MENU_OPEN cue.
+ */
+export function menuBarTitleLayout(
+  state: ShellState,
+): readonly { readonly title: MenuBarTitle; readonly text: string; readonly offset: number }[] {
+  let offset = 0;
+  return MENU_BAR_TITLES.map((title) => {
+    const open = state.menuBar?.menu === title.id;
+    const text = open ? `[${title.label}]` : ` ${title.label} `;
+    const entry = { title, text, offset };
+    offset += text.length;
+    return entry;
+  });
+}
+
+export interface RenderedMenuBarDropdown {
+  readonly menu: MenuBarMenuId;
+  /** The open title's display label (terminal-renderer's overlay title bar
+   * needs it but must not runtime-import shell.ts's title table — T23's
+   * static routing pin bans that transitively — so it travels pre-resolved
+   * on the rendered structure instead, like every other rendered string). */
+  readonly titleLabel: string;
+  readonly entries: readonly MenuBarEntry[];
+  readonly index: number;
+  readonly lines: readonly RenderedLine[];
+  readonly anchorX: number;
+  readonly anchorY: number;
+}
+
 export interface RenderedPalette {
   readonly entries: readonly PaletteEntry[];
   readonly index: number;
@@ -393,6 +560,11 @@ export interface RenderedShell {
   readonly help: readonly RenderedLine[];
   readonly palette: RenderedPalette | null;
   readonly contextMenu: RenderedContextMenu | null;
+  /** MenuBar title strip (UESC §22.7): always visible below the header
+   * except at BelowMinimum, where the recoverable prompt owns everything. */
+  readonly menuBarLine: RenderedLine | null;
+  /** MenuBar dropdown when a title is MENU_OPEN; null in CLOSED. */
+  readonly menuBar: RenderedMenuBarDropdown | null;
   readonly prompt: RenderedPrompt | null;
   /** Compact side drawer (V2, UESC Compact: switchable side surfaces). */
   readonly drawer: {
@@ -730,6 +902,7 @@ export function handlePointer(
         paletteOpen: false,
         pendingConfirm: null,
         contextMenu: Object.freeze({ ref, index: 0, anchorX: gesture.x, anchorY: gesture.y }),
+        menuBar: null,
       }),
       effects: [],
     };
@@ -746,6 +919,20 @@ export function handlePointer(
     return { state: Object.freeze({ ...state, contextMenu: null }), effects: [] };
   }
 
+  // Click-elsewhere closes an open MenuBar dropdown without effect (UESC
+  // §22.7 MENU_OPEN -> dismiss -> CLOSED; same precedent as the context
+  // menu above), UNLESS the click landed on the dropdown's own Overlay rows
+  // or the title strip itself — both handled below (the strip branch
+  // implements "switch menu" for a click on a DIFFERENT title).
+  if (
+    state.menuBar !== null &&
+    (gesture.kind === "click" || gesture.kind === "double_click") &&
+    !(gesture.surfaceId === "Overlay" && gesture.lineId?.startsWith("menubar.") === true) &&
+    !(gesture.surfaceId === "menubar" && gesture.lineId === "shell.menubar")
+  ) {
+    return { state: Object.freeze({ ...state, menuBar: null }), effects: [] };
+  }
+
   if (gesture.kind === "wheel") {
     const steps = Math.abs(gesture.delta);
     if (steps === 0) return { state, effects: [] };
@@ -755,9 +942,13 @@ export function handlePointer(
           ? gesture.delta > 0
             ? ("ui.context_menu.move.next" as const)
             : ("ui.context_menu.move.prev" as const)
-          : gesture.delta > 0
-            ? ("ui.palette.move.next" as const)
-            : ("ui.palette.move.prev" as const)
+          : state.menuBar !== null
+            ? gesture.delta > 0
+              ? ("ui.menu_bar.move.next" as const)
+              : ("ui.menu_bar.move.prev" as const)
+            : gesture.delta > 0
+              ? ("ui.palette.move.next" as const)
+              : ("ui.palette.move.prev" as const)
         : gesture.delta > 0
           ? ("nav.move.next" as const)
           : ("nav.move.prev" as const);
@@ -773,7 +964,8 @@ export function handlePointer(
     } else if (
       gesture.surfaceId === "Overlay" &&
       !state.paletteOpen &&
-      state.contextMenu === null
+      state.contextMenu === null &&
+      state.menuBar === null
     ) {
       return { state, effects: [] };
     } else if (gesture.surfaceId !== "Overlay") {
@@ -790,6 +982,30 @@ export function handlePointer(
   }
 
   const { kind, surfaceId, lineId } = gesture;
+
+  // MenuBar title strip (UESC §22.7 CLOSED -> click -> MENU_OPEN, and
+  // MENU_OPEN <-> switch menu): clicking the currently-open title closes it;
+  // clicking any other title opens/switches directly to it. Opening here
+  // never touches selection/inspection identity (PRESENTATION_LOCAL), same
+  // as the context menu's right-click open above.
+  if (surfaceId === "menubar" && lineId === "shell.menubar") {
+    const hit = menuBarTitleLayout(state).find(
+      (candidate) =>
+        gesture.x >= candidate.offset && gesture.x < candidate.offset + candidate.text.length,
+    );
+    if (hit === undefined) return { state, effects: [] };
+    const alreadyOpen = state.menuBar?.menu === hit.title.id;
+    return {
+      state: Object.freeze({
+        ...state,
+        paletteOpen: false,
+        pendingConfirm: null,
+        contextMenu: null,
+        menuBar: alreadyOpen ? null : Object.freeze({ menu: hit.title.id, index: 0 }),
+      }),
+      effects: [],
+    };
+  }
 
   // Palette rows: click selects the row; double-click activates it — exactly
   // what arrow keys + Enter do (ICM §35.1/§35.2).
@@ -808,6 +1024,21 @@ export function handlePointer(
         return { state: selected, effects: [] };
       }
       return handleCommand(selected, snapshot, "ui.context_menu.activate", paletteContext);
+    }
+    if (state.menuBar !== null) {
+      if (lineId === null || !lineId.startsWith("menubar.")) {
+        return { state, effects: [] };
+      }
+      const index = Number(lineId.slice("menubar.".length));
+      if (!Number.isInteger(index) || index < 0) return { state, effects: [] };
+      const selected: ShellState = Object.freeze({
+        ...state,
+        menuBar: Object.freeze({ ...state.menuBar, index }),
+      });
+      if (kind === "click") {
+        return { state: selected, effects: [] };
+      }
+      return handleCommand(selected, snapshot, "ui.menu_bar.activate", paletteContext);
     }
     if (!state.paletteOpen || lineId === null || !lineId.startsWith("palette.")) {
       return { state, effects: [] };
@@ -1004,6 +1235,13 @@ export interface ShellState {
     readonly anchorX: number;
     readonly anchorY: number;
   } | null;
+  /**
+   * MenuBar (UESC §22.7): CLOSED when null; MENU_OPEN names which title and
+   * the highlighted row index. Mutually exclusive with `paletteOpen` and
+   * `contextMenu` — never more than one of the three is open at once, same
+   * discipline as the palette/context-menu pair.
+   */
+  readonly menuBar: { readonly menu: MenuBarMenuId; readonly index: number } | null;
   readonly navigatorIndex: number;
   /**
    * Column-splitter RESIZING state (UESC §22.11 SplitPane: STABLE → drag
@@ -1062,6 +1300,7 @@ export function createShellState(host: ShellHostConfig, dims: Dimensions): Shell
     ),
     pendingConfirm: null,
     contextMenu: null,
+    menuBar: null,
     navigatorIndex: 0,
     columnResize: null,
     columnWidthOverride: null,
@@ -1268,7 +1507,9 @@ export function handleKey(
           ? "palette_open"
           : state.contextMenu !== null
             ? "context_menu_open"
-            : "shell",
+            : state.menuBar !== null
+              ? "menu_bar_open"
+              : "shell",
   };
   // Palette query editing is TEXT INPUT, not command intent (the composer
   // precedent): printable graphemes and backspace edit the query while the
@@ -1400,7 +1641,11 @@ export function handleCommand(
     return handleContextMenuCommand(state, command, paletteContext);
   }
 
-  // Shell context: palette/context-menu commands are inert while both are closed.
+  if (state.menuBar !== null) {
+    return handleMenuBarCommand(state, snapshot, command, paletteContext);
+  }
+
+  // Shell context: palette/context-menu/menu-bar commands are inert while all three are closed.
   switch (command) {
     case "app.quit":
       return { state, effects: [{ type: "quit" }] };
@@ -1737,6 +1982,52 @@ function handleContextMenuCommand(
   }
 }
 
+/**
+ * MenuBar-open context (UESC §22.7): the dropdown owns the keyboard.
+ * Activating a row dispatches the row's OWN commandId through `handleCommand`
+ * on the already-closed state — the exact same reducer path the keyboard
+ * shortcut or palette row for that command already uses, so there is no
+ * second behavior pipeline to diverge from (unlike the context menu's
+ * nav.focus.open/inspect, every MenuBar row's commandId already has a real
+ * handleCommand case, so no manual effect replication is needed here).
+ */
+function handleMenuBarCommand(
+  state: ShellState,
+  snapshot: FullWorkbenchSnapshot,
+  command: SemanticCommandId,
+  paletteContext: PaletteContext,
+): { state: ShellState; effects: readonly ShellEffect[] } {
+  const menuBar = state.menuBar;
+  if (menuBar === null) return { state, effects: [] };
+  switch (command) {
+    case "ui.menu_bar.dismiss":
+    case "ui.dismiss":
+      return { state: Object.freeze({ ...state, menuBar: null }), effects: [] };
+    case "ui.menu_bar.move.prev":
+    case "ui.menu_bar.move.next": {
+      const entries = menuBarEntries(menuBar.menu, state, snapshot);
+      const last = Math.max(0, entries.length - 1);
+      const delta = command === "ui.menu_bar.move.prev" ? -1 : 1;
+      const next = Math.min(Math.max(0, menuBar.index + delta), last);
+      return {
+        state: Object.freeze({ ...state, menuBar: Object.freeze({ ...menuBar, index: next }) }),
+        effects: [],
+      };
+    }
+    case "ui.menu_bar.activate": {
+      const entries = menuBarEntries(menuBar.menu, state, snapshot);
+      const entry = entries[menuBar.index];
+      const closed: ShellState = Object.freeze({ ...state, menuBar: null });
+      if (entry === undefined || entry.status === "absent") {
+        return { state: closed, effects: [] };
+      }
+      return handleCommand(closed, snapshot, entry.commandId, paletteContext);
+    }
+    default:
+      return { state, effects: [] };
+  }
+}
+
 /** Palette-open context: the palette owns the keyboard (shell keys inert). */
 function handlePaletteCommand(
   state: ShellState,
@@ -2027,6 +2318,8 @@ export function renderShell(
       help: prompt,
       palette: null,
       contextMenu: null,
+      menuBarLine: null,
+      menuBar: null,
       prompt: { lines: prompt, exitKey: "q" },
       motion: state.motion,
     };
@@ -2374,6 +2667,57 @@ export function renderShell(
       })()
     : null;
 
+  // MenuBar (UESC §22.7): the title strip is always-visible chrome, directly
+  // below the header; the dropdown (when a title is MENU_OPEN) shares the
+  // context-menu/palette Overlay z-tier and lineId-prefix convention
+  // ("menubar." vs "contextmenu."/"palette.").
+  const menuBarLine: RenderedLine = {
+    id: "shell.menubar",
+    spans: menuBarTitleLayout(state).map(({ title, text }) => ({
+      text,
+      emphasis: state.menuBar?.menu === title.id ? ("bold" as const) : ("normal" as const),
+    })),
+  };
+  const menuBar: RenderedMenuBarDropdown | null = state.menuBar
+    ? (() => {
+        const open = state.menuBar;
+        const entries = menuBarEntries(open.menu, state, snapshot);
+        const lines = entries.map((entry, index): RenderedLine => {
+          const selected = index === open.index;
+          const description =
+            entry.status === "available"
+              ? entry.label
+              : `${entry.label}: ${entry.reason ?? "unavailable"}`;
+          const identity =
+            entry.shortcut !== null ? `${entry.commandId} · ${entry.shortcut}` : entry.commandId;
+          return {
+            id: `menubar.${index}`,
+            spans: [
+              ...(selected ? [{ text: "◉ ", token: "focus.ring" as const }] : [{ text: "  " }]),
+              {
+                text: description,
+                emphasis: selected ? ("bold" as const) : ("normal" as const),
+                token: entry.status === "absent" ? ("structure.neutral" as const) : undefined,
+              },
+              { text: `  ${identity}`, emphasis: "dim" as const },
+            ],
+          };
+        });
+        const layout = menuBarTitleLayout(state).find(
+          (candidate) => candidate.title.id === open.menu,
+        );
+        return {
+          menu: open.menu,
+          titleLabel: layout?.title.label ?? "",
+          entries,
+          index: open.index,
+          lines,
+          anchorX: layout?.offset ?? 0,
+          anchorY: 2,
+        };
+      })()
+    : null;
+
   // Compact side drawer (V2): the Navigator/Inspector as switchable
   // overlays — the same line builders the docked surfaces use (DSN-06
   // placements, never copies).
@@ -2435,6 +2779,8 @@ export function renderShell(
     help,
     palette,
     contextMenu,
+    menuBarLine,
+    menuBar,
     prompt: null,
     motion: state.motion,
   };
@@ -2450,6 +2796,8 @@ export function containsMotionFrames(rendered: RenderedShell): boolean {
     ...rendered.help,
     ...(rendered.palette?.lines ?? []),
     ...(rendered.contextMenu?.lines ?? []),
+    ...(rendered.menuBarLine !== null ? [rendered.menuBarLine] : []),
+    ...(rendered.menuBar?.lines ?? []),
     ...(rendered.prompt?.lines ?? []),
   ];
   return allLines.some((line) => frames.some((frame) => lineText(line).includes(frame)));

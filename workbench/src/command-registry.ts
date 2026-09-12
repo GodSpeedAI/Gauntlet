@@ -59,7 +59,17 @@ export type SemanticCommandId =
   | "ui.context_menu.dismiss"
   | "ui.context_menu.move.prev"
   | "ui.context_menu.move.next"
-  | "ui.context_menu.activate";
+  | "ui.context_menu.activate"
+  // MenuBar (UESC §22.7): CLOSED -> click a title -> MENU_OPEN -> switch
+  // menu / invoke / dismiss -> CLOSED. Opening/switching a menu is a direct
+  // pointer-state transition (handlePointer), exactly like the context
+  // menu's right-click open — there is no shell-surface key to "open" a
+  // menu bar title (mouse-first: UESC's novice-discoverability goal), only
+  // to operate one already open.
+  | "ui.menu_bar.dismiss"
+  | "ui.menu_bar.move.prev"
+  | "ui.menu_bar.move.next"
+  | "ui.menu_bar.activate";
 
 /** Command classes follow ICM §5 (presentation-only → navigation → query → runtime → canonical). */
 export type SemanticCommandClass =
@@ -70,7 +80,12 @@ export type SemanticCommandClass =
 
 /** Input contexts that rebind keys. Mirrors the shell's input precedence:
  * below-minimum prompt and open palette own the keyboard before the shell. */
-export type CommandKeySurface = "below_minimum" | "palette_open" | "context_menu_open" | "shell";
+export type CommandKeySurface =
+  | "below_minimum"
+  | "palette_open"
+  | "context_menu_open"
+  | "menu_bar_open"
+  | "shell";
 
 export interface CommandKeyContext {
   readonly surface: CommandKeySurface;
@@ -338,6 +353,34 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     commandClass: "RUNTIME_ADAPTER",
     surfaces: ["shell"],
     defaultKeys: { shell: "r" },
+  },
+  {
+    id: "ui.menu_bar.dismiss",
+    title: "Dismiss menu bar dropdown",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["menu_bar_open"],
+    defaultKeys: { menu_bar_open: "escape" },
+  },
+  {
+    id: "ui.menu_bar.move.prev",
+    title: "Menu bar selection up",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["menu_bar_open"],
+    defaultKeys: { menu_bar_open: "up" },
+  },
+  {
+    id: "ui.menu_bar.move.next",
+    title: "Menu bar selection down",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["menu_bar_open"],
+    defaultKeys: { menu_bar_open: "down" },
+  },
+  {
+    id: "ui.menu_bar.activate",
+    title: "Activate menu bar row",
+    commandClass: "PRESENTATION_LOCAL",
+    surfaces: ["menu_bar_open"],
+    defaultKeys: { menu_bar_open: "enter" },
   },
 ] as const);
 

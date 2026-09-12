@@ -6,7 +6,10 @@ import {
   contextMenuEntries,
   createShellState,
   handleCommand,
+  handleKey,
   handlePointer,
+  menuBarEntries,
+  menuBarTitleLayout,
   paletteEntries,
   reconcileTrace,
   ShellSession,
@@ -465,6 +468,179 @@ describe("context menu (ICM §6.4: right-click opens contextual Affordances)", (
     });
     expect(clickedAway.state.contextMenu).toBeNull();
     expect(clickedAway.effects).toEqual([]);
+  });
+});
+
+describe("menu bar (UESC §22.7: CLOSED -> click title -> MENU_OPEN -> switch/invoke/dismiss -> CLOSED)", () => {
+  /** Offset of the "View" title in the closed strip (ONE source: the same
+   * menuBarTitleLayout the render and handlePointer branch both use). */
+  function viewTitleOffset(state: ShellState): number {
+    const hit = menuBarTitleLayout(state).find((entry) => entry.title.id === "view");
+    if (hit === undefined) throw new Error("view title missing from layout");
+    return hit.offset + 1; // land inside the label, not on the boundary
+  }
+
+  it("clicking a menu title opens its dropdown at index 0, without mutating selection", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const result = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(base),
+    });
+    expect(result.effects).toEqual([]);
+    expect(result.state.menuBar).not.toBeNull();
+    expect(result.state.menuBar?.menu).toBe("view");
+    expect(result.state.menuBar?.index).toBe(0);
+    expect(result.state.location.focus).toBeNull();
+  });
+
+  it("clicking the SAME open title again closes it (toggle); clicking a DIFFERENT title switches menus", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const opened = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(base),
+    });
+    const toggled = handlePointer(opened.state, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(opened.state),
+    });
+    expect(toggled.state.menuBar).toBeNull();
+
+    const navigateOffset = menuBarTitleLayout(opened.state).find((e) => e.title.id === "navigate");
+    if (navigateOffset === undefined) throw new Error("navigate title missing");
+    const switched = handlePointer(opened.state, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: navigateOffset.offset + 1,
+    });
+    expect(switched.state.menuBar?.menu).toBe("navigate");
+  });
+
+  it("selecting a View-menu row activates the IDENTICAL effect the keyboard path for that command produces", () => {
+    const snap = snapshot();
+    const base = stateAt();
+
+    // MenuBar path: open View, land on the "Chat view" row, activate.
+    const opened = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(base),
+    });
+    const entries = menuBarEntries("view", opened.state, snap);
+    const chatIndex = entries.findIndex((entry) => entry.commandId === "view.activate.chat");
+    expect(chatIndex).toBeGreaterThanOrEqual(0);
+    const atRow: ShellState = {
+      ...opened.state,
+      menuBar: opened.state.menuBar ? { ...opened.state.menuBar, index: chatIndex } : null,
+    };
+    const activated = handleCommand(atRow, snap, "ui.menu_bar.activate");
+    expect(activated.state.menuBar).toBeNull();
+    expect(activated.state.location.view).toBe("chat");
+
+    // Keyboard path: the SAME command, from a fresh base state.
+    const viaKeyboard = handleCommand(base, snap, "view.activate.chat");
+    expect(activated.state.location.view).toBe(viaKeyboard.state.location.view);
+    expect(activated.effects).toEqual(viaKeyboard.effects);
+  });
+
+  it("a docked-geometry Navigator/Inspector toggle row is ABSENT with a reason, and activating it is a no-op", () => {
+    const snap = snapshot();
+    const base = stateAt(); // FULL_DIMS: Navigator/Inspector are docked, not drawers.
+    const entries = menuBarEntries("view", base, snap);
+    const toggleRow = entries.find((entry) => entry.commandId === "ui.navigator.toggle");
+    expect(toggleRow?.status).toBe("absent");
+    expect(toggleRow?.reason).toBeDefined();
+
+    const opened = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(base),
+    });
+    const toggleIndex = entries.findIndex((entry) => entry.commandId === "ui.navigator.toggle");
+    const atRow: ShellState = {
+      ...opened.state,
+      menuBar: opened.state.menuBar ? { ...opened.state.menuBar, index: toggleIndex } : null,
+    };
+    const activated = handleCommand(atRow, snap, "ui.menu_bar.activate");
+    // Refused, not invoked inertly: the dropdown closes but drawer state is untouched.
+    expect(activated.state.menuBar).toBeNull();
+    expect(activated.state.drawer).toBe(base.drawer);
+    expect(activated.effects).toEqual([]);
+  });
+
+  it("Escape closes the menu bar dropdown with no effect", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const opened = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(base),
+    });
+    expect(opened.state.menuBar).not.toBeNull();
+    const dismissed = handleCommand(opened.state, snap, "ui.menu_bar.dismiss");
+    expect(dismissed.state.menuBar).toBeNull();
+    expect(dismissed.effects).toEqual([]);
+  });
+
+  it("clicking elsewhere while a menu is open closes it without effect", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const opened = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(base),
+    });
+    expect(opened.state.menuBar).not.toBeNull();
+    const clickedAway = handlePointer(opened.state, snap, {
+      kind: "click",
+      surfaceId: "Primary",
+      lineId: "primary.tabs",
+      x: 0,
+    });
+    expect(clickedAway.state.menuBar).toBeNull();
+    expect(clickedAway.effects).toEqual([]);
+  });
+
+  it("mutual exclusivity: opening the palette while a menu is open is refused (no shell-surface key opens it there)", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const opened = handlePointer(base, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(base),
+    });
+    expect(opened.state.menuBar).not.toBeNull();
+    const afterP = handleKey(opened.state, snap, "p");
+    expect(afterP.state.menuBar).toEqual(opened.state.menuBar);
+    expect(afterP.state.paletteOpen).toBe(false);
+  });
+
+  it("mutual exclusivity: opening a menu title while the palette is open closes the palette", () => {
+    const snap = snapshot();
+    const base = stateAt();
+    const paletteOpened = handleCommand(base, snap, "ui.palette.open");
+    expect(paletteOpened.state.paletteOpen).toBe(true);
+    const menuOpened = handlePointer(paletteOpened.state, snap, {
+      kind: "click",
+      surfaceId: "menubar",
+      lineId: "shell.menubar",
+      x: viewTitleOffset(paletteOpened.state),
+    });
+    expect(menuOpened.state.paletteOpen).toBe(false);
+    expect(menuOpened.state.menuBar?.menu).toBe("view");
   });
 });
 

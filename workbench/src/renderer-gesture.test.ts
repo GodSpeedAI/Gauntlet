@@ -171,6 +171,77 @@ test("click on the header emits a click gesture on shell.header (breadcrumb hois
   }
 });
 
+test("click on the MenuBar title strip emits a click gesture on shell.menubar (UESC §22.7)", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const hit = view.hitMap().regions.find((region) => region.surfaceId === "menubar");
+    expect(hit).toBeDefined();
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.click((hit?.x ?? 0) + 1, hit?.y ?? 0);
+
+    const clicks = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> => g.kind === "click",
+    );
+    expect(clicks.length).toBeGreaterThanOrEqual(1);
+    const last = clicks.at(-1);
+    expect(last?.surfaceId).toBe("menubar");
+    expect(last?.lineId).toBe("shell.menubar");
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
+test("a real mouse click on an open MenuBar dropdown row resolves to its menubar.<index> line id", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    // Open the "File" menu directly through the shell reducer (mouse-only
+    // entry point — there is no keyboard shortcut to open a title, UESC
+    // §22.7 CLOSED -> click -> MENU_OPEN), then render the dropdown so the
+    // real hit map carries its rows.
+    session.pointer(
+      { kind: "click", surfaceId: "menubar", lineId: "shell.menubar", x: 1 },
+      model.getSnapshot(),
+    );
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const overlayHit = view.hitMap().regions.find((region) => region.surfaceId === "Overlay");
+    expect(overlayHit).toBeDefined();
+    const row = overlayHit?.rows.findIndex((id) => id !== null) ?? -1;
+    expect(row).toBeGreaterThanOrEqual(0);
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.click((overlayHit?.x ?? 0) + 2, (overlayHit?.y ?? 0) + row);
+
+    const clicks = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> => g.kind === "click",
+    );
+    expect(clicks.length).toBeGreaterThanOrEqual(1);
+    const last = clicks.at(-1);
+    expect(last?.surfaceId).toBe("Overlay");
+    expect(last?.lineId).toBe(overlayHit?.rows[row] ?? null);
+    expect(last?.lineId).toMatch(/^menubar\.\d+$/);
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
 test("right-click on a Navigator row emits a right_click gesture with the row's line id (§35.3 context menu, increment 5)", async () => {
   const terminal = await createTestRenderer({ width: 120, height: 40 });
   const gestures: PointerGesture[] = [];
@@ -200,6 +271,51 @@ test("right-click on a Navigator row emits a right_click gesture with the row's 
     // A left click at the exact same cell must NOT also have produced a
     // right_click — the button debounce state must not cross-contaminate.
     expect(gestures.some((g) => g.kind === "click")).toBe(false);
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
+test("a real mouse click on an open context-menu row resolves to its contextmenu.<index> line id (regression: overlay border box was swallowing these clicks)", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    const outlineRow = { surfaceId: "Navigator", lineId: "outline.unit.u-far" };
+    session.pointer(
+      {
+        kind: "right_click",
+        surfaceId: outlineRow.surfaceId,
+        lineId: outlineRow.lineId,
+        x: 1,
+        y: 2,
+      },
+      model.getSnapshot(),
+    );
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const overlayHit = view.hitMap().regions.find((region) => region.surfaceId === "Overlay");
+    expect(overlayHit).toBeDefined();
+    const row =
+      overlayHit?.rows.findIndex((id) => id !== null && /^contextmenu\.\d+$/.test(id)) ?? -1;
+    expect(row).toBeGreaterThanOrEqual(0);
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.click((overlayHit?.x ?? 0) + 2, (overlayHit?.y ?? 0) + row);
+
+    const clicks = gestures.filter(
+      (g): g is Extract<PointerGesture, { kind: "click" | "double_click" }> => g.kind === "click",
+    );
+    expect(clicks.length).toBeGreaterThanOrEqual(1);
+    const last = clicks.at(-1);
+    expect(last?.surfaceId).toBe("Overlay");
+    expect(last?.lineId).toBe(overlayHit?.rows[row] ?? null);
+    expect(last?.lineId).toMatch(/^contextmenu\.\d+$/);
   } finally {
     view.destroy();
     terminal.renderer.destroy();
