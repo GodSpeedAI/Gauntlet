@@ -46,9 +46,10 @@ tui_gui_redesign:
       - "follow-on (e2f8bfe): mouse PTY qualification battery — real SGR-byte click/wheel tests added to operator-journeys-pty.test.ts (gated GAUNTLET_T20_REAL_PTY=1), proving the settled mouse-convergence pipeline (618616a) end-to-end through the real OpenTUI renderer for the first time; found and fixed 2 stale pre-existing assertions in that rarely-run suite; found (fixed separately in 85e49f7) a real palette-hit-testing bug; found and left documented (not fixed) a Composer focus-marker gap"
       - "follow-on (85e49f7): palette hit-testing order fix — TerminalShellRenderer.resolveAt walked hit-map regions in paint-push (forward) order instead of topmost-first (reverse), so a real click on an open palette/drawer overlay resolved to the background surface underneath it; fixed + regression test in renderer-gesture.test.ts"
       - "follow-on (5506759): Composer focus-ring marker fix — planFrame's column loop applies the ▸ focus.ring marker to each focusable surface's first row, but Composer is excluded from that columns array (footer layout, not a column) and silently lost the marker too, though its `focused` field is populated correctly; Composer's lines now go through the same marker transform"
-      - "follow-on (b3603cd): real-PTY lastFrame() resize-boundary fix — traced @opentui/core's processResize (non-split-footer path): it never emits a fresh clear-screen or forces a repaint on resize, so lastFrame()'s 'slice from the last clear-screen' heuristic had nothing to anchor to across a resize; PtySession now records the byte offset of output() at each resize() call and lastFrame() takes the later of that offset and the last clear-screen index. Fixes the previously-failing not.toContain('NAVIGATOR') resize-compaction assertion. Surfaced a distinct, unfixed finding: workbench/.gauntlet/projections.db is a checked-in mutable SQLite file that has drifted from the '0 units' cold state a later assertion assumes — a test-hermeticity gap, not attempted (needs an operator decision on seeding a clean Case per gated run)"
+      - "follow-on (b3603cd): real-PTY lastFrame() resize-boundary fix — traced @opentui/core's processResize (non-split-footer path): it never emits a fresh clear-screen or forces a repaint on resize, so lastFrame()'s 'slice from the last clear-screen' heuristic had nothing to anchor to across a resize; PtySession now records the byte offset of output() at each resize() call and lastFrame() takes the later of that offset and the last clear-screen index. Fixes the previously-failing not.toContain('NAVIGATOR') resize-compaction assertion"
+      - "follow-on (2ab8f3c): real-PTY Case-state hermeticity fix — the :memory: projection-store override did NOT fix the '0 units' drift, disproving that theory; actual cause was a real, reachable gauntlet serve process on the default endpoint (127.0.0.1:4000, an orphaned dev process on this host) that the spawned workbench syncs real generation data from mid-test. tui-preflight.sh already records the release entry as RECORDED-UNQUALIFIED 'cold-start host loop: no live gauntlet serve endpoint binding' — spawnWorkbench now defaults every spawn's endpoint to the unreachable-port sentinel 'http://127.0.0.1:1' (already used by secret-leakage.test.ts), making both cold-Case assertions deterministic; the one test needing real synced data (mouse-wheel journey) explicitly opts back into the real endpoint via a documented override"
     verification:
-      - "tsc clean; 918 tests / 24 gated skips / 0 fail (unaffected by either fix); biome at the 6-error pre-existing baseline, 0 new findings in changed files; gated real-PTY suite: composer-marker and resize-compaction assertions both now pass; the very next assertion in the same test ('0 units · 0 blocked') fails due to the projections.db drift, not these fixes"
+      - "tsc clean; 918 tests / 24 gated skips / 0 fail (unaffected by any of these fixes); biome at the 6-error pre-existing baseline, 0 new findings in changed files; gated real-PTY suite now 5/5 real pass (was 4/5), reproduced clean across 3 consecutive runs"
     next_increment: >-
       Redesign queue COMPLETE through the recorded depth: §30 activation gate
       landed T23-coherently; ActionControl object; V2 compact drawers; Bottom
@@ -56,17 +57,17 @@ tui_gui_redesign:
       grammar; RealityTrace lane projection module + host binding;
       BUSY_SUBMISSION host wiring; mouse PTY qualification battery; palette
       hit-testing order fix; Composer focus-ring marker fix; real-PTY
-      lastFrame() resize-boundary fix. Remaining FOLLOW-ONS (none blocking):
-      chrome remainder (menu bar, breadcrumb-click hoisting, hover tooltips,
-      context menus, pane resize gesture — each needs a genuinely new
-      PointerGesture primitive, none is "already half-done"; see IN-FLIGHT.md
-      for the corrected per-item scope); gated real-PTY suite's Case-state
-      assertion failing because workbench/.gauntlet/projections.db is
-      checked-in and mutable, drifted from the "0 units" cold state assumed
-      — needs an operator decision on test-fixture hermeticity, not a code
-      fix. Residuals discovered but NOT fixed (not blocking, not scheduled):
-      RealityTrace TraceStream unseen-count integration, visible "unbound"
-      source status, automatic polling.
+      lastFrame() resize-boundary fix; real-PTY Case-state hermeticity fix
+      (gated suite now 5/5 real pass, all follow-ons from the original
+      mouse-PTY qualification battery closed). Remaining FOLLOW-ONS (none
+      blocking): chrome remainder (menu bar, breadcrumb-click hoisting, hover
+      tooltips, context menus, pane resize gesture — each needs a genuinely
+      new PointerGesture primitive, none is "already half-done"; see
+      IN-FLIGHT.md for the corrected per-item scope); final regression sweep
+      (operator-journey sweeps + equivalence matrix + captures refresh) not
+      yet run. Residuals discovered but NOT fixed (not blocking, not
+      scheduled): RealityTrace TraceStream unseen-count integration, visible
+      "unbound" source status, automatic polling.
   residuals:
     - >-
       W1-W4 wire defects (workbench vs Rust surface: nested error body, JSON
