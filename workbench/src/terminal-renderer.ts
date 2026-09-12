@@ -460,13 +460,26 @@ export class TerminalShellRenderer {
     });
   };
 
-  /** Resolve terminal coordinates against the last hit map. */
+  /**
+   * Resolve terminal coordinates against the last hit map. Regions are
+   * appended to `plan.regions` in PAINT order (base columns first, drawer
+   * next, palette last — see the z-tiers comment above this class), and
+   * OpenTUI's retained renderables always append to the end of the z-ordered
+   * child list, so a later-pushed region paints ON TOP of an earlier one at
+   * the same cells. Hit-testing must walk in the OPPOSITE (topmost-first)
+   * order to match what the operator actually sees and clicks — walking
+   * forward let a background surface (e.g. Navigator) silently swallow every
+   * click meant for an open palette/drawer overlay drawn above it.
+   */
   private resolveAt(
     x: number,
     y: number,
   ): { surfaceId: string; lineId: string | null; regionX: number } | null {
-    for (const region of this.lastHitMap.regions) {
+    const regions = this.lastHitMap.regions;
+    for (let index = regions.length - 1; index >= 0; index -= 1) {
+      const region = regions[index];
       if (
+        region !== undefined &&
         x >= region.x &&
         x < region.x + region.width &&
         y >= region.y &&

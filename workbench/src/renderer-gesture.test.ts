@@ -99,6 +99,46 @@ test("scroll over a region emits a wheel gesture with the surface id", async () 
   }
 });
 
+test("click on an open palette row (overlapping Navigator's cells) resolves to the palette, not the surface underneath it", async () => {
+  const terminal = await createTestRenderer({ width: 120, height: 40 });
+  const gestures: PointerGesture[] = [];
+  const view = new TerminalShellRenderer(terminal.renderer, {
+    onGesture: (gesture) => gestures.push(gesture),
+  });
+  const model = seededModel();
+  const session = modelWiredSession(model, FULL_DIMS);
+  try {
+    // Open the palette (default "p" binding) before rendering: the overlay
+    // paints on top of the base columns at overlapping cells (x=2,y=2), so a
+    // click there must resolve to "Overlay", never to whatever background
+    // surface (e.g. Navigator) occupies those same cells underneath it.
+    session.key("p", model.getSnapshot(), renderOptions(model));
+    view.render(session.render(model.getSnapshot(), renderOptions(model)));
+    await terminal.renderOnce();
+
+    const overlayHit = view.hitMap().regions.find((region) => region.surfaceId === "Overlay");
+    expect(overlayHit).toBeDefined();
+    const navigatorHit = view.hitMap().regions.find((region) => region.surfaceId === "Navigator");
+    expect(navigatorHit).toBeDefined();
+    // Sanity: the two regions genuinely overlap at the click point, or this
+    // test would not exercise the bug at all.
+    const clickX = (overlayHit?.x ?? 0) + 2;
+    const clickY = overlayHit?.y ?? 0;
+    expect(clickX).toBeGreaterThanOrEqual(navigatorHit?.x ?? 0);
+    expect(clickX).toBeLessThan((navigatorHit?.x ?? 0) + (navigatorHit?.width ?? 0));
+
+    const mouse = createMockMouse(terminal.renderer);
+    await mouse.click(clickX, clickY);
+
+    const clicks = gestures.filter((g) => g.kind === "click");
+    expect(clicks.length).toBeGreaterThanOrEqual(1);
+    expect(clicks.at(-1)?.surfaceId).toBe("Overlay");
+  } finally {
+    view.destroy();
+    terminal.renderer.destroy();
+  }
+});
+
 test("no onGesture callback: mouse events are simply not forwarded (no crash)", async () => {
   const terminal = await createTestRenderer({ width: 120, height: 40 });
   const view = new TerminalShellRenderer(terminal.renderer);
