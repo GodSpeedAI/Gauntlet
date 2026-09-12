@@ -43,18 +43,26 @@ tui_gui_redesign:
       - "8-evidence (7b8fe60): 12 after-state tmux captures vs the real surface + agent reports + lint baseline repair"
       - "follow-on (c1c7bca): BUSY_SUBMISSION host wiring — WorkbenchHost tracks in-flight ${operation}:${focus.id} keys around the real gateway.invoke round-trip (never state.refresh's local read); Work bar + Inspector AFFORDANCES substitute busySubmission() after resolver derivation (never descriptor-derived), rendering on the existing readiness.degraded token"
       - "follow-on (5483fe6): RealityTrace host binding — env-driven sxrBinding config, new pure reality-trace-binding.ts mapping SxrEvidenceLens onto reality-trace-lane.ts's narrow input, RUNTIME_ADAPTER command class + trace.realitytrace.refresh (bound 'r', Trace-view-scoped, command-triggered only per ICM §16.11), WorkbenchHost.refreshRealityTrace() epoch-guarded against superseded refreshes, Trace view RealityTrace segment + Inspector sxr_lens wiring via publishLensData"
+      - "follow-on (e2f8bfe): mouse PTY qualification battery — real SGR-byte click/wheel tests added to operator-journeys-pty.test.ts (gated GAUNTLET_T20_REAL_PTY=1), proving the settled mouse-convergence pipeline (618616a) end-to-end through the real OpenTUI renderer for the first time; found and fixed 2 stale pre-existing assertions in that rarely-run suite; found and left documented (not fixed) a real palette-hit-testing bug and a Composer focus-marker gap"
     verification:
-      - "tsc clean; 917 tests / 22 gated skips / 0 fail (was 906 before this follow-on); biome at the 6-error pre-existing baseline, 0 new findings in changed files; tui-preflight bootstrap PASS"
+      - "tsc clean; 917 tests / 24 gated skips / 0 fail (was 917/22/0 before this follow-on); biome at the 6-error pre-existing baseline, 0 new findings in changed files; gated real-PTY suite 4/5 for real (1 intentionally-left-red test documents the Composer focus-marker gap)"
     next_increment: >-
       Redesign queue COMPLETE through the recorded depth: §30 activation gate
       landed T23-coherently; ActionControl object; V2 compact drawers; Bottom
       surface + height ladder; back/forward; viewport follow; notice reason
       grammar; RealityTrace lane projection module + host binding;
-      BUSY_SUBMISSION host wiring. Remaining FOLLOW-ONS (none blocking):
-      chrome menu bar + breadcrumb-click hoisting + hover tooltips + context
-      menus, pane resize gesture, mouse PTY qualification battery. Residual
-      (not blocking, not scheduled): RealityTrace TraceStream unseen-count
-      integration, visible "unbound" source status, automatic polling.
+      BUSY_SUBMISSION host wiring; mouse PTY qualification battery. Remaining
+      FOLLOW-ONS (none blocking): chrome remainder (menu bar, breadcrumb-click
+      hoisting, hover tooltips, context menus, pane resize gesture — each
+      needs a genuinely new PointerGesture primitive, none is "already
+      half-done"; see IN-FLIGHT.md for the corrected per-item scope).
+      Residuals discovered but NOT fixed (not blocking, not scheduled):
+      RealityTrace TraceStream unseen-count integration, visible "unbound"
+      source status, automatic polling; command palette not clickable via
+      real mouse (resolveAt hit-test order lets background surfaces swallow
+      palette clicks); Composer surface never shows the ▸ focus-ring marker
+      when Tab-focused (planFrame excludes it — REQ-UX-005 gap or intentional,
+      undetermined).
   residuals:
     - >-
       W1-W4 wire defects (workbench vs Rust surface: nested error body, JSON
