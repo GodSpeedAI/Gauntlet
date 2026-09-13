@@ -233,8 +233,11 @@ describe("production workbench host", () => {
       expect(host.status).toBe("empty");
       expect(host.model.getSnapshot().units).toHaveLength(0);
       expect(host.model.getSnapshot().focus).toBeNull();
+      // P1: prime.message is now bound, not "unsupported" — this host has no
+      // prime_binary configured, so it reports the honest "not configured"
+      // notice (D6: Prime absence never degrades Gauntlet).
       await host.submit("message", "workbench", "do not execute");
-      expect(host.notice).toContain("Message was not sent");
+      expect(host.notice).toContain("Prime is not configured");
       expect(posts).toBe(1);
     } finally {
       host.close();
@@ -242,20 +245,27 @@ describe("production workbench host", () => {
     }
   });
 
-  it("names the declared-but-unbound planned operation for prime/message/kernel submissions (Phase C1, REQ-OPS-003)", async () => {
+  it("prime.launch/prime.message are BOUND (P1): an unconfigured host reports honestly, never the old planned-operation notice; kernel stays planned", async () => {
     const host = new WorkbenchHost(
       resolveConfig({ env: {}, cli: { projection_store: ":memory:" } }),
     );
     try {
+      // No prime_binary configured on this host: prime.message/prime.launch
+      // are bound code paths now (not "declared, not yet bound"), and their
+      // honest behavior when Prime is absent is a clear "not configured"
+      // notice (D6) — never a bare "no adapter connected".
       await host.submit("message", "workbench", "hello");
       expect(host.notice).toContain("prime.message");
-      expect(host.notice).toContain("declared (planned, not yet bound");
-      expect(host.notice).toContain("Message was not sent.");
+      expect(host.notice).toContain("Prime is not configured");
+      expect(host.notice).not.toContain("declared (planned, not yet bound");
 
       await host.submit("prime", "prime-child", "goal text");
       expect(host.notice).toContain("prime.launch");
-      expect(host.notice).toContain("declared (planned, not yet bound");
+      expect(host.notice).toContain("Prime is not configured");
+      expect(host.notice).not.toContain("declared (planned, not yet bound");
 
+      // kernel (prime.steer) is still declared-but-unbound (P1 scoped to
+      // launch/message/cancel only).
       await host.submit("kernel", "repl", "1 + 1");
       expect(host.notice).toContain("prime.steer");
       expect(host.notice).toContain("declared (planned, not yet bound");

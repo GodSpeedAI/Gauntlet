@@ -17,7 +17,10 @@ import {
   OperationGateway,
   type OperationSession,
 } from "./operation-gateway";
+import { OPERATION_IDS } from "./operation-registry";
 import { plannedOperationForComposerMode } from "./planned-operations";
+import { constructBoundedContextEnvelope } from "./prime-context-envelope";
+import { isExtendedPrimeHost } from "./prime-host";
 import { PrimeDelegationDispatcher } from "./prime-recursion";
 import { RealPrimeHost } from "./real-prime-host";
 import { interpretSxrRefreshOutcome } from "./reality-trace-binding";
@@ -84,6 +87,12 @@ export class WorkbenchHost {
    * same-key refusal, D6) exercise directly.
    */
   readonly primeDispatcher: PrimeDelegationDispatcher | null;
+  /**
+   * The most recently launched (prime.launch) child session id (plan P1) —
+   * `prime.message`/`prime.cancel`'s default target when the operator has
+   * not typed an explicit destination. Read-only to callers.
+   */
+  lastChildSessionId: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private changed: () => void = () => {};
   private closed = false;
@@ -127,7 +136,19 @@ export class WorkbenchHost {
 
   constructor(
     readonly config: WorkbenchConfig,
-    private readonly options: { actor?: string; pollIntervalMs?: number } = {},
+    private readonly options: {
+      actor?: string;
+      pollIntervalMs?: number;
+      /**
+       * TEST-ONLY: bind `primeDispatcher` over this adapter instead of a real
+       * `RealPrimeHost` (plan P1 unit tests use the in-memory
+       * `PrimeHostAdapter` test double here so launch/message/cancel logic is
+       * exercised without spawning a real process). Ignored unless
+       * `config.prime_binary` is also set — this override never widens WHEN
+       * Prime is considered configured, only WHAT adapter backs it.
+       */
+      primeHostOverride?: import("./prime-host").PrimeHostPort;
+    } = {},
   ) {
     if (config.projection_store !== ":memory:")
       mkdirSync(dirname(config.projection_store), { recursive: true });
@@ -146,7 +167,14 @@ export class WorkbenchHost {
       // (0700 for the agent dir) — no directory setup needed here.
       const { agentDir, sessionDir } = primeDirs(config);
       this.primeDispatcher = new PrimeDelegationDispatcher({
-        adapter: new RealPrimeHost({ binary: config.prime_binary, agentDir, sessionDir }),
+        adapter:
+          options.primeHostOverride ??
+          new RealPrimeHost({
+            binary: config.prime_binary,
+            agentDir,
+            sessionDir,
+            projectRoot: config.project_root ?? undefined,
+          }),
         canonical_route: this.route,
       });
     } else {
@@ -292,6 +320,9 @@ export class WorkbenchHost {
       refreshRealityTrace: () => {
         void this.refreshRealityTrace();
       },
+      cancelPrimeChild: () => {
+        void this.cancelPrimeChild();
+      },
     };
   }
 
@@ -360,6 +391,12 @@ export class WorkbenchHost {
         return;
       }
       this.notice = "Select a Focus before submitting an operation.";
+    } else if (mode === "prime") {
+      await this.launchPrimeChild(draft);
+      return;
+    } else if (mode === "message") {
+      await this.messagePrimeChild(destination, draft);
+      return;
     } else {
       const planned = plannedOperationForComposerMode(mode);
       this.notice =
@@ -367,6 +404,195 @@ export class WorkbenchHost {
           ? `${mode} → ${destination}: unsupported; '${planned.id}' is declared (planned, not yet bound — workbench-intent-closure.md Phase C2). Message was not sent.`
           : `${mode} → ${destination}: unsupported; no live submission adapter is connected. Message was not sent.`;
     }
+    this.changed();
+  }
+
+  /**
+   * `prime.launch` (plan workbench-agent-interaction.md P1): the composer's
+   * `prime` mode draft is the goal; the target is the current Focus, which
+   * MUST be a unit. Admission is chosen from whatever the affordance resolver
+   * currently reports available for that unit — `unit.resolve` preferred
+   * (an open escalation ticket), else `unit.retry`; neither available refuses
+   * with the exact resolver reason codes and spawns nothing. The notice is
+   * ALWAYS the admission receipt (child session id) — never a completion
+   * claim (REQ-PRIME-003).
+   */
+  private async launchPrimeChild(goal: string): Promise<void> {
+    if (this.primeDispatcher === null) {
+      this.notice = "prime.launch: Prime is not configured (set GAUNTLET_WORKBENCH_PRIME_BINARY).";
+      this.changed();
+      return;
+    }
+    const trimmedGoal = goal.trim();
+    if (trimmedGoal.length === 0) {
+      this.notice = "prime.launch: a goal is required. Message was not sent.";
+      this.changed();
+      return;
+    }
+    const focus = this.model.getSnapshot().focus;
+    if (focus === null || focus.kind !== "WorkItem") {
+      this.notice =
+        "prime.launch: select a unit Focus before launching Prime. Message was not sent.";
+      this.changed();
+      return;
+    }
+
+    // Canonical admission for the focused unit precedes spawn (C2 design):
+    // prefer unit.resolve (an open escalation ticket), else unit.retry;
+    // neither available is a zero-spawn refusal with the exact reasons.
+    const resolveDescriptor = resolveAffordance(
+      OPERATION_IDS.UNIT_RESOLVE,
+      focus,
+      this.observation,
+      {
+        session: this.sessionContext,
+      },
+    );
+    const retryDescriptor = resolveAffordance(OPERATION_IDS.UNIT_RETRY, focus, this.observation, {
+      session: this.sessionContext,
+    });
+    const admissionOperation = statusPermitsInvocation(resolveDescriptor.status)
+      ? OPERATION_IDS.UNIT_RESOLVE
+      : statusPermitsInvocation(retryDescriptor.status)
+        ? OPERATION_IDS.UNIT_RETRY
+        : null;
+    if (admissionOperation === null) {
+      const reasons = [
+        `unit.resolve: ${resolveDescriptor.reason_codes.join(",") || resolveDescriptor.status}`,
+        `unit.retry: ${retryDescriptor.reason_codes.join(",") || retryDescriptor.status}`,
+      ].join("; ");
+      this.notice = `prime.launch: refused — no canonical admission available for ${focus.source_id} (${reasons})`;
+      this.changed();
+      return;
+    }
+
+    let envelope: ReturnType<typeof constructBoundedContextEnvelope>;
+    try {
+      const { horizon, plan } = this.model.planForFocus(focus);
+      envelope = constructBoundedContextEnvelope({
+        horizon,
+        plan,
+        role_instructions: [trimmedGoal],
+      });
+    } catch (error) {
+      this.notice = `prime.launch: envelope construction failed — ${error instanceof Error ? error.message : String(error)}`;
+      this.changed();
+      return;
+    }
+
+    const childSessionId = `prime-${focus.source_id}-${crypto.randomUUID()}`;
+    // Work mode (plan P1): tools enabled at the real project root when
+    // configured; unconfigured falls back to the adapter's isolated default
+    // (documented in config.ts's `project_root` field) — never guessed.
+    const workMode =
+      this.config.project_root !== null
+        ? { toolsEnabled: true, cwd: this.config.project_root }
+        : undefined;
+
+    this.notice = `prime.launch: admitting ${childSessionId}…`;
+    this.changed();
+    const outcome = await this.primeDispatcher.delegate({
+      operation_request: {
+        operation: admissionOperation,
+        focus,
+        session: this.session,
+        payload: { note: trimmedGoal, run: this.runId ?? undefined },
+      },
+      envelope,
+      child_session_id: childSessionId,
+      parent_session_id: null,
+      task: trimmedGoal,
+      work_mode: workMode,
+    });
+
+    if (outcome.class === "admitted") {
+      this.lastChildSessionId = childSessionId;
+      this.notice = `prime.launch: admitted — child session ${childSessionId} (receipt only, not a completion claim)`;
+    } else if (outcome.class === "refused_by_policy") {
+      this.notice = `prime.launch: refused — ${outcome.code} (${outcome.detail})`;
+    } else {
+      const reasons =
+        outcome.gateway.class === "refused" ? ` (${outcome.gateway.reason_codes.join(", ")})` : "";
+      this.notice = `prime.launch: refused by canonical admission — ${outcome.gateway.class}${reasons}`;
+    }
+    await this.refresh();
+    this.changed();
+  }
+
+  /**
+   * `prime.message` (plan P1): destination names a child session id; empty or
+   * the composer's default placeholder falls back to the most recently
+   * launched child. Delivery is communication, never completion
+   * (REQ-PRIME-005) — the notice never claims the child is done.
+   */
+  private async messagePrimeChild(destination: string, draft: string): Promise<void> {
+    if (this.primeDispatcher === null) {
+      this.notice = "prime.message: Prime is not configured (set GAUNTLET_WORKBENCH_PRIME_BINARY).";
+      this.changed();
+      return;
+    }
+    const message = draft.trim();
+    if (message.length === 0) {
+      this.notice = "prime.message: message text is required. Message was not sent.";
+      this.changed();
+      return;
+    }
+    const trimmedDestination = destination.trim();
+    const target =
+      trimmedDestination === "" || trimmedDestination === "workbench"
+        ? this.lastChildSessionId
+        : trimmedDestination;
+    if (target === null) {
+      this.notice =
+        "prime.message: no child session to message yet — launch one first (prime mode).";
+      this.changed();
+      return;
+    }
+    const host = this.primeDispatcher.primeHost;
+    if (!isExtendedPrimeHost(host)) {
+      this.notice = "prime.message: the bound Prime host does not support message delivery.";
+      this.changed();
+      return;
+    }
+    const result = host.continueChild(target, {
+      sender: this.session?.actor ?? "operator",
+      message,
+    });
+    this.lastChildSessionId = target;
+    this.notice = result.delivered
+      ? `prime.message: delivered to ${target} (${result.mode}) — communication, not completion`
+      : `prime.message: not delivered to ${target} — ${result.detail}`;
+    await this.refresh();
+    this.changed();
+  }
+
+  /**
+   * `prime.cancel` (plan P1): stops the selected/most recent child. Idempotent
+   * on an already-terminal session (RealPrimeHost.stopChild's own guarantee).
+   */
+  async cancelPrimeChild(targetSessionId?: string): Promise<void> {
+    if (this.primeDispatcher === null) {
+      this.notice = "prime.cancel: Prime is not configured (set GAUNTLET_WORKBENCH_PRIME_BINARY).";
+      this.changed();
+      return;
+    }
+    const target = targetSessionId ?? this.lastChildSessionId;
+    if (target === null) {
+      this.notice = "prime.cancel: no child session to cancel.";
+      this.changed();
+      return;
+    }
+    const host = this.primeDispatcher.primeHost;
+    if (!isExtendedPrimeHost(host)) {
+      this.notice = "prime.cancel: the bound Prime host does not support cancellation.";
+      this.changed();
+      return;
+    }
+    const outcome = host.stopChild(target);
+    this.notice = outcome.stopped
+      ? `prime.cancel: stopped ${target} — ${outcome.detail}`
+      : `prime.cancel: ${target} — ${outcome.detail}`;
+    await this.refresh();
     this.changed();
   }
 

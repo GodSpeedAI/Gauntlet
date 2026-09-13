@@ -105,6 +105,27 @@ export function setComposerDraft(state: ComposerState, draft: string): ComposerS
   return Object.freeze({ ...state, draft, notice: null });
 }
 
+/**
+ * Cycle the default composer's mode (plan workbench-agent-interaction.md P1,
+ * REQ-UX-004: mode/destination stay ALWAYS visible, and there must be an
+ * operator-reachable way to change mode from inside the focused composer).
+ * A no-op while a takeover owns the input (takeover mode is fixed by
+ * `modeForTakeover`, not operator-cyclable). Destination is left untouched —
+ * `prime`/`message` interpret it themselves (prime.launch ignores it in
+ * favor of the current Focus; prime.message falls back to the last-launched
+ * child when it is empty/default).
+ */
+export function cycleComposerMode(state: ComposerState): ComposerState {
+  if (state.takeover !== null) {
+    return state;
+  }
+  const index = COMPOSER_MODES.indexOf(state.mode);
+  // Safe: `index` is always a valid COMPOSER_MODES position (state.mode is
+  // typed ComposerMode), so the modulo index is always in range.
+  const next = COMPOSER_MODES[(index + 1) % COMPOSER_MODES.length] as ComposerMode;
+  return Object.freeze({ ...state, mode: next, notice: `composer mode: ${next}` });
+}
+
 /** Explicitly switch composer mode/destination (visible in every render). */
 export function setComposerMode(
   state: ComposerState,

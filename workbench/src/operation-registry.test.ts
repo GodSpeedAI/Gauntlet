@@ -124,3 +124,41 @@ describe("planned-operations: C1 — composer modes report why, not a bare 'no a
     expect(plannedOperationForComposerMode("operation")).toBeNull();
   });
 });
+
+describe("planned-operations: P1 — prime.launch/prime.message/prime.cancel are bound, without joining the pinned canonical registry", () => {
+  it("prime.launch, prime.message, prime.cancel report bound:true; prime.steer/evidence.admit/prime.session stay bound:false", () => {
+    expect(PLANNED_OPERATION_REGISTRY[PLANNED_OPERATION_IDS.PRIME_LAUNCH].bound).toBe(true);
+    expect(PLANNED_OPERATION_REGISTRY[PLANNED_OPERATION_IDS.PRIME_MESSAGE].bound).toBe(true);
+    expect(PLANNED_OPERATION_REGISTRY[PLANNED_OPERATION_IDS.PRIME_CANCEL].bound).toBe(true);
+    expect(PLANNED_OPERATION_REGISTRY[PLANNED_OPERATION_IDS.PRIME_STEER].bound).toBe(false);
+    expect(PLANNED_OPERATION_REGISTRY[PLANNED_OPERATION_IDS.EVIDENCE_ADMIT].bound).toBe(false);
+    expect(PLANNED_OPERATION_REGISTRY[PLANNED_OPERATION_IDS.PRIME_SESSION].bound).toBe(false);
+  });
+
+  it("bound operations are still absent from the pinned canonical OPERATION_REGISTRY — a separate admission path, not a fourth canonical entry", () => {
+    expect(operationIds()).toEqual([
+      OPERATION_IDS.UNIT_RESOLVE,
+      OPERATION_IDS.UNIT_RETRY,
+      OPERATION_IDS.STATE_REFRESH,
+    ]);
+    expect(isOperationId(PLANNED_OPERATION_IDS.PRIME_LAUNCH)).toBe(false);
+    expect(isOperationId(PLANNED_OPERATION_IDS.PRIME_MESSAGE)).toBe(false);
+    expect(isOperationId(PLANNED_OPERATION_IDS.PRIME_CANCEL)).toBe(false);
+  });
+
+  it("the capability handshake's additive bound_operations field names exactly the bound ids and every id also appears in planned_operations with bound:true", () => {
+    const handshake = capabilityHandshake();
+    expect(handshake.version).toBeGreaterThanOrEqual(3);
+    expect([...handshake.bound_operations].sort()).toEqual(
+      [
+        PLANNED_OPERATION_IDS.PRIME_LAUNCH,
+        PLANNED_OPERATION_IDS.PRIME_MESSAGE,
+        PLANNED_OPERATION_IDS.PRIME_CANCEL,
+      ].sort(),
+    );
+    for (const id of handshake.bound_operations) {
+      const contract = handshake.planned_operations.find((c) => c.id === id);
+      expect(contract?.bound).toBe(true);
+    }
+  });
+});

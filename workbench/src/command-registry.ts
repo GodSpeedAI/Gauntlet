@@ -69,7 +69,12 @@ export type SemanticCommandId =
   | "ui.menu_bar.dismiss"
   | "ui.menu_bar.move.prev"
   | "ui.menu_bar.move.next"
-  | "ui.menu_bar.activate";
+  | "ui.menu_bar.activate"
+  // Prime (plan workbench-agent-interaction.md P1): stops the selected/most
+  // recent Prime child. Keyboard-optional (RUNTIME_ADAPTER, so future palette
+  // rows can list it whenever a child session exists) — bound to a shell key
+  // as a convenience, never the only path.
+  | "prime.cancel";
 
 /** Command classes follow ICM §5 (presentation-only → navigation → query → runtime → canonical). */
 export type SemanticCommandClass =
@@ -381,6 +386,13 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     commandClass: "PRESENTATION_LOCAL",
     surfaces: ["menu_bar_open"],
     defaultKeys: { menu_bar_open: "enter" },
+  },
+  {
+    id: "prime.cancel",
+    title: "Cancel Prime child",
+    commandClass: "RUNTIME_ADAPTER",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "c" },
   },
 ] as const);
 

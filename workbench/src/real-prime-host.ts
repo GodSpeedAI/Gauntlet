@@ -43,14 +43,22 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from "node:path";
 import type {
   PrimeAdmissionHandle,
+  PrimeContinuationRequest,
+  PrimeContinuationResult,
   PrimeHostPort,
   PrimeMailboxMessage,
   PrimeResultContract,
   PrimeSessionState,
   PrimeSpawnRequest,
+  PrimeStopOutcome,
 } from "./prime-host";
 import { PrimeHostAdapter } from "./prime-host";
 import { type SpawnPathPolicy, validateSpawnRequest } from "./terminal-session";
+
+// Re-exported for source compatibility: this type used to be declared here
+// (plan Phase D); it now lives in prime-host.ts so PrimeHostAdapter (the
+// in-memory test double) can report the same shape (plan P1).
+export type { PrimeStopOutcome } from "./prime-host";
 
 const QUALIFIED_MANIFEST_SUFFIX = ".qualified.json";
 
@@ -69,6 +77,17 @@ interface QualifiedSpawnManifest {
   readonly contract_path: string;
   readonly pid: number;
   readonly spawned_at: string;
+  /**
+   * The REAL prime-agent session id (plan P1 bugfix): prime-agent mints its
+   * OWN session identity, reported in the first `{"type":"session","id":...}`
+   * stdout line — it is NOT this workbench's `session_id`. `--resume` only
+   * accepts prime-agent's own id ("Error: No session found matching '<id>'"
+   * otherwise, verified against the real binary). Additive/optional: absent
+   * until the first turn's stdout has been parsed (or on a manifest written
+   * before this field existed) — a fresh host honestly cannot resume such a
+   * session until a turn completes and this is learned.
+   */
+  readonly prime_session_id?: string | undefined;
 }
 
 function isQualifiedSpawnManifest(value: unknown): value is QualifiedSpawnManifest {
@@ -80,8 +99,29 @@ function isQualifiedSpawnManifest(value: unknown): value is QualifiedSpawnManife
     typeof v["model"] === "string" &&
     typeof v["contract_path"] === "string" &&
     typeof v["pid"] === "number" &&
-    typeof v["spawned_at"] === "string"
+    typeof v["spawned_at"] === "string" &&
+    (v["prime_session_id"] === undefined || typeof v["prime_session_id"] === "string")
   );
+}
+
+/**
+ * Parse prime-agent's OWN session id from a child's stdout (plan P1
+ * bugfix): the first `{"type":"session","id":"..."}` newline-JSON event.
+ * Distinct from `parseAssistantText` — this walks the SAME protocol for a
+ * different field, and is exported for direct unit testing.
+ */
+export function parsePrimeSessionId(stdout: string): string | null {
+  for (const line of stdout.split("\n")) {
+    try {
+      const event = JSON.parse(line) as { type?: string; id?: string };
+      if (event.type === "session" && typeof event.id === "string" && event.id.length > 0) {
+        return event.id;
+      }
+    } catch {
+      /* non-JSON line — never fatal, same discipline as parseAssistantText */
+    }
+  }
+  return null;
 }
 
 /**
@@ -104,13 +144,6 @@ export function isPidAlive(pid: number): boolean {
 export interface StaleQualifiedRecord {
   readonly session_id: string;
   readonly reason: "process_not_found_no_result_contract" | "contract_path_present_but_unreadable";
-}
-
-/** Outcome of an explicit operator stop (plan Phase D, REQ-PRIME-009). */
-export interface PrimeStopOutcome {
-  readonly session_id: string;
-  readonly stopped: boolean;
-  readonly detail: string;
 }
 
 /**
@@ -153,6 +186,15 @@ export interface RealPrimeHostOptions {
   readonly sessionDir: string;
   /** Working directory bound for every spawned child (--cwd). Defaults to sessionDir. */
   readonly workRoot?: string | undefined;
+  /**
+   * An additional allowed cwd root for WORK-MODE children (plan P1,
+   * `PrimeSpawnRequest.workMode.cwd` — typically the operator's real project
+   * root, `config.project_root`). Purely additive to the T13 boundary's
+   * `allowedPathRoots`: omitted, a work-mode spawn whose `cwd` is not
+   * `workRoot`/`sessionDir`/`agentDir` is refused exactly as it was before
+   * this option existed (never bypassed, only extended).
+   */
+  readonly projectRoot?: string | undefined;
   /** Wall-clock ceiling for one child run before it is killed (ms). Default 10 minutes. */
   readonly timeoutMs?: number | undefined;
 }
@@ -226,6 +268,17 @@ export class RealPrimeHost implements PrimeHostPort {
   private readonly reattachedPids = new Map<string, number>();
   private readonly reattachTimers = new Map<string, ReturnType<typeof setInterval>>();
   private readonly staleRecordsList: StaleQualifiedRecord[] = [];
+  /** Work-mode settings recorded at spawn time, consulted by `continueChild` so a resumed turn matches the original launch's tools/cwd (plan P1). */
+  private readonly workModeBySession = new Map<string, { toolsEnabled: boolean; cwd: string }>();
+  /**
+   * Workbench session id -> prime-agent's OWN session id (plan P1 bugfix):
+   * `--resume` only accepts prime-agent's own id, learned from the
+   * `{"type":"session","id":...}` stdout event once a turn's stdout has been
+   * parsed. Populated by `watch()` after every turn (initial or resumed) and
+   * by `reattachFromQualifiedRecords()` from a manifest that already recorded
+   * it.
+   */
+  private readonly primeSessionIds = new Map<string, string>();
 
   constructor(options: RealPrimeHostOptions) {
     this.agentDir = options.agentDir;
@@ -241,7 +294,10 @@ export class RealPrimeHost implements PrimeHostPort {
     // this file's own test suite the first time this used anchorPath alone).
     this.pathPolicy = Object.freeze({
       allowedProgramRoots: [dirname(options.binary)],
-      allowedPathRoots: [this.workRoot, this.sessionDir, this.agentDir],
+      allowedPathRoots:
+        options.projectRoot === undefined
+          ? [this.workRoot, this.sessionDir, this.agentDir]
+          : [this.workRoot, this.sessionDir, this.agentDir, options.projectRoot],
     });
     const probe = validateSpawnRequest(
       { program: options.binary, cwd: this.workRoot },
@@ -355,8 +411,170 @@ export class RealPrimeHost implements PrimeHostPort {
     };
   }
 
+  /**
+   * Deliver an operator message to a child (plan P1 prime.message). The
+   * operator's message is ALWAYS recorded as mailbox communication first,
+   * regardless of delivery mechanism (REQ-PRIME-005: message content is
+   * communication, never completion, on either side of the exchange).
+   *
+   * For a session still directly live (this host's own `Bun.Subprocess`, or
+   * a reattached pid), delivery is attempted via the installed CLI's own
+   * `prime-agent send --steer <session_id> <message>` (verified against
+   * `prime-agent send --help`: `--steer` "Deliver as steering when the agent
+   * is busy"). This host's own children are one-shot `-p` runs that exit
+   * after their single turn, so — honestly — there is no daemon-registered
+   * "agent" for `send` to address in the common case; the attempt is
+   * best-effort and its exit code is recorded in `detail`, never presented as
+   * a reply (the reply, if any, only ever arrives through `watch()`'s own
+   * mailbox write).
+   *
+   * For a FINISHED session, this resumes the SAME session with a fresh
+   * one-shot turn (`--resume <session_id> -p <message>`) using the same
+   * work-mode (tools/cwd) the original launch used — never a new session id.
+   */
+  continueChild(sessionId: string, request: PrimeContinuationRequest): PrimeContinuationResult {
+    const session = this.bookkeeping.getSession(sessionId);
+    if (session === null) {
+      return {
+        session_id: sessionId,
+        delivered: false,
+        mode: "resumed_new_turn",
+        detail: "no known session with this id",
+      };
+    }
+    // Communication is recorded regardless of delivery mechanism.
+    this.bookkeeping.receiveMailboxMessage(sessionId, {
+      sender: request.sender,
+      recipient: sessionId,
+      content: request.message,
+      kind: "communication",
+    });
+
+    const stillLive = this.liveProcesses.has(sessionId) || this.reattachedPids.has(sessionId);
+    if (stillLive) {
+      // `send` addresses prime-agent's own AGENT NAME (not necessarily this
+      // workbench session id — reported honestly below regardless of exit
+      // code). A 5s timeout keeps a hung/unaddressable target from ever
+      // blocking the render loop.
+      const sendResult = validateSpawnRequest(
+        {
+          program: this.binary,
+          args: ["send", "--steer", "--from", "operator", sessionId, request.message],
+          cwd: this.workRoot,
+        },
+        this.pathPolicy,
+      );
+      const proc = Bun.spawnSync([sendResult.program, ...sendResult.args], {
+        cwd: sendResult.cwd,
+        env: this.buildEnv(),
+        timeout: 5000,
+        killSignal: "SIGKILL",
+      });
+      const delivered = proc.exitCode === 0;
+      return {
+        session_id: sessionId,
+        delivered,
+        mode: "steer",
+        detail: delivered
+          ? "delivered via `prime-agent send --steer` (exit 0); message recorded in mailbox regardless — note `send` addresses an agent NAME, which may not be this session id, so delivery-to-the-right-target is not independently verified"
+          : `message recorded in mailbox; \`prime-agent send --steer\` did NOT deliver (exit ${proc.exitCode ?? "timeout/killed"}) — one-shot children have no long-lived daemon to address in the common case`,
+      };
+    }
+
+    // Finished: resume the SAME session with a new one-shot turn. `--resume`
+    // accepts ONLY prime-agent's OWN session id (verified against the real
+    // binary: `--resume <workbench id>` exits 1, "No session found matching
+    // '<id>'") — never this workbench's `sessionId`.
+    const primeSessionId = this.primeSessionIds.get(sessionId);
+    if (primeSessionId === undefined) {
+      return {
+        session_id: sessionId,
+        delivered: false,
+        mode: "resumed_new_turn",
+        detail:
+          'prime-agent\'s own session id for this workbench session is not yet known (no {type:"session",id} event was parsed from its first turn) — refusing to guess a --resume target; nothing was spawned',
+      };
+    }
+    const workMode = this.workModeBySession.get(sessionId);
+    const cwd = workMode?.cwd ?? this.workRoot;
+    const toolsArg: readonly string[] = workMode?.toolsEnabled === true ? [] : ["--no-tools"];
+    let bound: ReturnType<typeof validateSpawnRequest>;
+    try {
+      bound = validateSpawnRequest(
+        {
+          program: this.binary,
+          args: [
+            "--mode",
+            "json",
+            "--resume",
+            primeSessionId,
+            "-p",
+            request.message,
+            "--offline",
+            ...toolsArg,
+            "-ne",
+            "-ns",
+            "-nc",
+            "--session-dir",
+            this.sessionDir,
+            "--cwd",
+            cwd,
+          ],
+          cwd,
+        },
+        this.pathPolicy,
+      );
+    } catch (error) {
+      return {
+        session_id: sessionId,
+        delivered: false,
+        mode: "resumed_new_turn",
+        detail: `refused at the T13 spawn boundary: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+    const proc = Bun.spawn([bound.program, ...bound.args], {
+      cwd: bound.cwd,
+      env: this.buildEnv(),
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    this.liveProcesses.set(sessionId, proc);
+    void this.watch(sessionId, proc, session.handle.contract_path).catch(() => {
+      // Same discipline as spawnChild(): a watch-loop crash never surfaces as
+      // an unhandled rejection.
+    });
+    return {
+      session_id: sessionId,
+      delivered: true,
+      mode: "resumed_new_turn",
+      detail: `resumed prime-agent session '${primeSessionId}' with a new one-shot turn (--resume); reply lands via mailbox`,
+    };
+  }
+
   private manifestPath(sessionId: string): string {
     return join(this.sessionDir, `${sessionId}${QUALIFIED_MANIFEST_SUFFIX}`);
+  }
+
+  /**
+   * Persist a learned prime-agent session id (plan P1 bugfix): updates the
+   * in-memory map AND rewrites the durable qualified manifest (additive
+   * field) so a restarted host can still resume. Best-effort on the file
+   * write — the in-memory map is the map `continueChild` actually reads
+   * within one process's lifetime; a write failure only affects RESTART
+   * recovery, never this process's own ability to resume.
+   */
+  private persistPrimeSessionId(sessionId: string, primeSessionId: string): void {
+    this.primeSessionIds.set(sessionId, primeSessionId);
+    const path = this.manifestPath(sessionId);
+    if (!existsSync(path)) return;
+    try {
+      const raw = JSON.parse(readFileSync(path, "utf8"));
+      if (isQualifiedSpawnManifest(raw)) {
+        writeFileSync(path, JSON.stringify({ ...raw, prime_session_id: primeSessionId }, null, 2));
+      }
+    } catch {
+      /* best-effort: restart-recovery only, never this process's own resume ability */
+    }
   }
 
   /**
@@ -384,6 +602,12 @@ export class RealPrimeHost implements PrimeHostPort {
       }
       if (!isQualifiedSpawnManifest(parsed)) continue;
       const manifest = parsed;
+      // Seed the resume map regardless of which branch below applies: a
+      // learned prime-agent session id survives this host's restart exactly
+      // because it was persisted here (plan P1 bugfix).
+      if (manifest.prime_session_id !== undefined) {
+        this.primeSessionIds.set(manifest.session_id, manifest.prime_session_id);
+      }
       if (this.bookkeeping.getSession(manifest.session_id) !== null) continue;
 
       const spawnOptions: PrimeSpawnRequest = {
@@ -477,6 +701,15 @@ export class RealPrimeHost implements PrimeHostPort {
         `RealPrimeHost cannot spawn '${options.sessionId}': a real process requires a task/goal, and none was supplied`,
       );
     }
+    // Work mode (plan P1): a composer-launched child needs tools to actually
+    // edit code, and a cwd distinct from the isolated session/agent dirs — a
+    // coding harness child with `--no-tools` cannot edit anything. Absent
+    // `workMode`, behavior is EXACTLY what every pre-P1 caller/test already
+    // gets: `--no-tools` and `this.workRoot` (D6-style additivity).
+    const cwd = options.workMode?.cwd ?? this.workRoot;
+    const toolsArg: readonly string[] =
+      options.workMode?.toolsEnabled === true ? [] : ["--no-tools"];
+
     // Program/argv/cwd bound through the T13 privileged boundary BEFORE any
     // bookkeeping row exists — a refusal here mints nothing (clean fail).
     const bound = validateSpawnRequest(
@@ -488,16 +721,16 @@ export class RealPrimeHost implements PrimeHostPort {
           "-p",
           options.task,
           "--offline",
-          "--no-tools",
+          ...toolsArg,
           "-ne",
           "-ns",
           "-nc",
           "--session-dir",
           this.sessionDir,
           "--cwd",
-          this.workRoot,
+          cwd,
         ],
-        cwd: this.workRoot,
+        cwd,
       },
       this.pathPolicy,
     );
@@ -505,6 +738,17 @@ export class RealPrimeHost implements PrimeHostPort {
     // Admission is nonblocking (REQ-PRIME-003): bookkeeping mints the handle
     // and returns BEFORE the real process's output is ever read.
     const handle = this.bookkeeping.spawnChild(options);
+    if (options.workMode !== undefined) {
+      this.workModeBySession.set(options.sessionId, {
+        toolsEnabled: options.workMode.toolsEnabled,
+        cwd: options.workMode.cwd,
+      });
+    }
+
+    // The project root is real, operator-owned state — never chmod'd or
+    // otherwise narrowed the way the isolated agent/session dirs are, and
+    // Bun.spawn fails (confusingly, blaming the program) if cwd is absent.
+    if (options.workMode !== undefined) mkdirSync(options.workMode.cwd, { recursive: true });
 
     const proc = Bun.spawn([bound.program, ...bound.args], {
       cwd: bound.cwd,
@@ -596,6 +840,17 @@ export class RealPrimeHost implements PrimeHostPort {
     } finally {
       clearTimeout(timer);
       this.liveProcesses.delete(sessionId);
+    }
+
+    // Learn/refresh prime-agent's OWN session id from this turn's stdout
+    // (plan P1 bugfix): `--resume` only ever accepts THIS id, never the
+    // workbench's own `sessionId`. Every turn (initial or resumed) re-emits
+    // a `session` event, so this unconditionally overwrites the stored id —
+    // "the resumed turn's own session event must match the stored id;
+    // update if not" is satisfied by simply always trusting the latest turn.
+    const primeSessionId = parsePrimeSessionId(stdout);
+    if (primeSessionId !== null) {
+      this.persistPrimeSessionId(sessionId, primeSessionId);
     }
 
     // Mailbox text is communication, never completion (REQ-PRIME-005) — the

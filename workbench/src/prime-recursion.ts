@@ -132,6 +132,14 @@ export interface PrimeDelegationRequest {
   /** The task instruction carried with the envelope as the child's received context. */
   readonly task: string;
   readonly contract_path?: string | undefined;
+  /**
+   * Work-mode passthrough to `PrimeHostPort.spawnChild` (plan P1): a
+   * composer-launched child runs WITH tools enabled at a real project `cwd`.
+   * Absent (every pre-P1 caller) means the adapter's own default — for
+   * `RealPrimeHost`, `--no-tools` at the isolated session/agent cwd,
+   * completely unchanged.
+   */
+  readonly work_mode?: { readonly toolsEnabled: boolean; readonly cwd: string } | undefined;
 }
 
 /** The workbench delegation record: canonical receipt bound to the real Prime child. */
@@ -259,6 +267,7 @@ class PrimeDelegationRoute implements OperatorActionRoute {
       readonly parent_session_id: string | null;
       readonly task: string;
       readonly contract_path: string;
+      readonly work_mode?: { readonly toolsEnabled: boolean; readonly cwd: string } | undefined;
     },
     private readonly onAdmitted: (record: DelegationRecord, handle: PrimeAdmissionHandle) => void,
   ) {}
@@ -301,6 +310,7 @@ class PrimeDelegationRoute implements OperatorActionRoute {
       // the mailbox message below remains the inspectable received-context
       // record either way.
       task: this.context.task,
+      workMode: this.context.work_mode,
     });
     // The child's RECEIVED CONTEXT is exactly the envelope plus the task —
     // serialized into the mailbox as communication, inspectable afterwards.
@@ -366,6 +376,16 @@ export class PrimeDelegationDispatcher {
   /** The delegation records admitted through this dispatcher (read-only view). */
   listRecords(): readonly DelegationRecord[] {
     return [...this.records.values()];
+  }
+
+  /**
+   * The bound Prime host adapter (plan P1). `prime.message`/`prime.cancel`
+   * need `stopChild`/`continueChild`, which are NOT part of the base
+   * `PrimeHostPort` five-method surface every delegation drive uses — callers
+   * narrow with `isExtendedPrimeHost` (prime-host.ts) before using them.
+   */
+  get primeHost(): PrimeHostPort {
+    return this.adapter;
   }
 
   /** Look up one delegation record by id. */
@@ -491,6 +511,7 @@ export class PrimeDelegationDispatcher {
         task: request.task,
         contract_path:
           request.contract_path ?? `${this.contractBase}/${request.child_session_id}.result.json`,
+        work_mode: request.work_mode,
       },
       (record) => {
         this.records.set(record.delegation_id, record);

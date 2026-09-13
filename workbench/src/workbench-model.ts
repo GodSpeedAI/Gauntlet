@@ -734,6 +734,27 @@ export class WorkbenchModel {
   }
 
   /**
+   * Read-only horizon + plan for an ARBITRARY Focus, without mutating
+   * navigation (plan workbench-agent-interaction.md P1): `prime.launch`'s
+   * bounded context envelope needs a horizon/plan for the launch target, but
+   * launching Prime must never itself hoist the operator's current view —
+   * that would be a navigation side effect of a completely different action.
+   * Mirrors `hoistToFocus`'s horizon construction exactly, minus the mutation.
+   */
+  planForFocus(ref: FocusRef): { horizon: Horizon; plan: MaterializationPlan } {
+    if (!(ref instanceof FocusRef)) {
+      throw new WorkbenchModelError("planForFocus", "expected a FocusRef");
+    }
+    const generation = this.requireActiveGeneration("planForFocus");
+    const horizon = createHorizon({
+      root_focus: ref,
+      generation: generation.id,
+      relation_queries: DEFAULT_HOIST_RELATION_QUERIES,
+    });
+    return { horizon, plan: planMaterialization(this.worldSnapshot(), horizon) };
+  }
+
+  /**
    * Build immutable FullWorkbenchSnapshot.
    *
    * T21 correction (measured HC4/HC9a bottleneck): the expensive presentation

@@ -68,6 +68,19 @@ export interface PlannedOperationContract {
   readonly budget: string;
   readonly idempotency: string;
   readonly evidence_contract: string;
+  /**
+   * Whether the contract declared here is actually bound to a live code path
+   * (plan workbench-agent-interaction.md, increment P1) or still awaiting
+   * implementation. This is deliberately NOT the same thing as
+   * `isOperationId`/`OPERATION_REGISTRY` membership: Prime admission
+   * (prime.launch/prime.message/prime.cancel) is a SEPARATE admission path
+   * from Gauntlet's three canonical operations, and that registry stays
+   * pinned to exactly its three entries (operation-isomorphism.test.ts).
+   * `bound: true` only means "an operator submission through this
+   * composer mode reaches real, tested behavior today" — never that the
+   * canonical surface now serves it.
+   */
+  readonly bound: boolean;
 }
 
 /** The nine required field names, in REQ-OPS-003's own order. */
@@ -113,6 +126,7 @@ export const PLANNED_OPERATION_REGISTRY: Readonly<
       "one child per (focus, idempotency_key); a second concurrent submit under the same child_session_id spawns nothing and is refused with zero side effects (C2 tooth 2)",
     evidence_contract:
       "the accepted receipt is the evidence row; a schema-valid result contract at a canonical locator is required before any mailbox 'done' can settle anything (REQ-PRIME-005, REQ-SAFE-004)",
+    bound: true,
   }),
   [PLANNED_OPERATION_IDS.PRIME_MESSAGE]: Object.freeze({
     id: PLANNED_OPERATION_IDS.PRIME_MESSAGE,
@@ -133,6 +147,7 @@ export const PLANNED_OPERATION_REGISTRY: Readonly<
       "delivery is at-least-once with a deterministic key; a resend under the same key does not duplicate the mailbox entry",
     evidence_contract:
       "message content alone is never evidence; only an explicit, schema-valid result contract at a canonical locator promotes to settlement (REQ-DATA-005 keeps Chat and Trace separate projections)",
+    bound: true,
   }),
   [PLANNED_OPERATION_IDS.PRIME_STEER]: Object.freeze({
     id: PLANNED_OPERATION_IDS.PRIME_STEER,
@@ -154,6 +169,7 @@ export const PLANNED_OPERATION_REGISTRY: Readonly<
       "serialized against the one live REPL session; concurrent submissions queue through workbench Attention, never interleave (REQ-PRIME-004, C2 tooth 9)",
     evidence_contract:
       "promotion of a kernel object to Gauntlet evidence is explicit and provenance-preserving; an ephemeral object never silently becomes evidence (REQ-PRIME-007)",
+    bound: false,
   }),
   [PLANNED_OPERATION_IDS.PRIME_CANCEL]: Object.freeze({
     id: PLANNED_OPERATION_IDS.PRIME_CANCEL,
@@ -173,6 +189,7 @@ export const PLANNED_OPERATION_REGISTRY: Readonly<
       "idempotent: repeating cancel on an already-terminal session returns the same terminal_state as a no-op, never a second termination attempt",
     evidence_contract:
       "the terminal state is recorded at a canonical locator before the operation reports accepted",
+    bound: true,
   }),
   [PLANNED_OPERATION_IDS.EVIDENCE_ADMIT]: Object.freeze({
     id: PLANNED_OPERATION_IDS.EVIDENCE_ADMIT,
@@ -193,6 +210,7 @@ export const PLANNED_OPERATION_REGISTRY: Readonly<
       "same idempotency-key discipline as unit.resolve/unit.retry: re-admission with the same key and payload is a no-op re-entry; a changed payload under a reused key is refused",
     evidence_contract:
       "this operation IS the evidence contract path — its output locator/producer become the unit's EvidenceRequiredFact/evidence_content",
+    bound: false,
   }),
   [PLANNED_OPERATION_IDS.PRIME_SESSION]: Object.freeze({
     id: PLANNED_OPERATION_IDS.PRIME_SESSION,
@@ -215,8 +233,14 @@ export const PLANNED_OPERATION_REGISTRY: Readonly<
       "attach is idempotent — re-attaching an already-attached session returns the same session_ref; start is keyed like any admission",
     evidence_contract:
       "the session's topology facts (parent-child, model identity, lifecycle) ARE the evidence; synthetic parallel agent records are never the source of truth (REQ-PRIME-001)",
+    bound: false,
   }),
 } as Record<PlannedOperationId, PlannedOperationContract>);
+
+/** Planned operation ids that are actually bound to live code today (see `PlannedOperationContract.bound`). */
+export function boundPlannedOperationIds(): readonly PlannedOperationId[] {
+  return plannedOperationIds().filter((id) => PLANNED_OPERATION_REGISTRY[id].bound);
+}
 
 /** All planned operation IDs in deterministic (catalog) order. */
 export function plannedOperationIds(): readonly PlannedOperationId[] {
@@ -272,12 +296,20 @@ export function contractIsComplete(contract: PlannedOperationContract): boolean 
  * The bump is additive: an old client that reads only `existing_operations`
  * sees exactly what it always saw (C1 tooth 3).
  */
-export const CAPABILITY_HANDSHAKE_VERSION = 2;
+export const CAPABILITY_HANDSHAKE_VERSION = 3;
 
 export interface CapabilityHandshake {
   readonly version: number;
   readonly existing_operations: readonly OperationId[];
   readonly planned_operations: readonly PlannedOperationContract[];
+  /**
+   * Declared operations whose composer path is bound to live code today
+   * (plan workbench-agent-interaction.md P1) — additive field, version 3.
+   * A client reading only `planned_operations` (version 2 shape) still sees
+   * every one of these ids there too (`bound: true` on the contract),
+   * unchanged (D1: additive, never a breaking reinterpretation).
+   */
+  readonly bound_operations: readonly PlannedOperationId[];
 }
 
 export function capabilityHandshake(): CapabilityHandshake {
@@ -285,5 +317,6 @@ export function capabilityHandshake(): CapabilityHandshake {
     version: CAPABILITY_HANDSHAKE_VERSION,
     existing_operations: operationIds(),
     planned_operations: Object.values(PLANNED_OPERATION_REGISTRY),
+    bound_operations: boundPlannedOperationIds(),
   });
 }

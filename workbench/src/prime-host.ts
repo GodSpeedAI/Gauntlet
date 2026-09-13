@@ -23,6 +23,16 @@ export interface PrimeSpawnRequest {
    * refuses to spawn when it is absent, honestly, rather than inventing one.
    */
   readonly task?: string | undefined;
+  /**
+   * Work-mode override for a composer-launched child (plan
+   * workbench-agent-interaction.md P1): tools enabled and a `cwd` distinct
+   * from the host's isolated session/agent directories — a coding harness
+   * child with `--no-tools` cannot edit code. Absent (the default for every
+   * pre-P1 caller) means the existing `--no-tools`/isolated-cwd behavior,
+   * completely unchanged (D6-style additivity). `PrimeHostAdapter` (the fake)
+   * ignores this field; only `RealPrimeHost` acts on it.
+   */
+  readonly workMode?: { readonly toolsEnabled: boolean; readonly cwd: string } | undefined;
 }
 
 /**
@@ -81,6 +91,58 @@ export interface PrimeSessionState {
   readonly handle: PrimeAdmissionHandle;
   readonly messages: PrimeMailboxMessage[];
   resultContract: PrimeResultContract | null;
+}
+
+/**
+ * Outcome of an explicit operator stop (plan Phase D / workbench-agent-interaction
+ * P1, REQ-PRIME-009). Declared here (not only on `RealPrimeHost`) so the
+ * in-memory `PrimeHostAdapter` test double can expose the SAME shape for
+ * dispatcher-level unit tests — `real-prime-host.ts` re-exports this type for
+ * source compatibility with its existing callers/tests.
+ */
+export interface PrimeStopOutcome {
+  readonly session_id: string;
+  readonly stopped: boolean;
+  readonly detail: string;
+}
+
+/** One operator message delivered into a live or finished child's turn (P1 prime.message). */
+export interface PrimeContinuationRequest {
+  readonly sender: string;
+  readonly message: string;
+}
+
+/**
+ * Outcome of delivering an operator message to a child (P1 prime.message).
+ * `mode` records HOW delivery happened — never a completion claim by itself
+ * (REQ-PRIME-005): "steer"/"follow_up" address a still-running child through
+ * the installed CLI's `send` command; "resumed_new_turn" continues the SAME
+ * session with a fresh one-shot turn once the prior turn finished.
+ */
+export interface PrimeContinuationResult {
+  readonly session_id: string;
+  readonly delivered: boolean;
+  readonly mode: "steer" | "follow_up" | "resumed_new_turn";
+  readonly detail: string;
+}
+
+/**
+ * The wider surface `RealPrimeHost` and `PrimeHostAdapter` both implement,
+ * beyond the base `PrimeHostPort` five methods `PrimeDelegationDispatcher`
+ * drives. Kept SEPARATE from `PrimeHostPort` deliberately: widening that
+ * interface would ripple into every existing implementer/mock across the
+ * suite for a capability only the workbench host's prime.message/prime.cancel
+ * paths need. `isExtendedPrimeHost` narrows a plain `PrimeHostPort` to this
+ * shape at the one call site that needs it (workbench-host.ts).
+ */
+export interface ExtendedPrimeHostPort extends PrimeHostPort {
+  stopChild(sessionId: string): PrimeStopOutcome;
+  continueChild(sessionId: string, request: PrimeContinuationRequest): PrimeContinuationResult;
+}
+
+export function isExtendedPrimeHost(host: PrimeHostPort): host is ExtendedPrimeHostPort {
+  const candidate = host as Partial<ExtendedPrimeHostPort>;
+  return typeof candidate.stopChild === "function" && typeof candidate.continueChild === "function";
 }
 
 /**
@@ -205,5 +267,67 @@ export class PrimeHostAdapter implements PrimeHostPort {
       messages: [...s.messages],
       resultContract: s.resultContract ? { ...s.resultContract } : null,
     }));
+  }
+
+  /**
+   * Test-double stop (plan P1): idempotent on an unknown or already-terminal
+   * session, zero side effects on refusal. A running/admitted session is
+   * marked terminal WITHOUT a schema-valid result contract (mirrors
+   * `RealPrimeHost.stopChild`'s "no further evidence will be recorded"
+   * outcome) so dispatcher-level unit tests can exercise cancel against the
+   * fake without a real process.
+   */
+  stopChild(sessionId: string): PrimeStopOutcome {
+    const session = this.sessions.get(sessionId);
+    if (session === undefined) {
+      return { session_id: sessionId, stopped: false, detail: "no known session with this id" };
+    }
+    if (session.handle.status === "completed" || session.handle.status === "failed") {
+      return {
+        session_id: sessionId,
+        stopped: false,
+        detail: `session already terminal: ${session.handle.status}`,
+      };
+    }
+    session.handle.status = "failed";
+    return {
+      session_id: sessionId,
+      stopped: true,
+      detail: "test-double stop: session marked terminal, no further evidence will be recorded",
+    };
+  }
+
+  /**
+   * Test-double message continuation (plan P1): records the operator's
+   * message as mailbox communication and reports whether the session was
+   * still live ("steer") or already finished ("resumed_new_turn") — the SAME
+   * session id throughout; this fake never mints a second session for a
+   * follow-up message.
+   */
+  continueChild(sessionId: string, request: PrimeContinuationRequest): PrimeContinuationResult {
+    const session = this.sessions.get(sessionId);
+    if (session === undefined) {
+      return {
+        session_id: sessionId,
+        delivered: false,
+        mode: "resumed_new_turn",
+        detail: "no known session with this id",
+      };
+    }
+    this.receiveMailboxMessage(sessionId, {
+      sender: request.sender,
+      recipient: sessionId,
+      content: request.message,
+      kind: "communication",
+    });
+    const stillLive = session.handle.status === "admitted" || session.handle.status === "running";
+    return {
+      session_id: sessionId,
+      delivered: true,
+      mode: stillLive ? "steer" : "resumed_new_turn",
+      detail: stillLive
+        ? "test-double: message recorded against the live session (no real process to steer)"
+        : "test-double: message recorded as a follow-up turn on the SAME finished session",
+    };
   }
 }

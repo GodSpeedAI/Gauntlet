@@ -35,6 +35,17 @@ export interface WorkbenchConfig {
    * — an honest declaration is not itself a claim of use (D1).
    */
   readonly prime_socket: string | null;
+  /**
+   * Real project root a composer-launched Prime child works in (plan
+   * workbench-agent-interaction.md P1; T13-bound: `RealPrimeHost`'s spawn
+   * path policy adds exactly this root to its allowed cwd roots, never
+   * bypasses the boundary). `null` (unconfigured, the default) means
+   * composer-launched children still run WITH tools enabled but their `cwd`
+   * falls back to the isolated session directory — guessing a repo root from
+   * the workbench process's own cwd is unreliable in general deployments, so
+   * this stays an explicit opt-in rather than an inferred default.
+   */
+  readonly project_root: string | null;
   readonly projection_store: string;
   readonly plugin_roots: readonly string[];
   readonly performance_budget: PerformanceBudget;
@@ -79,6 +90,7 @@ export interface RawConfigInput {
   prime_endpoint?: string | null | undefined;
   prime_binary?: string | null | undefined;
   prime_socket?: string | null | undefined;
+  project_root?: string | null | undefined;
   projection_store?: string | undefined;
   plugin_roots?: readonly string[] | undefined;
   performance_budget?: PerformanceBudget | undefined;
@@ -91,6 +103,7 @@ export const DEFAULT_CONFIG: WorkbenchConfig = {
   prime_endpoint: null,
   prime_binary: null,
   prime_socket: null,
+  project_root: null,
   projection_store: ".gauntlet/projections.db",
   plugin_roots: [],
   performance_budget: {
@@ -134,6 +147,7 @@ export function resolveConfig(options?: {
   const envPrime = envSource["GAUNTLET_WORKBENCH_PRIME_ENDPOINT"] ?? envSource["PRIME_ENDPOINT"];
   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
+  const envProjectRoot = envSource["GAUNTLET_WORKBENCH_PROJECT_ROOT"];
   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
@@ -183,6 +197,18 @@ export function resolveConfig(options?: {
     prime_socket = file.prime_socket;
   } else {
     prime_socket = DEFAULT_CONFIG.prime_socket;
+  }
+
+  // 2d. Project root (composer-launched work-mode cwd, plan P1)
+  let project_root: string | null = null;
+  if (cli.project_root !== undefined) {
+    project_root = cli.project_root;
+  } else if (envProjectRoot !== undefined) {
+    project_root = envProjectRoot.trim() === "" ? null : envProjectRoot;
+  } else if (file.project_root !== undefined) {
+    project_root = file.project_root;
+  } else {
+    project_root = DEFAULT_CONFIG.project_root;
   }
 
   // 3. Projection store
@@ -239,6 +265,7 @@ export function resolveConfig(options?: {
     prime_endpoint,
     prime_binary,
     prime_socket,
+    project_root,
     projection_store,
     plugin_roots,
     performance_budget,

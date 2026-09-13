@@ -55,6 +55,7 @@ import {
   expireTakeovers as composerExpireTakeovers,
   renderComposer as composerRender,
   createComposerState,
+  cycleComposerMode,
 } from "./composer";
 import type { FocusPlacement, FocusRef } from "./focus";
 import type { ColumnLayout, ColumnWidthOverride, Dimensions, GeometryClass } from "./geometry";
@@ -1417,7 +1418,8 @@ export type ShellEffect =
   | { readonly type: "dehoist" }
   | { readonly type: "quit" }
   | { readonly type: "invoke_affordance"; readonly operation: string; readonly ref: FocusRef }
-  | { readonly type: "refresh_realitytrace" };
+  | { readonly type: "refresh_realitytrace" }
+  | { readonly type: "cancel_prime_child" };
 
 export interface ShellInteractions {
   readonly selectFocus?: ((ref: FocusRef) => void) | undefined;
@@ -1429,6 +1431,8 @@ export interface ShellInteractions {
     | ((mode: ComposerMode, destination: string, draft: string) => void)
     | undefined;
   readonly refreshRealityTrace?: (() => void) | undefined;
+  /** `prime.cancel` (plan P1): stops the selected/most recent Prime child. */
+  readonly cancelPrimeChild?: (() => void) | undefined;
 }
 
 /** Apply effects to host interaction callbacks (the only outbound edge). */
@@ -1455,6 +1459,9 @@ export function applyShellEffects(
         break;
       case "refresh_realitytrace":
         interactions.refreshRealityTrace?.();
+        break;
+      case "cancel_prime_child":
+        interactions.cancelPrimeChild?.();
         break;
     }
   }
@@ -1940,6 +1947,11 @@ export function handleCommand(
     }
     case "ui.composer.focus":
       return { state: Object.freeze({ ...state, focusedSurface: "Composer" }), effects: [] };
+    case "prime.cancel":
+      // Presentation-neutral: the host resolves which child "selected/most
+      // recent" means (plan P1) and reports the outcome via notice; this
+      // command carries no target itself.
+      return { state, effects: [{ type: "cancel_prime_child" }] };
     case "ui.bottom.toggle":
       // Bottom Surface visibility is presentation state only (UESC §7.5):
       // collapsing it never stops or detaches anything it hosts.
@@ -3032,6 +3044,17 @@ export class ShellSession {
         const result = handleKey(this.shell, snapshot, raw);
         this.shell = result.state;
         applyShellEffects(result.effects, this.interactions);
+        return;
+      }
+      // Composer mode switch (plan workbench-agent-interaction.md P1,
+      // REQ-UX-004): `tab`/`shift+tab` already dismiss the composer (above),
+      // so mode cycling is bound to a key that is otherwise a no-op inside
+      // the composer's own text editing (composeKeypress treats any
+      // non-printable, non-backspace, non-enter key as inert) — `ctrl+t`,
+      // chosen over `tab` specifically to avoid colliding with the existing
+      // dismiss binding.
+      if (raw === "ctrl+t") {
+        this.composer = cycleComposerMode(this.composer);
         return;
       }
       const { state, submitted } = composeKeypress(this.composer, raw);
