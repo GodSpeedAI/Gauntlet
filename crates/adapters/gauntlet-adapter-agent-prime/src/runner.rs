@@ -64,6 +64,42 @@
 //!   not part of this adapter's print-mode surface, and `max_depth` is
 //!   the configured value.
 //!
+//! **Execution anchoring (RC4 correction, task26-dcritic-apparatus-
+//! repair).** `invoke` no longer starts every parent run in one fixed
+//! `parent_cwd` injected at construction. R-1b (this runner's deferred
+//! workspace resolution) was CLOSED for the rest of the system in Task 20
+//! (`.agents/CURRENT_STATUS.yml`: "R-1b CLOSED both halves"), but this
+//! runner was never brought along — a real run then went most of the way
+//! (a correct `calculator.html`, its real `check.sh` PASSING) and still
+//! failed, because the builder child wrote into the fixed parent-run cwd
+//! (the project root) instead of its admitted per-unit workspace: the
+//! filesystem facet observed `empty workspace: no entries` at the
+//! allocated workspace, and verification then refused for want of a test
+//! report. Worse, the project root holds `.wayfinder/answer-key.md`
+//! (spec §8.5 check 7 / §22 item 5, invariant I1: the answer key must sit
+//! outside every builder-writable workspace) — an INTEGRITY defect, not
+//! merely a wrong directory, regardless of whether any given child
+//! happens to touch it. `invoke` now resolves the parent's working
+//! directory PER INVOCATION as the canonical workspace root joined with
+//! the validated `spec.workspace` segment (`execution_root`, mirroring
+//! [`gauntlet_adapter_agent_cli::runner`]'s COR-D3 anchor) — never a
+//! fallback to the workspace root or the project root on refusal.
+//!
+//! **What this anchor can and cannot enforce.** The parent print run's
+//! `cwd` is set to the per-unit workspace, so the harness's `rlm(...)`
+//! call — issued by that same in-process Python kernel — inherits that
+//! cwd for any RELATIVE path a child resolves through it. But `rlm`
+//! children are the harness's own recursive sessions: this adapter does
+//! not control, and cannot observe from outside, whether a given
+//! prime-agent version re-roots a child's own session cwd independently
+//! of its parent's (e.g. from the child's own session directory or a
+//! harness-internal default). Containment here is `isolation: none` per
+//! Annex C.2 — a CONTROL environment, not a security boundary — so this
+//! anchor is a strong steer for a cooperating child, never a guaranteed
+//! confinement; only the composition's PER-DISPATCH facts (workspace
+//! observation, the produced-artifact ladder) can catch a child that
+//! still writes elsewhere.
+//!
 //! Time comes from the INJECTED `Clock` port — never the system clock
 //! (the shared suite's pinned deadlines live in the past; only an
 //! injected clock drives them deterministically). `poll` reads the clock
@@ -253,26 +289,81 @@ pub struct InvocationForensics {
 pub struct PrimeAgentRunner<T: KernelTransport, C: HarnessControl> {
     config: PrimeAdapterConfig,
     state_dir: PathBuf,
-    /// The parent print run's working directory — an INJECTED typed input
-    /// from the composition root (correction RES-D3: this adapter never
-    /// resolves a `WorkspaceRef` into a path; production workspace
-    /// resolution is unreachable this task, R-1b's territory).
-    parent_cwd: PathBuf,
+    /// The CANONICAL root the dispatch's per-unit workspaces live under —
+    /// an INJECTED typed input from the composition root, the SAME root
+    /// `gauntlet-adapter-agent-cli`'s runner anchors under (correction
+    /// task26-dcritic-apparatus-repair, R-1b CLOSED per
+    /// `.agents/CURRENT_STATUS.yml`: this adapter now resolves every
+    /// invocation's parent working directory as `<workspace_root>/
+    /// <spec.workspace>/`, never a fixed project-root cwd — see
+    /// `execution_root` below, which mirrors
+    /// `gauntlet_adapter_agent_cli::runner::execution_root`).
+    workspace_root: PathBuf,
     transport: T,
     control: C,
     clock: Arc<dyn Clock>,
     entries: RefCell<HashMap<InvocationId, PrimeEntry>>,
 }
 
+/// The EXECUTION anchor for one dispatch (mirrors
+/// `gauntlet_adapter_agent_cli::runner::execution_root`, plan Task 20
+/// COR-D3, §17.5.1 invariant 1): the canonical workspace root joined with
+/// the dispatch's `spec.workspace` segment — the per-unit workspace the
+/// controller allocated and admitted the dispatch against, never the
+/// project root the frozen answer key and its `.wayfinder/` live in
+/// (spec §8.5 check 7 / §22 item 5, invariant I1: the answer key must sit
+/// outside every builder-writable workspace). The ref is untrusted
+/// external input: it must be a single key-class component
+/// (`[A-Za-z0-9._-]`, the workspace provider's §17.5.3 class, re-derived
+/// here because this adapter depends on domain and ports only) before it
+/// may join, and the directory is ensured (the parent print run needs a
+/// real cwd; the provider normally created it before dispatch). Any
+/// refusal is a typed `AdmissionRefused` — fail-closed at admission,
+/// before the kernel program is ever submitted, nothing left behind, and
+/// NEVER a fallback to the workspace root or the project root.
+fn execution_root(
+    workspace_root: &Path,
+    workspace: &gauntlet_domain::WorkspaceRef,
+) -> Result<PathBuf, AgentError> {
+    let reference = workspace.as_str();
+    // `.` and `..` are all-dot, slash-free, and pass the byte class below,
+    // yet `root.join("..")` names the state dir itself — a single component
+    // that still escapes. Refused by name, not by character class.
+    let key_ok = !reference.is_empty()
+        && reference != "."
+        && reference != ".."
+        && !reference.contains(['/', '\\'])
+        && reference.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-'
+        });
+    if !key_ok {
+        return Err(AgentError::AdmissionRefused {
+            detail: format!(
+                "workspace ref {reference:?} is outside the single-component key class — the \
+                 execution anchor refuses to join it onto the workspace root"
+            ),
+        });
+    }
+    let root = workspace_root.join(reference);
+    std::fs::create_dir_all(&root).map_err(|error| AgentError::AdmissionRefused {
+        detail: format!(
+            "the per-unit workspace {} could not be ensured as the parent run's execution \
+             anchor ({error})",
+            root.display()
+        ),
+    })?;
+    Ok(root)
+}
+
 impl<T: KernelTransport, C: HarnessControl> PrimeAgentRunner<T, C> {
     /// A runner over the supplied seams, anchoring invocation IO under
-    /// `state_dir` and starting parent runs in `parent_cwd` (both
-    /// composition-supplied: this adapter holds no absolute path
-    /// literal and resolves no workspace reference).
+    /// `state_dir` and starting each parent run inside that invocation's
+    /// admitted per-unit workspace under `workspace_root` (both
+    /// composition-supplied: this adapter holds no absolute path literal).
     pub fn new(
         config: PrimeAdapterConfig,
         state_dir: PathBuf,
-        parent_cwd: PathBuf,
+        workspace_root: PathBuf,
         transport: T,
         control: C,
         clock: Arc<dyn Clock>,
@@ -280,7 +371,7 @@ impl<T: KernelTransport, C: HarnessControl> PrimeAgentRunner<T, C> {
         Self {
             config,
             state_dir,
-            parent_cwd,
+            workspace_root,
             transport,
             control,
             clock,
@@ -387,6 +478,13 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         // RES-D3's one anchor rule: the invocation directory under the
         // state root, the contract token as the literal leaf.
         let files = invocation_dir(&self.state_dir, &spec)?;
+        // The EXECUTION anchor (task26-dcritic-apparatus-repair, R-1b
+        // CLOSED): the admitted per-unit workspace the parent print run
+        // starts in — resolved and validated BEFORE any filesystem effect
+        // or kernel submission, so a hostile/escaping `spec.workspace` is a
+        // typed refusal with zero spawn (never a fallback to the project
+        // root, which must stay outside every builder-writable workspace).
+        let execution_root = execution_root(&self.workspace_root, &spec.workspace)?;
         // §10.3 rule 1: the runtime creates the invocation directory and
         // writes the envelope; the handle file is a derived sibling.
         std::fs::create_dir_all(&files.dir).map_err(|error| AgentError::AdmissionRefused {
@@ -440,7 +538,7 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         let submission = KernelSubmission {
             program,
             handle_path: files.handle_file,
-            workspace: self.parent_cwd.clone(),
+            workspace: execution_root,
             model_hint: spec
                 .model_hint
                 .as_ref()

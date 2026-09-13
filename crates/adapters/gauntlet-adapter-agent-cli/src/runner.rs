@@ -238,7 +238,12 @@ fn execution_root(
     workspace: &gauntlet_domain::WorkspaceRef,
 ) -> Result<PathBuf, AgentError> {
     let reference = workspace.as_str();
+    // `.` and `..` are all-dot, slash-free, and pass the byte class below,
+    // yet `root.join("..")` names the parent of the workspace root — a
+    // single component that still escapes. Refused by name.
     let key_ok = !reference.is_empty()
+        && reference != "."
+        && reference != ".."
         && !reference.contains(['/', '\\'])
         && reference.bytes().all(|byte| {
             byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'_' || byte == b'-'
@@ -1121,14 +1126,18 @@ mod tests {
             Arc::new(SteppingClock::new()),
         )
         .expect("the suite template parses");
-        let mut hostile = spec();
-        hostile.workspace =
-            WorkspaceRef::new("seg/../escape").expect("the ref grammar admits the string");
-        let error = runner.invoke(hostile).expect_err("admission refuses");
-        assert!(
-            error.to_string().contains("key class"),
-            "the locus is the ref's key class: {error}"
-        );
+        // A slashed traversal AND the bare dot segments: `..`/`.` are
+        // slash-free and class-legal bytes, yet `root.join("..")` escapes.
+        for reference in ["seg/../escape", "..", "."] {
+            let mut hostile = spec();
+            hostile.workspace =
+                WorkspaceRef::new(reference).expect("the ref grammar admits the string");
+            let error = runner.invoke(hostile).expect_err("admission refuses");
+            assert!(
+                error.to_string().contains("key class"),
+                "{reference:?}: the locus is the ref's key class: {error}"
+            );
+        }
         assert!(
             !state_dir.join("runs").exists(),
             "a ref refusal leaves nothing behind"

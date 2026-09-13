@@ -231,10 +231,19 @@ pub(crate) fn runner_for(
                 config.admission_timeout(),
             );
             let control = recursive_runner::ProcessHarnessControl::new(config.binary.clone());
+            // The same canonical workspace root the process-backed runner
+            // anchors under (COR-D3, §17.5.1 invariant 1): the prime-agent
+            // runner now resolves its parent's cwd per invocation, at
+            // `<workspace_root>/<spec.workspace>/`, never a fixed project
+            // root — R-1b is closed (`.agents/CURRENT_STATUS.yml`), and the
+            // frozen answer key at the project root must never sit inside a
+            // builder-writable workspace (spec §8.5 check 7 / §22 item 5,
+            // invariant I1).
+            let workspace_root = context.state_dir().join(defaults::WORKSPACES_DIR_NAME);
             Ok(Arc::new(recursive_runner::PrimeAgentRunner::new(
                 config,
                 state_dir,
-                context.project_root.clone(),
+                workspace_root,
                 transport,
                 control,
                 clock.clone(),

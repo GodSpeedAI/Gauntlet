@@ -119,7 +119,7 @@ fn one_real_admission_completes_through_the_result_contract() {
     //    + the system clock, with temp roots injected (RES-D3). The
     //    transport is shared so its forensic note survives the runner.
     let state_dir = scratch("state");
-    let parent_cwd = scratch("cwd");
+    let workspace_root = scratch("cwd");
     let transport = Arc::new(ProcessKernelTransport::new(
         config.binary.clone(),
         config.admission_timeout(),
@@ -128,7 +128,7 @@ fn one_real_admission_completes_through_the_result_contract() {
     let runner = PrimeAgentRunner::new(
         config.clone(),
         state_dir.clone(),
-        parent_cwd.clone(),
+        workspace_root.clone(),
         Arc::clone(&transport),
         control,
         Arc::new(SystemClock::new()),
@@ -282,7 +282,7 @@ fn one_real_admission_completes_through_the_result_contract() {
     ));
 
     std::fs::remove_dir_all(&state_dir).ok();
-    std::fs::remove_dir_all(&parent_cwd).ok();
+    std::fs::remove_dir_all(&workspace_root).ok();
     eprintln!("live probe finished in {:?}", started.elapsed());
 }
 
@@ -337,7 +337,7 @@ fn a_child_that_outlives_the_default_linger_still_lands_its_result() {
     );
 
     let state_dir = scratch("linger-state");
-    let parent_cwd = scratch("linger-cwd");
+    let workspace_root = scratch("linger-cwd");
     let transport = Arc::new(ProcessKernelTransport::new(
         config.binary.clone(),
         config.admission_timeout(),
@@ -346,7 +346,7 @@ fn a_child_that_outlives_the_default_linger_still_lands_its_result() {
     let runner = PrimeAgentRunner::new(
         config.clone(),
         state_dir.clone(),
-        parent_cwd.clone(),
+        workspace_root.clone(),
         Arc::clone(&transport),
         control,
         Arc::new(SystemClock::new()),
@@ -458,5 +458,5 @@ fn a_child_that_outlives_the_default_linger_still_lands_its_result() {
     );
 
     std::fs::remove_dir_all(&state_dir).ok();
-    std::fs::remove_dir_all(&parent_cwd).ok();
+    std::fs::remove_dir_all(&workspace_root).ok();
 }

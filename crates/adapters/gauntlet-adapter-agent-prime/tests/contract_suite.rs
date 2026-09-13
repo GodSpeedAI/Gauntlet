@@ -222,6 +222,35 @@ impl KernelTransport for ScriptedTransport {
     }
 }
 
+/// A transport double that RECORDS the parent-run workspace every
+/// submission carries (task26-dcritic-apparatus-repair, RC4 teeth): the
+/// admission side effects are the same as [`ScriptedTransport`], but the
+/// resolved `submission.workspace` is captured so a test can assert what
+/// `invoke` actually anchored the parent's cwd at.
+#[derive(Debug)]
+struct RecordingTransport {
+    workspaces: std::rc::Rc<RefCell<Vec<PathBuf>>>,
+}
+
+impl KernelTransport for RecordingTransport {
+    fn submit(
+        &self,
+        submission: &KernelSubmission,
+        _deadline: Deadline,
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
+        self.workspaces
+            .borrow_mut()
+            .push(submission.workspace.clone());
+        if let Some(parent) = submission.handle_path.parent() {
+            std::fs::create_dir_all(parent).expect("the handle parent dir is creatable");
+        }
+        std::fs::write(&submission.handle_path, suite_admission().to_document())
+            .expect("the handle document is writable");
+        let handle = read_admission(&submission.handle_path)?;
+        Ok((handle, Box::new(NullParentHandle) as Box<dyn ParentHandle>))
+    }
+}
+
 /// The control double: records stops, answers listings.
 #[derive(Debug, Default)]
 struct ScriptedControl {
@@ -444,6 +473,130 @@ fn crate_spec() -> gauntlet_ports::agent_runner::RoleInvocationSpec {
         sandbox_policy: None,
         budget_slice: budget,
     }
+}
+
+/// `crate_spec` with a distinct dispatch identity and workspace ref — for
+/// the RC4 anchoring teeth below, which need two admittable invocations
+/// (duplicate `invocation_id` is refused).
+fn spec_with(id: &str, workspace: &str) -> gauntlet_ports::agent_runner::RoleInvocationSpec {
+    let mut spec = crate_spec();
+    spec.invocation_id = gauntlet_domain::InvocationId::new(id).expect("valid id");
+    spec.run_id = gauntlet_domain::RunId::new(id).expect("valid id");
+    spec.workspace = gauntlet_domain::WorkspaceRef::new(workspace).expect("valid ref");
+    spec
+}
+
+// ---------------------------------------------------------------------------
+// RC4 teeth (task26-dcritic-apparatus-repair): the parent's cwd is the
+// admitted PER-UNIT workspace, never a fixed root; distinct workspaces get
+// distinct cwds; a hostile/escaping segment is a typed refusal with zero
+// spawn.
+// ---------------------------------------------------------------------------
+
+/// The parent run's cwd is `<workspace_root>/<spec.workspace>/` — never the
+/// fixed root the runner used to start every parent in before this
+/// correction (which left the builder writing into the project root
+/// instead of its admitted workspace).
+#[test]
+fn the_parent_cwd_is_the_per_unit_workspace_not_a_shared_root() {
+    let workspaces = std::rc::Rc::new(RefCell::new(Vec::new()));
+    let transport = RecordingTransport {
+        workspaces: std::rc::Rc::clone(&workspaces),
+    };
+    let ws_root = scratch_dir("rc4-anchor-ws-root");
+    let runner = PrimeAgentRunner::new(
+        PrimeAdapterConfig::default(),
+        scratch_dir("rc4-anchor-state"),
+        ws_root.clone(),
+        transport,
+        ScriptedControl::default(),
+        Arc::new(SuiteClock::new(Box::new(|_| {}))),
+    );
+    runner.invoke(crate_spec()).expect("admission");
+    let expected = ws_root.join("ws-runner");
+    let recorded = workspaces.borrow();
+    assert_eq!(recorded.len(), 1, "exactly one submission");
+    assert_eq!(
+        recorded[0], expected,
+        "the parent run must start inside the admitted per-unit workspace, not a shared root"
+    );
+    assert!(expected.is_dir(), "the execution anchor exists");
+}
+
+/// Two invocations dispatched against different `spec.workspace` refs get
+/// two DIFFERENT parent cwds, both under the same canonical root.
+#[test]
+fn two_invocations_with_different_workspace_refs_get_different_parent_cwds() {
+    let workspaces = std::rc::Rc::new(RefCell::new(Vec::new()));
+    let transport = RecordingTransport {
+        workspaces: std::rc::Rc::clone(&workspaces),
+    };
+    let ws_root = scratch_dir("rc4-two-inv-ws-root");
+    let runner = PrimeAgentRunner::new(
+        PrimeAdapterConfig::default(),
+        scratch_dir("rc4-two-inv-state"),
+        ws_root.clone(),
+        transport,
+        ScriptedControl::default(),
+        Arc::new(SuiteClock::new(Box::new(|_| {}))),
+    );
+    runner
+        .invoke(spec_with(SUITE_ULID, "ws-one"))
+        .expect("first admission");
+    runner
+        .invoke(spec_with("01ARZ3NDEKTSV4RRFFQ69G5FAB", "ws-two"))
+        .expect("second admission");
+    let recorded = workspaces.borrow();
+    assert_eq!(recorded.len(), 2, "exactly two submissions");
+    assert_eq!(recorded[0], ws_root.join("ws-one"));
+    assert_eq!(recorded[1], ws_root.join("ws-two"));
+    assert_ne!(
+        recorded[0], recorded[1],
+        "distinct workspace refs must resolve to distinct parent cwds"
+    );
+}
+
+/// A workspace ref outside the single-component key class is a typed
+/// ADMISSION refusal — the anchor never joins a separator or traversal
+/// segment onto the root, nothing is left behind, and the transport is
+/// NEVER reached (zero spawn).
+#[test]
+fn a_hostile_workspace_ref_refuses_admission_with_zero_spawn() {
+    let workspaces = std::rc::Rc::new(RefCell::new(Vec::new()));
+    let transport = RecordingTransport {
+        workspaces: std::rc::Rc::clone(&workspaces),
+    };
+    let state_dir = scratch_dir("rc4-hostile-state");
+    let runner = PrimeAgentRunner::new(
+        PrimeAdapterConfig::default(),
+        state_dir.clone(),
+        scratch_dir("rc4-hostile-ws-root"),
+        transport,
+        ScriptedControl::default(),
+        Arc::new(SuiteClock::new(Box::new(|_| {}))),
+    );
+    // A slashed traversal AND the bare dot segments: `..` and `.` are
+    // single, slash-free components made only of class-legal bytes, so a
+    // character-class check alone admits them — yet `root.join("..")`
+    // escapes. Each must be refused by name.
+    for reference in ["seg/../escape", "..", "."] {
+        let mut hostile = crate_spec();
+        hostile.workspace = gauntlet_domain::WorkspaceRef::new(reference)
+            .expect("the ref grammar admits the string");
+        let error = runner.invoke(hostile).expect_err("admission refuses");
+        let AgentError::AdmissionRefused { detail } = &error else {
+            panic!("hostile workspace ref {reference:?} must be AdmissionRefused, got {error:?}")
+        };
+        assert!(detail.contains("key class"), "{reference:?}: {detail}");
+    }
+    assert!(
+        workspaces.borrow().is_empty(),
+        "a refused workspace ref must never reach the transport — zero spawn"
+    );
+    assert!(
+        !state_dir.join("runs").exists(),
+        "a ref refusal leaves nothing behind"
+    );
 }
 
 /// A cancel on an invocation this runner never admitted is the typed
