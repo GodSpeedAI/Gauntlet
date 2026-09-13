@@ -296,12 +296,13 @@ describe("workbench-agent-interaction P1: composer mode cycle", () => {
     let state = createComposerState();
     expect(state.mode).toBe("message");
     const seen: string[] = [state.mode];
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       state = cycleComposerMode(state);
       seen.push(state.mode);
       expect(state.notice).toContain(state.mode);
     }
-    expect(seen).toEqual(["message", "operation", "prime", "kernel", "message"]);
+    // `run` (plan increment R, ICM §13.1) joined the cycle after `kernel`.
+    expect(seen).toEqual(["message", "operation", "prime", "kernel", "run", "message"]);
   });
 
   it("cycling is a no-op while a takeover owns the input", () => {

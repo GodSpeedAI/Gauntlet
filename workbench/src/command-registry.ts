@@ -74,7 +74,13 @@ export type SemanticCommandId =
   // recent Prime child. Keyboard-optional (RUNTIME_ADAPTER, so future palette
   // rows can list it whenever a child session exists) — bound to a shell key
   // as a convenience, never the only path.
-  | "prime.cancel";
+  | "prime.cancel"
+  // Gauntlet run (plan workbench-agent-interaction.md increment R, ICM
+  // §13.1 run.start, BIND_EXISTING over the canonical `gauntlet run` CLI):
+  // switches the composer into `run` mode so the operator can type an
+  // intent and submit — palette- and MenuBar-reachable, converging on the
+  // same operation identity as the composer's own `run` mode.
+  | "run.start";
 
 /** Command classes follow ICM §5 (presentation-only → navigation → query → runtime → canonical). */
 export type SemanticCommandClass =
@@ -393,6 +399,13 @@ export const COMMAND_REGISTRY: readonly SemanticCommandSpec[] = Object.freeze([
     commandClass: "RUNTIME_ADAPTER",
     surfaces: ["shell"],
     defaultKeys: { shell: "c" },
+  },
+  {
+    id: "run.start",
+    title: "Start Gauntlet run",
+    commandClass: "RUNTIME_ADAPTER",
+    surfaces: ["shell"],
+    defaultKeys: { shell: "R" },
   },
 ] as const);
 

@@ -1,5 +1,5 @@
-import { mkdirSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, openSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import {
   type AffordanceObservation,
   EMPTY_AFFORDANCE_OBSERVATION,
@@ -22,12 +22,13 @@ import { plannedOperationForComposerMode } from "./planned-operations";
 import { constructBoundedContextEnvelope } from "./prime-context-envelope";
 import { hasChangeListener, isExtendedPrimeHost, type PrimeChatSession } from "./prime-host";
 import { PrimeDelegationDispatcher } from "./prime-recursion";
-import { RealPrimeHost } from "./real-prime-host";
+import { isPidAlive, RealPrimeHost } from "./real-prime-host";
 import { interpretSxrRefreshOutcome } from "./reality-trace-binding";
 import type { RealityTraceLane } from "./reality-trace-lane";
 import { focusForPrimeChild } from "./relations";
 import type { ShellInteractions } from "./shell";
 import { bunSxrProcessRunner, executeSxrRefresh, type SxrLensProjection } from "./sxr-adapter";
+import { type SpawnPathPolicy, validateSpawnRequest } from "./terminal-session";
 import { WorkbenchModel } from "./workbench-model";
 
 /**
@@ -466,6 +467,9 @@ export class WorkbenchHost {
     } else if (mode === "message") {
       await this.messagePrimeChild(destination, draft);
       return;
+    } else if (mode === "run") {
+      await this.startRun(draft);
+      return;
     } else {
       const planned = plannedOperationForComposerMode(mode);
       this.notice =
@@ -669,6 +673,173 @@ export class WorkbenchHost {
       ? `prime.cancel: stopped ${target} — ${outcome.detail}`
       : `prime.cancel: ${target} — ${outcome.detail}`;
     await this.refresh();
+    this.changed();
+  }
+
+  /**
+   * `run.start` (plan workbench-agent-interaction.md increment R, ICM
+   * §13.1 BIND_EXISTING): the canonical path IS the `gauntlet run` CLI
+   * (§20.2's HTTP surface has no run-start route). ICM §13.2 availability
+   * ("inspect why unavailable") is answered by `gauntlet run --dry-run`
+   * itself — a real preflight that writes nothing and exits non-zero with
+   * an exact refusal reason when the run cannot start (e.g. a missing
+   * REQUIRED control setting). A refusal there means zero further spawn.
+   */
+  private async startRun(draft: string): Promise<void> {
+    const binary = this.config.gauntlet_binary;
+    const projectRoot = this.config.project_root;
+    if (binary === null || projectRoot === null) {
+      this.notice =
+        "run.start: Gauntlet is not configured (set GAUNTLET_WORKBENCH_GAUNTLET_BINARY and GAUNTLET_WORKBENCH_PROJECT_ROOT).";
+      this.changed();
+      return;
+    }
+    const policy: SpawnPathPolicy = Object.freeze({
+      allowedProgramRoots: [dirname(binary)],
+      allowedPathRoots: [projectRoot],
+    });
+
+    const intent = draft.trim();
+    if (intent.length === 0) {
+      this.notice = "run.start: an intent is required. Message was not sent.";
+      this.changed();
+      return;
+    }
+
+    this.notice = `run.start: preflight (dry-run) for "${intent}"…`;
+    this.changed();
+
+    let dryRunBound: ReturnType<typeof validateSpawnRequest>;
+    try {
+      dryRunBound = validateSpawnRequest(
+        { program: binary, args: ["run", "--dry-run", intent], cwd: projectRoot },
+        policy,
+      );
+    } catch (error) {
+      this.notice = `run.start: refused at the T13 spawn boundary — ${error instanceof Error ? error.message : String(error)}`;
+      this.changed();
+      return;
+    }
+    let dryRunOut: string;
+    let dryRunErr: string;
+    let dryRunCode: number;
+    try {
+      const proc = Bun.spawn([dryRunBound.program, ...dryRunBound.args], {
+        cwd: dryRunBound.cwd,
+        env: { ...process.env },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      const [out, err, code] = await Promise.all([
+        new Response(proc.stdout as ReadableStream<Uint8Array>).text(),
+        new Response(proc.stderr as ReadableStream<Uint8Array>).text(),
+        proc.exited,
+      ]);
+      dryRunOut = out;
+      dryRunErr = err;
+      dryRunCode = code;
+    } catch (error) {
+      this.notice = `run.start: dry-run preflight failed to spawn — ${error instanceof Error ? error.message : String(error)}`;
+      this.changed();
+      return;
+    }
+    if (dryRunCode !== 0) {
+      // ICM §13.2: the dry-run's own refusal text IS the exact reason
+      // surface (e.g. a REQUIRED control setting's configuration failure) —
+      // never re-derived or guessed here.
+      const refusal =
+        dryRunErr.trim().length > 0
+          ? dryRunErr.trim()
+          : dryRunOut.trim().length > 0
+            ? dryRunOut.trim()
+            : `dry-run exited ${dryRunCode}`;
+      this.notice = `run.start: refused — ${refusal}`;
+      this.changed();
+      return;
+    }
+
+    // Dry-run is clean: bind + spawn the REAL run, DETACHED (REQ-PRIME-009:
+    // closing the TUI must not kill admitted work), inheriting the
+    // operator's own environment so their control settings (REQUIRED,
+    // fail-closed) apply exactly as they would from a real shell.
+    let runBound: ReturnType<typeof validateSpawnRequest>;
+    try {
+      runBound = validateSpawnRequest(
+        { program: binary, args: ["run", intent], cwd: projectRoot },
+        policy,
+      );
+    } catch (error) {
+      this.notice = `run.start: refused at the T13 spawn boundary — ${error instanceof Error ? error.message : String(error)}`;
+      this.changed();
+      return;
+    }
+    const logDir = join(projectRoot, ".gauntlet", "workbench-runs");
+    mkdirSync(logDir, { recursive: true });
+    const logPath = join(logDir, `${Date.now()}.log`);
+    const logFd = openSync(logPath, "a");
+    let proc: ReturnType<typeof Bun.spawn>;
+    try {
+      proc = Bun.spawn([runBound.program, ...runBound.args], {
+        cwd: runBound.cwd,
+        env: { ...process.env },
+        stdin: "ignore",
+        stdout: logFd,
+        stderr: logFd,
+        // Detached so this process's own exit (or a future TUI close) never
+        // signals the child — the ONLY thing that stops admitted work is an
+        // explicit canonical stop/cancel or governing policy.
+        detached: true,
+      });
+    } catch (error) {
+      this.notice = `run.start: spawn failed — ${error instanceof Error ? error.message : String(error)}`;
+      this.changed();
+      return;
+    }
+    proc.unref();
+    this.notice = `run.start: admitted (pid ${proc.pid}); watching for the run id…`;
+    this.changed();
+    void this.watchRunStart(proc.pid, logPath);
+  }
+
+  /**
+   * Tail the run's own log file for its FIRST `run: run_id=<id>` line — the
+   * admission identity, never a completion claim (REQ-PRIME-003's discipline
+   * applied here too: "run <id> started" is honest, "run complete" is a
+   * lie). Reading the log rather than the process's own stdout stream keeps
+   * this independent of the spawning process's own lifetime (the run is
+   * detached and must survive it). If the process exits before ever
+   * printing a run id, its captured output (which is its stderr, honestly)
+   * becomes the notice instead of a fabricated success.
+   */
+  private async watchRunStart(pid: number | null, logPath: string): Promise<void> {
+    const deadlineMs = Date.now() + 15_000;
+    while (Date.now() < deadlineMs) {
+      if (this.closed) return;
+      let content = "";
+      try {
+        content = readFileSync(logPath, "utf8");
+      } catch {
+        /* not flushed yet */
+      }
+      const runIdLine = content.split("\n").find((line) => line.startsWith("run: run_id="));
+      if (runIdLine !== undefined) {
+        const runId = runIdLine.slice("run: run_id=".length).trim();
+        this.notice = `run.start: run ${runId} started (admission only — not a completion claim)`;
+        this.changed();
+        return;
+      }
+      if (pid === null || !isPidAlive(pid)) {
+        const tail = content.trim();
+        this.notice =
+          tail.length > 0
+            ? `run.start: process exited before printing a run id — ${tail.slice(-2000)}`
+            : "run.start: process exited before printing a run id (no output captured)";
+        this.changed();
+        return;
+      }
+      await new Promise((resolveWait) => setTimeout(resolveWait, 150));
+    }
+    this.notice = `run.start: admitted (pid ${pid}) but no run id observed within timeout — see ${logPath}`;
     this.changed();
   }
 

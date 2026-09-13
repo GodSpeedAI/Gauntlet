@@ -35,7 +35,7 @@ import type { OperationId } from "./operation-registry";
 import { operationIds } from "./operation-registry";
 
 /** Mirrors composer.ts's `ComposerMode` values — see the file-level note above. */
-export type ComposerModeName = "message" | "operation" | "prime" | "kernel";
+export type ComposerModeName = "message" | "operation" | "prime" | "kernel" | "run";
 
 export const PLANNED_OPERATION_IDS = {
   PRIME_LAUNCH: "prime.launch",

@@ -20,7 +20,7 @@
 
 import type { RenderedLine } from "./render-tree";
 
-export type ComposerMode = "message" | "operation" | "prime" | "kernel";
+export type ComposerMode = "message" | "operation" | "prime" | "kernel" | "run";
 
 /** Every composer variant names its destination (REQ-UX-004). */
 export const COMPOSER_MODES: readonly ComposerMode[] = Object.freeze([
@@ -28,6 +28,7 @@ export const COMPOSER_MODES: readonly ComposerMode[] = Object.freeze([
   "operation",
   "prime",
   "kernel",
+  "run",
 ]);
 
 export type TakeoverKind = "approval" | "question" | "recovery" | "kernel-input";

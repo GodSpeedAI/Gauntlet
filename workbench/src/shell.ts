@@ -56,6 +56,7 @@ import {
   renderComposer as composerRender,
   createComposerState,
   cycleComposerMode,
+  setComposerMode,
 } from "./composer";
 import type { FocusPlacement, FocusRef } from "./focus";
 import type { ColumnLayout, ColumnWidthOverride, Dimensions, GeometryClass } from "./geometry";
@@ -435,7 +436,13 @@ export function menuBarEntries(
 
   switch (menu) {
     case "file":
-      return [row("app.quit", "Quit workbench")];
+      // "Start Gauntlet run" (plan increment R, ICM §13.1): switches the
+      // composer to `run` mode — the same commandId a shell key or a
+      // palette row would resolve to (ICM §35, one operation identity).
+      // Availability is decided at submission time (`gauntlet run
+      // --dry-run`), not rendered here — this row is always reachable,
+      // exactly like the composer modes it mirrors.
+      return [row("app.quit", "Quit workbench"), row("run.start", "Start Gauntlet run")];
     case "view": {
       const compact = classifyGeometry(state.dimensions) === "Compact";
       const dockedReason = "docked (always visible) at this width";
@@ -1471,7 +1478,17 @@ export type ShellEffect =
   | { readonly type: "quit" }
   | { readonly type: "invoke_affordance"; readonly operation: string; readonly ref: FocusRef }
   | { readonly type: "refresh_realitytrace" }
-  | { readonly type: "cancel_prime_child" };
+  | { readonly type: "cancel_prime_child" }
+  /**
+   * `run.start` (plan workbench-agent-interaction.md increment R): switches
+   * the composer into `run` mode. Composer mode lives in `ShellSession`'s own
+   * `composer` field, not `ShellState` — so, like the takeover machinery,
+   * `ShellSession` applies this effect directly (see `key`/`pointer` below)
+   * rather than through a `ShellInteractions` callback; it is still routed
+   * through the ordinary effect list so keyboard, palette, and MenuBar
+   * activation of `run.start` all produce it the same way (ICM §35).
+   */
+  | { readonly type: "compose_run" };
 
 export interface ShellInteractions {
   readonly selectFocus?: ((ref: FocusRef) => void) | undefined;
@@ -1514,6 +1531,10 @@ export function applyShellEffects(
         break;
       case "cancel_prime_child":
         interactions.cancelPrimeChild?.();
+        break;
+      case "compose_run":
+        // Handled directly by ShellSession (composer mode lives outside
+        // ShellState) — no ShellInteractions callback for this effect.
         break;
     }
   }
@@ -2004,6 +2025,15 @@ export function handleCommand(
       // recent" means (plan P1) and reports the outcome via notice; this
       // command carries no target itself.
       return { state, effects: [{ type: "cancel_prime_child" }] };
+    case "run.start":
+      // ICM §13.1: every source (palette row, MenuBar row, this shell
+      // command) converges on the SAME thing — switching the composer to
+      // `run` mode and giving it keyboard focus, so the operator types an
+      // intent and submits through the ordinary composer path.
+      return {
+        state: Object.freeze({ ...state, focusedSurface: "Composer" }),
+        effects: [{ type: "compose_run" }],
+      };
     case "ui.bottom.toggle":
       // Bottom Surface visibility is presentation state only (UESC §7.5):
       // collapsing it never stops or detaches anything it hosts.
@@ -3065,6 +3095,7 @@ export class ShellSession {
     if (geo === "BelowMinimum") {
       const result = handleKey(this.shell, snapshot, raw);
       this.shell = result.state;
+      this.applyComposerEffects(result.effects);
       applyShellEffects(result.effects, this.interactions);
       return;
     }
@@ -3095,6 +3126,7 @@ export class ShellSession {
       if (raw === "escape" || raw === "tab" || raw === "shift+tab") {
         const result = handleKey(this.shell, snapshot, raw);
         this.shell = result.state;
+        this.applyComposerEffects(result.effects);
         applyShellEffects(result.effects, this.interactions);
         return;
       }
@@ -3123,6 +3155,7 @@ export class ShellSession {
       raw === "[" || raw === "]",
     );
     this.shell = result.state;
+    this.applyComposerEffects(result.effects);
     applyShellEffects(result.effects, this.interactions);
   }
 
@@ -3138,7 +3171,23 @@ export class ShellSession {
       false,
     );
     this.shell = result.state;
+    this.applyComposerEffects(result.effects);
     applyShellEffects(result.effects, this.interactions);
+  }
+
+  /**
+   * `run.start` (plan increment R): composer mode is `ShellSession`-owned
+   * state, outside `ShellState` — so the `compose_run` effect a reducer
+   * returns is applied here, directly, the same way the takeover machinery
+   * already mutates `this.composer` outside the pure reducer. Keyboard,
+   * palette, and MenuBar activation of `run.start` all route through
+   * `handleCommand`/`handlePointer` and therefore all reach this identically
+   * (ICM §35: mouse and keyboard cannot fork behavior).
+   */
+  private applyComposerEffects(effects: readonly ShellEffect[]): void {
+    if (effects.some((effect) => effect.type === "compose_run")) {
+      this.composer = setComposerMode(this.composer, "run");
+    }
   }
 
   /** Pasted data is input text, never a keyboard command or submission. */

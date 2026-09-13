@@ -46,6 +46,15 @@ export interface WorkbenchConfig {
    * this stays an explicit opt-in rather than an inferred default.
    */
   readonly project_root: string | null;
+  /**
+   * Path to the operator-qualified `gauntlet` CLI binary (plan
+   * workbench-agent-interaction.md increment R; ICM §13.1 `run.start`).
+   * `null` (unconfigured, the default) means `run.start` is
+   * unavailable-with-reason — never guessed, and never inferred from
+   * `prime_binary` or the workbench process's own argv0 (D6-style
+   * additivity: absence never degrades any other surface).
+   */
+  readonly gauntlet_binary: string | null;
   readonly projection_store: string;
   readonly plugin_roots: readonly string[];
   readonly performance_budget: PerformanceBudget;
@@ -91,6 +100,7 @@ export interface RawConfigInput {
   prime_binary?: string | null | undefined;
   prime_socket?: string | null | undefined;
   project_root?: string | null | undefined;
+  gauntlet_binary?: string | null | undefined;
   projection_store?: string | undefined;
   plugin_roots?: readonly string[] | undefined;
   performance_budget?: PerformanceBudget | undefined;
@@ -104,6 +114,7 @@ export const DEFAULT_CONFIG: WorkbenchConfig = {
   prime_binary: null,
   prime_socket: null,
   project_root: null,
+  gauntlet_binary: null,
   projection_store: ".gauntlet/projections.db",
   plugin_roots: [],
   performance_budget: {
@@ -148,6 +159,7 @@ export function resolveConfig(options?: {
   const envPrimeBinary = envSource["GAUNTLET_WORKBENCH_PRIME_BINARY"];
   const envPrimeSocket = envSource["GAUNTLET_WORKBENCH_PRIME_SOCKET"];
   const envProjectRoot = envSource["GAUNTLET_WORKBENCH_PROJECT_ROOT"];
+  const envGauntletBinary = envSource["GAUNTLET_WORKBENCH_GAUNTLET_BINARY"];
   const envProjection = envSource["GAUNTLET_WORKBENCH_PROJECTION_STORE"];
   const envToken = envSource["GAUNTLET_SESSION_TOKEN"] ?? envSource["GAUNTLET_API_TOKEN"];
   const envTransport = envSource["GAUNTLET_WORKBENCH_TRANSPORT"];
@@ -211,6 +223,18 @@ export function resolveConfig(options?: {
     project_root = DEFAULT_CONFIG.project_root;
   }
 
+  // 2e. Gauntlet CLI binary (plan increment R, ICM §13.1 run.start)
+  let gauntlet_binary: string | null = null;
+  if (cli.gauntlet_binary !== undefined) {
+    gauntlet_binary = cli.gauntlet_binary;
+  } else if (envGauntletBinary !== undefined) {
+    gauntlet_binary = envGauntletBinary.trim() === "" ? null : envGauntletBinary;
+  } else if (file.gauntlet_binary !== undefined) {
+    gauntlet_binary = file.gauntlet_binary;
+  } else {
+    gauntlet_binary = DEFAULT_CONFIG.gauntlet_binary;
+  }
+
   // 3. Projection store
   const projection_store =
     cli.projection_store ??
@@ -266,6 +290,7 @@ export function resolveConfig(options?: {
     prime_binary,
     prime_socket,
     project_root,
+    gauntlet_binary,
     projection_store,
     plugin_roots,
     performance_budget,
