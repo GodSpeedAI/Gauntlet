@@ -6,8 +6,13 @@
  *   1. Explicit CLI arguments / options
  *   2. Environment variables (GAUNTLET_WORKBENCH_*)
  *   3. Configuration file (gauntlet-workbench.yaml / .json)
- *   4. Documented defaults
+ *   4. Documented defaults (for `project_root`/`gauntlet_binary`, DISCOVERY:
+ *      see `discoverProjectRoot`/`discoverGauntletBinary` — discovery answers
+ *      or stays null, and never guesses a wrong-but-plausible path)
  */
+
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 export type TransportKind = "local" | "remote";
 
@@ -142,12 +147,88 @@ export function classifyTransport(endpoint: string): TransportKind {
 }
 
 /**
+ * The Gauntlet project containing `startDir`, or null.
+ *
+ * A "project root" is ONE Gauntlet project — the directory holding
+ * `GAUNTLET.md` (the front-matter config naming the reference manifest and
+ * answer key), which is what `gauntlet run` must execute in and what a
+ * work-mode Prime child is bound to as its cwd. A directory that merely
+ * CONTAINS projects (`~/projects`) is deliberately never a valid answer:
+ * `gauntlet run` there refuses for want of a reference, and binding a child's
+ * write scope to a tree of unrelated repositories is strictly worse than
+ * refusing. Walking up from the launch directory is how the operator's
+ * "wherever I started the TUI" becomes the project without configuration;
+ * finding nothing stays null, which every consumer renders as
+ * unavailable-with-reason rather than guessing.
+ */
+export function discoverProjectRoot(
+  startDir: string,
+  exists: (path: string) => boolean = existsSync,
+): string | null {
+  let current = resolve(startDir);
+  // Bounded by the filesystem root: `dirname("/")` is "/" itself.
+  for (;;) {
+    if (exists(join(current, "GAUNTLET.md"))) return current;
+    const parent = dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
+}
+
+/**
+ * The `gauntlet` binary to bind `run.start` to, or null.
+ *
+ * PATH first (an installed Gauntlet is the operator's real one), then this
+ * checkout's own debug build so a developer running the workbench from the
+ * repository gets a working `run.start` without configuration. Never
+ * `prime-agent`: that is the AGENT binary (`prime_binary`), and `run.start`
+ * executes `<binary> run "<intent>"` — Gauntlet's own CLI, not the agent's.
+ */
+export function discoverGauntletBinary(
+  projectRoot: string | null,
+  lookPath: (name: string) => string | null = (name) => Bun.which(name),
+  exists: (path: string) => boolean = existsSync,
+  /** Where the running workbench's own source lives; its checkout is the last resort. */
+  moduleDir: string = import.meta.dir,
+): string | null {
+  const onPath = lookPath("gauntlet");
+  if (onPath !== null) return onPath;
+  // The target project's own build, when it happens to BE the Gauntlet
+  // checkout; then the checkout this workbench is running from — a demo or
+  // any other target project has no `gauntlet` build of its own, but the
+  // developer running the TUI out of the repository still has one.
+  for (const base of [projectRoot, ...ancestors(moduleDir)]) {
+    if (base === null) continue;
+    const debugBuild = join(base, "target", "debug", "gauntlet");
+    if (exists(debugBuild)) return debugBuild;
+  }
+  return null;
+}
+
+/** `dir` and every ancestor, nearest first. */
+function ancestors(dir: string): readonly string[] {
+  const chain: string[] = [];
+  let current = resolve(dir);
+  for (;;) {
+    chain.push(current);
+    const parent = dirname(current);
+    if (parent === current) return chain;
+    current = parent;
+  }
+}
+
+/**
  * Deterministically resolve configuration by merging CLI, ENV, file, and defaults.
  */
 export function resolveConfig(options?: {
   cli?: RawConfigInput | undefined;
   env?: Record<string, string | undefined> | undefined;
   file?: RawConfigInput | undefined;
+  /**
+   * Launch directory the project-root/binary discovery defaults walk up from
+   * (tests inject; production passes the real cwd).
+   */
+  cwd?: string | undefined;
 }): WorkbenchConfig {
   const cli = options?.cli ?? {};
   const envSource = options?.env ?? process.env;
@@ -220,7 +301,9 @@ export function resolveConfig(options?: {
   } else if (file.project_root !== undefined) {
     project_root = file.project_root;
   } else {
-    project_root = DEFAULT_CONFIG.project_root;
+    // Discovery, not a literal default: the project containing the launch
+    // directory. Nothing found stays null (unavailable-with-reason).
+    project_root = discoverProjectRoot(options?.cwd ?? process.cwd());
   }
 
   // 2e. Gauntlet CLI binary (plan increment R, ICM §13.1 run.start)
@@ -232,7 +315,8 @@ export function resolveConfig(options?: {
   } else if (file.gauntlet_binary !== undefined) {
     gauntlet_binary = file.gauntlet_binary;
   } else {
-    gauntlet_binary = DEFAULT_CONFIG.gauntlet_binary;
+    // Discovery: `gauntlet` on PATH, else this checkout's debug build.
+    gauntlet_binary = discoverGauntletBinary(project_root);
   }
 
   // 3. Projection store
