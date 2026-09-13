@@ -374,8 +374,13 @@ impl ProcessKernelTransport {
         format!(
             "Execute the following Python program VERBATIM as a single IPython cell. \
              Do not modify it, do not summarize it, do not answer its prompt yourself. \
-             It delegates work and records an admission handle to a file; your part \
-             ends when the cell returns. Do not wait for the delegated child.\n\
+             It delegates work, records an admission handle to a file, and then keeps \
+             this session alive until the delegated work's result FILE appears or a \
+             deadline passes. That final loop is required, not a violation of \
+             nonblocking delegation: the harness aborts a child when its parent session \
+             ends, and the loop never reads or waits on the child's reply, only on a \
+             file's existence. Do not wait for the child in any other way; your part \
+             ends when the cell returns.\n\
              <<<GAUNTLET_PROGRAM_BEGIN>>>\n{program}<<<GAUNTLET_PROGRAM_END>>>\n"
         )
     }

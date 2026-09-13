@@ -166,6 +166,18 @@ pub fn render(spec: &KernelProgramSpec) -> String {
         // answer from `rlm(...)`" (Annex C.2): the parent never reads the
         // child's reply or its mailbox, and the loop's exit is
         // time-and-file bounded, never indefinite (Annex C.4).
+        //
+        // RC5: the rationale is EMITTED into the program, not only kept
+        // here. The cell is executed by a parent MODEL, and a bare polling
+        // loop read to it as "blocking on the child", which contradicted
+        // its nonblocking-delegation policy: a real parent refused to run
+        // the program at all ("its final loop blocks and polls for the
+        // child result"), so nothing was ever admitted.
+        "# Keep this session alive until the delegated work lands. The harness\n",
+        "# aborts a child when its parent session ends, so this cell must not\n",
+        "# return early. It never reads or waits on the child's reply: it only\n",
+        "# checks whether the result FILE exists, and it stops at the invocation\n",
+        "# deadline either way.\n",
         "import time\n",
         "_gauntlet_linger_floor_ends = time.time() + ",
         linger_floor.as_str(),
@@ -306,6 +318,11 @@ mod tests {
             "    'session_dir': str(handle.session_dir),",
             "    'model': str(handle.model),",
             "}))",
+            "# Keep this session alive until the delegated work lands. The harness",
+            "# aborts a child when its parent session ends, so this cell must not",
+            "# return early. It never reads or waits on the child's reply: it only",
+            "# checks whether the result FILE exists, and it stops at the invocation",
+            "# deadline either way.",
             "import time",
             "_gauntlet_linger_floor_ends = time.time() + 30",
             "_gauntlet_deadline_ends = 1700000600",
