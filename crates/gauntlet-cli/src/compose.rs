@@ -229,7 +229,6 @@ pub(crate) fn runner_for(
             let transport = recursive_runner::ProcessKernelTransport::new(
                 config.binary.clone(),
                 config.admission_timeout(),
-                config.admission_linger(),
             );
             let control = recursive_runner::ProcessHarnessControl::new(config.binary.clone());
             Ok(Arc::new(recursive_runner::PrimeAgentRunner::new(

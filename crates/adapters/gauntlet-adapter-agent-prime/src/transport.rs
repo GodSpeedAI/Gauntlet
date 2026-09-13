@@ -20,6 +20,23 @@
 //! must NOT conclude failure — so `list` is never a poll input; the
 //! runner calls `stop` on cancellation and nothing else).
 //!
+//! **Parent process ownership (task26-dcritic-apparatus-repair, RC1
+//! correction — supersedes the premise below).** [`KernelTransport::submit`]
+//! now returns the admission handle TOGETHER WITH a [`ParentHandle`]: the
+//! live parent print-run process, handed to the caller so the INVOCATION
+//! owns its lifetime, not the transport. The transport's earlier posture —
+//! "a print run is disposable; its daemon-backed child is what survives" —
+//! was FALSE for prime-agent 0.8.0 (verified by execution, task26 real-run
+//! evidence): a child of a print-mode parent materializes and keeps
+//! running ONLY while the parent session stays alive (see `program.rs`'s
+//! module docs, COR-D2 divergence #4). Disposing of the parent right after
+//! admission — the previous "detached bounded reaper" — killed the parent
+//! the child depended on mid-work, which is exactly the defect this
+//! correction fixes: real work aborts with `Request was aborted`, the
+//! runner then polls for a result that can never arrive, and the eventual
+//! timeout's `stop` on a harness child that was never daemon-registered
+//! failed and was (before RC3, below) treated as fatal.
+//!
 //! Both seams have ONE production implementation apiece, shelling out to
 //! the configured binary through `std::process` — no external dependency
 //! — and in-memory doubles live in the adapter's own test targets (the
@@ -170,13 +187,16 @@ impl std::error::Error for TransportError {}
 
 /// The kernel-transport seam. Implementations submit the program and
 /// return the ADMISSION outcome only — never a child answer, never a
-/// result document (the type cannot carry one; see the module docs).
+/// result document (the type cannot carry one; see the module docs) —
+/// TOGETHER WITH a [`ParentHandle`] the caller now owns (RC1 correction):
+/// the transport's job ends at admission; what happens to the parent
+/// process for the rest of the invocation's life is the RUNNER's call.
 pub trait KernelTransport: fmt::Debug {
     fn submit(
         &self,
         submission: &KernelSubmission,
         deadline: Deadline,
-    ) -> Result<AdmissionHandle, TransportError>;
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError>;
 }
 
 /// Shared ownership for transports whose forensic surface (e.g. the
@@ -187,8 +207,49 @@ impl<T: KernelTransport + ?Sized> KernelTransport for std::sync::Arc<T> {
         &self,
         submission: &KernelSubmission,
         deadline: Deadline,
-    ) -> Result<AdmissionHandle, TransportError> {
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
         (**self).submit(submission, deadline)
+    }
+}
+
+/// The live parent print-run process, handed back at admission (RC1
+/// correction, task26-dcritic-apparatus-repair): the INVOCATION owns this
+/// for as long as it lives. The runner may [`ParentHandle::try_reap`] it
+/// opportunistically as FORENSICS ONLY — never as a completion or failure
+/// signal (Annex C.2/C.4: a poll that finds no process must not conclude
+/// failure while the result contract is still pending and the deadline
+/// has not expired) — and must [`ParentHandle::terminate`] it once the
+/// invocation reaches a terminal state (completion, timeout, or cancel),
+/// so a finished invocation never leaks a live process.
+pub trait ParentHandle: fmt::Debug {
+    /// A best-effort, NON-BLOCKING reap: `Some(note)` the first time the
+    /// parent is observed to have exited, `None` otherwise (including
+    /// every call after the first `Some`, so a caller polling this
+    /// repeatedly never re-triggers OS-level reap errors on an
+    /// already-collected child). FORENSICS ONLY.
+    fn try_reap(&mut self) -> Option<String>;
+
+    /// Terminates the parent (SIGTERM, a bounded grace, then a
+    /// last-resort kill) and returns a forensic note describing the
+    /// disposition. Idempotent: calling it again after the parent is
+    /// already gone is a cheap no-op that still returns a note.
+    fn terminate(&mut self) -> String;
+}
+
+/// A [`ParentHandle`] for kernel-transport doubles that model no real
+/// process (the harness is what tests double, never this adapter's own
+/// owned-lifetime logic — spec §6.3). Provided so suite/unit doubles need
+/// not each define their own trivial implementation.
+#[derive(Debug, Default)]
+pub struct NullParentHandle;
+
+impl ParentHandle for NullParentHandle {
+    fn try_reap(&mut self) -> Option<String> {
+        None
+    }
+
+    fn terminate(&mut self) -> String {
+        "no-op: this double models no real parent process".to_owned()
     }
 }
 
@@ -266,16 +327,17 @@ const STOP_GRACE_SECS: u64 = 1;
 /// bearing shape (correction RES-D1) — watches for the HANDLE FILE under
 /// a bounded deadline. `invoke` returns the moment the handle exists and
 /// strict-parses; the parent print run's LIFETIME is NOT admission. On
-/// the SUCCESS path the disposition is a DETACHED bounded reaper
-/// (COR-D2 divergence #4: a child of a print-mode parent materializes
-/// ONLY while the parent stays alive past admission, so the parent must
-/// NOT be stopped at parse — the reaper waits the linger + grace, then
-/// stops it if still alive), and on the failure paths the bounded stop
-/// is immediate. Every step's outcome is recorded as forensics. A parent
-/// model that rambles after the cell — or waits on its child — cannot
-/// stretch admission, and invoke can never collapse admission and
-/// completion into one blocking call (spec §6.1: "invoke MUST return
-/// promptly after admission"; AK-009).
+/// the SUCCESS path the still-live parent [`std::process::Child`] is
+/// wrapped as a [`RealParentHandle`] and handed back to the CALLER (RC1
+/// correction, task26-dcritic-apparatus-repair): the transport never
+/// disposes of a successfully-admitted parent itself — the runner owns
+/// its lifetime for as long as the invocation lives (see the module
+/// docs). On the failure paths nothing was admitted, so the bounded stop
+/// stays immediate and inline. Every step's outcome is recorded as
+/// forensics. A parent model that rambles after the cell — or waits on
+/// its child — cannot stretch admission, and invoke can never collapse
+/// admission and completion into one blocking call (spec §6.1: "invoke
+/// MUST return promptly after admission"; AK-009).
 ///
 /// The parent run's stdout/stderr are piped and DISCARDED beyond this
 /// module: they are never a result source (the arch await-ban scan pins
@@ -284,35 +346,25 @@ const STOP_GRACE_SECS: u64 = 1;
 pub struct ProcessKernelTransport {
     binary: PathBuf,
     admission_timeout: std::time::Duration,
-    /// The in-cell linger the rendered cell carries (COR-D2 #4): the
-    /// reaper waits at least this long past admission before stopping
-    /// the parent.
-    admission_linger: std::time::Duration,
     /// The last submission's forensic note (D1 split evidence: the
-    /// parent's try_wait state at handle parse, the reaper's outcome). A
-    /// mutex under an Arc: the transport is shared infrastructure AND
-    /// the detached reaper thread appends its outcome after invoke has
-    /// returned.
-    forensics: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    /// parent's try_wait state at handle parse). A mutex: `submit` takes
+    /// `&self` (the transport is shared infrastructure), so recording the
+    /// note needs interior mutability even though disposition is now
+    /// synchronous (RC1: no detached thread appends to it after return).
+    forensics: std::sync::Mutex<Option<String>>,
 }
 
 impl ProcessKernelTransport {
-    pub fn new(
-        binary: PathBuf,
-        admission_timeout: std::time::Duration,
-        admission_linger: std::time::Duration,
-    ) -> Self {
+    pub fn new(binary: PathBuf, admission_timeout: std::time::Duration) -> Self {
         Self {
             binary,
             admission_timeout,
-            admission_linger,
-            forensics: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            forensics: std::sync::Mutex::new(None),
         }
     }
 
     /// The last submission's forensic note, if any (D1 evidence leg for
-    /// the live probe). The detached reaper may append its outcome AFTER
-    /// this take — the note is a forensic stream, not a snapshot.
+    /// the live probe).
     pub fn take_forensics(&self) -> Option<String> {
         self.forensics.lock().expect("the forensics mutex").take()
     }
@@ -337,72 +389,128 @@ impl ProcessKernelTransport {
             .map(|since| since.as_secs())
             .unwrap_or(0)
     }
+}
 
-    /// Bounded disposition of the parent run: wait `linger` for a natural
-    /// exit (a zero linger skips straight to the stop — the failure-path
-    /// behavior), then a best-effort GRACEFUL stop: SIGTERM through the
-    /// platform `kill` utility when available (unix), a short bounded
-    /// grace, then the last-resort [`std::process::Child::kill`]. Every
-    /// step's outcome lands in the returned forensic text — the stop is
-    /// NEVER allowed to block its caller beyond its bound. Runs on the
-    /// detached reaper thread (success path) or inline (failure paths).
-    fn stop_bounded(child: &mut std::process::Child, linger: std::time::Duration) -> String {
-        let mut note = String::new();
-        // The linger wait: a natural exit during the linger is the
-        // expected shape on the success path (the parent's own cell ends
-        // after its linger).
-        let linger_ends = Self::now_secs().saturating_add(linger.as_secs());
-        while child.try_wait().map_or(true, |exited| exited.is_none()) {
-            if Self::now_secs() >= linger_ends {
-                break;
+/// Bounded disposition of a parent run: wait `linger` for a natural exit
+/// (a zero linger skips straight to the stop), then a best-effort
+/// GRACEFUL stop: SIGTERM through the platform `kill` utility when
+/// available (unix), a short bounded grace, then the last-resort
+/// [`std::process::Child::kill`]. Every step's outcome lands in the
+/// returned forensic text — the stop is NEVER allowed to block its
+/// caller beyond its bound. Free function (not tied to
+/// `ProcessKernelTransport`) so [`RealParentHandle`] can call it too — it
+/// is the ONE termination routine, invoked by `submit`'s failure path and
+/// by `RealParentHandle::terminate`/`Drop` (RC1 correction).
+fn stop_bounded(child: &mut std::process::Child, linger: std::time::Duration) -> String {
+    let mut note = String::new();
+    // The linger wait: a natural exit during the linger is the
+    // expected shape when the caller lingered on purpose.
+    let linger_ends = ProcessKernelTransport::now_secs().saturating_add(linger.as_secs());
+    while child.try_wait().map_or(true, |exited| exited.is_none()) {
+        if ProcessKernelTransport::now_secs() >= linger_ends {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(PROCESS_POLL_MILLIS));
+    }
+    if let Ok(Some(status)) = child.try_wait() {
+        note.push_str(&format!("parent exited ({status})"));
+        return note;
+    }
+    #[cfg(unix)]
+    {
+        let id = child.id();
+        let term = std::process::Command::new("kill")
+            .arg(id.to_string())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        match term {
+            Ok(status) if status.success() => note.push_str("SIGTERM sent; "),
+            other => note.push_str(&format!("SIGTERM unavailable ({other:?}); ")),
+        }
+    }
+    // Bounded grace for a graceful exit; the last-resort kill is
+    // unconditional on the grace expiring.
+    let grace_ends = ProcessKernelTransport::now_secs().saturating_add(STOP_GRACE_SECS);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                note.push_str(&format!("parent exited ({status})"));
+                return note;
             }
-            std::thread::sleep(std::time::Duration::from_millis(PROCESS_POLL_MILLIS));
-        }
-        if let Ok(Some(status)) = child.try_wait() {
-            note.push_str(&format!("parent exited ({status})"));
-            return note;
-        }
-        #[cfg(unix)]
-        {
-            let id = child.id();
-            let term = std::process::Command::new("kill")
-                .arg(id.to_string())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status();
-            match term {
-                Ok(status) if status.success() => note.push_str("SIGTERM sent; "),
-                other => note.push_str(&format!("SIGTERM unavailable ({other:?}); ")),
-            }
-        }
-        // Bounded grace for a graceful exit; the last-resort kill is
-        // unconditional on the grace expiring (a print run is disposable;
-        // its daemon-backed child is what survives, per the harness docs).
-        let grace_ends = Self::now_secs().saturating_add(STOP_GRACE_SECS);
-        loop {
-            match child.try_wait() {
-                Ok(Some(status)) => {
-                    note.push_str(&format!("parent exited ({status})"));
-                    return note;
-                }
-                Ok(None) => {
-                    if Self::now_secs() >= grace_ends {
-                        break;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(PROCESS_POLL_MILLIS));
-                }
-                Err(error) => {
-                    note.push_str(&format!("waiting after stop failed: {error}; "));
+            Ok(None) => {
+                if ProcessKernelTransport::now_secs() >= grace_ends {
                     break;
                 }
+                std::thread::sleep(std::time::Duration::from_millis(PROCESS_POLL_MILLIS));
+            }
+            Err(error) => {
+                note.push_str(&format!("waiting after stop failed: {error}; "));
+                break;
             }
         }
-        match child.kill() {
-            Ok(()) => note.push_str("last-resort kill sent"),
-            Err(error) => note.push_str(&format!("kill failed: {error}")),
+    }
+    match child.kill() {
+        Ok(()) => note.push_str("last-resort kill sent"),
+        Err(error) => note.push_str(&format!("kill failed: {error}")),
+    }
+    let _ = child.wait();
+    note
+}
+
+/// The production [`ParentHandle`]: a live parent-run [`std::process::Child`]
+/// (RC1 correction). `try_reap` is a cheap, non-blocking, ONE-SHOT
+/// `try_wait` — forensics only, never a completion/failure signal. Once
+/// the process is observed exited it is marked `reaped` so a second
+/// `try_wait` never runs (the OS has already collected the child; calling
+/// it again is at best a wasted syscall and at worst an error on some
+/// platforms).
+///
+/// **Drop**: if the runner (and this handle with it) is dropped while the
+/// parent is still alive — e.g. an interrupted process, a panicking
+/// caller — the parent is TERMINATED rather than leaked: `Drop` calls the
+/// same bounded [`stop_bounded`] routine used everywhere else, with a
+/// zero linger (the invocation is going away; there is nothing left to
+/// linger for).
+#[derive(Debug)]
+pub struct RealParentHandle {
+    child: std::process::Child,
+    reaped: bool,
+}
+
+impl ParentHandle for RealParentHandle {
+    fn try_reap(&mut self) -> Option<String> {
+        if self.reaped {
+            return None;
         }
-        let _ = child.wait();
+        match self.child.try_wait() {
+            Ok(Some(status)) => {
+                self.reaped = true;
+                Some(format!("parent exited ({status})"))
+            }
+            _ => None,
+        }
+    }
+
+    fn terminate(&mut self) -> String {
+        if self.reaped {
+            return "parent already reaped; nothing to terminate".to_owned();
+        }
+        let note = stop_bounded(&mut self.child, std::time::Duration::ZERO);
+        self.reaped = true;
         note
+    }
+}
+
+impl Drop for RealParentHandle {
+    fn drop(&mut self) {
+        // Best-effort only: Drop cannot propagate a failure, and a
+        // process already reaped (`self.reaped`) or already exited on
+        // its own needs no action — prefer terminating a still-live
+        // parent over leaking it (see the type docs).
+        if !self.reaped && matches!(self.child.try_wait(), Ok(None)) {
+            let _ = stop_bounded(&mut self.child, std::time::Duration::ZERO);
+        }
     }
 }
 
@@ -411,7 +519,7 @@ impl KernelTransport for ProcessKernelTransport {
         &self,
         submission: &KernelSubmission,
         deadline: Deadline,
-    ) -> Result<AdmissionHandle, TransportError> {
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
         use std::process::{Command, Stdio};
         *self.forensics.lock().expect("the forensics mutex") = None;
         let mut note = String::new();
@@ -479,44 +587,43 @@ impl KernelTransport for ProcessKernelTransport {
         };
         // Post-parse disposition. The D1 SPLIT evidence lives here: the
         // try_wait state AT PARSE TIME, taken before any disposition.
-        // COR-D2 divergence #4 (load-bearing): a child of a print-mode
-        // parent materializes ONLY while the parent stays alive past
-        // admission, so on the SUCCESS path the parent is NOT stopped at
-        // parse — a DETACHED bounded reaper (moved Child; shared
-        // forensics) waits the linger + grace and stops it only if still
-        // alive. Failure paths keep the IMMEDIATE bounded stop (nothing
-        // was admitted that needs a living parent; the orphan sweep
-        // handles any stray child). invoke NEVER waits for any of this
-        // (RES-D1 untouched).
-        if outcome.is_ok() {
-            let at_parse = match child.try_wait() {
-                Ok(None) => "NotExited",
-                Ok(Some(_)) => "Exited",
-                Err(_) => "Unknown",
-            };
-            note.push_str(&format!(
-                "handle parsed while parent.try_wait()={at_parse}; reaper dispatched (linger \
-                 {}s); .",
-                self.admission_linger.as_secs()
-            ));
-            *self.forensics.lock().expect("the forensics mutex") = Some(note);
-            let forensics = std::sync::Arc::clone(&self.forensics);
-            let linger = self.admission_linger;
-            std::thread::spawn(move || {
-                let outcome = Self::stop_bounded(&mut child, linger);
-                if let Ok(mut guard) = forensics.lock() {
-                    match guard.as_mut() {
-                        Some(existing) => existing.push_str(&format!("reaper: {outcome}")),
-                        None => *guard = Some(format!("reaper: {outcome}")),
-                    }
-                }
-            });
-        } else {
-            note.push_str(&Self::stop_bounded(&mut child, std::time::Duration::ZERO));
-            note.push('.');
-            *self.forensics.lock().expect("the forensics mutex") = Some(note);
+        // RC1 correction (task26-dcritic-apparatus-repair, supersedes the
+        // earlier "detached bounded reaper" here): on the SUCCESS path
+        // the still-live parent is wrapped as a [`RealParentHandle`] and
+        // handed back to the CALLER — the transport does not stop it,
+        // does not detach a thread to stop it later, and does not decide
+        // when its life ends. Failure paths keep the IMMEDIATE bounded
+        // stop (nothing was admitted that needs a living parent; the
+        // orphan sweep handles any stray child). invoke NEVER waits for
+        // any of this (RES-D1 untouched).
+        match outcome {
+            Ok(handle) => {
+                let at_parse = match child.try_wait() {
+                    Ok(None) => "NotExited",
+                    Ok(Some(_)) => "Exited",
+                    Err(_) => "Unknown",
+                };
+                note.push_str(&format!(
+                    "handle parsed while parent.try_wait()={at_parse}; parent handle returned \
+                     to the caller — the invocation now owns its lifetime (RC1, \
+                     task26-dcritic-apparatus-repair)."
+                ));
+                *self.forensics.lock().expect("the forensics mutex") = Some(note);
+                Ok((
+                    handle,
+                    Box::new(RealParentHandle {
+                        child,
+                        reaped: false,
+                    }) as Box<dyn ParentHandle>,
+                ))
+            }
+            Err(error) => {
+                note.push_str(&stop_bounded(&mut child, std::time::Duration::ZERO));
+                note.push('.');
+                *self.forensics.lock().expect("the forensics mutex") = Some(note);
+                Err(error)
+            }
         }
-        outcome
     }
 }
 
@@ -537,7 +644,7 @@ impl ProcessHarnessControl {
         let mut child = Command::new(&self.binary)
             .args(args)
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| ControlError::StopFailed {
                 child: args.last().copied().unwrap_or("").to_owned(),
@@ -575,10 +682,23 @@ impl ProcessHarnessControl {
             use std::io::Read;
             let _ = pipe.read_to_string(&mut stdout);
         }
+        // RC3 correction (task26-dcritic-apparatus-repair): the real
+        // binary prints its failure ("Error: Unknown active session:
+        // <id>") to STDERR, not stdout — a detail built from stdout alone
+        // could never contain it, so the idempotency guard below could
+        // never fire. Both streams are captured and both land in the
+        // detail.
+        let mut stderr = String::new();
+        if let Some(mut pipe) = child.stderr.take() {
+            use std::io::Read;
+            let _ = pipe.read_to_string(&mut stderr);
+        }
         if !status.success() {
             return Err(ControlError::StopFailed {
                 child: args.last().copied().unwrap_or("").to_owned(),
-                detail: format!("{args:?} exited with {status}"),
+                detail: format!(
+                    "{args:?} exited with {status}: stdout={stdout:?} stderr={stderr:?}"
+                ),
             });
         }
         Ok(stdout)
@@ -590,8 +710,16 @@ impl HarnessControl for ProcessHarnessControl {
         match self.run_bounded(&["stop", child], deadline) {
             Ok(_output) => Ok(()),
             // Already gone: cancellation's goal is achieved (idempotent).
+            // "Unknown active session" is the RC3 addition
+            // (task26-dcritic-apparatus-repair): prime-agent 0.8.0's rlm
+            // children are never daemon-registered sessions, so its
+            // real `stop` on one always answers this way, on stderr,
+            // exit 1 — verified by execution (`prime-agent stop <child>`
+            // against a real daemon while a child runs).
             Err(ControlError::StopFailed { child, detail })
-                if detail.contains("No such") || detail.contains("not found") =>
+                if detail.contains("No such")
+                    || detail.contains("not found")
+                    || detail.contains("Unknown active session") =>
             {
                 Err(ControlError::NoSuchChild { child })
             }
@@ -677,6 +805,77 @@ pub fn parse_listing(text: &str) -> Result<Vec<SubagentRecord>, ControlError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A tiny throwaway shell script standing in for the real binary: it
+    /// answers any invocation with the exact failure shape prime-agent
+    /// 0.8.0 gives for a `stop` on a non-daemon-registered rlm child —
+    /// `Error: Unknown active session: <id>` on STDERR, exit 1 (task26
+    /// real-run evidence). Returns the script path; caller cleans up its
+    /// parent scratch dir.
+    fn fake_unknown_session_binary(tag: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("gauntlet-prime-rc3-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("the rc3 scratch is creatable");
+        let script = dir.join("fake-prime-agent.sh");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\necho 'Error: Unknown active session: sub-x' 1>&2\nexit 1\n",
+        )
+        .expect("the fake binary script is writable");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&script)
+                .expect("the fake binary has metadata")
+                .permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&script, perms).expect("the fake binary is executable");
+        }
+        script
+    }
+
+    fn far_future_deadline() -> Deadline {
+        Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(u64::MAX / 2))
+    }
+
+    /// RC3, first half (task26-dcritic-apparatus-repair): `run_bounded`
+    /// captures STDERR into the `StopFailed` detail — before this fix the
+    /// detail was built from stdout alone, and the real binary's failure
+    /// text lands on stderr, so the idempotency guard could never see it.
+    #[test]
+    fn stderr_reaches_the_stop_failed_detail() {
+        let binary = fake_unknown_session_binary("stderr-detail");
+        let control = ProcessHarnessControl::new(binary.clone());
+        let error = control
+            .run_bounded(&["stop", "sub-x"], far_future_deadline())
+            .expect_err("the fake binary always fails");
+        let ControlError::StopFailed { detail, .. } = &error else {
+            panic!("expected StopFailed, got {error:?}")
+        };
+        assert!(
+            detail.contains("Unknown active session: sub-x"),
+            "the stderr text must reach the detail: {detail}"
+        );
+        std::fs::remove_dir_all(binary.parent().expect("has a parent")).ok();
+    }
+
+    /// RC3, second half: `stop` recognizes `Unknown active session` as
+    /// `NoSuchChild` — cancellation's goal (the child is gone) is achieved
+    /// even though the harness never registered it as a daemon session in
+    /// the first place (prime-agent 0.8.0's rlm children never are).
+    #[test]
+    fn unknown_active_session_maps_to_no_such_child() {
+        let binary = fake_unknown_session_binary("no-such-child");
+        let control = ProcessHarnessControl::new(binary.clone());
+        let error = control
+            .stop("sub-x", far_future_deadline())
+            .expect_err("the fake binary always fails");
+        assert!(
+            matches!(error, ControlError::NoSuchChild { ref child } if child == "sub-x"),
+            "got {error:?}"
+        );
+        std::fs::remove_dir_all(binary.parent().expect("has a parent")).ok();
+    }
 
     /// THE PIN (COR-D2 divergence #2): the harness's `list --json`
     /// returns a top-level OBJECT wrapping the array — exactly

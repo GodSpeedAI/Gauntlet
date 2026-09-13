@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use gauntlet_adapter_agent_prime::transport::{
     AdmissionHandle, ControlError, HarnessControl, KernelSubmission, KernelTransport,
-    SubagentRecord, TransportError, read_admission,
+    NullParentHandle, ParentHandle, SubagentRecord, TransportError, read_admission,
 };
 use gauntlet_adapter_agent_prime::{PrimeAdapterConfig, PrimeAgentRunner};
 use gauntlet_domain::EpochSeconds;
@@ -211,13 +211,14 @@ impl KernelTransport for ScriptedTransport {
         &self,
         submission: &KernelSubmission,
         _deadline: Deadline,
-    ) -> Result<AdmissionHandle, TransportError> {
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
         if let Some(parent) = submission.handle_path.parent() {
             std::fs::create_dir_all(parent).expect("the handle parent dir is creatable");
         }
         std::fs::write(&submission.handle_path, suite_admission().to_document())
             .expect("the handle document is writable");
-        read_admission(&submission.handle_path)
+        let handle = read_admission(&submission.handle_path)?;
+        Ok((handle, Box::new(NullParentHandle) as Box<dyn ParentHandle>))
     }
 }
 
@@ -323,7 +324,7 @@ impl KernelTransport for HandlelessTransport {
         &self,
         _submission: &KernelSubmission,
         _deadline: Deadline,
-    ) -> Result<AdmissionHandle, TransportError> {
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
         Err(TransportError::HandleAbsent {
             detail: "the parent run ended without a handle".to_owned(),
         })
@@ -389,7 +390,7 @@ fn a_spawn_failure_is_the_transport_class() {
             &self,
             _submission: &KernelSubmission,
             _deadline: Deadline,
-        ) -> Result<AdmissionHandle, TransportError> {
+        ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
             Err(TransportError::SpawnFailed {
                 binary: PathBuf::from("binary"),
                 detail: "no such file".to_owned(),
@@ -499,7 +500,7 @@ impl KernelTransport for AnswerShapedHandleTransport {
         &self,
         submission: &KernelSubmission,
         _deadline: Deadline,
-    ) -> Result<AdmissionHandle, TransportError> {
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
         if let Some(parent) = submission.handle_path.parent() {
             std::fs::create_dir_all(parent).expect("the handle parent dir is creatable");
         }
@@ -508,7 +509,8 @@ impl KernelTransport for AnswerShapedHandleTransport {
             r#"{"rlm_child_id":"sub-1","name":"probe","session_dir":"/s","model":"m","answer":"the result is 42"}"#,
         )
         .expect("the hostile handle document is writable");
-        read_admission(&submission.handle_path)
+        let handle = read_admission(&submission.handle_path)?;
+        Ok((handle, Box::new(NullParentHandle) as Box<dyn ParentHandle>))
     }
 }
 
@@ -643,4 +645,169 @@ fn a_late_identity_matching_writer_never_resurrects_a_timed_out_invocation() {
         ),
         "got {error:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// RC1 teeth (task26-dcritic-apparatus-repair): the invocation, never the
+// transport, owns the parent process's lifetime. These are the committed
+// tests that must FAIL if the runner regresses to disposing of the parent
+// at admission, or fails to dispose of it at a terminal transition.
+// ---------------------------------------------------------------------------
+
+/// A [`ParentHandle`] double that records whether `terminate` was called
+/// and can be told to report an early exit through `try_reap` — for the
+/// RC1 teeth below.
+#[derive(Debug)]
+struct RecordingParentHandle {
+    terminated: std::rc::Rc<Cell<bool>>,
+    early_exit_note: Option<&'static str>,
+    reaped: bool,
+}
+
+impl ParentHandle for RecordingParentHandle {
+    fn try_reap(&mut self) -> Option<String> {
+        if self.reaped {
+            return None;
+        }
+        let note = self.early_exit_note?;
+        self.reaped = true;
+        Some(note.to_owned())
+    }
+
+    fn terminate(&mut self) -> String {
+        self.terminated.set(true);
+        "terminated (recording double)".to_owned()
+    }
+}
+
+/// A transport whose admission handle is the suite's, but whose parent
+/// handle is the recording double above.
+#[derive(Debug)]
+struct RecordingParentTransport {
+    terminated: std::rc::Rc<Cell<bool>>,
+    early_exit_note: Option<&'static str>,
+}
+
+impl KernelTransport for RecordingParentTransport {
+    fn submit(
+        &self,
+        submission: &KernelSubmission,
+        _deadline: Deadline,
+    ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
+        if let Some(parent) = submission.handle_path.parent() {
+            std::fs::create_dir_all(parent).expect("the handle parent dir is creatable");
+        }
+        std::fs::write(&submission.handle_path, suite_admission().to_document())
+            .expect("the handle document is writable");
+        let handle = read_admission(&submission.handle_path)?;
+        Ok((
+            handle,
+            Box::new(RecordingParentHandle {
+                terminated: std::rc::Rc::clone(&self.terminated),
+                early_exit_note: self.early_exit_note,
+                reaped: false,
+            }),
+        ))
+    }
+}
+
+/// The runner must NEVER dispose of the parent at admission — that was
+/// the RC1 defect: the transport's earlier "detached bounded reaper"
+/// stopped the parent shortly after `invoke`, aborting real child work.
+#[test]
+fn invoke_does_not_dispose_of_the_parent_at_admission() {
+    let terminated = std::rc::Rc::new(Cell::new(false));
+    let transport = RecordingParentTransport {
+        terminated: std::rc::Rc::clone(&terminated),
+        early_exit_note: None,
+    };
+    let runner = PrimeAgentRunner::new(
+        PrimeAdapterConfig::default(),
+        scratch_dir("rc1-invoke-state"),
+        scratch_dir("rc1-invoke-cwd"),
+        transport,
+        ScriptedControl::default(),
+        Arc::new(SuiteClock::new(Box::new(|_| {}))),
+    );
+    let _handle = runner.invoke(crate_spec()).expect("admission");
+    assert!(
+        !terminated.get(),
+        "invoke must hand the parent's lifetime to the runner, never dispose of it at admission"
+    );
+}
+
+/// `cancel` terminates the parent process, and an already-gone harness
+/// child (`NoSuchChild`, RC3's routine case for prime-agent 0.8.0's
+/// non-daemon-registered rlm children) still counts as a successful
+/// cancel.
+#[test]
+fn cancel_terminates_the_parent_and_treats_an_already_gone_child_as_success() {
+    let terminated = std::rc::Rc::new(Cell::new(false));
+    let transport = RecordingParentTransport {
+        terminated: std::rc::Rc::clone(&terminated),
+        early_exit_note: None,
+    };
+    #[derive(Debug)]
+    struct AlreadyGoneControl;
+    impl HarnessControl for AlreadyGoneControl {
+        fn stop(&self, child: &str, _deadline: Deadline) -> Result<(), ControlError> {
+            Err(ControlError::NoSuchChild {
+                child: child.to_owned(),
+            })
+        }
+        fn list(&self, _deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+            Ok(Vec::new())
+        }
+    }
+    let runner = PrimeAgentRunner::new(
+        PrimeAdapterConfig::default(),
+        scratch_dir("rc1-cancel-state"),
+        scratch_dir("rc1-cancel-cwd"),
+        transport,
+        AlreadyGoneControl,
+        Arc::new(SuiteClock::new(Box::new(|_| {}))),
+    );
+    let handle = runner.invoke(crate_spec()).expect("admission");
+    let reason = CancelReason::new("teeth: already-gone child").expect("non-empty");
+    let bound = Deadline::at_epoch(EpochSeconds::new(BASE_INSTANT + 30));
+    runner
+        .cancel(&handle, reason, bound)
+        .expect("an already-gone harness child is a successful cancel");
+    assert!(
+        terminated.get(),
+        "cancel must terminate the parent process even when the harness child is already gone"
+    );
+}
+
+/// A parent that exited EARLY (before any result document exists and
+/// before the deadline has passed) must never be read as `Completed` or
+/// `Failed` — completion derives ONLY from the result contract, and
+/// failure ONLY from a malformed/mismatched one (Annex C.2/C.4).
+#[test]
+fn a_parent_exiting_early_never_produces_completed_or_failed_before_the_contract_or_deadline() {
+    let transport = RecordingParentTransport {
+        terminated: std::rc::Rc::new(Cell::new(false)),
+        early_exit_note: Some("parent exited unexpectedly (test double)"),
+    };
+    let runner = PrimeAgentRunner::new(
+        PrimeAdapterConfig::default(),
+        scratch_dir("rc1-early-exit-state"),
+        scratch_dir("rc1-early-exit-cwd"),
+        transport,
+        ScriptedControl::default(),
+        // No document is ever written by this clock's on_tick (a no-op),
+        // so only the parent's early exit and the (far-off) deadline are
+        // in play.
+        Arc::new(SuiteClock::new(Box::new(|_| {}))),
+    );
+    let handle = runner.invoke(crate_spec()).expect("admission");
+    // invoke's clock read landed at tick 2; this poll's lands at tick 4
+    // (BASE_INSTANT+4) — nowhere near the deadline (BASE_INSTANT+30).
+    match runner.poll(&handle).expect("poll must not error") {
+        InvocationStatus::Running { .. } => {}
+        other => panic!(
+            "a parent that exited early must never produce a terminal status before the \
+             contract or the deadline decides, got {other:?}"
+        ),
+    }
 }

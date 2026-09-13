@@ -49,8 +49,8 @@ pub use probe::{ProbeError, ProbeReport, VersionRange, is_supported, probe};
 pub use runner::{InvocationForensics, PrimeAgentRunner};
 pub use transport::{
     AdmissionHandle, ControlError, HarnessControl, KernelSubmission, KernelTransport,
-    ProcessHarnessControl, ProcessKernelTransport, SubagentRecord, TransportError, parse_listing,
-    read_admission,
+    NullParentHandle, ParentHandle, ProcessHarnessControl, ProcessKernelTransport,
+    RealParentHandle, SubagentRecord, TransportError, parse_listing, read_admission,
 };
 
 /// The runner token this adapter's composition fronts (§8.2 resolves

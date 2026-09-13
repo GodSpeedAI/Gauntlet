@@ -27,8 +27,34 @@
 //! - `collect` returns the validated document after `Completed`, the same
 //!   document on every collect.
 //! - `cancel` is idempotent; the first cancel stops the child through the
-//!   harness control; a stranger handle is a typed
-//!   [`AgentError::UnknownHandle`].
+//!   harness control AND terminates the parent process (RC1 correction,
+//!   below); a stranger handle is a typed [`AgentError::UnknownHandle`].
+//!
+//! **Parent process ownership (RC1 correction, task26-dcritic-apparatus-
+//! repair).** [`crate::transport::KernelTransport::submit`] now returns the
+//! live parent process alongside the admission handle, and THIS runner —
+//! not the transport — owns its lifetime for as long as the invocation
+//! lives (`PrimeEntry::parent`). This corrects a real, reproduced defect:
+//! the transport used to dispose of the parent shortly after admission on
+//! the premise that "a print run is disposable; its daemon-backed child
+//! is what survives" — FALSE for prime-agent 0.8.0, whose rlm children
+//! materialize and keep running ONLY while the parent session stays alive
+//! (`program.rs`'s module docs, COR-D2 divergence #4). Killing the parent
+//! aborted real in-flight child work (`Request was aborted`), the runner
+//! then polled for a result that could never arrive, and the eventual
+//! timeout's `stop` on a harness child that was never daemon-registered
+//! failed and was (before the RC3 correction below) treated as fatal.
+//! `poll` may [`crate::transport::ParentHandle::try_reap`] the parent
+//! opportunistically — FORENSICS ONLY (`control_note`), never a
+//! completion/failure signal (Annex C.2/C.4) — and every terminal
+//! transition (`Completed`/`Failed` via the contract, `TimedOut` via the
+//! deadline) and every `cancel` disposes of it
+//! (`dispose_parent`/[`crate::transport::ParentHandle::terminate`]). If the
+//! runner itself is dropped with a live entry still inside it, the
+//! `Box<dyn ParentHandle>`'s own `Drop` (see
+//! [`crate::transport::RealParentHandle`]) terminates the process rather
+//! than leaking it — this runner adds no `Drop` impl of its own because
+//! the ownership already lives one level down, in the handle type itself.
 //! - `capabilities` is HONEST (§6.1: "A runner reporting `isolation: none`
 //!   MUST NOT be selected for a tier requiring containment"): the kernel
 //!   runs model-generated code with the worker's OS permissions — a
@@ -67,7 +93,7 @@ use gauntlet_ports::role_result::{RoleResult, read_result_contract};
 use crate::config::PrimeAdapterConfig;
 use crate::program::{KernelProgramSpec, compose_child_prompt, render};
 use crate::transport::{
-    ControlError, HarnessControl, KernelSubmission, KernelTransport, SubagentRecord,
+    ControlError, HarnessControl, KernelSubmission, KernelTransport, ParentHandle, SubagentRecord,
 };
 
 /// One admitted invocation's live state.
@@ -85,11 +111,41 @@ struct PrimeEntry {
     session_ref: Option<SessionRef>,
     /// The admission instant (the `last_event_at` fallback — RES-D12).
     admission_at: EpochSeconds,
+    /// The live parent print-run process (RC1 correction,
+    /// task26-dcritic-apparatus-repair): the INVOCATION owns this for as
+    /// long as it lives. `poll` may opportunistically reap it for
+    /// forensics only (`control_note`) — see the module docs — and it is
+    /// terminated at every terminal transition (`dispose_parent`) and on
+    /// `cancel`. It is NEVER consulted to decide `Completed`/`Failed`.
+    parent: Box<dyn ParentHandle>,
     terminal: Option<InvocationStatus>,
     result: Option<RoleResult>,
-    /// A control-operation note (e.g. a stop that failed at timeout) kept
-    /// for forensics; never a state input.
+    /// A control-operation note (e.g. a stop that failed at timeout, or a
+    /// parent-process forensic) kept for forensics; never a state input.
     control_note: Option<String>,
+}
+
+/// Appends a forensic note to `entry.control_note`, joining with an
+/// earlier note rather than overwriting it — every note stays readable
+/// (Annex C.2: forensics, never control state).
+fn append_control_note(entry: &mut PrimeEntry, note: String) {
+    entry.control_note = Some(match entry.control_note.take() {
+        Some(existing) => format!("{existing}; {note}"),
+        None => note,
+    });
+}
+
+/// Disposes of the parent process at a terminal transition (RC1
+/// correction): `try_reap` first (cheap, avoids an unnecessary stop
+/// attempt on a parent that already exited on its own — e.g. its own
+/// linger loop ended), falling back to `terminate`. The outcome is always
+/// recorded as forensics; it is never a control-state input.
+fn dispose_parent(entry: &mut PrimeEntry) {
+    let note = match entry.parent.try_reap() {
+        Some(note) => note,
+        None => entry.parent.terminate(),
+    };
+    append_control_note(entry, format!("parent disposed: {note}"));
 }
 
 /// The ONE filesystem anchor rule (correction RES-D3): `invoke` creates
@@ -368,13 +424,19 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
                 .map(|model| model.as_str().to_owned()),
             // COR-D2 #4: the parent's cell lingers past admission so the
             // child materializes — the PARENT's linger, never a wait in
-            // invoke (D1 untouched).
+            // invoke (D1 untouched). RC2: this is now the FLOOR of a
+            // result-aware bounded poll, not a fixed sleep.
             linger_seconds: self.config.admission_linger_seconds,
+            result_contract_path: files.contract_file.to_string_lossy().into_owned(),
+            deadline_epoch: spec.deadline.instant().get(),
         });
         // ADMISSION ONLY (RES-D1): the transport watches for the HANDLE
-        // FILE, parses it, disposes of the parent run best-effort, and
-        // returns the four admission fields — never the parent run's
-        // lifetime, never a child answer.
+        // FILE, parses it, and returns the four admission fields TOGETHER
+        // WITH the live parent process (RC1 correction,
+        // task26-dcritic-apparatus-repair) — never the parent run's
+        // lifetime collapsed into admission, never a child answer. The
+        // parent's disposal is THIS runner's job from here on (see
+        // `dispose_parent` and the module docs), never the transport's.
         let submission = KernelSubmission {
             program,
             handle_path: files.handle_file,
@@ -384,8 +446,8 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
                 .as_ref()
                 .map(|model| model.as_str().to_owned()),
         };
-        let admission = match self.transport.submit(&submission, spec.deadline) {
-            Ok(handle) => handle,
+        let (admission, parent) = match self.transport.submit(&submission, spec.deadline) {
+            Ok(pair) => pair,
             Err(error) => {
                 // RES-D4 taxonomy: transport/binary failure ⇒ Transport
                 // (no sweep — no child can exist); handle absent or
@@ -432,6 +494,7 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
                 invocation_name: name,
                 session_ref: session_ref.clone(),
                 admission_at,
+                parent,
                 terminal: None,
                 result: None,
                 control_note: None,
@@ -452,6 +515,15 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         // Post-terminal stability: the SAME terminal status forever.
         if let Some(terminal) = &entry.terminal {
             return Ok(terminal.clone());
+        }
+        // RC1 correction (task26-dcritic-apparatus-repair): an
+        // opportunistic, non-blocking reap of the parent, FORENSICS ONLY
+        // (Annex C.2/C.4) — a parent that already exited (on its own, via
+        // its own bounded result-poll loop ending, or otherwise) is
+        // recorded, but NEVER read as completion or failure. The ONE
+        // state input stays the result contract, read next.
+        if let Some(note) = entry.parent.try_reap() {
+            append_control_note(entry, format!("parent exited early: {note}"));
         }
         // The ONE state input: the result contract at the declared path.
         // Liveness is NOT consulted (Annex C.4); no mailbox is read; the
@@ -493,6 +565,9 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         };
         if let Some(terminal) = classification {
             entry.terminal = Some(terminal.clone());
+            // The parent's job ended when the result contract landed
+            // (RC1): dispose of it now rather than leave it running.
+            dispose_parent(entry);
             return Ok(terminal);
         }
         // One clock read per poll (see the module docs). A timeout stops
@@ -509,6 +584,10 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
             if let Err(error) = self.stop_child(entry, stop_bound) {
                 entry.control_note = Some(error.to_string());
             }
+            // The parent's own bounded loop is itself bounded by this
+            // same deadline, but dispose of it explicitly rather than
+            // wait for it to notice on its own (RC1).
+            dispose_parent(entry);
             let terminal = InvocationStatus::TimedOut;
             entry.terminal = Some(terminal.clone());
             return Ok(terminal);
@@ -576,6 +655,12 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         // Cancelled. A failed stop leaves the state unpinned so the
         // cancel can be retried.
         self.stop_child(entry, deadline)?;
+        // RC1: cancel also terminates the PARENT process — an
+        // already-gone child (the common case: prime-agent 0.8.0 never
+        // daemon-registers these rlm children, so `stop_child` above
+        // routinely resolves via the RC3 `NoSuchChild` idempotency path)
+        // must not leave the parent running.
+        dispose_parent(entry);
         entry.terminal = Some(InvocationStatus::Cancelled);
         Ok(())
     }

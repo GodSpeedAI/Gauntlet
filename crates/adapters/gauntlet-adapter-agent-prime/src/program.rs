@@ -13,11 +13,22 @@
 //!    `PosixPath` upstream, and `json.dumps` on the raw field raises
 //!    INSIDE the cell after a successful admission, so invoke would see
 //!    "handle absent" for work that was actually admitted);
-//! 4. linger a bounded, configured span (COR-D2 divergence #4,
-//!    load-bearing: a child of a print-mode parent materializes ONLY
-//!    while the parent session stays alive past admission — verified by
-//!    execution: no linger, child never appears; 60 s linger, child
-//!    completed its work);
+//! 4. linger — RESULT-AWARE and bounded (RC2 correction,
+//!    task26-dcritic-apparatus-repair, supersedes the fixed-sleep shape
+//!    this step used to name): a child of a print-mode parent
+//!    materializes ONLY while the parent session stays alive past
+//!    admission (COR-D2 divergence #4, load-bearing, verified by
+//!    execution: no linger, child never appears; a linger long enough,
+//!    the child completed its work) — but a FIXED sleep cannot fit work
+//!    of unknown length, so the cell instead polls for the declared
+//!    result-contract FILE, bounded BELOW by the linger floor (the
+//!    materialization guarantee) and ABOVE by the invocation's own
+//!    deadline (so the parent never outlives what the runtime would
+//!    already time out). Polling the result FILE from the PARENT's own
+//!    kernel is NOT "awaiting the child's answer from `rlm(...)`" (Annex
+//!    C.2): the parent never reads the child's reply or its mailbox, and
+//!    the loop's exit is time-and-file bounded, never indefinite (Annex
+//!    C.4);
 //! 5. return.
 //!
 //! The ROLE PROMPT is what makes fan-in possible (§10.3 rule 2): it must
@@ -34,6 +45,13 @@
 //! kernel executes is a failing test, not a surprise.
 
 use std::path::Path;
+
+/// The rendered cell's poll cadence while it waits for the result-contract
+/// file to appear (RC2 correction, task26-dcritic-apparatus-repair): a
+/// short, fixed step — the loop's TOTAL bound comes from
+/// [`KernelProgramSpec::linger_seconds`] and
+/// [`KernelProgramSpec::deadline_epoch`], never from this constant.
+const LINGER_POLL_SECONDS: u64 = 2;
 
 /// Everything the renderer needs to emit one Annex C.1 program.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,12 +78,25 @@ pub struct KernelProgramSpec {
     /// call requests another configured model"). `None` emits NO model
     /// kwarg — the child inherits the parent model.
     pub model_hint: Option<String>,
-    /// The bounded in-cell linger, in seconds, AFTER the handle write
+    /// The MINIMUM in-cell linger, in seconds, AFTER the handle write
     /// (COR-D2 divergence #4): child creation is asynchronous and
     /// materializes only while the parent session stays alive past
-    /// admission. The linger is the PARENT's cell — never a wait in
-    /// `invoke` (D1 untouched).
+    /// admission — this is the FLOOR of the RC2 bounded poll loop, not a
+    /// fixed sleep; the loop may run longer, up to `deadline_epoch`. The
+    /// linger is the PARENT's cell — never a wait in `invoke` (D1
+    /// untouched).
     pub linger_seconds: u64,
+    /// The path the CHILD's result-contract document is expected to land
+    /// at, from the parent's own filesystem view (RC2 correction): the
+    /// parent's cell polls for this file's existence rather than sleeping
+    /// a fixed span.
+    pub result_contract_path: String,
+    /// The invocation's absolute deadline, as epoch seconds (RC2
+    /// correction): the poll loop's UPPER bound — the parent never
+    /// outlives what the runtime's own deadline already permits. Waiting
+    /// on the result FILE (not the child's reply) up to this bound is not
+    /// awaiting a child answer from `rlm(...)` (Annex C.2).
+    pub deadline_epoch: u64,
 }
 
 /// Renders the Annex C.1 kernel program. The exact byte shape is pinned by
@@ -76,19 +107,15 @@ pub fn render(spec: &KernelProgramSpec) -> String {
     let handle_path = py_str(&spec.handle_path);
     let name = py_str(&spec.invocation_name);
     let prompt = py_str(&spec.role_prompt);
+    let result_path = py_str(&spec.result_contract_path);
     let model = spec
         .model_hint
         .as_ref()
         .map(|model| format!("    model={},\n", py_str(model)))
         .unwrap_or_default();
-    let linger = format!(
-        "# the parent session must stay alive past admission: child\n\
-                          # creation is asynchronous and materializes only while the parent\n\
-                          # lingers (COR-D2 divergence #4, verified by execution)\n\
-                          import time\n\
-                          time.sleep({})\n",
-        spec.linger_seconds
-    );
+    let linger_floor = spec.linger_seconds.to_string();
+    let deadline_epoch = spec.deadline_epoch.to_string();
+    let poll_seconds = LINGER_POLL_SECONDS.to_string();
     // NOTE: no line-continuation backslashes here — Rust string
     // continuations strip leading whitespace, which would silently
     // re-indent the emitted Python. The indentation below is explicit.
@@ -124,7 +151,36 @@ pub fn render(spec: &KernelProgramSpec) -> String {
         "    'session_dir': str(handle.session_dir),\n",
         "    'model': str(handle.model),\n",
         "}))\n",
-        linger.as_str(),
+        // RC2 correction (task26-dcritic-apparatus-repair, recorded
+        // beside COR-D2 #4 in the same style): the parent's cell used to
+        // `time.sleep(<fixedN>)` here — a fixed sleep cannot fit work of
+        // unknown length, so a child doing real work past the sleep was
+        // aborted mid-work when the (then-disposable) parent was torn
+        // down. The cell now POLLS for the declared result-contract FILE
+        // instead, bounded BELOW by the linger floor (COR-D2 #4's
+        // materialization guarantee still holds: the child needs SOME
+        // minimum time past admission to appear) and bounded ABOVE by the
+        // invocation's own deadline (the parent never outlives what the
+        // runtime would already time out). Waiting on the result FILE
+        // from the PARENT's own kernel is NOT "awaiting the child's
+        // answer from `rlm(...)`" (Annex C.2): the parent never reads the
+        // child's reply or its mailbox, and the loop's exit is
+        // time-and-file bounded, never indefinite (Annex C.4).
+        "import time\n",
+        "_gauntlet_linger_floor_ends = time.time() + ",
+        linger_floor.as_str(),
+        "\n",
+        "_gauntlet_deadline_ends = ",
+        deadline_epoch.as_str(),
+        "\n",
+        "_gauntlet_bound_ends = max(_gauntlet_linger_floor_ends, _gauntlet_deadline_ends)\n",
+        "_gauntlet_result_path = pathlib.Path(",
+        result_path.as_str(),
+        ")\n",
+        "while time.time() < _gauntlet_bound_ends and not _gauntlet_result_path.exists():\n",
+        "    time.sleep(",
+        poll_seconds.as_str(),
+        ")\n",
     ]
     .concat()
 }
@@ -214,6 +270,8 @@ mod tests {
             role_prompt: "implement the assigned slice".to_owned(),
             model_hint: None,
             linger_seconds: 30,
+            result_contract_path: "/state/runs/r/inv/i/result.json".to_owned(),
+            deadline_epoch: 1_700_000_600,
         }
     }
 
@@ -221,8 +279,13 @@ mod tests {
     /// reviewed edit that updates this pin (Annex C.1 shape). Without a
     /// model hint NO model kwarg is emitted (the child inherits the
     /// parent model). COR-D2: all four handle fields are coerced with
-    /// str(...) (`session_dir` is a PosixPath upstream), and the cell
-    /// ends with the bounded linger.
+    /// str(...) (`session_dir` is a PosixPath upstream).
+    ///
+    /// PIN UPDATE (RC2 correction, task26-dcritic-apparatus-repair): the
+    /// cell's tail changed from a fixed `time.sleep(30)` to a
+    /// result-aware bounded poll loop — see the correction note beside
+    /// [`render`]'s tail-emitting lines. This is a deliberate, reviewed
+    /// change to the pinned bytes, not a drift.
     #[test]
     fn the_rendered_program_is_byte_pinned() {
         let expected = [
@@ -243,11 +306,13 @@ mod tests {
             "    'session_dir': str(handle.session_dir),",
             "    'model': str(handle.model),",
             "}))",
-            "# the parent session must stay alive past admission: child",
-            "# creation is asynchronous and materializes only while the parent",
-            "# lingers (COR-D2 divergence #4, verified by execution)",
             "import time",
-            "time.sleep(30)",
+            "_gauntlet_linger_floor_ends = time.time() + 30",
+            "_gauntlet_deadline_ends = 1700000600",
+            "_gauntlet_bound_ends = max(_gauntlet_linger_floor_ends, _gauntlet_deadline_ends)",
+            "_gauntlet_result_path = pathlib.Path('/state/runs/r/inv/i/result.json')",
+            "while time.time() < _gauntlet_bound_ends and not _gauntlet_result_path.exists():",
+            "    time.sleep(2)",
         ]
         .join("\n")
             + "\n";
@@ -280,8 +345,10 @@ mod tests {
     /// The rendered program carries the frozen Annex C.1 semantics: an
     /// admission handle is recorded (coerced to strings — COR-D2 #3),
     /// and NO child answer is awaited or captured anywhere (the `rlm`
-    /// call's only use is `handle =`). The linger (COR-D2 #4) is the
-    /// cell's LAST effect; nothing reads a child reply.
+    /// call's only use is `handle =`). The bounded result-poll (RC2) is
+    /// the cell's LAST effect; nothing reads a child reply, and the loop
+    /// is bounded both by the linger floor and by the invocation's own
+    /// deadline.
     #[test]
     fn the_rendered_program_captures_the_admission_handle_only() {
         let program = render(&spec());
@@ -290,17 +357,22 @@ mod tests {
             "'rlm_child_id': str(handle.rlm_child_id)",
             "'session_dir': str(handle.session_dir)",
             "'model': str(handle.model)",
+            "_gauntlet_bound_ends = max(_gauntlet_linger_floor_ends, _gauntlet_deadline_ends)",
+            "_gauntlet_result_path.exists()",
         ] {
             assert!(
                 program.contains(fragment),
                 "missing {fragment:?}: {program}"
             );
         }
-        // The linger is the LAST effect — the parent stays alive past
-        // admission, then the cell ends; nothing reads a child reply.
+        // The bounded poll is the LAST effect — the parent stays alive
+        // until the result lands or its bound passes, then the cell ends;
+        // nothing reads a child reply.
         assert!(
-            program.trim_end().ends_with("time.sleep(30)"),
-            "the program must end with the bounded linger: {program}"
+            program
+                .trim_end()
+                .ends_with(&format!("time.sleep({LINGER_POLL_SECONDS})")),
+            "the program must end with the bounded result-poll: {program}"
         );
         assert!(
             !program.contains("agent_message"),

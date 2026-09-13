@@ -123,7 +123,6 @@ fn one_real_admission_completes_through_the_result_contract() {
     let transport = Arc::new(ProcessKernelTransport::new(
         config.binary.clone(),
         config.admission_timeout(),
-        config.admission_linger(),
     ));
     let control = ProcessHarnessControl::new(config.binary.clone());
     let runner = PrimeAgentRunner::new(
@@ -195,14 +194,13 @@ fn one_real_admission_completes_through_the_result_contract() {
     // 4. THE D1 SPLIT EVIDENCE — the transport's forensic note records,
     //    in order: the parent pid; the parent's try_wait state AT PARSE
     //    TIME (`handle parsed while parent.try_wait()=NotExited` means
-    //    invoke did NOT wait for the parent); and the disposition marker:
-    //    a DETACHED bounded reaper (COR-D2 #4 — the parent must stay
-    //    alive past admission for the child to materialize, so the stop
-    //    happens on the reaper after the linger, NEVER at parse and
-    //    never inside invoke). These tokens are the transport's
-    //    documented forensic vocabulary (same crate). The reaper's own
-    //    outcome ("reaper: parent exited (...)") lands later, on the
-    //    forensic stream.
+    //    invoke did NOT wait for the parent); and the RC1 disposition
+    //    marker (task26-dcritic-apparatus-repair, supersedes the earlier
+    //    "detached reaper" shape this comment used to name): the parent
+    //    handle is returned to the CALLER — the invocation, not the
+    //    transport, now owns the parent's lifetime, so it is never
+    //    stopped at parse and never inside invoke. These tokens are the
+    //    transport's documented forensic vocabulary (same crate).
     let forensics = transport
         .take_forensics()
         .expect("the production transport records its admission forensics");
@@ -213,15 +211,16 @@ fn one_real_admission_completes_through_the_result_contract() {
          in flight — invoke waited on the parent run. forensics: {forensics}"
     );
     assert!(
-        forensics.contains("reaper dispatched"),
-        "the parent run must be left to the detached reaper at parse (COR-D2 #4). \
-         forensics: {forensics}"
+        forensics.contains("parent handle returned to the caller"),
+        "RC1 violated: the transport must hand the live parent to the caller at admission, \
+         never dispose of it itself. forensics: {forensics}"
     );
 
-    // 5. Poll to Completed — the FILE decides, never a process (the
-    //    parent is on the reaper's clock; the child materializes because
-    //    the parent's cell lingers, and its result file is what
-    //    completion means).
+    // 5. Poll to Completed — the FILE decides, never a process (RC1: the
+    //    runner now owns the parent's process, polling it opportunistically
+    //    for forensics only; the child materializes because the parent's
+    //    cell keeps polling for the result file itself (RC2), and that
+    //    result file is what completion means).
     let poll_started = Instant::now();
     let status = loop {
         match runner
@@ -285,4 +284,179 @@ fn one_real_admission_completes_through_the_result_contract() {
     std::fs::remove_dir_all(&state_dir).ok();
     std::fs::remove_dir_all(&parent_cwd).ok();
     eprintln!("live probe finished in {:?}", started.elapsed());
+}
+
+/// The gate for the long-child probe below: separate from
+/// [`live_probe_requested`] so an operator can run the cheap admission
+/// probe without also paying for the slower one (real model time).
+fn long_child_probe_requested() -> bool {
+    std::env::var("GAUNTLET_PRIME_LIVE_LINGER_PROBE").as_deref() == Ok("1")
+}
+
+/// The RC1/RC2 real-binary proof (task26-dcritic-apparatus-repair): a
+/// child instructed to work LONGER than the DEFAULT admission linger
+/// (30 s — [`gauntlet_adapter_agent_prime::PrimeAdapterConfig::default`])
+/// before writing its result must still survive and land its result
+/// contract. Under the DEFECT this fixes — the transport killing the
+/// parent shortly after admission (a fixed `time.sleep(30)`, then
+/// disposal) — a child still working past that point was aborted
+/// mid-work (`Request was aborted`) exactly as the real run evidence
+/// showed. Under the fix, the parent's cell polls for the result file
+/// instead of sleeping a fixed span, bounded above by the invocation's
+/// own (generous) deadline, so a child that takes ~90 s survives.
+///
+/// Gated by `GAUNTLET_PRIME_LIVE_LINGER_PROBE=1`; off by default (one
+/// real, slower model round trip).
+#[test]
+fn a_child_that_outlives_the_default_linger_still_lands_its_result() {
+    if !long_child_probe_requested() {
+        eprintln!(
+            "skipped: GAUNTLET_PRIME_LIVE_LINGER_PROBE != 1 — this probe costs one real, \
+             slower (~90s+) model round trip and is opt-in"
+        );
+        return;
+    }
+    let started = Instant::now();
+    let config = PrimeAdapterConfig::default();
+    assert_eq!(
+        config.admission_linger_seconds, 30,
+        "this probe's premise is a child that outlives the DEFAULT linger; if the default \
+         changed, raise the child's own wait below to stay past it"
+    );
+
+    let range = VersionRange {
+        min: SUPPORTED_MIN,
+        limit: SUPPORTED_LIMIT,
+    };
+    let report = probe(&config.binary, &range, bound_from_now(120))
+        .expect("the harness binary must probe clean for the live probe");
+    eprintln!(
+        "probe: {} at {:?}",
+        format_version(report.version),
+        report.binary
+    );
+
+    let state_dir = scratch("linger-state");
+    let parent_cwd = scratch("linger-cwd");
+    let transport = Arc::new(ProcessKernelTransport::new(
+        config.binary.clone(),
+        config.admission_timeout(),
+    ));
+    let control = ProcessHarnessControl::new(config.binary.clone());
+    let runner = PrimeAgentRunner::new(
+        config.clone(),
+        state_dir.clone(),
+        parent_cwd.clone(),
+        Arc::clone(&transport),
+        control,
+        Arc::new(SystemClock::new()),
+    );
+
+    let contract_leaf = "result.json";
+    let digest = Digest::parse(&format!("sha256:{PROBE_DIGEST_SEED}")).expect("valid digest");
+    let document = format!(
+        "{{\"schema\":\"role_result@v1\",\"invocation_id\":\"{PROBE_ULID}\",\
+         \"run_id\":\"{PROBE_ULID}\",\"iteration_no\":1,\"role\":\"builder\",\
+         \"context_envelope_digest\":\"sha256:{PROBE_DIGEST_SEED}\",\"state\":\"completed\",\
+         \"payload_schema\":\"builder_result@v1\",\
+         \"payload\":{{\"attempted\":[],\"changed_paths\":[],\"commands_run\":[],\
+         \"artifacts\":[],\"claims\":[\"long-child live probe\"],\"self_checks\":[],\
+         \"blocked_on\":[]}},\"payment\":{{\"input_tokens\":0,\"output_tokens\":0,\
+         \"tool_calls\":0,\"wall_seconds\":0,\"cost_usd\":0}},\"unavailable_evidence\":[],\
+         \"errors\":[]}}"
+    );
+    // The child's ENTIRE job: wait past the default linger doing real
+    // ipython work (a busy-wait loop, not a shell sleep — this is a
+    // GENUINE tool call taking real wall time, the same shape as the
+    // real-run evidence's builder), THEN write the result document.
+    let spec = RoleInvocationSpec {
+        invocation_id: InvocationId::new(PROBE_ULID).expect("valid id"),
+        run_id: RunId::new(PROBE_ULID).expect("valid id"),
+        iteration_no: gauntlet_domain::IterationNo::new(1).expect("1-based"),
+        role: RoleId::Builder,
+        prompt: format!(
+            "This is a LIVE PROBE of the gauntlet prime-agent adapter's tolerance for a slow \
+             child (task26-dcritic-apparatus-repair). First, run this exact ipython cell and \
+             wait for it to finish — it deliberately takes about 90 seconds:\n\n\
+             import time\ntime.sleep(90)\n\n\
+             THEN, and only then, write EXACTLY the following JSON document to the \
+             result-contract path named in the instructions below (atomic tmp+rename, exactly \
+             as instructed), then reply with the single word DONE. Do nothing else.\n\n{document}\n"
+        ),
+        context_envelope: ContextEnvelope::new(
+            "the long-child live probe's allowlisted context".to_owned(),
+            digest.clone(),
+        ),
+        workspace: WorkspaceRef::new("ws-live-linger-probe").expect("valid ref"),
+        permissions: PermissionSetRef::new("perm-live-linger-probe").expect("valid ref"),
+        result_contract_path: ResultContractPath::new(contract_leaf).expect("valid ref"),
+        deadline: bound_from_now(PROBE_TOTAL_SECONDS),
+        model_hint: None,
+        sandbox_policy: None,
+        budget_slice: Budget::new(
+            Limits::new(8, 2, 2, PROBE_TOTAL_SECONDS, 1000, MicroUsd::new(500))
+                .expect("limits usable"),
+            20,
+            DiagnosticAllowance::new(100, MicroUsd::new(50)),
+        )
+        .expect("budget usable"),
+    };
+
+    let handle = runner
+        .invoke(spec)
+        .expect("admission through the real harness must succeed");
+    eprintln!(
+        "admitted: invocation {} with session_ref {:?}",
+        handle.invocation_id(),
+        handle.session_ref()
+    );
+
+    let poll_started = Instant::now();
+    let status = loop {
+        match runner
+            .poll(&handle)
+            .expect("poll must not error while the contract is pending")
+        {
+            status if status.is_terminal() => break status,
+            other => {
+                eprintln!("poll at {:?}: {other:?}", poll_started.elapsed());
+                assert!(
+                    poll_started.elapsed() < Duration::from_secs(PROBE_TOTAL_SECONDS),
+                    "the long-child live probe passed its wall-clock bound"
+                );
+                std::thread::sleep(Duration::from_secs(POLL_PAUSE_SECONDS));
+            }
+        }
+    };
+    let elapsed = poll_started.elapsed();
+    let InvocationStatus::Completed { result_ref } = status else {
+        panic!(
+            "the long-child live probe must reach Completed (the defect this fixes made a \
+             child working past the linger die with an aborted tool call), got {status:?} \
+             after {elapsed:?}"
+        )
+    };
+    assert_eq!(result_ref.as_str(), contract_leaf);
+    assert!(
+        elapsed >= Duration::from_secs(config.admission_linger_seconds),
+        "the child's real work ({elapsed:?}) must have outlasted the default linger \
+         ({} s) for this probe to prove anything",
+        config.admission_linger_seconds
+    );
+
+    let result = runner
+        .collect(&handle, bound_from_now(60))
+        .expect("a Completed invocation is collectible");
+    assert_eq!(result.invocation_id().as_str(), PROBE_ULID);
+    assert_eq!(result.context_envelope_digest(), &digest);
+
+    let forensics = transport.take_forensics();
+    eprintln!("forensics: {forensics:?}");
+    eprintln!(
+        "long-child live probe finished in {:?} (child work took {elapsed:?})",
+        started.elapsed()
+    );
+
+    std::fs::remove_dir_all(&state_dir).ok();
+    std::fs::remove_dir_all(&parent_cwd).ok();
 }
