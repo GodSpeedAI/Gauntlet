@@ -454,6 +454,14 @@ export interface PublishedLensData {
   readonly semantic?: SemanticEnrichment | undefined;
   readonly sxr_lens?: SxrLensProjection | undefined;
   readonly sxr_paths?: readonly SxrVerificationPath[] | undefined;
+  /**
+   * Plan workbench-agent-interaction.md P2: Prime child sessions/transcripts
+   * and whether Prime is configured at all, published the SAME way SXR lens
+   * data is — see `FullWorkbenchSnapshot.prime_sessions`/`prime_configured`
+   * (workbench-model.ts) for the field-level contract.
+   */
+  readonly prime_sessions?: readonly import("./prime-host").PrimeChatSession[] | undefined;
+  readonly prime_configured?: boolean | undefined;
 }
 
 /**

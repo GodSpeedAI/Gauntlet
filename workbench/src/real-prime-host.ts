@@ -45,6 +45,7 @@ import type {
   PrimeAdmissionHandle,
   PrimeContinuationRequest,
   PrimeContinuationResult,
+  PrimeHostChangeSource,
   PrimeHostPort,
   PrimeMailboxMessage,
   PrimeResultContract,
@@ -255,7 +256,7 @@ export function buildRealPrimeEnv(
  * `WorkbenchHost` (constructed only when `config.prime_binary` is set — D6:
  * Prime absence never degrades Gauntlet, so nothing here runs unconfigured).
  */
-export class RealPrimeHost implements PrimeHostPort {
+export class RealPrimeHost implements PrimeHostPort, PrimeHostChangeSource {
   private readonly bookkeeping = new PrimeHostAdapter();
   private readonly binary: string;
   private readonly agentDir: string;
@@ -318,6 +319,17 @@ export class RealPrimeHost implements PrimeHostPort {
     mkdirSync(this.sessionDir, { recursive: true, mode: 0o700 });
     mkdirSync(this.workRoot, { recursive: true });
     this.reattachFromQualifiedRecords();
+  }
+
+  /**
+   * Plan P2 "cheap change signal": every mailbox/result/stop mutation this
+   * class performs routes through `this.bookkeeping` (D2 composition — see
+   * this file's header comment), so forwarding to the SAME `PrimeHostAdapter`
+   * that already fires on every such mutation is the entire implementation.
+   * No separate polling, no second notification path.
+   */
+  setChangeListener(listener: () => void): void {
+    this.bookkeeping.setChangeListener(listener);
   }
 
   /** Real, currently-running child session ids (inspection only, not part of PrimeHostPort). */

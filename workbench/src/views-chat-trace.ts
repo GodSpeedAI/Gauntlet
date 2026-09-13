@@ -39,6 +39,147 @@ export function traceEventToken(eventType: string): SemanticToken {
   }
 }
 
+/** Presentation-only token for a Prime child session's status (never authority). */
+function primeSessionToken(status: string): SemanticToken {
+  switch (status) {
+    case "completed":
+      return "execution.succeeded";
+    case "failed":
+      return "execution.failed";
+    default:
+      return "execution.running";
+  }
+}
+
+/**
+ * Render one mailbox message's content compactly (plan P2 item 1): the
+ * initial received-context message is a raw envelope JSON blob
+ * (`prime-recursion.ts`'s `received_context`/`task`/`envelope` shape) — show
+ * only the task, never the whole envelope. Anything else (assistant replies,
+ * plain operator text) is not that shape and renders as-is.
+ */
+function summarizeMailboxContent(content: string): string {
+  try {
+    const parsed = JSON.parse(content) as { received_context?: unknown; task?: unknown };
+    if (parsed.received_context === "prime-context-envelope/1" && typeof parsed.task === "string") {
+      return `goal: ${parsed.task}`;
+    }
+  } catch {
+    /* not JSON — plain communication text, rendered verbatim */
+  }
+  return content;
+}
+
+/**
+ * Prime session list + selected transcript (plan workbench-agent-interaction.md
+ * P2, UESC truth-ownership matrix "Prime messages | Prime mailbox | Project
+ * communication, not completion"). `snapshot.prime_sessions`/`prime_configured`
+ * are host-published lens data (see `inspector.ts` `publishLensData`,
+ * `workbench-model.ts` `FullWorkbenchSnapshot`) — the model itself never
+ * observes Prime. Selection is the ordinary Focus mechanism: a "PrimeSession"
+ * kind FocusRef (minted by `relations.ts` `focusForPrimeChild`), set via the
+ * SAME `select_focus` effect Navigator rows and this view's own clickable
+ * `chat.session.<id>` rows both produce (mouse ≡ keyboard, ICM §35) — there is
+ * no separate "current chat session" model.
+ */
+function renderPrimeChatSection(args: ViewRenderArgs, lines: RenderedLine[]): void {
+  const { snapshot } = args;
+  lines.push({
+    id: "chat.prime.header",
+    spans: [{ text: "PRIME SESSIONS", emphasis: "bold" }],
+  });
+
+  if (snapshot.prime_configured !== true) {
+    // Item 5: absence is named, not blank (REQ-AFF-004 honesty precedent).
+    lines.push({
+      id: "chat.prime.not_configured",
+      spans: [
+        {
+          text: "Prime is not configured. Set GAUNTLET_WORKBENCH_PRIME_BINARY to enable Prime sessions.",
+          token: "structure.neutral",
+        },
+      ],
+    });
+    return;
+  }
+
+  const sessions = snapshot.prime_sessions ?? [];
+  if (sessions.length === 0) {
+    lines.push({
+      id: "chat.prime.empty",
+      spans: [
+        {
+          text: "No Prime sessions yet. Launch one from the composer's prime mode.",
+          emphasis: "dim",
+        },
+      ],
+    });
+    return;
+  }
+
+  const selectedId = snapshot.focus?.kind === "PrimeSession" ? snapshot.focus.source_id : null;
+  for (const session of sessions) {
+    const selected = session.session_id === selectedId;
+    const token = primeSessionToken(session.status);
+    lines.push({
+      id: `chat.session.${session.session_id}`,
+      spans: [
+        { text: selected ? "▸ " : "  ", token: "focus.primary" },
+        { text: `${SEMANTIC_TOKENS[token].glyph} `, token },
+        { text: `${session.status.toUpperCase()} `, token, emphasis: "bold" },
+        { text: `${session.session_id} `, emphasis: selected ? "bold" : "normal" },
+        { text: `unit ${session.target_unit ?? "unknown"} `, emphasis: "dim" },
+        { text: `admitted ${session.admitted_at}`, emphasis: "dim" },
+      ],
+    });
+  }
+  lines.push({
+    id: "chat.prime.hint",
+    spans: [
+      {
+        text: "Prime messages are Prime-mailbox communication, not completion. Status comes from the admission/result contract only.",
+        emphasis: "dim",
+      },
+    ],
+  });
+
+  const selectedSession = sessions.find((session) => session.session_id === selectedId);
+  if (selectedSession === undefined) {
+    lines.push({
+      id: "chat.prime.select_hint",
+      spans: [
+        {
+          text: "Select a session above (Enter or click) to view its transcript.",
+          emphasis: "dim",
+        },
+      ],
+    });
+    return;
+  }
+
+  lines.push({
+    id: `chat.prime.transcript.${selectedSession.session_id}`,
+    spans: [{ text: `TRANSCRIPT — ${selectedSession.session_id}`, emphasis: "bold" }],
+  });
+  if (selectedSession.messages.length === 0) {
+    lines.push({
+      id: "chat.prime.transcript.empty",
+      spans: [{ text: "No messages yet.", emphasis: "dim" }],
+    });
+    return;
+  }
+  for (const message of selectedSession.messages) {
+    lines.push({
+      id: `chat.prime.message.${message.message_id}`,
+      spans: [
+        { text: `${message.sender} → ${message.recipient}: `, emphasis: "bold" },
+        { text: summarizeMailboxContent(message.content) },
+        { text: `  (${message.kind} · ${message.timestamp})`, emphasis: "dim" },
+      ],
+    });
+  }
+}
+
 /** Chat: "What was communicated?" (REQ-TUI-003). */
 export function renderChatView(args: ViewRenderArgs): ViewContent {
   const { snapshot } = args;
@@ -49,6 +190,8 @@ export function renderChatView(args: ViewRenderArgs): ViewContent {
     id: "chat.question",
     spans: [{ text: "CHAT: what was communicated?", emphasis: "bold" }],
   });
+
+  renderPrimeChatSection(args, lines);
 
   if (!snapshot.chat_enabled) {
     // Chat is subordinate to durable history (DSN-010): an unprojected Chat
@@ -113,7 +256,25 @@ export function renderChatView(args: ViewRenderArgs): ViewContent {
   return { view: "chat", question: "What was communicated?", lines, records };
 }
 
-/** Trace: "What actually happened?" over the durable execution history. */
+/**
+ * Trace: "What actually happened?" over the durable execution history.
+ *
+ * Plan workbench-agent-interaction.md P2, item 4 (deliberately SKIPPED here,
+ * documented rather than forced): Prime child lifecycle events (admitted,
+ * turn started/resumed, reply received, completed/failed/stopped) are NOT
+ * added to Trace. ICM's own "Trace terminology" preamble and UESC §16.0 fix
+ * Trace as one ordered ledger over exactly two source-typed streams — Gauntlet
+ * execution history and the RealityTrace consequence ledger — "the sources
+ * are never merged"; REQ-DATA-005 separately requires "Chat and Trace actions
+ * operate on distinct projections", and the truth-ownership matrix lists
+ * "Prime messages | Prime mailbox | Project communication, not completion" as
+ * its own row, distinct from both Trace sources. A Prime child is neither
+ * Gauntlet execution history nor a RealityTrace ledger record, so folding its
+ * lifecycle into this ledger would be a third, uninvited source and would
+ * violate both the two-source invariant and REQ-DATA-005. Prime lifecycle
+ * belongs in Chat (`renderPrimeChatSection`, above), which is exactly where
+ * the spec already places Prime messages/mailbox truth.
+ */
 export function renderTraceView(args: ViewRenderArgs): ViewContent {
   const { snapshot } = args;
   const lines: RenderedLine[] = [];

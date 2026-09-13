@@ -17,6 +17,7 @@ import {
   planMaterialization,
   SavedHorizonRegistry,
 } from "./horizon";
+import type { PrimeChatSession } from "./prime-host";
 import {
   type AuthoritativeEventFrame,
   type ProjectionGeneration,
@@ -247,6 +248,18 @@ export interface FullWorkbenchSnapshot extends WorkbenchSnapshot {
   readonly trace_records: readonly TraceRecord[];
   readonly chat_messages: readonly ChatMessage[];
   readonly chat_enabled: boolean;
+  /**
+   * Prime child sessions and their mailbox transcripts (plan
+   * workbench-agent-interaction.md P2), published onto the snapshot by
+   * `WorkbenchHost`/`main.ts` (`publishLensData`, see `inspector.ts`) — the
+   * model itself never observes Prime; absent (undefined) means "this
+   * snapshot was built without the Prime lens attached" and is distinct from
+   * an empty array ("Prime configured, zero sessions yet"). See
+   * `prime_configured` for whether Prime is bound at all.
+   */
+  readonly prime_sessions?: readonly PrimeChatSession[] | undefined;
+  /** Whether the host has a Prime binary configured (plan P2, UESC/ICM item 5). */
+  readonly prime_configured?: boolean | undefined;
   /** Rendered occurrences published in this snapshot generation (spec §FocusPlacement). */
   readonly placements: readonly FocusPlacement[];
   /** The active Horizon entity, absent for the whole-Case (unhoisted) world. */

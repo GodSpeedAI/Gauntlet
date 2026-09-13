@@ -146,6 +146,45 @@ export function isExtendedPrimeHost(host: PrimeHostPort): host is ExtendedPrimeH
 }
 
 /**
+ * Optional "cheap change signal" surface (plan workbench-agent-interaction.md
+ * P2): a host implementing this can push a single notification whenever its
+ * bookkeeping changes (mailbox message received, result contract delivered,
+ * a session stopped) so `WorkbenchHost` can redraw the Chat/Trace surfaces
+ * WITHOUT waiting for the next poll tick and WITHOUT polling the Prime host
+ * itself (no busy loop: this is a push from the SAME async work — a child's
+ * background watch task, or a synchronous bookkeeping call — that already
+ * runs). Declared separately from `PrimeHostPort`/`ExtendedPrimeHostPort` for
+ * the same reason those are separate: widening either would ripple into
+ * every existing implementer for a capability only the live-redraw path
+ * needs. `hasChangeListener` narrows at the one call site that wires it.
+ */
+export interface PrimeHostChangeSource {
+  setChangeListener(listener: () => void): void;
+}
+
+export function hasChangeListener(
+  host: PrimeHostPort,
+): host is PrimeHostPort & PrimeHostChangeSource {
+  return typeof (host as Partial<PrimeHostChangeSource>).setChangeListener === "function";
+}
+
+/**
+ * Chat-surface projection of one Prime child session (plan P2): the SAME
+ * `PrimeSessionState` bookkeeping every dispatcher drive already produces,
+ * plus the target unit the dispatcher's own `DelegationRecord` recorded at
+ * admission time — never invented, never parsed back out of the session id.
+ * `WorkbenchHost.listPrimeSessions()` is the only place this is assembled.
+ */
+export interface PrimeChatSession {
+  readonly session_id: string;
+  readonly target_unit: string | null;
+  readonly status: PrimeAdmissionHandle["status"];
+  readonly admitted_at: string;
+  readonly model: string;
+  readonly messages: readonly PrimeMailboxMessage[];
+}
+
+/**
  * The in-memory Prime host TEST DOUBLE (plan Phase C2, D2). This was the
  * only `PrimeHostPort` implementation before Phase C2; it is now explicitly
  * declared as such — production composition (`workbench-host.ts`) binds
@@ -154,9 +193,19 @@ export function isExtendedPrimeHost(host: PrimeHostPort): host is ExtendedPrimeH
  * keeps working unchanged: this class's public shape did not change, it only
  * gained an explicit `implements PrimeHostPort`.
  */
-export class PrimeHostAdapter implements PrimeHostPort {
+export class PrimeHostAdapter implements PrimeHostPort, PrimeHostChangeSource {
   private readonly sessions = new Map<string, PrimeSessionState>();
   private messageCounter = 0;
+  private changeListener: (() => void) | undefined;
+
+  /** Plan P2: push a redraw signal on every bookkeeping change (see `PrimeHostChangeSource`). */
+  setChangeListener(listener: () => void): void {
+    this.changeListener = listener;
+  }
+
+  private notifyChanged(): void {
+    this.changeListener?.();
+  }
 
   /**
    * Spawn or admit a Prime child session (REQ-PRIME-001).
@@ -222,6 +271,7 @@ export class PrimeHostAdapter implements PrimeHostPort {
     // CRITICAL: We explicitly DO NOT change session.handle.status to 'completed'!
     // A mailbox message cannot claim task completion.
 
+    this.notifyChanged();
     return mailboxMsg;
   }
 
@@ -237,11 +287,13 @@ export class PrimeHostAdapter implements PrimeHostPort {
 
     if (!contract.schema_valid) {
       session.handle.status = "failed";
+      this.notifyChanged();
       return false;
     }
 
     session.resultContract = contract;
     session.handle.status = "completed";
+    this.notifyChanged();
     return true;
   }
 
@@ -290,6 +342,7 @@ export class PrimeHostAdapter implements PrimeHostPort {
       };
     }
     session.handle.status = "failed";
+    this.notifyChanged();
     return {
       session_id: sessionId,
       stopped: true,

@@ -64,6 +64,18 @@ export function focusForSession(session: SessionProjection): FocusRef {
 }
 
 /**
+ * FocusRef for a Prime CHILD session (plan workbench-agent-interaction.md
+ * P2) — distinct from `focusForSession`'s canonical Gauntlet "Agent" kind:
+ * a Prime child is Prime-host truth (`PrimeHostPort`), never a
+ * `SessionProjection` row, so it is minted directly from the session id
+ * rather than from a projection-store type. Source "prime" names the owning
+ * system (truth-ownership matrix: "Prime child lifecycle | Prime host").
+ */
+export function focusForPrimeChild(sessionId: string): FocusRef {
+  return FocusRef.for("prime", "PrimeSession", sessionId);
+}
+
+/**
  * Attribution rule for one endpoint of a claimed link (peer correction MAJOR-1):
  * the endpoint is attributed from the OWNING row's source when exactly one row
  * resolves the claimed id; otherwise the claiming row's own source is kept as a

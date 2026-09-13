@@ -20,11 +20,12 @@ import {
 import { OPERATION_IDS } from "./operation-registry";
 import { plannedOperationForComposerMode } from "./planned-operations";
 import { constructBoundedContextEnvelope } from "./prime-context-envelope";
-import { isExtendedPrimeHost } from "./prime-host";
+import { hasChangeListener, isExtendedPrimeHost, type PrimeChatSession } from "./prime-host";
 import { PrimeDelegationDispatcher } from "./prime-recursion";
 import { RealPrimeHost } from "./real-prime-host";
 import { interpretSxrRefreshOutcome } from "./reality-trace-binding";
 import type { RealityTraceLane } from "./reality-trace-lane";
+import { focusForPrimeChild } from "./relations";
 import type { ShellInteractions } from "./shell";
 import { bunSxrProcessRunner, executeSxrRefresh, type SxrLensProjection } from "./sxr-adapter";
 import { WorkbenchModel } from "./workbench-model";
@@ -93,6 +94,16 @@ export class WorkbenchHost {
    * not typed an explicit destination. Read-only to callers.
    */
   lastChildSessionId: string | null = null;
+  /**
+   * The Prime child session currently selected in the Chat/Navigator surface
+   * (plan P2) — distinct from `lastChildSessionId` (the most recently
+   * LAUNCHED child) because an operator can select an OLDER session to
+   * review/message it without that changing which child a bare launch
+   * would replace. Both are updated together on select or launch so the
+   * common case (select-then-message, or launch-then-message) needs no
+   * extra operator action. Read-only to callers; use `selectChildSession`.
+   */
+  selectedChildSessionId: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private changed: () => void = () => {};
   private closed = false;
@@ -166,15 +177,24 @@ export class WorkbenchHost {
       // RealPrimeHost's own constructor creates agentDir/sessionDir itself
       // (0700 for the agent dir) — no directory setup needed here.
       const { agentDir, sessionDir } = primeDirs(config);
+      const adapter =
+        options.primeHostOverride ??
+        new RealPrimeHost({
+          binary: config.prime_binary,
+          agentDir,
+          sessionDir,
+          projectRoot: config.project_root ?? undefined,
+        });
+      // Plan P2 "cheap change signal": when the bound adapter can push a
+      // notification (RealPrimeHost, and the in-memory PrimeHostAdapter test
+      // double both can), wire it straight to `this.changed()` so a mailbox
+      // reply or a completed/stopped session redraws the TUI without waiting
+      // for the next poll tick — no separate polling of the Prime host.
+      if (hasChangeListener(adapter)) {
+        adapter.setChangeListener(() => this.changed());
+      }
       this.primeDispatcher = new PrimeDelegationDispatcher({
-        adapter:
-          options.primeHostOverride ??
-          new RealPrimeHost({
-            binary: config.prime_binary,
-            agentDir,
-            sessionDir,
-            projectRoot: config.project_root ?? undefined,
-          }),
+        adapter,
         canonical_route: this.route,
       });
     } else {
@@ -296,11 +316,60 @@ export class WorkbenchHost {
     this.changed();
   }
 
+  /**
+   * Chat-surface projection of Prime child sessions (plan P2): the
+   * dispatcher's bookkeeping (`listSessions`) joined against its own
+   * delegation records (`listRecords`) for the target unit each was admitted
+   * against. `[]` when Prime is unconfigured OR genuinely has zero sessions
+   * — callers distinguish those with `primeDispatcher === null` /
+   * `config.prime_binary`, exactly like every other Prime-absence check in
+   * this file.
+   */
+  listPrimeSessions(): readonly PrimeChatSession[] {
+    if (this.primeDispatcher === null) return [];
+    const targetUnitBySession = new Map(
+      this.primeDispatcher.listRecords().map((record) => [record.session_id, record.target_unit]),
+    );
+    return this.primeDispatcher.primeHost.listSessions().map((session) => ({
+      session_id: session.handle.session_id,
+      target_unit: targetUnitBySession.get(session.handle.session_id) ?? null,
+      status: session.handle.status,
+      admitted_at: session.handle.admitted_at,
+      model: session.handle.model,
+      messages: session.messages,
+    }));
+  }
+
+  /**
+   * `selectChildSession` (plan P2): sets both the current Focus (so
+   * Navigator/Chat rows highlight the same identity through the ordinary
+   * FocusRef mechanism — REQ-FOCUS-001, no parallel selection model) and the
+   * default `prime.message`/`prime.cancel` target. The SAME effect happens
+   * when the operator reaches a PrimeSession row through the generic
+   * `select_focus` ShellEffect (Navigator keyboard Enter, Navigator/Chat
+   * mouse click) — see `interactions().selectFocus` below; this method is
+   * the direct, host-level entry point tests and other callers can use
+   * without going through the shell reducer.
+   */
+  selectChildSession(sessionId: string): void {
+    this.applySelectedChildSession(sessionId);
+    this.model.selectFocus(focusForPrimeChild(sessionId));
+    this.changed();
+  }
+
+  private applySelectedChildSession(sessionId: string): void {
+    this.selectedChildSessionId = sessionId;
+    this.lastChildSessionId = sessionId;
+  }
+
   interactions(quit: () => void): ShellInteractions {
     return {
       quit,
       selectFocus: (ref) => {
         this.model.selectFocus(ref);
+        if (ref.kind === "PrimeSession") {
+          this.applySelectedChildSession(ref.source_id);
+        }
         this.changed();
       },
       hoist: (ref) => {
@@ -506,7 +575,14 @@ export class WorkbenchHost {
     });
 
     if (outcome.class === "admitted") {
-      this.lastChildSessionId = childSessionId;
+      // The freshly launched child is the natural next message/cancel
+      // target (plan P2) — but launch must NOT move the current Focus off
+      // the unit (an operator launching a second child against the SAME
+      // unit needs that unit still selected); `applySelectedChildSession`
+      // updates only the message/cancel target, never Focus. An explicit
+      // `selectChildSession` call (Navigator/Chat row selection) is the only
+      // path that also moves Focus.
+      this.applySelectedChildSession(childSessionId);
       this.notice = `prime.launch: admitted — child session ${childSessionId} (receipt only, not a completion claim)`;
     } else if (outcome.class === "refused_by_policy") {
       this.notice = `prime.launch: refused — ${outcome.code} (${outcome.detail})`;
@@ -540,7 +616,7 @@ export class WorkbenchHost {
     const trimmedDestination = destination.trim();
     const target =
       trimmedDestination === "" || trimmedDestination === "workbench"
-        ? this.lastChildSessionId
+        ? (this.selectedChildSessionId ?? this.lastChildSessionId)
         : trimmedDestination;
     if (target === null) {
       this.notice =
@@ -558,7 +634,7 @@ export class WorkbenchHost {
       sender: this.session?.actor ?? "operator",
       message,
     });
-    this.lastChildSessionId = target;
+    this.applySelectedChildSession(target);
     this.notice = result.delivered
       ? `prime.message: delivered to ${target} (${result.mode}) — communication, not completion`
       : `prime.message: not delivered to ${target} — ${result.detail}`;
@@ -576,7 +652,7 @@ export class WorkbenchHost {
       this.changed();
       return;
     }
-    const target = targetSessionId ?? this.lastChildSessionId;
+    const target = targetSessionId ?? this.selectedChildSessionId ?? this.lastChildSessionId;
     if (target === null) {
       this.notice = "prime.cancel: no child session to cancel.";
       this.changed();

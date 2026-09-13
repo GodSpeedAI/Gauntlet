@@ -8,6 +8,21 @@ import { TerminalShellRenderer, terminalKey } from "./terminal-renderer";
 import { detectColorCapability, resolveMotionPreference } from "./theme";
 import { WorkbenchHost } from "./workbench-host";
 
+/**
+ * Plan workbench-agent-interaction.md P2: publish the host-owned Prime
+ * session lens onto the snapshot the SAME way `sxr_lens` already is
+ * (`publishLensData`) — every pure shell function (`navigatorOutline`,
+ * `handlePointer`, `handleKey`, the Chat view) takes only `snapshot`, so this
+ * is the one seam where Prime data (never canonical to `WorkbenchModel`)
+ * joins it for one render/interaction cycle.
+ */
+function primeLens(host: WorkbenchHost) {
+  return {
+    prime_sessions: host.listPrimeSessions(),
+    prime_configured: host.primeDispatcher !== null,
+  } as const;
+}
+
 async function run(): Promise<void> {
   const host = new WorkbenchHost(resolveConfig({}), {
     actor: process.env["GAUNTLET_SESSION_ACTOR"] ?? "operator",
@@ -26,7 +41,7 @@ async function run(): Promise<void> {
   const motion = resolveMotionPreference(process.env);
   const shell = (session: ShellSession) => {
     const rendered = session.render(
-      publishLensData(host.model.getSnapshot(), { sxr_lens: host.sxrLens }),
+      publishLensData(host.model.getSnapshot(), { sxr_lens: host.sxrLens, ...primeLens(host) }),
       {
         observation: host.observation,
         session: host.sessionContext,
@@ -116,7 +131,7 @@ async function run(): Promise<void> {
     );
     view = new TerminalShellRenderer(renderer, {
       onGesture: (gesture) => {
-        session.pointer(gesture, host.model.getSnapshot(), {
+        session.pointer(gesture, publishLensData(host.model.getSnapshot(), primeLens(host)), {
           observation: host.observation,
           session: host.sessionContext,
         });
@@ -135,7 +150,7 @@ async function run(): Promise<void> {
         return;
       }
       if (key !== null)
-        session.key(key, host.model.getSnapshot(), {
+        session.key(key, publishLensData(host.model.getSnapshot(), primeLens(host)), {
           observation: host.observation,
           session: host.sessionContext,
         });
@@ -161,9 +176,13 @@ async function run(): Promise<void> {
 
 try {
   await run();
-} catch {
+} catch (err) {
   process.stderr.write(
-    "gauntlet-workbench: startup or terminal failure; check endpoint and terminal configuration.\n",
+    // The cause is printed, not swallowed: a bare "check your configuration"
+    // sent the operator hunting for an endpoint problem when the real fault
+    // was a corrupt local projection store (SQLiteError, disk image is
+    // malformed) that no amount of endpoint checking would have revealed.
+    `gauntlet-workbench: startup or terminal failure; check endpoint and terminal configuration.\ncause: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`,
   );
   process.exitCode = 1;
 }

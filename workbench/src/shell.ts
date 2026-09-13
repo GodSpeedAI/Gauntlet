@@ -77,7 +77,7 @@ import {
   locationPush,
 } from "./navigation-history";
 import type { ProjectionWorld } from "./relations";
-import { focusForEvidence, focusForSession, focusForUnit } from "./relations";
+import { focusForEvidence, focusForPrimeChild, focusForSession, focusForUnit } from "./relations";
 import type { RenderedLine, RenderedSpan, ViewContent } from "./render-tree";
 import { lineText } from "./render-tree";
 import type { ColorCapability, MotionPreference, SemanticToken } from "./theme";
@@ -621,6 +621,15 @@ export function resolveFocusLabel(snapshot: FullWorkbenchSnapshot, ref: FocusRef
   if (session !== undefined) {
     return `${session.model} (${session.status})`;
   }
+  // Prime child sessions (plan P2): Prime-host truth, never a
+  // SessionProjection row (see relations.ts focusForPrimeChild) — resolved
+  // from the host-published `prime_sessions` lens, never invented here.
+  const primeSession = snapshot.prime_sessions?.find(
+    (candidate) => candidate.session_id === ref.source_id,
+  );
+  if (primeSession !== undefined) {
+    return `${primeSession.session_id} (${primeSession.status})`;
+  }
   const evidence = snapshot.evidence.find((candidate) => candidate.evidence_id === ref.source_id);
   if (evidence !== undefined) {
     return `${evidence.kind} · ${evidence.evidence_id}`;
@@ -671,6 +680,29 @@ export function navigatorOutline(snapshot: FullWorkbenchSnapshot): readonly Outl
       kind: "Agent",
       label: resolveFocusLabel(snapshot, ref),
       token: session.status === "running" ? "execution.running" : "execution.waiting",
+    });
+  }
+
+  // Prime child sessions (plan P2, UESC "Prime messages | Prime mailbox |
+  // Project communication, not completion"): listed here too so the SAME
+  // Navigator keyboard (up/down + Enter → nav.focus.select) and mouse click
+  // machinery already proven for every other row kind selects a Prime child
+  // — no second selection mechanism. Absent `prime_sessions` (the lens not
+  // published) renders nothing, same as every other host-published lens.
+  for (const primeSession of snapshot.prime_sessions ?? []) {
+    const ref = focusForPrimeChild(primeSession.session_id);
+    rows.push({
+      id: `outline.prime.${primeSession.session_id}`,
+      depth: 1,
+      ref,
+      kind: "PrimeSession",
+      label: resolveFocusLabel(snapshot, ref),
+      token:
+        primeSession.status === "completed"
+          ? "execution.succeeded"
+          : primeSession.status === "failed"
+            ? "execution.failed"
+            : "execution.running",
     });
   }
 
@@ -803,6 +835,10 @@ function focusRefForLine(
       const unitId = lineId.slice("work.unit.".length);
       const unit = snapshot.units.find((candidate) => candidate.unit_id === unitId);
       return unit !== undefined ? focusForUnit(unit) : null;
+    }
+    if (lineId.startsWith("chat.session.")) {
+      const sessionId = lineId.slice("chat.session.".length);
+      return focusForPrimeChild(sessionId);
     }
     if (lineId.startsWith("trace.")) {
       const traceId = lineId.slice("trace.".length);
@@ -1184,6 +1220,22 @@ export function handlePointer(
       return {
         state: Object.freeze({ ...state, trace: streamSelect(state.trace, id) }),
         effects: [],
+      };
+    }
+    if (lineId?.startsWith("chat.session.") === true) {
+      // Plan P2: clicking a Prime session row in the Chat surface goes
+      // through the SAME select_focus effect Navigator rows/keyboard Enter
+      // already produce (mouse ≡ keyboard, ICM §35) — WorkbenchHost's
+      // interactions().selectFocus recognizes the "PrimeSession" kind and
+      // sets it as the prime.message/prime.cancel target.
+      const sessionId = lineId.slice("chat.session.".length);
+      const ref = focusForPrimeChild(sessionId);
+      return {
+        state: Object.freeze({
+          ...state,
+          location: Object.freeze({ ...state.location, focus: ref }),
+        }),
+        effects: [{ type: "select_focus", ref }],
       };
     }
     return { state, effects: [] };
