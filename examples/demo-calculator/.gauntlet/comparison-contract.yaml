@@ -1,0 +1,47 @@
+# .gauntlet/comparison-contract.yaml — the comparison contract (spec §9.5)
+#
+# A separate, versioned artifact declaring how comparison is performed for
+# this reference: which dimensions are instantiated, what each comparator
+# receives, what counts as a residual, and the severity rubric. Frozen with
+# the reference; its version is recorded on every ComparisonRecord
+# (Annex B.4 `comparison_contract_version`). Changing the rubric mid-run is
+# ruler movement (I1).
+#
+# Dialect (strict, parsed by gauntlet-app compare::contract): scalar
+# `key: value` lines; list sections opened by a bare `key:` line whose
+# items are exactly two-space-indented `- item` lines. Rubric items are
+# `<severity-token> | <definition>`. Unknown keys, duplicate sections, and
+# unknown severity tokens are typed errors, never defaults.
+
+version: 1
+
+# Spec §13.4 candidate set, instantiated for this project's instruments
+# (test/build/command facets judge behavior; benchmark judges performance;
+# security_scan judges security; filesystem/versioning/logs/metrics judge
+# evidence completeness). A dimension not listed here is not compared.
+dimensions:
+  - functional behavior
+  - correctness
+  - evidence completeness
+
+# The severity rubric. Residual severity is assigned per these definitions.
+severity_rubric:
+  - blocking | a difference that invalidates the iteration; any instrument failure (non-zero exit status) on an instantiated dimension is blocking, and any blocking residual forces the aggregate verdict to fail (spec 13.5)
+  - major | a real difference that does not by itself invalidate the iteration; recorded gaps (unavailable evidence, observation failures) are major, and gap-bearing comparisons are inconclusive, never passes (spec 12.3, 21.3)
+  - minor | a small difference worth correcting but not worth blocking settlement
+  - informational | worth recording; not worth correcting on its own
+
+# What each comparator receives (spec 13.2 allowlist — nothing else enters):
+comparator_receives:
+  - the frozen reference digest and the runtime-rendered reference view
+  - the observation bundle's instrument facets (kind, instrument identity, command, exit status, evidence refs), its digest and bundle ref, and both gap arrays
+  - this comparison contract (version, instantiated dimensions, severity rubric)
+  - the constraints applicable to this comparison
+  - the unresolved residuals that remain relevant
+
+# What counts as a residual (a difference between observed reality and the reference):
+residual_definition:
+  - an instrument facet recording a non-zero exit status on an instantiated dimension
+  - a recorded gap (unavailable evidence or observation failure) on an instantiated dimension
+  - a reference expectation the observation contradicts, found by a fresh-context comparator
+  - absence of required evidence for an instantiated dimension (missing evidence is never a pass)

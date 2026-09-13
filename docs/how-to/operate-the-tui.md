@@ -70,6 +70,56 @@ composed in this project (it has genuine durable state to open — nothing is fa
 If `tui-dev-up` reports that, compose one first with `gauntlet run "<intent>"`, then
 re-run `tui-dev-up`.
 
+### Pointing `tui-dev-up` at a real project
+
+`just tui-dev-up <path>` (plan increment D) serves a REAL Gauntlet project instead of
+the default mock scratch project. `<path>` must already contain a `GAUNTLET.md` — it is
+served as-is, never copied, and a mock run is NEVER composed into it (a real project must
+never carry one). `<path>` is resolved as given (absolute, or relative to the current
+directory) if it exists; otherwise `targets/<path>` (repo-root-relative) is tried, so a
+bare name like `just tui-dev-up demo-calculator` finds `targets/demo-calculator` without
+spelling out the full path. `targets/` is an operator convenience folder for
+target-project working copies — never committed (see `.gitignore`); only the templates
+under `examples/` are. Since `gauntlet serve` refuses to open until a run exists, and
+composing one there may mean dispatching a real, paid agent, this mode does not block
+waiting for that: it launches a pidfile-tracked background supervisor
+(`scripts/serve-supervisor.sh`) that keeps retrying `gauntlet serve` every few seconds,
+and brings up the workbench TUI right away so you can start the first run from inside it
+(or from another terminal with `gauntlet run "<intent>"` in that project) — the supervisor
+picks it up the moment a run exists.
+
+```bash
+just tui-dev-up /path/to/real-project    # supervisor + workbench, no mock run ever composed
+just tui-dev-up demo-calculator          # short form: resolves targets/demo-calculator
+# ... start the first run from inside the workbench, or from another terminal ...
+just tui-dev-down /path/to/real-project  # stop exactly that supervisor + serve
+```
+
+Omit the path to keep the original default (mock scratch project) behavior; give the
+SAME path to `tui-dev-down` you gave `tui-dev-up` so it tears down the right instance.
+
+### The always-available demo-calculator (`just demo-up` / `just demo-down`)
+
+`examples/demo-calculator` is a tiny, always-available Gauntlet project (see its own
+`README.md`) whose goal is: dispatch a REAL agent to build a single-page HTML calculator,
+then verify the result with a real, deterministic, no-network check command. It uses
+`runners.default: prime-agent` — starting a run against it spends real tokens, so its
+budget ceilings are kept small (`max_rounds: 3`, `max_wall_seconds: 900`, `max_cost_usd: 2`).
+
+```bash
+just demo-up      # materializes targets/demo-calculator, brings up serve + workbench on :4100
+# ... inside the workbench (or via `gauntlet run "<intent>"` in targets/demo-calculator),
+# ... start a run and watch a real agent attempt the calculator ...
+just demo-down    # stops what demo-up started and removes targets/demo-calculator
+```
+
+`demo-up` never modifies `examples/demo-calculator` itself — it materializes a fresh
+working copy at `targets/demo-calculator` (via `tui-dev-up <path>` above, on its own port
+so it never collides with a plain `tui-dev-up`). `demo-down` removes only
+`targets/demo-calculator`, never the whole `targets/` folder (the operator may keep other
+projects there). `demo-down` is idempotent: safe
+to run any time, including when nothing is running.
+
 ### Connecting to the Core Loopback Service Manually
 
 The workbench's default endpoint is `http://127.0.0.1:4000` (`workbench/src/config.ts`).

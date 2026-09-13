@@ -1,0 +1,13 @@
+{
+  "answer_key_path": ".wayfinder/answer-key.md",
+  "answer_key_digest": "sha256:a593207d165b5161aca3ae3901e78facb366c58bd64406bca8eb529b8b7ab6bc",
+  "manifest_path": ".wayfinder/reference.yaml",
+  "manifest_digest": "sha256:5923ec44a335574e689f247e9a37f25eb33dd45270aba3568f8c63364fab02ae",
+  "algo": "sha256",
+  "frozen_at": "2026-09-13T00:00:00Z",
+  "spec_source": "calculator.html",
+  "spec_annex": "demo-calculator answer key (AK-9011..AK-9013)",
+  "unit_count": 3,
+  "digest_tool": "gauntlet reference digest",
+  "note": "Committed freeze record for the always-available demo-calculator project (operator ask: a tiny demo run available to start immediately). Generated with 'gauntlet reference digest --path <file>' over the committed .wayfinder/answer-key.md and .wayfinder/reference.yaml; regenerate both digests here if either file's content changes."
+}

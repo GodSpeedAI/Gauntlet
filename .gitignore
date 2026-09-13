@@ -11,6 +11,10 @@ Cargo.lock.bak
 # Local environment overrides (spec §8.1: secrets by indirection only, never committed)
 .env
 .env.local
+# ...except the committed, deliberately secret-free dev defaults. Named
+# explicitly so a global `.env.*` ignore rule keeps protecting every other
+# env file; anything secret belongs in the ignored `.env` above.
+!.env.defaults
 
 # Editor / OS noise
 .DS_Store
@@ -24,6 +28,13 @@ Cargo.lock.bak
 # defaults.
 
 .tmp/
+
+# targets/ — the operator's own target-project working copies (just
+# tui-dev-up's default project lookup location; just demo-up materializes
+# targets/demo-calculator here). A repo-root convenience folder for
+# projects an operator points the workbench at; never committed — only the
+# templates under examples/ are.
+/targets/
 
 # Task 17: the roles lock is RUNTIME-OWNED host state written by
 # `gauntlet roles install` (per-harness, per-host digests) — never a
