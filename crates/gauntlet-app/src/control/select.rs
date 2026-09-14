@@ -831,6 +831,7 @@ mod tests {
         fn record_correction_selection(
             &self,
             selection: &CorrectionSelection,
+            _at: EpochSeconds,
             _deadline: Deadline,
         ) -> Result<(), StateStoreError> {
             self.selections.borrow_mut().push(selection.clone());
@@ -879,7 +880,7 @@ mod tests {
         let store = FakeStore::default();
         let bound = Deadline::at_epoch(EpochSeconds::new(EPOCH_TICK));
         store
-            .record_correction_selection(&selection, bound)
+            .record_correction_selection(&selection, EpochSeconds::new(EPOCH_TICK), bound)
             .expect("records");
         let back = store
             .correction_selections(selection.run_id(), bound)

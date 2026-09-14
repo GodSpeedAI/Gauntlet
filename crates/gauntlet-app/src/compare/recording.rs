@@ -17,6 +17,7 @@ use gauntlet_ports::agent_runner::{
     AgentError, AgentRunner, CancelReason, InvocationHandle, InvocationStatus, RoleInvocationSpec,
     RunnerCapabilities,
 };
+use gauntlet_ports::clock::Clock;
 use gauntlet_ports::comparator::MandatoryComparisonAcceptance;
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::evidence_store::EvidenceStore;
@@ -41,7 +42,13 @@ pub struct RecordingAgentRunner {
     state: Arc<dyn StateStore>,
     evidence: Arc<dyn EvidenceStore>,
     runner_identity: RunnerIdentity,
-    admitted_at: EpochSeconds,
+    /// W4: the app's own clock abstraction — the SAME `Clock` type the
+    /// controller reads its own `now()` through. `now()` is read ONCE per
+    /// `invoke`, so every admitted invocation's durable `admitted_at` and
+    /// `invocation_admitted` event carry the REAL composition instant,
+    /// never a value fixed at construction and reused across the whole
+    /// run's admissions.
+    clock: Arc<dyn Clock>,
     dispatch_tiers: RefCell<BTreeMap<InvocationId, BlastRadius>>,
 }
 
@@ -51,14 +58,14 @@ impl RecordingAgentRunner {
         state: Arc<dyn StateStore>,
         evidence: Arc<dyn EvidenceStore>,
         runner_identity: RunnerIdentity,
-        admitted_at: EpochSeconds,
+        clock: Arc<dyn Clock>,
     ) -> Self {
         Self {
             inner,
             state,
             evidence,
             runner_identity,
-            admitted_at,
+            clock,
             dispatch_tiers: RefCell::new(BTreeMap::new()),
         }
     }
@@ -71,6 +78,15 @@ impl RecordingAgentRunner {
         self.dispatch_tiers.borrow_mut().insert(invocation_id, tier);
     }
 
+    /// Undoes [`Self::record_dispatch_tier`] for an invocation whose
+    /// dispatch never reached this runner's `invoke` (W2: the underlying
+    /// runner refused admission before `RecordingAgentRunner::admitted`
+    /// could consume the fact). Harmless to call when no fact was ever
+    /// recorded for the id.
+    pub fn unregister_dispatch_tier(&self, invocation_id: &InvocationId) {
+        self.dispatch_tiers.borrow_mut().remove(invocation_id);
+    }
+
     /// The acceptance port to inject into `ModelComparator` alongside this
     /// runner. Both halves share the same durable stores but preserve the
     /// adapter/application dependency direction.
@@ -78,7 +94,7 @@ impl RecordingAgentRunner {
         MandatoryComparisonAcceptance::new(
             self.state.clone(),
             self.evidence.clone(),
-            self.admitted_at,
+            self.clock.now(),
         )
     }
 
@@ -86,6 +102,7 @@ impl RecordingAgentRunner {
         &self,
         spec: &RoleInvocationSpec,
         handle: &InvocationHandle,
+        admitted_at: EpochSeconds,
     ) -> Result<RoleInvocation, AgentError> {
         if handle.invocation_id() != &spec.invocation_id {
             return Err(AgentError::AdmissionRefused {
@@ -132,7 +149,7 @@ impl RecordingAgentRunner {
             tier,
             sandbox_policy_ref: spec.sandbox_policy.clone(),
             result_contract_path: spec.result_contract_path.clone(),
-            admitted_at: Some(self.admitted_at),
+            admitted_at: Some(admitted_at),
             session_ref: handle.session_ref().cloned(),
         })
         .map_err(|error| AgentError::AdmissionRefused {
@@ -167,7 +184,12 @@ impl RecordingAgentRunner {
 impl AgentRunner for RecordingAgentRunner {
     fn invoke(&self, spec: RoleInvocationSpec) -> Result<InvocationHandle, AgentError> {
         let handle = self.inner.invoke(spec.clone())?;
-        let invocation = match self.admitted(&spec, &handle) {
+        // W4: `now()` is read ONCE per `invoke` — the real composition
+        // instant, shared by the durable `admitted_at` field and the
+        // `InvocationAdmitted` event below (the same single-read discipline
+        // the controller's own dispatch fact-recording follows).
+        let admitted_at = self.clock.now();
+        let invocation = match self.admitted(&spec, &handle, admitted_at) {
             Ok(invocation) => invocation,
             Err(error) => {
                 return Err(self.cancel_after_persistence_failure(
@@ -196,7 +218,7 @@ impl AgentRunner for RecordingAgentRunner {
                 kind: RunEventKind::InvocationAdmitted {
                     invocation_id: spec.invocation_id.clone(),
                 },
-                at: self.admitted_at,
+                at: admitted_at,
             },
             spec.deadline,
         ) {
@@ -247,8 +269,8 @@ mod tests {
     use super::RecordingAgentRunner;
     use gauntlet_domain::{
         Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceKind, IterationNo, Limits,
-        MicroUsd, PermissionSetRef, ResultContractPath, RoleId, RunId, RunnerIdentity,
-        WorkspaceRef,
+        MicroUsd, PermissionSetRef, ResultContractPath, RoleId, RoleInvocation, RunId,
+        RunnerIdentity, WorkspaceRef,
     };
     use gauntlet_ports::agent_runner::{
         AgentError, AgentRunner, ContextEnvelope, InvocationHandle, InvocationStatus, Isolation,
@@ -256,7 +278,9 @@ mod tests {
     };
     use gauntlet_ports::deadline::Deadline;
     use gauntlet_ports::evidence_store::{EvidenceStore, EvidenceStoreError};
-    use gauntlet_ports::state_store::{Checkpoint, StateStore, StateStoreError};
+    use gauntlet_ports::state_store::{
+        Checkpoint, RunEvent, RunEventKind, StateStore, StateStoreError,
+    };
 
     const ID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
     const TEST_MAX_ROUNDS: u32 = 2;
@@ -303,6 +327,19 @@ mod tests {
                 result_delivery: ResultDelivery::File,
                 max_depth: 1,
             }
+        }
+    }
+
+    /// A fixed test clock — the fixture's own composition-time instant,
+    /// standing in for the app's real `Clock` (the production adapter is
+    /// out of this crate's reach; these tests only need a stable `now()`).
+    struct FixedClock(EpochSeconds);
+    impl super::Clock for FixedClock {
+        fn now(&self) -> EpochSeconds {
+            self.0
+        }
+        fn sleep_until(&self, _: EpochSeconds) -> Result<(), gauntlet_ports::clock::ClockError> {
+            Ok(())
         }
     }
 
@@ -422,7 +459,7 @@ mod tests {
             Arc::new(FailingState),
             Arc::new(UnusedEvidence),
             RunnerIdentity::new("recording-runner").expect("runner"),
-            EpochSeconds::new(1),
+            Arc::new(FixedClock(EpochSeconds::new(1))),
         );
         assert!(matches!(
             recording.invoke(spec()),
@@ -432,6 +469,181 @@ mod tests {
             *cancellations.borrow(),
             1,
             "unrecorded admission is cancelled, never polled"
+        );
+    }
+
+    /// A `now()` that ticks by a fixed step on every read — two `invoke`
+    /// calls observe two distinct instants, deterministically.
+    struct SteppingClock {
+        next: std::cell::Cell<u64>,
+        step: u64,
+    }
+    impl super::Clock for SteppingClock {
+        fn now(&self) -> EpochSeconds {
+            let at = self.next.get();
+            self.next.set(at + self.step);
+            EpochSeconds::new(at)
+        }
+        fn sleep_until(&self, _: EpochSeconds) -> Result<(), gauntlet_ports::clock::ClockError> {
+            Ok(())
+        }
+    }
+
+    /// A runner that always admits — the success leg the W4 clock test
+    /// needs (the failure-path `CancellingRunner` above never reaches
+    /// `RecordingAgentRunner::admitted`).
+    struct AlwaysAdmitsRunner;
+    impl AgentRunner for AlwaysAdmitsRunner {
+        fn invoke(&self, spec: RoleInvocationSpec) -> Result<InvocationHandle, AgentError> {
+            Ok(InvocationHandle::new(spec.invocation_id, None))
+        }
+        fn poll(&self, _: &InvocationHandle) -> Result<InvocationStatus, AgentError> {
+            Ok(InvocationStatus::Admitted)
+        }
+        fn collect(
+            &self,
+            _: &InvocationHandle,
+            _: Deadline,
+        ) -> Result<gauntlet_ports::role_result::RoleResult, AgentError> {
+            unreachable!("this fixture never collects")
+        }
+        fn cancel(
+            &self,
+            _: &InvocationHandle,
+            _: gauntlet_ports::CancelReason,
+            _: Deadline,
+        ) -> Result<(), AgentError> {
+            Ok(())
+        }
+        fn capabilities(&self) -> RunnerCapabilities {
+            RunnerCapabilities {
+                supports_native_subagents: false,
+                supports_streaming_events: false,
+                supports_model_selection: false,
+                isolation: Isolation::Process,
+                result_delivery: ResultDelivery::File,
+                max_depth: 1,
+            }
+        }
+    }
+
+    /// Records every durably-admitted invocation and event — the success
+    /// leg's observation surface (`FailingState` above only proves the
+    /// failure leg).
+    #[derive(Default)]
+    struct RecordingState {
+        invocations: RefCell<Vec<RoleInvocation>>,
+        events: RefCell<Vec<RunEvent>>,
+    }
+    impl StateStore for RecordingState {
+        fn append_event(
+            &self,
+            event: RunEvent,
+            _: Deadline,
+        ) -> Result<gauntlet_domain::EventLogOffset, StateStoreError> {
+            self.events.borrow_mut().push(event);
+            Ok(gauntlet_domain::EventLogOffset::new(
+                u64::try_from(self.events.borrow().len()).expect("small test count"),
+            ))
+        }
+        fn load_run(
+            &self,
+            _: &RunId,
+            _: Deadline,
+        ) -> Result<Option<gauntlet_domain::Run>, StateStoreError> {
+            Err(StateStoreError::ReadFailed {
+                detail: "unused".to_owned(),
+            })
+        }
+        fn checkpoint(&self, _: Checkpoint, _: Deadline) -> Result<(), StateStoreError> {
+            Err(StateStoreError::WriteFailed {
+                detail: "unused".to_owned(),
+            })
+        }
+        fn resume(&self, _: &RunId, _: Deadline) -> Result<Option<Checkpoint>, StateStoreError> {
+            Err(StateStoreError::ReadFailed {
+                detail: "unused".to_owned(),
+            })
+        }
+        fn export_jsonl(&self, _: &RunId, _: Deadline) -> Result<String, StateStoreError> {
+            Err(StateStoreError::ReadFailed {
+                detail: "unused".to_owned(),
+            })
+        }
+        fn record_role_invocation(
+            &self,
+            invocation: &RoleInvocation,
+            _: Deadline,
+        ) -> Result<(), StateStoreError> {
+            self.invocations.borrow_mut().push(invocation.clone());
+            Ok(())
+        }
+    }
+
+    fn spec_with_id(id: &str) -> RoleInvocationSpec {
+        let mut spec = spec();
+        spec.invocation_id = gauntlet_domain::InvocationId::new(id).expect("valid ulid");
+        spec.run_id = RunId::new(id).expect("valid ulid");
+        spec.result_contract_path =
+            ResultContractPath::new(&format!("critic-result-{id}")).expect("path");
+        spec
+    }
+
+    #[test]
+    fn two_admissions_at_different_clock_instants_record_different_at() {
+        // W4: `RecordingAgentRunner` reads `now()` once per `invoke` — two
+        // admissions at two different virtual-clock instants must record
+        // two DIFFERENT `admitted_at`/`InvocationAdmitted` instants, never
+        // the SAME construction-time snapshot reused for both.
+        const FIRST_ID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        const SECOND_ID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FBV";
+        const STEP: u64 = 137;
+        #[allow(clippy::arc_with_non_send_sync)]
+        let runner: Arc<dyn AgentRunner> = Arc::new(AlwaysAdmitsRunner);
+        #[allow(clippy::arc_with_non_send_sync)]
+        let state = Arc::new(RecordingState::default());
+        #[allow(clippy::arc_with_non_send_sync)]
+        let clock = Arc::new(SteppingClock {
+            next: std::cell::Cell::new(1_000),
+            step: STEP,
+        });
+        let recording = RecordingAgentRunner::new(
+            runner,
+            state.clone(),
+            Arc::new(UnusedEvidence),
+            RunnerIdentity::new("recording-runner").expect("runner"),
+            clock,
+        );
+        recording
+            .invoke(spec_with_id(FIRST_ID))
+            .expect("first admission succeeds");
+        recording
+            .invoke(spec_with_id(SECOND_ID))
+            .expect("second admission succeeds");
+
+        let invocations = state.invocations.borrow();
+        assert_eq!(invocations.len(), 2, "both admissions were recorded");
+        let first_at = invocations[0].admitted_at().expect("recorded admitted_at");
+        let second_at = invocations[1].admitted_at().expect("recorded admitted_at");
+        assert_ne!(
+            first_at, second_at,
+            "two admissions at different clock instants must not share admitted_at"
+        );
+        assert_eq!(second_at.get(), first_at.get() + STEP);
+
+        let events = state.events.borrow();
+        let admitted_ats: Vec<EpochSeconds> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                RunEventKind::InvocationAdmitted { .. } => Some(event.at),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            admitted_ats,
+            vec![first_at, second_at],
+            "the InvocationAdmitted event's `at` matches the record's own admitted_at, \
+             per invocation"
         );
     }
 }

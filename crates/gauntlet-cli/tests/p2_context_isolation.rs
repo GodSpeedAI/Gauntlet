@@ -1039,7 +1039,9 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
         state.clone(),
         evidence,
         RunnerIdentity::new("recording-critic-runner").expect("runner identity"),
-        EpochSeconds::new(BASE_INSTANT),
+        Arc::new(DeterministicClock::start_at(EpochSeconds::new(
+            BASE_INSTANT,
+        ))),
     ));
     let budget = dispatch_spec().budget_slice;
     let comparator = ModelComparator::with_clock(
@@ -1179,7 +1181,9 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
         rejected.clone(),
         rejected_evidence,
         RunnerIdentity::new("recording-critic-runner").expect("runner identity"),
-        EpochSeconds::new(BASE_INSTANT),
+        Arc::new(DeterministicClock::start_at(EpochSeconds::new(
+            BASE_INSTANT,
+        ))),
     ));
     let rejected_comparator = ModelComparator::with_clock(
         rejected_recording.clone(),
@@ -1284,7 +1288,9 @@ fn mandatory_acceptance_failure_is_non_success_and_never_writes_a_comparison() {
         state.clone(),
         evidence.clone(),
         RunnerIdentity::new("refusing-acceptance-runner").expect("runner"),
-        EpochSeconds::new(BASE_INSTANT),
+        Arc::new(DeterministicClock::start_at(EpochSeconds::new(
+            BASE_INSTANT,
+        ))),
     ));
     let comparator = ModelComparator::with_clock(
         recording.clone(),

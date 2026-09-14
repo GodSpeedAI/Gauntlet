@@ -969,7 +969,7 @@ pub fn compose_run(
         state.clone(),
         evidence.clone(),
         critic_identity,
-        clock.now(),
+        clock.clone(),
     ));
     let model = ModelComparatorSource::new(ModelComparator::with_clock(
         recording_critic_runner,

@@ -586,6 +586,14 @@ enum DispatchAdmission {
     /// (§11.6), never `budget_exhausted` — a governance fact is not a
     /// budget fact.
     GovernanceRefused { unit: UnitId },
+    /// W2: the runner refused ADMISSION itself (`AgentError::AdmissionRefused`
+    /// or `AgentError::Transport`) — a real agent-runner backend can refuse or
+    /// fail to start transiently. The refusal was pinned as evidence and
+    /// routed through the §11.5 disposition table (backoff, or escalate on
+    /// exhaustion); NO invocation exists, the workspace and reservation were
+    /// released, and the unit stays open and eligible for a later iteration
+    /// — never a run error (correction task26, W2).
+    AdmissionFailed { unit: UnitId },
 }
 
 /// One in-flight invocation the loop owns.
@@ -600,6 +608,19 @@ struct InFlight {
     timeout_retries_used: u32,
     /// §11.5 row-3 reminders already spent on this unit's attempt.
     reminders_used: u32,
+    /// W3: the clock instant `dispatch` admitted this invocation at.
+    /// Together with `completed_at`, the loop's own MEASURED wall time —
+    /// the honest floor under a runner's self-reported `wall_seconds`.
+    dispatched_at: EpochSeconds,
+    /// W3: the clock instant this flight's completion was FIRST observed
+    /// by `poll` (`Completed`). `None` while still in flight. A carried
+    /// completion (absorbed at a later iteration boundary) keeps the
+    /// instant it was first observed at — never recomputed on absorption.
+    completed_at: Option<EpochSeconds>,
+    /// W3: the latest `InvocationStatus::Running.payment_so_far` a poll
+    /// pass observed — real measured in-flight spend, read by the
+    /// in-flight budget guard after every poll pass.
+    payment_so_far: Payment,
 }
 
 /// The answer-key projection §11.4 step 3 compares across ticks: the four
@@ -955,7 +976,7 @@ impl RunController {
             deps.state.clone(),
             deps.evidence.clone(),
             deps.runner_identity,
-            deps.clock.now(),
+            deps.clock.clone(),
         );
         let observation_binding =
             ObservationBindingAuthority::new(deps.state.clone(), deps.evidence.clone());
@@ -1952,6 +1973,20 @@ impl RunController {
                 // does not stop its neighbors; the terminal decision
                 // below owns the run-level truth.
                 DispatchAdmission::GovernanceRefused { .. } => {}
+                // W2: the runner refused admission itself. The refusal was
+                // pinned, the workspace and reservation released, and the
+                // unit stays Open — the loop must simply iterate again
+                // (this bookkeeping is neither an admission nor an
+                // ineligibility the `classify_no_admission` budget/blocked
+                // table should reason about), UNLESS the disposition
+                // already escalated the run (state.terminal is set), in
+                // which case the plan's own remaining members are skipped.
+                DispatchAdmission::AdmissionFailed { .. } => {
+                    if state.terminal.is_some() {
+                        return Ok(());
+                    }
+                    admitted = true;
+                }
             }
         }
         if !admitted && state.in_flight.is_empty() {
@@ -2321,6 +2356,76 @@ impl RunController {
             .record_dispatch_tier(invocation_id.clone(), admission.tier());
         let handle = match self.runner.invoke(spec.clone()) {
             Ok(handle) => handle,
+            Err(error @ (AgentError::AdmissionRefused { .. } | AgentError::Transport { .. })) => {
+                // W2: an admission failure is a bounded retry, never a
+                // crashed run. A real agent-runner backend can refuse
+                // (`AdmissionRefused`) or fail to start transiently
+                // (`Transport`) — neither is a §11.6 integrity violation,
+                // so the run must not end `Err`.
+                //
+                // No invocation will run in the freshly allocated
+                // workspace: release it, and release the meter
+                // reservation this dispatch took above — an unreleased
+                // reservation would hold a parallel slot forever.
+                self.release_workspace(state, &spec.workspace);
+                let _ = state.meter.charge(&reservation, Payment::zero());
+                self.runner.unregister_dispatch_tier(&invocation_id);
+                let attempts_used = state.attempts.get(&unit).copied().unwrap_or(0);
+                *state.attempts.entry(unit.clone()).or_insert(0) = attempt;
+                let record = format!(
+                    "{{\"class\":\"invocation_admission_failed\",\"run\":\"{}\",\"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\",\"attempt\":{},\"error\":\"{}\"}}",
+                    state.run.id(),
+                    state.iteration,
+                    unit,
+                    invocation_id,
+                    attempt,
+                    escape_json_text(&error.to_string())
+                );
+                let pinned = self.evidence.put(
+                    record.as_bytes(),
+                    EvidenceKind::Log,
+                    self.operation_bound(),
+                )?;
+                self.evidence
+                    .pin(state.run.id(), &pinned, self.operation_bound())?;
+                let locus = match &error {
+                    AgentError::Transport { .. } => disposition::TransientLocus::Network,
+                    _ => disposition::TransientLocus::Process,
+                };
+                let cause = if attempts_used < self.policy.max_attempts_per_unit() {
+                    IterationCause::TransientError { locus, attempt }
+                } else {
+                    IterationCause::AttemptsExhausted { unit: unit.clone() }
+                };
+                return match disposition::dispose(cause, &self.policy) {
+                    Disposition::RetryAfterBackoff { delay_ms, .. } => {
+                        // Virtual-time backoff: advance the clock to the
+                        // retry instant, exactly like `dispose_transient`.
+                        // The unit stays Open and eligible — no queued
+                        // retry dispatch exists to build (no flight was
+                        // ever admitted), so the next iteration's plan
+                        // naturally re-considers it.
+                        let now = self.clock.now().get();
+                        self.clock
+                            .sleep_until(EpochSeconds::new(
+                                now.saturating_add(delay_ms.div_ceil(MILLIS_PER_SECOND)),
+                            ))
+                            .map_err(|error| {
+                                ControlError::Agent(AgentError::Transport {
+                                    detail: error.to_string(),
+                                })
+                            })?;
+                        Ok(DispatchAdmission::AdmissionFailed { unit })
+                    }
+                    Disposition::Escalate { reason } => {
+                        self.escalate(state, &unit, reason.to_string())?;
+                        Ok(DispatchAdmission::AdmissionFailed { unit })
+                    }
+                    other => unreachable!(
+                        "an admission-failure cause maps to backoff or escalate, got {other:?}"
+                    ),
+                };
+            }
             Err(error) => {
                 // No invocation will run in the freshly allocated
                 // workspace: release it best-effort before propagating
@@ -2361,6 +2466,9 @@ impl RunController {
             last_progress_at: now,
             timeout_retries_used,
             reminders_used,
+            dispatched_at: now,
+            completed_at: None,
+            payment_so_far: Payment::zero(),
         });
         Ok(DispatchAdmission::Admitted)
     }
@@ -2554,6 +2662,12 @@ impl RunController {
                 };
                 match status {
                     Ok(InvocationStatus::Completed { .. }) => {
+                        // W3: the instant THIS poll first observed the
+                        // completion — the loop's own measured half of the
+                        // charged wall (max(reported, measured)), read
+                        // once here and carried untouched through a
+                        // possible carry-to-next-iteration absorption.
+                        let completed_at = self.clock.now();
                         // COR-D2: the (run, iteration) observation binding
                         // is write-once while dispatch admits up to
                         // `max_parallel` completions per iteration. The
@@ -2564,7 +2678,8 @@ impl RunController {
                         // — never a second bundle for one key, never the
                         // store's collision refusal escaping the drain.
                         if state.iteration_binding_spent {
-                            let flight = state.in_flight.remove(index);
+                            let mut flight = state.in_flight.remove(index);
+                            flight.completed_at = Some(completed_at);
                             // The carry is PINNED as evidence (a fact about
                             // this completion's absorption, §21.2 — never a
                             // swallowed event): the unit, the invocation,
@@ -2587,7 +2702,8 @@ impl RunController {
                             state.carried.push(flight);
                             continue;
                         }
-                        let flight = state.in_flight.remove(index);
+                        let mut flight = state.in_flight.remove(index);
+                        flight.completed_at = Some(completed_at);
                         // The per-unit workspace is released AFTER the
                         // whole completion pipeline (§16 ordering: cleanup
                         // can neither precede nor preempt the settlement
@@ -2617,8 +2733,15 @@ impl RunController {
                             )?
                             .get();
                     }
-                    Ok(InvocationStatus::Running { last_event_at, .. }) => {
+                    Ok(InvocationStatus::Running {
+                        last_event_at,
+                        payment_so_far,
+                    }) => {
                         state.in_flight[index].last_progress_at = last_event_at;
+                        // W3: the runner's own real measured in-flight
+                        // spend — the in-flight budget guard below reads
+                        // this after every poll pass.
+                        state.in_flight[index].payment_so_far = payment_so_far;
                     }
                     Ok(InvocationStatus::Admitted) => {}
                     Err(error) => {
@@ -2633,6 +2756,68 @@ impl RunController {
                         let mut flight = state.in_flight.remove(index);
                         self.dispose_transient(state, &mut flight, error)?;
                     }
+                }
+            }
+            // Step 1.5 (W3 in-flight budget guard): a `Running` poll's own
+            // REAL measured spend can reveal a breach before any
+            // invocation ever completes — bound the exposure rather than
+            // wait for completion payments the run's own budget could
+            // never afford. "Remaining forward capacity" is read from the
+            // loop's own budget (the rounds/limits authority: forward
+            // ceiling = limit*(100-reserve_pct)/100, minus what is already
+            // charged) — NOT from the meter, whose `remaining()` already
+            // subtracts live reservations and would double-count this
+            // exposure.
+            if !state.in_flight.is_empty() {
+                let limits = state.budget.limits();
+                let spent = state.budget.spent();
+                let tokens_remaining = state
+                    .budget
+                    .forward_ceiling(limits.max_tokens())
+                    .saturating_sub(spent.tokens());
+                let cost_remaining_micros = state
+                    .budget
+                    .forward_ceiling(limits.max_cost_usd().get())
+                    .saturating_sub(spent.cost_usd().get());
+                let tokens_in_flight: u64 = state
+                    .in_flight
+                    .iter()
+                    .map(|flight| flight.payment_so_far.tokens())
+                    .sum();
+                let cost_in_flight_micros: u64 = state
+                    .in_flight
+                    .iter()
+                    .map(|flight| flight.payment_so_far.cost_usd().get())
+                    .sum();
+                if tokens_in_flight > tokens_remaining
+                    || cost_in_flight_micros > cost_remaining_micros
+                {
+                    let record = format!(
+                        "{{\"class\":\"budget_breach_in_flight\",\"run\":\"{}\",\"iteration\":{},\"tokens_in_flight\":{},\"cost_in_flight_micros\":{},\"tokens_remaining\":{},\"cost_remaining_micros\":{}}}",
+                        state.run.id(),
+                        state.iteration,
+                        tokens_in_flight,
+                        cost_in_flight_micros,
+                        tokens_remaining,
+                        cost_remaining_micros,
+                    );
+                    let evidence = self.evidence.put(
+                        record.as_bytes(),
+                        EvidenceKind::Log,
+                        self.operation_bound(),
+                    )?;
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                    // Terminal decided; the standard end-of-drain cleanup
+                    // below (once this while loop's guard sees the
+                    // terminal and exits) cancels every still-in-flight
+                    // invocation (tolerating `AlreadyTerminal`), releases
+                    // each flight, and pins its own
+                    // `terminal_stranded_invocations_retired` record — the
+                    // exact "cancel + release" shape this guard needs, so
+                    // it is not duplicated here.
+                    state.terminal = Some(TerminalState::BudgetExhausted);
+                    continue;
                 }
             }
             // Step 2: stall detection — no event and no result for the
@@ -3163,7 +3348,7 @@ impl RunController {
         // loop's own budget (the §18.2 `budget_spent` and the diagnostic
         // allowance both read from the loop's budget). Rounds book at the
         // ITERATION BOUNDARY (C2), never per payment.
-        let payment = payment_of(&result);
+        let payment = payment_of(&result, &flight);
         if let Err(error) = state.meter.charge(&flight.reservation, payment) {
             match error {
                 // A charge past the reservation or past the forward
@@ -4222,8 +4407,11 @@ impl RunController {
         });
         match selection {
             Ok(selection) => {
-                self.state
-                    .record_correction_selection(&selection, self.operation_bound())?;
+                self.state.record_correction_selection(
+                    &selection,
+                    self.clock.now(),
+                    self.operation_bound(),
+                )?;
                 Ok(())
             }
             Err(SelectionError::NoAdmissibleCandidate { rejected }) => {
@@ -4694,14 +4882,30 @@ fn refusal_kind(refusal: &crate::govern::GateRefusal) -> &'static str {
 }
 
 /// The §17.4 payment of a completed invocation: the result's own reported
-/// counters.
-fn payment_of(result: &RoleResult) -> Payment {
+/// counters, EXCEPT wall time (W3, correction task26-dcritic-apparatus-repair):
+/// a runner is untrusted external input (root AGENTS.md §5), so a
+/// self-reported `wall_seconds` of zero (or any understated figure) must
+/// never be the charged fact. The charged wall is
+/// `max(reported, measured)`, where measured is the loop's OWN clock delta
+/// between dispatch and the first-observed completion — never less than
+/// what the runner reports, never less than what the loop itself watched
+/// elapse.
+fn payment_of(result: &RoleResult, flight: &InFlight) -> Payment {
     let reported = result.payment();
+    let reported_wall_seconds = reported.wall_seconds();
+    // Every completion path stamps `completed_at` before charging; a
+    // missing stamp degrades to a zero measured wall (the reported figure
+    // still stands), never a panic in the loop.
+    let completed_at = flight.completed_at.unwrap_or(flight.dispatched_at);
+    let measured_wall_seconds = completed_at
+        .get()
+        .saturating_sub(flight.dispatched_at.get());
+    let charged_wall_seconds = reported_wall_seconds.max(measured_wall_seconds);
     Payment::new(
         reported
             .input_tokens()
             .saturating_add(reported.output_tokens()),
-        reported.wall_seconds(),
+        charged_wall_seconds,
         reported.tool_calls(),
         reported.cost_usd(),
     )
@@ -5064,6 +5268,22 @@ mod tests {
         ProgressForever {
             max_polls: u32,
         },
+        /// W3: reports ever-fresh progress like `ProgressForever`, but its
+        /// `Running.payment_so_far` carries a REAL non-zero token spend —
+        /// the lever the in-flight budget guard tests ride (a runner's own
+        /// measured in-flight spend, observed before the invocation ever
+        /// completes).
+        ProgressForeverWithPayment {
+            max_polls: u32,
+            tokens: u64,
+        },
+        /// `invoke` itself refuses admission with `AgentError::AdmissionRefused`
+        /// — the W2 admission-failure lever. Consumed at INVOKE time (never
+        /// admitted, so it never occupies a poll-behavior slot): the script
+        /// is a FIFO queue popped once per `invoke` call, and a refused
+        /// attempt leaves no prompt/spec behind, so the retry's own `invoke`
+        /// pops the NEXT scripted behavior.
+        AdmissionRefused,
     }
 
     /// The scripted runner: poll advances a script; completion happens only
@@ -5071,7 +5291,13 @@ mod tests {
     /// recorded for the re-dispatch assertions; an on-invoke hook lets a
     /// test mutate the world mid-run.
     struct ScriptedRunner {
+        /// FIFO queue popped once per `invoke` call (admitted or refused).
         behaviors: RefCell<Vec<Behavior>>,
+        /// The admitted invocation's OWN poll behavior, recorded at invoke
+        /// time — decoupled from `behaviors`' queue position so a refused
+        /// attempt (which consumes a queue slot but never admits) cannot
+        /// desynchronize a later admitted invocation's poll script.
+        behavior_by_id: RefCell<HashMap<gauntlet_domain::InvocationId, Behavior>>,
         prompts: RefCell<Vec<(gauntlet_domain::InvocationId, String)>>,
         specs: RefCell<HashMap<gauntlet_domain::InvocationId, RoleInvocationSpec>>,
         polls: RefCell<HashMap<gauntlet_domain::InvocationId, u32>>,
@@ -5083,6 +5309,7 @@ mod tests {
         fn new(behaviors: Vec<Behavior>) -> Arc<Self> {
             Arc::new(Self {
                 behaviors: RefCell::new(behaviors),
+                behavior_by_id: RefCell::new(HashMap::new()),
                 prompts: RefCell::new(Vec::new()),
                 specs: RefCell::new(HashMap::new()),
                 polls: RefCell::new(HashMap::new()),
@@ -5201,6 +5428,25 @@ mod tests {
 
     impl AgentRunner for ScriptedRunner {
         fn invoke(&self, spec: RoleInvocationSpec) -> Result<InvocationHandle, AgentError> {
+            // The script is a FIFO queue popped once per `invoke` call —
+            // an empty queue defaults to `Complete` (the historical
+            // behavior for every fixture that never scripts a refusal).
+            let next = {
+                let mut behaviors = self.behaviors.borrow_mut();
+                if behaviors.is_empty() {
+                    Behavior::Complete
+                } else {
+                    behaviors.remove(0)
+                }
+            };
+            if matches!(next, Behavior::AdmissionRefused) {
+                // Never admitted: no prompt, no spec, no handle — exactly
+                // the W2 shape `invoke` must produce for the controller's
+                // admission-failure retry to exercise.
+                return Err(AgentError::AdmissionRefused {
+                    detail: "the fixture runner scripted an admission refusal".to_owned(),
+                });
+            }
             self.prompts
                 .borrow_mut()
                 .push((spec.invocation_id.clone(), spec.prompt.clone()));
@@ -5208,6 +5454,9 @@ mod tests {
                 hook();
             }
             let invocation_id = spec.invocation_id.clone();
+            self.behavior_by_id
+                .borrow_mut()
+                .insert(invocation_id.clone(), next);
             self.specs.borrow_mut().insert(invocation_id.clone(), spec);
             Ok(InvocationHandle::new(
                 invocation_id,
@@ -5284,6 +5533,36 @@ mod tests {
                         payment_so_far: gauntlet_domain::Payment::zero(),
                     })
                 }
+                Behavior::ProgressForeverWithPayment { max_polls, tokens } => {
+                    // The preamble above already counted this poll.
+                    let spent = *self
+                        .polls
+                        .borrow()
+                        .get(handle.invocation_id())
+                        .unwrap_or(&0);
+                    if spent > max_polls {
+                        return Err(AgentError::Transport {
+                            detail: "the fixture runner exhausted its poll budget while the \
+                                     drain kept spinning"
+                                .to_owned(),
+                        });
+                    }
+                    Ok(InvocationStatus::Running {
+                        // Far-future progress: the quiet window can never
+                        // elapse against it.
+                        last_event_at: EpochSeconds::new(u64::MAX / 2),
+                        payment_so_far: gauntlet_domain::Payment::new(
+                            tokens,
+                            0,
+                            0,
+                            gauntlet_domain::MicroUsd::new(0),
+                        ),
+                    })
+                }
+                Behavior::AdmissionRefused => unreachable!(
+                    "AdmissionRefused is consumed entirely at invoke time — an invocation \
+                     with a handle was, by construction, never that behavior"
+                ),
             }
         }
 
@@ -5342,17 +5621,12 @@ mod tests {
 
     impl ScriptedRunner {
         fn behavior_of(&self, id: &gauntlet_domain::InvocationId) -> Behavior {
-            // The script is per-INVOCATION-ORDER: the k-th admitted
-            // invocation uses behaviors[k-1]. Deterministic and assertable.
-            let position = self
-                .prompts
+            // Recorded at `invoke` time, once this invocation was actually
+            // admitted — decoupled from the `behaviors` queue's position so
+            // a refused earlier attempt cannot desynchronize this lookup.
+            self.behavior_by_id
                 .borrow()
-                .iter()
-                .position(|(admitted, _)| admitted == id)
-                .unwrap_or(0);
-            let behaviors = self.behaviors.borrow();
-            behaviors
-                .get(position)
+                .get(id)
                 .cloned()
                 .unwrap_or(Behavior::Complete)
         }
@@ -5781,6 +6055,7 @@ mod tests {
         fn record_correction_selection(
             &self,
             selection: &gauntlet_domain::CorrectionSelection,
+            _: EpochSeconds,
             _: Deadline,
         ) -> Result<(), StateStoreError> {
             self.selections
@@ -10100,6 +10375,282 @@ mod tests {
             "every workspace the provider allocated — including one allocated for a \
              dispatch later truncated at the meter's capacity scope — must be released \
              by run end: created {created:?}, cleaned {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn an_admission_refusal_is_a_bounded_retry_that_still_settles() {
+        // W2 test (a): the runner refuses the FIRST invoke
+        // (`AgentError::AdmissionRefused` — a real agent-runner backend's
+        // refusal), the retry's invoke is admitted and completes. The run
+        // must settle, not error; exactly one `invocation_admission_failed`
+        // record is pinned; the refused attempt's workspace is released;
+        // and its meter reservation is released too (the retry's own
+        // reservation proves the slot is free — `granted == released`).
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::AdmissionRefused, Behavior::Complete]);
+        let workspaces = FixtureWorkspaces::new();
+        let tally = Arc::new(Mutex::new(MeterTally::default()));
+        let meter_tally = tally.clone();
+        let factory: Arc<
+            dyn Fn(Budget) -> Arc<dyn gauntlet_ports::budget_meter::BudgetMeter> + Send + Sync,
+        > = Arc::new(move |budget| {
+            #[allow(clippy::arc_with_non_send_sync)] // single-threaded proof fixture wiring
+            Arc::new(ObservingMeter {
+                inner: FakeMeter(Mutex::new(FakeMeterInner {
+                    budget,
+                    outstanding: 0,
+                })),
+                tally: meter_tally.clone(),
+            })
+        });
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            factory,
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed
+            .controller
+            .start_run()
+            .expect("an admission refusal never errors the run");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "the retry's admitted invocation settles the sole unit: {outcome:?}"
+        );
+        let records = evidence.records_containing("invocation_admission_failed");
+        assert_eq!(
+            records.len(),
+            1,
+            "exactly one admission-failure record is pinned: {records:?}"
+        );
+        let created: std::collections::BTreeSet<String> = workspaces
+            .created
+            .lock()
+            .expect("ledger locks")
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        let cleaned: std::collections::BTreeSet<String> = workspaces
+            .cleaned
+            .lock()
+            .expect("ledger locks")
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        assert_eq!(
+            created, cleaned,
+            "the refused attempt's freshly allocated workspace is released too: \
+             created {created:?}, cleaned {cleaned:?}"
+        );
+        let observed = tally.lock().expect("tally lock");
+        assert_eq!(
+            observed.granted, observed.released,
+            "the refused attempt's meter reservation is released — no parallel slot \
+             stays held forever (granted {}, released {})",
+            observed.granted, observed.released
+        );
+    }
+
+    #[test]
+    fn every_invoke_refused_escalates_instead_of_crashing_the_run() {
+        // W2 test (b): every invoke refuses admission. The §11.5 retry
+        // table bounds the retries by the unit's own attempt ceiling
+        // (`ATTEMPT_CAP`); once exhausted the run ends `Escalated` with a
+        // ticket — never `Err`, never a leaked workspace, one durable
+        // record per refused attempt.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![
+            Behavior::AdmissionRefused,
+            Behavior::AdmissionRefused,
+            Behavior::AdmissionRefused,
+        ]);
+        let workspaces = FixtureWorkspaces::new();
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed
+            .controller
+            .start_run()
+            .expect("exhausted admission retries end the run Ok, escalated — never Err");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Escalated,
+            "every admission refused exhausts the unit's attempt ceiling: {outcome:?}"
+        );
+        assert!(
+            outcome.escalation_summary.is_some(),
+            "an escalated terminal carries the ticket summary"
+        );
+        let records = evidence.records_containing("invocation_admission_failed");
+        assert_eq!(
+            records.len(),
+            3,
+            "one durable record per refused attempt: {records:?}"
+        );
+        let created: std::collections::BTreeSet<String> = workspaces
+            .created
+            .lock()
+            .expect("ledger locks")
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        let cleaned: std::collections::BTreeSet<String> = workspaces
+            .cleaned
+            .lock()
+            .expect("ledger locks")
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        assert_eq!(
+            created, cleaned,
+            "every allocated workspace is released, even across an escalated exhaustion: \
+             created {created:?}, cleaned {cleaned:?}"
+        );
+    }
+
+    #[test]
+    fn a_runners_understated_wall_is_never_the_charged_fact() {
+        // W3 test (a): the runner reports `wall_seconds: 0` (the
+        // `ScriptedRunner` completion fixture always does), but the
+        // virtual clock advances the loop's own dispatch-to-completion
+        // measurement by a large span (one poll pass, a poll interval
+        // widened to exactly that span). The charged payment must be
+        // max(reported, measured) — never the runner's understated figure.
+        const WIDE_TICK_WINDOW: u64 = 120_000;
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let wide_poll_policy = ControlPolicy::new(
+            WIDE_TICK_WINDOW,
+            QUIET_WINDOW,
+            FLOOR,
+            CEILING,
+            ATTEMPT_CAP,
+            THRESHOLD,
+        )
+        .expect("the widened-poll-interval fixture policy is usable");
+        let composed = compose_full(
+            key,
+            state.clone(),
+            evidence,
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            wide_poll_policy,
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            None,
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let checkpoint = composed
+            .state
+            .resume(&outcome.run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        let measured_floor_seconds = WIDE_TICK_WINDOW / super::MILLIS_PER_SECOND;
+        assert!(
+            checkpoint.budget_spent.wall_seconds() >= measured_floor_seconds,
+            "the loop's own measured wall floors the charged payment even though the \
+             runner reported zero: spent {} (floor {measured_floor_seconds})",
+            checkpoint.budget_spent.wall_seconds()
+        );
+    }
+
+    #[test]
+    fn a_running_payment_so_far_past_remaining_capacity_cancels_in_flight_and_exhausts() {
+        // W3 test (b): a poll's `Running.payment_so_far` — the runner's
+        // OWN real measured in-flight spend — exceeds the run's remaining
+        // forward token capacity. The guard must cancel the in-flight
+        // invocation, pin the breach record, and drive the terminal to
+        // `BudgetExhausted` — never let it settle on payment the run
+        // could never have afforded.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        // The forward token ceiling is `FIXTURE_TOKEN_CEILING * (100 -
+        // FIXTURE_RESERVE_PCT) / 100`; `ProgressForever` reports a fixed
+        // `Payment::zero()` today, so the guard needs a scripted behavior
+        // that reports a payment past that ceiling. `CompleteWithTokens`
+        // only shapes the COMPLETED report, not a `Running` poll, so this
+        // lever is `ProgressForeverWithPayment` — see the behavior/poll
+        // change below.
+        let over_ceiling_tokens = FIXTURE_TOKEN_CEILING + 1;
+        let runner = ScriptedRunner::new(vec![Behavior::ProgressForeverWithPayment {
+            max_polls: 5,
+            tokens: over_ceiling_tokens,
+        }]);
+        let composed = compose_full(
+            key,
+            state.clone(),
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            None,
+        )
+        .expect("composes");
+        let outcome = composed
+            .controller
+            .start_run()
+            .expect("an in-flight budget breach never errors the run");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::BudgetExhausted,
+            "in-flight spend past the remaining forward capacity exhausts the budget: \
+             {outcome:?}"
+        );
+        assert_eq!(
+            composed.runner.cancels().len(),
+            1,
+            "the over-capacity in-flight invocation was cancelled"
+        );
+        let records = evidence.records_containing("budget_breach_in_flight");
+        assert_eq!(
+            records.len(),
+            1,
+            "exactly one in-flight breach record is pinned: {records:?}"
+        );
+        assert!(
+            records[0].contains(&format!("\"tokens_in_flight\":{over_ceiling_tokens}")),
+            "the record names the in-flight tokens observed: {}",
+            records[0]
+        );
+        let settlements = composed
+            .state
+            .settlements(&outcome.run_id, bound())
+            .expect("settlements readable");
+        assert!(
+            settlements.is_empty(),
+            "the in-flight invocation never settles: {settlements:?}"
         );
     }
 

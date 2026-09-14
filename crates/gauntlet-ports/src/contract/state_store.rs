@@ -927,7 +927,9 @@ fn correction_selections_round_trip(factory: &dyn StateStoreFactory) -> Vec<Cont
         trace,
     )
     .expect("the suite selection satisfies the aggregate's invariants");
-    if let Err(error) = store.record_correction_selection(&selection, bound()) {
+    if let Err(error) =
+        store.record_correction_selection(&selection, EpochSeconds::new(BASE_INSTANT), bound())
+    {
         findings.push(finding(
             CASE,
             RULE,

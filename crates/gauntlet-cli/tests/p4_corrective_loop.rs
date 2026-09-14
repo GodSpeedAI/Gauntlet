@@ -396,10 +396,12 @@ impl StateStore for CountingState {
     fn record_correction_selection(
         &self,
         selection: &gauntlet_domain::CorrectionSelection,
+        at: gauntlet_domain::EpochSeconds,
         deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         self.selections.set(self.selections.get() + 1);
-        self.inner.record_correction_selection(selection, deadline)
+        self.inner
+            .record_correction_selection(selection, at, deadline)
     }
     fn correction_selections(
         &self,
@@ -1695,7 +1697,7 @@ fn correction_selection_durably_carries_rejected_alternatives_with_reasons() {
     // The record is durable through the SAME store path the loop's record
     // travels, and reads back whole: chosen, alternatives, and trace.
     state
-        .record_correction_selection(&selection, bound())
+        .record_correction_selection(&selection, EpochSeconds::new(BASE_INSTANT), bound())
         .expect("the selection records durably");
     let read_back = state
         .correction_selections(&run_id, bound())

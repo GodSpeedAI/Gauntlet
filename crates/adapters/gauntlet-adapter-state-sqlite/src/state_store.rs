@@ -1884,19 +1884,22 @@ impl StateStore for SqliteStateStore {
 
     /// The controller's §15.1 selection record (AK-037): one append-only
     /// `records` row per recorded selection, like the role-invocation
-    /// precedent. The `at` column carries zero — the port method takes no
-    /// clock and the aggregate carries no timestamp; record order (the
-    /// append's `seq`) is the ordering fact, exactly as for comparisons.
+    /// precedent. W4 (correction task26-dcritic-apparatus-repair): the `at`
+    /// column now carries the caller's own real clock reading — the
+    /// aggregate itself still carries no timestamp field (the column IS the
+    /// fact), so record order (the append's `seq`) remains the ordering
+    /// fact, but the row's own instant is honest.
     fn record_correction_selection(
         &self,
         selection: &CorrectionSelection,
+        at: EpochSeconds,
         deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         self.append_record(
             selection.run_id(),
             RecordKind::CorrectionSelection,
             &encode_correction_selection(selection),
-            EpochSeconds::new(0),
+            at,
             deadline,
         )
         .map(|_| ())
@@ -4417,10 +4420,10 @@ mod tests {
         // A second, later selection of the same run: record order holds.
         let later = selection();
         store
-            .record_correction_selection(&chosen, bound())
+            .record_correction_selection(&chosen, EpochSeconds::new(0), bound())
             .expect("the selection records");
         store
-            .record_correction_selection(&later, bound())
+            .record_correction_selection(&later, EpochSeconds::new(0), bound())
             .expect("the second selection records");
         let read = store
             .correction_selections(&run_id(), bound())
@@ -4470,6 +4473,33 @@ mod tests {
             )
             .expect("counts");
         assert_eq!(count, 3);
+    }
+
+    /// W4 (correction task26-dcritic-apparatus-repair): a selection
+    /// recorded at clock instant T stores T on its own `records` row —
+    /// never a fixed `EpochSeconds::new(0)` regardless of when it was
+    /// really recorded.
+    #[test]
+    fn a_correction_selection_stores_the_callers_real_clock_instant() {
+        const RECORDED_AT: u64 = 1_700_000_555;
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        store
+            .record_correction_selection(&selection(), EpochSeconds::new(RECORDED_AT), bound())
+            .expect("the selection records");
+        let at: i64 = store
+            .conn
+            .lock()
+            .expect("connection lock")
+            .query_row(
+                "SELECT at FROM records WHERE record_type = 'correction_selection'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("reads the row's own at column");
+        assert_eq!(
+            at as u64, RECORDED_AT,
+            "the row's at column carries the caller's real clock instant, not a fixed zero"
+        );
     }
 
     #[test]

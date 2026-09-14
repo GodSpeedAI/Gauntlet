@@ -2883,6 +2883,7 @@ impl StateStore for DurableStore {
     fn record_correction_selection(
         &self,
         selection: &gauntlet_domain::CorrectionSelection,
+        _at: gauntlet_domain::EpochSeconds,
         _deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         self.selections
@@ -3206,9 +3207,11 @@ impl StateStore for SettlementLaxStore {
     fn record_correction_selection(
         &self,
         selection: &gauntlet_domain::CorrectionSelection,
+        at: gauntlet_domain::EpochSeconds,
         deadline: Deadline,
     ) -> Result<(), StateStoreError> {
-        self.inner.record_correction_selection(selection, deadline)
+        self.inner
+            .record_correction_selection(selection, at, deadline)
     }
     fn correction_selections(
         &self,

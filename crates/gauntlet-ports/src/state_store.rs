@@ -475,9 +475,18 @@ pub trait StateStore {
     /// Appends one row per call (a selection is immutable once recorded —
     /// the same iteration may legitimately record a corrected selection
     /// later, which is a new row, never an edit of the old one).
+    ///
+    /// `at` (W4, correction task26-dcritic-apparatus-repair) is the caller's
+    /// own clock instant for the selection — the runtime is the single
+    /// writer (see above), so it is the runtime's clock reading, never a
+    /// store-invented value. `CorrectionSelection` itself carries no
+    /// timestamp field (the column IS the fact; the decoded aggregate needs
+    /// none), so a store that persists `at` exposes it only through its own
+    /// storage-specific read surface, if any.
     fn record_correction_selection(
         &self,
         _selection: &CorrectionSelection,
+        _at: EpochSeconds,
         _deadline: Deadline,
     ) -> Result<(), StateStoreError> {
         Err(StateStoreError::WriteFailed {
