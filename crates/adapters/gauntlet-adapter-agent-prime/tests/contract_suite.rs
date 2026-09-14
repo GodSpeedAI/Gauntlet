@@ -831,6 +831,10 @@ impl ParentHandle for RecordingParentHandle {
         self.terminated.set(true);
         "terminated (recording double)".to_owned()
     }
+
+    fn telemetry(&self) -> gauntlet_adapter_agent_prime::transport::ParentTelemetry {
+        gauntlet_adapter_agent_prime::transport::ParentTelemetry::default()
+    }
 }
 
 /// A transport whose admission handle is the suite's, but whose parent

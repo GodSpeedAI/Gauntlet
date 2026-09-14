@@ -371,7 +371,6 @@ mod tests {
     /// given stdout/stderr behavior.
     #[cfg(unix)]
     fn fixture_script(name: &str, stdout: &str, stderr: &str) -> PathBuf {
-        use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(format!(
             "gauntlet-prime-probe-{}-{}",
             std::process::id(),
@@ -384,8 +383,7 @@ mod tests {
             format!("#!/bin/sh\nprintf '%s' '{stdout}'\nprintf '%s' '{stderr}' >&2\n"),
         )
         .expect("fixture script is writable");
-        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
-            .expect("fixture script is chmodable");
+        crate::test_support::make_executable_ready(&script);
         script
     }
 

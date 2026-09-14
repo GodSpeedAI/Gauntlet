@@ -211,7 +211,7 @@ fn one_real_admission_completes_through_the_result_contract() {
          in flight — invoke waited on the parent run. forensics: {forensics}"
     );
     assert!(
-        forensics.contains("parent handle returned to the caller"),
+        forensics.contains("returned to the caller"),
         "RC1 violated: the transport must hand the live parent to the caller at admission, \
          never dispose of it itself. forensics: {forensics}"
     );
@@ -293,22 +293,23 @@ fn long_child_probe_requested() -> bool {
     std::env::var("GAUNTLET_PRIME_LIVE_LINGER_PROBE").as_deref() == Ok("1")
 }
 
-/// The RC1/RC2 real-binary proof (task26-dcritic-apparatus-repair): a
-/// child instructed to work LONGER than the DEFAULT admission linger
-/// (30 s — [`gauntlet_adapter_agent_prime::PrimeAdapterConfig::default`])
+/// The long-child real-binary proof (task26-dcritic-apparatus-repair
+/// rpc-mode correction): a child instructed to work for ~90 seconds
 /// before writing its result must still survive and land its result
-/// contract. Under the DEFECT this fixes — the transport killing the
-/// parent shortly after admission (a fixed `time.sleep(30)`, then
-/// disposal) — a child still working past that point was aborted
-/// mid-work (`Request was aborted`) exactly as the real run evidence
-/// showed. Under the fix, the parent's cell polls for the result file
-/// instead of sleeping a fixed span, bounded above by the invocation's
-/// own (generous) deadline, so a child that takes ~90 s survives.
+/// contract. Under the DEFECT the `--print` transport had — the parent
+/// session ending (at the end of one fixed-length cell, or when its
+/// process was disposed shortly after admission) aborted any `rlm` child
+/// still in flight (`Request was aborted`), exactly as the real run
+/// evidence showed. Under the rpc-mode fix, the parent process's
+/// lifetime is owned by the INVOCATION (its stdin stays open until the
+/// runner disposes it, never by any fixed span inside one rendered
+/// cell), so a child that takes ~90 s survives regardless of any
+/// per-cell timing.
 ///
 /// Gated by `GAUNTLET_PRIME_LIVE_LINGER_PROBE=1`; off by default (one
 /// real, slower model round trip).
 #[test]
-fn a_child_that_outlives_the_default_linger_still_lands_its_result() {
+fn a_long_running_child_still_lands_its_result() {
     if !long_child_probe_requested() {
         eprintln!(
             "skipped: GAUNTLET_PRIME_LIVE_LINGER_PROBE != 1 — this probe costs one real, \
@@ -318,11 +319,6 @@ fn a_child_that_outlives_the_default_linger_still_lands_its_result() {
     }
     let started = Instant::now();
     let config = PrimeAdapterConfig::default();
-    assert_eq!(
-        config.admission_linger_seconds, 30,
-        "this probe's premise is a child that outlives the DEFAULT linger; if the default \
-         changed, raise the child's own wait below to stay past it"
-    );
 
     let range = VersionRange {
         min: SUPPORTED_MIN,
@@ -432,16 +428,18 @@ fn a_child_that_outlives_the_default_linger_still_lands_its_result() {
     let InvocationStatus::Completed { result_ref } = status else {
         panic!(
             "the long-child live probe must reach Completed (the defect this fixes made a \
-             child working past the linger die with an aborted tool call), got {status:?} \
-             after {elapsed:?}"
+             child working past the parent's own turn die with an aborted tool call), got \
+             {status:?} after {elapsed:?}"
         )
     };
     assert_eq!(result_ref.as_str(), contract_leaf);
+    /// The floor the ~90 s child's real work must clear for this probe to
+    /// prove anything (well below its target, generous against jitter).
+    const MINIMUM_PROOF_SECONDS: u64 = 60;
     assert!(
-        elapsed >= Duration::from_secs(config.admission_linger_seconds),
-        "the child's real work ({elapsed:?}) must have outlasted the default linger \
-         ({} s) for this probe to prove anything",
-        config.admission_linger_seconds
+        elapsed >= Duration::from_secs(MINIMUM_PROOF_SECONDS),
+        "the child's real work ({elapsed:?}) must have taken at least \
+         {MINIMUM_PROOF_SECONDS} s for this probe to prove anything"
     );
 
     let result = runner

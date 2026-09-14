@@ -290,6 +290,17 @@ impl RoleResult {
         self.payment
     }
 
+    /// Replaces the payment block (task26-dcritic-apparatus-repair W1): an
+    /// adapter runner may hold MEASURED telemetry (parent + child usage
+    /// through its own transport) that the reported document under- or
+    /// over-states; `collect` installs the per-dimension max(reported,
+    /// measured) here. Every other field of the decoded, validated
+    /// document is untouched.
+    pub fn with_payment(mut self, payment: ResultPayment) -> Self {
+        self.payment = payment;
+        self
+    }
+
     pub fn unavailable_evidence(&self) -> &[UnavailableEvidenceEntry] {
         &self.unavailable_evidence
     }
@@ -1114,6 +1125,26 @@ pub struct ResultPayment {
 }
 
 impl ResultPayment {
+    /// A payment breakdown built from measured counters (task26-dcritic-
+    /// apparatus-repair W1: the runner replaces a REPORTED payment with the
+    /// per-dimension max of reported and MEASURED telemetry — this
+    /// constructor is how the measured side is built).
+    pub fn new(
+        input_tokens: u64,
+        output_tokens: u64,
+        tool_calls: u64,
+        wall_seconds: u64,
+        cost_usd: MicroUsd,
+    ) -> Self {
+        Self {
+            input_tokens,
+            output_tokens,
+            tool_calls,
+            wall_seconds,
+            cost_usd,
+        }
+    }
+
     pub fn input_tokens(&self) -> u64 {
         self.input_tokens
     }
@@ -1243,6 +1274,28 @@ mod tests {
     use gauntlet_domain::{InvocationId, MicroUsd, Payment, RoleId, RunId};
 
     const ULID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+
+    /// `with_payment` replaces only the payment block — every other
+    /// decoded field of a validated document is untouched (task26-dcritic-
+    /// apparatus-repair W1: the runner installs a measured payment at
+    /// `collect` time).
+    #[test]
+    fn with_payment_replaces_only_the_payment_block() {
+        let result = RoleResult::decode(&minimal_document()).expect("the minimal shape decodes");
+        let original_state = result.state();
+        let original_invocation = result.invocation_id().clone();
+        let elapsed = 44;
+        let measured = ResultPayment::new(11, 22, 3, elapsed, MicroUsd::new(555));
+        let replaced = result.with_payment(measured);
+        assert_eq!(replaced.payment(), measured);
+        assert_eq!(replaced.payment().input_tokens(), 11);
+        assert_eq!(replaced.payment().output_tokens(), 22);
+        assert_eq!(replaced.payment().tool_calls(), 3);
+        assert_eq!(replaced.payment().wall_seconds(), elapsed);
+        assert_eq!(replaced.payment().cost_usd(), MicroUsd::new(555));
+        assert_eq!(replaced.state(), original_state);
+        assert_eq!(replaced.invocation_id(), &original_invocation);
+    }
     const OTHER_ULID: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAB";
     const DIGEST: &str = "sha256:a1b2c3d4e5f6a7b8";
     const OTHER_DIGEST: &str = "sha256:e5f6a7b8a1b2c3d4";

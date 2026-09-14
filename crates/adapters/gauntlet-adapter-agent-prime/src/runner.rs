@@ -61,7 +61,7 @@
 //!   control environment, not a security sandbox (Annex C.2) — so
 //!   `isolation` is `None` unless something wraps this adapter, delivery
 //!   is `File` (the contract), native subagents are real, streaming is
-//!   not part of this adapter's print-mode surface, and `max_depth` is
+//!   not part of this adapter's rpc-mode surface, and `max_depth` is
 //!   the configured value.
 //!
 //! **Execution anchoring (RC4 correction, task26-dcritic-apparatus-
@@ -85,7 +85,7 @@
 //! [`gauntlet_adapter_agent_cli::runner`]'s COR-D3 anchor) — never a
 //! fallback to the workspace root or the project root on refusal.
 //!
-//! **What this anchor can and cannot enforce.** The parent print run's
+//! **What this anchor can and cannot enforce.** The parent process's
 //! `cwd` is set to the per-unit workspace, so the harness's `rlm(...)`
 //! call — issued by that same in-process Python kernel — inherits that
 //! cwd for any RELATIVE path a child resolves through it. But `rlm`
@@ -103,8 +103,12 @@
 //! Time comes from the INJECTED `Clock` port — never the system clock
 //! (the shared suite's pinned deadlines live in the past; only an
 //! injected clock drives them deterministically). `poll` reads the clock
-//! exactly once per call, after the contract read, so child-side
-//! behaviors keyed to virtual time stay deterministic under the suite.
+//! at most once per call for the deadline/`Running` path (after the
+//! contract read), so child-side behaviors keyed to virtual time stay
+//! deterministic under the suite; a Completed transition reads it once
+//! more, for the measured payment's `wall_seconds` (task26-dcritic-
+//! apparatus-repair W1) — the same RES-D12 pattern `admission_at` already
+//! used at `invoke`.
 //!
 //! The result contract is read in exactly two places, `poll` and
 //! `collect` (the crate-wide await-ban arch test pins this). The file
@@ -117,19 +121,20 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use gauntlet_domain::{EpochSeconds, InvocationId, InvocationState, Payment, SessionRef};
+use gauntlet_domain::{EpochSeconds, InvocationId, InvocationState, MicroUsd, Payment, SessionRef};
 use gauntlet_ports::agent_runner::{
     AgentError, AgentRunner, CancelReason, InvocationHandle, InvocationStatus, Isolation,
     ResultDelivery, RoleInvocationSpec, RunnerCapabilities,
 };
 use gauntlet_ports::clock::Clock;
 use gauntlet_ports::deadline::Deadline;
-use gauntlet_ports::role_result::{RoleResult, read_result_contract};
+use gauntlet_ports::role_result::{ResultPayment, RoleResult, read_result_contract};
 
 use crate::config::PrimeAdapterConfig;
 use crate::program::{KernelProgramSpec, compose_child_prompt, render};
 use crate::transport::{
-    ControlError, HarnessControl, KernelSubmission, KernelTransport, ParentHandle, SubagentRecord,
+    ControlError, HarnessControl, KernelSubmission, KernelTransport, ParentHandle, ParentTelemetry,
+    SubagentRecord, json_f64, json_str, json_u64,
 };
 
 /// One admitted invocation's live state.
@@ -169,6 +174,157 @@ fn append_control_note(entry: &mut PrimeEntry, note: String) {
         Some(existing) => format!("{existing}; {note}"),
         None => note,
     });
+}
+
+/// The measured (parent totalTokens + sum of latest child token_count)
+/// pair the rpc telemetry supports without any file IO — cheap enough to
+/// read on every `poll` (task26-dcritic-apparatus-repair W1).
+fn measured_tokens(telemetry: &ParentTelemetry) -> u64 {
+    telemetry.total_tokens.saturating_add(
+        telemetry
+            .children
+            .values()
+            .map(|child| child.token_count)
+            .fold(0u64, u64::saturating_add),
+    )
+}
+
+/// The measured (parent tool executions + sum of latest child
+/// tool_use_count) pair, the same cheap telemetry-only shape as
+/// [`measured_tokens`].
+fn measured_tool_calls(telemetry: &ParentTelemetry) -> u64 {
+    telemetry.tool_execution_count.saturating_add(
+        telemetry
+            .children
+            .values()
+            .map(|child| child.tool_use_count)
+            .fold(0u64, u64::saturating_add),
+    )
+}
+
+/// One child session directory's summed assistant usage, from its
+/// `*.jsonl` files (task26-dcritic-apparatus-repair W1: `collect`'s
+/// measured payment sums child cost/tokens from these files — the rpc
+/// stdout telemetry alone never carries per-child cost). `None` means the
+/// scan found nothing usable (directory unreadable, or no `.jsonl` file
+/// readable there) — the caller falls back to the cheaper telemetry
+/// counts for that child rather than treating it as zero spend.
+struct ChildSessionUsage {
+    input_tokens: u64,
+    output_tokens: u64,
+    cost_usd: MicroUsd,
+}
+
+/// A single child session file larger than this is skipped rather than
+/// read whole — bounded IO, never a load-bearing budget input.
+const CHILD_SESSION_FILE_CAP_BYTES: u64 = 64 * 1024 * 1024;
+
+fn scan_child_session_usage(session_dir: &str) -> Option<ChildSessionUsage> {
+    let entries = std::fs::read_dir(session_dir).ok()?;
+    let mut usage = ChildSessionUsage {
+        input_tokens: 0,
+        output_tokens: 0,
+        cost_usd: MicroUsd::new(0),
+    };
+    let mut any_file_read = false;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("jsonl") {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if metadata.len() > CHILD_SESSION_FILE_CAP_BYTES {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        any_file_read = true;
+        for line in text.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let Ok(document) = gauntlet_ports::json::parse(trimmed) else {
+                continue;
+            };
+            if json_str(&document, "type") != Some("message") {
+                continue;
+            }
+            let Some(message) = document.get("message") else {
+                continue;
+            };
+            if json_str(message, "role") != Some("assistant") {
+                continue;
+            }
+            let Some(usage_value) = message.get("usage") else {
+                continue;
+            };
+            usage.input_tokens += json_u64(usage_value, "input").unwrap_or(0);
+            usage.output_tokens += json_u64(usage_value, "output").unwrap_or(0);
+            if let Some(cost) = usage_value.get("cost")
+                && let Some(total) = json_f64(cost, "total")
+                && total.is_finite()
+                && total >= 0.0
+            {
+                let micros = (total * 1_000_000.0).round();
+                let micros = if micros >= u64::MAX as f64 {
+                    u64::MAX
+                } else {
+                    micros as u64
+                };
+                usage.cost_usd = MicroUsd::new(usage.cost_usd.get().saturating_add(micros));
+            }
+        }
+    }
+    any_file_read.then_some(usage)
+}
+
+/// The MEASURED payment at completion (task26-dcritic-apparatus-repair
+/// W1): parent usage from the telemetry snapshot, plus every child's
+/// usage — precisely from its session JSONL when that scan finds
+/// something, falling back to the child's cheap telemetry counters
+/// (`token_count` attributed to `input_tokens`, since the split is
+/// unknown from `rlm_child_update` alone) when it does not. `tool_calls`
+/// always comes from the cheap telemetry sum (no JSONL field carries it).
+/// `wall_seconds` is `completed_at - admission_at`, saturating.
+fn measured_payment(
+    telemetry: &ParentTelemetry,
+    admission_at: EpochSeconds,
+    completed_at: EpochSeconds,
+) -> ResultPayment {
+    let mut input_tokens = telemetry
+        .input_tokens
+        .saturating_add(telemetry.cache_read_tokens)
+        .saturating_add(telemetry.cache_write_tokens);
+    let mut output_tokens = telemetry.output_tokens;
+    let mut cost_micros = telemetry.cost_usd.get();
+    for child in telemetry.children.values() {
+        match child
+            .session_dir
+            .as_deref()
+            .and_then(scan_child_session_usage)
+        {
+            Some(usage) => {
+                input_tokens = input_tokens.saturating_add(usage.input_tokens);
+                output_tokens = output_tokens.saturating_add(usage.output_tokens);
+                cost_micros = cost_micros.saturating_add(usage.cost_usd.get());
+            }
+            None => {
+                input_tokens = input_tokens.saturating_add(child.token_count);
+            }
+        }
+    }
+    let wall_seconds = completed_at.get().saturating_sub(admission_at.get());
+    ResultPayment::new(
+        input_tokens,
+        output_tokens,
+        measured_tool_calls(telemetry),
+        wall_seconds,
+        MicroUsd::new(cost_micros),
+    )
 }
 
 /// Disposes of the parent process at a terminal transition (RC1
@@ -316,7 +472,7 @@ pub struct PrimeAgentRunner<T: KernelTransport, C: HarnessControl> {
 /// external input: it must be a single key-class component
 /// (`[A-Za-z0-9._-]`, the workspace provider's §17.5.3 class, re-derived
 /// here because this adapter depends on domain and ports only) before it
-/// may join, and the directory is ensured (the parent print run needs a
+/// may join, and the directory is ensured (the parent process needs a
 /// real cwd; the provider normally created it before dispatch). Any
 /// refusal is a typed `AdmissionRefused` — fail-closed at admission,
 /// before the kernel program is ever submitted, nothing left behind, and
@@ -479,7 +635,7 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         // state root, the contract token as the literal leaf.
         let files = invocation_dir(&self.state_dir, &spec)?;
         // The EXECUTION anchor (task26-dcritic-apparatus-repair, R-1b
-        // CLOSED): the admitted per-unit workspace the parent print run
+        // CLOSED): the admitted per-unit workspace the parent process
         // starts in — resolved and validated BEFORE any filesystem effect
         // or kernel submission, so a hostile/escaping `spec.workspace` is a
         // typed refusal with zero spawn (never a fallback to the project
@@ -520,13 +676,6 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
                 .model_hint
                 .as_ref()
                 .map(|model| model.as_str().to_owned()),
-            // COR-D2 #4: the parent's cell lingers past admission so the
-            // child materializes — the PARENT's linger, never a wait in
-            // invoke (D1 untouched). RC2: this is now the FLOOR of a
-            // result-aware bounded poll, not a fixed sleep.
-            linger_seconds: self.config.admission_linger_seconds,
-            result_contract_path: files.contract_file.to_string_lossy().into_owned(),
-            deadline_epoch: spec.deadline.instant().get(),
         });
         // ADMISSION ONLY (RES-D1): the transport watches for the HANDLE
         // FILE, parses it, and returns the four admission fields TOGETHER
@@ -623,6 +772,14 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         if let Some(note) = entry.parent.try_reap() {
             append_control_note(entry, format!("parent exited early: {note}"));
         }
+        // The telemetry snapshot (task26-dcritic-apparatus-repair W1):
+        // read once here — cheap (an `Arc<Mutex<_>>` clone), used below
+        // for BOTH the Completed measured-payment installation and the
+        // Running `payment_so_far`/`last_event_at`. It is METERING DATA
+        // ONLY; nothing branches admission/completion/timeout on it
+        // (Annex C.2/C.4 — the ONE state input stays the result contract,
+        // read next).
+        let telemetry = entry.parent.telemetry();
         // The ONE state input: the result contract at the declared path.
         // Liveness is NOT consulted (Annex C.4); no mailbox is read; the
         // parent run's output is never parsed (see the transport docs).
@@ -663,6 +820,25 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         };
         if let Some(terminal) = classification {
             entry.terminal = Some(terminal.clone());
+            if matches!(terminal, InvocationStatus::Completed { .. })
+                && let Some(result) = entry.result.take()
+            {
+                // The measured payment is installed HERE — while the
+                // parent is still live and its telemetry still valid —
+                // BEFORE `dispose_parent` below (task26-dcritic-apparatus-
+                // repair W1: "take telemetry BEFORE dispose_parent").
+                let completed_at = self.clock.now();
+                let measured = measured_payment(&telemetry, entry.admission_at, completed_at);
+                let reported = result.payment();
+                let combined = ResultPayment::new(
+                    reported.input_tokens().max(measured.input_tokens()),
+                    reported.output_tokens().max(measured.output_tokens()),
+                    reported.tool_calls().max(measured.tool_calls()),
+                    reported.wall_seconds().max(measured.wall_seconds()),
+                    MicroUsd::new(reported.cost_usd().get().max(measured.cost_usd().get())),
+                );
+                entry.result = Some(result.with_payment(combined));
+            }
             // The parent's job ended when the result contract landed
             // (RC1): dispose of it now rather than leave it running.
             dispose_parent(entry);
@@ -690,22 +866,46 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
             entry.terminal = Some(terminal.clone());
             return Ok(terminal);
         }
-        // RES-D12: `last_event_at` is the last observed state change of
-        // the result-contract path (mtime), falling back to the admission
-        // instant. `payment_so_far` is ZERO and is NOT A MEASUREMENT:
-        // child spend is not observable through this adapter's surface —
-        // budget truth stays with the runtime's `BudgetMeter` and the
-        // collected document's payment block (Annex B.1), never with this
-        // value.
-        let last_event_at = std::fs::symlink_metadata(&entry.contract_file)
+        // RES-D12 (revised, task26-dcritic-apparatus-repair W1 addendum):
+        // `last_event_at` is the LATEST of three floors — the
+        // result-contract path's mtime, the rpc telemetry's last parsed
+        // stdout event (any type, including `rlm_child_update` — a
+        // builder still emitting child telemetry is not stalled even
+        // though it has not yet written a contract file), and the
+        // admission instant. Without the telemetry floor a real builder
+        // working past the controller's stall window (liveness addendum)
+        // would read as stalled and be cancelled mid-work.
+        let contract_event_at = std::fs::symlink_metadata(&entry.contract_file)
             .ok()
             .and_then(|meta| meta.modified().ok())
             .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
-            .map(|since| EpochSeconds::new(since.as_secs()))
-            .unwrap_or(entry.admission_at);
+            .map(|since| EpochSeconds::new(since.as_secs()));
+        let telemetry_event_at =
+            (telemetry.last_event_epoch > 0).then(|| EpochSeconds::new(telemetry.last_event_epoch));
+        let last_event_at = [
+            contract_event_at,
+            telemetry_event_at,
+            Some(entry.admission_at),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+        .unwrap_or(entry.admission_at);
+        // `payment_so_far` is now MEASURED (task26-dcritic-apparatus-
+        // repair W1): tokens/tool_calls are the cheap telemetry sums
+        // (parent + latest per-child counters — no file IO on the poll
+        // hot path), wall is since admission, and cost is the PARENT's
+        // measured cost only (child cost needs the bounded session-JSONL
+        // scan, done once, at `collect`, never on every poll).
+        let payment_so_far = Payment::new(
+            measured_tokens(&telemetry),
+            now.get().saturating_sub(entry.admission_at.get()),
+            measured_tool_calls(&telemetry),
+            telemetry.cost_usd,
+        );
         Ok(InvocationStatus::Running {
             last_event_at,
-            payment_so_far: Payment::zero(),
+            payment_so_far,
         })
     }
 
@@ -841,5 +1041,229 @@ mod tests {
             InvocationFailure::MalformedResult.to_string(),
             InvocationFailure::ContractMismatch.to_string()
         );
+    }
+
+    // -----------------------------------------------------------------
+    // task26-dcritic-apparatus-repair W1: measured payment (telemetry-
+    // backed `payment_so_far`, and `collect`'s max(reported, measured)).
+    // -----------------------------------------------------------------
+
+    use crate::transport::{AdmissionHandle, ChildTelemetry, TransportError};
+
+    /// A [`ParentHandle`] double that reports a FIXED telemetry snapshot —
+    /// never a real process — so these tests never spawn anything.
+    #[derive(Debug, Clone)]
+    struct TelemetryParentHandle {
+        telemetry: ParentTelemetry,
+    }
+
+    impl ParentHandle for TelemetryParentHandle {
+        fn try_reap(&mut self) -> Option<String> {
+            None
+        }
+
+        fn terminate(&mut self) -> String {
+            "no-op: telemetry double".to_owned()
+        }
+
+        fn telemetry(&self) -> ParentTelemetry {
+            self.telemetry.clone()
+        }
+    }
+
+    /// A [`KernelTransport`] double that admits immediately and hands back
+    /// [`TelemetryParentHandle`] — the admission side effects the real
+    /// transport performs (spawning, writing/parsing a handle file) are
+    /// not this test's concern; only telemetry propagation is.
+    #[derive(Debug)]
+    struct TelemetryTransport {
+        telemetry: ParentTelemetry,
+    }
+
+    impl KernelTransport for TelemetryTransport {
+        fn submit(
+            &self,
+            _submission: &KernelSubmission,
+            _deadline: Deadline,
+        ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
+            Ok((
+                AdmissionHandle {
+                    rlm_child_id: "sub-telemetry01".to_owned(),
+                    name: "telemetry-invocation".to_owned(),
+                    session_dir: "/sessions/telemetry01".to_owned(),
+                    model: "fake-model".to_owned(),
+                },
+                Box::new(TelemetryParentHandle {
+                    telemetry: self.telemetry.clone(),
+                }) as Box<dyn ParentHandle>,
+            ))
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct NoopControl;
+
+    impl HarnessControl for NoopControl {
+        fn stop(&self, _child: &str, _deadline: Deadline) -> Result<(), ControlError> {
+            Ok(())
+        }
+
+        fn list(&self, _deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// A deterministic clock advancing by ONE second per `now()` call,
+    /// starting at [`crate::test_support::BASE_INSTANT`] — well under
+    /// `dispatch_spec()`'s deadline (`BASE_INSTANT + 30`), so these tests
+    /// never trip a timeout.
+    #[derive(Debug, Default)]
+    struct StepClock {
+        calls: std::sync::atomic::AtomicU64,
+    }
+
+    impl Clock for StepClock {
+        fn now(&self) -> EpochSeconds {
+            let next = self
+                .calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                + 1;
+            EpochSeconds::new(crate::test_support::BASE_INSTANT + next)
+        }
+
+        fn sleep_until(&self, _at: EpochSeconds) -> Result<(), gauntlet_ports::clock::ClockError> {
+            Ok(())
+        }
+    }
+
+    /// A fixed telemetry snapshot: nonzero parent usage, one child whose
+    /// `session_dir` is absent so [`scan_child_session_usage`] falls back
+    /// (proving the fallback path, not only the JSONL-scan path).
+    fn fixed_telemetry() -> ParentTelemetry {
+        let mut children = std::collections::HashMap::new();
+        children.insert(
+            "sub-child1".to_owned(),
+            ChildTelemetry {
+                status: "done".to_owned(),
+                token_count: 30,
+                tool_use_count: 1,
+                duration_ms: 500,
+                session_dir: None,
+            },
+        );
+        ParentTelemetry {
+            input_tokens: 40,
+            output_tokens: 20,
+            cache_read_tokens: 5,
+            cache_write_tokens: 5,
+            total_tokens: 70,
+            cost_usd: MicroUsd::new(1234),
+            tool_execution_count: 2,
+            children,
+            ..ParentTelemetry::default()
+        }
+    }
+
+    fn scratch(tag: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQUENCE: AtomicU32 = AtomicU32::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-prime-runner-{tag}-{}-{}",
+            std::process::id(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("the runner test scratch is creatable");
+        dir
+    }
+
+    /// `poll`'s `Running.payment_so_far` is now MEASURED and nonzero:
+    /// parent totalTokens + the one child's token_count, parent tool
+    /// executions + the child's tool_use_count, and the parent's cost.
+    #[test]
+    fn poll_reports_nonzero_measured_payment_so_far() {
+        let runner = PrimeAgentRunner::new(
+            PrimeAdapterConfig::default(),
+            scratch("payment-state"),
+            scratch("payment-cwd"),
+            TelemetryTransport {
+                telemetry: fixed_telemetry(),
+            },
+            NoopControl,
+            Arc::new(StepClock::default()),
+        );
+        let spec = dispatch_spec();
+        let handle = runner.invoke(spec).expect("the telemetry double admits");
+        let status = runner.poll(&handle).expect("poll succeeds");
+        let InvocationStatus::Running { payment_so_far, .. } = status else {
+            panic!("expected Running (no contract file written), got {status:?}")
+        };
+        assert_eq!(payment_so_far.tokens(), 100, "70 parent + 30 child");
+        assert_eq!(payment_so_far.tool_calls(), 3, "2 parent + 1 child");
+        assert_eq!(payment_so_far.cost_usd(), MicroUsd::new(1234));
+    }
+
+    /// `collect`'s payment is the per-dimension max(reported, measured):
+    /// a document reporting an ALL-ZERO payment is completed against
+    /// nonzero telemetry, so every dimension of the collected payment
+    /// comes from the measured side.
+    #[test]
+    fn collect_installs_the_max_of_reported_and_measured_payment() {
+        let state_dir = scratch("collect-state");
+        let runner = PrimeAgentRunner::new(
+            PrimeAdapterConfig::default(),
+            state_dir.clone(),
+            scratch("collect-cwd"),
+            TelemetryTransport {
+                telemetry: fixed_telemetry(),
+            },
+            NoopControl,
+            Arc::new(StepClock::default()),
+        );
+        let spec = dispatch_spec();
+        let files = invocation_dir(&state_dir, &spec).expect("the leaf token resolves");
+        let handle = runner
+            .invoke(spec.clone())
+            .expect("the telemetry double admits");
+        // A validated document reporting an ALL-ZERO payment.
+        let document = format!(
+            "{{\"schema\":\"role_result@v1\",\"invocation_id\":\"{id}\",\"run_id\":\"{run}\",\
+             \"iteration_no\":1,\"role\":\"builder\",\"context_envelope_digest\":\"{digest}\",\
+             \"state\":\"completed\",\"payload_schema\":\"builder_result@v1\",\"payload\":{{\
+             \"attempted\":[],\"changed_paths\":[],\"commands_run\":[],\"artifacts\":[],\
+             \"claims\":[],\"self_checks\":[],\"blocked_on\":[]}},\"payment\":{{\
+             \"input_tokens\":0,\"output_tokens\":0,\"tool_calls\":0,\"wall_seconds\":0,\
+             \"cost_usd\":0}},\"unavailable_evidence\":[],\"errors\":[]}}",
+            id = spec.invocation_id.as_str(),
+            run = spec.run_id.as_str(),
+            digest = spec.context_envelope.digest(),
+        );
+        std::fs::write(&files.contract_file, document).expect("the contract document is writable");
+        let status = runner.poll(&handle).expect("poll classifies the document");
+        assert!(
+            matches!(status, InvocationStatus::Completed { .. }),
+            "got {status:?}"
+        );
+        let result = runner
+            .collect(&handle, Deadline::at_epoch(EpochSeconds::new(u64::MAX / 2)))
+            .expect("a Completed invocation is collectible");
+        let payment = result.payment();
+        assert_eq!(
+            payment.input_tokens(),
+            80,
+            "(40+5+5 parent) + 30 child fallback"
+        );
+        assert_eq!(
+            payment.output_tokens(),
+            20,
+            "parent only — no child JSONL scan hit"
+        );
+        assert_eq!(payment.tool_calls(), 3, "2 parent + 1 child");
+        assert_eq!(payment.cost_usd(), MicroUsd::new(1234));
+        assert!(
+            payment.wall_seconds() >= 1,
+            "wall must be measured, not the reported 0"
+        );
+        std::fs::remove_dir_all(&state_dir).ok();
     }
 }

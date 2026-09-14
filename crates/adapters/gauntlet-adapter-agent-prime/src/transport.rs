@@ -20,22 +20,31 @@
 //! must NOT conclude failure — so `list` is never a poll input; the
 //! runner calls `stop` on cancellation and nothing else).
 //!
-//! **Parent process ownership (task26-dcritic-apparatus-repair, RC1
-//! correction — supersedes the premise below).** [`KernelTransport::submit`]
-//! now returns the admission handle TOGETHER WITH a [`ParentHandle`]: the
-//! live parent print-run process, handed to the caller so the INVOCATION
-//! owns its lifetime, not the transport. The transport's earlier posture —
-//! "a print run is disposable; its daemon-backed child is what survives" —
-//! was FALSE for prime-agent 0.8.0 (verified by execution, task26 real-run
-//! evidence): a child of a print-mode parent materializes and keeps
-//! running ONLY while the parent session stays alive (see `program.rs`'s
-//! module docs, COR-D2 divergence #4). Disposing of the parent right after
-//! admission — the previous "detached bounded reaper" — killed the parent
-//! the child depended on mid-work, which is exactly the defect this
-//! correction fixes: real work aborts with `Request was aborted`, the
-//! runner then polls for a result that can never arrive, and the eventual
-//! timeout's `stop` on a harness child that was never daemon-registered
-//! failed and was (before RC3, below) treated as fatal.
+//! **Parent process ownership (task26-dcritic-apparatus-repair).**
+//! [`KernelTransport::submit`] returns the admission handle TOGETHER WITH a
+//! [`ParentHandle`]: the live parent process, handed to the caller so the
+//! INVOCATION owns its lifetime, not the transport. An earlier posture
+//! here — "a print run is disposable; its daemon-backed child is what
+//! survives" — was FALSE for prime-agent 0.8.0 (verified by execution,
+//! task26 real-run evidence): a child of a `--print` parent materializes
+//! and keeps running ONLY while the parent session stays alive, and
+//! `--print`'s own system prompt forbids the keep-alive loop that
+//! requires ("start the work, record its handle or output location, then
+//! end your turn … Do not keep the turn open by polling with
+//! `time.sleep()`") — a parent model shown that loop-bearing cell refused
+//! to run it, and nothing was ever admitted.
+//!
+//! **rpc-mode correction (supersedes `--print`).** The parent is now
+//! spawned `<binary> --mode rpc`: it reads JSON commands on stdin and
+//! stays alive until stdin closes (then waits for idle work and exits),
+//! independent of what any one rendered cell does. `submit` writes ONE
+//! `{"type":"prompt",...}` line and keeps stdin OPEN — the returned
+//! [`ParentHandle`] owns that pipe, so closing it (on `terminate`/`Drop`)
+//! is what ends the parent's turn. A background reader thread parses the
+//! newline-delimited JSON events the harness prints on stdout (parent
+//! usage, tool-execution counts, per-child telemetry) into a shared
+//! [`ParentTelemetry`] the runner reads for `payment_so_far` and the
+//! measured payment at collection (see `runner.rs`).
 //!
 //! Both seams have ONE production implementation apiece, shelling out to
 //! the configured binary through `std::process` — no external dependency
@@ -43,8 +52,12 @@
 //! shared contract suite runs against those, never against a harness).
 
 use core::fmt;
+use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
+use gauntlet_domain::MicroUsd;
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::json::{self, JsonValue};
 
@@ -135,6 +148,91 @@ pub struct KernelSubmission {
     pub handle_path: PathBuf,
     pub workspace: PathBuf,
     pub model_hint: Option<String>,
+}
+
+/// One harness child's latest telemetry, as the rpc-mode parent's
+/// `rlm_child_update` stdout events report it (task26-dcritic-apparatus-
+/// repair W1). The event is emitted repeatedly per child; only the LATEST
+/// record per child id is kept.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChildTelemetry {
+    pub status: String,
+    pub token_count: u64,
+    pub tool_use_count: u64,
+    pub duration_ms: u64,
+    pub session_dir: Option<String>,
+}
+
+/// The rpc-mode parent's live telemetry, accumulated by
+/// [`ProcessKernelTransport`]'s stdout reader thread from the harness's
+/// newline-delimited JSON events (task26-dcritic-apparatus-repair W1):
+/// the PARENT's own usage (summed over every `message_end` whose message
+/// `role` is `assistant` — a user-role `message_end` carries no
+/// meaningful usage and is skipped), its tool-execution count, and the
+/// LATEST per-child record from `rlm_child_update`. FORENSIC/METERING
+/// DATA ONLY: nothing here decides `Completed`/`Failed` (that is still
+/// the result contract alone, Annex C.2/C.4) — the runner reads it only
+/// for `payment_so_far` and the measured payment installed at `collect`.
+///
+/// A plain public struct with a zero [`Default`] (`NullParentHandle`
+/// reports exactly this): every reader gets an owned snapshot via
+/// [`ParentHandle::telemetry`], never a lock held across a call.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ParentTelemetry {
+    /// `Some(true)`/`Some(false)` once the admission prompt's `response`
+    /// event lands; `None` while still awaited. `Some(false)` carries its
+    /// text in `prompt_error`.
+    pub prompt_accepted: Option<bool>,
+    pub prompt_error: Option<String>,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_write_tokens: u64,
+    pub total_tokens: u64,
+    pub cost_usd: MicroUsd,
+    pub tool_execution_count: u64,
+    pub children: HashMap<String, ChildTelemetry>,
+    /// The wall-clock epoch second of the last stdout event the reader
+    /// thread parsed (any type, including `rlm_child_update`) — the
+    /// runner's `Running.last_event_at` floor, so a long-running child
+    /// that is still emitting telemetry is never mistaken for a stalled
+    /// invocation (coordinator addendum, task26-dcritic-apparatus-repair).
+    pub last_event_epoch: u64,
+    /// The count of `agent_end` events observed (coordinator review
+    /// finding, task26-dcritic-apparatus-repair): under rpc mode a parent
+    /// that REFUSES the cell does not exit — its turn just ends and it
+    /// idles — so `agent_end` with no handle file is the refusal signal
+    /// the handle watch needs; a real admission never emits `agent_end`
+    /// before the handle exists (see `a_refusal_ends_admission_promptly`).
+    pub agent_end_count: u64,
+    /// The last assistant `message_end`'s text content, concatenated from
+    /// every `content[]` item with `type:"text"`, truncated to 2000 bytes
+    /// on a char boundary — carried into the refusal detail so the
+    /// operator sees WHY the parent refused, not just that it did.
+    pub last_assistant_text: Option<String>,
+}
+
+/// The last-assistant-text cap, in bytes (truncated on a char boundary).
+const LAST_ASSISTANT_TEXT_CAP_BYTES: usize = 2000;
+
+impl Default for ParentTelemetry {
+    fn default() -> Self {
+        Self {
+            prompt_accepted: None,
+            prompt_error: None,
+            input_tokens: 0,
+            output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
+            total_tokens: 0,
+            cost_usd: MicroUsd::new(0),
+            tool_execution_count: 0,
+            children: HashMap::new(),
+            last_event_epoch: 0,
+            agent_end_count: 0,
+            last_assistant_text: None,
+        }
+    }
 }
 
 /// Kernel-transport failures — typed, carrying the locus (spec §21.2).
@@ -229,11 +327,18 @@ pub trait ParentHandle: fmt::Debug {
     /// already-collected child). FORENSICS ONLY.
     fn try_reap(&mut self) -> Option<String>;
 
-    /// Terminates the parent (SIGTERM, a bounded grace, then a
-    /// last-resort kill) and returns a forensic note describing the
-    /// disposition. Idempotent: calling it again after the parent is
-    /// already gone is a cheap no-op that still returns a note.
+    /// Terminates the parent (stdin EOF first for an rpc-mode process, a
+    /// bounded grace, then a last-resort SIGTERM/kill) and returns a
+    /// forensic note describing the disposition. Idempotent: calling it
+    /// again after the parent is already gone is a cheap no-op that still
+    /// returns a note.
     fn terminate(&mut self) -> String;
+
+    /// A snapshot of the parent's accumulated telemetry (task26-dcritic-
+    /// apparatus-repair W1) — zeroed/`None` fields for a double that
+    /// models no real process. FORENSIC/METERING DATA ONLY (see
+    /// [`ParentTelemetry`]'s docs).
+    fn telemetry(&self) -> ParentTelemetry;
 }
 
 /// A [`ParentHandle`] for kernel-transport doubles that model no real
@@ -250,6 +355,10 @@ impl ParentHandle for NullParentHandle {
 
     fn terminate(&mut self) -> String {
         "no-op: this double models no real parent process".to_owned()
+    }
+
+    fn telemetry(&self) -> ParentTelemetry {
+        ParentTelemetry::default()
     }
 }
 
@@ -321,27 +430,58 @@ const PROCESS_POLL_MILLIS: u64 = 50;
 /// never approach the admission bound in usable configurations).
 const STOP_GRACE_SECS: u64 = 1;
 
+/// The grace an rpc-mode parent gets, after its stdin closes (EOF), to
+/// notice and exit cleanly before falling back to the SIGTERM/kill ladder
+/// (task26-dcritic-apparatus-repair: `--mode rpc` waits for idle work and
+/// then exits 0 on stdin EOF — this is the bounded wait for that clean
+/// exit, not a substitute for it).
+const RPC_EOF_GRACE_SECS: u64 = 3;
+
+/// The grace the handle watch gives a genuine admission whose atomic
+/// handle write is still in flight when `agent_end` fires, before
+/// concluding the parent refused the cell (coordinator review finding,
+/// task26-dcritic-apparatus-repair) — measured from the FIRST observed
+/// `agent_end`, not from admission start.
+const AGENT_END_REFUSAL_GRACE_SECS: u64 = 3;
+
+/// The maximum single stdout line the rpc-mode event reader will attempt
+/// to parse; longer lines are skipped whole rather than grown without
+/// bound (a hostile or malfunctioning harness must not exhaust memory).
+const RPC_STDOUT_LINE_CAP_BYTES: usize = 4 * 1024 * 1024;
+
+/// The bounded buffer the stderr-drain thread accumulates for forensics;
+/// stderr is never a result or telemetry source, only diagnostic text.
+const RPC_STDERR_BUFFER_CAP_BYTES: usize = 64 * 1024;
+
+/// The fixed id of the one prompt line `submit` writes — stable so a
+/// fixture or a future multi-command protocol can recognize it.
+const RPC_PROMPT_ID: &str = "gauntlet-admit";
+
 /// The production kernel transport: it receives the rendered submission,
-/// starts ONE headless parent print run over the configured binary with
-/// the program inline (delimited, verbatim), and then — this is the load-
-/// bearing shape (correction RES-D1) — watches for the HANDLE FILE under
-/// a bounded deadline. `invoke` returns the moment the handle exists and
-/// strict-parses; the parent print run's LIFETIME is NOT admission. On
-/// the SUCCESS path the still-live parent [`std::process::Child`] is
-/// wrapped as a [`RealParentHandle`] and handed back to the CALLER (RC1
-/// correction, task26-dcritic-apparatus-repair): the transport never
-/// disposes of a successfully-admitted parent itself — the runner owns
-/// its lifetime for as long as the invocation lives (see the module
-/// docs). On the failure paths nothing was admitted, so the bounded stop
-/// stays immediate and inline. Every step's outcome is recorded as
-/// forensics. A parent model that rambles after the cell — or waits on
-/// its child — cannot stretch admission, and invoke can never collapse
+/// starts ONE `<binary> --mode rpc` process over the configured binary,
+/// writes ONE prompt line carrying the program (delimited, verbatim) on
+/// its stdin, and then — this is the load-bearing shape (correction
+/// RES-D1) — watches for the HANDLE FILE under a bounded deadline.
+/// `invoke` returns the moment the handle exists and strict-parses; the
+/// parent process's LIFETIME is NOT admission. On the SUCCESS path the
+/// still-live parent [`std::process::Child`], its still-OPEN stdin pipe,
+/// and the shared telemetry sink are wrapped as a [`RealParentHandle`]
+/// and handed back to the CALLER (task26-dcritic-apparatus-repair): the
+/// transport never disposes of a successfully-admitted parent itself —
+/// the runner owns its lifetime for as long as the invocation lives (see
+/// the module docs). On the failure paths nothing was admitted, so stdin
+/// is closed and the bounded stop runs immediately and inline. Every
+/// step's outcome is recorded as forensics. `invoke` can never collapse
 /// admission and completion into one blocking call (spec §6.1: "invoke
 /// MUST return promptly after admission"; AK-009).
 ///
-/// The parent run's stdout/stderr are piped and DISCARDED beyond this
-/// module: they are never a result source (the arch await-ban scan pins
-/// that no result-decoding call exists outside the runner's poll/collect).
+/// The parent's stdout is piped to a background reader thread that
+/// parses the harness's newline-delimited JSON events into a shared
+/// [`ParentTelemetry`] — metering/forensics only, never a result source
+/// (the arch await-ban scan pins that no result-decoding call exists
+/// outside the runner's poll/collect). Its stderr is drained into a
+/// bounded buffer by a second thread so the pipe can never block the
+/// parent; that buffer is diagnostic text only.
 #[derive(Debug)]
 pub struct ProcessKernelTransport {
     binary: PathBuf,
@@ -369,18 +509,21 @@ impl ProcessKernelTransport {
         self.forensics.lock().expect("the forensics mutex").take()
     }
 
-    /// The parent run's message: instruction + the program, delimited.
+    /// The parent's message: instruction + the program, delimited. The
+    /// rpc-mode correction (task26-dcritic-apparatus-repair) drops the
+    /// old keep-alive justification entirely — the parent PROCESS now
+    /// outlives this one turn on its own (it stays alive until its stdin
+    /// closes), so the instruction is exactly what prime-agent's own
+    /// system prompt asks for: start the work, record the handle, end the
+    /// turn.
     fn parent_message(program: &str) -> String {
         format!(
-            "Execute the following Python program VERBATIM as a single IPython cell. \
-             Do not modify it, do not summarize it, do not answer its prompt yourself. \
-             It delegates work, records an admission handle to a file, and then keeps \
-             this session alive until the delegated work's result FILE appears or a \
-             deadline passes. That final loop is required, not a violation of \
-             nonblocking delegation: the harness aborts a child when its parent session \
-             ends, and the loop never reads or waits on the child's reply, only on a \
-             file's existence. Do not wait for the child in any other way; your part \
-             ends when the cell returns.\n\
+            "Run the following Python program VERBATIM as a single IPython cell, exactly \
+             once. Do not modify it, do not summarize it, do not answer its prompt \
+             yourself. It starts delegated work and records that delegation's admission \
+             handle to a file. Once the cell returns, end your turn. If a delegated \
+             worker later sends you a message, take no further action — end your turn \
+             again.\n\
              <<<GAUNTLET_PROGRAM_BEGIN>>>\n{program}<<<GAUNTLET_PROGRAM_END>>>\n"
         )
     }
@@ -463,23 +606,270 @@ fn stop_bounded(child: &mut std::process::Child, linger: std::time::Duration) ->
     note
 }
 
-/// The production [`ParentHandle`]: a live parent-run [`std::process::Child`]
-/// (RC1 correction). `try_reap` is a cheap, non-blocking, ONE-SHOT
-/// `try_wait` — forensics only, never a completion/failure signal. Once
-/// the process is observed exited it is marked `reaped` so a second
-/// `try_wait` never runs (the OS has already collected the child; calling
-/// it again is at best a wasted syscall and at worst an error on some
-/// platforms).
+/// Closes the parent's stdin (an rpc-mode process reads EOF as "no more
+/// commands", waits for idle work, and exits 0) and gives it
+/// [`RPC_EOF_GRACE_SECS`] to do exactly that before falling back to the
+/// SIGTERM/kill ladder ([`stop_bounded`], zero linger — nothing left to
+/// linger for once stdin is already closed). The ONE shutdown routine,
+/// shared by `submit`'s failure path and [`RealParentHandle::terminate`].
+fn close_then_stop(
+    child: &mut std::process::Child,
+    stdin: Option<std::process::ChildStdin>,
+) -> String {
+    let mut note = String::new();
+    if stdin.is_some() {
+        note.push_str("stdin closed (rpc EOF); ");
+    }
+    drop(stdin); // closing stdin is the signal; nothing more to write.
+    let grace_ends = ProcessKernelTransport::now_secs().saturating_add(RPC_EOF_GRACE_SECS);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                note.push_str(&format!("parent exited after stdin EOF ({status})"));
+                return note;
+            }
+            Ok(None) => {
+                if ProcessKernelTransport::now_secs() >= grace_ends {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(PROCESS_POLL_MILLIS));
+            }
+            Err(error) => {
+                note.push_str(&format!("waiting after stdin EOF failed: {error}; "));
+                break;
+            }
+        }
+    }
+    note.push_str(&stop_bounded(child, std::time::Duration::ZERO));
+    note
+}
+
+/// The value at `field` inside a JSON string field, if present and typed.
+pub(crate) fn json_str<'a>(value: &'a JsonValue, field: &str) -> Option<&'a str> {
+    match value.get(field) {
+        Some(JsonValue::Str(text)) => Some(text.as_str()),
+        _ => None,
+    }
+}
+
+/// The value at `field` as a non-negative integer, if present and typed
+/// (a non-negative float is accepted and rounded — some upstream counters
+/// may be emitted as floats).
+pub(crate) fn json_u64(value: &JsonValue, field: &str) -> Option<u64> {
+    match value.get(field) {
+        Some(JsonValue::Number(number)) => match number.as_u64() {
+            Some(exact) => Some(exact),
+            None => {
+                let approx = number.as_f64();
+                (approx >= 0.0).then_some(approx.round() as u64)
+            }
+        },
+        _ => None,
+    }
+}
+
+/// The value at `field` as a finite `f64`, if present and typed.
+pub(crate) fn json_f64(value: &JsonValue, field: &str) -> Option<f64> {
+    match value.get(field) {
+        Some(JsonValue::Number(number)) => Some(number.as_f64()),
+        _ => None,
+    }
+}
+
+/// Truncates `text` to at most `cap` bytes, backing off to the nearest
+/// preceding char boundary so the result is always valid UTF-8 (never
+/// splits a multi-byte character).
+fn truncate_on_char_boundary(mut text: String, cap: usize) -> String {
+    if text.len() <= cap {
+        return text;
+    }
+    let mut end = cap;
+    while end > 0 && !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    text.truncate(end);
+    text
+}
+
+/// One rpc-mode stdout event line, applied to the shared telemetry
+/// (task26-dcritic-apparatus-repair W1). Unrecognized event types and
+/// unparseable/oversized lines are silently skipped — telemetry is
+/// best-effort metering, never a state input (Annex C.2/C.4).
+fn apply_rpc_event(telemetry: &Mutex<ParentTelemetry>, document: &JsonValue) {
+    let Some(event_type) = json_str(document, "type") else {
+        return;
+    };
+    let now = ProcessKernelTransport::now_secs();
+    let mut state = telemetry
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    // Every recognized event — including `rlm_child_update` — advances
+    // the last-event floor: a long-running child that is still emitting
+    // telemetry must never read as a stalled parent (coordinator
+    // addendum, task26-dcritic-apparatus-repair).
+    state.last_event_epoch = state.last_event_epoch.max(now);
+    match event_type {
+        "response" => {
+            if document.get("command").and_then(|value| match value {
+                JsonValue::Str(command) if command == "prompt" => Some(()),
+                _ => None,
+            }) != Some(())
+            {
+                return;
+            }
+            let Some(JsonValue::Bool(success)) = document.get("success") else {
+                return;
+            };
+            state.prompt_accepted = Some(*success);
+            if !*success {
+                state.prompt_error = Some(
+                    json_str(document, "error")
+                        .unwrap_or("the parent refused the prompt")
+                        .to_owned(),
+                );
+            }
+        }
+        "message_end" => {
+            let Some(message) = document.get("message") else {
+                return;
+            };
+            if json_str(message, "role") != Some("assistant") {
+                // A user-role message_end carries no meaningful usage.
+                return;
+            }
+            // The text content is captured independent of `usage` — a
+            // refusal message_end may carry text without meaningful usage
+            // (coordinator review finding, task26-dcritic-apparatus-repair).
+            if let Some(JsonValue::Array(items)) = message.get("content") {
+                let mut text = String::new();
+                for item in items {
+                    if json_str(item, "type") == Some("text")
+                        && let Some(fragment) = json_str(item, "text")
+                    {
+                        text.push_str(fragment);
+                    }
+                }
+                if !text.is_empty() {
+                    state.last_assistant_text = Some(truncate_on_char_boundary(
+                        text,
+                        LAST_ASSISTANT_TEXT_CAP_BYTES,
+                    ));
+                }
+            }
+            let Some(usage) = message.get("usage") else {
+                return;
+            };
+            state.input_tokens += json_u64(usage, "input").unwrap_or(0);
+            state.output_tokens += json_u64(usage, "output").unwrap_or(0);
+            state.cache_read_tokens += json_u64(usage, "cacheRead").unwrap_or(0);
+            state.cache_write_tokens += json_u64(usage, "cacheWrite").unwrap_or(0);
+            state.total_tokens += json_u64(usage, "totalTokens").unwrap_or(0);
+            if let Some(cost) = usage.get("cost")
+                && let Some(total) = json_f64(cost, "total")
+                && total.is_finite()
+                && total >= 0.0
+            {
+                let micros = (total * 1_000_000.0).round();
+                let micros = if micros >= u64::MAX as f64 {
+                    u64::MAX
+                } else {
+                    micros as u64
+                };
+                state.cost_usd = MicroUsd::new(state.cost_usd.get().saturating_add(micros));
+            }
+        }
+        "agent_end" => {
+            state.agent_end_count = state.agent_end_count.saturating_add(1);
+        }
+        "tool_execution_start" => {
+            state.tool_execution_count = state.tool_execution_count.saturating_add(1);
+        }
+        "rlm_child_update" => {
+            let Some(child) = document.get("child") else {
+                return;
+            };
+            let Some(id) = json_str(child, "id") else {
+                return;
+            };
+            state.children.insert(
+                id.to_owned(),
+                ChildTelemetry {
+                    status: json_str(child, "status").unwrap_or_default().to_owned(),
+                    token_count: json_u64(child, "tokenCount").unwrap_or(0),
+                    tool_use_count: json_u64(child, "toolUseCount").unwrap_or(0),
+                    duration_ms: json_u64(child, "durationMs").unwrap_or(0),
+                    session_dir: json_str(child, "sessionDir").map(str::to_owned),
+                },
+            );
+        }
+        _ => {}
+    }
+}
+
+/// The background stdout reader: one JSON line per event, cap-then-skip
+/// on oversized/unparsable lines, ends when the pipe closes (the parent
+/// exited or its stdout was otherwise closed).
+fn read_rpc_events(stdout: std::process::ChildStdout, telemetry: Arc<Mutex<ParentTelemetry>>) {
+    let reader = BufReader::new(stdout);
+    for line in reader.lines() {
+        let Ok(line) = line else { break };
+        if line.len() > RPC_STDOUT_LINE_CAP_BYTES {
+            continue;
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Ok(document) = json::parse(trimmed) {
+            apply_rpc_event(&telemetry, &document);
+        }
+    }
+}
+
+/// The background stderr drain: accumulates into a bounded buffer so the
+/// pipe can never block the parent; forensics only.
+fn drain_stderr(stderr: std::process::ChildStderr, buffer: Arc<Mutex<String>>) {
+    let reader = BufReader::new(stderr);
+    for line in reader.lines() {
+        let Ok(line) = line else { break };
+        let mut text = buffer.lock().unwrap_or_else(|poison| poison.into_inner());
+        if text.len() < RPC_STDERR_BUFFER_CAP_BYTES {
+            text.push_str(&line);
+            text.push('\n');
+        }
+    }
+}
+
+/// The prompt-line JSON `submit` writes to the parent's stdin:
+/// `{"id":…,"type":"prompt","message":…}`.
+fn encode_prompt_line(id: &str, message: &str) -> String {
+    let document = JsonValue::Object(vec![
+        ("id".to_owned(), JsonValue::Str(id.to_owned())),
+        ("type".to_owned(), JsonValue::Str("prompt".to_owned())),
+        ("message".to_owned(), JsonValue::Str(message.to_owned())),
+    ]);
+    format!("{}\n", document.to_json_text())
+}
+
+/// The production [`ParentHandle`]: a live rpc-mode parent
+/// [`std::process::Child`], its still-open stdin (closing it is the
+/// shutdown signal), and the shared telemetry sink its reader thread
+/// fills. `try_reap` is a cheap, non-blocking, ONE-SHOT `try_wait` —
+/// forensics only, never a completion/failure signal. Once the process is
+/// observed exited it is marked `reaped` so a second `try_wait` never
+/// runs (the OS has already collected the child; calling it again is at
+/// best a wasted syscall and at worst an error on some platforms).
 ///
 /// **Drop**: if the runner (and this handle with it) is dropped while the
 /// parent is still alive — e.g. an interrupted process, a panicking
-/// caller — the parent is TERMINATED rather than leaked: `Drop` calls the
-/// same bounded [`stop_bounded`] routine used everywhere else, with a
-/// zero linger (the invocation is going away; there is nothing left to
-/// linger for).
+/// caller — the parent is TERMINATED rather than leaked: `Drop` closes
+/// stdin and calls the same bounded [`close_then_stop`] routine used
+/// everywhere else.
 #[derive(Debug)]
 pub struct RealParentHandle {
     child: std::process::Child,
+    stdin: Option<std::process::ChildStdin>,
+    telemetry: Arc<Mutex<ParentTelemetry>>,
     reaped: bool,
 }
 
@@ -501,9 +891,16 @@ impl ParentHandle for RealParentHandle {
         if self.reaped {
             return "parent already reaped; nothing to terminate".to_owned();
         }
-        let note = stop_bounded(&mut self.child, std::time::Duration::ZERO);
+        let note = close_then_stop(&mut self.child, self.stdin.take());
         self.reaped = true;
         note
+    }
+
+    fn telemetry(&self) -> ParentTelemetry {
+        self.telemetry
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_else(|poison| poison.into_inner().clone())
     }
 }
 
@@ -514,7 +911,7 @@ impl Drop for RealParentHandle {
         // its own needs no action — prefer terminating a still-live
         // parent over leaking it (see the type docs).
         if !self.reaped && matches!(self.child.try_wait(), Ok(None)) {
-            let _ = stop_bounded(&mut self.child, std::time::Duration::ZERO);
+            let _ = close_then_stop(&mut self.child, self.stdin.take());
         }
     }
 }
@@ -530,10 +927,10 @@ impl KernelTransport for ProcessKernelTransport {
         let mut note = String::new();
         let timeout_ends = Self::now_secs().saturating_add(self.admission_timeout.as_secs().max(1));
         let mut child = Command::new(&self.binary)
-            .arg("--print")
-            .arg(Self::parent_message(&submission.program))
+            .arg("--mode")
+            .arg("rpc")
             .current_dir(&submission.workspace)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -541,16 +938,77 @@ impl KernelTransport for ProcessKernelTransport {
                 binary: self.binary.clone(),
                 detail: error.to_string(),
             })?;
-        note.push_str(&format!("parent run pid {} started; ", child.id()));
+        note.push_str(&format!("rpc parent pid {} started; ", child.id()));
+
+        // Stderr is drained into a bounded buffer so the pipe can never
+        // block the parent — forensics only, never a telemetry source.
+        let stderr_buffer: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+        if let Some(stderr) = child.stderr.take() {
+            let buffer = Arc::clone(&stderr_buffer);
+            std::thread::spawn(move || drain_stderr(stderr, buffer));
+        }
+        // The shared telemetry sink; the reader thread fills it for as
+        // long as stdout stays open (the life of the returned handle).
+        let telemetry: Arc<Mutex<ParentTelemetry>> =
+            Arc::new(Mutex::new(ParentTelemetry::default()));
+        if let Some(stdout) = child.stdout.take() {
+            let sink = Arc::clone(&telemetry);
+            std::thread::spawn(move || read_rpc_events(stdout, sink));
+        }
+
+        // THE ONE PROMPT LINE. stdin STAYS OPEN past this write — closing
+        // it later is what ends the parent's turn (rpc mode reads EOF as
+        // "no more commands").
+        let mut stdin = child.stdin.take();
+        let message = Self::parent_message(&submission.program);
+        let prompt_line = encode_prompt_line(RPC_PROMPT_ID, &message);
+        let write_outcome = match stdin.as_mut() {
+            Some(pipe) => pipe
+                .write_all(prompt_line.as_bytes())
+                .and_then(|()| pipe.flush())
+                .map_err(|error| error.to_string()),
+            None => Err("the parent's stdin pipe was not available".to_owned()),
+        };
+        if let Err(detail) = write_outcome {
+            let stop_note = close_then_stop(&mut child, stdin.take());
+            note.push_str(&format!(
+                "writing the rpc prompt line failed: {detail}; {stop_note}."
+            ));
+            *self.forensics.lock().expect("the forensics mutex") = Some(note);
+            return Err(TransportError::SpawnFailed {
+                binary: self.binary.clone(),
+                detail: format!("writing the rpc prompt line failed: {detail}"),
+            });
+        }
+
         // THE BOUNDED HANDLE WATCH (RES-D1): the deadline guards the
         // watch for HANDLE_PATH — never the parent process lifetime.
         // A parse failure while the parent is STILL RUNNING is treated as
         // a partial write (the program's write_text is not atomic) and
         // retried within the bound; a parse failure after the parent
-        // ended is final.
+        // ended is final. A prompt `response` with `success:false` ends
+        // the watch immediately — the parent refused admission outright,
+        // named by its error text.
+        // The epoch at which `agent_end` was FIRST observed with no handle
+        // yet on disk — the floor the refusal grace below measures from
+        // (coordinator review finding, task26-dcritic-apparatus-repair).
+        let mut agent_end_seen_at: Option<u64> = None;
         let outcome = loop {
             let parent_gone = matches!(child.try_wait(), Ok(Some(_)));
-            // Handle first: the earliest evidence wins.
+            if let Ok(state) = telemetry.lock()
+                && state.prompt_accepted == Some(false)
+            {
+                let error_text = state
+                    .prompt_error
+                    .clone()
+                    .unwrap_or_else(|| "the parent refused the prompt".to_owned());
+                drop(state);
+                note.push_str("the parent refused the prompt (success:false); ");
+                break Err(TransportError::HandleAbsent {
+                    detail: format!("the parent refused admission: {error_text}"),
+                });
+            }
+            // Handle next: the earliest evidence wins.
             if submission.handle_path.is_file() {
                 match read_admission(&submission.handle_path) {
                     Ok(handle) => break Ok(handle),
@@ -570,6 +1028,48 @@ impl KernelTransport for ProcessKernelTransport {
                         submission.handle_path.display()
                     ),
                 });
+            }
+            // A REFUSAL under rpc mode (coordinator review finding,
+            // task26-dcritic-apparatus-repair): the parent does NOT exit
+            // when the model refuses the cell — its turn just ends
+            // (`agent_end`) and it idles — so without this check the
+            // watch would run all the way to the admission timeout on a
+            // refusal. Once `agent_end` has fired at least once AND no
+            // handle file exists yet, a short grace (measured from the
+            // FIRST observed `agent_end`) gives a genuine admission's
+            // still-in-flight write a chance to land; past the grace the
+            // watch ends as a refusal, carrying the parent's last
+            // assistant text so the operator sees WHY. A handle file that
+            // EXISTS but does not parse yet keeps the ordinary
+            // partial-write tolerance above — this check only fires when
+            // there is no handle file at all.
+            if !submission.handle_path.is_file() {
+                let agent_ended = telemetry
+                    .lock()
+                    .map(|state| state.agent_end_count >= 1)
+                    .unwrap_or(false);
+                if agent_ended {
+                    let first_seen = *agent_end_seen_at.get_or_insert_with(Self::now_secs);
+                    if Self::now_secs().saturating_sub(first_seen) >= AGENT_END_REFUSAL_GRACE_SECS {
+                        let last_text = telemetry
+                            .lock()
+                            .ok()
+                            .and_then(|state| state.last_assistant_text.clone());
+                        note.push_str(
+                            "the parent's turn ended (agent_end) without writing a handle; ",
+                        );
+                        break Err(TransportError::HandleAbsent {
+                            detail: format!(
+                                "the parent's turn ended without writing the admission handle \
+                                 at {}{}",
+                                submission.handle_path.display(),
+                                last_text
+                                    .map(|text| format!(" — last assistant text: {text:?}"))
+                                    .unwrap_or_default()
+                            ),
+                        });
+                    }
+                }
             }
             let now = Self::now_secs();
             let deadline_passed = deadline.exceeded_at(gauntlet_domain::EpochSeconds::new(now));
@@ -591,14 +1091,13 @@ impl KernelTransport for ProcessKernelTransport {
             std::thread::sleep(std::time::Duration::from_millis(PROCESS_POLL_MILLIS));
         };
         // Post-parse disposition. The D1 SPLIT evidence lives here: the
-        // try_wait state AT PARSE TIME, taken before any disposition.
-        // RC1 correction (task26-dcritic-apparatus-repair, supersedes the
-        // earlier "detached bounded reaper" here): on the SUCCESS path
-        // the still-live parent is wrapped as a [`RealParentHandle`] and
-        // handed back to the CALLER — the transport does not stop it,
+        // try_wait state AT PARSE TIME, taken before any disposition. On
+        // the SUCCESS path the still-live parent — stdin kept open, its
+        // telemetry sink shared — is wrapped as a [`RealParentHandle`]
+        // and handed back to the CALLER: the transport does not stop it,
         // does not detach a thread to stop it later, and does not decide
         // when its life ends. Failure paths keep the IMMEDIATE bounded
-        // stop (nothing was admitted that needs a living parent; the
+        // shutdown (nothing was admitted that needs a living parent; the
         // orphan sweep handles any stray child). invoke NEVER waits for
         // any of this (RES-D1 untouched).
         match outcome {
@@ -609,21 +1108,23 @@ impl KernelTransport for ProcessKernelTransport {
                     Err(_) => "Unknown",
                 };
                 note.push_str(&format!(
-                    "handle parsed while parent.try_wait()={at_parse}; parent handle returned \
-                     to the caller — the invocation now owns its lifetime (RC1, \
-                     task26-dcritic-apparatus-repair)."
+                    "handle parsed while parent.try_wait()={at_parse}; parent handle (rpc mode, \
+                     stdin kept open) returned to the caller — the invocation now owns its \
+                     lifetime."
                 ));
                 *self.forensics.lock().expect("the forensics mutex") = Some(note);
                 Ok((
                     handle,
                     Box::new(RealParentHandle {
                         child,
+                        stdin,
+                        telemetry,
                         reaped: false,
                     }) as Box<dyn ParentHandle>,
                 ))
             }
             Err(error) => {
-                note.push_str(&stop_bounded(&mut child, std::time::Duration::ZERO));
+                note.push_str(&close_then_stop(&mut child, stdin.take()));
                 note.push('.');
                 *self.forensics.lock().expect("the forensics mutex") = Some(note);
                 Err(error)
@@ -811,6 +1312,373 @@ pub fn parse_listing(text: &str) -> Result<Vec<SubagentRecord>, ControlError> {
 mod tests {
     use super::*;
 
+    /// A unique scratch dir per test (pid + an atomic counter — the repo
+    /// recently fixed parallel-test scratch collisions; this mirrors that
+    /// fix rather than reintroducing the bug).
+    fn rpc_scratch(tag: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static SEQUENCE: AtomicU32 = AtomicU32::new(0);
+        let dir = std::env::temp_dir().join(format!(
+            "gauntlet-prime-rpc-{tag}-{}-{}",
+            std::process::id(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("the rpc scratch is creatable");
+        dir
+    }
+
+    /// A fake `--mode rpc` binary (python3, mirroring the real rpc
+    /// protocol described in the W1 plan): reads the ONE prompt line on
+    /// stdin, regex-extracts the handle path the embedded program writes
+    /// to, emits a `response` (success unless `refuse` is set, in which
+    /// case it carries an error and writes NO handle).
+    ///
+    /// If `cell_refusal` is set instead (coordinator review finding,
+    /// task26-dcritic-apparatus-repair: a rpc-mode parent that refuses the
+    /// CELL — as opposed to the prompt — does not exit; its turn just
+    /// ends), the prompt is ACCEPTED, but the model then emits an
+    /// assistant `message_end` carrying refusal text and an `agent_end`,
+    /// and never writes a handle at all.
+    ///
+    /// Otherwise it emits an assistant `message_end` with usage, a
+    /// `tool_execution_start`, and an `rlm_child_update` naming
+    /// `child_session_dir`, writes the admission-handle document, and THEN
+    /// an `agent_end` (proving a late `agent_end` never disturbs an
+    /// already-admitted invocation) — and FINALLY blocks reading stdin
+    /// until EOF before exiting 0 (the real rpc-mode shutdown shape:
+    /// stdin EOF, not any in-cell behavior, ends the turn).
+    #[cfg(unix)]
+    fn fake_rpc_binary(
+        dir: &Path,
+        child_session_dir: &Path,
+        refuse: bool,
+        cell_refusal: bool,
+    ) -> PathBuf {
+        let script = dir.join("fake-prime-agent-rpc.py");
+        let refuse_literal = if refuse { "True" } else { "False" };
+        let cell_refusal_literal = if cell_refusal { "True" } else { "False" };
+        let session_dir_raw = child_session_dir.to_string_lossy().into_owned();
+        let session_dir_py_literal = {
+            let mut escaped = String::from("\"");
+            for ch in session_dir_raw.chars() {
+                match ch {
+                    '\\' => escaped.push_str("\\\\"),
+                    '"' => escaped.push_str("\\\""),
+                    other => escaped.push(other),
+                }
+            }
+            escaped.push('"');
+            escaped
+        };
+        let source = format!(
+            r#"#!/usr/bin/env python3
+import json, os, re, sys
+
+REFUSE = {refuse_literal}
+CELL_REFUSAL = {cell_refusal_literal}
+SESSION_DIR = {session_dir_py_literal}
+
+def emit(obj):
+    sys.stdout.write(json.dumps(obj) + "\n")
+    sys.stdout.flush()
+
+line = sys.stdin.readline()
+cmd = json.loads(line) if line.strip() else {{}}
+message = cmd.get("message", "")
+match = re.search(r"pathlib\.Path\('([^']+)'\)\.write_text\(json\.dumps\(\{{", message)
+handle_path = match.group(1) if match else None
+
+if REFUSE:
+    emit({{"id": cmd.get("id", ""), "type": "response", "command": "prompt",
+           "success": False, "error": "fake refusal: nonblocking-delegation policy"}})
+elif CELL_REFUSAL:
+    # Accepted at the prompt level, but the model refuses the CELL: its
+    # turn just ends (agent_end) — the parent process itself does NOT
+    # exit (rpc mode idles on stdin), and no handle is ever written.
+    emit({{"id": cmd.get("id", ""), "type": "response", "command": "prompt", "success": True}})
+    emit({{"type": "agent_start"}})
+    emit({{"type": "message_end", "message": {{"role": "assistant", "content": [
+        {{"type": "text", "text": "I can't run that"}}
+    ]}}}})
+    emit({{"type": "agent_end"}})
+else:
+    emit({{"id": cmd.get("id", ""), "type": "response", "command": "prompt", "success": True}})
+    emit({{"type": "agent_start"}})
+    emit({{"type": "message_end", "message": {{"role": "user", "usage": {{"totalTokens": 999999}}}}}})
+    emit({{"type": "message_end", "message": {{"role": "assistant", "usage": {{
+        "input": 100, "output": 50, "cacheRead": 10, "cacheWrite": 5,
+        "totalTokens": 165,
+        "cost": {{"input": 0.001, "output": 0.002, "cacheRead": 0.0001,
+                  "cacheWrite": 0.0001, "total": 0.0032}}
+    }}}}}})
+    emit({{"type": "tool_execution_start", "toolCallId": "t1", "toolName": "ipython", "args": {{}}}})
+    emit({{"type": "rlm_child_update", "child": {{
+        "id": "sub-fake01", "sessionName": "fake-child", "model": "fake-model",
+        "status": "running", "durationMs": 1234, "toolUseCount": 3,
+        "tokenCount": 777, "sessionDir": SESSION_DIR
+    }}}})
+    if handle_path:
+        doc = json.dumps({{
+            "rlm_child_id": "sub-fake01", "name": "fake-invocation",
+            "session_dir": SESSION_DIR, "model": "fake-model"
+        }})
+        tmp = handle_path + ".tmp"
+        with open(tmp, "w") as fh:
+            fh.write(doc)
+        os.replace(tmp, handle_path)
+    # A LATE agent_end — after the handle already landed — must never be
+    # mistaken for a refusal (the happy-path regression this proves).
+    emit({{"type": "agent_end"}})
+
+# rpc mode: stay alive until stdin closes, then exit clean.
+while True:
+    remaining = sys.stdin.readline()
+    if remaining == "":
+        break
+sys.exit(0)
+"#
+        );
+        std::fs::write(&script, source).expect("the fake rpc binary is writable");
+        crate::test_support::make_executable_ready(&script);
+        // python3 interprets its own shebang; Command::new(&script) works
+        // directly on unix (the kernel reads the `#!` line).
+        script
+    }
+
+    fn far_future_deadline_rpc() -> Deadline {
+        Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(u64::MAX / 2))
+    }
+
+    /// The REAL renderer's output — the fake binary regexes the handle
+    /// path out of exactly what `invoke` would actually send, never a
+    /// hand-rolled stand-in.
+    fn rpc_submission(dir: &Path) -> KernelSubmission {
+        let handle_path = dir.join("result.handle");
+        let program = crate::program::render(&crate::program::KernelProgramSpec {
+            envelope_path: dir.join("envelope.json").to_string_lossy().into_owned(),
+            child_input_path: dir.join("child-input.json").to_string_lossy().into_owned(),
+            handle_path: handle_path.to_string_lossy().into_owned(),
+            invocation_name: "fake-invocation".to_owned(),
+            role_prompt: "do the fake work".to_owned(),
+            model_hint: None,
+        });
+        KernelSubmission {
+            program,
+            handle_path,
+            workspace: dir.to_path_buf(),
+            model_hint: None,
+        }
+    }
+
+    /// (a) `submit` returns the handle while the parent is still alive
+    /// AND stdin is still open — the invocation owns the parent's
+    /// lifetime, never the transport.
+    #[cfg(unix)]
+    #[test]
+    fn submit_returns_the_handle_while_the_parent_stays_alive() {
+        let dir = rpc_scratch("alive");
+        let child_dir = dir.join("child-session");
+        std::fs::create_dir_all(&child_dir).expect("child session dir creatable");
+        let binary = fake_rpc_binary(&dir, &child_dir, false, false);
+        let transport = ProcessKernelTransport::new(binary, std::time::Duration::from_secs(30));
+        let (handle, mut parent) = transport
+            .submit(&rpc_submission(&dir), far_future_deadline_rpc())
+            .expect("a cooperating fake rpc binary admits");
+        assert_eq!(handle.rlm_child_id, "sub-fake01");
+        // Give the reader/stderr threads a moment, then assert the parent
+        // has NOT exited (it is blocked on stdin, which is still open).
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        assert!(
+            parent.try_reap().is_none(),
+            "the parent must still be alive — stdin was never closed"
+        );
+        parent.terminate();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// (b) telemetry sums the parent's usage/tool-execution counts and
+    /// keeps the latest per-child record.
+    #[cfg(unix)]
+    #[test]
+    fn telemetry_sums_parent_and_child_counters() {
+        let dir = rpc_scratch("telemetry");
+        let child_dir = dir.join("child-session");
+        std::fs::create_dir_all(&child_dir).expect("child session dir creatable");
+        let binary = fake_rpc_binary(&dir, &child_dir, false, false);
+        let transport = ProcessKernelTransport::new(binary, std::time::Duration::from_secs(30));
+        let (_handle, mut parent) = transport
+            .submit(&rpc_submission(&dir), far_future_deadline_rpc())
+            .expect("admission succeeds");
+        // Bounded wait for the reader thread to observe the events.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let telemetry = loop {
+            let snapshot = parent.telemetry();
+            if snapshot.total_tokens > 0 && !snapshot.children.is_empty() {
+                break snapshot;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "telemetry never arrived"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        };
+        assert_eq!(telemetry.input_tokens, 100);
+        assert_eq!(telemetry.output_tokens, 50);
+        assert_eq!(telemetry.cache_read_tokens, 10);
+        assert_eq!(telemetry.cache_write_tokens, 5);
+        assert_eq!(telemetry.total_tokens, 165);
+        assert_eq!(telemetry.cost_usd, MicroUsd::new(3200));
+        assert_eq!(telemetry.tool_execution_count, 1);
+        let child = telemetry
+            .children
+            .get("sub-fake01")
+            .expect("child recorded");
+        assert_eq!(child.token_count, 777);
+        assert_eq!(child.tool_use_count, 3);
+        assert_eq!(child.status, "running");
+        parent.terminate();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// (f) events after admission — including `rlm_child_update` — must
+    /// advance `last_event_epoch` PAST the moment admission returned
+    /// (liveness addendum: a builder still emitting child telemetry is
+    /// never mistaken for stalled).
+    #[cfg(unix)]
+    #[test]
+    fn telemetry_events_after_admission_advance_last_event_epoch() {
+        let dir = rpc_scratch("last-event");
+        let child_dir = dir.join("child-session");
+        std::fs::create_dir_all(&child_dir).expect("child session dir creatable");
+        let binary = fake_rpc_binary(&dir, &child_dir, false, false);
+        let before_admission = ProcessKernelTransport::now_secs();
+        let transport = ProcessKernelTransport::new(binary, std::time::Duration::from_secs(30));
+        let (_handle, mut parent) = transport
+            .submit(&rpc_submission(&dir), far_future_deadline_rpc())
+            .expect("admission succeeds");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if parent.telemetry().last_event_epoch >= before_admission {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "last_event_epoch never advanced past admission"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        parent.terminate();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// (c) `terminate` closes stdin and the fake exits 0 within the rpc
+    /// EOF grace — no SIGKILL needed (the forensic note names a clean
+    /// exit, not a kill).
+    #[cfg(unix)]
+    #[test]
+    fn terminate_closes_stdin_and_the_fake_exits_clean() {
+        let dir = rpc_scratch("terminate");
+        let child_dir = dir.join("child-session");
+        std::fs::create_dir_all(&child_dir).expect("child session dir creatable");
+        let binary = fake_rpc_binary(&dir, &child_dir, false, false);
+        let transport = ProcessKernelTransport::new(binary, std::time::Duration::from_secs(30));
+        let (_handle, mut parent) = transport
+            .submit(&rpc_submission(&dir), far_future_deadline_rpc())
+            .expect("admission succeeds");
+        let note = parent.terminate();
+        assert!(
+            note.contains("stdin closed") && note.contains("parent exited after stdin EOF"),
+            "terminate must close stdin and observe a clean exit, not fall through to a kill: \
+             {note}"
+        );
+        assert!(
+            !note.contains("kill"),
+            "no kill should have been necessary: {note}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// (d) a `success:false` prompt response ends admission as
+    /// `HandleAbsent`, naming the refusal error text.
+    #[cfg(unix)]
+    #[test]
+    fn a_prompt_refusal_ends_admission_as_handle_absent_naming_the_error() {
+        let dir = rpc_scratch("refused");
+        let child_dir = dir.join("child-session");
+        std::fs::create_dir_all(&child_dir).expect("child session dir creatable");
+        let binary = fake_rpc_binary(&dir, &child_dir, true, false);
+        let transport = ProcessKernelTransport::new(binary, std::time::Duration::from_secs(30));
+        let error = transport
+            .submit(&rpc_submission(&dir), far_future_deadline_rpc())
+            .expect_err("a refused prompt must not admit");
+        let TransportError::HandleAbsent { detail } = error else {
+            panic!("expected HandleAbsent, got {error:?}")
+        };
+        assert!(
+            detail.contains("fake refusal: nonblocking-delegation policy"),
+            "the refusal detail must name the parent's error text: {detail}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Coordinator review finding (task26-dcritic-apparatus-repair): under
+    /// rpc mode the parent does NOT exit when the model refuses the CELL
+    /// (as opposed to the prompt) — its turn just ends (`agent_end`) and
+    /// it idles. Without the `agent_end`-aware grace the handle watch
+    /// would run all the way to the 600 s admission timeout; this test
+    /// pins that it instead ends promptly (well under 15 s) as
+    /// `HandleAbsent`, carrying the parent's last assistant text.
+    #[cfg(unix)]
+    #[test]
+    fn a_cell_refusal_ends_admission_promptly_naming_the_last_assistant_text() {
+        let dir = rpc_scratch("cell-refused");
+        let child_dir = dir.join("child-session");
+        std::fs::create_dir_all(&child_dir).expect("child session dir creatable");
+        let binary = fake_rpc_binary(&dir, &child_dir, false, true);
+        // The admission timeout is deliberately generous (600 s, matching
+        // the production default) — the assertion below proves the watch
+        // ends on the agent_end grace, never on this bound.
+        let transport = ProcessKernelTransport::new(binary, std::time::Duration::from_secs(600));
+        let started = std::time::Instant::now();
+        let error = transport
+            .submit(&rpc_submission(&dir), far_future_deadline_rpc())
+            .expect_err("a cell refusal must not admit");
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed < std::time::Duration::from_secs(15),
+            "the agent_end-aware grace must end the watch promptly, not at the 600 s admission \
+             timeout: took {elapsed:?}"
+        );
+        let TransportError::HandleAbsent { detail } = error else {
+            panic!("expected HandleAbsent, got {error:?}")
+        };
+        assert!(
+            detail.contains("I can't run that"),
+            "the refusal detail must carry the parent's last assistant text: {detail}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The happy path still passes when `agent_end` arrives AFTER the
+    /// handle write — a late `agent_end` on an already-admitted invocation
+    /// must never be mistaken for a refusal.
+    #[cfg(unix)]
+    #[test]
+    fn a_late_agent_end_after_the_handle_write_does_not_disturb_admission() {
+        let dir = rpc_scratch("late-agent-end");
+        let child_dir = dir.join("child-session");
+        std::fs::create_dir_all(&child_dir).expect("child session dir creatable");
+        let binary = fake_rpc_binary(&dir, &child_dir, false, false);
+        let transport = ProcessKernelTransport::new(binary, std::time::Duration::from_secs(30));
+        let (handle, mut parent) = transport
+            .submit(&rpc_submission(&dir), far_future_deadline_rpc())
+            .expect("a cooperating fake rpc binary admits despite its later agent_end");
+        assert_eq!(handle.rlm_child_id, "sub-fake01");
+        parent.terminate();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// A tiny throwaway shell script standing in for the real binary: it
     /// answers any invocation with the exact failure shape prime-agent
     /// 0.8.0 gives for a `stop` on a non-daemon-registered rlm child —
@@ -828,14 +1696,7 @@ mod tests {
         )
         .expect("the fake binary script is writable");
         #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&script)
-                .expect("the fake binary has metadata")
-                .permissions();
-            perms.set_mode(0o755);
-            std::fs::set_permissions(&script, perms).expect("the fake binary is executable");
-        }
+        crate::test_support::make_executable_ready(&script);
         script
     }
 

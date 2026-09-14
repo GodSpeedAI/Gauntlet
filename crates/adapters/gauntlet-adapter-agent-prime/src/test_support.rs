@@ -43,3 +43,32 @@ pub fn dispatch_spec() -> RoleInvocationSpec {
         budget_slice: budget,
     }
 }
+
+/// Marks a freshly written fixture script executable and waits until the
+/// kernel will actually exec it. Tests run on parallel threads: a fork
+/// taken by another test while this script's write descriptor was still
+/// open inherits that descriptor until its own exec, and an exec of the
+/// script inside that window fails with ETXTBSY ("Text file busy"). A
+/// no-op spawn is retried until the error is anything but ETXTBSY.
+#[cfg(unix)]
+pub fn make_executable_ready(script: &std::path::Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::{Command, Stdio};
+    const ETXTBSY: i32 = 26;
+    std::fs::set_permissions(script, std::fs::Permissions::from_mode(0o755))
+        .expect("the fixture script is chmodable");
+    for _ in 0..200 {
+        match Command::new(script)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+        {
+            Err(error) if error.raw_os_error() == Some(ETXTBSY) => {
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            _ => return,
+        }
+    }
+    panic!("the fixture script {} stayed busy", script.display());
+}
