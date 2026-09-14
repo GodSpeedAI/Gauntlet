@@ -535,8 +535,13 @@ mod tests {
             gauntlet_ports::agent_runner::InvocationHandle,
             gauntlet_ports::agent_runner::AgentError,
         > {
+            // pid + atomic counter — the repository Scratch idiom — so
+            // concurrent tests invoking this runner never share (and
+            // race-remove) a directory.
+            static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let root = std::env::temp_dir().join(format!(
-                "gauntlet-verify-model-composed-{}",
+                "gauntlet-verify-model-composed-{}-{seq}",
                 std::process::id()
             ));
             let _ = std::fs::remove_dir_all(&root);

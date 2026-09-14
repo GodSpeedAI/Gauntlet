@@ -1051,8 +1051,13 @@ mod tests {
         }
 
         fn for_requirement(script: RungScript, requirement: EvidenceRequirement) -> Self {
+            // pid + atomic counter — the repository Scratch idiom — so
+            // concurrent tests using the same script variant never share
+            // (and race-remove) a directory.
+            static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let root = std::env::temp_dir().join(format!(
-                "gauntlet-verify-model-{}-{:?}",
+                "gauntlet-verify-model-{}-{:?}-{seq}",
                 std::process::id(),
                 script
             ));

@@ -6615,8 +6615,15 @@ mod tests {
 
     impl Scratch {
         fn new(tag: &str) -> Self {
-            let path = std::env::temp_dir()
-                .join(format!("gauntlet-controller-{tag}-{}", std::process::id()));
+            // pid + atomic counter — the repository Scratch idiom (see
+            // settle::SettleState) — so concurrent tests sharing a tag
+            // never share (and race-remove) a directory.
+            static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+            let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "gauntlet-controller-{tag}-{}-{seq}",
+                std::process::id()
+            ));
             let _ = std::fs::remove_dir_all(&path);
             std::fs::create_dir_all(&path).expect("the scratch root is creatable");
             Self(path)
@@ -9713,7 +9720,8 @@ mod tests {
                 .push(reference.clone());
             Ok(gauntlet_ports::workspace_provider::Workspace {
                 reference: reference.clone(),
-                root: std::env::temp_dir().join(format!("ws-fixture-{n}")),
+                root: std::env::temp_dir()
+                    .join(format!("ws-fixture-{}-{n}", std::process::id())),
                 key: format!("ws-fixture-{n}"),
             })
         }

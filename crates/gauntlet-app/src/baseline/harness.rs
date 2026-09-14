@@ -804,8 +804,16 @@ mod tests {
         Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(NOW + 600))
     }
 
+    /// Keyed by pid + test thread name (stable across the several calls one
+    /// test makes, unique across concurrent tests — the default test
+    /// harness names each test's thread after the test itself).
     fn scratch() -> PathBuf {
-        std::env::temp_dir().join("gauntlet-baseline-harness-tests")
+        let thread = std::thread::current();
+        let name = thread.name().unwrap_or("unnamed").replace(['/', ':'], "-");
+        std::env::temp_dir().join(format!(
+            "gauntlet-baseline-harness-tests-{}-{name}",
+            std::process::id()
+        ))
     }
 
     // -- A posture ---------------------------------------------------------
