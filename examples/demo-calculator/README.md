@@ -3,22 +3,16 @@
 A tiny, always-available Gauntlet demo project. Its whole job is to give you
 something you can start a **real** run against in under a minute.
 
-> **Known limitation (2026-09-13): a run starts, but cannot yet finish.**
-> Three real runs against installed `prime-agent` 0.8.0 all ended the same
-> way, with no `calculator.html`. The `prime-agent` runner adapter
-> (`crates/adapters/gauntlet-adapter-agent-prime`) launches a `--print`
-> parent run, which spawns the builder as an rlm child, and it assumes that
-> child outlives the parent ("daemon-backed"). In 0.8.0 it does not: when
-> the parent's turn ends (~1 minute), the child's in-flight request is
-> aborted mid-work (`Request was aborted`). The adapter then waits for a
-> result that can never arrive until the stall timeout fires. Its cancel
-> sends `prime-agent stop <child>`, which answers `Unknown active session`.
-> The adapter treats that as fatal, because its already-gone check matches
-> only "No such"/"not found" and never sees stderr. Cost: zero tokens
-> settled, no evidence pinned. Everything up to real dispatch works:
-> preflight, frozen reference, admission, a real child session with real
-> tool calls. The evidence from each run is kept under
-> `targets/.runs/demo-calculator/`.
+> **Status (2026-09-14): a real run settles.** Run
+> `C7T42J1ECBMK45JTB0VB9CX8T4` against installed `prime-agent` settled all
+> three units (AK-9011..AK-9013 implemented-and-proven) in 4 iterations and
+> ~10 minutes: AK-9012's first attempt was retried, and every settlement is
+> backed by the real `scripts/check.sh` run inside the unit's workspace.
+> Known gaps: the settled `calculator.html` lives only in the unit's
+> workspace, which is removed once the unit completes — nothing copies the
+> work product back into this project, so open the evidence, not the file;
+> and the `prime-agent` result reports zero token/cost/wall payment, so the
+> token and cost ceilings are not exercised by this runner.
 
 ## What this is
 
@@ -28,9 +22,8 @@ something you can start a **real** run against in under a minute.
   command that verifies it actually works.
 - `runners.default: prime-agent` — **this dispatches a real agent and
   spends real model tokens.** It is not the mock/replay runner. Budgets in
-  `GAUNTLET.md` are kept small on purpose (`max_rounds: 3`,
-  `max_wall_seconds: 900`, `max_cost_usd: 2`) but every run against this
-  project costs something real.
+  `GAUNTLET.md` (`max_rounds: 8`, `max_wall_seconds: 2700`) fit three units
+  plus a retry; every run against this project costs something real.
 - No `calculator.html` ships here. Writing it is the point of dispatching
   the agent. `scripts/check.sh` fails cleanly, before any run, because
   there is nothing to check yet.

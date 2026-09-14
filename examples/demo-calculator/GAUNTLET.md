@@ -16,12 +16,12 @@ review:
 verification:
   prefer_deterministic: true
 budget:
-  max_rounds: 3
+  max_rounds: 8
   max_parallel: 1
   max_depth: 1
-  max_wall_seconds: 900
-  max_tokens: 150000
-  max_cost_usd: 2
+  max_wall_seconds: 2700
+  max_tokens: 600000
+  max_cost_usd: 6
   recovery_reserve_pct: 15
   diagnostic_budget: 1
 state:
@@ -43,8 +43,9 @@ demo actually dispatches an agent and costs real tokens.
 composed run really dispatches to the locally installed `prime-agent`
 binary. This is deliberate — the point of this demo is to watch a real
 agent attempt real work, not replay a canned scenario. Budgets above are
-kept small on purpose (`max_rounds: 3`, `max_wall_seconds: 900`,
-`max_cost_usd: 2`) so running the demo stays cheap.
+sized for three units dispatched one at a time with room for one retry
+(`max_rounds: 8` → 6 forward rounds after the 15% reserve,
+`max_wall_seconds: 2700`); a tighter round budget cannot reach every unit.
 
 ## Observation
 
