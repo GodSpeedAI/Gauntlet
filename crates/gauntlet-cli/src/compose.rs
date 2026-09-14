@@ -866,11 +866,7 @@ pub fn compose_run(
     let evidence_root = context.resolved.evidence_dir.clone();
     ensure_configured_dir(&state_dir)?;
     ensure_configured_dir(&evidence_root)?;
-    ensure_configured_dir(
-        &state_dir
-            .join(defaults::WORKSPACES_DIR_NAME)
-            .join(defaults::WORKSPACES_DIR_NAME),
-    )?;
+    ensure_configured_dir(&workspace_root)?;
     let state = Arc::new(
         EmbeddedStateStore::open(&state_dir.join(STATE_DB_NAME)).map_err(|error| {
             CompositionError::Store {

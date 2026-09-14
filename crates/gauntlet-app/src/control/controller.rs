@@ -2195,7 +2195,12 @@ impl RunController {
         // AK-048's "no builder command executes before the authority and
         // containment checks" is provable from the evidence ORDER — the
         // admission record precedes the invocation record.
-        self.record_gate_admission(state, &admission)?;
+        if let Err(error) = self.record_gate_admission(state, &admission) {
+            // No invocation will run in the freshly allocated workspace:
+            // release it best-effort before propagating the error.
+            self.release_workspace(state, &workspace);
+            return Err(error);
+        }
         let reservation = match state.meter.reserve(planned.estimated_slice) {
             Ok(reservation) => reservation,
             Err(BudgetMeterError::Reserve {
@@ -2220,10 +2225,21 @@ impl RunController {
                 // So: record the truncation as pinned evidence, hold the
                 // Unit's eligibility for a later iteration, and keep the
                 // loop alive.
+                //
+                // No invocation will run in the freshly allocated
+                // workspace: release it best-effort (never blocking the
+                // truncation's own durable record).
+                self.release_workspace(state, &workspace);
                 self.record_dispatch_truncation(state, &unit, parallel, depth)?;
                 return Ok(DispatchAdmission::TruncatedAtCapacity);
             }
-            Err(other) => return Err(ControlError::Meter(other)),
+            Err(other) => {
+                // No invocation will run in the freshly allocated
+                // workspace: release it best-effort before propagating
+                // the error.
+                self.release_workspace(state, &workspace);
+                return Err(ControlError::Meter(other));
+            }
         };
         let invocation_id = self.ids.invocation_id();
         let now = self.clock.now();
@@ -2303,7 +2319,16 @@ impl RunController {
         // recording runner builds the durable record.
         self.runner
             .record_dispatch_tier(invocation_id.clone(), admission.tier());
-        let handle = self.runner.invoke(spec.clone())?;
+        let handle = match self.runner.invoke(spec.clone()) {
+            Ok(handle) => handle,
+            Err(error) => {
+                // No invocation will run in the freshly allocated
+                // workspace: release it best-effort before propagating
+                // the runner's refusal.
+                self.release_workspace(state, &spec.workspace);
+                return Err(error.into());
+            }
+        };
         // The UNIT-ATTRIBUTED dispatch fact (corrections round 2, F-R4):
         // the durable event the §26 report classifies from — the §5.3.5
         // invocation record carries no unit (its field set is spec-frozen)
@@ -2795,6 +2820,22 @@ impl RunController {
                 gauntlet_domain::InvocationState::Failed,
             )?
             .get();
+        // Like `dispose_transient`, a failure is never silent: every class
+        // pins a record naming itself, so a terminal-failed invocation
+        // always carries a durable reason.
+        let record = format!(
+            "{{\"class\":\"invocation_failed\",\"run\":\"{}\",\"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\",\"failure\":\"{}\"}}",
+            state.run.id(),
+            state.iteration,
+            flight.unit,
+            flight.spec.invocation_id,
+            invocation_failure_token(class),
+        );
+        let evidence =
+            self.evidence
+                .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())?;
+        self.evidence
+            .pin(state.run.id(), &evidence, self.operation_bound())?;
         match class {
             // §11.6: a contract mismatch is an INTEGRITY violation, not a
             // retryable malformed result — terminal abort.
@@ -4594,6 +4635,21 @@ fn queue_retry_dispatch(state: &mut LoopState, flight: &InFlight, attachment: St
 /// TEXT ONLY — the critic's reasoning has no path into this string (the
 /// attachment is built from the residual's own expected/observed text or
 /// the disposition's own note).
+/// The snake_case wire token for a failed invocation's class: the same
+/// mapping `class_token`/`failure_class_token` already use in the
+/// promote/improve surfaces (`crates/gauntlet-app/src/promote/proposal.rs`,
+/// `crates/gauntlet-cli/src/improve_cmd.rs`), kept local here since those
+/// helpers are private to their own modules.
+fn invocation_failure_token(class: InvocationFailure) -> &'static str {
+    match class {
+        InvocationFailure::MalformedResult => "malformed_result",
+        InvocationFailure::ContractMismatch => "contract_mismatch",
+        InvocationFailure::OrphanedByRestart => "orphaned_by_restart",
+        InvocationFailure::Execution => "agent_execution",
+        InvocationFailure::MissingResult => "missing_result",
+    }
+}
+
 fn dispatch_prompt(
     unit: &UnitId,
     claim: Option<&str>,
@@ -9943,6 +9999,107 @@ mod tests {
                 .values()
                 .map(|spec| spec.workspace.as_str())
                 .collect::<Vec<_>>()
+        );
+    }
+
+    /// Every failure class pins an `invocation_failed` record naming itself
+    /// (a real run once left an invocation terminal-failed with nothing
+    /// durable saying why).
+    #[test]
+    fn dispose_failure_pins_a_durable_record_naming_the_failure_class() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Fail(InvocationFailure::ContractMismatch)]);
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            None,
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Aborted,
+            "a contract mismatch is a §11.6 integrity violation: terminal abort"
+        );
+        let records = evidence.records_containing("invocation_failed");
+        assert_eq!(
+            records.len(),
+            1,
+            "dispose_failure pins exactly one durable record naming the failure: {records:?}"
+        );
+        assert!(
+            records[0].contains("contract_mismatch"),
+            "the record names the failure class: {}",
+            records[0]
+        );
+    }
+
+    /// `dispatch` allocates a workspace before the meter reservation; a
+    /// dispatch truncated at the meter's scope must release it (a real run
+    /// left orphaned empty workspace dirs). With 3 eligible units over a
+    /// parallelism of 2, the third is truncated on iteration 1 and settles
+    /// later; every created workspace is cleaned by run end.
+    #[test]
+    fn a_truncated_dispatch_never_leaks_its_allocated_workspace() {
+        let key = Rc::new(RefCell::new(answer_key(OVER_CAPACITY_UNITS)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![
+            Behavior::Complete,
+            Behavior::Complete,
+            Behavior::Complete,
+        ]);
+        let workspaces = FixtureWorkspaces::new();
+        let composed = compose_full(
+            key,
+            state,
+            evidence,
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json", "ctrl-9102.json", "ctrl-9103.json"]),
+            meter_factory(),
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed
+            .controller
+            .start_run()
+            .expect("an over-capacity fan-out never errors the run");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "every unit settles once the truncated dispatch gets its turn"
+        );
+        let created: std::collections::BTreeSet<String> = workspaces
+            .created
+            .lock()
+            .expect("ledger locks")
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        let cleaned: std::collections::BTreeSet<String> = workspaces
+            .cleaned
+            .lock()
+            .expect("ledger locks")
+            .iter()
+            .map(|reference| reference.as_str().to_owned())
+            .collect();
+        assert_eq!(
+            created, cleaned,
+            "every workspace the provider allocated — including one allocated for a \
+             dispatch later truncated at the meter's capacity scope — must be released \
+             by run end: created {created:?}, cleaned {cleaned:?}"
         );
     }
 
