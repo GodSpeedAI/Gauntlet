@@ -5990,10 +5990,15 @@ mod tests {
                 );
             }
             let mut inner = self.0.lock().expect("meter lock");
+            // task26 fix: fixture-only. Mirrors the shipped budget-meter
+            // adapter's contract: payments carry no rounds dimension. The
+            // run loop's `book_iteration_round` is the single rounds
+            // authority, booking exactly once per iteration on
+            // `state.budget` — never through the meter.
             inner
                 .budget
                 .charge(
-                    reservation.slice().rounds,
+                    0,
                     payment.wall_seconds(),
                     payment.tokens(),
                     payment.cost_usd(),
@@ -7146,7 +7151,14 @@ mod tests {
             owed_attempts > 1,
             "row 2 re-dispatched the transient-failed work: {owed_attempts} attempts"
         );
-        // A second controller over the SAME durable state resumes.
+        // A second controller over the SAME durable state resumes. First
+        // run's forward ceiling (limit * (100 - FIXTURE_RESERVE_PCT) / 100
+        // at FIXTURE_ROUNDS = 6 genuine rounds) is fully spent by genuine
+        // iterations (round 1 settles AK-9101, rounds 2-6 are genuine
+        // transient retries of AK-9102) before it ends BudgetExhausted, so
+        // the resume needs its OWN wider ceiling to have headroom left
+        // after restoring that spend.
+        const RESUME_ROUNDS: u32 = 9;
         let resumed = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
         let second = compose(
             key.clone(),
@@ -7154,7 +7166,7 @@ mod tests {
             evidence.clone(),
             resumed,
             0,
-            FIXTURE_ROUNDS,
+            RESUME_ROUNDS,
         )
         .expect("composes");
         let run_id = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("fixture run id");
@@ -8007,13 +8019,17 @@ mod tests {
         // now SETTLES its unit durably (a Major residual is not blocking,
         // §16.1 condition 4), so the attempts ladder is exercised over a
         // verifier that FAILs every attempt — nothing settles, and the
-        // §11.5 row-1 ladder keeps re-dispatching. Four rounds bound the
-        // first run after two attempts; the resume reconstructs
-        // attempts=2 from the durable evidence productions at the unit's
-        // frozen locator, so the next residual disposes at the CAP
-        // (escalate) instead of restarting the ladder. (A poll transport
-        // error no longer ends runs — §11.5 row 2 retries it, Task 13 B2
-        // Item 4 — so the bounded ending is the rounds dimension.)
+        // §11.5 row-1 ladder keeps re-dispatching. A tight rounds ceiling
+        // (genuine iterations only) bounds the first run to exactly one
+        // attempt — forward_ceiling = rounds * (100 - FIXTURE_RESERVE_PCT)
+        // / 100, one genuine round — ending `budget_exhausted` before
+        // ATTEMPT_CAP is ever threatened. The resume reconstructs
+        // attempts_used from the durable evidence production at the
+        // unit's frozen locator, dispatches the next attempt genuinely,
+        // and THAT residual's disposal is the one that hits the cap
+        // (escalate). (A transport error no longer ends runs — a repeated
+        // transient retries instead, Task 13 B2 Item 4 — so the bounded
+        // ending here is the rounds dimension.)
         const RESIDUAL_EVERY_COMPARISON: usize = 9;
         let key = Rc::new(RefCell::new(answer_key(1)));
         let state = FakeState::new();
@@ -8034,7 +8050,7 @@ mod tests {
             evidence.clone(),
             first_run,
             RESIDUAL_EVERY_COMPARISON,
-            4,
+            2,
             policy(),
             never_passing.clone(),
             meter_factory(),
@@ -8084,8 +8100,8 @@ mod tests {
                 .filter(|(_, prompt)| prompt.contains("AK-9101"))
                 .count();
         assert_eq!(
-            attempts_prompted, 3,
-            "two bounded-run attempts (each recorded durably) + exactly ONE \
+            attempts_prompted, 2,
+            "one bounded-run attempt (recorded durably) + exactly ONE \
              restored-ceiling attempt after the resume"
         );
         assert_eq!(
@@ -10039,6 +10055,20 @@ mod tests {
         runner: Arc<ScriptedRunner>,
         observers: Vec<Arc<dyn Observer>>,
     ) -> Result<Composed, ControlError> {
+        compose_produced_with_rounds(key, state, evidence, runner, observers, FIXTURE_ROUNDS)
+    }
+
+    /// Like [`compose_produced`] but with an explicit rounds ceiling, for a
+    /// caller that needs a tight forward-rounds ceiling rather than
+    /// `compose_produced`'s generous default.
+    fn compose_produced_with_rounds(
+        key: Rc<RefCell<String>>,
+        state: Arc<FakeState>,
+        evidence: FakeEvidence,
+        runner: Arc<ScriptedRunner>,
+        observers: Vec<Arc<dyn Observer>>,
+        rounds: u32,
+    ) -> Result<Composed, ControlError> {
         let scratch = Scratch::new("compose-produced");
         let clock = DeterministicClock::new();
         let provider = Arc::new(FlakyProvider {
@@ -10074,7 +10104,7 @@ mod tests {
             answer_key: AnswerKeySource::Shared(key.clone()),
             escalation: Arc::new(FakeEscalation::default()),
             meter_factory: meter_factory(),
-            budget: budget_shape(FIXTURE_ROUNDS),
+            budget: budget_shape(rounds),
             policy: policy(),
             workspaces: None,
             workspace_root: scratch.0.clone(),
@@ -10322,6 +10352,85 @@ mod tests {
         assert!(
             !pinned.is_empty(),
             "the producer_uncorroborated block is pinned evidence"
+        );
+    }
+
+    /// task26, fixture-only: `rounds = 3` at `FIXTURE_RESERVE_PCT` gives a
+    /// forward ceiling of 2 genuine rounds, so the run must be able to
+    /// dispatch two attempts (round 1's failing attempt, then round 2's
+    /// genuinely passing retry) before it may settle. The shipped adapter
+    /// books no rounds on charge; the loop's `book_iteration_round` is the
+    /// single rounds authority, so this must hold under a faithful meter.
+    #[test]
+    fn a_tight_rounds_budget_still_allows_forward_ceiling_attempts_through_compose_produced() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new_content_addressed();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let calls = Arc::new(Cell::new(0u32));
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FlippingTestObserver {
+            store: evidence.clone(),
+            clock,
+            calls,
+        })];
+        const TIGHT_ROUNDS: u32 = 3;
+        let composed =
+            compose_produced_with_rounds(key, state, evidence, runner, observers, TIGHT_ROUNDS)
+                .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "round 2's genuinely passing retry must be DISPATCHED and settle — the \
+             loop's own authoritative budget spent only one round for round 1's \
+             failing attempt, so the forward ceiling (2) has headroom for a second: \
+             {outcome:?}"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            2,
+            "exactly the forward ceiling's two attempts were dispatched, no fewer: {:?}",
+            composed.runner.prompts.borrow()
+        );
+    }
+
+    /// task26, fixture-only: `BudgetMeter::charge` must never book the
+    /// reservation's `rounds` dimension, mirroring the shipped adapter.
+    /// The loop is the single rounds authority; charging two `rounds: 1`
+    /// reservations must leave the meter's own `remaining().rounds`
+    /// unchanged.
+    #[test]
+    fn fake_meter_charge_books_no_rounds_like_the_shipped_adapter() {
+        let budget = Budget::new(
+            budget_shape(3).limits,
+            budget_shape(3).recovery_reserve_pct,
+            budget_shape(3).diagnostic,
+        )
+        .expect("usable fixture budget");
+        let meter = (meter_factory())(budget);
+        let starting_remaining_rounds = meter.remaining().rounds;
+        let slice = gauntlet_ports::budget_meter::BudgetSlice {
+            rounds: 1,
+            wall_seconds: 0,
+            tokens: 0,
+            cost_usd: MicroUsd::new(0),
+        };
+        // Two reservations charged with `rounds: 1` each — exactly the
+        // builder-dispatch and critic-admission shape ONE loop iteration
+        // produces under `ReviewMode::Single` with a nonzero model
+        // dispatch allowance.
+        for _ in 0..2 {
+            let reservation = meter.reserve(slice).expect("headroom for the estimate");
+            meter
+                .charge(&reservation, gauntlet_domain::Payment::zero())
+                .expect("a zero payment always charges");
+        }
+        assert_eq!(
+            meter.remaining().rounds,
+            starting_remaining_rounds,
+            "charging a reservation must never book rounds on the meter: rounds are \
+             the loop's own iteration-boundary fact, never the meter's payment counter"
         );
     }
 }
