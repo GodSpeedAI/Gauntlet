@@ -20,8 +20,8 @@ budget:
   max_parallel: 1
   max_depth: 1
   max_wall_seconds: 2700
-  max_tokens: 600000
-  max_cost_usd: 6
+  max_tokens: 1000000
+  max_cost_usd: 8
   recovery_reserve_pct: 15
   diagnostic_budget: 1
 state:
@@ -46,6 +46,10 @@ agent attempt real work, not replay a canned scenario. Budgets above are
 sized for three units dispatched one at a time with room for one retry
 (`max_rounds: 8` → 6 forward rounds after the 15% reserve,
 `max_wall_seconds: 2700`); a tighter round budget cannot reach every unit.
+Token and cost ceilings are sized from a measured real build: one builder
+attempt spent about 95,000 tokens and $0.51 (cache reads are priced, not
+counted as tokens), so `max_tokens: 1000000` and `max_cost_usd: 8` leave
+room for three units plus retries inside the forward ceiling.
 
 ## Observation
 
