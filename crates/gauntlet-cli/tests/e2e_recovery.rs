@@ -956,18 +956,44 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
             "the resume completes: {resume_stdout}"
         );
 
-        // EXACTLY-ONCE-BOUNDED DISPATCH on the resume — never a storm. The
-        // classified landing carries the crashed attempt's production row,
-        // so the resume's first re-dispatch deterministically inherits the
-        // crashed attempt's workspace, dedupes onto that row, and verifies
-        // stale (§14.3) — the loop §11.5-re-attempts once more in a fresh
-        // workspace, which settles (finding F-C4-1, cor4-report.md).
+        // EXACTLY-ONCE-BOUNDED DISPATCH on the resume — never a storm, and
+        // never a wasted extra attempt either (task26 correction).
+        //
+        // F-C4-1 (cor4-report.md) originally OBSERVED "TWO fresh resumed
+        // dispatches" and adjudicated it as the recovery's intended shape:
+        // the resume's first re-dispatch deterministically inherits the
+        // crashed attempt's workspace, "dedupes onto that row, and
+        // verifies stale (§14.3)", forcing a second, fresh-workspace
+        // attempt before the unit could settle. That was the DEFECT this
+        // task fixes, not a feature: §14.3 condition 3 requires evidence
+        // "produced in this run AT OR AFTER the transform it certifies" —
+        // a fact about WHEN the instrument made bytes — and the resumed
+        // pass's first re-dispatch genuinely re-ran the instrument THIS
+        // iteration; treating that real, fresh production as stale just
+        // because a durable row already named its ref was the bug. The
+        // frozen, settled p7 proof
+        // `a_crash_before_the_settlement_event_retries_as_if_never_verified`
+        // already pins the correct shape — "exactly ONE fresh dispatch" —
+        // and this fix moves the resumed-shape leg here to match it: the
+        // first resumed re-dispatch now earns its OWN durable production
+        // (never mutating or discarding the crashed attempt's), verifies
+        // fresh, and settles without needing a second, fresh-workspace
+        // attempt.
+        //
+        // The ruler-owner CandidateRevision this leg's original
+        // adjudication raised — "should §18.3 recovery ADOPT the
+        // pre-crash production outright, without re-verifying?" — remains
+        // OPEN and is untouched by this fix: nothing here credits the
+        // pre-crash row itself as sufficient: the settlement below still
+        // stands over a FRESH, current-iteration production the resumed
+        // pass's own instrument execution actually made, never the
+        // crashed attempt's bytes on say-so alone.
         assert_eq!(
             ak951_dispatch_count(&world, &env, &run_id),
-            3,
+            2,
             "the durable AK-951 dispatch count across both passes: the crashed attempt's own \
-             dispatch plus TWO fresh resumed dispatch(es), bounded by the §11.5 attempts \
-             ceiling (finding F-C4-1)"
+             dispatch plus exactly ONE fresh resumed dispatch — the frozen p7 shape, not the \
+             F-C4-1 defect's wasted extra attempt"
         );
 
         // THE PRE-CRASH ROW INTACT (write-once, the crashed iteration's own
@@ -989,9 +1015,41 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
             .last()
             .map(|(reference, ..)| reference.clone())
             .expect("the marker locator holds the productions");
-        assert_ne!(
-            crashed_row.0, freshest_ref,
-            "the resumed pass's production carries its own ref"
+        // task26: row identity is (evidence_ref, iteration_no) now — the
+        // ref may legitimately repeat because identical bytes were
+        // genuinely re-produced; what proves "the resumed pass's own
+        // record, not the pre-crash one adopted" is the ROW, keyed by its
+        // iteration and ordering anchor.
+        let marker_iterations: Vec<_> =
+            gauntlet_adapter_state_sqlite::test_support::evidence_production_rows_with_iteration(
+                &world.state_db(),
+            )
+            .expect("the iteration-aware production reader runs")
+            .into_iter()
+            .filter(|(_, locator, ..)| locator.contains("real-marker-report"))
+            .collect();
+        assert_eq!(
+            marker_iterations.len(),
+            2,
+            "the crashed and resumed productions are two distinct rows: {marker_iterations:?}"
+        );
+        let crashed_iteration = &marker_iterations[0];
+        let freshest_iteration = &marker_iterations[1];
+        assert_eq!(
+            crashed_iteration.0, freshest_iteration.0,
+            "the resumed pass genuinely re-produced the identical bytes (the fixture inherits \
+             the crashed workspace on its first resumed dispatch), so the content-addressed ref \
+             legitimately repeats: {marker_iterations:?}"
+        );
+        assert!(
+            freshest_iteration.2 > crashed_iteration.2,
+            "the freshest row's iteration_no is strictly greater than the crashed row's — a \
+             DIFFERENT row, the resumed pass's own: {marker_iterations:?}"
+        );
+        assert!(
+            freshest_iteration.4 > crashed_iteration.4,
+            "the freshest row's event-log offset is later than the crashed row's own: \
+             {marker_iterations:?}"
         );
 
         // EXACTLY-ONCE SETTLEMENT over the CURRENT (freshest) ref — one
@@ -1012,6 +1070,18 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
         assert_eq!(
             ak951_settlements[0].2, freshest_ref,
             "the settlement stands over the CURRENT (freshest) production ref"
+        );
+        // The ref alone no longer distinguishes the two rows (task26: it
+        // legitimately repeats). The settlement's own event-log offset
+        // must stand AT OR AFTER the freshest row's offset — a
+        // pre-crash-only production (the earlier offset) could never have
+        // satisfied a settlement committed this late.
+        assert!(
+            ak951_settlements[0].3 >= freshest_iteration.4,
+            "the settlement (offset {}) stands at or after the freshest production's own \
+             offset ({}), never the crashed row's alone",
+            ak951_settlements[0].3,
+            freshest_iteration.4
         );
         assert_eq!(
             ak951_settlement_event_count(&world.state_db()),

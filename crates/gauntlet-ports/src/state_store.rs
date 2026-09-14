@@ -546,18 +546,36 @@ pub trait StateStore {
         Ok(None)
     }
 
-    /// Records the production of one evidence ref in one run, write-once
-    /// per `(run_id, evidence_ref)` — the evidence owner's durable fact
-    /// behind every §14.3 producer/locator/recency decision (plan Task 11).
+    /// Records the production of one evidence ref in one run — the
+    /// evidence owner's durable fact behind every §14.3
+    /// producer/locator/recency decision (plan Task 11).
     ///
     /// The store appends the durable [`RunEventKind::EvidenceProduced`]
     /// event and MINTS the ordering anchor from that append's offset; the
     /// caller supplies the production facts (including the ingested
-    /// content's digest), never the ordering. Re-recording the SAME facts
-    /// is idempotent (the original binding returns); a second record naming
-    /// a DIFFERENT producer, locator, iteration, instant, or content digest
-    /// for the same ref is refused, never overwritten — a later substitute
-    /// cannot displace what the evidence owner certified.
+    /// content's digest), never the ordering. The row's IDENTITY —
+    /// evidence ref, content digest, producer, locator — is write-once:
+    /// a record naming a DIFFERENT producer, locator, or content digest
+    /// for the same ref is refused, never overwritten — a later
+    /// substitute cannot displace what the evidence owner certified.
+    ///
+    /// The row's RECENCY is not part of that identity (task26 correction):
+    /// re-recording the SAME facts at the SAME declared iteration is
+    /// idempotent (the original binding returns, nothing new is appended);
+    /// re-recording the IDENTICAL content/producer/locator at a LATER
+    /// declared iteration ADVANCES the row's recency anchor (iteration,
+    /// instant, event-log offset) in place and appends a fresh
+    /// `EvidenceProduced` event — §14.3 condition 3 reads "produced ... at
+    /// or after the transform it certifies", a fact about when bytes were
+    /// made, not whether a row already exists; an instrument that
+    /// genuinely re-ran and reproduced identical bytes this iteration made
+    /// that fact true again. A declared iteration at or before the
+    /// existing row's is refused exactly as a differing identity is — a
+    /// stale or replayed claim never re-certifies. This is reachable only
+    /// through the minting authority below, which re-reads the bytes from
+    /// the store and validates the declared iteration against the run's
+    /// own durable checkpoint before minting, so an advance is always
+    /// backed by a real, governed re-production — never a caller's say-so.
     ///
     /// The argument is an [`AdmittedEvidenceProduction`], which has no
     /// constructor outside the [`crate::producer_authority`] module (plan

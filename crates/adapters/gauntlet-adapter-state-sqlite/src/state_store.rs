@@ -1596,6 +1596,76 @@ fn identity_differences(
     Ok(differences)
 }
 
+impl SqliteStateStore {
+    /// Every durable row for one `(run, evidence ref)`, ordered by their
+    /// event-log anchor (oldest — earliest iteration — first). Since 0011
+    /// a ref may carry more than one row (one per iteration it was
+    /// genuinely re-produced in); `.last()` is the freshest.
+    fn production_rows_for_ref(
+        &self,
+        run_id: &RunId,
+        evidence: &EvidenceRef,
+        _deadline: Deadline,
+    ) -> Result<Vec<gauntlet_ports::state_store::EvidenceProductionBinding>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let mut statement = conn
+            .prepare(
+                "SELECT producer_name, producer_version, locator, iteration_no, produced_at, \
+                 event_log_offset, content_digest FROM evidence_productions WHERE run_id = ?1 \
+                 AND evidence_ref = ?2 ORDER BY event_log_offset ASC",
+            )
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!(
+                    "preparing the production-rows query for evidence {evidence} in run \
+                     {run_id} failed: {err}"
+                ),
+            })?;
+        let rows = statement
+            .query_map((run_id.to_string(), evidence.as_str()), |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, String>(6)?,
+                ))
+            })
+            .map_err(|err| StateStoreError::ReadFailed {
+                detail: format!(
+                    "reading the production rows for evidence {evidence} in run {run_id} \
+                     failed: {err}"
+                ),
+            })?;
+        let mut bindings = Vec::new();
+        for row in rows {
+            let (name, version, locator, iteration, produced_at, offset, content) =
+                row.map_err(|err| StateStoreError::ReadFailed {
+                    detail: format!(
+                        "stepping the production rows for evidence {evidence} in run {run_id} \
+                         failed: {err}",
+                    ),
+                })?;
+            bindings.push(production_from_parts(
+                run_id,
+                evidence,
+                &name,
+                &version,
+                &locator,
+                iteration,
+                produced_at,
+                offset,
+                &content,
+            )?);
+        }
+        Ok(bindings)
+    }
+}
+
 impl StateStore for SqliteStateStore {
     /// The trait half of the adapter's identity recording: the inherent
     /// method (idempotent by run id, disagreeing re-record refused with
@@ -2207,24 +2277,75 @@ impl StateStore for SqliteStateStore {
         // this method receives producer FACTS only — never a caller-chosen
         // digest.
         let production = production.production();
-        // Write-once per (run, ref), checked BEFORE any event is appended:
-        // re-recording identical facts is idempotent and appends nothing;
-        // a conflicting record is refused and appends nothing either.
-        if let Some(existing) = self.evidence_production(run_id, production.evidence(), deadline)? {
-            if existing.production() == production {
-                return Ok(existing);
+        // task26 (append-only correction): the row's key is now (run,
+        // evidence ref, ITERATION) — every governed re-production earns
+        // its own row, never overwriting or collapsing onto a prior
+        // iteration's. Two prior facts stay exactly write-once: the SAME
+        // iteration re-recording the SAME facts is idempotent (no new
+        // event); the SAME iteration with DIFFERING facts is refused. The
+        // new fact this migration exists for: a LATER iteration is a NEW
+        // row — §14.3 condition 3 ("produced in this run at or after the
+        // transform it certifies") names a fact about WHEN the instrument
+        // made bytes, and a later iteration's governed re-production of
+        // identical bytes is a real, separate instance of that fact, not
+        // a duplicate of the earlier one. A declared iteration at or
+        // before an EXISTING row for this ref is refused as stale/replayed
+        // (recorded facts never move backward); a producer/locator/content
+        // mismatch against any existing row for this ref is refused as a
+        // genuine conflict (a work product's identity does not change
+        // across iterations under one evidence ref).
+        let existing_rows =
+            self.production_rows_for_ref(run_id, production.evidence(), deadline)?;
+        if let Some(same_iteration) = existing_rows
+            .iter()
+            .find(|row| row.production().iteration_no() == production.iteration_no())
+        {
+            if same_iteration.production() == production {
+                return Ok(same_iteration.clone());
             }
             return Err(StateStoreError::WriteFailed {
                 detail: format!(
                     "run {run_id} already recorded evidence {} produced by {} at {} iteration {} \
-                     (anchor offset {}); recording it again with different facts is refused",
+                     (anchor offset {}); recording it again with different facts at the SAME \
+                     iteration is refused",
                     production.evidence(),
                     production.producer().name(),
                     production.locator(),
                     production.iteration_no().get(),
-                    existing.event_log_offset().get(),
+                    same_iteration.event_log_offset().get(),
                 ),
             });
+        }
+        if let Some(freshest) = existing_rows.last() {
+            let same_work_product = freshest.production().content() == production.content()
+                && freshest.production().producer() == production.producer()
+                && freshest.production().locator() == production.locator();
+            if !same_work_product {
+                return Err(StateStoreError::WriteFailed {
+                    detail: format!(
+                        "run {run_id} already recorded evidence {} produced by {} at {} (anchor \
+                         offset {}); recording it again with a different producer/locator/content \
+                         is refused",
+                        production.evidence(),
+                        freshest.production().producer().name(),
+                        freshest.production().locator(),
+                        freshest.event_log_offset().get(),
+                    ),
+                });
+            }
+            if production.iteration_no().get() <= freshest.production().iteration_no().get() {
+                return Err(StateStoreError::WriteFailed {
+                    detail: format!(
+                        "run {run_id} already recorded evidence {} at iteration {} (anchor offset \
+                         {}); a re-production declared at iteration {} — at or before the durable \
+                         row's own — is refused as stale or replayed",
+                        production.evidence(),
+                        freshest.production().iteration_no().get(),
+                        freshest.event_log_offset().get(),
+                        production.iteration_no().get(),
+                    ),
+                });
+            }
         }
         // The ordering anchor: minted by THIS append, inside the store, from
         // a value no caller of this method supplies (spec §14.3 condition 3).
@@ -2269,10 +2390,11 @@ impl StateStore for SqliteStateStore {
         )
         .map_err(|err| StateStoreError::WriteFailed {
             detail: format!(
-                "recording the production of evidence {} in run {run_id} failed: {err}; the \
-                 EvidenceProduced event IS durable at offset {} — replay recovery should complete \
-                 the row before re-recording",
+                "recording the production of evidence {} in run {run_id} at iteration {} failed: \
+                 {err}; the EvidenceProduced event IS durable at offset {} — replay recovery \
+                 should complete the row before re-recording",
                 production.evidence(),
+                production.iteration_no().get(),
                 offset.get(),
             ),
         })?;
@@ -2283,57 +2405,18 @@ impl StateStore for SqliteStateStore {
         &self,
         run_id: &RunId,
         evidence: &EvidenceRef,
-        _deadline: Deadline,
+        deadline: Deadline,
     ) -> Result<Option<gauntlet_ports::state_store::EvidenceProductionBinding>, StateStoreError>
     {
-        let conn = self
-            .conn
-            .lock()
-            .expect("the store connection is not poisoned");
-        let row: Option<(String, String, String, i64, i64, i64, String)> = match conn.query_row(
-            "SELECT producer_name, producer_version, locator, iteration_no, produced_at, \
-             event_log_offset, content_digest FROM evidence_productions WHERE run_id = ?1 AND \
-             evidence_ref = ?2",
-            (run_id.to_string(), evidence.as_str()),
-            |row| {
-                Ok((
-                    row.get(0)?,
-                    row.get(1)?,
-                    row.get(2)?,
-                    row.get(3)?,
-                    row.get(4)?,
-                    row.get(5)?,
-                    row.get(6)?,
-                ))
-            },
-        ) {
-            Ok(row) => Some(row),
-            Err(rusqlite::Error::QueryReturnedNoRows) => None,
-            Err(err) => {
-                return Err(StateStoreError::ReadFailed {
-                    detail: format!(
-                        "reading the production record of evidence {evidence} in run {run_id} \
-                         failed: {err}",
-                    ),
-                });
-            }
-        };
-        row.map(
-            |(name, version, locator, iteration, produced_at, offset, content)| {
-                production_from_parts(
-                    run_id,
-                    evidence,
-                    &name,
-                    &version,
-                    &locator,
-                    iteration,
-                    produced_at,
-                    offset,
-                    &content,
-                )
-            },
-        )
-        .transpose()
+        // The FRESHEST row for this ref (task26: a ref may now carry one
+        // row per iteration it was genuinely re-produced in) — every
+        // caller of this singular read wants "what stands for this ref
+        // right now", which is its latest anchor, exactly like
+        // `evidence_productions_at`'s own freshest-last ordering.
+        Ok(self
+            .production_rows_for_ref(run_id, evidence, deadline)?
+            .into_iter()
+            .next_back())
     }
 
     fn evidence_productions_at(

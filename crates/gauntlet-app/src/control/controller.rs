@@ -808,9 +808,14 @@ impl ProducePolicy {
     ///   e.g. the composed `filesystem`+`test` plan — writes ONE locator
     ///   production, so no single facet's identity owns it), and it is
     ///   iteration-insensitive because the produce step itself is: a
-    ///   re-produced identical artifact dedupes onto the durable row
-    ///   (`already_durable` compares locator + producer, never
-    ///   iteration).
+    ///   re-produced identical artifact APPENDS its own row, keyed by
+    ///   `(run, ref, iteration)` (task26 correction —
+    ///   `record_evidence_production`'s own rule now, not a controller-
+    ///   side dedupe), standing beside every earlier iteration's row for
+    ///   the same ref — so this existence check still sees at least one
+    ///   row regardless of how many times the same content was
+    ///   re-produced, and every iteration's own row stays intact for
+    ///   recovery forensics.
     ///
     /// COR-R3-1 (falsifier round 3): the same discipline now governs the
     /// recovery's MINT half, not only its applied read. In the produced
@@ -3811,30 +3816,28 @@ impl RunController {
                 // Content addressing makes a RE-PRODUCED identical
                 // artifact land on the ref that is already durably
                 // recorded (a retry whose work product did not change).
-                // The store's write-once production rule refuses the same
-                // ref with different anchor facts — and the re-record
-                // would carry nothing new: the durable row already states
-                // that these bytes stand at this locator under this
-                // instrument. When that exact fact exists, the record is
-                // idempotently SKIPPED and §14.3's recency condition does
-                // the honest work (unchanged content at a later iteration
-                // verifies stale — evidence cannot re-certify a transform
-                // it predates). Any OTHER existing row (a different
-                // locator or instrument on the same ref) is an anomaly
-                // the store adjudicates.
-                let already_durable = self
-                    .state
-                    .evidence_production(state.run.id(), &produced_ref, self.operation_bound())?
-                    .is_some_and(|existing| {
-                        *existing.production().locator() == *locator
-                            && existing.production().producer().name().as_str()
-                                == instrument_name.as_str()
-                            && existing.production().producer().version()
-                                == facet.instrument_version()
-                    });
-                if already_durable {
-                    return Ok(());
-                }
+                // task26 correction: this is NEVER a reason to skip
+                // recording. §14.3 condition 3 reads "produced in this run
+                // AT OR AFTER the transform it certifies" — a fact about
+                // WHEN the instrument made these bytes, not about whether
+                // a production row already names this ref. The bytes were
+                // read from THIS iteration's own workspace, moments ago,
+                // by THIS completion's own pipeline: the instrument
+                // genuinely re-produced them, and that fact is real even
+                // though the content did not need to change. Always call
+                // `record`, unconditionally, and let the ONE production
+                // authority (C5/B-M2 — never a second source of production
+                // truth) decide: identical facts at the SAME iteration are
+                // idempotent (no new event, §18.3 crash-resume stays
+                // exactly-once); the SAME content/producer/locator at a
+                // LATER iteration APPENDS its own row (a fresh
+                // `evidence_produced` event, keyed by `(run, ref,
+                // iteration)`) standing beside every earlier iteration's
+                // row for this ref — never overwriting one, so recovery
+                // forensics keep every iteration's production intact,
+                // byte-level; anything else differing (content, producer,
+                // locator, or an iteration at or before an existing row)
+                // is refused exactly as a genuine conflict always was.
                 self.evidence_production.record(
                     state.run.id(),
                     iteration,
@@ -5284,6 +5287,19 @@ mod tests {
         objects: RefCell<Vec<(EvidenceRef, Vec<u8>)>>,
         pins: RefCell<Vec<(RunId, EvidenceRef)>>,
         next: Cell<u32>,
+        // task26: opt-in content addressing (default false — every
+        // existing fixture keeps its sequential-ref behavior, including
+        // tests that count per-`put()`-call forensic pins, e.g.
+        // `a_settled_noop_over_below_anchor_settlement_damage_pins_the_missing_row`,
+        // where two resumes correctly append the SAME byte-identical
+        // record twice as two distinct log entries). Only
+        // `FakeEvidence::new_content_addressed` turns this on, for tests
+        // that specifically exercise "the store dedups a re-produced
+        // identical artifact onto the same ref" — the real content-
+        // addressed evidence-store adapter's actual, unconditional
+        // behavior: its `put` hashes every write, regardless of
+        // `EvidenceKind`.
+        content_addressed: bool,
     }
 
     #[derive(Clone)]
@@ -5292,6 +5308,19 @@ mod tests {
     impl FakeEvidence {
         fn new() -> Self {
             Self(Arc::new(EvidenceInner::default()))
+        }
+
+        /// A content-addressed fixture store, faithful to the real
+        /// content-addressed evidence-store adapter: `put` returns the
+        /// SAME ref for byte-identical content, never a fresh one. Use
+        /// this when the scenario under test depends on that dedup (e.g.
+        /// re-producing identical evidence across attempts); every other
+        /// fixture stays on `new`'s sequential refs.
+        fn new_content_addressed() -> Self {
+            Self(Arc::new(EvidenceInner {
+                content_addressed: true,
+                ..EvidenceInner::default()
+            }))
         }
 
         fn records_containing(&self, needle: &str) -> Vec<String> {
@@ -5312,13 +5341,18 @@ mod tests {
             _: EvidenceKind,
             _: Deadline,
         ) -> Result<EvidenceRef, EvidenceStoreError> {
+            let mut objects = self.0.objects.borrow_mut();
+            if self.0.content_addressed
+                && let Some((existing, _)) = objects
+                    .iter()
+                    .find(|(_, stored)| stored.as_slice() == bytes)
+            {
+                return Ok(existing.clone());
+            }
             let index = self.0.next.get();
             self.0.next.set(index + 1);
             let reference = EvidenceRef::new(&format!("evd-ctrl-{index:06}")).expect("valid ref");
-            self.0
-                .objects
-                .borrow_mut()
-                .push((reference.clone(), bytes.to_vec()));
+            objects.push((reference.clone(), bytes.to_vec()));
             Ok(reference)
         }
         fn get(
@@ -10057,6 +10091,178 @@ mod tests {
             runner,
             unavailable,
         })
+    }
+
+    /// Like `FixtureObserver` but its test facet's exit status flips from
+    /// FAIL (the first call) to PASS (every later call) — the task26
+    /// repro's stand-in for "the real check script failed round 1, passed
+    /// round 2".
+    struct FlippingTestObserver {
+        store: FakeEvidence,
+        clock: Arc<dyn Clock>,
+        calls: Arc<Cell<u32>>,
+    }
+
+    impl Observer for FlippingTestObserver {
+        fn observe(
+            &self,
+            request: &ObservationRequest,
+            _: Deadline,
+        ) -> Result<ObservationFacet, ObserverError> {
+            let call = self.calls.get();
+            self.calls.set(call + 1);
+            let exit_status: i64 = if call == 0 { 1 } else { 0 };
+            let instrument = InstrumentIdentity::new(
+                gauntlet_domain::InstrumentName::new("gauntlet-controller-fixture-flip")
+                    .expect("fixture instrument name"),
+                "1".to_owned(),
+            );
+            let started = self.clock.now();
+            let ended = EpochSeconds::new(started.get() + 1);
+            let command = "fixture-probe --report".to_owned();
+            let doc = FacetEvidenceDoc::new(
+                instrument.name().as_str().to_owned(),
+                instrument.version().to_owned(),
+                ObservedRun {
+                    command: command.clone(),
+                    env_fingerprint:
+                        "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                            .to_owned(),
+                    exit_status,
+                    started_at: started.get(),
+                    ended_at: ended.get(),
+                    stdout: format!("observed workspace {}", request.workspace.as_str()),
+                    stderr: String::new(),
+                },
+            )
+            .expect("the fixture evidence document is well formed");
+            let bound = Deadline::at_epoch(EpochSeconds::new(u64::MAX / 2));
+            let evidence_ref = self
+                .store
+                .put(doc.encode().as_bytes(), EvidenceKind::Log, bound)
+                .map_err(|error| ObserverError::Unavailable {
+                    kind: FacetKind::Test,
+                    detail: error.to_string(),
+                })?;
+            Ok(
+                ObservationFacet::new(FacetKind::Test, instrument, evidence_ref)
+                    .with_invocation(Some(command), Some(exit_status))
+                    .with_window(Some(started), Some(ended))
+                    .with_summary(Some(format!("fixture facet exit {exit_status}"))),
+            )
+        }
+        fn facet_kind(&self) -> FacetKind {
+            FacetKind::Test
+        }
+    }
+
+    #[test]
+    fn a_completion_that_re_produces_identical_bytes_after_a_failed_first_attempt_still_settles() {
+        // Reproduces the orchestrator-verified demo-calculator defect
+        // (task26) at its REAL locus, DB-confirmed against the actual
+        // run's `event_log`/`observation_bindings`/`evidence_productions`/
+        // `settlements` tables and the pinned evidence store: AK-9011's
+        // own locator bytes did not change between attempts — only the
+        // run's shared test facet's exit status did (round 1 failed,
+        // round 2 passed) — and the real run's second, PASSING attempt
+        // was silently lost because its evidence production was treated
+        // as a no-op.
+        //
+        // A GENEROUS budget on purpose (`compose_produced`'s
+        // `FIXTURE_ROUNDS`): this defect needs no tight rounds ceiling at
+        // all — it reproduces on the very FIRST retry — and a tight
+        // budget in this fixture composition trips an unrelated meter
+        // anomaly (reported separately; see the task26 report), which
+        // would make this test's RED/GREEN prove the wrong thing.
+        //
+        // No `workspaces` provider is wired, so `evidence_workspace` is
+        // the SAME physical path across both attempts (COR-D3): attempt
+        // 1's `produce_unit_evidence` finds nothing at the locator yet and
+        // materializes its own (failing) facet document there; attempt
+        // 2's produce step finds that SAME file already on disk and reads
+        // back those SAME bytes — byte-identical content across attempts
+        // by construction, exactly like AK-9011's unchanging markup.
+        //
+        // Before the fix: `produce_unit_evidence`'s `already_durable`
+        // check skipped recording entirely on attempt 2 (no fresh
+        // `evidence_produced`, no new per-iteration row); `verify_claim`
+        // then applied §14.3's staleness rule against the iteration-1
+        // row and returned INCONCLUSIVE even though attempt 2's own test
+        // facet passed and genuinely corroborates those bytes; settlement
+        // refused (§16.1 condition 1); the unit never settles.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        // Content-addressed (task26): AK-9011's own locator bytes really
+        // are byte-identical across attempts in the real run — this
+        // fixture must dedup the same way the real content-addressed
+        // evidence-store adapter does, or the repro tests nothing.
+        let evidence = FakeEvidence::new_content_addressed();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
+        let clock = DeterministicClock::new();
+        let calls = Arc::new(Cell::new(0u32));
+        let observers: Vec<Arc<dyn Observer>> = vec![Arc::new(FlippingTestObserver {
+            store: evidence.clone(),
+            clock,
+            calls,
+        })];
+        let composed =
+            compose_produced(key, state, evidence.clone(), runner, observers).expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "attempt 2 re-produced identical, now-corroborated bytes; it must settle: {outcome:?}"
+        );
+        let rows = composed
+            .state
+            .settlements(&outcome.run_id, bound())
+            .expect("settlements readable");
+        assert_eq!(
+            rows.len(),
+            1,
+            "exactly one durable settlement exists for the unit's second attempt: {rows:?}"
+        );
+        // task26 (append-only correction): both attempts' productions
+        // stand as SEPARATE durable rows for the SAME evidence ref (the
+        // content never changed) — the exact fact
+        // `seed_unit_states`'s resume-time attempts reconstruction
+        // (`seed_unit_states`'s `evidence_productions_at(locator).len()`)
+        // depends on. Before this correction, an identical re-production
+        // collapsed onto ONE row regardless of how many iterations
+        // re-affirmed it, UNDERCOUNTING attempts on any later resume (a
+        // stale §11.5 attempts ceiling that could let a unit be retried
+        // past its configured cap after a crash).
+        let locator =
+            gauntlet_domain::EvidenceLocator::new("ctrl-9101.json").expect("fixture locator");
+        let productions = composed
+            .state
+            .evidence_productions_at(&outcome.run_id, &locator, bound())
+            .expect("productions readable");
+        assert_eq!(
+            productions.len(),
+            2,
+            "both attempts' re-productions of the identical content stand as separate, \
+             per-iteration rows: {productions:?}"
+        );
+        // A resume over the now-settled run is the honest no-op:
+        // reconstructing attempts from TWO durable rows must never cause
+        // a phantom re-dispatch or a wrongful escalation over work that
+        // already settled.
+        let resumed = composed
+            .controller
+            .resume_run(&outcome.run_id)
+            .expect("the settled run resumes");
+        assert_eq!(
+            resumed.terminal,
+            TerminalState::Settled,
+            "the settled no-op stands regardless of the reconstructed attempts count"
+        );
+        assert_eq!(
+            composed.runner.prompts.borrow().len(),
+            2,
+            "the resume re-dispatches nothing: {:?}",
+            composed.runner.prompts.borrow()
+        );
     }
 
     #[test]

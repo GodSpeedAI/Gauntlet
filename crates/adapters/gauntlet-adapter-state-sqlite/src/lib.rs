@@ -80,6 +80,10 @@ pub mod test_support {
     /// ref, evidence ref, event-log offset, settled_at)` — see
     /// [`settlement_rows`].
     pub type SettlementRowFacts = (String, String, String, i64, i64);
+    /// One durable evidence-production row's reader shape, iteration
+    /// included: `(evidence ref, locator, iteration_no, produced_at,
+    /// event-log offset)` — see [`evidence_production_rows_with_iteration`].
+    pub type EvidenceProductionIterationFacts = (String, String, i64, i64, i64);
 
     /// Deletes every `evidence_productions` row of the database at
     /// `db_path`, or only the rows at `locator` when one is given. Returns
@@ -221,6 +225,42 @@ pub mod test_support {
                     row.get::<_, String>(1)?,
                     row.get::<_, i64>(2)?,
                     row.get::<_, i64>(3)?,
+                ))
+            })
+            .map_err(|error| error.to_string())?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row.map_err(|error| error.to_string())?);
+        }
+        Ok(out)
+    }
+
+    /// Reads every durable evidence-production row as
+    /// `(evidence ref, locator, iteration_no, produced_at, event-log
+    /// offset)` — task26's append-only correction: a row's identity is
+    /// `(evidence_ref, iteration_no)` now, so a leg proving "this is a
+    /// DIFFERENT row, not the pre-crash one adopted" needs the iteration
+    /// alongside the ref (an identical ref can legitimately repeat when
+    /// identical bytes were genuinely re-produced at a later iteration).
+    pub fn evidence_production_rows_with_iteration(
+        db_path: &std::path::Path,
+    ) -> Result<Vec<EvidenceProductionIterationFacts>, String> {
+        let connection =
+            ::rusqlite::Connection::open(db_path).map_err(|error| error.to_string())?;
+        let mut statement = connection
+            .prepare(
+                "SELECT evidence_ref, locator, iteration_no, produced_at, event_log_offset \
+                 FROM evidence_productions ORDER BY event_log_offset ASC",
+            )
+            .map_err(|error| error.to_string())?;
+        let rows = statement
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, i64>(4)?,
                 ))
             })
             .map_err(|error| error.to_string())?;

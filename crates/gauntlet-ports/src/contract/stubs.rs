@@ -2738,19 +2738,50 @@ impl StateStore for DurableStore {
     ) -> Result<crate::state_store::EvidenceProductionBinding, StateStoreError> {
         let payload = production.production();
         let mut productions = self.productions.borrow_mut();
-        if let Some(existing) = productions
+        // task26 correction (append-only, mirrors the real adapter): a
+        // ref's rows are keyed per ITERATION now, never one row per ref.
+        // The SAME iteration re-recording the SAME facts is idempotent;
+        // the SAME iteration with DIFFERENT facts is refused. The SAME
+        // content/producer/locator at a LATER iteration is a genuine
+        // re-production this iteration's own governed mint just
+        // re-derived — it APPENDS its own row, standing beside every
+        // earlier iteration's row for this ref, never overwriting one.
+        // Any other mismatch (differing content/producer/locator, or a
+        // declared iteration at or before an existing row's) is refused.
+        let existing: Vec<&crate::state_store::EvidenceProductionBinding> = productions
             .iter()
-            .find(|binding| binding.production().evidence() == payload.evidence())
+            .filter(|binding| binding.production().evidence() == payload.evidence())
+            .collect();
+        if let Some(same_iteration) = existing
+            .iter()
+            .find(|binding| binding.production().iteration_no() == payload.iteration_no())
         {
-            if existing.production() == payload {
-                return Ok(existing.clone());
+            if same_iteration.production() == payload {
+                return Ok((*same_iteration).clone());
             }
             return Err(StateStoreError::WriteFailed {
                 detail: format!(
-                    "run {run_id} already recorded {} with different facts",
+                    "run {run_id} already recorded {} with different facts at the same \
+                     iteration",
                     payload.evidence()
                 ),
             });
+        }
+        if let Some(freshest) = existing.last() {
+            let same_work_product = freshest.production().content() == payload.content()
+                && freshest.production().producer() == payload.producer()
+                && freshest.production().locator() == payload.locator();
+            if !same_work_product
+                || payload.iteration_no().get() <= freshest.production().iteration_no().get()
+            {
+                return Err(StateStoreError::WriteFailed {
+                    detail: format!(
+                        "run {run_id} already recorded {} with different facts or at a stale \
+                         iteration",
+                        payload.evidence()
+                    ),
+                });
+            }
         }
         let offset = self.next_offset.get();
         self.next_offset.set(offset + 1);
@@ -2769,14 +2800,37 @@ impl StateStore for DurableStore {
         evidence: &gauntlet_domain::EvidenceRef,
         _deadline: Deadline,
     ) -> Result<Option<crate::state_store::EvidenceProductionBinding>, StateStoreError> {
+        // task26: a ref may carry one row per iteration since the
+        // append-only correction; `productions` is push-ordered (append =
+        // offset order), so the LAST match is the freshest — exactly the
+        // real adapter's `ORDER BY event_log_offset ASC` + take-last.
         Ok(self
             .productions
             .borrow()
             .iter()
-            .find(|binding| {
+            .rfind(|binding| {
                 binding.run_id() == run_id && binding.production().evidence() == evidence
             })
             .cloned())
+    }
+
+    fn evidence_productions_at(
+        &self,
+        run_id: &RunId,
+        locator: &gauntlet_domain::EvidenceLocator,
+        _deadline: Deadline,
+    ) -> Result<Vec<crate::state_store::EvidenceProductionBinding>, StateStoreError> {
+        // Push-ordered (append = offset order): oldest first, matching the
+        // real adapter's `ORDER BY event_log_offset ASC`.
+        Ok(self
+            .productions
+            .borrow()
+            .iter()
+            .filter(|binding| {
+                binding.run_id() == run_id && binding.production().locator() == locator
+            })
+            .cloned()
+            .collect())
     }
 
     fn bind_observation_bundle(

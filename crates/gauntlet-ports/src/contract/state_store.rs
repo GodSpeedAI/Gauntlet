@@ -35,7 +35,8 @@ use crate::producer_authority::{
     SettlementAdmissionError, SettlementCommitAuthority, VerificationRecordAuthority,
 };
 use crate::state_store::{
-    Checkpoint, RunEvent, RunEventKind, SettlementCommit, StateStore, StateStoreError,
+    Checkpoint, EvidenceProductionBinding, RunEvent, RunEventKind, SettlementCommit, StateStore,
+    StateStoreError,
 };
 use crate::verification_record::{
     RequirementDoc, VerificationContent, VerificationRecordDoc, VerifyingInstrument,
@@ -633,6 +634,195 @@ fn owner_writes_are_earned_through_the_authorities(
             RULE,
             format!("reading the observation binding back failed: {error}"),
         )),
+    }
+    // task26 correction (append-only shape): RECENCY is not part of the
+    // row's write-once IDENTITY, but it is not folded into an existing row
+    // either — every genuine re-production earns its OWN row. §14.3
+    // condition 3 names a fact about WHEN the instrument made bytes; an
+    // instrument that genuinely re-runs and reproduces IDENTICAL bytes
+    // (same content digest, same producer, same locator) at a LATER
+    // durable iteration made that fact true AGAIN, a second time, and the
+    // durable history must show BOTH productions side by side (recovery
+    // forensics need the pre-crash row intact, byte-level, beside the
+    // resumed pass's own). Move the durable anchor to iteration 3 and
+    // re-record the SAME production facts declared at that iteration: the
+    // store must APPEND a new row (a fresh event, a fresh offset, the new
+    // iteration) rather than mutate the iteration-2 row or refuse the
+    // call as a conflict. Run LAST in this case (after every anchor-2
+    // assertion above) since it moves the suite run's durable anchor
+    // forward for the rest of its life.
+    let later_anchor = IterationNo::new(3).expect("suite iteration is 1-based");
+    if let Ok(run) = run(&run_id) {
+        let advancing_checkpoint = Checkpoint {
+            run_id: run_id.clone(),
+            reference_digest: run.reference_version().digest().clone(),
+            iteration_no: later_anchor,
+            unit_states: vec![(
+                UnitId::new("AK-014").expect("suite unit id"),
+                UnitStatus::Open,
+            )],
+            budget_spent: *run.budget().spent(),
+            in_flight: Vec::new(),
+            event_log_offset: EventLogOffset::new(4),
+        };
+        if let Err(error) = store.checkpoint(advancing_checkpoint, bound()) {
+            findings.push(finding(
+                CASE,
+                RULE,
+                format!("advancing the durable-anchor checkpoint to iteration 3 failed: {error}"),
+            ));
+        } else {
+            match production_authority.record(
+                &run_id,
+                later_anchor,
+                &production_ref,
+                &producer,
+                &locator,
+                EpochSeconds::new(BASE_INSTANT + 6),
+                bound(),
+            ) {
+                Ok(later) => {
+                    if later.production().iteration_no() != later_anchor {
+                        findings.push(finding(
+                            CASE,
+                            RULE,
+                            "a re-production at a later iteration was not recorded at that \
+                             iteration"
+                                .to_owned(),
+                        ));
+                    }
+                    if later.event_log_offset() == binding.event_log_offset() {
+                        findings.push(finding(
+                            CASE,
+                            RULE,
+                            "a re-production at a later iteration did not append a fresh \
+                             EvidenceProduced event of its own (the ordering anchor did not move)"
+                                .to_owned(),
+                        ));
+                    }
+                    if later.production().content() != &expected_content {
+                        findings.push(finding(
+                            CASE,
+                            RULE,
+                            "the later iteration's row does not carry the same content digest \
+                             as the earlier one — the SAME re-produced bytes must digest the \
+                             same"
+                                .to_owned(),
+                        ));
+                    }
+                    // BOTH rows stand: the pre-crash (iteration 2) row is
+                    // untouched, byte-level, and the later (iteration 3)
+                    // row exists beside it — never one overwriting the
+                    // other.
+                    match store.evidence_production(&run_id, &production_ref, bound()) {
+                        Ok(Some(freshest)) if freshest.production() == later.production() => {}
+                        Ok(_) => findings.push(finding(
+                            CASE,
+                            RULE,
+                            "the singular production read does not return the FRESHEST row \
+                             after a later-iteration production exists"
+                                .to_owned(),
+                        )),
+                        Err(error) => findings.push(finding(
+                            CASE,
+                            RULE,
+                            format!("reading the freshest production back failed: {error}"),
+                        )),
+                    }
+                    match store.evidence_productions_at(&run_id, &locator, bound()) {
+                        Ok(rows) => {
+                            let at_iteration_2 = rows
+                                .iter()
+                                .find(|row| row.production().iteration_no() == anchor);
+                            if at_iteration_2.map(EvidenceProductionBinding::production)
+                                != Some(binding.production())
+                            {
+                                findings.push(finding(
+                                    CASE,
+                                    RULE,
+                                    "the pre-crash (iteration 2) row is no longer intact, \
+                                     byte-level, once a later iteration's row exists beside it"
+                                        .to_owned(),
+                                ));
+                            }
+                            let at_iteration_3 = rows
+                                .iter()
+                                .find(|row| row.production().iteration_no() == later_anchor);
+                            if at_iteration_3.map(EvidenceProductionBinding::production)
+                                != Some(later.production())
+                            {
+                                findings.push(finding(
+                                    CASE,
+                                    RULE,
+                                    "the later iteration's row does not stand beside the \
+                                     pre-crash row at the same locator"
+                                        .to_owned(),
+                                ));
+                            }
+                            if rows.len() < 2 {
+                                findings.push(finding(
+                                    CASE,
+                                    RULE,
+                                    format!(
+                                        "two genuine re-productions of the same ref at \
+                                         different iterations must leave TWO rows at the \
+                                         locator, found {}: {rows:?}",
+                                        rows.len()
+                                    ),
+                                ));
+                            }
+                        }
+                        Err(error) => findings.push(finding(
+                            CASE,
+                            RULE,
+                            format!("reading the locator's productions back failed: {error}"),
+                        )),
+                    }
+                }
+                Err(error) => findings.push(finding(
+                    CASE,
+                    RULE,
+                    format!(
+                        "a re-production of IDENTICAL bytes by the SAME producer/locator at a \
+                         later iteration was refused instead of appending its own row: {error}"
+                    ),
+                )),
+            }
+            // The opposite direction stays refused: a declared iteration
+            // AT OR BEFORE an existing row for this ref is a stale or
+            // replayed claim, never a re-certification, exactly like a
+            // differing identity. Refusal may surface either at the
+            // minting authority's own durable-iteration check (the
+            // declared iteration no longer matches the run's CURRENT
+            // durable anchor, now 3) or at the store's own rule — both are
+            // the same guarantee from different layers, so either is
+            // accepted here.
+            match production_authority.record(
+                &run_id,
+                anchor,
+                &production_ref,
+                &producer,
+                &locator,
+                produced_at,
+                bound(),
+            ) {
+                Err(_) => {}
+                Ok(_) => findings.push(finding(
+                    CASE,
+                    RULE,
+                    "a re-production declared at an iteration at or before an existing row's \
+                     own succeeded — a stale claim re-certified a transform it predates"
+                        .to_owned(),
+                )),
+            }
+        }
+    } else {
+        findings.push(finding(
+            CASE,
+            RULE,
+            "the suite run could not be reloaded to build the later-iteration checkpoint"
+                .to_owned(),
+        ));
     }
     findings
 }

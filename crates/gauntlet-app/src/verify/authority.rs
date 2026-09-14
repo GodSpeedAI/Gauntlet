@@ -950,9 +950,10 @@ mod tests {
     use super::super::testing::*;
     use super::{VerificationAdmissionError, VerificationAuthority, VerificationRefusal};
     use gauntlet_domain::{
-        EvidenceKind, EvidenceLocator, EvidenceRequirement, IterationNo, Outcome, Producer, RunId,
-        UnitId,
+        EvidenceKind, EvidenceLocator, EvidenceRef, EvidenceRequirement, IterationNo, Outcome,
+        Producer, RunId, UnitId,
     };
+    use gauntlet_ports::state_store::StateStore;
     use gauntlet_ports::verification_record::BindingClass;
     use gauntlet_ports::verifier::VerificationRequest;
 
@@ -1220,6 +1221,69 @@ mod tests {
         // The FROZEN requirement says producer=instrument; the stale
         // production is the actionable failure — staleness, not the lie.
         assert_eq!(claim.record().class(), Some(BindingClass::EvidenceStale));
+    }
+
+    #[test]
+    fn verifying_at_a_later_iteration_never_advances_recency_on_its_own() {
+        // task26's security property: a production's recency ADVANCES
+        // only through a real, governed re-production
+        // (`EvidenceProductionAuthority::record`, reached only from a
+        // completion pipeline that re-read bytes from THIS iteration's
+        // OWN workspace and validated the declared iteration against the
+        // durable checkpoint) — never merely by VERIFYING, and never on a
+        // request's say-so. `verify_claim` is a read: it must decide
+        // INCONCLUSIVE/stale exactly like the tests above, and it must
+        // never itself move the durable row's recorded iteration, however
+        // many times (or at whatever governed iteration) it is called.
+        let (state, evidence) = authority_parts();
+        state.record(
+            "evd-no-reproduction",
+            "fixture-report-verifier",
+            "fixture-report-locator",
+            1,
+            b"test report bytes",
+        );
+        evidence.insert("evd-no-reproduction", b"test report bytes");
+        state.checkpoint_at(2);
+        let authority =
+            VerificationAuthority::new(state.clone(), evidence, Arc::new(SeededIds::new()));
+        let governed = authority
+            .for_run(
+                &RunId::new(RUN_ULID).expect("fixture run"),
+                IterationNo::new(2).expect("1-based"),
+                ladder_with_test_report_rung(&[]),
+                state.workspace_root().to_owned(),
+                bound(),
+            )
+            .expect("the fixture run opens");
+        // Verify TWICE at the later governed iteration: if verifying ever
+        // mutated recency, the second call would see a fresher row than
+        // the first.
+        let first = governed
+            .verify_claim(&unit_request("AK-9001"), bound())
+            .expect("the chain mints a record");
+        let second = governed
+            .verify_claim(&unit_request("AK-9001"), bound())
+            .expect("the chain mints a record");
+        for claim in [&first, &second] {
+            assert_eq!(claim.record().outcome(), Outcome::Inconclusive);
+            assert_eq!(claim.record().class(), Some(BindingClass::EvidenceStale));
+        }
+        // The durable production row itself never moved: still iteration
+        // 1, exactly as recorded — no read path may advance it.
+        let production = state
+            .evidence_production(
+                &RunId::new(RUN_ULID).expect("fixture run"),
+                &EvidenceRef::new("evd-no-reproduction").expect("fixture ref"),
+                bound(),
+            )
+            .expect("readable")
+            .expect("the row exists");
+        assert_eq!(
+            production.production().iteration_no().get(),
+            1,
+            "verifying alone must never advance a production's recorded iteration"
+        );
     }
 
     #[test]
