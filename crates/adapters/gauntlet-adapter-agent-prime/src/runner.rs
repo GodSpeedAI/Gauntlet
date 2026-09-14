@@ -176,17 +176,28 @@ fn append_control_note(entry: &mut PrimeEntry, note: String) {
     });
 }
 
-/// The measured (parent totalTokens + sum of latest child token_count)
-/// pair the rpc telemetry supports without any file IO — cheap enough to
-/// read on every `poll` (task26-dcritic-apparatus-repair W1).
+/// The measured tokens the rpc telemetry supports without any file IO —
+/// cheap enough to read on every `poll`: the parent's NEW tokens (input,
+/// cache writes, output) plus each child's latest token_count. Cache
+/// READS are not counted as tokens: a long session re-reads its context
+/// every turn, so counting them would exhaust a token ceiling on reuse
+/// alone; their price still reaches the cost dimension.
 fn measured_tokens(telemetry: &ParentTelemetry) -> u64 {
-    telemetry.total_tokens.saturating_add(
+    parent_new_tokens(telemetry).saturating_add(
         telemetry
             .children
             .values()
             .map(|child| child.token_count)
             .fold(0u64, u64::saturating_add),
     )
+}
+
+/// The parent's new tokens: uncached input, cache writes, and output.
+fn parent_new_tokens(telemetry: &ParentTelemetry) -> u64 {
+    telemetry
+        .input_tokens
+        .saturating_add(telemetry.cache_write_tokens)
+        .saturating_add(telemetry.output_tokens)
 }
 
 /// The measured (parent tool executions + sum of latest child
@@ -263,6 +274,7 @@ fn scan_child_session_usage(session_dir: &str) -> Option<ChildSessionUsage> {
                 continue;
             };
             usage.input_tokens += json_u64(usage_value, "input").unwrap_or(0);
+            usage.input_tokens += json_u64(usage_value, "cacheWrite").unwrap_or(0);
             usage.output_tokens += json_u64(usage_value, "output").unwrap_or(0);
             if let Some(cost) = usage_value.get("cost")
                 && let Some(total) = json_f64(cost, "total")
@@ -295,9 +307,10 @@ fn measured_payment(
     admission_at: EpochSeconds,
     completed_at: EpochSeconds,
 ) -> ResultPayment {
+    // Cache reads are priced (cost) but not counted as tokens — see
+    // [`measured_tokens`].
     let mut input_tokens = telemetry
         .input_tokens
-        .saturating_add(telemetry.cache_read_tokens)
         .saturating_add(telemetry.cache_write_tokens);
     let mut output_tokens = telemetry.output_tokens;
     let mut cost_micros = telemetry.cost_usd.get();
@@ -1198,7 +1211,11 @@ mod tests {
         let InvocationStatus::Running { payment_so_far, .. } = status else {
             panic!("expected Running (no contract file written), got {status:?}")
         };
-        assert_eq!(payment_so_far.tokens(), 100, "70 parent + 30 child");
+        assert_eq!(
+            payment_so_far.tokens(),
+            95,
+            "65 new parent tokens (40 input + 5 cache write + 20 output) + 30 child"
+        );
         assert_eq!(payment_so_far.tool_calls(), 3, "2 parent + 1 child");
         assert_eq!(payment_so_far.cost_usd(), MicroUsd::new(1234));
     }
@@ -1250,8 +1267,8 @@ mod tests {
         let payment = result.payment();
         assert_eq!(
             payment.input_tokens(),
-            80,
-            "(40+5+5 parent) + 30 child fallback"
+            75,
+            "(40 input + 5 cache write parent) + 30 child fallback; cache reads are not tokens"
         );
         assert_eq!(
             payment.output_tokens(),
