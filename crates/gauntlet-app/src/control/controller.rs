@@ -3328,6 +3328,12 @@ impl RunController {
             }
             Err(other) => return Err(other),
         };
+        // §18.3 ("re-running settled work is a defect"): a completion may
+        // carry a non-blocking residual (§16.1 condition 4 gates only
+        // BLOCKING ones) alongside a settlement that still commits. Track
+        // whether this completion settled the flight's own unit so the
+        // row-1 residual disposition below never re-dispatches it.
+        let mut flight_unit_settled = false;
         for unit_id in attempted_units(&flight, &result) {
             // COR2-1b (critic round 1, F-1's completion half): the
             // builder's declared attempted list is free text from the
@@ -3506,6 +3512,9 @@ impl RunController {
                             state
                                 .unit_states
                                 .insert(unit_id.clone(), UnitStatus::Settled);
+                            if unit_id == flight.unit {
+                                flight_unit_settled = true;
+                            }
                         }
                         // The settle-time mutation is §21.3's abort row: the
                         // service already pinned BOTH digests; the run ends
@@ -3590,30 +3599,43 @@ impl RunController {
         // §11.5 row 1: residual with attempts left re-dispatches with the
         // residual TEXT ONLY.
         if !state.open_residuals.is_empty() {
-            let attempts_used = state.attempts.get(&flight.unit).copied().unwrap_or(0);
-            let cause = IterationCause::ResidualFound {
-                unit: flight.unit.clone(),
-                residual_text: state
-                    .open_residuals
-                    .first()
-                    .map(|residual| residual.detail().to_owned())
-                    .unwrap_or_default(),
-                attempts_used,
-            };
-            match disposition::dispose(cause, &self.policy) {
-                Disposition::RetryWithResidual { attachment, .. } => {
-                    queue_retry_dispatch(state, &flight, attachment.as_str().to_owned());
-                    // §15.1 step 4 on the CORRECTING iteration (C5): the
-                    // residual-driven choice is recorded WITH its rejected
-                    // alternative — the moment a correction is chosen.
-                    self.record_selection(state, &flight.unit, true)?;
-                }
-                Disposition::Escalate { reason } => {
-                    let unit = flight.unit.clone();
-                    return self.escalate(state, &unit, reason.to_string());
-                }
-                other => {
-                    unreachable!("the row-1 cause maps to re-dispatch or escalate, got {other:?}")
+            // §18.3/§16.1: a non-blocking residual doesn't gate settlement,
+            // so a completion can carry one here and still have settled
+            // `flight.unit` above. If so, re-dispatching it would reopen a
+            // unit the run already durably settled, so skip that and close
+            // with the same selection record as the no-residual case. The
+            // residuals stay in `state.open_residuals` for later context.
+            if flight_unit_settled {
+                self.record_selection(state, &flight.unit, false)?;
+            } else {
+                let attempts_used = state.attempts.get(&flight.unit).copied().unwrap_or(0);
+                let cause = IterationCause::ResidualFound {
+                    unit: flight.unit.clone(),
+                    residual_text: state
+                        .open_residuals
+                        .first()
+                        .map(|residual| residual.detail().to_owned())
+                        .unwrap_or_default(),
+                    attempts_used,
+                };
+                match disposition::dispose(cause, &self.policy) {
+                    Disposition::RetryWithResidual { attachment, .. } => {
+                        queue_retry_dispatch(state, &flight, attachment.as_str().to_owned());
+                        // §15.1 step 4 on the CORRECTING iteration (C5): the
+                        // residual-driven choice is recorded WITH its
+                        // rejected alternative — the moment a correction is
+                        // chosen.
+                        self.record_selection(state, &flight.unit, true)?;
+                    }
+                    Disposition::Escalate { reason } => {
+                        let unit = flight.unit.clone();
+                        return self.escalate(state, &unit, reason.to_string());
+                    }
+                    other => {
+                        unreachable!(
+                            "the row-1 cause maps to re-dispatch or escalate, got {other:?}"
+                        )
+                    }
                 }
             }
         } else {
@@ -6199,6 +6221,10 @@ mod tests {
     struct ScriptedComparators {
         residual_first: usize,
         calls: Cell<u32>,
+        /// The scripted residual's severity — Major by default (non-
+        /// blocking); a test can raise it to Blocking via
+        /// [`ScriptedComparators::set_severity`] before running.
+        severity: Cell<gauntlet_domain::Severity>,
     }
 
     impl ScriptedComparators {
@@ -6206,7 +6232,12 @@ mod tests {
             Arc::new(Self {
                 residual_first,
                 calls: Cell::new(0),
+                severity: Cell::new(gauntlet_domain::Severity::Major),
             })
+        }
+
+        fn set_severity(&self, severity: gauntlet_domain::Severity) {
+            self.severity.set(severity);
         }
     }
 
@@ -6243,7 +6274,7 @@ mod tests {
             let residuals = if (call as usize) < self.inner.residual_first {
                 vec![gauntlet_domain::Residual::new(
                     gauntlet_domain::ResidualId::new("res-ctrl-1").expect("residual id"),
-                    gauntlet_domain::Severity::Major,
+                    self.inner.severity.get(),
                     "expected: the report at the required locator; observed: absent".to_owned(),
                     Some("functional behavior".to_owned()),
                 )]
@@ -6645,6 +6676,10 @@ mod tests {
         /// only window in which a mid-run answer-key edit changes what the
         /// loop does instead of aborting it).
         unavailable: Rc<Cell<bool>>,
+        /// The scripted comparators — a test flips
+        /// [`ScriptedComparators::set_severity`] before running to make its
+        /// residual Blocking instead of the default Major.
+        comparators: Arc<ScriptedComparators>,
     }
 
     fn compose(
@@ -6712,7 +6747,7 @@ mod tests {
             comparison: ComparisonDeps {
                 contract: minimal_contract(),
                 deterministic: Arc::new(ComparatorsSource(comparators.clone())),
-                model: Arc::new(ComparatorsSource(comparators)),
+                model: Arc::new(ComparatorsSource(comparators.clone())),
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Single,
                 model_dispatches: 4,
@@ -6740,6 +6775,7 @@ mod tests {
             state,
             runner,
             unavailable,
+            comparators,
         })
     }
 
@@ -9193,7 +9229,9 @@ mod tests {
     fn a_residual_retry_dispatch_carries_residual_text_only() {
         // §11.5 row 1: the FIRST comparison finds a residual; the second
         // dispatch's prompt carries the residual's expected/observed text
-        // and NOT the comparator's reasoning.
+        // and NOT the comparator's reasoning. BLOCKING severity keeps the
+        // unit from settling on that first completion, so the re-dispatch
+        // is the legitimate row-1 correction, not a reopened settlement.
         let composed = fixture_composed(
             vec![Behavior::Complete, Behavior::Complete],
             1,
@@ -9201,6 +9239,9 @@ mod tests {
             FIXTURE_ROUNDS,
         )
         .expect("composes");
+        composed
+            .comparators
+            .set_severity(gauntlet_domain::Severity::Blocking);
         let outcome = composed.controller.start_run().expect("the loop runs");
         let prompts = composed.runner.prompts.borrow().clone();
         assert!(
@@ -9221,6 +9262,56 @@ mod tests {
             "the word 'critic' itself never rides the prompt: {second}"
         );
         let _ = outcome;
+    }
+
+    #[test]
+    fn a_settled_unit_with_a_non_blocking_residual_stays_settled() {
+        // §16.1 condition 4 gates settlement on a BLOCKING residual only;
+        // a Major one does not. The scripted comparator's residual is
+        // Major, so the first completion both settles the sole unit AND
+        // carries a non-blocking residual. §18.3 ("re-running settled
+        // work is a defect"): the row-1 disposition must not re-dispatch
+        // a unit this same completion just settled.
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete, Behavior::Complete]);
+        let composed = compose(key, state, evidence, runner, 1, 3).expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "the sole unit settles on its first attempt and stays settled: {outcome:?}"
+        );
+        let prompts = composed.runner.prompts.borrow().clone();
+        assert_eq!(
+            prompts.len(),
+            1,
+            "settled work is never re-dispatched: {prompts:?}"
+        );
+        let checkpoint = composed
+            .state
+            .resume(&outcome.run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        assert_eq!(
+            checkpoint
+                .unit_states
+                .iter()
+                .find(|(unit, _)| unit.as_str() == "AK-9101")
+                .map(|(_, status)| *status),
+            Some(UnitStatus::Settled),
+            "the checkpoint's own projection certifies the unit settled: {checkpoint:?}"
+        );
+        let settlements = composed
+            .state
+            .settlements(&outcome.run_id, bound())
+            .expect("settlements readable");
+        assert_eq!(
+            settlements.len(),
+            1,
+            "exactly one durable settlement record exists: {settlements:?}"
+        );
     }
 
     #[test]
@@ -9720,8 +9811,7 @@ mod tests {
                 .push(reference.clone());
             Ok(gauntlet_ports::workspace_provider::Workspace {
                 reference: reference.clone(),
-                root: std::env::temp_dir()
-                    .join(format!("ws-fixture-{}-{n}", std::process::id())),
+                root: std::env::temp_dir().join(format!("ws-fixture-{}-{n}", std::process::id())),
                 key: format!("ws-fixture-{n}"),
             })
         }
@@ -10101,7 +10191,7 @@ mod tests {
             comparison: ComparisonDeps {
                 contract: minimal_contract(),
                 deterministic: Arc::new(ComparatorsSource(comparators.clone())),
-                model: Arc::new(ComparatorsSource(comparators)),
+                model: Arc::new(ComparatorsSource(comparators.clone())),
                 adversarial: None,
                 review_mode: gauntlet_domain::ReviewMode::Single,
                 model_dispatches: 4,
@@ -10128,6 +10218,7 @@ mod tests {
             state,
             runner,
             unavailable,
+            comparators,
         })
     }
 
