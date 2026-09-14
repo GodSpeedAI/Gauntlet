@@ -525,7 +525,10 @@ demo-up:
     # would die immediately and the demo would not be "always available".
     . "$ROOT/scripts/load-env.sh"
     # This project's real check command is the `test` facet's instrument.
-    export GAUNTLET_TOOL_TEST="${GAUNTLET_TOOL_TEST:-./scripts/check.sh}"
+    # ABSOLUTE on purpose: the facet runs it with cwd = the unit's workspace
+    # (where the builder's work lives), and a relative path would be looked
+    # up there, where no scripts/ exists.
+    export GAUNTLET_TOOL_TEST="${GAUNTLET_TOOL_TEST:-$TARGET/scripts/check.sh}"
     # Run state OUT of /tmp (a WSL restart wipes it, and with it the run's
     # state, workspaces and evidence). Absolute on purpose: the workspace
     # provider refuses any path containing a `..` component. serve, the TUI

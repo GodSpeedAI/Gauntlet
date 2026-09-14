@@ -244,6 +244,11 @@ for (const c of cases) {
   }
 }
 
+// Machine-readable totals for scripts/check.sh's test_report (the
+// verifier decides on tests>0 && failures==0), printed on BOTH outcomes so
+// the report counts what actually ran instead of inferring it.
+console.log(`eval-calculator: totals tests=${cases.length} failures=${failures.length}`);
+
 if (failures.length) {
   console.error("eval-calculator: dynamic evaluation failed:");
   for (const f of failures) console.error("  - " + f);
