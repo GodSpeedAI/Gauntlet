@@ -1931,6 +1931,28 @@ impl RunController {
         let mut admitted = false;
         let mut budget_refused = false;
         for planned in dispatches {
+            // §10.4: a plan member that arrives while every parallel slot
+            // is already held is a CAPACITY truncation, recorded and
+            // deferred — checked before the summed budget consult, since
+            // with one attempt's hold sized to the forward remainder
+            // divided by `max_parallel`, a member past capacity would
+            // otherwise read as a budget refusal it is not.
+            let holding = state.in_flight.len().saturating_add(state.carried.len());
+            let capacity =
+                usize::try_from(self.budget_shape.limits.max_parallel()).unwrap_or(usize::MAX);
+            if holding >= capacity {
+                if let Some(unit) = planned.units.first() {
+                    let requested_parallel =
+                        u32::try_from(holding.saturating_add(1)).unwrap_or(u32::MAX);
+                    self.record_dispatch_truncation(
+                        state,
+                        unit,
+                        requested_parallel,
+                        planned.depth,
+                    )?;
+                }
+                break;
+            }
             let mut pending = planned.estimated_slice;
             for flight in state.in_flight.iter().chain(state.carried.iter()) {
                 pending = add_slices(pending, flight.reservation.slice());
@@ -4689,14 +4711,31 @@ fn open_concurrency(limits: Limits) -> Concurrency {
     }
 }
 
-/// The per-attempt estimate the scheduler's budget conjunct reads. §5.3.7
-/// defines `max_rounds` as iterations per run, and the recovery reserve is
-/// a fixed slice of each LIMIT — not of the remainder — so the honest
-/// per-round share is the FORWARD remainder (the reserve-adjusted ceiling
-/// minus what is already spent) divided by the rounds left: one round per
-/// attempt, a proportional share of wall, tokens, and cost. When no rounds
-/// remain the estimate is zero and the loop's rounds check refuses
-/// dispatch before any zero reservation.
+/// The per-attempt estimate the scheduler's budget conjunct reads, AND the
+/// reservation the meter holds against one dispatch. A reservation is a
+/// HOLD on what ONE attempt may spend, not a forecast of a future round's
+/// total spend — so it must be sized against whatever else can hold
+/// concurrently, not against how many rounds remain. §5.3.7's recovery
+/// reserve is a fixed slice of each LIMIT — not of the remainder — so the
+/// FORWARD remainder is the reserve-adjusted ceiling minus what is already
+/// spent. Up to `max_parallel` attempts can be in flight (and reserved)
+/// at once, so each attempt's honest share is that forward remainder
+/// divided by `max_parallel`: with `max_parallel` 1 (the common case) an
+/// attempt may reserve the WHOLE forward remainder. Dividing by
+/// `rounds_left` instead — the prior behaviour — assumed every future
+/// round would spend an equal share, which is false for any real
+/// dispatch: a single builder attempt that legitimately spends more than
+/// `forward_remainder / rounds_left` (but still well within the forward
+/// ceiling) had its charge refused by the meter as `ReservationExceeded`,
+/// and the loop mapped that refusal straight to a false terminal
+/// `budget_exhausted` — no budget dimension was actually breached. `rounds`
+/// stays 1 (one attempt, one round) and `rounds_left` still gates whether a
+/// reservation is offered AT ALL: with no rounds left, no attempt can be
+/// dispatched, so the estimate stays zero and the loop's rounds check
+/// refuses dispatch before any zero reservation. With `max_parallel` 1, a
+/// charge that now exceeds its reservation means the forward ceiling
+/// itself was crossed — the refusal is a true breach, not an artifact of
+/// this sizing.
 fn per_attempt_estimate(limits: &Limits, spent: &Spent, recovery_reserve_pct: u8) -> BudgetSlice {
     let rounds_left = limits.max_rounds().saturating_sub(spent.rounds());
     if rounds_left == 0 {
@@ -4707,11 +4746,12 @@ fn per_attempt_estimate(limits: &Limits, spent: &Spent, recovery_reserve_pct: u8
             cost_usd: MicroUsd::new(0),
         };
     }
+    let concurrent_holds = u64::from(limits.max_parallel());
     let forward_share = |limit: u64, spent: u64| -> u64 {
         let forward_ceiling = limit
             .saturating_mul(HUNDRED_PERCENT.saturating_sub(u64::from(recovery_reserve_pct)))
             / HUNDRED_PERCENT;
-        forward_ceiling.saturating_sub(spent) / u64::from(rounds_left)
+        forward_ceiling.saturating_sub(spent) / concurrent_holds
     };
     BudgetSlice {
         rounds: 1,
@@ -8491,13 +8531,18 @@ mod tests {
         // meter charge is refused must be KEPT FOR FORENSICS — §21.2
         // "never a swallowed error", §10.4 "not silently dropped", and
         // §12.3's precedent that an artifact may be stored for forensics
-        // while excluded from verification inputs. The per-attempt
-        // reservation here is 100 tokens (800 forward / 8 rounds); the
-        // result reports 200 — past the reservation, refused at the meter.
+        // while excluded from verification inputs. RECALIBRATED for the
+        // per-attempt reservation fix: the reservation is now the
+        // forward remainder divided by `max_parallel`, not by
+        // `rounds_left` — 400 tokens (800 forward / FIXTURE_PARALLELISM
+        // 2), not the old 100 (800 forward / 8 rounds). The result
+        // reports 500 — past the reservation (though still well inside
+        // the 800-token forward remainder), refused at the meter under
+        // its unchanged `ReservationExceeded` port contract.
         let key = Rc::new(RefCell::new(answer_key(1)));
         let state = FakeState::new();
         let evidence = FakeEvidence::new();
-        let runner = ScriptedRunner::new(vec![Behavior::CompleteWithTokens(200)]);
+        let runner = ScriptedRunner::new(vec![Behavior::CompleteWithTokens(500)]);
         let composed =
             compose(key, state, evidence.clone(), runner, 0, FIXTURE_ROUNDS).expect("composes");
         let outcome = composed
@@ -8517,9 +8562,44 @@ mod tests {
             records[0]
         );
         assert!(
-            records[0].contains("AK-9101") && records[0].contains("\"requested_tokens\":200"),
+            records[0].contains("AK-9101") && records[0].contains("\"requested_tokens\":500"),
             "the record names the unit and the requested payment: {}",
             records[0]
+        );
+    }
+
+    #[test]
+    fn an_attempt_spending_more_than_a_rounds_share_but_within_its_hold_settles() {
+        // The real demo run's shape at fixture scale: 800 forward tokens,
+        // 8 rounds, parallelism 2. A builder that honestly spends 350
+        // tokens exceeds the old per-round share (800 / 8 = 100) but fits
+        // its hold (800 / 2 = 400). It must settle and book its spend —
+        // before the fix the meter refused the charge and the loop ended
+        // `budget_exhausted` with no budget dimension breached.
+        const HONEST_SPEND: u64 = 350;
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::CompleteWithTokens(HONEST_SPEND)]);
+        let composed =
+            compose(key, state, evidence.clone(), runner, 0, FIXTURE_ROUNDS).expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled, "{outcome:?}");
+        assert!(
+            evidence
+                .records_containing("\"class\":\"result_uncharged\"")
+                .is_empty(),
+            "an attempt inside its hold is charged, never recorded uncharged"
+        );
+        let checkpoint = composed
+            .state
+            .resume(&outcome.run_id, bound())
+            .expect("checkpoint readable")
+            .expect("a checkpoint exists");
+        assert_eq!(
+            checkpoint.budget_spent.tokens(),
+            HONEST_SPEND,
+            "the honest spend is booked: {checkpoint:?}"
         );
     }
 
@@ -9289,14 +9369,15 @@ mod tests {
     fn an_over_capacity_fan_out_is_truncated_and_recorded_never_a_run_error() {
         // Correction C6.1 (critic-B A3 "concurrency accounting"): with
         // FIXTURE_PARALLELISM + 1 independent contained units and nothing
-        // in flight, the plan carries one dispatch per eligible unit and
-        // the (max_parallel + 1)-th `meter.reserve` refuses the §5.3.6
-        // dispatch SCOPE. §21.3 aborts a run only for an integrity
-        // violation; §11.2 makes the meter check a per-Unit ELIGIBILITY
-        // conjunct, so its refusal is a SKIP; §10.4 requires the truncated
-        // fan-out to be RECORDED as unavailable evidence rather than
-        // silently dropped. The run therefore continues: the truncated
-        // unit stays eligible and dispatches on a later iteration.
+        // in flight, the plan carries one dispatch per eligible unit. The
+        // member that arrives once every parallel slot is held is a
+        // CAPACITY truncation (§10.4), recorded as pinned evidence and
+        // deferred — never a run error (§21.3 aborts only for an integrity
+        // violation), and never read as a budget refusal: each attempt's
+        // hold is the forward remainder divided by `max_parallel`, so the
+        // capacity check runs before the summed budget consult. The
+        // truncated unit stays eligible and dispatches on a later
+        // iteration.
         let key = Rc::new(RefCell::new(answer_key(OVER_CAPACITY_UNITS)));
         let state = FakeState::new();
         let evidence = FakeEvidence::new();
@@ -9328,17 +9409,16 @@ mod tests {
             OVER_CAPACITY_UNITS,
             "the truncated unit is dispatched on a later iteration, not dropped"
         );
-        // §10.4: the truncation is a RECORDED fact, pinned as evidence.
-        let records = evidence.records_containing("dispatch_truncated");
         assert!(
-            !records.is_empty(),
-            "the over-capacity truncation is recorded as unavailable evidence"
+            outcome.iterations > 1,
+            "the over-capacity unit could not join the first iteration's \
+             fan-out and needed a later one: {}",
+            outcome.iterations
         );
+        let truncations = evidence.records_containing("\"class\":\"dispatch_truncated\"");
         assert!(
-            records[0].contains("AK-9103"),
-            "the truncation record names the unit whose dispatch was \
-             truncated: {}",
-            records[0]
+            !truncations.is_empty(),
+            "the capacity truncation is recorded as pinned evidence, never silently dropped"
         );
     }
 
