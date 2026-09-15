@@ -174,6 +174,27 @@ pub fn compose_child_prompt(
         "or cross-wired document is rejected whole. Your read of the context\n",
         "envelope is at the child input path named in your task.\n",
         "\n",
+        "The `payload` object must be `builder_result@v1` with EXACTLY these fields\n",
+        "and types — the whole document is rejected if any shape is wrong:\n",
+        "\n",
+        "  attempted     : array of strings — the assigned unit's id (e.g. \"AK-9013\")\n",
+        "  changed_paths : array of strings — paths you changed relative to the workspace\n",
+        "                  root (an empty array when you changed none)\n",
+        "  commands_run  : array of strings — shell commands you ran (empty if none)\n",
+        "  artifacts     : array of OBJECTS, each {\"path\": \"<relative path>\",\n",
+        "                  \"evidence_ref\": \"<ref>\"} — leave it an EMPTY array:\n",
+        "                  evidence_ref is minted by the runtime evidence store and you\n",
+        "                  never have one to cite; a guessed ref is a forged one\n",
+        "  claims        : array of strings — what you produced and how you verified it\n",
+        "                  (empty if none)\n",
+        "  self_checks   : array of OBJECTS, each {\"command\": \"<cmd>\",\n",
+        "                  \"exit_code\": <0 or 1>} — what you ran to verify your work\n",
+        "                  (empty if none)\n",
+        "  blocked_on    : array of strings (empty when nothing blocks you)\n",
+        "\n",
+        "The `invocation_id` printed above is THIS dispatch's id. Write it fresh from\n",
+        "THIS task — never from memory of an earlier turn or an earlier attempt.\n",
+        "\n",
         "Only AFTER the rename succeeds may you signal the parent (mailbox reply).\n",
         "The reply is a signal; the file is the contract. A reply without a valid\n",
         "result file is NOT completion.\n",
@@ -369,6 +390,24 @@ mod tests {
             "The reply is a signal; the file is the contract.",
         ] {
             assert!(prompt.contains(fragment), "missing {fragment:?}:\n{prompt}");
+        }
+        // The payload-shape spec (task26 W9 fix): the builder is told the
+        // exact `builder_result@v1` field shapes instead of guessing them,
+        // and that `artifacts` stays empty (the runtime mints evidence
+        // refs — a guessed ref is forged).
+        for fragment in [
+            "builder_result@v1",
+            "artifacts",
+            "evidence_ref is minted by the runtime",
+            "a guessed ref is a forged one",
+            "array of OBJECTS",
+            "Write it fresh from",
+            "never from memory of an earlier turn",
+        ] {
+            assert!(
+                prompt.contains(fragment),
+                "missing payload-spec {fragment:?}:\n{prompt}"
+            );
         }
         // The role body leads the prompt verbatim.
         assert!(prompt.starts_with("body of the role\n"), "{prompt}");
