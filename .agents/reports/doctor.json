@@ -185,7 +185,7 @@
         },
         {
           "evidence": [
-            "workspace root = /tmp/gauntlet/workspaces: created, wrote, removed a scratch file"
+            "workspace root = /tmp/gauntlet/state/workspaces: created, wrote, removed a scratch file"
           ],
           "name": "workspace root",
           "status": "pass"
@@ -233,5 +233,5 @@
   "config_fingerprint": "sha256:8e707aafa9cef66d0593e980f7eea5d9c4c821ed424afa1ff4f7153445072f3b",
   "config_origin": "/home/sprime01/projects/gauntlet/GAUNTLET.md",
   "exit_code": 0,
-  "generated_at": 1789072593
+  "generated_at": 1789472096
 }

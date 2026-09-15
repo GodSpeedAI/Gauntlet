@@ -12,15 +12,22 @@ something you can start a **real** run against in under a minute.
 > is measured for real (tokens, wall time, cost against the ceilings),
 > admission failures retry with backoff instead of crashing the run,
 > and a builder write outside its workspace pins `containment_breach`
-> and blocks that attempt's settlement. Live proof run `XHK2W8NSEQ9X8BYVEBET7915C5`
-> (archived): 6 dispatches all admitted, AK-9011 and AK-9012 settled
-> with durable PASS records, 361,871 tokens / $1.83 measured,
-> `deliver --apply` put the settled `calculator.html` in the target
-> (digest matches the promoted bytes) and `scripts/check.sh` passes on
-> it. AK-9013 stands provisional: its builder wrote a schema-invalid
-> result document twice (string `artifacts`, plus a stale invocation
-> id on the retry) and the loop fail-closed and escalated honestly —
-> see `.agents/CURRENT_STATUS.yml` for the residual and options.
+> and blocks that attempt's settlement. Final live proof run
+> `DP0QVSJK2NA0ZFA3R33HDJ37X2` (archived, from a clean seed): **settled,
+> 3 of 3 units implemented-and-proven** — 4 dispatches all admitted with
+> 0 refusals, real strictly-monotone admission instants, 308,565 tokens
+> / $1.54 measured against the ceilings, `work_product_promoted` once
+> per settled unit, no `containment_breach`, and an empty
+> `state/workspaces/` afterwards. `deliver --apply` put the settled
+> `calculator.html` in the target (digest byte-identical to the promoted
+> bytes) and `scripts/check.sh` exits 0 on it. The single re-dispatch
+> (AK-9011) is the fail-closed path working as designed: its first
+> attempt shipped a page passing every structural check but with no
+> inline `<script>`, so the executed check refused it, nothing settled,
+> and the bounded retry ran — after which AK-9011 settled and the two
+> remaining units settled on their first dispatch from the carried-forward
+> page. Field-by-field evidence:
+> `.agents/reports/production-readiness/w9-final-proof.md`.
 
 ## What this is
 

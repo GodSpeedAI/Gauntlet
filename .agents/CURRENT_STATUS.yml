@@ -79,7 +79,7 @@ tui_gui_redesign:
   next_action: "Increment 2: GUI shell primitives per 03-hallmark-redesign.md section 8 step 2"
 
 production_readiness:
-  status: in_progress
+  status: complete
   updated: "2026-09-15"
   plan: ".agents/plans/production-readiness.md"
   branch: "task26-dcritic-apparatus-repair"
@@ -97,37 +97,43 @@ production_readiness:
     - "W5 (0443ead): seeded workspaces over a run integration tree, promote on settlement, gauntlet deliver plus --apply behind a drift gate, delivery hint; plus review fixes (promotion-test contradiction, lying-leg seeded expectation, boundary inventory and literals, held-out temp-layout race)"
     - "W6 (711cf70): dispatch-time stat manifest plus completion diff (check_containment), containment_breach evidence plus BLOCKING residual, check-failed availability rule, containment excludes minus locators, enforcement advisory on the no-backend admission"
     - "W7 (251abcb): schema reminder names the parse failure; AK-9011 workspace-root wording plus re-digested demo lock; state run derives from latest recorded run; doctor probes runtime state/workspaces; improve held-out race fixed, agent-prime flake unreproduced in isolation"
+    - "W8 (77bca63): operator guide gains the deliver verb and the settle-then-apply flow; failure-recovery records the bounded admission-retry and containment-breach degradation rows; demo README status block rewritten for the closed loop"
+    - "W9-prompt (2981291): the child prompt spells the builder_result@v1 payload field shapes, so a builder citing artifacts no longer guesses them (the XHK2 malformed-result class); the final run's four result documents were schema-valid on first write"
+    - "W9-role (a5e870d): the demo builder role must ship the evaluation as an inline <script> and run scripts/check.sh to exit 0"
+    - "W9 (this commit): final clean-seed live proof, run DP0QVSJK2NA0ZFA3R33HDJ37X2 — terminal settled, 3/3 units implemented-and-proven, 4 dispatches/4 admissions/0 refusals, 308,565 tokens / $1.53839 / 647s measured with monotone budget, 3 work_product_promoted with no conflicts, no containment_breach, workspaces empty after; deliver --apply wrote calculator.html byte-identical to the promoted digest and scripts/check.sh exits 0 on it. Field-by-field record: .agents/reports/production-readiness/w9-final-proof.md"
   verification:
     - "app 681/0; sqlite plus ports 180/0; cli full suite green incl. e2e_deliver 3/3 and improve_baseline 8/8; surfaces 4 plus 14; clippy -D warnings clean; fmt clean; boundaries 261/261"
   live_proof:
-    run_id: "XHK2W8NSEQ9X8BYVEBET7915C5"
-    archived: "targets/.runs/demo-calculator.proof-2of3-2216"
-    terminal: "escalated (6 iterations; AK-9013 malformed twice, ticket esc-6aa8a972-0)"
-    settled: "AK-9011 (iteration 3), AK-9012 (iteration 4) — each settled once, durable PASS records"
-    dispatch: "6 dispatches, 6 admissions, 0 refusals; 4 capacity truncations recorded; workspaces empty after"
-    payment: "361871 tokens, $1.83, 642s wall — measured, nonzero; remaining budget monotone decreasing"
-    timestamps: "real admission instants, monotone across all 6 invocations"
-    carry_forward: "work_product_promoted per settled unit (AK-9011 changed calculator.html; AK-9012 empty — carried work, nothing new)"
-    containment: "no containment_breach, no check failures — the guard held silent; enforcement advisory on every admission"
-    delivery: "deliver --apply wrote 1 file; delivered calculator.html sha256 matches the promoted digest byte-for-byte; scripts/check.sh exits 0 on it"
-    not_proven: "AK-9013 settlement and a fully-settled terminal — see residuals"
-  next_action: "Operator decision on the W9 PARTIAL residual: fresh proof run for AK-9013 as-is, prompt-shape fix first, or accept 2/3 proof (see residuals)"
+    run_id: "DP0QVSJK2NA0ZFA3R33HDJ37X2"
+    archived: "targets/.runs/demo-calculator.settled-3of3-clean-seed-0730"
+    seed: "clean — examples/demo-calculator copied fresh after the a5e870d role fix; no calculator.html present"
+    terminal: "settled, 4 iterations, exit 0"
+    settled: "AK-9011, AK-9012, AK-9013 — implemented-and-proven 3, provisional 0"
+    dispatch: "4 dispatches, 4 admissions, 0 refusals, 0 invocation_admission_failed; dispatches per unit {AK-9011: 2, AK-9012: 1, AK-9013: 1}. The one re-dispatch is AK-9011's first attempt refused at verification (page carried no inline script, check.sh exit 1, producer_uncorroborated) — the fail-closed plus bounded-retry path working live; no unit was re-dispatched after settling. 3 capacity truncations recorded; workspaces empty after"
+    payment: "308565 tokens, $1.53839, 647s wall, 4 rounds — measured, nonzero (36.3% of forward tokens, 22.6% of forward cost); token progression [0, 82752, 166493, 246620, 308565] monotone, so remaining budget decreases throughout"
+    timestamps: "real admission instants [1789471138, 1789471343, 1789471517, 1789471657], strictly increasing"
+    carry_forward: "work_product_promoted once per settled unit, changed [['calculator.html'], [], []] with 0 conflicts — AK-9011 produced the page (sha256:0b116fcd...), and AK-9012 plus AK-9013 settled on their first dispatch from the seeded carry-forward"
+    containment: "no containment_breach; enforcement advisory on every admission (the recorded no-backend prime-agent boundary)"
+    delivery: "deliver --apply wrote 1 file; the delivered calculator.html hashes exactly to the promoted digest (0b116fcd...), and scripts/check.sh exits 0 in the target (15 structural checks plus 2 evaluated expressions)"
+    report: ".agents/reports/production-readiness/w9-final-proof.md — field-by-field table, reconciliation, residuals, and the verification instrument"
+    superseded: "the 2-of-3 partial proof (XHK2W8NSEQ9X8BYVEBET7915C5, commit f737c0f) — its AK-9013 malformed-result residual is closed by 2981291 plus a5e870d"
+  next_action: "production readiness W1-W9 is closed; nothing outstanding on .agents/plans/production-readiness.md. Next: the recorded demo-role sharpening below, or resume the tui_gui_redesign stream (increment 2: GUI shell primitives per 03-hallmark-redesign.md section 8 step 2)"
   residuals:
     - >-
-      W9 PARTIAL (2026-09-15, run XHK2): AK-9013 provisional — both result
-      documents schema-invalid (artifacts as string array, must be objects;
-      second also echoed the first attempt's invocation id). Validated with
-      the real role_result decoder. The harness fail-closed correctly both
-      times (MalformedResult, reminder, escalate after two). Root cause is
-      prompt underspecification: compose_child_prompt never specifies the
-      payload field shapes, so a builder that cites artifacts guesses — the
-      four settled docs all used artifacts []. Fix shape TBD (operator
-      decision): specify the artifacts object shape in the child prompt
-      (mind evidence_ref fabrication — builders cannot mint store refs) or
-      accept model luck. A fresh proof run for AK-9013 re-spends ~$2.
+      W9-role-sharpening (demo-authoring, non-blocking): a builder can report
+      state completed with blocked_on [] while its own self_checks record the
+      bound check exiting 1 — observed live in the final proof's AK-9011
+      attempt 1, where claims presented the 15-check structural pass as if the
+      whole check had passed. Nothing settled on it (producer_uncorroborated
+      plus bounded retry), so the gate is sound; the demo role text could still
+      say what to do when check.sh exits non-zero (fix the page and re-run;
+      otherwise say so in blocked_on rather than claiming completion).
+      examples/ instructional text only — no frozen reference, schema, or
+      acceptance gate involved.
     - "agent-prime adapter failure unreproduced in isolation (6x52/0); likely OOM-adjacent under full-workspace load"
     - "conformance.json and handoff.md left FROZEN (task27 settlement evidence — immutable); this stream records here instead"
-    - "W9 checkpoint rerun after W1+W2 superseded by the final proof run on the current tree"
+    - "Final-proof observation (informational): two builders invoked check.sh by an absolute path outside their workspace (the examples/ and targets/ copies). check.sh judges calculator.html in its cwd and the run's own test facet runs the bound path with cwd = the unit workspace, so the deciding evidence is unchanged and no project-root file was written (containment_breach 0) — a live instance of the already-recorded detective/advisory containment boundary"
+    - "W9 checkpoint rerun after W1+W2 superseded by the final proof run on the current tree — CLOSED by the final clean-seed proof"
 
 tui_rhythm_pass:
   status: complete
