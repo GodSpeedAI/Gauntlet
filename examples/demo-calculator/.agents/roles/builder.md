@@ -25,3 +25,22 @@ Build `calculator.html` at the workspace root: a single-page HTML calculator
 with digit buttons 0-9, operator buttons for add/subtract/multiply/divide,
 and a working evaluation path — no build step, no network calls, no
 external dependencies. It must work when opened as a plain static file.
+
+The evaluation logic MUST live in an inline `<script>` element inside
+`calculator.html` — `scripts/eval-calculator.js` loads the page, stubs a
+minimal DOM around that inline script, clicks buttons for a couple of
+arithmetic expressions, and reads the displayed result. Concretely the
+script must:
+- be a non-empty inline `<script>...</script>` in the page (no external
+  `.js` file, no `src=`);
+- wire every calculator button to a click handler (`onclick="..."`, or
+  `document.getElementById(...)` plus `.addEventListener('click', ...)`;
+  the args are plain string button texts like `0`, `+`, `9`, `/`);
+- update a display element's text/`value` when a button is clicked, so
+  `2+3=` shows `5`.
+
+Before writing the result document, run `bash scripts/check.sh` from the
+workspace root and make sure it exits 0 — the 15 structural checks AND the
+two dynamic evaluations must pass. Write `calculator.html` at the workspace
+root only; never modify `scripts/`, the reference files, or the evidence
+store.
