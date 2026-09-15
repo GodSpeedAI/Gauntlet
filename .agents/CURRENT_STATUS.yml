@@ -78,6 +78,33 @@ tui_gui_redesign:
       was reconciled against T23 — see increment-1 commit 6e84eff.
   next_action: "Increment 2: GUI shell primitives per 03-hallmark-redesign.md section 8 step 2"
 
+production_readiness:
+  status: in_progress
+  updated: "2026-09-15"
+  plan: ".agents/plans/production-readiness.md"
+  branch: "task26-dcritic-apparatus-repair"
+  scope: >-
+    Close every unproven item in the long-horizon prime-agent loop, then
+    prove it live: rpc parent (W1), admission retry (W2), honest metering
+    (W3), true timestamps (W4), work-product carry-forward plus deliver
+    (W5), detective containment guard (W6), small correctness items (W7),
+    docs and status (W8), live proof run (W9).
+  settled:
+    - "W1 (30e11c7): prime-agent rpc parent — loop-free cell, handle watch with early refusal detection, telemetry-driven liveness"
+    - "W2-W4 (9f4f2e6): admission retry with backoff, honest wall time plus in-flight budget guard, real timestamps"
+    - "W4-meter (c3f1a2a): cache reads priced, not counted as tokens"
+    - "dispatch-hold (524360b): attempt hold sized by concurrency, not rounds left; demo ceilings sized from a measured build (be0174c)"
+    - "W5 (0443ead): seeded workspaces over a run integration tree, promote on settlement, gauntlet deliver plus --apply behind a drift gate, delivery hint; plus review fixes (promotion-test contradiction, lying-leg seeded expectation, boundary inventory and literals, held-out temp-layout race)"
+    - "W6 (711cf70): dispatch-time stat manifest plus completion diff (check_containment), containment_breach evidence plus BLOCKING residual, check-failed availability rule, containment excludes minus locators, enforcement advisory on the no-backend admission"
+    - "W7 (251abcb): schema reminder names the parse failure; AK-9011 workspace-root wording plus re-digested demo lock; state run derives from latest recorded run; doctor probes runtime state/workspaces; improve held-out race fixed, agent-prime flake unreproduced in isolation"
+  verification:
+    - "app 681/0; sqlite plus ports 180/0; cli full suite green incl. e2e_deliver 3/3 and improve_baseline 8/8; surfaces 4 plus 14; clippy -D warnings clean; fmt clean; boundaries 261/261"
+  next_action: "W9 final proof run per plan section W9, then refresh the demo README status block with the new run id"
+  residuals:
+    - "agent-prime adapter failure unreproduced in isolation (6x52/0); likely OOM-adjacent under full-workspace load"
+    - "conformance.json and handoff.md left FROZEN (task27 settlement evidence — immutable); this stream records here instead"
+    - "W9 checkpoint rerun after W1+W2 superseded by the final proof run on the current tree"
+
 tui_rhythm_pass:
   status: complete
   updated: "2026-09-10"

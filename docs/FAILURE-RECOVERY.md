@@ -20,6 +20,8 @@ three states through every layer.
 |---|---|
 | Config/reference invalid | stop new dispatch; keep the process alive; keep reconciliation running |
 | Agent session failure | retry or escalate per §11.5; never settle the unit |
+| Runner admission refused / transport failed | bounded retry with backoff, then escalate with a ticket; never a crashed run |
+| Builder write outside its workspace | pin `containment_breach` naming the paths; BLOCKING residual — the attempt cannot settle and its retry carries the paths |
 | Sandbox failure | escalate; **never** fall back to unsandboxed execution |
 | Observation failure | record unavailable evidence; dependent verification becomes `INCONCLUSIVE` |
 | Surface/log failure | never crash the run |

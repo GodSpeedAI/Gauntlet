@@ -26,6 +26,8 @@ gauntlet roles       install | verify | list
 gauntlet skills      install | verify | list
 gauntlet improve     propose | evaluate | baseline | promote | rollback
 gauntlet export      deterministic JSONL of a run
+gauntlet deliver     [--run <run-id>] [--apply]: write a settled run's
+                     work product into the project (dry run without --apply)
 ```
 
 `gauntlet serve` (the loopback JSON API of spec §20.2) exists behind the
@@ -67,6 +69,12 @@ gauntlet escalations list
 
 # after a crash
 gauntlet resume <run-id>
+
+# settled work back into the project (each unit builds in its own
+# workspace over the run's integration tree; nothing reaches the
+# project root until you apply it — drift refuses the whole apply)
+gauntlet deliver --run <run-id>
+gauntlet deliver --run <run-id> --apply
 
 # durable evidence out
 gauntlet export --run <run-id>
