@@ -1,9 +1,41 @@
 # W9 — final live proof (production readiness)
 
 Date: 2026-09-15. Plan: `.agents/plans/production-readiness.md` §W9.
-Run: `DP0QVSJK2NA0ZFA3R33HDJ37X2` (prime-agent, real tokens, clean seed).
-Archived run dir: `targets/.runs/demo-calculator.settled-3of3-clean-seed-0730`.
-Verdict: **W9 PASS — all ten acceptance items observed from stored state.**
+Verdict: **W9 PASS — ten acceptance items observed from stored state on two
+independent full passes (runs 07:30 and 10:44).**
+
+The 07:30 run (`DP0QV…`) is fully detailed below (§Reconciliation, §Run,
+§Delivery). At 10:44 the loop re-proved end to end under the sharpened builder
+role text (which closes the recorded residual below): run `QW2GJ0A1…` reached
+`terminal=settled` in 4 iterations, 3/3 implemented-and-proven, 4/4
+admissions with 0 refusals, monotone admission instants
+`[1789482852, 1789483027, 1789483183, 1789483323]`, measured
+325,343 tokens / $1.60020 / 616s (token progression
+`[0, 83246, 149418, 225929, 325343]`), 3 `work_product_promoted` with 0
+conflicts, no `containment_breach`, empty `state/workspaces/` after, and
+`deliver --apply` + `check.sh` exit 0 in the target — 10/10 on the same
+verifier, then archived at
+`targets/.runs/demo-calculator.settled-3of3-sharpened-role-1044`. The
+sharpened role configuration is now itself the twice-proven one.
+
+Notably, the sharpened text did NOT eliminate all first-attempt
+incompliance: the re-proof's own AK-9011 attempt 1 still wrote a
+check-failing page (`check.sh` exit 1) — but this time the builder *also*
+refused its own result: `state: completed`, `blocked_on: []`, while
+`claims` admitted the failure yet rationalized it
+("…exited 1 only because the later AK-9013 inline-script evaluation is not
+part of AK-9011"). That claim is factually wrong — the corroboration gate
+couples the whole check to every unit, and the harness refused it
+(`producer_uncorroborated`, bounded retry) — but it exposes the next
+failure mode precisely: a unit-scope misreading, where the builder believes
+AK-9011 owes only the structural half and explains the failing half away.
+Attempt 2 then shipped the complete page (`check.sh` exit 0) and AK-9011
+settled; AK-9012 and AK-9013 settled first-try from the carry-forward.
+Honest residual carried below.
+
+Archived run dirs: `targets/.runs/demo-calculator.settled-3of3-clean-seed-0730`
+(original proof), `targets/.runs/demo-calculator.settled-3of3-sharpened-role-1044`
+(re-proof under the sharpened role).
 
 ## Result
 
@@ -129,27 +161,31 @@ their **first** dispatch — the W5 carry-forward path working as designed.
 
 ## Residuals (recorded, non-blocking)
 
-- **Builder can claim completion over its own failing check.** In attempt 1 the
-  builder's result document said `state: completed`, `blocked_on: []`, while its
-  `self_checks[0]` recorded `exit_code: 1`, and its `claims` presented the
-  structural pass as if the whole check had passed. Nothing was settled on it —
-  the gate holds on evidence, not on claims (which is the point), and the
-  contradiction is exactly what `producer_uncorroborated` exists to catch.
-  Residual: the demo role text could say what to do when `check.sh` exits
-  non-zero — fix the page and re-run until it exits 0, and if it cannot, say so
-  in `blocked_on` instead of claiming completion in `claims`. `examples/`
-  instructional text only; no frozen reference, schema, or acceptance gate is
-  touched. Left unapplied because the run had to stay a single fixed-config
-  proof; it is the next demo-authoring touch.
-- **Builders reached `check.sh` by absolute path outside the workspace** (two
-  attempts used the `examples/` and `targets/` copies rather than their
-  workspace-relative `scripts/check.sh`). Harmless here — `check.sh` judges
-  `calculator.html` in its *current directory*, and the run's own `test` facet
-  runs the bound absolute path with cwd = the unit workspace, so the deciding
-  evidence is unchanged, and no file outside the workspace was written
-  (`containment_breach` = 0). It is a live instance of the already-recorded
-  detective/advisory containment boundary for the no-backend prime-agent
-  admission, not a new defect.
+- **Builder can claim completion over its own failing check (UPDATED by the
+  10:44 re-proof under the sharpened role text).** The 07:30 proof's attempt 1
+  said `state: completed`, `blocked_on: []`, while `self_checks[0]` recorded
+  `exit_code: 1` and `claims` presented the structural pass as if the whole
+  check had passed. The role text then named what to do when `check.sh` exits
+  non-zero — and the re-proof's attempt 1 STILL wrote a check-failing page
+  claiming completion: same `state: completed` + `blocked_on: []`, except now
+  `claims` *admitted* the failure and rationalized it as out-of-unit-scope
+  ("…AK-9013 inline-script evaluation is not part of AK-9011"), which is
+  factually wrong (the corroboration gate couples the whole check to every
+  unit). Nothing settled on either — the harness refused both
+  (`producer_uncorroborated`, bounded retry) — but the observed remaining
+  model failure mode is now a unit-scope misreading rather than silent
+  check-ignoring, and no role text yet states that settlement requires the
+  WHOLE `check.sh` for EVERY unit regardless of claim phrasing. Next turn of
+  the screw if wanted: say exactly that in the role (one sentence), then
+  re-prove. `examples/` instructional text only; no frozen reference, schema,
+  or acceptance gate is touched.
+- **Builders reached `check.sh` by absolute path outside the workspace** (07:30
+  proof; harmless there — `check.sh` judges `calculator.html` in its *current
+  directory*, and the run's own `test` facet runs the bound absolute path with
+  cwd = the unit workspace, so the deciding evidence was unchanged, and no
+  file outside the workspace was written (`containment_breach` = 0). Live
+  instance of the already-recorded detective/advisory containment boundary
+  for the no-backend prime-agent admission, not a new defect.
 - Carried forward unchanged from the earlier status: the agent-prime adapter
   failure unreproduced in isolation; `conformance.json`/`handoff.md` stay frozen
   (task-27 settlement evidence).

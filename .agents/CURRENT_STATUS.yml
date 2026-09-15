@@ -109,7 +109,7 @@ production_readiness:
     - "W8 (77bca63): operator guide gains the deliver verb and the settle-then-apply flow; failure-recovery records the bounded admission-retry and containment-breach degradation rows; demo README status block rewritten for the closed loop"
     - "W9-prompt (2981291): the child prompt spells the builder_result@v1 payload field shapes, so a builder citing artifacts no longer guesses them (the XHK2 malformed-result class); the final run's four result documents were schema-valid on first write"
     - "W9-role (a5e870d): the demo builder role must ship the evaluation as an inline <script> and run scripts/check.sh to exit 0"
-    - "W9 (this commit): final clean-seed live proof, run DP0QVSJK2NA0ZFA3R33HDJ37X2 — terminal settled, 3/3 units implemented-and-proven, 4 dispatches/4 admissions/0 refusals, 308,565 tokens / $1.53839 / 647s measured with monotone budget, 3 work_product_promoted with no conflicts, no containment_breach, workspaces empty after; deliver --apply wrote calculator.html byte-identical to the promoted digest and scripts/check.sh exits 0 on it. Field-by-field record: .agents/reports/production-readiness/w9-final-proof.md"
+    - "W9 (this commit): final clean-seed live proof, run DP0QVSJK2NA0ZFA3R33HDJ37X2 — terminal settled, 3/3 units implemented-and-proven, 4 dispatches/4 admissions/0 refusals, 308,565 tokens / $1.53839 / 647s measured with monotone budget, 3 work_product_promoted with no conflicts, no containment_breach, workspaces empty after; deliver --apply wrote calculator.html byte-identical to the promoted digest and scripts/check.sh exits 0 on it; re-proved at 10:44 under the sharpened builder role (run QW2GJ0A1R9KASRMDBJD3BVAXD4, 325,343 tokens / $1.60020 / 616s, same 10 acceptance items). Field-by-field record: .agents/reports/production-readiness/w9-final-proof.md"
   verification:
     - "app 681/0; sqlite plus ports 180/0; cli full suite green incl. e2e_deliver 3/3 and improve_baseline 8/8; surfaces 4 plus 14; clippy -D warnings clean; fmt clean; boundaries 261/261"
   live_proof:
@@ -123,22 +123,27 @@ production_readiness:
     timestamps: "real admission instants [1789471138, 1789471343, 1789471517, 1789471657], strictly increasing"
     carry_forward: "work_product_promoted once per settled unit, changed [['calculator.html'], [], []] with 0 conflicts — AK-9011 produced the page (sha256:0b116fcd...), and AK-9012 plus AK-9013 settled on their first dispatch from the seeded carry-forward"
     containment: "no containment_breach; enforcement advisory on every admission (the recorded no-backend prime-agent boundary)"
-    delivery: "deliver --apply wrote 1 file; the delivered calculator.html hashes exactly to the promoted digest (0b116fcd...), and scripts/check.sh exits 0 in the target (15 structural checks plus 2 evaluated expressions)"
+    delivery: "deliver --apply wrote 1 file; the delivered calculator.html hashes exactly to the promoted digest (0b116fcd...), and scripts/check.sh exits 0 in the target (15 structural checks plus 2 evaluated expressions); the 10:44 re-proof (QW2GJ0A1R9KASRMDBJD3BVAXD4) repeated identical acceptance under the sharpened role"
     report: ".agents/reports/production-readiness/w9-final-proof.md — field-by-field table, reconciliation, residuals, and the verification instrument"
     superseded: "the 2-of-3 partial proof (XHK2W8NSEQ9X8BYVEBET7915C5, commit f737c0f) — its AK-9013 malformed-result residual is closed by 2981291 plus a5e870d"
   next_action: "production readiness W1-W9 is closed; nothing outstanding on .agents/plans/production-readiness.md. Next: the recorded demo-role sharpening below, or resume the tui_gui_redesign stream (increment 2: GUI shell primitives per 03-hallmark-redesign.md section 8 step 2)"
   residuals:
     - >-
-      W9-role-sharpening (demo-authoring, non-blocking): a builder can report
-      state completed with blocked_on [] while its own self_checks record the
-      bound check exiting 1 — observed live in the final proof's AK-9011
-      attempt 1, where claims presented the 15-check structural pass as if the
-      whole check had passed. Nothing settled on it (producer_uncorroborated
-      plus bounded retry), so the gate is sound; the demo role text could still
-      say what to do when check.sh exits non-zero (fix the page and re-run;
-      otherwise say so in blocked_on rather than claiming completion).
-      examples/ instructional text only — no frozen reference, schema, or
-      acceptance gate involved.
+      W9-role-sharpening follow-up, UPDATED by the 10:44 re-proof (demo-authoring,
+      non-blocking): the sharpened text names what to do when `check.sh` exits
+      non-zero, yet the re-proof's AK-9011 attempt 1 still wrote a check-failing
+      page claiming completion — same `state: completed` + `blocked_on: []`,
+      except `claims` now *admitted* the failure and rationalized it as
+      out-of-unit-scope ("…AK-9013 inline-script evaluation is not part of
+      AK-9011"), which is factually wrong (the corroboration gate couples the
+      whole check to every unit). Nothing settled on either attempt across two
+      proofs (`producer_uncorroborated`, bounded retry) — but the observed
+      remaining model failure mode is a unit-scope misreading rather than silent
+      check-ignoring, and no role text yet states that settlement requires the
+      WHOLE `check.sh` for EVERY unit regardless of claim phrasing. Next turn
+      of the screw if wanted: say exactly that in the role (one sentence), then
+      re-prove. `examples/` instructional text only — no frozen reference,
+      schema, or acceptance gate involved.
     - "agent-prime adapter failure unreproduced in isolation (6x52/0); likely OOM-adjacent under full-workspace load"
     - "conformance.json and handoff.md left FROZEN (task27 settlement evidence — immutable); this stream records here instead"
     - "Final-proof observation (informational): two builders invoked check.sh by an absolute path outside their workspace (the examples/ and targets/ copies). check.sh judges calculator.html in its cwd and the run's own test facet runs the bound path with cwd = the unit workspace, so the deciding evidence is unchanged and no project-root file was written (containment_breach 0) — a live instance of the already-recorded detective/advisory containment boundary"

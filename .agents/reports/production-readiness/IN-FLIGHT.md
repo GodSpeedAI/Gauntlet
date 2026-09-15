@@ -2,9 +2,10 @@
 
 Plan: `.agents/plans/production-readiness.md` (W1–W9). Branch:
 `task26-dcritic-apparatus-repair`.
-Status: **CLOSED 2026-09-15** — all nine workstreams settled. The cross-session
-anchor is `.agents/CURRENT_STATUS.yml` (`production_readiness`, status
-complete); the proof record is `w9-final-proof.md` in this directory.
+Status: **CLOSED 2026-09-15** — all nine workstreams settled, then re-proved.
+The cross-session anchor is `.agents/CURRENT_STATUS.yml`
+(`production_readiness`, status complete); the proof record is
+`w9-final-proof.md` in this directory.
 
 ## Closure
 
@@ -21,9 +22,11 @@ complete); the proof record is `w9-final-proof.md` in this directory.
   re-digested demo lock, state `run` from the latest run, doctor workspace
   root, held-out race).
 - W8 (77bca63): docs and status.
-- W9 (the final commit): final clean-seed live proof — terminal settled, 3/3 units
-  implemented-and-proven, delivery byte-identical to the promoted digest,
-  `check.sh` exit 0 in the target.
+- W9 (final commit + re-proof): final clean-seed live proof — terminal settled,
+  3/3 units implemented-and-proven, delivery byte-identical to the promoted
+  digest, `check.sh` exit 0 in the target; then re-proved 10:44 under the
+  sharpened builder role, which exposed the remaining model failure mode as a
+  unit-scope misreading (recorded in the status residuals).
 
 ## Interruption recovery (2026-09-15)
 

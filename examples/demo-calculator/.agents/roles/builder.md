@@ -41,6 +41,10 @@ script must:
 
 Before writing the result document, run `bash scripts/check.sh` from the
 workspace root and make sure it exits 0 — the 15 structural checks AND the
-two dynamic evaluations must pass. Write `calculator.html` at the workspace
-root only; never modify `scripts/`, the reference files, or the evidence
-store.
+two dynamic evaluations must pass. If it does NOT exit 0, the work is not
+done: fix the page and re-run it until it exits 0. If you genuinely cannot
+make it pass, record that honestly in `blocked_on` (name the failing command
+and its exit code) — never write `state: completed` with passing Claims over
+a failing check; the run's own instruments will contradict the claims and the
+unit will not settle. Write `calculator.html` at the workspace root only;
+never modify `scripts/`, the reference files, or the evidence store.
