@@ -44,6 +44,12 @@ pub struct WorkspaceSeed {
     /// Relative paths excluded from both the snapshot and later promotion,
     /// matched as a path-component prefix (`.git` excludes `.git/**`).
     pub excludes: Vec<String>,
+    /// Relative paths excluded from the W6 detective containment baseline
+    /// — the same VCS/build/state surfaces as `excludes`, but WITHOUT the
+    /// answer-key evidence locators: a locator path under the project root
+    /// is instrument-owned, and a builder touching it is itself a breach
+    /// worth catching, never seed noise to hide.
+    pub containment_excludes: Vec<String>,
 }
 
 /// One file's recorded content digest, size, and executable bit.

@@ -29,6 +29,10 @@ pub enum WorkspaceProviderError {
     /// Promotion failed — including promoting an unknown or already-cleaned
     /// workspace, which is a typed refusal rather than a silent no-op.
     PromotionFailed { detail: String },
+    /// A containment check failed — including checking an unknown or
+    /// already-cleaned workspace, or an unreadable project tree. Callers
+    /// treat this as "unknown", never as "clean".
+    ContainmentCheckFailed { detail: String },
 }
 
 impl fmt::Display for WorkspaceProviderError {
@@ -46,6 +50,12 @@ impl fmt::Display for WorkspaceProviderError {
             }
             Self::PromotionFailed { detail } => {
                 write!(f, "promoting the workspace failed: {detail}")
+            }
+            Self::ContainmentCheckFailed { detail } => {
+                write!(
+                    f,
+                    "checking the workspace's project containment failed: {detail}"
+                )
             }
         }
     }
@@ -78,6 +88,29 @@ pub struct WorkspacePromotion {
     /// seed (someone else changed it since this workspace was seeded) —
     /// left untouched in the integration tree, not applied.
     pub conflicts: Vec<String>,
+}
+
+/// The result of [`WorkspaceProvider::check_containment`]. When
+/// `supported` is `false` (the default implementation), every list is
+/// empty and no check happened — callers must treat that as "unknown",
+/// never as "clean".
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ContainmentDiff {
+    /// Whether this provider implements the containment check at all.
+    pub supported: bool,
+    /// Project paths whose size, mtime, or kind changed since the
+    /// workspace's dispatch-time baseline.
+    pub changed: Vec<String>,
+    /// Project paths present now but absent at baseline.
+    pub added: Vec<String>,
+    /// Project paths present at baseline but absent now.
+    pub removed: Vec<String>,
+}
+
+impl ContainmentDiff {
+    pub fn is_empty(&self) -> bool {
+        self.changed.is_empty() && self.added.is_empty() && self.removed.is_empty()
+    }
 }
 
 /// What a workspace is created for: one unit, or one slice of units
@@ -157,5 +190,19 @@ pub trait WorkspaceProvider {
         #[allow(unused_variables)] deadline: Deadline,
     ) -> Result<WorkspacePromotion, WorkspaceProviderError> {
         Ok(WorkspacePromotion::default())
+    }
+
+    /// Diffs the project root against the dispatch-time baseline captured
+    /// for `workspace` (W6 detective containment: a builder that writes
+    /// outside its workspace leaves a project-root diff). The default
+    /// implementation reports `supported: false` so every existing double
+    /// compiles unchanged and callers can skip the check cleanly when a
+    /// provider does not implement it.
+    fn check_containment(
+        &self,
+        #[allow(unused_variables)] workspace: &WorkspaceRef,
+        #[allow(unused_variables)] deadline: Deadline,
+    ) -> Result<ContainmentDiff, WorkspaceProviderError> {
+        Ok(ContainmentDiff::default())
     }
 }

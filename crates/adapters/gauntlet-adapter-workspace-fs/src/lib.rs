@@ -20,6 +20,7 @@
 //! so a symlink planted over a workspace path is a typed refusal rather than
 //! an escape.
 
+mod containment;
 mod json;
 mod provider;
 mod seed;

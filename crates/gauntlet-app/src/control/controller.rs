@@ -145,7 +145,7 @@ use gauntlet_ports::state_store::{
 };
 use gauntlet_ports::verifier::VerificationRequest;
 use gauntlet_ports::workspace_provider::{
-    WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
+    ContainmentDiff, WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
 };
 
 use crate::compare::authority::ComparisonAuthority;
@@ -2516,7 +2516,7 @@ impl RunController {
                 validation.isolation,
             ),
             (None, None) => format!(
-                "{{\"run\":\"{}\",\"iteration\":{},\"class\":\"gate_admission\",\"unit\":\"{}\",\"tier\":\"{}\",\"policy\":null,\"note\":\"contained under the conservative no-backend posture (spec 5.3.5 legal shape)\"}}",
+                "{{\"run\":\"{}\",\"iteration\":{},\"class\":\"gate_admission\",\"unit\":\"{}\",\"tier\":\"{}\",\"policy\":null,\"enforcement\":\"advisory\",\"note\":\"contained under the conservative no-backend posture (spec 5.3.5 legal shape)\"}}",
                 state.run.id(),
                 state.iteration,
                 admission.unit(),
@@ -3488,7 +3488,78 @@ impl RunController {
             )?
             .accept(self.operation_bound())?;
         // The residual set drives §11.5 rows 1/9.
-        let residuals = residuals_of(&accepted, &flight.unit);
+        let mut residuals = residuals_of(&accepted, &flight.unit);
+        // W6 detective containment: the dispatched builder is not
+        // sandboxed (isolation none under the contained tier, enforcement
+        // advisory — see the gate_admission record), so a write outside
+        // its workspace is reachable and must be CAUGHT, not prevented.
+        // The provider captured a stat manifest of the project root at
+        // dispatch; a diff now pins `containment_breach` and joins the
+        // residual set as BLOCKING — the attempt cannot settle
+        // (condition 4) and the row-1 retry carries the paths (told why).
+        // The check runs BEFORE the workspace is released (release
+        // happens in the caller, after this returns), beside the W5
+        // promote. An UNREADABLE baseline is "unknown", never "clean":
+        // pinned loudly as `containment_check_failed`, and the settlement
+        // stands or falls on the other evidence — a detective guard must
+        // not brick the run it watches.
+        if let Some(provider) = self.workspaces.as_ref() {
+            match provider.check_containment(&flight.spec.workspace, self.operation_bound()) {
+                Ok(diff) if diff.supported && !diff.is_empty() => {
+                    let observed = containment_observed(&diff);
+                    let record = format!(
+                        "{{\"class\":\"containment_breach\",\"run\":\"{}\",\"iteration\":{},\"invocation\":\"{}\",\"unit\":\"{}\",{observed}}}",
+                        state.run.id(),
+                        state.iteration,
+                        flight.spec.invocation_id,
+                        flight.unit,
+                    );
+                    let evidence = self.evidence.put(
+                        record.as_bytes(),
+                        EvidenceKind::Log,
+                        self.operation_bound(),
+                    )?;
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                    residuals.push(LoopResidual {
+                        residual: gauntlet_domain::Residual::new(
+                            gauntlet_domain::ResidualId::new("containment-breach")
+                                .expect("static residual id"),
+                            gauntlet_domain::Severity::Blocking,
+                            format!(
+                                "expected: the project root outside the dispatched workspace is \
+                                 unchanged since dispatch; observed: {observed}"
+                            ),
+                            None,
+                        ),
+                        unit: flight.unit.clone(),
+                        expected: "the project root outside the dispatched workspace is unchanged \
+                                   since dispatch"
+                            .to_owned(),
+                        observed,
+                    });
+                }
+                Ok(_) => {
+                    // Unsupported or clean: nothing to report.
+                }
+                Err(error) => {
+                    let record = format!(
+                        "{{\"class\":\"containment_check_failed\",\"run\":\"{}\",\"iteration\":{},\"invocation\":\"{}\",\"error\":\"{}\"}}",
+                        state.run.id(),
+                        state.iteration,
+                        flight.spec.invocation_id,
+                        escape_json_text(&error.to_string())
+                    );
+                    let evidence = self.evidence.put(
+                        record.as_bytes(),
+                        EvidenceKind::Log,
+                        self.operation_bound(),
+                    )?;
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                }
+            }
+        }
         // COR-D3 (plan Task 20; §17.5.1 invariant 1): the completion's
         // evidence surface is the workspace the dispatch ACTUALLY ran in —
         // the flight's admitted per-unit workspace under the canonical
@@ -5072,6 +5143,43 @@ struct LoopResidual {
     observed: String,
 }
 
+/// How many paths per class the containment-breach evidence names
+/// verbatim; beyond that the record carries the totals (bounded detail —
+/// a breach that renames a tree must not stuff the evidence store).
+const MAX_BREACH_PATHS_LISTED: usize = 20;
+
+/// Renders a [`ContainmentDiff`] as the `changed`/`added`/`removed`
+/// fields shared by the `containment_breach` evidence record and the
+/// BLOCKING residual's observed text — every listed path JSON-escaped,
+/// totals always present so truncation is visible, never silent.
+fn containment_observed(diff: &ContainmentDiff) -> String {
+    fn listed(paths: &[String]) -> String {
+        paths
+            .iter()
+            .take(MAX_BREACH_PATHS_LISTED)
+            .map(|path| format!("\"{}\"", escape_json_text(path)))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+    fn field(name: &str, paths: &[String]) -> String {
+        if paths.len() > MAX_BREACH_PATHS_LISTED {
+            format!(
+                "\"{name}\":[{listed}],\"{name}_total\":{}",
+                paths.len(),
+                listed = listed(paths)
+            )
+        } else {
+            format!("\"{name}\":[{}]", listed(paths))
+        }
+    }
+    format!(
+        "{},{},{}",
+        field("changed", &diff.changed),
+        field("added", &diff.added),
+        field("removed", &diff.removed)
+    )
+}
+
 /// The residual set of an accepted comparison, attributed per the above.
 fn residuals_of(
     accepted: &crate::compare::authority::AcceptedComparison,
@@ -5183,8 +5291,8 @@ mod tests {
     };
     use gauntlet_ports::verifier::{Verifier, VerifierError};
     use gauntlet_ports::workspace_provider::{
-        PromotedFile, WorkspacePromotion, WorkspaceProvider, WorkspaceProviderError,
-        WorkspaceSubject,
+        ContainmentDiff, PromotedFile, WorkspacePromotion, WorkspaceProvider,
+        WorkspaceProviderError, WorkspaceSubject,
     };
     use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
@@ -10267,6 +10375,13 @@ mod tests {
         /// the unsupported shape, matching a provider with no seed
         /// configured).
         promote_response: Mutex<Result<WorkspacePromotion, WorkspaceProviderError>>,
+        /// W6: every `check_containment` call this fixture received, in
+        /// order.
+        containment_checked: Mutex<Vec<gauntlet_domain::WorkspaceRef>>,
+        /// The canned answer `check_containment` returns to every caller
+        /// (default: the unsupported shape — no check, settlement
+        /// unaffected).
+        containment_response: Mutex<Result<ContainmentDiff, WorkspaceProviderError>>,
     }
 
     impl FixtureWorkspaces {
@@ -10277,6 +10392,8 @@ mod tests {
                 cleaned: Mutex::new(Vec::new()),
                 promoted: Mutex::new(Vec::new()),
                 promote_response: Mutex::new(Ok(WorkspacePromotion::default())),
+                containment_checked: Mutex::new(Vec::new()),
+                containment_response: Mutex::new(Ok(ContainmentDiff::default())),
             })
         }
 
@@ -10286,6 +10403,16 @@ mod tests {
         ) {
             *self
                 .promote_response
+                .lock()
+                .expect("fixture workspace ledger locks") = response;
+        }
+
+        fn set_containment_response(
+            &self,
+            response: Result<ContainmentDiff, WorkspaceProviderError>,
+        ) {
+            *self
+                .containment_response
                 .lock()
                 .expect("fixture workspace ledger locks") = response;
         }
@@ -10348,6 +10475,21 @@ mod tests {
                 .expect("fixture workspace ledger locks")
                 .push(workspace.clone());
             self.promote_response
+                .lock()
+                .expect("fixture workspace ledger locks")
+                .clone()
+        }
+
+        fn check_containment(
+            &self,
+            workspace: &gauntlet_domain::WorkspaceRef,
+            _deadline: Deadline,
+        ) -> Result<ContainmentDiff, WorkspaceProviderError> {
+            self.containment_checked
+                .lock()
+                .expect("fixture workspace ledger locks")
+                .push(workspace.clone());
+            self.containment_response
                 .lock()
                 .expect("fixture workspace ledger locks")
                 .clone()
@@ -10555,6 +10697,122 @@ mod tests {
             evidence.records_containing("work_product_promoted").len(),
             1,
             "exactly one promotion record was pinned — the settling completion's"
+        );
+    }
+
+    /// W6 detective containment: a completion whose project root differs
+    /// from its dispatch-time baseline pins `containment_breach` naming
+    /// the paths, and the unit does NOT settle — the BLOCKING residual
+    /// routes the §11.5 row-1 re-dispatch, whose prompt carries the
+    /// residual text (the retry is told why).
+    #[test]
+    fn a_containment_breach_blocks_settlement_and_names_the_paths() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![
+            Behavior::Complete,
+            Behavior::Complete,
+            Behavior::Complete,
+        ]);
+        let workspaces = FixtureWorkspaces::new();
+        // Assembled from segments: a whole `notes/todo.md` or dropped-file
+        // literal is environment coupling to the boundary scan (spec
+        // §8.1), even in test code.
+        let edited = ["notes", "todo.md"].join("/");
+        let planted = ["notes", "payload"].join("/");
+        workspaces.set_containment_response(Ok(ContainmentDiff {
+            supported: true,
+            changed: vec![edited.clone()],
+            added: vec![planted.clone()],
+            removed: Vec::new(),
+        }));
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_ne!(
+            outcome.terminal,
+            TerminalState::Settled,
+            "the breached unit never settles"
+        );
+        let records = evidence.records_containing("containment_breach");
+        assert!(
+            !records.is_empty(),
+            "the breach is pinned as durable evidence"
+        );
+        assert!(
+            records
+                .iter()
+                .any(|record| record.contains(&edited) && record.contains(&planted)),
+            "the pinned breach names the changed paths: {records:?}"
+        );
+        let prompts = composed.runner.prompts.borrow().clone();
+        assert!(
+            prompts.len() >= 2,
+            "the blocked unit re-dispatched: {prompts:?}"
+        );
+        let retried = prompts
+            .iter()
+            .skip(1)
+            .map(|prompt| prompt.1.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            retried.contains(&planted),
+            "the retry is told why — the residual text names the paths"
+        );
+    }
+
+    /// W6: a clean containment check changes nothing — the unit settles
+    /// and no breach is pinned.
+    #[test]
+    fn a_clean_containment_check_settles_normally() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let workspaces = FixtureWorkspaces::new();
+        workspaces.set_containment_response(Ok(ContainmentDiff {
+            supported: true,
+            changed: Vec::new(),
+            added: Vec::new(),
+            removed: Vec::new(),
+        }));
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        assert!(
+            evidence.records_containing("containment_breach").is_empty(),
+            "no breach pinned for a clean project root"
+        );
+        assert!(
+            evidence
+                .records_containing("containment_check_failed")
+                .is_empty(),
+            "no check failure pinned either"
         );
     }
 

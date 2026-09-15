@@ -476,6 +476,11 @@ fn workspace_seed(
             excludes.push(relative);
         }
     }
+    // W6 detective containment watches the same surfaces — but WITHOUT
+    // the answer-key evidence locators below: a locator path under the
+    // project root is instrument-owned, and a builder touching it is
+    // itself a breach worth catching, never seed noise to hide.
+    let containment_excludes = excludes.clone();
     // Best-effort: an unreadable/unparseable answer key at composition
     // time skips this addition rather than failing the whole composition
     // (the answer key's own readability is enforced where it is
@@ -490,6 +495,7 @@ fn workspace_seed(
         project_root: canonical_project_root,
         integration_root,
         excludes,
+        containment_excludes,
     }))
 }
 

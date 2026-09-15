@@ -38,11 +38,17 @@ use std::sync::{Arc, Mutex};
 use gauntlet_domain::{RunId, WorkspaceRef};
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::workspace_provider::{
-    PromotedFile, Workspace, WorkspaceHook, WorkspacePromotion, WorkspaceProvider,
+    ContainmentDiff, PromotedFile, Workspace, WorkspaceHook, WorkspacePromotion, WorkspaceProvider,
     WorkspaceProviderError, WorkspaceSubject,
 };
 
+use crate::containment::ContainmentManifest;
 use crate::seed::{self, Manifest, WorkspaceSeed};
+
+/// A live seeded workspace's W6 detective containment baseline: the
+/// project root it was captured over, the excludes it was captured
+/// with, and the dispatch-time stat manifest.
+type ContainmentBaseline = (PathBuf, Vec<String>, ContainmentManifest);
 
 /// Distinguishes workspaces created for the same (run, subject) pair — a
 /// re-dispatched unit gets a FRESH workspace (spec §10.4: `create` is per
@@ -61,6 +67,10 @@ pub struct FsWorkspaceProvider {
     /// against what it started from. Shared across clones so composition
     /// can hand out one provider by value.
     seed_manifests: Arc<Mutex<HashMap<String, (PathBuf, Manifest)>>>,
+    /// The W6 detective containment baseline per live seeded workspace:
+    /// the project root, the containment excludes, and the dispatch-time
+    /// stat manifest, consulted by `check_containment` at completion.
+    containment_baselines: Arc<Mutex<HashMap<String, ContainmentBaseline>>>,
 }
 
 impl FsWorkspaceProvider {
@@ -79,6 +89,7 @@ impl FsWorkspaceProvider {
             root: root.to_path_buf(),
             seed: None,
             seed_manifests: Arc::new(Mutex::new(HashMap::new())),
+            containment_baselines: Arc::new(Mutex::new(HashMap::new())),
         })
     }
 
@@ -187,6 +198,26 @@ impl WorkspaceProvider for FsWorkspaceProvider {
                 .lock()
                 .expect("seed manifest lock is never poisoned by a panicking holder")
                 .insert(key.clone(), (tree, outcome.manifest));
+            // W6: the dispatch-time containment baseline — the project
+            // root as the builder found it, before its turn runs.
+            let baseline = crate::containment::capture_manifest(
+                &seed.project_root,
+                &seed.containment_excludes,
+            )
+            .map_err(|error| WorkspaceProviderError::CreateFailed {
+                detail: format!("containment baseline: {error}"),
+            })?;
+            self.containment_baselines
+                .lock()
+                .expect("containment lock is never poisoned by a panicking holder")
+                .insert(
+                    key.clone(),
+                    (
+                        seed.project_root.clone(),
+                        seed.containment_excludes.clone(),
+                        baseline,
+                    ),
+                );
         }
         Ok(Workspace {
             reference,
@@ -227,6 +258,10 @@ impl WorkspaceProvider for FsWorkspaceProvider {
         self.seed_manifests
             .lock()
             .expect("seed manifest lock is never poisoned by a panicking holder")
+            .remove(workspace.as_str());
+        self.containment_baselines
+            .lock()
+            .expect("containment lock is never poisoned by a panicking holder")
             .remove(workspace.as_str());
         Ok(())
     }
@@ -339,6 +374,41 @@ impl WorkspaceProvider for FsWorkspaceProvider {
             changed,
             deleted,
             conflicts,
+        })
+    }
+
+    fn check_containment(
+        &self,
+        workspace: &WorkspaceRef,
+        _deadline: Deadline,
+    ) -> Result<ContainmentDiff, WorkspaceProviderError> {
+        if self.seed.is_none() {
+            return Ok(ContainmentDiff::default());
+        }
+        if !is_sanitized(workspace.as_str()) {
+            return Err(WorkspaceProviderError::ContainmentViolated {
+                path: workspace.as_str().to_owned(),
+            });
+        }
+        let (project_root, excludes, baseline) = self
+            .containment_baselines
+            .lock()
+            .expect("containment lock is never poisoned by a panicking holder")
+            .get(workspace.as_str())
+            .cloned()
+            .ok_or_else(|| WorkspaceProviderError::ContainmentCheckFailed {
+                detail: format!(
+                    "check_containment: {} is not a known, still-live seeded workspace",
+                    workspace.as_str()
+                ),
+            })?;
+        let current = crate::containment::capture_manifest(&project_root, &excludes)?;
+        let (changed, added, removed) = crate::containment::diff_manifests(&baseline, &current);
+        Ok(ContainmentDiff {
+            supported: true,
+            changed,
+            added,
+            removed,
         })
     }
 }
@@ -522,8 +592,53 @@ mod tests {
                 project_root: project_root.clone(),
                 integration_root: integration_root.clone(),
                 excludes: vec![".git".to_owned()],
+                containment_excludes: vec![".git".to_owned()],
             });
         (provider, project_root, integration_root)
+    }
+
+    /// W6: the dispatch-time baseline sees an outside write at check
+    /// time — a builder that escapes its workspace into the project root
+    /// is caught, while a clean project checks empty.
+    #[test]
+    fn check_containment_catches_an_outside_write() {
+        let (provider, project_root, _integration_root) = seeded_provider("contained");
+        std::fs::write(project_root.join("notes.txt"), b"v1").expect("writes");
+        let workspace = provider
+            .create(&run(), WorkspaceSubject::Unit(unit("AK-014")), bound())
+            .expect("creates");
+        let clean = provider
+            .check_containment(&workspace.reference, bound())
+            .expect("checks");
+        assert!(clean.supported, "a seeded provider supports the check");
+        assert!(clean.is_empty(), "nothing changed yet: {clean:?}");
+        // The builder escapes: writes beside the workspace, into the
+        // project root, and inside its own workspace (which must NOT
+        // report — only the project root is watched).
+        std::fs::write(project_root.join("notes.txt"), b"v1 plus escape").expect("rewrites");
+        std::fs::write(project_root.join("backdoor.sh"), b"nope").expect("adds");
+        std::fs::write(workspace.root.join("work.txt"), b"mine").expect("writes");
+        let diff = provider
+            .check_containment(&workspace.reference, bound())
+            .expect("re-checks");
+        assert_eq!(diff.changed, vec!["notes.txt".to_owned()]);
+        assert_eq!(diff.added, vec!["backdoor.sh".to_owned()]);
+        assert!(diff.removed.is_empty());
+    }
+
+    /// W6: checking an unknown or already-cleaned workspace is a typed
+    /// refusal, never a clean bill.
+    #[test]
+    fn check_containment_refuses_unknown_workspaces() {
+        let (provider, _project_root, _integration_root) = seeded_provider("unknown");
+        let missing = gauntlet_domain::WorkspaceRef::new("ws-fixture-0-nope").expect("ref");
+        let error = provider
+            .check_containment(&missing, bound())
+            .expect_err("unknown workspaces refuse");
+        assert!(
+            matches!(error, WorkspaceProviderError::ContainmentCheckFailed { .. }),
+            "typed refusal: {error}"
+        );
     }
 
     #[test]
