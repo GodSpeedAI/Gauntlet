@@ -66,8 +66,11 @@ tui_gui_redesign:
       unseen-count integration, visible "unbound" source status, automatic
       polling — explicitly out of scope by original design, ICM §16.11);
       the two-gateway standing note; a pending §8-step-5 overlay audit
-      (Dialog / Toast absent by name in workbench/src — verify against §3
-      before treating step 5 as complete). The six post-sweep workbench
+      (Dialog / Toast absent by name in workbench/src — audit now filed as
+      04-step5-overlay-audit.md: Dialog and Toast DO NOT EXIST, palette
+      staged-confirm renders as an inline row rather than the §3 confirm
+      dialog; build-vs-amend-vs-accept options recorded with the timer cost
+      driver). The six post-sweep workbench
       commits on this branch are likewise outside the 8477b8a gates.
   residuals:
     - >-
@@ -82,7 +85,7 @@ tui_gui_redesign:
       the shell route forwarding post-render-mutated affordances so the
       gateway revalidation denies; the gate landed briefly (RED-proven) and
       was reconciled against T23 — see increment-1 commit 6e84eff.
-  next_action: "Pending §8-step-5 overlay audit (Dialog / Toast absent by name in workbench/src — verify against 03-hallmark-redesign.md §3); then the cleared residuals above"
+  next_action: "Operator decision on the §8-step-5 overlay audit (04-step5-overlay-audit.md): build Dialog+Toast as a scoped increment, amend §3/step-5 out, or accept step 5 partial"
 
 production_readiness:
   status: complete
