@@ -12,11 +12,15 @@ something you can start a **real** run against in under a minute.
 > is measured for real (tokens, wall time, cost against the ceilings),
 > admission failures retry with backoff instead of crashing the run,
 > and a builder write outside its workspace pins `containment_breach`
-> and blocks that attempt's settlement. Prior reference: run
-> `C7T42J1ECBMK45JTB0VB9CX8T4` against installed `prime-agent` settled
-> all three units (AK-9011..AK-9013) in 4 iterations and ~10 minutes;
-> the final proof run below re-proves the whole chain on the current
-> tree.
+> and blocks that attempt's settlement. Live proof run `XHK2W8NSEQ9X8BYVEBET7915C5`
+> (archived): 6 dispatches all admitted, AK-9011 and AK-9012 settled
+> with durable PASS records, 361,871 tokens / $1.83 measured,
+> `deliver --apply` put the settled `calculator.html` in the target
+> (digest matches the promoted bytes) and `scripts/check.sh` passes on
+> it. AK-9013 stands provisional: its builder wrote a schema-invalid
+> result document twice (string `artifacts`, plus a stale invocation
+> id on the retry) and the loop fail-closed and escalated honestly —
+> see `.agents/CURRENT_STATUS.yml` for the residual and options.
 
 ## What this is
 

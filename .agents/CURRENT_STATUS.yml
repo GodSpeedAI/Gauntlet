@@ -99,8 +99,32 @@ production_readiness:
     - "W7 (251abcb): schema reminder names the parse failure; AK-9011 workspace-root wording plus re-digested demo lock; state run derives from latest recorded run; doctor probes runtime state/workspaces; improve held-out race fixed, agent-prime flake unreproduced in isolation"
   verification:
     - "app 681/0; sqlite plus ports 180/0; cli full suite green incl. e2e_deliver 3/3 and improve_baseline 8/8; surfaces 4 plus 14; clippy -D warnings clean; fmt clean; boundaries 261/261"
-  next_action: "W9 final proof run per plan section W9, then refresh the demo README status block with the new run id"
+  live_proof:
+    run_id: "XHK2W8NSEQ9X8BYVEBET7915C5"
+    archived: "targets/.runs/demo-calculator.proof-2of3-2216"
+    terminal: "escalated (6 iterations; AK-9013 malformed twice, ticket esc-6aa8a972-0)"
+    settled: "AK-9011 (iteration 3), AK-9012 (iteration 4) — each settled once, durable PASS records"
+    dispatch: "6 dispatches, 6 admissions, 0 refusals; 4 capacity truncations recorded; workspaces empty after"
+    payment: "361871 tokens, $1.83, 642s wall — measured, nonzero; remaining budget monotone decreasing"
+    timestamps: "real admission instants, monotone across all 6 invocations"
+    carry_forward: "work_product_promoted per settled unit (AK-9011 changed calculator.html; AK-9012 empty — carried work, nothing new)"
+    containment: "no containment_breach, no check failures — the guard held silent; enforcement advisory on every admission"
+    delivery: "deliver --apply wrote 1 file; delivered calculator.html sha256 matches the promoted digest byte-for-byte; scripts/check.sh exits 0 on it"
+    not_proven: "AK-9013 settlement and a fully-settled terminal — see residuals"
+  next_action: "Operator decision on the W9 PARTIAL residual: fresh proof run for AK-9013 as-is, prompt-shape fix first, or accept 2/3 proof (see residuals)"
   residuals:
+    - >-
+      W9 PARTIAL (2026-09-15, run XHK2): AK-9013 provisional — both result
+      documents schema-invalid (artifacts as string array, must be objects;
+      second also echoed the first attempt's invocation id). Validated with
+      the real role_result decoder. The harness fail-closed correctly both
+      times (MalformedResult, reminder, escalate after two). Root cause is
+      prompt underspecification: compose_child_prompt never specifies the
+      payload field shapes, so a builder that cites artifacts guesses — the
+      four settled docs all used artifacts []. Fix shape TBD (operator
+      decision): specify the artifacts object shape in the child prompt
+      (mind evidence_ref fabrication — builders cannot mint store refs) or
+      accept model luck. A fresh proof run for AK-9013 re-spends ~$2.
     - "agent-prime adapter failure unreproduced in isolation (6x52/0); likely OOM-adjacent under full-workspace load"
     - "conformance.json and handoff.md left FROZEN (task27 settlement evidence — immutable); this stream records here instead"
     - "W9 checkpoint rerun after W1+W2 superseded by the final proof run on the current tree"
