@@ -7,12 +7,13 @@
 //! absent is presented as present (honest absence: an empty field means
 //! nothing durable names it).
 //!
-//! The `run_derivation` disclosure (charter D6): the durable read
-//! surface names NO run enumeration, so the active run is DERIVED from
-//! the open escalation tickets' run ids — exactly one is the anchor;
-//! several resolve to the greatest ULID (ULID order is time order — the
-//! newest run); none is an honest absence. The rule AND the sources are
-//! served with every snapshot, never a silent guess.
+//! The `run_derivation` disclosure (charter D6, W7): the active run is
+//! the store's latest RECORDED run first — a cleanly settled run names
+//! no ticket, and tickets alone would lose it — falling back to the
+//! open escalation tickets' run ids when the store names none (exactly
+//! one ticket-run is the anchor; several resolve to the greatest ULID,
+//! ULID order is time order; none is an honest absence). The rule AND
+//! the sources are served with every snapshot, never a silent guess.
 //!
 //! `sandbox_denials` derives from queue tickets whose summary carries
 //! the governance gate's OWN containment vocabulary —
@@ -93,12 +94,19 @@ impl DurableSurface {
             .collect())
     }
 
-    /// The D6 run derivation over the open tickets (disclosed, never a
-    /// silent guess).
+    /// The D6 run derivation (disclosed, never a silent guess): the
+    /// store's latest recorded run anchors the view — a cleanly settled
+    /// run names no ticket, and tickets alone would lose it. When the
+    /// store names no run (or the read fails), the open tickets'
+    /// greatest ULID anchors instead, exactly as before.
     fn derive_run(
         &self,
         open: &[gauntlet_adapter_escalation_fs::EscalationRecord],
+        deadline: Deadline,
     ) -> Option<RunId> {
+        if let Ok(Some(latest)) = self.surface.state.latest_run(deadline) {
+            return Some(latest);
+        }
         let mut runs: Vec<RunId> = open.iter().map(|record| record.run_id.clone()).collect();
         runs.sort();
         runs.dedup();
@@ -158,7 +166,7 @@ impl OperatorSurface for DurableSurface {
     fn snapshot(&self, deadline: Deadline) -> Result<RuntimeSnapshot, OperatorSurfaceError> {
         let open = self.inbox()?;
         let escalated = open.iter().map(|record| record.ticket.clone()).collect();
-        let run = self.derive_run(&open);
+        let run = self.derive_run(&open, deadline);
         let checkpoint = match &run {
             Some(run) => self.checkpoint(run, deadline)?,
             None => None,
@@ -276,6 +284,34 @@ impl OperatorSurface for DurableSurface {
 
 impl SnapshotDisclosure for DurableSurface {
     fn run_derivation(&self) -> String {
+        // The winning source, in the same precedence the snapshot uses:
+        // the store's latest recorded run first, the open tickets'
+        // greatest ULID as fallback. Re-read (as the old text did for
+        // the inbox) — a disclosure names its rule, not a cached answer.
+        match self
+            .surface
+            .state
+            .latest_run(crate::context::doctor_bound())
+        {
+            Ok(Some(latest)) => format!(
+                "derived from the latest recorded run in the durable state store: {latest} \
+                 (open tickets anchor nothing newer — tickets alone would lose a cleanly \
+                 settled run)"
+            ),
+            Ok(None) => self.ticket_derivation(),
+            Err(error) => {
+                format!(
+                    "the store read failed ({error}), falling back to the open tickets: {}",
+                    self.ticket_derivation()
+                )
+            }
+        }
+    }
+}
+
+/// The ticket half of the D6 disclosure, shared by the fallback arms.
+impl DurableSurface {
+    fn ticket_derivation(&self) -> String {
         match self.inbox() {
             Ok(open) => {
                 let mut runs: Vec<String> = open
@@ -285,8 +321,8 @@ impl SnapshotDisclosure for DurableSurface {
                 runs.sort();
                 runs.dedup();
                 if runs.is_empty() {
-                    "derived from the open escalation tickets of the durable queue: none are \
-                     open, so no active run is derived"
+                    "the open escalation tickets of the durable queue name no run, and the \
+                     store records none either — no active run is derived"
                         .to_owned()
                 } else {
                     format!(

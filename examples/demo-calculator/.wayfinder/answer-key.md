@@ -1,5 +1,5 @@
 ## AK-9011
-claim: calculator.html exists at the project root and declares digit buttons 0-9 and operator buttons for add, subtract, multiply, and divide.
+claim: calculator.html exists at the workspace root and declares digit buttons 0-9 and operator buttons for add, subtract, multiply, and divide.
 verify_by: static_check
 blast_radius: contained
 authority: critic

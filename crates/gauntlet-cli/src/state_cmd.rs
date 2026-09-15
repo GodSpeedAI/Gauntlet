@@ -46,12 +46,13 @@ pub fn status(args: &[String]) -> ExitCode {
         }
     }
     let Some(run_id) = run_id else {
-        // The store read surface names no run enumeration; a run id is
-        // required. Truthful, not a silent empty report.
+        // `status` keeps its explicit-run requirement deliberately (the
+        // operator names the run under inspection — no guessing which);
+        // the served snapshot derives its own context run separately.
+        // Truthful, not a silent empty report.
         eprintln!(
-            "gauntlet status: a run id is required (--run <run-id>) — the durable read \
-             surface names no run enumeration; find run ids in the run report or \
-             .gauntlet/state"
+            "gauntlet status: a run id is required (--run <run-id>) — find run ids in the \
+             run report, the served snapshot's `run`, or .gauntlet/state"
         );
         println!("usage: gauntlet status [--run <run-id>]");
         return ExitCode::from(2);

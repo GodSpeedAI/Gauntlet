@@ -413,6 +413,18 @@ pub trait StateStore {
     /// Loads a run's durable state; `None` when the run was never stored.
     fn load_run(&self, run_id: &RunId, deadline: Deadline) -> Result<Option<Run>, StateStoreError>;
 
+    /// The latest run this store knows (greatest ULID — ULID order is
+    /// time order); `None` when no run was ever stored. The operator
+    /// surface derives its context run from the runs themselves, not
+    /// only from escalation tickets (a cleanly settled run names no
+    /// ticket). Default: unknown — existing doubles compile unchanged.
+    fn latest_run(
+        &self,
+        #[allow(unused_variables)] deadline: Deadline,
+    ) -> Result<Option<RunId>, StateStoreError> {
+        Ok(None)
+    }
+
     /// Records the authoritative run identity (spec §5.3.3: "a `Run` has
     /// exactly one frozen `reference_version` for its whole life"; §18.1's
     /// minimum durable records include runs). Plan Task 12's controller

@@ -1745,6 +1745,35 @@ impl StateStore for SqliteStateStore {
         }
     }
 
+    /// The latest recorded run (greatest ULID first — ULID order is time
+    /// order; `created_at` breaks nothing but is not the authority).
+    fn latest_run(&self, _deadline: Deadline) -> Result<Option<RunId>, StateStoreError> {
+        let conn = self
+            .conn
+            .lock()
+            .expect("the store connection is not poisoned");
+        let latest: Option<String> = match conn.query_row(
+            "SELECT run_id FROM runs ORDER BY run_id DESC LIMIT 1",
+            [],
+            |row| row.get(0),
+        ) {
+            Ok(run_id) => Some(run_id),
+            Err(rusqlite::Error::QueryReturnedNoRows) => None,
+            Err(err) => {
+                return Err(StateStoreError::ReadFailed {
+                    detail: format!("reading the latest recorded run failed: {err}"),
+                });
+            }
+        };
+        latest
+            .map(|run_id| {
+                RunId::new(&run_id).map_err(|err| StateStoreError::Corrupt {
+                    detail: format!("the runs table holds a run id that does not decode: {err}"),
+                })
+            })
+            .transpose()
+    }
+
     fn checkpoint(
         &self,
         checkpoint: Checkpoint,
@@ -3381,6 +3410,57 @@ mod tests {
         );
     }
 
+    /// W7: the store names its latest run (greatest ULID) for the
+    /// operator surface's context derivation; an empty store is an
+    /// honest absence, never an error.
+    #[test]
+    fn latest_run_returns_the_greatest_recorded_run_id() {
+        use gauntlet_ports::state_store::StateStore as _;
+        let store = SqliteStateStore::open_in_memory().expect("store opens");
+        assert_eq!(
+            store.latest_run(bound()).expect("reads"),
+            None,
+            "an empty store names no run"
+        );
+        store.record_run(&run(), bound()).expect("records");
+        assert_eq!(
+            store.latest_run(bound()).expect("reads"),
+            Some(run_id()),
+            "the only run is the latest"
+        );
+        // A later run sorts first regardless of recording order (ULIDs
+        // sort lexicographically; 01B follows 01A).
+        let later_id = RunId::new("01BSZ3NDEKTSV4RRFFQ69G5FAV").expect("valid run id");
+        let later = Run::new(RunDefinition {
+            id: later_id.clone(),
+            created_at: EpochSeconds::new(1_700_000_100),
+            reference_version: ReferenceVersion::with_evidence(
+                ReferenceId::new("ref-task6").expect("valid reference id"),
+                3,
+                digest(),
+                EvidenceRef::new("evd-task6-frozen-reference").expect("valid evidence"),
+            ),
+            intent: "settle the task".to_owned(),
+            config_fingerprint: Digest::new("sha256", "a1b2c3d4e5f6a7b8").expect("valid digest"),
+            environment_fingerprint: Digest::new("sha256", "e5f6a7b8c4d3e2f1")
+                .expect("valid digest"),
+            budget: Budget::new(
+                Limits::new(8, 2, 2, 3600, 1000, MicroUsd::new(500)).expect("legal ceilings"),
+                20,
+                DiagnosticAllowance::new(100, MicroUsd::new(50)),
+            )
+            .expect("legal budget"),
+            parent_run: None,
+        })
+        .expect("legal run");
+        store.record_run(&later, bound()).expect("records");
+        assert_eq!(
+            store.latest_run(bound()).expect("reads"),
+            Some(later_id),
+            "the greatest ULID wins regardless of recording order"
+        );
+    }
+
     /// The runs row is authoritative when present; a checkpoint-only run
     /// loads with its true id and frozen digest (the projection).
     #[test]
@@ -3409,8 +3489,7 @@ mod tests {
         assert_eq!(recorded.reference_version().version(), 3);
     }
 
-    /// The PASS verification document the Task-13 settlement admission
-    /// validates against: this run, the commit's unit, the commit's
+    /// The PASS verification document the Task-13 settlement admission    /// validates against: this run, the commit's unit, the commit's
     /// evidence.
     fn pass_record() -> gauntlet_ports::verification_record::VerificationRecordDoc {
         gauntlet_ports::verification_record::VerificationRecordDoc::new(

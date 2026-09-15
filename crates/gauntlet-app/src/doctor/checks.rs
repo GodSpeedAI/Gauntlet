@@ -12,7 +12,7 @@
 //! values: a resolved path or credential behind a `$VAR` reference is not
 //! printable evidence (§8.1).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use gauntlet_domain::Digest;
 use gauntlet_ports::agent_runner::Isolation;
@@ -1314,6 +1314,14 @@ pub fn check_required_capabilities(
 // Check 7 — writable dirs; answer key outside workspaces (§8.5 check 7)
 // ---------------------------------------------------------------------------
 
+/// The workspace root the runtime actually opens providers under (W7):
+/// the composition derives it from the state dir, so the configured
+/// `workspace_root` — what the doctor used to probe — is not what
+/// builders write into.
+fn runtime_workspace_root(resolved: &ResolvedConfig) -> PathBuf {
+    resolved.state_dir.join(defaults::WORKSPACES_DIR_NAME)
+}
+
 pub fn check_paths(resolved: &ResolvedConfig, raw_tokens: &RawTokens) -> CheckOutcome {
     let state = probe_writable(&resolved.state_dir, "state dir", &raw_tokens.state_dir);
     let evidence_store = probe_writable(
@@ -1322,9 +1330,9 @@ pub fn check_paths(resolved: &ResolvedConfig, raw_tokens: &RawTokens) -> CheckOu
         &raw_tokens.evidence_dir,
     );
     let workspace = probe_writable(
-        &resolved.workspace_root,
+        &runtime_workspace_root(resolved),
         "workspace root",
-        &raw_tokens.workspace_root,
+        "state dir workspaces, runtime-derived",
     );
     let answer_key = check_answer_key_outside(resolved, raw_tokens);
     CheckOutcome::combine(
@@ -1393,7 +1401,8 @@ fn probe_writable(dir: &Path, role: &str, raw: &str) -> SubResult {
 /// lexically AND on the canonicalized filesystem (§8.5 check 7, §22 item 5).
 fn check_answer_key_outside(resolved: &ResolvedConfig, raw_tokens: &RawTokens) -> SubResult {
     let answer = &resolved.reference.answer_key;
-    let workspace = &resolved.workspace_root;
+    let runtime_workspaces = runtime_workspace_root(resolved);
+    let workspace = &runtime_workspaces;
     let lexical_inside = answer.starts_with(workspace);
     let (canonical_inside, canonical_note) = match (answer.canonicalize(), workspace.canonicalize())
     {

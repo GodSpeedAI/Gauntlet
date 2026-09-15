@@ -893,40 +893,61 @@ mod tests {
     #[test]
     fn an_answer_key_inside_the_workspace_fails_check_seven() {
         let scratch = Scratch::new();
-        let doc = "---\nreference:\n  answer_key: answer-key.md\n  manifest: reference.yaml\n\
-                    sandbox:\n  policy_dir: policies\nworkspace:\n  root: .\n---\n";
+        // W7: placement is judged against the RUNTIME workspace root
+        // (the state dir's workspaces child), not the configured
+        // `workspace.root` — which this doc deliberately points
+        // elsewhere (the scratch root) to prove it no longer governs.
+        // The state dir is the scratch root, and the key copy inside
+        // its workspaces child carries identical bytes (the lock's
+        // digest still matches).
+        std::fs::create_dir_all(scratch.root.join("workspaces")).expect("runtime root");
+        std::fs::copy(
+            scratch.root.join("answer-key.md"),
+            scratch.root.join("workspaces").join("answer-key.md"),
+        )
+        .expect("key copied into the runtime root");
+        let doc = "---\nreference:\n  answer_key: workspaces/answer-key.md\n  manifest: \
+                   reference.yaml\nsandbox:\n  policy_dir: policies\nworkspace:\n  root: \
+                   .\nstate:\n  dir: .\n---\n";
         let report = run_doctor(&scratch.input(Some(doc)));
         assert_eq!(status_of(&report, 7), &CheckStatus::Fail);
         assert!(!report.exit_ok());
     }
 
-    /// The OTHER half of check 7's placement clause (Task 13 B3, N4): the
-    /// answer key that is lexically OUTSIDE the workspace but canonically
-    /// INSIDE it — an alias symlink pointing into the workspace root. A
-    /// lexical-only implementation of `check_answer_key_outside` passes
-    /// this configuration; the canonicalized half is what refuses it.
-    /// Pins existing behavior; no doctor change.
+    /// The OTHER half of check 7's placement clause (Task 13 B3, N4),
+    /// re-anchored by W7 onto the runtime workspace root: the answer key
+    /// that is lexically OUTSIDE the state dir's workspaces child but
+    /// canonically INSIDE it — an alias symlink pointing into the
+    /// runtime root. A lexical-only implementation passes this
+    /// configuration; the canonicalized half is what refuses it.
     #[test]
     fn an_answer_key_inside_the_workspace_only_canonically_still_fails_check_seven() {
         #[cfg(unix)]
         {
             let scratch = Scratch::new();
-            // `real-ws/` is the workspace; `alias` is a symlink to it, so
-            // `alias/answer-key.md` is lexically outside `real-ws` but
-            // canonicalizes inside it. The key bytes are the scratch key,
-            // so the lock's digest still matches wherever the clause reads.
-            let real_ws = scratch.root.join("real-ws");
+            // The real workspace dir lives inside the runtime root (the
+            // state dir is the scratch root); `alias` is a symlink to
+            // it, so the aliased key path is lexically outside the
+            // runtime root but canonicalizes inside it. The key bytes
+            // are the scratch key, so the lock's digest still matches
+            // wherever the clause reads. The configured
+            // `workspace.root` points at the real dir on purpose — it
+            // no longer governs placement.
+            let real_ws = scratch.root.join("workspaces").join("real-ws");
             std::fs::create_dir_all(&real_ws).expect("workspace dir");
             std::fs::copy(
                 scratch.root.join("answer-key.md"),
                 real_ws.join("answer-key.md"),
             )
             .expect("key copied behind the alias");
-            std::os::unix::fs::symlink("real-ws", scratch.root.join("alias"))
-                .expect("alias symlink");
+            std::os::unix::fs::symlink(
+                std::path::Path::new("workspaces").join("real-ws"),
+                scratch.root.join("alias"),
+            )
+            .expect("alias symlink");
             let doc = "---\nreference:\n  answer_key: alias/answer-key.md\n  manifest: \
                        reference.yaml\nsandbox:\n  policy_dir: policies\nworkspace:\n  root: \
-                       real-ws\n---\n";
+                       real-ws\nstate:\n  dir: .\n---\n";
             let report = run_doctor(&scratch.input(Some(doc)));
             assert_eq!(
                 status_of(&report, 7),

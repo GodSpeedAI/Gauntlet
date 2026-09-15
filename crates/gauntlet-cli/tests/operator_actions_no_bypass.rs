@@ -1155,6 +1155,44 @@ fn the_surface_answers_405_404_and_identity_refusals_in_the_error_shape() {
 }
 
 // ---------------------------------------------------------------------------
+// W7: the state's `run` derives from the latest recorded run, not only
+// from open tickets — a cleanly settled run names no ticket, and the
+// surface must still anchor on it.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn state_run_derives_from_the_latest_run_without_open_tickets() {
+    let world = World::new("run-without-tickets", false, UNIT);
+    // Resolve the world's only ticket: no open ticket names any run.
+    let queue =
+        FsEscalationQueue::open(&world.state_dir().join("escalations")).expect("the queue opens");
+    let ticket =
+        gauntlet_ports::human_escalation::TicketId::new(&world.ticket).expect("a valid ticket id");
+    queue
+        .resolve(
+            &ticket,
+            OPERATOR,
+            "the W7 derivation probe closes the only ticket",
+            gauntlet_adapter_escalation_fs::OperatorAction::Resolve,
+        )
+        .expect("the ticket resolves");
+    drop(queue);
+    assert!(
+        !world.ticket_is_open(),
+        "the probe premise holds: no ticket is open"
+    );
+    let mut served = world.serve();
+    let (head, body) = world.get(&mut served, &api_route(&["state"]));
+    assert!(head.contains("200"), "the state serves: {head} {body}");
+    let parsed = gauntlet_ports::json::parse(&body).expect("the snapshot parses");
+    assert_eq!(
+        parsed.get("run"),
+        Some(&JsonValue::Str(world.run_id.to_string())),
+        "the recorded run anchors the view with no ticket open: {body}"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Leg 5 — the order leg: a corrupt ticket stays the queue's own typed
 // refusal; nothing settles, nothing is written.
 // ---------------------------------------------------------------------------

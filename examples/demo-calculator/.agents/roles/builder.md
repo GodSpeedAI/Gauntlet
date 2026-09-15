@@ -21,7 +21,7 @@ the declared result-contract path. You never touch the reference, the
 comparison contract, the acceptance gates, or the evidence store, and your
 claims are never settlement evidence.
 
-Build `calculator.html` at the project root: a single-page HTML calculator
+Build `calculator.html` at the workspace root: a single-page HTML calculator
 with digit buttons 0-9, operator buttons for add/subtract/multiply/divide,
 and a working evaluation path — no build step, no network calls, no
 external dependencies. It must work when opened as a plain static file.

@@ -2738,7 +2738,7 @@ impl RunController {
                     }
                     Ok(InvocationStatus::Failed { class }) => {
                         let mut flight = state.in_flight.remove(index);
-                        self.dispose_failure(state, &mut flight, class)?;
+                        self.dispose_failure(state, &mut flight, class, None)?;
                     }
                     Ok(InvocationStatus::TimedOut) => {
                         let mut flight = state.in_flight.remove(index);
@@ -3019,6 +3019,7 @@ impl RunController {
         state: &mut LoopState,
         flight: &mut InFlight,
         class: InvocationFailure,
+        cause_detail: Option<&str>,
     ) -> Result<(), ControlError> {
         state.last_offset = self
             .append_terminal_event(
@@ -3029,15 +3030,29 @@ impl RunController {
             .get();
         // Like `dispose_transient`, a failure is never silent: every class
         // pins a record naming itself, so a terminal-failed invocation
-        // always carries a durable reason.
-        let record = format!(
-            "{{\"class\":\"invocation_failed\",\"run\":\"{}\",\"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\",\"failure\":\"{}\"}}",
-            state.run.id(),
-            state.iteration,
-            flight.unit,
-            flight.spec.invocation_id,
-            invocation_failure_token(class),
-        );
+        // always carries a durable reason. A known parse cause rides
+        // along (bounded, sanitized) so the retry can be told WHAT was
+        // malformed, not only that something was.
+        let cause_text = cause_detail.map(sanitize_failure_detail);
+        let record = match &cause_text {
+            Some(cause) => format!(
+                "{{\"class\":\"invocation_failed\",\"run\":\"{}\",\"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\",\"failure\":\"{}\",\"cause\":\"{}\"}}",
+                state.run.id(),
+                state.iteration,
+                flight.unit,
+                flight.spec.invocation_id,
+                invocation_failure_token(class),
+                escape_json_text(cause),
+            ),
+            None => format!(
+                "{{\"class\":\"invocation_failed\",\"run\":\"{}\",\"iteration\":{},\"unit\":\"{}\",\"invocation\":\"{}\",\"failure\":\"{}\"}}",
+                state.run.id(),
+                state.iteration,
+                flight.unit,
+                flight.spec.invocation_id,
+                invocation_failure_token(class),
+            ),
+        };
         let evidence =
             self.evidence
                 .put(record.as_bytes(), EvidenceKind::Log, self.operation_bound())?;
@@ -3068,8 +3083,14 @@ impl RunController {
                         // escalates.
                         let spent_reminders = flight.reminders_used + 1;
                         state.reminders.insert(flight.unit.clone(), spent_reminders);
+                        // W7: the reminder names the parse failure (when
+                        // one is known) so the retry fixes the actual
+                        // defect instead of guessing at the schema.
+                        let named = cause_text
+                            .as_deref()
+                            .map_or_else(String::new, |cause| format!(" ({cause})"));
                         let attachment = format!(
-                            "previous result was malformed; the result document must be a strict \
+                            "previous result was malformed{named}; the result document must be a strict \
                              role_result@v1 JSON document echoing invocation {} and the context \
                              envelope digest",
                             flight.spec.invocation_id
@@ -3345,25 +3366,30 @@ impl RunController {
             Ok(result) => result,
             Err(error) => {
                 let mut flight = flight;
-                let class = match error {
-                    AgentError::CollectionFailed { .. } => InvocationFailure::MalformedResult,
+                let (class, cause_detail) = match error {
+                    AgentError::CollectionFailed { detail, .. } => {
+                        (InvocationFailure::MalformedResult, Some(detail))
+                    }
                     other => {
                         return Err(ControlError::Agent(other));
                     }
                 };
-                self.dispose_failure(state, &mut flight, class)?;
+                self.dispose_failure(state, &mut flight, class, cause_detail.as_deref())?;
                 return Ok(());
             }
         };
-        if result
-            .validate_against(
-                &flight.spec.invocation_id,
-                flight.spec.context_envelope.digest(),
-            )
-            .is_err()
-        {
+        let validation = result.validate_against(
+            &flight.spec.invocation_id,
+            flight.spec.context_envelope.digest(),
+        );
+        if let Err(error) = validation {
             let mut flight = flight;
-            self.dispose_failure(state, &mut flight, InvocationFailure::MalformedResult)?;
+            self.dispose_failure(
+                state,
+                &mut flight,
+                InvocationFailure::MalformedResult,
+                Some(&error.to_string()),
+            )?;
             return Ok(());
         }
         // Payment: charge the meter (the reservation bounds it) and the
@@ -5143,6 +5169,27 @@ struct LoopResidual {
     observed: String,
 }
 
+/// Bounds builder-influenced failure text for evidence records and
+/// retry prompts: control characters (a builder-controlled newline
+/// must not forge record lines) become spaces, surrounding whitespace
+/// trims, and overlong text truncates on a char boundary with a visible
+/// marker — never silently, never unbounded.
+const MAX_FAILURE_DETAIL_CHARS: usize = 300;
+
+/// See [`MAX_FAILURE_DETAIL_CHARS`].
+fn sanitize_failure_detail(detail: &str) -> String {
+    let flat: String = detail
+        .chars()
+        .map(|ch| if ch.is_control() { ' ' } else { ch })
+        .collect();
+    let flat = flat.trim();
+    if flat.chars().count() <= MAX_FAILURE_DETAIL_CHARS {
+        return flat.to_owned();
+    }
+    let kept: String = flat.chars().take(MAX_FAILURE_DETAIL_CHARS).collect();
+    format!("{kept} [truncated]")
+}
+
 /// How many paths per class the containment-breach evidence names
 /// verbatim; beyond that the record carries the totals (bounded detail —
 /// a breach that renames a tree must not stuff the evidence store).
@@ -5257,7 +5304,8 @@ mod tests {
 
     use super::run_workspace_ref;
     use super::{
-        BudgetShape, ComparisonDeps, ControlError, ControllerDeps, ReferenceBreach, RunController,
+        BudgetShape, ComparisonDeps, ControlError, ControllerDeps, MAX_FAILURE_DETAIL_CHARS,
+        ReferenceBreach, RunController, sanitize_failure_detail,
     };
     use crate::control::disposition::ControlPolicy;
     use crate::reference::provider::{AnswerKeySource, FileReferenceProvider, ManifestSource};
@@ -5479,6 +5527,12 @@ mod tests {
         CompleteDeclaringOther,
         StallForever,
         Fail(InvocationFailure),
+        /// The invocation completes at the poll leg, then `collect`
+        /// fails with the canned detail — the W7 schema-reminder lever:
+        /// the retry prompt must name the parse failure.
+        CollectFailed {
+            detail: String,
+        },
         /// The invocation admits, then `poll` hard-errors — the crash
         /// injection the §18.3 resume tests ride (the drain maps it to a
         /// `ControlError` that ends the run with no close-out).
@@ -5731,6 +5785,25 @@ mod tests {
                         detail: error.to_string(),
                     })
                 }
+                Behavior::CollectFailed { .. } => {
+                    // Completes at the poll leg exactly like a well-formed
+                    // completion; the COLLECT leg below fails with the
+                    // canned detail instead — the W7 schema-reminder
+                    // lever.
+                    let (input_tokens, output_tokens) = Self::payment_tokens(&behavior);
+                    let document = Self::result_document(&spec, input_tokens, output_tokens, &[]);
+                    gauntlet_ports::role_result::read_result_contract(
+                        &document,
+                        handle.invocation_id(),
+                        spec.context_envelope.digest(),
+                    )
+                    .map(|_| InvocationStatus::Completed {
+                        result_ref: spec.result_contract_path.clone(),
+                    })
+                    .map_err(|error| AgentError::AdmissionRefused {
+                        detail: error.to_string(),
+                    })
+                }
                 Behavior::StallForever => Ok(InvocationStatus::Admitted),
                 Behavior::Fail(class) => Ok(InvocationStatus::Failed { class }),
                 Behavior::PollError => Err(AgentError::Transport {
@@ -5802,6 +5875,12 @@ mod tests {
                 .cloned()
                 .expect("the handle was admitted");
             let behavior = self.behavior_of(handle.invocation_id());
+            if let Behavior::CollectFailed { detail } = &behavior {
+                return Err(AgentError::CollectionFailed {
+                    invocation_id: handle.invocation_id().clone(),
+                    detail: detail.clone(),
+                });
+            }
             let attempted: &[&str] = match behavior {
                 Behavior::CompleteDeclaringOther => &["AK-9999"],
                 _ => &[],
@@ -10771,6 +10850,80 @@ mod tests {
         assert!(
             retried.contains(&planted),
             "the retry is told why — the residual text names the paths"
+        );
+    }
+
+    /// W7: failure detail is bounded and sanitized — control characters
+    /// flatten, overlong text truncates visibly.
+    #[test]
+    fn failure_detail_sanitizes_and_bounds() {
+        assert_eq!(
+            sanitize_failure_detail("not JSON at byte 3"),
+            "not JSON at byte 3"
+        );
+        assert_eq!(
+            sanitize_failure_detail("line one\nline two\ttab"),
+            "line one line two tab"
+        );
+        assert_eq!(sanitize_failure_detail("  padded  "), "padded");
+        let long = "x".repeat(MAX_FAILURE_DETAIL_CHARS + 50);
+        let sanitized = sanitize_failure_detail(&long);
+        assert!(
+            sanitized.ends_with("[truncated]"),
+            "overlong detail truncates visibly"
+        );
+        assert_eq!(
+            sanitized.chars().count(),
+            MAX_FAILURE_DETAIL_CHARS + " [truncated]".chars().count()
+        );
+    }
+
+    /// W7: the row-3 schema reminder names the parse failure, and the
+    /// durable record carries it — the retry fixes the actual defect.
+    #[test]
+    fn a_malformed_collect_names_its_cause_in_reminder_and_record() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![
+            Behavior::CollectFailed {
+                detail: "result contract is not JSON at byte 3".to_owned(),
+            },
+            Behavior::Complete,
+        ]);
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            Some(FixtureWorkspaces::new()),
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let prompts = composed.runner.prompts.borrow().clone();
+        assert!(prompts.len() >= 2, "the malformed unit retried");
+        let retried = prompts
+            .iter()
+            .skip(1)
+            .map(|prompt| prompt.1.clone())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(
+            retried.contains("not JSON at byte 3"),
+            "the retry names the parse failure: {retried}"
+        );
+        let records = evidence.records_containing("invocation_failed");
+        assert!(
+            records
+                .iter()
+                .any(|record| record.contains("not JSON at byte 3")),
+            "the durable record carries the cause: {records:?}"
         );
     }
 

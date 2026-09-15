@@ -1,6 +1,6 @@
 {
   "answer_key_path": ".wayfinder/answer-key.md",
-  "answer_key_digest": "sha256:a593207d165b5161aca3ae3901e78facb366c58bd64406bca8eb529b8b7ab6bc",
+  "answer_key_digest": "sha256:cc5dbab6dbe9688be1a757b21590a7d0d628e1d7fc39bb1458dffb4c95cd74bf",
   "manifest_path": ".wayfinder/reference.yaml",
   "manifest_digest": "sha256:5923ec44a335574e689f247e9a37f25eb33dd45270aba3568f8c63364fab02ae",
   "algo": "sha256",
