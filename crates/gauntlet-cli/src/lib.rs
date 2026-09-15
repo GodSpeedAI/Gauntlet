@@ -20,6 +20,7 @@
 
 pub mod compose;
 pub mod context;
+pub mod deliver_cmd;
 pub mod doctor_cmd;
 pub mod escalations_cmd;
 pub mod improve_cmd;
@@ -74,6 +75,7 @@ pub fn run_cli(args: &[String]) -> ExitCode {
         Some("skills") => skills_cmd::run(&args[1..]),
         Some("improve") => improve_cmd::run(&args[1..]),
         Some("export") => state_cmd::export(&args[1..]),
+        Some("deliver") => deliver_cmd::run(&args[1..]),
         Some(other) => {
             eprintln!("gauntlet: unknown command '{other}'");
             usage();
@@ -123,4 +125,5 @@ fn usage() {
     println!("       gauntlet improve promote <revision>");
     println!("       gauntlet improve rollback <revision>");
     println!("       gauntlet export --run <run-id> [--out <path>]");
+    println!("       gauntlet deliver [--run <run-id>] [--apply]");
 }

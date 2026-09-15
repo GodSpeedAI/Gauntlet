@@ -301,6 +301,32 @@ pub const WRITE_API_INVENTORY: &[WriteSite] = &[
         reason: "the conformance sweep writes the report document itself at the                  operator-or-config-derived path — after the evidence it cites is on disk",
         guard: Some("fn verify_all"),
     },
+    // Production-readiness W5: `gauntlet deliver`'s ONLY writes. The
+    // delivery bundle (manifest plus file copies) lands under the
+    // resolved evidence dir's per-run delivery leaf, derived in ONE
+    // function from resolved configuration plus the ULID-validated run
+    // id — never the project root. Only `--apply` touches the project
+    // root, and only after the whole-apply drift gate (`check_drift`)
+    // proves every touched path still matches the run-start baseline;
+    // any drift refuses the apply with nothing written.
+    WriteSite {
+        file: "crates/gauntlet-cli/src/deliver_cmd.rs",
+        token: "fs::create_dir_all",
+        reason: "delivery bundle directory under the resolved evidence dir's per-run                  delivery leaf (W5; never the project root)",
+        guard: Some("fn delivery_dir"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/deliver_cmd.rs",
+        token: "fs::write",
+        reason: "delivery manifest.json beside the bundle's file copies under the                  per-run delivery leaf (W5)",
+        guard: Some("fn delivery_dir"),
+    },
+    WriteSite {
+        file: "crates/gauntlet-cli/src/deliver_cmd.rs",
+        token: "fs::remove_file",
+        reason: "--apply only: removes baseline-deleted paths from the project root                  after the whole-apply drift gate passes (W5)",
+        guard: Some("fn check_drift"),
+    },
     WriteSite {
         file: "crates/gauntlet-app/src/control/controller.rs",
         token: "fs::create_dir_all",
@@ -1227,6 +1253,21 @@ mod tests {
                     Some("fn verify_all"),
                 ),
                 (
+                    "crates/gauntlet-cli/src/deliver_cmd.rs",
+                    "fs::create_dir_all",
+                    Some("fn delivery_dir"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/deliver_cmd.rs",
+                    "fs::write",
+                    Some("fn delivery_dir"),
+                ),
+                (
+                    "crates/gauntlet-cli/src/deliver_cmd.rs",
+                    "fs::remove_file",
+                    Some("fn check_drift"),
+                ),
+                (
                     "crates/gauntlet-app/src/control/controller.rs",
                     "fs::create_dir_all",
                     Some("fn contained_locator_path"),
@@ -1667,6 +1708,16 @@ mod tests {
             repo.write(
                 "crates/gauntlet-cli/src/verify_cmd.rs",
                 "fn verify_all() {\n    std::fs::create_dir_all(\"e\");\n                     std::fs::write(\"e/log\", b\"x\");\n    std::fs::write(\"report\",                  b\"x\");\n}\n",
+            );
+            // Production-readiness W5: `gauntlet deliver`'s inventoried
+            // writes — the bundle directory and manifest inside the
+            // delivery-dir function the inventory pins, and the
+            // drift-gated apply removal inside the drift check.
+            repo.write(
+                "crates/gauntlet-cli/src/deliver_cmd.rs",
+                "fn delivery_dir() {\n    std::fs::create_dir_all(\"d\");\n    \
+                 std::fs::write(\"manifest\", b\"x\");\n}\n\
+                 fn check_drift() {\n    let _ = std::fs::remove_file(\"gone\");\n}\n",
             );
             // COR-R3-3: the state-dir single-writer guard's inventoried
             // writes — the O_EXCL admission and its release-on-drop.

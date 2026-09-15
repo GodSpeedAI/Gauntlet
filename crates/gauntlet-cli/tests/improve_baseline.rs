@@ -966,14 +966,40 @@ fn the_plan_gate_shape_writes_the_charter_report_and_the_matrix_holds() {
             !names.is_empty(),
             "the lying-defect leg's facet executions recorded their snapshots"
         );
+        // W5 work-product seeding: every dispatched workspace starts as a
+        // filtered copy of the leg project, so the wrapper now finds the
+        // SEEDED baseline `src/gadget.rs` where a pre-W5 empty workspace
+        // held no deliverable at all (the old `.absent` marker). The lying
+        // shape itself still writes nothing — pinned, more strongly than
+        // the old absence check, by requiring every snapshot to be
+        // byte-identical to the seeded baseline (property X only; the
+        // child-added property Y must be absent).
+        let seeded_baseline = std::fs::read(
+            fixture_tasks()
+                .join("gadget-task")
+                .join("src")
+                .join("gadget.rs"),
+        )
+        .expect("the fixture baseline reads");
+        let seeded_text =
+            String::from_utf8(seeded_baseline.clone()).expect("the fixture baseline is UTF-8");
+        assert!(
+            seeded_text.contains("BASELINE_MARKER_PRESERVED_V1")
+                && !seeded_text.contains("BASELINE_FEATURE_ADDED_V1"),
+            "the test's own premise holds: the seeded baseline carries X only"
+        );
         for name in names {
             if name.ends_with(".manifest") {
                 continue;
             }
             assert!(
-                name.ends_with(".absent"),
-                "the lying shape writes nothing, so every snapshot is an absence \
-                 marker: {name}"
+                name.ends_with(".rs"),
+                "the seeded baseline is what the wrapper snapshots: {name}"
+            );
+            let snapshot = std::fs::read(judge_dir.join(&name)).expect("the snapshot reads");
+            assert_eq!(
+                snapshot, seeded_baseline,
+                "the lying snapshot is pure seed — the child added nothing: {name}"
             );
         }
     }

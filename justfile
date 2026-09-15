@@ -561,4 +561,28 @@ demo-down:
         echo "demo-down: no working copy to remove (nothing to do)."
     fi
 
+# Delivers the demo-calculator run's settled work product into the
+# working copy: `gauntlet deliver --apply` under the SAME env `demo-up`
+# runs against (GAUNTLET_STATE_DIR / GAUNTLET_ARTIFACT_DIR under
+# DEV_RUNS_ROOT) — no new locations invented. Requires a working copy at
+# targets/demo-calculator (`just demo-up` first) and a settled run.
+demo-deliver:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ROOT="$(pwd)"
+    TARGET="$ROOT/targets/demo-calculator"
+    if [ ! -f "$TARGET/GAUNTLET.md" ]; then
+        echo "demo-deliver: no working copy at targets/demo-calculator — run 'just demo-up' first."
+        exit 1
+    fi
+    . "$ROOT/scripts/load-env.sh"
+    export GAUNTLET_STATE_DIR="${GAUNTLET_STATE_DIR:-$DEV_RUNS_ROOT/demo-calculator/state}"
+    export GAUNTLET_ARTIFACT_DIR="${GAUNTLET_ARTIFACT_DIR:-$DEV_RUNS_ROOT/demo-calculator/evidence}"
+    GAUNTLET_BIN="$ROOT/target/debug/gauntlet"
+    if [ ! -x "$GAUNTLET_BIN" ]; then
+        cargo build -p gauntlet-cli --bin gauntlet
+    fi
+    cd "$TARGET"
+    "$GAUNTLET_BIN" deliver --apply
+
 verify: ci

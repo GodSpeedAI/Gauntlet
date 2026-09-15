@@ -3816,6 +3816,81 @@ impl RunController {
             // INCONCLUSIVE stays open — the dependent claim's gap is the
             // recorded unavailable evidence, never a pass (I8).
         }
+        // W5 work-product promotion: a completion that settled at least one
+        // unit is the point its workspace's changes become part of the
+        // run's carried-forward integration tree, BEFORE the workspace is
+        // released (release happens in the caller, after this returns).
+        // Never promotes a completion that settled nothing; a promotion
+        // FAILURE is pinned forensic evidence, never an un-settlement and
+        // never a run error — the settlement already stands.
+        if flight_unit_settled && let Some(provider) = self.workspaces.as_ref() {
+            match provider.promote(&flight.spec.workspace, self.operation_bound()) {
+                Ok(promotion) if promotion.supported => {
+                    let units_json = attempted_units(&flight, &result)
+                        .iter()
+                        .map(|unit| format!("\"{}\"", escape_json_text(&unit.to_string())))
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let changed_json = promotion
+                        .changed
+                        .iter()
+                        .map(|file| {
+                            format!(
+                                "{{\"path\":\"{}\",\"sha256\":\"{}\"}}",
+                                escape_json_text(&file.path),
+                                escape_json_text(&file.sha256)
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let deleted_json = promotion
+                        .deleted
+                        .iter()
+                        .map(|path| format!("\"{}\"", escape_json_text(path)))
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let conflicts_json = promotion
+                        .conflicts
+                        .iter()
+                        .map(|path| format!("\"{}\"", escape_json_text(path)))
+                        .collect::<Vec<_>>()
+                        .join(",");
+                    let record = format!(
+                        "{{\"class\":\"work_product_promoted\",\"run\":\"{}\",\"iteration\":{},\"units\":[{units_json}],\"invocation\":\"{}\",\"changed\":[{changed_json}],\"deleted\":[{deleted_json}],\"conflicts\":[{conflicts_json}]}}",
+                        state.run.id(),
+                        state.iteration,
+                        flight.spec.invocation_id,
+                    );
+                    let evidence = self.evidence.put(
+                        record.as_bytes(),
+                        EvidenceKind::Log,
+                        self.operation_bound(),
+                    )?;
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                }
+                Ok(_) => {
+                    // Unsupported: no seed configured for this
+                    // provider — nothing to report, skip silently.
+                }
+                Err(error) => {
+                    let record = format!(
+                        "{{\"class\":\"work_product_promotion_failed\",\"run\":\"{}\",\"iteration\":{},\"invocation\":\"{}\",\"error\":\"{}\"}}",
+                        state.run.id(),
+                        state.iteration,
+                        flight.spec.invocation_id,
+                        escape_json_text(&error.to_string())
+                    );
+                    let evidence = self.evidence.put(
+                        record.as_bytes(),
+                        EvidenceKind::Log,
+                        self.operation_bound(),
+                    )?;
+                    self.evidence
+                        .pin(state.run.id(), &evidence, self.operation_bound())?;
+                }
+            }
+        }
         // The residual set is loop state FIRST (correction C3/C4: the
         // diagnostic evidence reads it, and the row-9 early-return no
         // longer leaves the previous iteration's residual set standing).
@@ -5108,7 +5183,8 @@ mod tests {
     };
     use gauntlet_ports::verifier::{Verifier, VerifierError};
     use gauntlet_ports::workspace_provider::{
-        WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
+        PromotedFile, WorkspacePromotion, WorkspaceProvider, WorkspaceProviderError,
+        WorkspaceSubject,
     };
     use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
@@ -10184,6 +10260,13 @@ mod tests {
         seq: Cell<u32>,
         created: Mutex<Vec<gauntlet_domain::WorkspaceRef>>,
         cleaned: Mutex<Vec<gauntlet_domain::WorkspaceRef>>,
+        /// W5: every `promote` call this fixture received, in order — a
+        /// completion that settled nothing must never appear here.
+        promoted: Mutex<Vec<gauntlet_domain::WorkspaceRef>>,
+        /// The canned answer `promote` returns to every caller (default:
+        /// the unsupported shape, matching a provider with no seed
+        /// configured).
+        promote_response: Mutex<Result<WorkspacePromotion, WorkspaceProviderError>>,
     }
 
     impl FixtureWorkspaces {
@@ -10192,7 +10275,19 @@ mod tests {
                 seq: Cell::new(0),
                 created: Mutex::new(Vec::new()),
                 cleaned: Mutex::new(Vec::new()),
+                promoted: Mutex::new(Vec::new()),
+                promote_response: Mutex::new(Ok(WorkspacePromotion::default())),
             })
+        }
+
+        fn set_promote_response(
+            &self,
+            response: Result<WorkspacePromotion, WorkspaceProviderError>,
+        ) {
+            *self
+                .promote_response
+                .lock()
+                .expect("fixture workspace ledger locks") = response;
         }
     }
 
@@ -10241,6 +10336,21 @@ mod tests {
 
         fn hooks(&self) -> Vec<gauntlet_ports::workspace_provider::WorkspaceHook> {
             Vec::new()
+        }
+
+        fn promote(
+            &self,
+            workspace: &gauntlet_domain::WorkspaceRef,
+            _deadline: Deadline,
+        ) -> Result<WorkspacePromotion, WorkspaceProviderError> {
+            self.promoted
+                .lock()
+                .expect("fixture workspace ledger locks")
+                .push(workspace.clone());
+            self.promote_response
+                .lock()
+                .expect("fixture workspace ledger locks")
+                .clone()
         }
     }
 
@@ -10323,6 +10433,128 @@ mod tests {
         assert_eq!(
             cleaned_set, created_set,
             "every allocated workspace is released once its invocation terminalizes: {cleaned:?}"
+        );
+    }
+
+    /// W5 work-product promotion: a completion that settles its unit
+    /// promotes BEFORE the workspace is released, and pins
+    /// `work_product_promoted` naming the changed paths. The fixture
+    /// provider stands in for the real fs-backed adapter (whose own
+    /// seed-to-promote round trip is proven in that adapter's own suite) — the controller
+    /// treats the workspace as an opaque ref, so what matters here is
+    /// only that `promote` is called and its answer is pinned.
+    #[test]
+    fn a_settled_units_promotion_is_pinned_before_release() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![Behavior::Complete]);
+        let workspaces = FixtureWorkspaces::new();
+        workspaces.set_promote_response(Ok(WorkspacePromotion {
+            supported: true,
+            changed: vec![PromotedFile {
+                path: "app.txt".to_owned(),
+                sha256: "deadbeef".to_owned(),
+            }],
+            deleted: Vec::new(),
+            conflicts: Vec::new(),
+        }));
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let promoted = workspaces.promoted.lock().expect("ledger locks").clone();
+        assert_eq!(
+            promoted.len(),
+            1,
+            "the settled unit's workspace was promoted exactly once: {promoted:?}"
+        );
+        let records = evidence.records_containing("work_product_promoted");
+        assert_eq!(
+            records.len(),
+            1,
+            "one promotion record was pinned: {records:?}"
+        );
+        assert!(
+            records[0].contains("app.txt") && records[0].contains("deadbeef"),
+            "the pinned record names the changed path and digest: {}",
+            records[0]
+        );
+        // Release happens in the caller AFTER process_completion returns —
+        // promote must have already run, which the recorded call above
+        // proves regardless of release timing; the workspace was also, in
+        // fact, released (settlement completed the run).
+        let cleaned = workspaces.cleaned.lock().expect("ledger locks").clone();
+        assert_eq!(
+            cleaned.len(),
+            1,
+            "the promoted workspace was still released: {cleaned:?}"
+        );
+    }
+
+    /// A completion that settles nothing (a malformed/failed result) must
+    /// never call `promote` — promotion is gated on
+    /// `flight_unit_settled`, never on "an invocation happened".
+    #[test]
+    fn a_non_settling_completion_never_promotes() {
+        let key = Rc::new(RefCell::new(answer_key(1)));
+        let state = FakeState::new();
+        let evidence = FakeEvidence::new();
+        let runner = ScriptedRunner::new(vec![
+            Behavior::Fail(InvocationFailure::MalformedResult),
+            Behavior::Complete,
+        ]);
+        let workspaces = FixtureWorkspaces::new();
+        workspaces.set_promote_response(Ok(WorkspacePromotion {
+            supported: true,
+            changed: vec![PromotedFile {
+                path: "should-not-appear.txt".to_owned(),
+                sha256: "deadbeef".to_owned(),
+            }],
+            deleted: Vec::new(),
+            conflicts: Vec::new(),
+        }));
+        let composed = compose_full(
+            key,
+            state,
+            evidence.clone(),
+            runner,
+            0,
+            FIXTURE_ROUNDS,
+            policy(),
+            fixture_ladder(&["ctrl-9101.json"]),
+            meter_factory(),
+            Some(workspaces.clone()),
+        )
+        .expect("composes");
+        let outcome = composed.controller.start_run().expect("the loop runs");
+        assert_eq!(outcome.terminal, TerminalState::Settled);
+        let promoted = workspaces.promoted.lock().expect("ledger locks").clone();
+        assert_eq!(
+            promoted.len(),
+            1,
+            "only the SETTLING completion promoted — the malformed-result completion did not: \
+             {promoted:?}"
+        );
+        // The fixture answers every `promote` with the same canned
+        // promotion, so content cannot tell the two completions apart —
+        // count does: had the non-settling completion promoted, two
+        // records would be pinned, not one.
+        assert_eq!(
+            evidence.records_containing("work_product_promoted").len(),
+            1,
+            "exactly one promotion record was pinned — the settling completion's"
         );
     }
 

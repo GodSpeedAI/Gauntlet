@@ -252,6 +252,15 @@ pub const WORKSPACES_DIR_NAME: &str = "workspaces";
 pub const STATE_DIR_NAME: &str = "state";
 /// Evidence storage leaf under the scratch root.
 pub const EVIDENCE_DIR_NAME: &str = "evidence";
+/// Run-scoped integration tree storage leaf under the state dir (W5
+/// work-product carry-forward): `<state_dir>/integration/<run_id>/tree`
+/// and `.../baseline.json`.
+pub const INTEGRATION_DIR_NAME: &str = "integration";
+/// Per-run artifact leaf under the evidence/artifact dir holding
+/// `deliver`'s bundle output: `<artifact_dir>/runs/<run>/delivery/`.
+pub const RUNS_DIR_NAME: &str = "runs";
+/// The delivery bundle leaf under a run's artifact directory.
+pub const DELIVERY_DIR_NAME: &str = "delivery";
 /// The dotenv file the environment layer reads at the project root.
 pub const ENV_FILE_NAME: &str = ".env";
 

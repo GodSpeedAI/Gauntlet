@@ -19,3 +19,4 @@ workspace = true
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
+sha2.workspace = true

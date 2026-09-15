@@ -84,7 +84,7 @@ use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
 use gauntlet_adapter_verify_command_exit_code::CommandExitVerifier;
 use gauntlet_adapter_verify_file_digest::FileDigestVerifier;
 use gauntlet_adapter_verify_test_report::TestReportVerifier;
-use gauntlet_adapter_workspace_fs::FsWorkspaceProvider;
+use gauntlet_adapter_workspace_fs::{FsWorkspaceProvider, WorkspaceSeed};
 use gauntlet_app::config::defaults;
 use gauntlet_app::control::controller::{
     BudgetShape, ComparisonDeps, ControllerDeps, MeterFactory, RunController,
@@ -428,6 +428,71 @@ fn observers(
 /// RESOLVED CONFIGURATION path (state dir / evidence dir from the
 /// §8.2 merge) passed through here — the composition never invents a
 /// write path.
+/// Builds the [`WorkspaceSeed`] for W5 work-product carry-forward: the
+/// project root every run's integration tree snapshots from, the
+/// `<state_dir>/integration` root that snapshot and its per-run copies
+/// live under, and the excludes — VCS/build noise, this runtime's own
+/// state/evidence/workspace/reference surfaces (when they resolve under
+/// the project root), and every evidence locator the answer key's units
+/// name (instrument-produced evidence must never ride in a builder's
+/// carried work product — spec I2 / §14.3).
+fn workspace_seed(
+    context: &RuntimeContext,
+    workspace_root: &std::path::Path,
+    evidence_root: &std::path::Path,
+) -> Result<Option<WorkspaceSeed>, CompositionError> {
+    let Ok(canonical_project_root) = std::fs::canonicalize(&context.project_root) else {
+        // Project-root discovery already requires an anchorable root in
+        // practice; a canonicalization failure here means nothing to seed
+        // over rather than a composition failure.
+        return Ok(None);
+    };
+    let integration_root = context.state_dir().join(defaults::INTEGRATION_DIR_NAME);
+    let mut excludes: Vec<String> = vec![
+        ".git".to_owned(),
+        "target".to_owned(),
+        "node_modules".to_owned(),
+    ];
+    let relative_under_root = |path: &std::path::Path| -> Option<String> {
+        let canonical = std::fs::canonicalize(path).ok()?;
+        let relative = canonical.strip_prefix(&canonical_project_root).ok()?;
+        if relative.as_os_str().is_empty() {
+            return None;
+        }
+        Some(relative.to_string_lossy().into_owned())
+    };
+    for path in [
+        context.state_dir(),
+        evidence_root,
+        workspace_root,
+        context.resolved.reference.manifest.as_path(),
+        context.resolved.reference.answer_key.as_path(),
+        context.resolved.reference.map.as_path(),
+        context.resolved.reference.comparison_contract.as_path(),
+        context.roles_dir(),
+        context.resolved.sandbox_policy_dir.as_path(),
+    ] {
+        if let Some(relative) = relative_under_root(path) {
+            excludes.push(relative);
+        }
+    }
+    // Best-effort: an unreadable/unparseable answer key at composition
+    // time skips this addition rather than failing the whole composition
+    // (the answer key's own readability is enforced where it is
+    // consumed, not here).
+    if let Ok(key_text) = std::fs::read_to_string(&context.resolved.reference.answer_key) {
+        let parsed = gauntlet_app::reference::parse::parse_answer_key(&key_text);
+        for unit in &parsed.units {
+            excludes.push(unit.evidence_required().locator().as_str().to_owned());
+        }
+    }
+    Ok(Some(WorkspaceSeed {
+        project_root: canonical_project_root,
+        integration_root,
+        excludes,
+    }))
+}
+
 fn ensure_configured_dir(path: &std::path::Path) -> Result<(), CompositionError> {
     std::fs::create_dir_all(path).map_err(|error| CompositionError::Store {
         detail: format!("{}: {error}", path.display()),
@@ -884,10 +949,23 @@ pub fn compose_run(
         FsEscalationQueue::open(&escalation_root).map_err(|error| CompositionError::Store {
             detail: error.to_string(),
         })?;
-    let workspaces =
+    let mut workspaces =
         FsWorkspaceProvider::open(&workspace_root).map_err(|error| CompositionError::Store {
             detail: error.to_string(),
         })?;
+    // W5 work-product carry-forward: seed every workspace over a
+    // run-scoped integration tree (a filtered copy of the project root),
+    // so a unit's builder starts from what the run has already settled
+    // instead of an empty directory, and `promote` can carry a unit's
+    // settled changes forward. Excludes cover VCS/build noise, this
+    // runtime's own state/evidence surfaces, the reference/answer-key
+    // inputs, and every evidence locator the answer key names — none of
+    // that is a builder's work product, and an instrument-produced
+    // locator riding into the next unit's seed would be stale or
+    // forgeable (spec I2 / §14.3).
+    if let Some(seed) = workspace_seed(context, &workspace_root, &evidence_root)? {
+        workspaces = workspaces.with_seed(seed);
+    }
 
     // Ids: the Annex E seed hook keeps its documented meaning (deterministic
     // ids for tests); production runs draw the id seed from the operating

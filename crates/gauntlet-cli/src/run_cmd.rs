@@ -417,6 +417,7 @@ fn composed_run(
         Ok(outcome) => {
             print_outcome(&outcome);
             print_run_report(&composed, &outcome);
+            print_delivery_hint(context, &outcome.run_id);
             exit_of(&outcome)
         }
         Err(error) => {
@@ -437,6 +438,16 @@ fn print_outcome(outcome: &RunOutcome) {
     }
     if let Some(summary) = &outcome.escalation_summary {
         println!("run: escalated — {summary}");
+    }
+}
+
+/// W5: when this run's integration tree differs from its baseline, name
+/// the delivery command — the operator's own path to get a settled work
+/// product out of `<state_dir>/integration/` and into the project. Never
+/// fails the run: a read failure here prints nothing.
+fn print_delivery_hint(context: &RuntimeContext, run_id: &gauntlet_domain::RunId) {
+    if crate::deliver_cmd::has_pending_delivery(context, run_id) {
+        println!("delivery: gauntlet deliver --run {run_id} --apply");
     }
 }
 

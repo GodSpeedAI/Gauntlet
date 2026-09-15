@@ -26,6 +26,9 @@ pub enum WorkspaceProviderError {
     ContainmentViolated { path: String },
     /// Cleanup failed.
     CleanupFailed { detail: String },
+    /// Promotion failed — including promoting an unknown or already-cleaned
+    /// workspace, which is a typed refusal rather than a silent no-op.
+    PromotionFailed { detail: String },
 }
 
 impl fmt::Display for WorkspaceProviderError {
@@ -41,11 +44,41 @@ impl fmt::Display for WorkspaceProviderError {
             Self::CleanupFailed { detail } => {
                 write!(f, "cleaning the workspace failed: {detail}")
             }
+            Self::PromotionFailed { detail } => {
+                write!(f, "promoting the workspace failed: {detail}")
+            }
         }
     }
 }
 
 impl std::error::Error for WorkspaceProviderError {}
+
+/// One file changed by `promote` (spec: W5 work-product promotion).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromotedFile {
+    /// Path relative to the workspace/integration tree root.
+    pub path: String,
+    /// The sha256 hex digest of the promoted content.
+    pub sha256: String,
+}
+
+/// The result of [`WorkspaceProvider::promote`]. When `supported` is
+/// `false` (the default implementation), every list is empty and no
+/// promotion happened — callers must treat that as "nothing to report",
+/// never as "nothing changed".
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WorkspacePromotion {
+    /// Whether this provider implements promotion at all.
+    pub supported: bool,
+    /// Paths written into the integration tree (added or changed).
+    pub changed: Vec<PromotedFile>,
+    /// Paths removed from the integration tree.
+    pub deleted: Vec<String>,
+    /// Paths whose integration-tree content diverged from the workspace's
+    /// seed (someone else changed it since this workspace was seeded) —
+    /// left untouched in the integration tree, not applied.
+    pub conflicts: Vec<String>,
+}
 
 /// What a workspace is created for: one unit, or one slice of units
 /// (spec §11.3 slicing: a slice inherits the highest blast radius and most
@@ -112,4 +145,17 @@ pub trait WorkspaceProvider {
 
     /// The repo-configured workspace hooks (§6.2 `hooks`).
     fn hooks(&self) -> Vec<WorkspaceHook>;
+
+    /// Promotes a workspace's settled changes into the run's integration
+    /// tree (W5 work-product carry-forward). The default implementation
+    /// reports `supported: false` so every existing double compiles
+    /// unchanged and callers can skip promotion cleanly when a provider
+    /// does not implement it.
+    fn promote(
+        &self,
+        #[allow(unused_variables)] workspace: &WorkspaceRef,
+        #[allow(unused_variables)] deadline: Deadline,
+    ) -> Result<WorkspacePromotion, WorkspaceProviderError> {
+        Ok(WorkspacePromotion::default())
+    }
 }

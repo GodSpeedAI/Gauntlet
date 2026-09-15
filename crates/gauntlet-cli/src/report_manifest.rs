@@ -78,6 +78,12 @@ const COMMAND_TABLE: &[CommandRow] = &[
         name: "export",
         wired: true,
     },
+    // Plan §W5: `deliver` fronts the work-product promotion/delivery
+    // path — the controller's `promote` + this surface's delta/apply.
+    CommandRow {
+        name: "deliver",
+        wired: true,
+    },
 ];
 
 /// The manifest entries handed to `gauntlet_app::report::build_report`.

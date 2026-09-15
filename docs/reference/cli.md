@@ -198,6 +198,30 @@ gauntlet export --run <run-id> [--out <path>]
 
 ---
 
+### `gauntlet deliver`
+Delivers a run's settled work product — the run-scoped integration tree
+the controller promotes settled units into (plan §W5) — out of
+`<state_dir>/integration/` and into the project.
+
+```text
+gauntlet deliver [--run <run-id>] [--apply]
+```
+
+- Without `--apply`: computes the delta of the run's integration tree
+  against its baseline (the filtered project-root snapshot taken once
+  per run) and writes a bundle to
+  `<artifact_dir>/runs/<run>/delivery/` (`files/<path>` copies plus
+  `manifest.json`). Prints a summary and the `--apply` hint.
+- With `--apply`: first verifies every touched path's CURRENT project
+  digest still matches its baseline digest; any drift refuses the whole
+  apply and lists the drifted paths, nothing written. Otherwise writes
+  changed files into the project root and removes deleted ones.
+- `--run` defaults to the most recently touched run under
+  `<state_dir>/integration/` when omitted.
+- **Implementation**: [`crates/gauntlet-cli/src/deliver_cmd.rs`](../../crates/gauntlet-cli/src/deliver_cmd.rs).
+
+---
+
 ### `gauntlet serve` *(feature: `surfaces`)*
 Launches the HTTP JSON API operator surface.
 

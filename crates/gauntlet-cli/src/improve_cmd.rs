@@ -53,6 +53,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::process::ExitCode;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use gauntlet_adapter_id_entropy::UlidIdGenerator;
 use gauntlet_app::baseline::{
@@ -2215,6 +2216,11 @@ struct BaselineCliExecutor {
     materializations: RefCell<u64>,
 }
 
+/// Monotonic layout counter: every `judge_snapshots` grade stages its
+/// snapshots in its OWN temp layout (pid + sequence), so parallel grades
+/// in one process never share a staged `src/gadget.rs`.
+static HELDOUT_LAYOUT_SEQ: AtomicU64 = AtomicU64::new(0);
+
 impl BaselineExecutor for BaselineCliExecutor {
     fn materialize_workspace(
         &self,
@@ -3147,8 +3153,15 @@ impl BaselineCliExecutor {
             });
         }
         let locus = "run_held_out";
-        let temp =
-            std::env::temp_dir().join(format!("gauntlet-baseline-heldout-{}", std::process::id()));
+        // One layout per grade call (pid + sequence): the shared per-process
+        // dir raced when parallel legs — or parallel tests — graded at
+        // once, one grade's staged snapshot read by another's instrument.
+        // Every exit below removes its own layout, so no accumulation.
+        let temp = std::env::temp_dir().join(format!(
+            "gauntlet-baseline-heldout-{}-{}",
+            std::process::id(),
+            HELDOUT_LAYOUT_SEQ.fetch_add(1, Ordering::Relaxed)
+        ));
         let _ = std::fs::remove_dir_all(&temp);
         std::fs::create_dir_all(temp.join("src")).map_err(|error| BaselineError::Execution {
             locus,

@@ -20,6 +20,13 @@
 //! so a symlink planted over a workspace path is a typed refusal rather than
 //! an escape.
 
+mod json;
 mod provider;
+mod seed;
 
+pub use json::parse_manifest_json;
 pub use provider::FsWorkspaceProvider;
+pub use seed::{
+    CopyOutcome, FileDigest, Manifest, WorkspaceSeed, compute_manifest, digest_file,
+    manifest_to_json, write_file_atomic,
+};

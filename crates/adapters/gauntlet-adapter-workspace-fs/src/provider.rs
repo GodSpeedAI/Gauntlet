@@ -30,14 +30,19 @@
 //! input (AGENTS.md): the same derive→lexical→resolved order applies, with
 //! the ref validated against the key class before it may join the root.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use gauntlet_domain::{RunId, WorkspaceRef};
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::workspace_provider::{
-    Workspace, WorkspaceHook, WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
+    PromotedFile, Workspace, WorkspaceHook, WorkspacePromotion, WorkspaceProvider,
+    WorkspaceProviderError, WorkspaceSubject,
 };
+
+use crate::seed::{self, Manifest, WorkspaceSeed};
 
 /// Distinguishes workspaces created for the same (run, subject) pair — a
 /// re-dispatched unit gets a FRESH workspace (spec §10.4: `create` is per
@@ -49,6 +54,13 @@ static WORKSPACE_SEQ: AtomicU64 = AtomicU64::new(0);
 #[derive(Debug, Clone)]
 pub struct FsWorkspaceProvider {
     root: PathBuf,
+    seed: Option<WorkspaceSeed>,
+    /// The seed manifest and run-integration-tree path recorded for each
+    /// live seeded workspace (keyed by the workspace's sanitized key),
+    /// consulted by `promote` to diff the current workspace content
+    /// against what it started from. Shared across clones so composition
+    /// can hand out one provider by value.
+    seed_manifests: Arc<Mutex<HashMap<String, (PathBuf, Manifest)>>>,
 }
 
 impl FsWorkspaceProvider {
@@ -65,7 +77,17 @@ impl FsWorkspaceProvider {
         })?;
         Ok(Self {
             root: root.to_path_buf(),
+            seed: None,
+            seed_manifests: Arc::new(Mutex::new(HashMap::new())),
         })
+    }
+
+    /// Turns every `create` into a seeded copy of a run-scoped integration
+    /// tree (W5 work-product carry-forward) instead of an empty directory.
+    /// Without this call, behaviour is unchanged.
+    pub fn with_seed(mut self, seed: WorkspaceSeed) -> Self {
+        self.seed = Some(seed);
+        self
     }
 
     /// The configured root this provider materializes workspaces under.
@@ -158,6 +180,14 @@ impl WorkspaceProvider for FsWorkspaceProvider {
             WorkspaceRef::new(&key).map_err(|error| WorkspaceProviderError::CreateFailed {
                 detail: format!("the derived key {key:?} is not a valid workspace ref: {error}"),
             })?;
+        if let Some(seed) = &self.seed {
+            let tree = seed::ensure_integration_snapshot(seed, run_id)?;
+            let outcome = seed::copy_tree(&tree, &child, &seed.excludes, false)?;
+            self.seed_manifests
+                .lock()
+                .expect("seed manifest lock is never poisoned by a panicking holder")
+                .insert(key.clone(), (tree, outcome.manifest));
+        }
         Ok(Workspace {
             reference,
             root: child,
@@ -194,6 +224,10 @@ impl WorkspaceProvider for FsWorkspaceProvider {
                 });
             }
         }
+        self.seed_manifests
+            .lock()
+            .expect("seed manifest lock is never poisoned by a panicking holder")
+            .remove(workspace.as_str());
         Ok(())
     }
 
@@ -203,6 +237,109 @@ impl WorkspaceProvider for FsWorkspaceProvider {
     /// is the honest answer until the config schema grows the field.
     fn hooks(&self) -> Vec<WorkspaceHook> {
         Vec::new()
+    }
+
+    fn promote(
+        &self,
+        workspace: &WorkspaceRef,
+        _deadline: Deadline,
+    ) -> Result<WorkspacePromotion, WorkspaceProviderError> {
+        let Some(seed) = &self.seed else {
+            return Ok(WorkspacePromotion::default());
+        };
+        if !is_sanitized(workspace.as_str()) {
+            return Err(WorkspaceProviderError::ContainmentViolated {
+                path: workspace.as_str().to_owned(),
+            });
+        }
+        let workspace_root = self.contained_child(workspace.as_str())?;
+        let (integration_tree, seed_manifest) = self
+            .seed_manifests
+            .lock()
+            .expect("seed manifest lock is never poisoned by a panicking holder")
+            .get(workspace.as_str())
+            .cloned()
+            .ok_or_else(|| WorkspaceProviderError::PromotionFailed {
+                detail: format!(
+                    "promote: {} is not a known, still-live seeded workspace",
+                    workspace.as_str()
+                ),
+            })?;
+        let current = seed::compute_manifest(&workspace_root, &seed.excludes)?;
+
+        let mut changed = Vec::new();
+        let mut deleted = Vec::new();
+        let mut conflicts = Vec::new();
+
+        for (path, current_digest) in &current {
+            let seed_digest = seed_manifest.get(path);
+            let is_changed = match seed_digest {
+                Some(seed_digest) => seed_digest.sha256 != current_digest.sha256,
+                None => true,
+            };
+            if !is_changed {
+                continue;
+            }
+            let integration_path = integration_tree.join(path);
+            let integration_digest = seed::digest_file(&integration_path)?;
+            let unchanged_since_seed = match (&integration_digest, seed_digest) {
+                (None, None) => true,
+                (Some(integration_digest), Some(seed_digest)) => {
+                    integration_digest.sha256 == seed_digest.sha256
+                }
+                _ => false,
+            };
+            if !unchanged_since_seed {
+                conflicts.push(path.clone());
+                continue;
+            }
+            let bytes = std::fs::read(workspace_root.join(path)).map_err(|error| {
+                WorkspaceProviderError::PromotionFailed {
+                    detail: format!("promote: reading {path} from the workspace failed: {error}"),
+                }
+            })?;
+            seed::write_file_atomic(&integration_path, &bytes, current_digest.executable).map_err(
+                |error| WorkspaceProviderError::PromotionFailed {
+                    detail: format!(
+                        "promote: writing {path} into the integration tree failed: {error}"
+                    ),
+                },
+            )?;
+            changed.push(PromotedFile {
+                path: path.clone(),
+                sha256: current_digest.sha256.clone(),
+            });
+        }
+
+        for (path, seed_digest) in &seed_manifest {
+            if current.contains_key(path) {
+                continue;
+            }
+            let integration_path = integration_tree.join(path);
+            let integration_digest = seed::digest_file(&integration_path)?;
+            let unchanged_since_seed = integration_digest
+                .as_ref()
+                .is_some_and(|digest| digest.sha256 == seed_digest.sha256);
+            if !unchanged_since_seed {
+                conflicts.push(path.clone());
+                continue;
+            }
+            std::fs::remove_file(&integration_path).map_err(|error| {
+                WorkspaceProviderError::PromotionFailed {
+                    detail: format!(
+                        "promote: removing {path} from the integration tree failed: {error}"
+                    ),
+                }
+            })?;
+            deleted.push(path.clone());
+        }
+
+        Ok(WorkspacePromotion {
+            supported: true,
+            changed,
+            deleted,
+            conflicts,
+        })
     }
 }
 
@@ -373,5 +510,138 @@ mod tests {
         }
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    fn seeded_provider(tag: &str) -> (FsWorkspaceProvider, PathBuf, PathBuf) {
+        let root = scratch(&format!("seed-{tag}"));
+        let project_root = scratch(&format!("seed-{tag}-project"));
+        let integration_root = scratch(&format!("seed-{tag}-integration"));
+        let provider = FsWorkspaceProvider::open(&root)
+            .expect("opens")
+            .with_seed(WorkspaceSeed {
+                project_root: project_root.clone(),
+                integration_root: integration_root.clone(),
+                excludes: vec![".git".to_owned()],
+            });
+        (provider, project_root, integration_root)
+    }
+
+    #[test]
+    fn a_seeded_workspace_starts_from_the_project_root_snapshot() {
+        let (provider, project_root, _integration_root) = seeded_provider("basic");
+        std::fs::write(project_root.join("app.txt"), b"hello").expect("writes");
+        std::fs::create_dir_all(project_root.join(".git")).expect("mkdir");
+        std::fs::write(project_root.join(".git").join("HEAD"), b"ref: x").expect("writes");
+        let workspace = provider
+            .create(&run(), WorkspaceSubject::Unit(unit("AK-014")), bound())
+            .expect("creates");
+        assert_eq!(
+            std::fs::read(workspace.root.join("app.txt")).expect("reads"),
+            b"hello"
+        );
+        assert!(
+            !workspace.root.join(".git").exists(),
+            "the exclude kept .git out of the seeded workspace"
+        );
+    }
+
+    #[test]
+    fn a_settled_units_promotion_carries_into_the_next_workspaces_seed() {
+        let (provider, project_root, _integration_root) = seeded_provider("carry");
+        std::fs::write(project_root.join("seed.txt"), b"seed").expect("writes");
+        let first = provider
+            .create(&run(), WorkspaceSubject::Unit(unit("AK-014")), bound())
+            .expect("creates first");
+        // The builder in the first workspace writes new settled work.
+        std::fs::write(first.root.join("app.html"), b"<html>v1</html>").expect("writes");
+        let promotion = provider
+            .promote(&first.reference, bound())
+            .expect("promotes");
+        assert!(promotion.supported, "a seeded provider supports promotion");
+        assert_eq!(promotion.changed.len(), 1);
+        assert_eq!(promotion.changed[0].path, "app.html");
+        assert!(promotion.deleted.is_empty());
+        assert!(promotion.conflicts.is_empty());
+
+        // A second unit's workspace is seeded with the FIRST unit's
+        // promoted work — the whole point of carrying it forward.
+        let second = provider
+            .create(&run(), WorkspaceSubject::Unit(unit("AK-015")), bound())
+            .expect("creates second");
+        assert_eq!(
+            std::fs::read(second.root.join("app.html")).expect("reads"),
+            b"<html>v1</html>",
+            "the second unit's workspace starts from the first unit's settled work"
+        );
+        assert_eq!(
+            std::fs::read(second.root.join("seed.txt")).expect("reads"),
+            b"seed"
+        );
+    }
+
+    #[test]
+    fn promote_reports_deletions_and_leaves_conflicts_untouched() {
+        let (provider, project_root, integration_root) = seeded_provider("conflict");
+        std::fs::write(project_root.join("keep.txt"), b"keep").expect("writes");
+        std::fs::write(project_root.join("remove.txt"), b"gone-soon").expect("writes");
+        let workspace = provider
+            .create(&run(), WorkspaceSubject::Unit(unit("AK-014")), bound())
+            .expect("creates");
+        std::fs::remove_file(workspace.root.join("remove.txt")).expect("removes");
+
+        // Simulate a concurrent change to the integration tree's copy of
+        // "keep.txt" AFTER this workspace was seeded but BEFORE promote —
+        // a conflict, never silently overwritten.
+        let run_id = run();
+        let tree = integration_root.join(run_id.as_str()).join("tree");
+        std::fs::write(tree.join("keep.txt"), b"someone-else-changed-this").expect("writes");
+        std::fs::write(
+            workspace.root.join("keep.txt"),
+            b"this-workspace-changed-it-too",
+        )
+        .expect("writes");
+
+        let promotion = provider
+            .promote(&workspace.reference, bound())
+            .expect("promotes");
+        assert_eq!(promotion.deleted, vec!["remove.txt".to_owned()]);
+        assert_eq!(promotion.conflicts, vec!["keep.txt".to_owned()]);
+        assert!(
+            promotion.changed.is_empty(),
+            "the conflicting path was not promoted: {:?}",
+            promotion.changed
+        );
+        assert_eq!(
+            std::fs::read(tree.join("keep.txt")).expect("reads"),
+            b"someone-else-changed-this",
+            "the integration tree's conflicting content is left untouched"
+        );
+    }
+
+    #[test]
+    fn promoting_an_unknown_workspace_is_a_typed_refusal() {
+        let (provider, _project_root, _integration_root) = seeded_provider("unknown");
+        let reference = WorkspaceRef::new("never-created").expect("valid ref shape");
+        let result = provider.promote(&reference, bound());
+        assert!(
+            matches!(result, Err(WorkspaceProviderError::PromotionFailed { .. })),
+            "an unknown workspace is a typed promotion refusal: {result:?}"
+        );
+    }
+
+    #[test]
+    fn promote_without_a_seed_is_unsupported() {
+        let root = scratch("unseeded-promote");
+        let provider = FsWorkspaceProvider::open(&root).expect("opens");
+        let workspace = provider
+            .create(&run(), WorkspaceSubject::Unit(unit("AK-014")), bound())
+            .expect("creates");
+        let promotion = provider
+            .promote(&workspace.reference, bound())
+            .expect("the default promotion never errors");
+        assert!(!promotion.supported);
+        assert!(promotion.changed.is_empty());
+        assert!(promotion.deleted.is_empty());
+        assert!(promotion.conflicts.is_empty());
     }
 }
