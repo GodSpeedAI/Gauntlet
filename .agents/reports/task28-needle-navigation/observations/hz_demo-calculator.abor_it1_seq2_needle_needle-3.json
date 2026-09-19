@@ -1,0 +1,22 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "demo-calculator",
+  "decision_note": "'Case: demo-calculator. Iteration 1. Current unit states: [['AK-9011','open'], ['AK-9012','open'], ['AK-9013','open']]. Target goal Build an",
+  "depth_or_rung": "v3-20L",
+  "horizon_id": "hz_demo-calculator.abor_it1_seq2",
+  "latency_ms": 2200.41,
+  "model_id": "needle-3",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.5954,
+  "request_hash": "sha256:2110a5e52567d11fdd42f4690544052e448cb4c84f191a52864fece9b5bfcbfc",
+  "surface_hash": "sha256:33b669501d737530e95d16821cdf88590ec1ac5088cca27f4b556d525dee3005",
+  "telemetry": {
+    "decode_tps": 90.5,
+    "peak_ram_mb": 107.9,
+    "prefill_tps": 454.6,
+    "raw_type": "call"
+  }
+}

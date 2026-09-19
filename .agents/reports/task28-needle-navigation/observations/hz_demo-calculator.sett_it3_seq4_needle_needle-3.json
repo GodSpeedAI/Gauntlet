@@ -1,0 +1,22 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "demo-calculator",
+  "decision_note": "Project name 'build' from query. Role 'builder' from 'build'. Role 'critic' from 'verify calculator'. Role 'critic' from 'check'. Role 'buil",
+  "depth_or_rung": "v3-20L",
+  "horizon_id": "hz_demo-calculator.sett_it3_seq4",
+  "latency_ms": 3829.8,
+  "model_id": "needle-3",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.7315,
+  "request_hash": "sha256:310fe0ac0af231fab3b605e36c223e9e4bd9a9c9e83cc022a3c3dbb7161d0ebf",
+  "surface_hash": "sha256:3b8dfb237731f7a4afeed12291856d0ddcd21fa970628722e6dc7cb6c4eabfda",
+  "telemetry": {
+    "decode_tps": 145.8,
+    "peak_ram_mb": 108.7,
+    "prefill_tps": 304.8,
+    "raw_type": "call"
+  }
+}

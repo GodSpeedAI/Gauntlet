@@ -1,0 +1,19 @@
+{
+  "abstained": false,
+  "affordance_id": "escalate_to_operator",
+  "arguments": {
+    "reason": "random_reason"
+  },
+  "case_id": "demo-calculator",
+  "decision_note": "random_selection",
+  "depth_or_rung": null,
+  "horizon_id": "hz_demo-calculator.sett_it3_seq3",
+  "latency_ms": 0.001,
+  "model_id": "uniform_random",
+  "provider": "random",
+  "raw_output": {},
+  "reported_confidence": 0.2,
+  "request_hash": "sha256:40e521a3ccf94108bb528e8b3ded914039bbeff4cec9199f85d22366984e18cf",
+  "surface_hash": "sha256:33b669501d737530e95d16821cdf88590ec1ac5088cca27f4b556d525dee3005",
+  "telemetry": {}
+}

@@ -1,0 +1,22 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "demo-calculator",
+  "decision_note": "dispatch_check_runner: 'Case: demo-calculator' -> check_script, 'Iteration 6' -> unit_id, 'settled' -> type. dispatch_check_runner: 'Target ",
+  "depth_or_rung": "v2-8L",
+  "horizon_id": "hz_demo-calculator.proo_it6_seq7",
+  "latency_ms": 1470.0,
+  "model_id": "needle-2",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.0,
+  "request_hash": "sha256:fc533b5278f80f3dcc31ad63b74bf8902bfdc9777b9e01ee15078efabf2ece2d",
+  "surface_hash": "sha256:33b669501d737530e95d16821cdf88590ec1ac5088cca27f4b556d525dee3005",
+  "telemetry": {
+    "decode_tps": 153.4,
+    "peak_ram_mb": 116.3,
+    "prefill_tps": 462.2,
+    "raw_type": "call"
+  }
+}

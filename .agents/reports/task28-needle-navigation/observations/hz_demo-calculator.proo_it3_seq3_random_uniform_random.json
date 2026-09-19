@@ -1,0 +1,20 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_eval_verifier",
+  "arguments": {
+    "role": "critic",
+    "unit_id": "AK-9013"
+  },
+  "case_id": "demo-calculator",
+  "decision_note": "random_selection",
+  "depth_or_rung": null,
+  "horizon_id": "hz_demo-calculator.proo_it3_seq3",
+  "latency_ms": 0.005,
+  "model_id": "uniform_random",
+  "provider": "random",
+  "raw_output": {},
+  "reported_confidence": 0.2,
+  "request_hash": "sha256:9ccdaf4d31618e4a0c2b1c0af6715781b41215abe290402d4919278cf9d0f20b",
+  "surface_hash": "sha256:33b669501d737530e95d16821cdf88590ec1ac5088cca27f4b556d525dee3005",
+  "telemetry": {}
+}

@@ -1,0 +1,21 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_check_runner",
+  "arguments": {
+    "check_script": "scripts/check.sh",
+    "role": "critic",
+    "unit_id": "AK-9012"
+  },
+  "case_id": "demo-calculator",
+  "decision_note": "random_selection",
+  "depth_or_rung": null,
+  "horizon_id": "hz_demo-calculator.sett_it1_seq1",
+  "latency_ms": 0.004,
+  "model_id": "uniform_random",
+  "provider": "random",
+  "raw_output": {},
+  "reported_confidence": 0.2,
+  "request_hash": "sha256:d9de3ef989ea30f1e9f2e386e49fd5aec7a7b3493666590d17a30eac36b89893",
+  "surface_hash": "sha256:33b669501d737530e95d16821cdf88590ec1ac5088cca27f4b556d525dee3005",
+  "telemetry": {}
+}

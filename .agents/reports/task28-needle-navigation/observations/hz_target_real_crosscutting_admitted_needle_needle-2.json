@@ -1,0 +1,25 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_lead_agent_check",
+  "arguments": {
+    "role": "lead_agent",
+    "unit_id": "AK-952"
+  },
+  "case_id": "target-real",
+  "decision_note": "User wants real-time lead check for AK-953 with specific rolls. Call dispatch_lead_agent_check with all required params.",
+  "depth_or_rung": "v2-8L",
+  "horizon_id": "hz_target_real_crosscutting_admitted",
+  "latency_ms": 732.11,
+  "model_id": "needle-2",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.0693,
+  "request_hash": "sha256:423d488478c71ef9c019c406f8ce1a06b2e251ddaac513779c7d8665d2a27cea",
+  "surface_hash": "sha256:cacfdb476cfcc2b903df15da43751383bc46dccae4cd47ab042666b72d7194e8",
+  "telemetry": {
+    "decode_tps": 165.3,
+    "peak_ram_mb": 116.5,
+    "prefill_tps": 500.0,
+    "raw_type": "call"
+  }
+}

@@ -1,0 +1,53 @@
+name: CI
+
+# Enforces the EXISTING repository gate set (`just ci`: check test lint deny
+# boundaries ruler) on every PR into main, every push to main, and manual
+# runs. No new test logic and no parallel command surface: this workflow only
+# invokes the recipes the repository already defines, in their canonical
+# order, with the ruler last.
+#
+# Hardening note before merge: pin third-party actions by commit SHA (the
+# checkout action already is); tag pins below should be resolved to SHAs per
+# repository supply-chain policy.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gates:
+    name: gates (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install pinned stable toolchain
+        uses: dtolnay/rust-toolchain@stable # resolve to commit SHA per supply-chain policy before merge
+        with:
+          components: clippy, rustfmt
+
+      - name: Install just
+        uses: extractions/setup-just@v2 # resolve to commit SHA per supply-chain policy before merge
+
+      - name: Install cargo-nextest and cargo-deny
+        uses: taiki-e/install-action@v2 # resolve to commit SHA per supply-chain policy before merge
+        with:
+          tool: cargo-nextest,cargo-deny
+
+      - name: Fetch locked dependencies
+        run: cargo fetch --locked
+
+      - name: gates (just ci: check test lint deny boundaries ruler)
+        run: just ci

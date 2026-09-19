@@ -303,96 +303,144 @@
 			"title": "Bounded-gap feasibility verdict — 2026-09-10",
 			"sourcePath": "/home/sprime01/projects/gauntlet/workbench/repair/GAP-VERDICT.md",
 			"addedAt": "2026-09-10T13:52:39.606Z",
-			"updatedAt": "2026-09-10T13:52:39.606Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.744Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "e529e0a3f8a22315ea1ff6b6cec2222e40872e9e000b4c949a83d2ce3dac6870"
 		},
 		"workbench-intent-closure": {
 			"slug": "workbench-intent-closure",
 			"title": "Workbench intent closure — binding what is already built",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/plans/workbench-intent-closure.md",
 			"addedAt": "2026-09-10T14:01:06.859Z",
-			"updatedAt": "2026-09-10T14:01:06.859Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.748Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "158895d35902e885c00e61663deffc1eb617c61cc0cb1e56fc1dc998647e84ed"
 		},
 		"release-qualification": {
 			"slug": "release-qualification",
 			"title": "T20 Evidence — Linux/WSL same-host, SSH/tmux terminal, and release qualification",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/T20/release-qualification.md",
 			"addedAt": "2026-09-10T14:18:44.510Z",
-			"updatedAt": "2026-09-10T14:18:44.510Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.751Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "9159bffc6f25cc28c799939188e43c2b66febff9517efad75ea2ffa981ec105c"
 		},
 		"projection-integrity": {
 			"slug": "projection-integrity",
 			"title": "Phase B — bind the projection integrity contract in production",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-b/projection-integrity.md",
 			"addedAt": "2026-09-10T14:52:55.388Z",
-			"updatedAt": "2026-09-10T14:52:55.388Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.753Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "2ddd2763b81a7fc1b3e09a2be293de2f520e24e60d9a14f9927e9880f4e92db3"
 		},
 		"operation-declarations": {
 			"slug": "operation-declarations",
 			"title": "Phase C1 — declare the Prime operation contract (nothing executes)",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-c1/operation-declarations.md",
 			"addedAt": "2026-09-10T16:07:31.978Z",
-			"updatedAt": "2026-09-10T16:07:31.978Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.755Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "ffc8203cbdc036eae8972f0dfb8ae07d5cfcc1d698aed9b843e41befc29485d8"
 		},
 		"prime-substrate-binding": {
 			"slug": "prime-substrate-binding",
 			"title": "Phase C2 — bind the real Prime substrate",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-c2/prime-substrate-binding.md",
 			"addedAt": "2026-09-10T17:38:27.932Z",
-			"updatedAt": "2026-09-10T17:38:27.932Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.758Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "9047782460fab24feeb2a0bcc58f3d0b58e0b3796cab11b2176a93eae99d42f8"
 		},
 		"prime-lifecycle-reattachment": {
 			"slug": "prime-lifecycle-reattachment",
 			"title": "Phase D — long-running lifecycle and reattachment in production",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/gauntlet-tui-prime-workbench/evidence/workbench-intent-closure/phase-d/prime-lifecycle-reattachment.md",
 			"addedAt": "2026-09-10T19:27:28.117Z",
-			"updatedAt": "2026-09-10T19:27:28.117Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.760Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "21ee482af479639ddd1ddd95db57dd2e03ead5e456d90ba8b2991a142d4f89c5"
 		},
 		"tui-runtime-repair-followup": {
 			"slug": "tui-runtime-repair-followup",
 			"title": "TUI runtime repair follow-up — settled 2026-09-10",
 			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/plans/tui-runtime-repair-followup.md",
 			"addedAt": "2026-09-10T20:13:04.834Z",
-			"updatedAt": "2026-09-10T20:13:04.834Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.762Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "1c12049803e7397c52e68696ddd07223faa4975a5be20a987a52c6e0019852d6"
 		},
 		"operate-the-tui": {
 			"slug": "operate-the-tui",
 			"title": "How-To: Operate the Gauntlet Workbench TUI",
 			"sourcePath": "/home/sprime01/projects/gauntlet/docs/how-to/operate-the-tui.md",
 			"addedAt": "2026-09-10T20:34:00.094Z",
-			"updatedAt": "2026-09-10T20:34:00.094Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T18:03:35.036Z",
+			"commitHash": "96e401f2510c10e97917508fe6b7392c69e46441",
+			"contentHashAtCommit": "c889ea086614e80ccc41e6b54fd82ccd052f5a64a7c144f9acb8263eee03c6db"
 		},
 		"troubleshooting": {
 			"slug": "troubleshooting",
 			"title": "Operational Troubleshooting Guide",
 			"sourcePath": "/home/sprime01/projects/gauntlet/docs/troubleshooting.md",
 			"addedAt": "2026-09-10T20:34:00.094Z",
-			"updatedAt": "2026-09-10T20:34:00.094Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.767Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "a2b81f79d3a52a1b712d5c48ccbc181292307389c0afc05a676074d7f98664fe"
 		},
 		"tui": {
 			"slug": "tui",
 			"title": "Subsystem: Terminal-Native Operator Workbench (`workbench/`)",
 			"sourcePath": "/home/sprime01/projects/gauntlet/docs/subsystems/tui.md",
 			"addedAt": "2026-09-10T20:34:00.094Z",
-			"updatedAt": "2026-09-10T20:34:00.094Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.770Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "e10048ff696e5b99cb3ec4cc888133f50fabac24a43c5d07d07d12d36ebba76b"
 		},
 		"tui-53826f48": {
 			"slug": "tui-53826f48",
 			"title": "Reference: Operator Workbench (`workbench/`)",
 			"sourcePath": "/home/sprime01/projects/gauntlet/docs/reference/tui.md",
 			"addedAt": "2026-09-10T20:34:00.094Z",
-			"updatedAt": "2026-09-10T20:34:00.094Z",
-			"commitHash": null
+			"updatedAt": "2026-09-13T12:42:53.773Z",
+			"commitHash": "1253d200316786e4b08d7fd8412a4999f76d8a46",
+			"contentHashAtCommit": "b721f68a8bd5a9705c4100eca6399faaed11e639a1829e9500a97cdbcc735b2a"
+		},
+		"IN-FLIGHT-8e5ff619": {
+			"slug": "IN-FLIGHT-8e5ff619",
+			"title": "IN-FLIGHT — TUI GUI-grade redesign (operator-directed, post-plan)",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/reports/tui-gui-redesign/IN-FLIGHT.md",
+			"addedAt": "2026-09-13T12:43:57.989Z",
+			"updatedAt": "2026-09-13T13:03:05.514Z",
+			"commitHash": "0900a5c9354ce6d16ca5b1b189d7e5cdd7976a5a",
+			"contentHashAtCommit": "ec394e4b03cad6b69d659e66fb57d60f5d5547c2a1cb90376b8d81a73cd6c4ee"
+		},
+		"workbench-agent-interaction": {
+			"slug": "workbench-agent-interaction",
+			"title": "Workbench agent interaction — make the TUI a harness you can talk to",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/plans/workbench-agent-interaction.md",
+			"addedAt": "2026-09-13T12:43:57.989Z",
+			"updatedAt": "2026-09-13T13:03:05.517Z",
+			"commitHash": "0900a5c9354ce6d16ca5b1b189d7e5cdd7976a5a",
+			"contentHashAtCommit": "aa23e1bf4368201eac496b7842fa53de56b8b3b456b7a322b10196b3062ae892"
+		},
+		"GAUNTLET": {
+			"slug": "GAUNTLET",
+			"title": "GAUNTLET.md — demo-calculator",
+			"sourcePath": "/home/sprime01/projects/gauntlet/examples/demo-calculator/GAUNTLET.md",
+			"addedAt": "2026-09-13T17:50:12.389Z",
+			"updatedAt": "2026-09-14T20:52:36.038Z",
+			"commitHash": "be0174c8180dcb0f79306a3c0860ce149c56ae9e",
+			"contentHashAtCommit": "ccd5652e4ee19b795481dce84c402dd6d39a0ac4498a4acc9004a7f084007411"
+		},
+		"production-readiness": {
+			"slug": "production-readiness",
+			"title": "Production readiness — close every unproven item, then prove it live",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.agents/plans/production-readiness.md",
+			"addedAt": "2026-09-14T15:08:18.864Z",
+			"updatedAt": "2026-09-14T19:28:52.335Z",
+			"commitHash": "30e11c76fdf44dd66524e4706a1ca8bfa70b8174",
+			"contentHashAtCommit": "269bb501e18972a574d10fdbd50e399afcb1cd4f7cd80c45cd460b867177e369"
 		}
 	},
 	"skills": {
@@ -446,6 +494,29 @@
 						"confidence": "attributed"
 					}
 				}
+			}
+		},
+		"claude:graft": {
+			"source": "claude",
+			"skill": "graft",
+			"entryPaths": [
+				"tool"
+			],
+			"invocations": [
+				{
+					"at": "2026-09-12T17:22:10.807Z",
+					"bodyChars": 9196,
+					"ok": true
+				}
+			],
+			"invocationCount": 1,
+			"firstUsedAt": "2026-09-12T17:22:10.807Z",
+			"lastUsedAt": "2026-09-12T17:22:10.807Z",
+			"sourcePath": "/home/sprime01/projects/gauntlet/.jolli/jollimemory/skills/claude/graft-4e762e99.md",
+			"commitHash": "0900a5c9354ce6d16ca5b1b189d7e5cdd7976a5a",
+			"contentHashAtCommit": "91354e868cc45ba5e332565ff1c7f78c6e1f918649c1f6a3b5179052f7815880",
+			"archivedTotals": {
+				"invocationCount": 1
 			}
 		}
 	}

@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_check_suite",
+      "consequence": "ADVANCES",
+      "description": "Execute full end-to-end project check script scripts/check.sh covering all facets.",
+      "probe_wall_clock_ms": 1750.0
+    },
+    {
+      "affordance_id": "probe_eval_arithmetic",
+      "consequence": "REDUNDANT",
+      "description": "Execute arithmetic expression evaluation runner scripts/eval-calculator.js to inspect math results.",
+      "probe_wall_clock_ms": 410.0
+    },
+    {
+      "affordance_id": "probe_syntax_linter",
+      "consequence": "REDUNDANT",
+      "description": "Execute HTML and JavaScript syntax linter scripts/lint.sh to check code syntax.",
+      "probe_wall_clock_ms": 300.0
+    },
+    {
+      "affordance_id": "probe_dom_markup",
+      "consequence": "REDUNDANT",
+      "description": "Execute DOM markup structure check to verify button element declarations.",
+      "probe_wall_clock_ms": 330.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": true,
+    "net_wall_clock_saved_ms": -919.64,
+    "probe_wall_clock_avoided_ms": 630.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 1,
+    "selected_ids": [
+      "probe_eval_arithmetic",
+      "probe_check_suite"
+    ],
+    "useful_recall_at_k": 1.0
+  },
+  "family": "diagnostic_verification",
+  "horizon_id": "HZ-D05-settlement-verification",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_eval_arithmetic",
+      "probe_check_suite"
+    ],
+    "reported_confidence": 0.6511,
+    "strategy_latency_ms": 1549.64,
+    "telemetry": {
+      "decode_tps": 211.7,
+      "function_calls_count": 1,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 658.8,
+      "step2_used": true
+    }
+  },
+  "state_summary": "Both markup and evaluation patches have been applied. Need to generate official passing settlement evidence. Multiple verification probes survive hard gates."
+}

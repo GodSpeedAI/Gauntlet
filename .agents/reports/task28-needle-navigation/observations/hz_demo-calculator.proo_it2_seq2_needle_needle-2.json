@@ -1,0 +1,22 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "demo-calculator",
+  "decision_note": "dispatch_check_runner: 'Dispatch' with 'builder' and 'AK-9011, open' and 'AK-9012, open' from query. dispatch_check_runner: 'Build and verif",
+  "depth_or_rung": "v2-8L",
+  "horizon_id": "hz_demo-calculator.proo_it2_seq2",
+  "latency_ms": 1290.4,
+  "model_id": "needle-2",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.0,
+  "request_hash": "sha256:04479c24b718aa1341bb31a05874ae0472954d3fdbe33b81b6130b437b0d2f80",
+  "surface_hash": "sha256:33b669501d737530e95d16821cdf88590ec1ac5088cca27f4b556d525dee3005",
+  "telemetry": {
+    "decode_tps": 160.2,
+    "peak_ram_mb": 116.3,
+    "prefill_tps": 542.9,
+    "raw_type": "call"
+  }
+}

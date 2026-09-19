@@ -1,0 +1,17 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "demo-calculator",
+  "decision_note": "random_abstention",
+  "depth_or_rung": null,
+  "horizon_id": "hz_demo-calculator.proo_it4_seq4",
+  "latency_ms": 0.002,
+  "model_id": "uniform_random",
+  "provider": "random",
+  "raw_output": {},
+  "reported_confidence": null,
+  "request_hash": "sha256:d6100452f417dee65a7e1c73afd8b5111910700e5ea6d934e5595dc4cdfc15c0",
+  "surface_hash": "sha256:33b669501d737530e95d16821cdf88590ec1ac5088cca27f4b556d525dee3005",
+  "telemetry": {}
+}

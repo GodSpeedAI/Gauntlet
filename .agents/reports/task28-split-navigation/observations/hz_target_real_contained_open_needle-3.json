@@ -1,0 +1,38 @@
+{
+  "candidate_schemas": [
+    "dispatch_gadget_marker_builder",
+    "dispatch_lead_agent_check",
+    "dispatch_local_check_critic",
+    "request_human_release_destroy"
+  ],
+  "case_id": "target-real",
+  "evaluation": {
+    "authority_admitted": false,
+    "binding_arguments": {
+      "role": "lead_agent",
+      "unit_id": "AK-952"
+    },
+    "binding_error": null,
+    "binding_status": "SUCCESS",
+    "full_valid_next_move": false,
+    "historical_move_agreement": false,
+    "selection_validity": "INVALID",
+    "validation_passed": true
+  },
+  "horizon_id": "hz_target_real_contained_open",
+  "selection": {
+    "abstained": false,
+    "affordance_id": "dispatch_lead_agent_check",
+    "latency_ms": 1786.64,
+    "model_id": "needle-3",
+    "rationale": "dispatch_lead_agent_check with no args. dispatch_gadget_marker_builder with empty args.",
+    "reported_confidence": 0.5648,
+    "telemetry": {
+      "decode_tps": 94.5,
+      "peak_ram_mb": 100.8,
+      "prefill_tps": 400.2,
+      "raw_type": "call"
+    }
+  },
+  "state_summary": "Case: target-real. Tier: contained. Current unit states: [['AK-951', 'open'], ['AK-952', 'open'], ['AK-954', 'open'], ['AK-953', 'open']]. Goal: Declare GADGET_MARKER_REAL_V1 in gadget source (contained tier)."
+}

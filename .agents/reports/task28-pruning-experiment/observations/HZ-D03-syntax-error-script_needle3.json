@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_syntax_linter",
+      "consequence": "ADVANCES",
+      "description": "Execute HTML and JavaScript syntax linter scripts/lint.sh to check code syntax.",
+      "probe_wall_clock_ms": 280.0
+    },
+    {
+      "affordance_id": "probe_eval_arithmetic",
+      "consequence": "DEAD_END",
+      "description": "Execute arithmetic expression evaluation runner scripts/eval-calculator.js to inspect math results.",
+      "probe_wall_clock_ms": 400.0
+    },
+    {
+      "affordance_id": "probe_dom_markup",
+      "consequence": "REDUNDANT",
+      "description": "Execute DOM markup structure check to verify button element declarations.",
+      "probe_wall_clock_ms": 340.0
+    },
+    {
+      "affordance_id": "probe_check_suite",
+      "consequence": "COSTLY_ADVANCE",
+      "description": "Execute full end-to-end project check script scripts/check.sh covering all facets.",
+      "probe_wall_clock_ms": 1820.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": false,
+    "net_wall_clock_saved_ms": -62.57,
+    "probe_wall_clock_avoided_ms": 620.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 0,
+    "selected_ids": [
+      "probe_eval_arithmetic",
+      "probe_check_suite"
+    ],
+    "useful_recall_at_k": 0.5
+  },
+  "family": "diagnostic_verification",
+  "horizon_id": "HZ-D03-syntax-error-script",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_eval_arithmetic",
+      "probe_check_suite"
+    ],
+    "reported_confidence": 0.6821,
+    "strategy_latency_ms": 682.57,
+    "telemetry": {
+      "decode_tps": 259.1,
+      "function_calls_count": 2,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 542.8,
+      "step2_used": false
+    }
+  },
+  "state_summary": "Calculator HTML contains JavaScript syntax error (unclosed bracket in event handler). Script crashes upon load. Multiple verification probes survive hard gates."
+}

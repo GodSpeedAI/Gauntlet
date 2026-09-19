@@ -1,0 +1,20 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_lead_agent_check",
+  "arguments": {
+    "role": "lead_agent",
+    "unit_id": "AK-952"
+  },
+  "case_id": "target-real",
+  "decision_note": "random_selection",
+  "depth_or_rung": null,
+  "horizon_id": "hz_target_real_contained_open",
+  "latency_ms": 0.003,
+  "model_id": "uniform_random",
+  "provider": "random",
+  "raw_output": {},
+  "reported_confidence": 0.2,
+  "request_hash": "sha256:203024e65ffc7993732f694a882a86b6ae5b895614b60cbb139b1830bf7ae5c6",
+  "surface_hash": "sha256:cacfdb476cfcc2b903df15da43751383bc46dccae4cd47ab042666b72d7194e8",
+  "telemetry": {}
+}

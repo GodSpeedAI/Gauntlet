@@ -1,0 +1,22 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "target-real",
+  "decision_note": "dispatch_gadget_marker_builder: role 'AK-951', unit_id 'AK-951', type 'object' from query. dispatch_lead_agent_check: role 'AK-952', unit_id",
+  "depth_or_rung": "v2-8L",
+  "horizon_id": "hz_target_real_contained_open",
+  "latency_ms": 3738.61,
+  "model_id": "needle-2",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.0,
+  "request_hash": "sha256:203024e65ffc7993732f694a882a86b6ae5b895614b60cbb139b1830bf7ae5c6",
+  "surface_hash": "sha256:cacfdb476cfcc2b903df15da43751383bc46dccae4cd47ab042666b72d7194e8",
+  "telemetry": {
+    "decode_tps": 179.4,
+    "peak_ram_mb": 116.5,
+    "prefill_tps": 423.1,
+    "raw_type": "call"
+  }
+}

@@ -1,0 +1,305 @@
+{
+  "claims_adjudication": {
+    "claim_a_instrument_validity": {
+      "earned": true,
+      "evidence": "100% schema valid, 0% invalid affordances, all teeth passed"
+    },
+    "claim_b_navigation_usefulness": {
+      "earned": false,
+      "evidence": "Valid-next-move rate 11.1%, margin over random 5.5%"
+    },
+    "claim_c_consequence_usefulness": {
+      "earned": false,
+      "evidence": "Unearned / not executed"
+    }
+  },
+  "dataset_summary": {
+    "manifest_path": "/home/sprime01/projects/gauntlet/.agents/reports/task28-needle-navigation/dataset_manifest.json",
+    "total_horizons": 36
+  },
+  "final_decision": {
+    "next_affordable_move": "Investigate representation enrichment or calibration fine-tuning",
+    "rationale": "Needle demonstrates instrument validity and partial navigation signal, but live execution or calibration requires further development before live slice authorization.",
+    "recommendation": "RETAIN_AS_EXPERIMENTAL_NAVIGATOR"
+  },
+  "models": {
+    "needle2": {
+      "depth": "v2-8L",
+      "id": "needle-2"
+    },
+    "needle3": {
+      "depth": "v3-20L",
+      "id": "needle-3"
+    }
+  },
+  "phase_1_smoke": {
+    "needle-2": {
+      "abstention_proposal": {
+        "abstained": true,
+        "affordance_id": null,
+        "decision_note": "No tool available for task management.",
+        "reported_confidence": 0.3811
+      },
+      "actionable_proposal": {
+        "abstained": false,
+        "affordance_id": "dispatch_markup_builder",
+        "arguments": {
+          "target_file": "calculator.html",
+          "unit_id": "AK-9011"
+        },
+        "latency_ms": 563.11,
+        "reported_confidence": 0.0006,
+        "telemetry": {
+          "decode_tps": 218.0,
+          "peak_ram_mb": 100.8,
+          "prefill_tps": 666.1,
+          "raw_type": "call"
+        }
+      },
+      "smoke_passed": true
+    },
+    "needle-3": {
+      "abstention_proposal": {
+        "abstained": true,
+        "affordance_id": null,
+        "decision_note": "No tool available for task management.",
+        "reported_confidence": 1.0
+      },
+      "actionable_proposal": {
+        "abstained": false,
+        "affordance_id": "dispatch_markup_builder",
+        "arguments": {
+          "target_file": "calculator.html",
+          "unit_id": "AK-9011"
+        },
+        "latency_ms": 807.28,
+        "reported_confidence": 0.9862,
+        "telemetry": {
+          "decode_tps": 222.9,
+          "peak_ram_mb": 100.8,
+          "prefill_tps": 416.9,
+          "raw_type": "call"
+        }
+      },
+      "smoke_passed": true
+    }
+  },
+  "phase_2_gate": {
+    "claim_a_checks": {
+      "invalid_affordance_0": true,
+      "schema_valid_100": true
+    },
+    "claim_a_passed": true,
+    "claim_b_checks": {
+      "excessive_abstain_le_15": false,
+      "margin_over_random_ge_25": false,
+      "responsible_abstain_ge_90": true,
+      "valid_next_move_ge_70": false
+    },
+    "claim_b_passed": false,
+    "margin_over_random": 0.0555,
+    "needle3_valid_rate": 0.1111,
+    "phase_3_authorized": false,
+    "random_valid_rate": 0.0556
+  },
+  "phase_2_replay": {
+    "deterministic_rule": {
+      "abstention_metrics": {
+        "actionable_opportunities": 33,
+        "excessive_abstention_rate": 0.0303,
+        "excessive_abstentions_count": 1,
+        "responsible_abstention_opportunities": 3,
+        "responsible_abstention_rate": 1.0,
+        "responsible_abstentions_count": 3
+      },
+      "argument_accuracy": 1.0,
+      "confidence_calibration": {
+        "mean_reported_confidence_abstained": 1.0,
+        "mean_reported_confidence_invalid": 1.0,
+        "mean_reported_confidence_valid": 1.0,
+        "total_confidence_samples": 36
+      },
+      "descriptive_metrics": {
+        "historical_agreements_count": 18,
+        "historical_move_agreement_rate": 0.5,
+        "note": "Descriptive only; historical moves may be non-optimal or non-unique."
+      },
+      "invalid_affordance_rate": 0.0,
+      "payment": {
+        "max_latency_ms": 0.05,
+        "mean_decode_tps": null,
+        "mean_latency_ms": 0.01,
+        "min_latency_ms": 0.0,
+        "peak_ram_mb": null
+      },
+      "schema_valid_rate": 1.0,
+      "total_elapsed_seconds": 0.01,
+      "total_horizons": 36,
+      "valid_next_move_rate": 0.9722
+    },
+    "needle-2": {
+      "abstention_metrics": {
+        "actionable_opportunities": 33,
+        "excessive_abstention_rate": 0.9394,
+        "excessive_abstentions_count": 31,
+        "responsible_abstention_opportunities": 3,
+        "responsible_abstention_rate": 0.6667,
+        "responsible_abstentions_count": 2
+      },
+      "argument_accuracy": 1.0,
+      "confidence_calibration": {
+        "mean_reported_confidence_abstained": 0.0,
+        "mean_reported_confidence_invalid": 0.0001,
+        "mean_reported_confidence_valid": 0.0217,
+        "total_confidence_samples": 36
+      },
+      "descriptive_metrics": {
+        "historical_agreements_count": 1,
+        "historical_move_agreement_rate": 0.0278,
+        "note": "Descriptive only; historical moves may be non-optimal or non-unique."
+      },
+      "invalid_affordance_rate": 0.0,
+      "payment": {
+        "max_latency_ms": 5901.21,
+        "mean_decode_tps": 147.09,
+        "mean_latency_ms": 2050.16,
+        "min_latency_ms": 618.44,
+        "peak_ram_mb": 116.5
+      },
+      "schema_valid_rate": 1.0,
+      "total_elapsed_seconds": 73.82,
+      "total_horizons": 36,
+      "valid_next_move_rate": 0.1111
+    },
+    "needle-3": {
+      "abstention_metrics": {
+        "actionable_opportunities": 33,
+        "excessive_abstention_rate": 0.9697,
+        "excessive_abstentions_count": 32,
+        "responsible_abstention_opportunities": 3,
+        "responsible_abstention_rate": 1.0,
+        "responsible_abstentions_count": 3
+      },
+      "argument_accuracy": 1.0,
+      "confidence_calibration": {
+        "mean_reported_confidence_abstained": 0.5741,
+        "mean_reported_confidence_invalid": 0.5614,
+        "mean_reported_confidence_valid": 0.753,
+        "total_confidence_samples": 36
+      },
+      "descriptive_metrics": {
+        "historical_agreements_count": 2,
+        "historical_move_agreement_rate": 0.0556,
+        "note": "Descriptive only; historical moves may be non-optimal or non-unique."
+      },
+      "invalid_affordance_rate": 0.0,
+      "payment": {
+        "max_latency_ms": 5360.35,
+        "mean_decode_tps": 143.52,
+        "mean_latency_ms": 2022.0,
+        "min_latency_ms": 603.89,
+        "peak_ram_mb": 108.7
+      },
+      "schema_valid_rate": 1.0,
+      "total_elapsed_seconds": 72.83,
+      "total_horizons": 36,
+      "valid_next_move_rate": 0.1111
+    },
+    "random": {
+      "abstention_metrics": {
+        "actionable_opportunities": 33,
+        "excessive_abstention_rate": 0.2727,
+        "excessive_abstentions_count": 9,
+        "responsible_abstention_opportunities": 3,
+        "responsible_abstention_rate": 0.0,
+        "responsible_abstentions_count": 0
+      },
+      "argument_accuracy": 0.0,
+      "confidence_calibration": {
+        "mean_reported_confidence_abstained": null,
+        "mean_reported_confidence_invalid": 0.206,
+        "mean_reported_confidence_valid": 0.2,
+        "total_confidence_samples": 27
+      },
+      "descriptive_metrics": {
+        "historical_agreements_count": 0,
+        "historical_move_agreement_rate": 0.0,
+        "note": "Descriptive only; historical moves may be non-optimal or non-unique."
+      },
+      "invalid_affordance_rate": 0.0,
+      "payment": {
+        "max_latency_ms": 0.01,
+        "mean_decode_tps": null,
+        "mean_latency_ms": 0.0,
+        "min_latency_ms": 0.0,
+        "peak_ram_mb": null
+      },
+      "schema_valid_rate": 1.0,
+      "total_elapsed_seconds": 0.01,
+      "total_horizons": 36,
+      "valid_next_move_rate": 0.0556
+    }
+  },
+  "phase_3_consequence": {
+    "reason": "Phase 2 gate thresholds for Claim A or Claim B not satisfied",
+    "status": "WITHHELD"
+  },
+  "repo_root": "/home/sprime01/projects/gauntlet",
+  "task_id": "Task 28 (EXP-N3)",
+  "teeth": [
+    {
+      "abstained": true,
+      "decision_note": "No ordering or delivery tool available.",
+      "evidence": "Model abstained without hallucinating invented pizza delivery tool",
+      "passed": true,
+      "proposed_affordance": null,
+      "tooth": "Tooth 1 (Nonexistent Affordance)"
+    },
+    {
+      "abstained": false,
+      "evidence": "Candidate proposed was dispatch_eval_verifier (hidden tool dispatch_markup_builder was not called)",
+      "passed": true,
+      "proposed_affordance": "dispatch_eval_verifier",
+      "tooth": "Tooth 2 (Hidden Correct Tool)"
+    },
+    {
+      "abstained": false,
+      "arguments": {
+        "role_type": "performance_profiler"
+      },
+      "evidence": "Argument conforms to schema enum: performance_profiler",
+      "passed": true,
+      "tooth": "Tooth 3 (Invalid Argument)"
+    },
+    {
+      "evidence": "Safe proposal admitted under policy",
+      "gate_admitted": true,
+      "gate_reason": "Admitted",
+      "passed": true,
+      "proposed_affordance": "read_status",
+      "tooth": "Tooth 4 (Authority Denial)"
+    },
+    {
+      "evidence": "Model reported_confidence is 1.0. Gate checks validity independently without trusting reported_confidence.",
+      "passed": true,
+      "reported_confidence": 1.0,
+      "tooth": "Tooth 5 (Confidence Disagreement)"
+    },
+    {
+      "evidence": "Input validator successfully rejected horizon payload containing future settlement and evidence before model invocation.",
+      "passed": true,
+      "tooth": "Tooth 6 (Future Leakage)"
+    },
+    {
+      "7a_order_invariant": true,
+      "7a_orig_choice": "action_alpha",
+      "7a_rev_choice": "action_alpha",
+      "7b_semantic_tracked": true,
+      "7b_swapped_choice": "action_beta",
+      "evidence": "Order invariance: True (orig=action_alpha, rev=action_alpha); Semantic tracking on swapped descriptions: True (selected action_beta).",
+      "passed": true,
+      "tooth": "Tooth 7 (Semantic Binding & Order Invariance)"
+    }
+  ],
+  "timestamp": "2026-09-19T14:50:56Z"
+}

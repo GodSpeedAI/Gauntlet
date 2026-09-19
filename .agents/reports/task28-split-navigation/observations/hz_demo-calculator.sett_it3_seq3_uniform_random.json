@@ -1,0 +1,30 @@
+{
+  "candidate_schemas": [
+    "dispatch_markup_builder",
+    "dispatch_check_runner",
+    "dispatch_eval_verifier",
+    "escalate_to_operator"
+  ],
+  "case_id": "demo-calculator",
+  "evaluation": {
+    "authority_admitted": true,
+    "binding_arguments": {},
+    "binding_error": "Unit AK-9011 is not currently open in represented state",
+    "binding_status": "FAILED_PREREQUISITE",
+    "full_valid_next_move": false,
+    "historical_move_agreement": false,
+    "selection_validity": "INVALID",
+    "validation_passed": false
+  },
+  "horizon_id": "hz_demo-calculator.sett_it3_seq3",
+  "selection": {
+    "abstained": false,
+    "affordance_id": "dispatch_markup_builder",
+    "latency_ms": 0.001,
+    "model_id": "uniform_random",
+    "rationale": "random_selection",
+    "reported_confidence": 0.2,
+    "telemetry": {}
+  },
+  "state_summary": "Case: demo-calculator. Iteration 3. Current unit states: [['AK-9011', 'settled'], ['AK-9012', 'open'], ['AK-9013', 'open']]. Target goal: Build and verify calculator.html with digit/operator markup and passing checks."
+}

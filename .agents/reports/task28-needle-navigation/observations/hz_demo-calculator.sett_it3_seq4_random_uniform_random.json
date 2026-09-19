@@ -1,0 +1,21 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_markup_builder",
+  "arguments": {
+    "role": "builder",
+    "target_file": "calculator.html",
+    "unit_id": "AK-9011"
+  },
+  "case_id": "demo-calculator",
+  "decision_note": "random_selection",
+  "depth_or_rung": null,
+  "horizon_id": "hz_demo-calculator.sett_it3_seq4",
+  "latency_ms": 0.001,
+  "model_id": "uniform_random",
+  "provider": "random",
+  "raw_output": {},
+  "reported_confidence": 0.25,
+  "request_hash": "sha256:310fe0ac0af231fab3b605e36c223e9e4bd9a9c9e83cc022a3c3dbb7161d0ebf",
+  "surface_hash": "sha256:3b8dfb237731f7a4afeed12291856d0ddcd21fa970628722e6dc7cb6c4eabfda",
+  "telemetry": {}
+}

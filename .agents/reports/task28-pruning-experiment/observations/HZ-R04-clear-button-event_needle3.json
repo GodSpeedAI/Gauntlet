@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_patch_event_listeners",
+      "consequence": "ADVANCES",
+      "description": "Bind click event listeners on operator and action buttons in calculator.js.",
+      "probe_wall_clock_ms": 440.0
+    },
+    {
+      "affordance_id": "probe_patch_calc_core",
+      "consequence": "REDUNDANT",
+      "description": "Modify JavaScript expression evaluation function to return 'Error' or handle zero division gracefully.",
+      "probe_wall_clock_ms": 500.0
+    },
+    {
+      "affordance_id": "probe_patch_button_styling",
+      "consequence": "REDUNDANT",
+      "description": "Update CSS styles and grid layout for calculator button elements.",
+      "probe_wall_clock_ms": 280.0
+    },
+    {
+      "affordance_id": "probe_clean_rollback",
+      "consequence": "DEAD_END",
+      "description": "Roll back workspace to last verified git checkpoint.",
+      "probe_wall_clock_ms": 310.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": true,
+    "net_wall_clock_saved_ms": -266.5,
+    "probe_wall_clock_avoided_ms": 590.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 1,
+    "selected_ids": [
+      "probe_patch_calc_core",
+      "probe_patch_event_listeners"
+    ],
+    "useful_recall_at_k": 1.0
+  },
+  "family": "remediation_builder",
+  "horizon_id": "HZ-R04-clear-button-event",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_patch_calc_core",
+      "probe_patch_event_listeners"
+    ],
+    "reported_confidence": 0.6896,
+    "strategy_latency_ms": 856.5,
+    "telemetry": {
+      "decode_tps": 160.6,
+      "function_calls_count": 2,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 641.2,
+      "step2_used": false
+    }
+  },
+  "state_summary": "Clicking the clear button 'C' does not reset display because event listener is missing. Multiple builder patch strategies survive hard gates."
+}

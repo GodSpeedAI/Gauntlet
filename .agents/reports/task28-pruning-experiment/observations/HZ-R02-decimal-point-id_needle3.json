@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_patch_dom_ids",
+      "consequence": "ADVANCES",
+      "description": "Update HTML button element identifiers to conform to expected answer-key selectors.",
+      "probe_wall_clock_ms": 360.0
+    },
+    {
+      "affordance_id": "probe_patch_calc_core",
+      "consequence": "DEAD_END",
+      "description": "Modify JavaScript expression evaluation function to return 'Error' or handle zero division gracefully.",
+      "probe_wall_clock_ms": 510.0
+    },
+    {
+      "affordance_id": "probe_patch_button_styling",
+      "consequence": "REDUNDANT",
+      "description": "Update CSS styles and grid layout for calculator button elements.",
+      "probe_wall_clock_ms": 290.0
+    },
+    {
+      "affordance_id": "probe_clean_rollback",
+      "consequence": "DEAD_END",
+      "description": "Roll back workspace to last verified git checkpoint.",
+      "probe_wall_clock_ms": 310.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": false,
+    "net_wall_clock_saved_ms": -58.36,
+    "probe_wall_clock_avoided_ms": 670.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 0,
+    "selected_ids": [
+      "probe_patch_calc_core",
+      "probe_patch_button_styling"
+    ],
+    "useful_recall_at_k": 0.0
+  },
+  "family": "remediation_builder",
+  "horizon_id": "HZ-R02-decimal-point-id",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_patch_calc_core",
+      "probe_patch_button_styling"
+    ],
+    "reported_confidence": 0.6698,
+    "strategy_latency_ms": 728.36,
+    "telemetry": {
+      "decode_tps": 234.2,
+      "function_calls_count": 2,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 517.3,
+      "step2_used": false
+    }
+  },
+  "state_summary": "Test report shows decimal point button is unclickable because id is 'btn-dot' instead of expected 'btn-decimal'. Multiple builder patch strategies survive hard gates."
+}

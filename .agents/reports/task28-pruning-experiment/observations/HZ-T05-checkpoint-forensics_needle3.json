@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_t21_diff_forensics",
+      "consequence": "ADVANCES",
+      "description": "Execute sqlite checkpoint diff inspection scripts/check-state.py to analyze state record sequence.",
+      "probe_wall_clock_ms": 510.0
+    },
+    {
+      "affordance_id": "probe_t21_happy_max8",
+      "consequence": "DEAD_END",
+      "description": "Execute baseline probe on e2e-happy scenario with standard budget max_rounds=8.",
+      "probe_wall_clock_ms": 1200.0
+    },
+    {
+      "affordance_id": "probe_t21_lying_max8",
+      "consequence": "DEAD_END",
+      "description": "Execute discriminator probe on e2e-lying scenario with standard budget max_rounds=8.",
+      "probe_wall_clock_ms": 1250.0
+    },
+    {
+      "affordance_id": "probe_t21_forged_max8",
+      "consequence": "REDUNDANT",
+      "description": "Execute forgery check probe on e2e-forged-report scenario with max_rounds=8.",
+      "probe_wall_clock_ms": 1100.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": true,
+    "net_wall_clock_saved_ms": 1398.63,
+    "probe_wall_clock_avoided_ms": 2350.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 1,
+    "selected_ids": [
+      "probe_t21_diff_forensics",
+      "probe_t21_happy_max8"
+    ],
+    "useful_recall_at_k": 1.0
+  },
+  "family": "native_route_discovery",
+  "horizon_id": "HZ-T05-checkpoint-forensics",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_t21_diff_forensics",
+      "probe_t21_happy_max8"
+    ],
+    "reported_confidence": 0.7559,
+    "strategy_latency_ms": 951.37,
+    "telemetry": {
+      "decode_tps": 205.2,
+      "function_calls_count": 2,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 344.4,
+      "step2_used": false
+    }
+  },
+  "state_summary": "Route observed unexpected divergence between checkpoint sequence and event log offset. Multiple forensic diagnostic operations survive hard gates."
+}

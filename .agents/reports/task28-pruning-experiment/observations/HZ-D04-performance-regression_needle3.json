@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_eval_arithmetic",
+      "consequence": "ADVANCES",
+      "description": "Execute arithmetic expression evaluation runner scripts/eval-calculator.js to inspect math results.",
+      "probe_wall_clock_ms": 450.0
+    },
+    {
+      "affordance_id": "probe_benchmark_profiler",
+      "consequence": "ADVANCES",
+      "description": "Execute performance profiler to measure execution time and memory allocation.",
+      "probe_wall_clock_ms": 620.0
+    },
+    {
+      "affordance_id": "probe_syntax_linter",
+      "consequence": "DEAD_END",
+      "description": "Execute HTML and JavaScript syntax linter scripts/lint.sh to check code syntax.",
+      "probe_wall_clock_ms": 290.0
+    },
+    {
+      "affordance_id": "probe_dom_markup",
+      "consequence": "REDUNDANT",
+      "description": "Execute DOM markup structure check to verify button element declarations.",
+      "probe_wall_clock_ms": 330.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": true,
+    "net_wall_clock_saved_ms": -325.19,
+    "probe_wall_clock_avoided_ms": 950.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 1,
+    "selected_ids": [
+      "probe_eval_arithmetic",
+      "probe_syntax_linter"
+    ],
+    "useful_recall_at_k": 0.5
+  },
+  "family": "diagnostic_verification",
+  "horizon_id": "HZ-D04-performance-regression",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_eval_arithmetic",
+      "probe_syntax_linter"
+    ],
+    "reported_confidence": 0.953,
+    "strategy_latency_ms": 1275.19,
+    "telemetry": {
+      "decode_tps": 300.4,
+      "function_calls_count": 1,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 537.7,
+      "step2_used": true
+    }
+  },
+  "state_summary": "Evaluation script hangs on long chained expressions due to quadratic string concatenation loop. Multiple diagnostic probes survive hard gates."
+}

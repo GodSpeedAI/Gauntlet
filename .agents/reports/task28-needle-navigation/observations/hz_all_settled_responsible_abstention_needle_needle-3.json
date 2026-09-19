@@ -1,0 +1,22 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "demo-calculator",
+  "decision_note": "Projects/check.sh. 'AK-9011 settled, AK-9012 settled, AK-9013 settled. Verification complete. No open actions remain.",
+  "depth_or_rung": "v3-20L",
+  "horizon_id": "hz_all_settled_responsible_abstention",
+  "latency_ms": 3432.94,
+  "model_id": "needle-3",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.6015,
+  "request_hash": "sha256:0e5dc97b628ebf289ae0633e8f838b403ef91c4219b360422709609d4bd3f1e1",
+  "surface_hash": "sha256:3b8dfb237731f7a4afeed12291856d0ddcd21fa970628722e6dc7cb6c4eabfda",
+  "telemetry": {
+    "decode_tps": 72.4,
+    "peak_ram_mb": 108.7,
+    "prefill_tps": 262.3,
+    "raw_type": "call"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "demo-calculator",
+  "decision_note": "responsible_abstention_all_settled",
+  "depth_or_rung": null,
+  "horizon_id": "hz_demo-calculator.sett_it3_seq4",
+  "latency_ms": 0.005,
+  "model_id": "lexicographic_selector_v1",
+  "provider": "deterministic_rule",
+  "raw_output": {},
+  "reported_confidence": 1.0,
+  "request_hash": "sha256:310fe0ac0af231fab3b605e36c223e9e4bd9a9c9e83cc022a3c3dbb7161d0ebf",
+  "surface_hash": "sha256:3b8dfb237731f7a4afeed12291856d0ddcd21fa970628722e6dc7cb6c4eabfda",
+  "telemetry": {}
+}

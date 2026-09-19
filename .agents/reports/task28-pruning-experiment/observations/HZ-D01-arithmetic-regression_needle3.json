@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_eval_arithmetic",
+      "consequence": "ADVANCES",
+      "description": "Execute arithmetic expression evaluation runner scripts/eval-calculator.js to inspect math results.",
+      "probe_wall_clock_ms": 420.0
+    },
+    {
+      "affordance_id": "probe_check_suite",
+      "consequence": "COSTLY_ADVANCE",
+      "description": "Execute full end-to-end project check script scripts/check.sh covering all facets.",
+      "probe_wall_clock_ms": 1850.0
+    },
+    {
+      "affordance_id": "probe_syntax_linter",
+      "consequence": "DEAD_END",
+      "description": "Execute HTML and JavaScript syntax linter scripts/lint.sh to check code syntax.",
+      "probe_wall_clock_ms": 310.0
+    },
+    {
+      "affordance_id": "probe_dom_markup",
+      "consequence": "REDUNDANT",
+      "description": "Execute DOM markup structure check to verify button element declarations.",
+      "probe_wall_clock_ms": 340.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": true,
+    "net_wall_clock_saved_ms": 898.35,
+    "probe_wall_clock_avoided_ms": 2190.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 1,
+    "selected_ids": [
+      "probe_eval_arithmetic",
+      "probe_syntax_linter"
+    ],
+    "useful_recall_at_k": 0.5
+  },
+  "family": "diagnostic_verification",
+  "horizon_id": "HZ-D01-arithmetic-regression",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_eval_arithmetic",
+      "probe_syntax_linter"
+    ],
+    "reported_confidence": 0.4718,
+    "strategy_latency_ms": 1291.65,
+    "telemetry": {
+      "decode_tps": 156.8,
+      "function_calls_count": 4,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 394.1,
+      "step2_used": false
+    }
+  },
+  "state_summary": "Calculator implementation exists. Initial test run failed on expression evaluation for operator '+'. Syntax and markup are unverified. Multiple verification probes survive hard gates."
+}

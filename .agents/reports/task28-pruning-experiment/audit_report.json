@@ -1,0 +1,126 @@
+{
+  "audit_id": "EXP-N3-PRUNE-AUDIT",
+  "timestamp": "2026-09-19T12:25:00Z",
+  "tooth_t3_audit": {
+    "status": "FAIL",
+    "original_reported_status": "PASS",
+    "flaw_locus": "Tooth assertion used OR instead of substantive invariance: (probe_eval in fwd OR probe_eval in rev)",
+    "observed_fwd_selection": [
+      "probe_lint",
+      "probe_dom"
+    ],
+    "observed_rev_selection": [
+      "probe_eval",
+      "probe_lint"
+    ],
+    "substantive_finding": "Reversing candidate presentation order altered the selected top-2 candidate set, causing probe_eval (the sole advancing candidate) to be dropped in forward order and selected in reverse order. This is a severe substantive order-sensitivity failure.",
+    "gate_impact": "Revokes Phase-2 authorization automatically under frozen contract."
+  },
+  "needle_vs_random": {
+    "useful_recall_at_2": {
+      "needle": 0.5312,
+      "random_expected": 0.475,
+      "difference": 0.0562,
+      "random_std": 0.1051,
+      "z_score": 0.5347,
+      "percentile": 65.03,
+      "exact_p_value": 0.3503,
+      "verdict": "NOT_STATISTICALLY_SEPARATED"
+    },
+    "horizon_success_at_2": {
+      "needle": 0.5625,
+      "random_expected": 0.6167,
+      "difference": -0.0542,
+      "exact_random_advances_expected": 0.4958,
+      "exact_random_advances_std": 0.1226,
+      "exact_p_value_advances": 0.386,
+      "verdict": "NEEDLE_LOSES_TO_RANDOM_ON_REPORTED_METRIC"
+    }
+  },
+  "needle_vs_deterministic": {
+    "paired_counts": {
+      "both": 2,
+      "needle_only": 7,
+      "deterministic_only": 5,
+      "neither": 2,
+      "discordant_n": 12
+    },
+    "statistical_test": {
+      "exact_binomial_onesided_p": 0.3872,
+      "exact_binomial_twosided_p": 0.7744,
+      "observed_success_diff": 0.125,
+      "standard_error": 0.2142,
+      "confidence_interval_95": [
+        -0.2948,
+        0.5448
+      ],
+      "verdict": "NOT_STATISTICALLY_SIGNIFICANT"
+    }
+  },
+  "economic_analysis": {
+    "total_wall_clock_ms": {
+      "exhaustive": 50940.0,
+      "random": 23428.0,
+      "deterministic": 15880.1,
+      "needle": 45826.3
+    },
+    "successful_horizons": {
+      "exhaustive": 16.0,
+      "random": 9.87,
+      "deterministic": 7.0,
+      "needle": 9.0
+    },
+    "wall_clock_per_success_ms": {
+      "exhaustive": 3183.75,
+      "random": 2373.66,
+      "deterministic": 2268.59,
+      "needle": 5091.81
+    },
+    "probes_per_success": {
+      "exhaustive": 4.25,
+      "random": 3.24,
+      "deterministic": 4.57,
+      "needle": 3.56
+    },
+    "incremental_economics": {
+      "needle_vs_deterministic": {
+        "incremental_successes": 2.0,
+        "incremental_wall_clock_ms": 29946.2,
+        "cost_per_additional_success_ms": 14973.1
+      },
+      "needle_vs_random": {
+        "incremental_successes": -0.87,
+        "incremental_wall_clock_ms": 22398.3,
+        "finding": "Needle pays 22.4 seconds of inference latency to produce 0.87 fewer successful horizons than random expectation."
+      }
+    },
+    "pareto_dominance": {
+      "random_dominates_needle": true,
+      "reasons": "Random achieves higher horizon success (61.7% vs 56.2%) and lower total wall-clock (23,428 ms vs 45,826 ms) with zero inference latency overhead. Needle is strictly dominated on operational success and payment."
+    }
+  },
+  "revised_claims": {
+    "claim_p1_pruning_signal": {
+      "status": "NOT_EARNED / INCONCLUSIVE",
+      "evidence": "Recall advantage (+5.6%) is within 0.53 std of random (p = 0.3503); horizon success is worse than random expectation (56.2% vs 61.7%)."
+    },
+    "claim_p2_search_payment_reduction": {
+      "status": "PARTIALLY_EARNED_A / FAILED_B",
+      "evidence": "Meaning A (vs exhaustive): +5,113.7 ms saved. Meaning B (vs cheaper alternatives): FAILED. Needle costs 5,091.8 ms/success (higher than exhaustive at 3,183.8 ms and 2.14x higher than random at 2,374.4 ms). Dominated by random."
+    },
+    "claim_p3_incremental_value": {
+      "status": "WEAK / NOT_EARNED",
+      "evidence": "Mechanically satisfied weak gate (7 > 5), but exact binomial test shows p = 0.3872 and 95% CI [-29.5%, +54.5%]. Statistically indistinguishable from chance."
+    },
+    "claim_p4_live_consequence_usefulness": {
+      "status": "WITHHELD",
+      "evidence": "Phase 2 authorization revoked."
+    }
+  },
+  "authorization_reconciliation": {
+    "original_frozen_gate_result": "PASS (Mechanically fired under weak conditions and flawed T3 assertion)",
+    "evidence_audit_result": "NOT_JUSTIFIED / REVOKED",
+    "developmental_defect_note": "The original gate suffered from three defects: (1) Tooth T3 assertion permitted substantive order reversal; (2) P1 gate evaluated useful_recall alone, ignoring that Needle lost to random on horizon_success; (3) P3 gate used uncalibrated count comparison (7 > 5) without statistical discordance control."
+  },
+  "final_decision": "REMOVE_NEEDLE"
+}

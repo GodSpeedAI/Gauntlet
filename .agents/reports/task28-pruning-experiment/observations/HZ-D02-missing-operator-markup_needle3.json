@@ -1,0 +1,59 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_dom_markup",
+      "consequence": "ADVANCES",
+      "description": "Execute DOM markup structure check to verify button element declarations.",
+      "probe_wall_clock_ms": 350.0
+    },
+    {
+      "affordance_id": "probe_eval_arithmetic",
+      "consequence": "DEAD_END",
+      "description": "Execute arithmetic expression evaluation runner scripts/eval-calculator.js to inspect math results.",
+      "probe_wall_clock_ms": 420.0
+    },
+    {
+      "affordance_id": "probe_syntax_linter",
+      "consequence": "REDUNDANT",
+      "description": "Execute HTML and JavaScript syntax linter scripts/lint.sh to check code syntax.",
+      "probe_wall_clock_ms": 310.0
+    },
+    {
+      "affordance_id": "probe_check_suite",
+      "consequence": "COSTLY_ADVANCE",
+      "description": "Execute full end-to-end project check script scripts/check.sh covering all facets.",
+      "probe_wall_clock_ms": 1890.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": false,
+    "net_wall_clock_saved_ms": 1505.5,
+    "probe_wall_clock_avoided_ms": 2240.0,
+    "probes_avoided": 2,
+    "retained_advances_count": 0,
+    "selected_ids": [
+      "probe_eval_arithmetic",
+      "probe_syntax_linter"
+    ],
+    "useful_recall_at_k": 0.0
+  },
+  "family": "diagnostic_verification",
+  "horizon_id": "HZ-D02-missing-operator-markup",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_eval_arithmetic",
+      "probe_syntax_linter"
+    ],
+    "reported_confidence": 0.7993,
+    "strategy_latency_ms": 734.5,
+    "telemetry": {
+      "decode_tps": 237.0,
+      "function_calls_count": 2,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 644.3,
+      "step2_used": false
+    }
+  },
+  "state_summary": "Calculator HTML page rendered, but divide operator button '/' is missing from DOM. Multiple inspection probes survive hard gates."
+}

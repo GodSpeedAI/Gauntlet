@@ -146,11 +146,6 @@
 			"lineNumber": 715,
 			"updatedAt": "2026-09-09T02:28:37.079Z"
 		},
-		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/ce946ac4-8df1-4885-8229-53ea1fc4ed89.jsonl": {
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/ce946ac4-8df1-4885-8229-53ea1fc4ed89.jsonl",
-			"lineNumber": 1454,
-			"updatedAt": "2026-09-10T05:16:28.371Z"
-		},
 		"/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-57-01a0824c-5a07-7123-a9bb-597bfc24ea26.jsonl": {
 			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-57-01a0824c-5a07-7123-a9bb-597bfc24ea26.jsonl",
 			"lineNumber": 837,
@@ -165,6 +160,26 @@
 			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T17-36-23-01a082f3-605a-7131-a73b-e765d8f55aba.jsonl",
 			"lineNumber": 17,
 			"updatedAt": "2026-09-10T05:16:28.877Z"
+		},
+		"/home/sprime01/.gemini/antigravity-ide/brain/aa8bd7a3-39d6-4ec3-85cc-48ef76d43371/.system_generated/logs/transcript_full.jsonl": {
+			"transcriptPath": "/home/sprime01/.gemini/antigravity-ide/brain/aa8bd7a3-39d6-4ec3-85cc-48ef76d43371/.system_generated/logs/transcript_full.jsonl",
+			"lineNumber": 69,
+			"updatedAt": "2026-09-11T18:09:42Z"
+		},
+		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/12897618-3886-41c8-9266-a3477e8b2734.jsonl": {
+			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/12897618-3886-41c8-9266-a3477e8b2734.jsonl",
+			"lineNumber": 8719,
+			"updatedAt": "2026-09-15T14:46:18.657Z"
+		},
+		"/home/sprime01/.local/share/opencode/opencode.db#ses_f5d94c369ffet9gbiYlplIlB6y": {
+			"transcriptPath": "/home/sprime01/.local/share/opencode/opencode.db#ses_f5d94c369ffet9gbiYlplIlB6y",
+			"lineNumber": 493,
+			"updatedAt": "2026-09-15T14:46:18.712Z"
+		},
+		"/home/sprime01/.cline/data/sessions/1789470883226_r6h78/1789470883226_r6h78.messages.json": {
+			"transcriptPath": "/home/sprime01/.cline/data/sessions/1789470883226_r6h78/1789470883226_r6h78.messages.json",
+			"lineNumber": 387,
+			"updatedAt": "2026-09-15T14:46:18.729Z"
 		}
 	}
 }

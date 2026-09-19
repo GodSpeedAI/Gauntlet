@@ -1,6 +1,28 @@
 schema: agent.current_status
 schema_version: "1.0"
 
+needle_navigation_proving:
+  status: settled
+  updated: "2026-09-19"
+  plan: ".agents/plans/task28-pruning-experiment.md"
+  report: ".agents/reports/task28-pruning-experiment/audit_report.md"
+  scope: >-
+    Task 28 (EXP-N3, EXP-N3-SPLIT, EXP-N3-PRUNE): Needle 3 navigation & candidate pruning proving experiments in Gauntlet.
+    Comprehensive evaluation of whether Cactus Needle 3 can navigate bounded affordance surfaces or prune candidate sets (N in [4, 5], k=2).
+    External Python replay harness (harness/needle_nav/), zero Gauntlet Rust changes.
+  settled:
+    - "Task 28 (EXP-N3 Coupled): 100% schema validity, 0% invalid affordances, 100% responsible abstention, but 97.0% excessive abstention on raw state summaries due to strict parameter-grounding heads (11.1% valid-next-move rate). Claim A passed, Claims B & C unearned."
+    - "Task 28-B (EXP-N3-SPLIT): Parameterless selection (Needle 3) + neutral deterministic argument binding. All 7 adversarial teeth passed. Removing argument obligations eliminated excessive abstention (0.0%), but selection validity reached only 22.2% (8/36), trailing uniform random (27.8%) and §15.1 deterministic rule (100.0%)."
+    - "Task 28-C (EXP-N3-PRUNE): Candidate-pruning and search-efficiency proving experiment across 16 audited ambiguous horizons under counterfactual isolation. Dataset SHA-256: ca2bf8c3e05925bffc5c082e0c8f8884df643967042a05acd87edb0203f8b014."
+    - "Post-Execution Scientific Audit (2026-09-19): Rigorous re-examination of frozen evidence revealed three critical defects in original claims:"
+    - "1. Tooth T3 Audit (Substantive Order Sensitivity): FAILED. Presentation order reversal completely altered candidate selection (dropping the sole advancing candidate in forward order and selecting it in reverse order). The original test passed due to an erroneous disjunctive (OR) assertion. T3 failure automatically revokes Phase 2 authorization."
+    - "2. Random Comparison Audit: INCONCLUSIVE. Useful recall advantage (+5.6%) is within 0.53 std dev of exact analytical random expectation (p = 0.3503; 65th percentile). On operational horizon success, Needle achieved 56.2%, losing to exact random expectation (61.7%). Claim P1 is NOT EARNED."
+    - "3. Paired Statistical Comparison Audit: INCONCLUSIVE. The 7 vs 5 discordance over §15.1 prioritizer has exact binomial p = 0.3872 (two-sided p = 0.7744, 95% CI [-29.5%, +54.5%]). It is statistically indistinguishable from a coin flip. Claim P3 is NOT EARNED."
+    - "4. Economic & Pareto Dominance Audit: Random strictly dominates Needle on operational pruning (higher horizon success, 48.9% lower wall-clock, zero latency overhead). Needle wall-clock per success is 5,091.8 ms (higher than exhaustive at 3,183.8 ms and 2.14x higher than random). Claim P2 Meaning B FAILED."
+    - "Phase-2 Authorization Gate: REVOKED (T3 failed, P1 unearned, P3 unearned, economically dominated)."
+    - "Final Disposition: REMOVE_NEEDLE. All three EXP-N3 evidence bundles preserved as permanent developmental memory; Needle integration rolled back; native consequence-guided route discovery proceeds without learned pruner."
+  next_action: "Roll back Needle integration; preserve all experimental evidence in .agents/reports/; proceed with native consequence-guided route discovery in Gauntlet without Needle."
+
 tui_gui_redesign:
   status: in_progress
   updated: "2026-09-15"

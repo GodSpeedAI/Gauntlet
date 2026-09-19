@@ -1,0 +1,26 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_check_runner",
+  "arguments": {
+    "check_script": "scripts/check.sh",
+    "role": "builder",
+    "unit_id": "AK-9012"
+  },
+  "case_id": "demo-calculator",
+  "decision_note": "dispatch_check_runner: 'AK-9011' -> unit_id, 'AK-9012' -> unit_id, 'AK-9013' -> unit_id, 'AK-9013' -> unit_id, 'AK-9013' -> type.",
+  "depth_or_rung": "v2-8L",
+  "horizon_id": "hz_all_settled_responsible_abstention",
+  "latency_ms": 1487.49,
+  "model_id": "needle-2",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.0012,
+  "request_hash": "sha256:0e5dc97b628ebf289ae0633e8f838b403ef91c4219b360422709609d4bd3f1e1",
+  "surface_hash": "sha256:3b8dfb237731f7a4afeed12291856d0ddcd21fa970628722e6dc7cb6c4eabfda",
+  "telemetry": {
+    "decode_tps": 178.6,
+    "peak_ram_mb": 116.5,
+    "prefill_tps": 352.4,
+    "raw_type": "call"
+  }
+}

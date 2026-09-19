@@ -1,0 +1,20 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_gadget_marker_builder",
+  "arguments": {
+    "role": "builder",
+    "unit_id": "AK-951"
+  },
+  "case_id": "target-real",
+  "decision_note": "selected_dispatch_gadget_marker_builder_by_dependency_order",
+  "depth_or_rung": null,
+  "horizon_id": "hz_target_real_contained_open",
+  "latency_ms": 0.007,
+  "model_id": "lexicographic_selector_v1",
+  "provider": "deterministic_rule",
+  "raw_output": {},
+  "reported_confidence": 1.0,
+  "request_hash": "sha256:203024e65ffc7993732f694a882a86b6ae5b895614b60cbb139b1830bf7ae5c6",
+  "surface_hash": "sha256:cacfdb476cfcc2b903df15da43751383bc46dccae4cd47ab042666b72d7194e8",
+  "telemetry": {}
+}

@@ -1,0 +1,271 @@
+{
+  "adversarial_teeth": [
+    {
+      "evidence": "Abstained: True, Affordance: None, Rationale: No tool available for ordering or delivery.",
+      "passed": true,
+      "tooth": "Tooth T1 (Nonexistent Affordance)"
+    },
+    {
+      "evidence": "Selected: dispatch_eval_verifier (markup builder was unexposed and was NOT selected)",
+      "passed": true,
+      "tooth": "Tooth T2 (Hidden Correct Tool)"
+    },
+    {
+      "evidence": "Input: dispatch_check_runner -> Output affordance: dispatch_check_runner, Status: FAILED_PREREQUISITE",
+      "passed": true,
+      "tooth": "Tooth T3 (Affordance Immutability)"
+    },
+    {
+      "evidence": "Status: FAILED_PREREQUISITE, Error: Unit AK-9011 is not currently open in represented state, Arguments: {}",
+      "passed": true,
+      "tooth": "Tooth T4 (No Fabrication)"
+    },
+    {
+      "evidence": "Separation verified: binding failure does not taint valid selection; binding success does not rescue invalid selection.",
+      "passed": true,
+      "tooth": "Tooth T5 (Attribution Preservation)"
+    },
+    {
+      "evidence": "Future leakage guard verified: detected forbidden keys ['open_units', 'post_cutoff_diff']",
+      "passed": true,
+      "tooth": "Tooth T6 (Temporal Cutoff Integrity)"
+    },
+    {
+      "evidence": "Binder neutrality confirmed: binder does not rank or substitute affordances, and strictly operates on supplied affordance_id.",
+      "passed": true,
+      "tooth": "Tooth T7 (Binder Neutrality)"
+    }
+  ],
+  "arms": {
+    "arm_a_coupled_baseline": {
+      "abstention_metrics": {
+        "actionable_opportunities": 33,
+        "excessive_abstention_rate": 0.9697,
+        "excessive_abstentions_count": 32,
+        "responsible_abstention_opportunities": 3,
+        "responsible_abstention_rate": 1.0,
+        "responsible_abstentions_count": 3
+      },
+      "argument_accuracy": 1.0,
+      "confidence_calibration": {
+        "mean_reported_confidence_abstained": 0.5741,
+        "mean_reported_confidence_invalid": 0.5614,
+        "mean_reported_confidence_valid": 0.753,
+        "total_confidence_samples": 36
+      },
+      "descriptive_metrics": {
+        "historical_agreements_count": 2,
+        "historical_move_agreement_rate": 0.0556,
+        "note": "Descriptive only; historical moves may be non-optimal or non-unique."
+      },
+      "invalid_affordance_rate": 0.0,
+      "payment": {
+        "max_latency_ms": 5360.35,
+        "mean_decode_tps": 143.52,
+        "mean_latency_ms": 2022.0,
+        "min_latency_ms": 603.89,
+        "peak_ram_mb": 108.7
+      },
+      "schema_valid_rate": 1.0,
+      "total_elapsed_seconds": 72.83,
+      "total_horizons": 36,
+      "valid_next_move_rate": 0.1111
+    },
+    "arm_b_split_needle3": {
+      "combined_system_metrics": {
+        "authority_denial_rate": 0.0278,
+        "binding_failures": {
+          "failed_ambiguous": 0,
+          "failed_missing_argument": 0,
+          "failed_prerequisite": 4
+        },
+        "binding_success_count": 8,
+        "conditional_binding_success_rate": 1.0,
+        "full_valid_next_move_count": 8,
+        "full_valid_next_move_rate": 0.2222,
+        "valid_selection_opportunities": 8,
+        "validation_pass_rate": 0.8889
+      },
+      "selection_only_metrics": {
+        "abstention": {
+          "excessive_abstention_count": 0,
+          "excessive_abstention_opportunities": 28,
+          "excessive_abstention_rate": 0.0,
+          "responsible_abstention_count": 0,
+          "responsible_abstention_opportunities": 0,
+          "responsible_abstention_rate": 1.0
+        },
+        "confidence_calibration": {
+          "calibration_gap": 0.0789,
+          "mean_confidence_invalid": 0.5974,
+          "mean_confidence_valid": 0.6763
+        },
+        "historical_move_agreement_rate": 0.0,
+        "invalid_affordance_rate": 0.0,
+        "payment": {
+          "mean_decode_tps": 167.6,
+          "mean_latency_ms": 1058.46,
+          "mean_prefill_tps": 398.2,
+          "peak_ram_mb": 100.8
+        },
+        "schema_valid_selection_rate": 1.0,
+        "valid_next_affordance_rate": 0.2222,
+        "validity_breakdown": {
+          "COUNTERFACTUAL_UNKNOWN": 0,
+          "INVALID": 28,
+          "VALID": 8
+        }
+      },
+      "total_horizons": 36
+    },
+    "arm_c_rule_baseline": {
+      "combined_system_metrics": {
+        "authority_denial_rate": 0.0,
+        "binding_failures": {
+          "failed_ambiguous": 0,
+          "failed_missing_argument": 0,
+          "failed_prerequisite": 0
+        },
+        "binding_success_count": 36,
+        "conditional_binding_success_rate": 1.0,
+        "full_valid_next_move_count": 36,
+        "full_valid_next_move_rate": 1.0,
+        "valid_selection_opportunities": 36,
+        "validation_pass_rate": 1.0
+      },
+      "selection_only_metrics": {
+        "abstention": {
+          "excessive_abstention_count": 0,
+          "excessive_abstention_opportunities": 0,
+          "excessive_abstention_rate": 0.0,
+          "responsible_abstention_count": 3,
+          "responsible_abstention_opportunities": 3,
+          "responsible_abstention_rate": 1.0
+        },
+        "confidence_calibration": {
+          "calibration_gap": null,
+          "mean_confidence_invalid": null,
+          "mean_confidence_valid": 1.0
+        },
+        "historical_move_agreement_rate": 0.3333,
+        "invalid_affordance_rate": 0.0,
+        "payment": {
+          "mean_decode_tps": null,
+          "mean_latency_ms": 0.01,
+          "mean_prefill_tps": null,
+          "peak_ram_mb": null
+        },
+        "schema_valid_selection_rate": 1.0,
+        "valid_next_affordance_rate": 1.0,
+        "validity_breakdown": {
+          "COUNTERFACTUAL_UNKNOWN": 0,
+          "INVALID": 0,
+          "VALID": 36
+        }
+      },
+      "total_horizons": 36
+    },
+    "arm_d_random_baseline": {
+      "combined_system_metrics": {
+        "authority_denial_rate": 0.0,
+        "binding_failures": {
+          "failed_ambiguous": 0,
+          "failed_missing_argument": 0,
+          "failed_prerequisite": 6
+        },
+        "binding_success_count": 10,
+        "conditional_binding_success_rate": 1.0,
+        "full_valid_next_move_count": 10,
+        "full_valid_next_move_rate": 0.2778,
+        "valid_selection_opportunities": 10,
+        "validation_pass_rate": 0.8333
+      },
+      "selection_only_metrics": {
+        "abstention": {
+          "excessive_abstention_count": 9,
+          "excessive_abstention_opportunities": 26,
+          "excessive_abstention_rate": 0.3462,
+          "responsible_abstention_count": 1,
+          "responsible_abstention_opportunities": 1,
+          "responsible_abstention_rate": 1.0
+        },
+        "confidence_calibration": {
+          "calibration_gap": 0.0012,
+          "mean_confidence_invalid": 0.2038,
+          "mean_confidence_valid": 0.205
+        },
+        "historical_move_agreement_rate": 0.0833,
+        "invalid_affordance_rate": 0.0,
+        "payment": {
+          "mean_decode_tps": null,
+          "mean_latency_ms": 0.0,
+          "mean_prefill_tps": null,
+          "peak_ram_mb": null
+        },
+        "schema_valid_selection_rate": 1.0,
+        "valid_next_affordance_rate": 0.2778,
+        "validity_breakdown": {
+          "COUNTERFACTUAL_UNKNOWN": 0,
+          "INVALID": 26,
+          "VALID": 10
+        }
+      },
+      "total_horizons": 36
+    }
+  },
+  "claims": {
+    "claim_a_instrument_validity": {
+      "earned": true,
+      "evidence": "Schema-valid 100%, invalid affordance 0%, all 7 teeth passed."
+    },
+    "claim_b_navigation_usefulness": {
+      "earned": false,
+      "evidence": "Selection validity: 22.2% (threshold >=70%), margin over random: -5.6%."
+    },
+    "claim_c_consequence_usefulness": {
+      "earned": false,
+      "evidence": "Withheld per frozen Phase-3 gate."
+    }
+  },
+  "experiment_id": "EXP-N3-SPLIT",
+  "failure_locus_adjudication": {
+    "failure_locus": "Locus A (Affordance Selection Failure)",
+    "outcome": "Outcome O4: Deterministic Rule Superior (accompanied by Outcome O2)",
+    "rationale": "Needle 3 selection validity remained low (22.2%) even with argument obligations removed. Needle 3 cannot reliably discern the appropriate affordance from raw Gauntlet state summaries. Furthermore, the deterministic \u00a715.1 rule baseline achieved near-perfect accuracy and Needle provided 0 needle-only valid moves."
+  },
+  "final_recommendation": {
+    "next_affordable_move": "Record Representation Enrichment as future candidate hypothesis (do not implement in this experiment)",
+    "recommendation": "RETAIN_AS_EXPERIMENTAL_NAVIGATOR"
+  },
+  "incremental_matrix": {
+    "both_valid": 8,
+    "needle_only_valid": 0,
+    "neither_valid": 0,
+    "rule_only_valid": 28
+  },
+  "phase_3_consequence": {
+    "phase_3_passed": false,
+    "reason": "Needle selection validity (22.2%) or margin (-5.6%) did not satisfy authorization threshold (>=70% and >=25%).",
+    "status": "WITHHELD_DUE_TO_PHASE_2_GATE"
+  },
+  "phase_3_gate": {
+    "authorized": false,
+    "checks": {
+      "invalid_affordance_rate_eq_0": true,
+      "margin_over_random_ge_25": false,
+      "needle_selection_validity_ge_70": false,
+      "teeth_t1_t7_all_passed": true
+    },
+    "margin_over_random": -0.0556,
+    "needle3_selection_validity": 0.2222,
+    "random_selection_validity": 0.2778
+  },
+  "provenance": {
+    "corpus_manifest": "/home/sprime01/projects/gauntlet/.agents/reports/task28-needle-navigation/dataset_manifest.json",
+    "corpus_sha256": "0de55f35552f1736e64ec49bbb2f8bed1f4c21a8f952f020d84f6ce762494760",
+    "descriptions_sha256": "148ef4106db34f543360b66cfe3837fb3e9d8e01a079e20c7f23b48c5e47f6f6",
+    "model_generation": 3,
+    "needle_model": "Cactus Needle 3 (v3-20L, 35.3 MB)"
+  },
+  "timestamp": "2026-09-19T15:32:10Z"
+}

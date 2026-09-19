@@ -65,14 +65,6 @@
 				"skills": 715
 			}
 		},
-		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/ce946ac4-8df1-4885-8229-53ea1fc4ed89.jsonl": {
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/ce946ac4-8df1-4885-8229-53ea1fc4ed89.jsonl",
-			"lineNumber": 1449,
-			"updatedAt": "2026-09-08T23:41:55.110Z",
-			"extractors": {
-				"skills": 1449
-			}
-		},
 		"/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-57-01a0824c-5a07-7123-a9bb-597bfc24ea26.jsonl": {
 			"transcriptPath": "/home/sprime01/.codex/sessions/2026/09/08/rollout-2026-09-08T14-33-57-01a0824c-5a07-7123-a9bb-597bfc24ea26.jsonl",
 			"lineNumber": 837,
@@ -97,12 +89,12 @@
 				"skills": 17
 			}
 		},
-		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/1be20ded-4f20-4faf-b358-feee6f6a94e6.jsonl": {
-			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/1be20ded-4f20-4faf-b358-feee6f6a94e6.jsonl",
-			"lineNumber": 5479,
-			"updatedAt": "2026-09-10T21:10:17.406Z",
+		"/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/12897618-3886-41c8-9266-a3477e8b2734.jsonl": {
+			"transcriptPath": "/home/sprime01/.claude/projects/-home-sprime01-projects-gauntlet/12897618-3886-41c8-9266-a3477e8b2734.jsonl",
+			"lineNumber": 8679,
+			"updatedAt": "2026-09-14T21:25:28.536Z",
 			"extractors": {
-				"skills": 5479
+				"skills": 8679
 			}
 		}
 	}

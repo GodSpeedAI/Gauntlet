@@ -1,0 +1,20 @@
+{
+  "abstained": false,
+  "affordance_id": "dispatch_local_check_critic",
+  "arguments": {
+    "role": "critic",
+    "unit_id": "AK-954"
+  },
+  "case_id": "target-real",
+  "decision_note": "random_selection",
+  "depth_or_rung": null,
+  "horizon_id": "hz_target_real_irreversible_human",
+  "latency_ms": 0.002,
+  "model_id": "uniform_random",
+  "provider": "random",
+  "raw_output": {},
+  "reported_confidence": 0.2,
+  "request_hash": "sha256:2540d3a0d7a71ed834c2bb4cf0de869b9d3ae35f218b635ebea6cd7b810f3b25",
+  "surface_hash": "sha256:cacfdb476cfcc2b903df15da43751383bc46dccae4cd47ab042666b72d7194e8",
+  "telemetry": {}
+}

@@ -1,0 +1,34 @@
+{
+  "candidate_schemas": [
+    "dispatch_markup_builder",
+    "dispatch_check_runner",
+    "dispatch_eval_verifier",
+    "escalate_to_operator"
+  ],
+  "case_id": "demo-calculator",
+  "evaluation": {
+    "authority_admitted": true,
+    "binding_arguments": {
+      "role": "builder",
+      "target_file": "calculator.html",
+      "unit_id": "AK-9011"
+    },
+    "binding_error": null,
+    "binding_status": "SUCCESS",
+    "full_valid_next_move": true,
+    "historical_move_agreement": false,
+    "selection_validity": "VALID",
+    "validation_passed": true
+  },
+  "horizon_id": "hz_demo-calculator.refu_it1_seq1",
+  "selection": {
+    "abstained": false,
+    "affordance_id": "dispatch_markup_builder",
+    "latency_ms": 0.001,
+    "model_id": "uniform_random",
+    "rationale": "random_selection",
+    "reported_confidence": 0.2,
+    "telemetry": {}
+  },
+  "state_summary": "Case: demo-calculator. Iteration 1. Current unit states: [['AK-9011', 'open'], ['AK-9012', 'open'], ['AK-9013', 'open']]. Target goal: Build and verify calculator.html with digit/operator markup and passing checks."
+}

@@ -1,0 +1,38 @@
+{
+  "candidate_schemas": [
+    "dispatch_markup_builder",
+    "dispatch_check_runner",
+    "dispatch_eval_verifier",
+    "escalate_to_operator"
+  ],
+  "case_id": "demo-calculator",
+  "evaluation": {
+    "authority_admitted": true,
+    "binding_arguments": {
+      "role": "critic",
+      "unit_id": "AK-9013"
+    },
+    "binding_error": null,
+    "binding_status": "SUCCESS",
+    "full_valid_next_move": true,
+    "historical_move_agreement": false,
+    "selection_validity": "VALID",
+    "validation_passed": true
+  },
+  "horizon_id": "hz_demo-calculator.sett_it2_seq2",
+  "selection": {
+    "abstained": false,
+    "affordance_id": "dispatch_eval_verifier",
+    "latency_ms": 621.25,
+    "model_id": "needle-3",
+    "rationale": "'Case: demo-calculator.' -> dispatch_eval_verifier. 'Current unit states: [['AK-9011','settled','open'], ['AK-9013','open']]. Target goal: B",
+    "reported_confidence": 0.5106,
+    "telemetry": {
+      "decode_tps": 240.4,
+      "peak_ram_mb": 100.8,
+      "prefill_tps": 556.5,
+      "raw_type": "call"
+    }
+  },
+  "state_summary": "Case: demo-calculator. Iteration 2. Current unit states: [['AK-9011', 'settled'], ['AK-9012', 'open'], ['AK-9013', 'open']]. Target goal: Build and verify calculator.html with digit/operator markup and passing checks."
+}

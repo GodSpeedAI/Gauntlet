@@ -1,0 +1,22 @@
+{
+  "abstained": true,
+  "affordance_id": null,
+  "arguments": {},
+  "case_id": "target-real",
+  "decision_note": "dispatch_gadget_marker_builder: 'declare GADGET_MARKER_REAL_V1 in gadget source (contained tier)' -> role 'declare', unit_id 'AK-951', requi",
+  "depth_or_rung": "v3-20L",
+  "horizon_id": "hz_target_real_contained_open",
+  "latency_ms": 1657.53,
+  "model_id": "needle-3",
+  "provider": "needle",
+  "raw_output": {},
+  "reported_confidence": 0.7491,
+  "request_hash": "sha256:203024e65ffc7993732f694a882a86b6ae5b895614b60cbb139b1830bf7ae5c6",
+  "surface_hash": "sha256:cacfdb476cfcc2b903df15da43751383bc46dccae4cd47ab042666b72d7194e8",
+  "telemetry": {
+    "decode_tps": 200.4,
+    "peak_ram_mb": 108.7,
+    "prefill_tps": 467.7,
+    "raw_type": "call"
+  }
+}

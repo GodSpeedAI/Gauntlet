@@ -1,0 +1,38 @@
+{
+  "candidate_schemas": [
+    "dispatch_gadget_marker_builder",
+    "dispatch_lead_agent_check",
+    "dispatch_local_check_critic",
+    "request_human_release_destroy"
+  ],
+  "case_id": "target-real",
+  "evaluation": {
+    "authority_admitted": true,
+    "binding_arguments": {
+      "role": "lead_agent",
+      "unit_id": "AK-952"
+    },
+    "binding_error": null,
+    "binding_status": "SUCCESS",
+    "full_valid_next_move": true,
+    "historical_move_agreement": false,
+    "selection_validity": "VALID",
+    "validation_passed": true
+  },
+  "horizon_id": "hz_target_real_crosscutting_admitted",
+  "selection": {
+    "abstained": false,
+    "affordance_id": "dispatch_lead_agent_check",
+    "latency_ms": 724.74,
+    "model_id": "needle-3",
+    "rationale": "Query asks to dispatch a critical check with explicitly stated 'Live containment requirement' -> call dispatch_lead_agent_check with no argu",
+    "reported_confidence": 0.9929,
+    "telemetry": {
+      "decode_tps": 214.9,
+      "peak_ram_mb": 100.8,
+      "prefill_tps": 258.0,
+      "raw_type": "call"
+    }
+  },
+  "state_summary": "Case: target-real. Admitted Authority Tier: cross_cutting. Current unit states: [['AK-951', 'settled'], ['AK-952', 'open'], ['AK-954', 'open'], ['AK-953', 'open']]. Goal: Run real check command under live containment requiring lead_agent (AK-952)."
+}

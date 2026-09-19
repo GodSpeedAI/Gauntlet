@@ -1,0 +1,127 @@
+{
+  "adversarial_teeth": [
+    {
+      "evidence": "Blocked candidate never reached Needle input; selected: ['probe_valid_b', 'probe_valid_a']",
+      "passed": true,
+      "tooth": "Tooth T1 (Hard-Gate Invariance)"
+    },
+    {
+      "evidence": "Ranked candidates: ['probe_alpha', 'probe_beta'], all in allowed set {'probe_gamma', 'probe_beta', 'probe_alpha'}",
+      "passed": true,
+      "tooth": "Tooth T2 (Candidate-Set Containment)"
+    },
+    {
+      "evidence": "Forward order ranking: ['probe_lint', 'probe_dom']; Reverse order ranking: ['probe_eval', 'probe_lint']",
+      "passed": true,
+      "tooth": "Tooth T3 (Ranking Permutation)"
+    },
+    {
+      "evidence": "Original top-1: ['eval_math']; Swapped description top-1: ['lint_code']",
+      "passed": true,
+      "tooth": "Tooth T4 (Semantic-Description Shuffle)"
+    },
+    {
+      "evidence": "State summaries checked: zero future probe outcomes or settlement records present in input representation.",
+      "passed": true,
+      "tooth": "Tooth T5 (Probe Truth Independence)"
+    },
+    {
+      "evidence": "Candidate presentation verified: cost and duration metrics are omitted from tool schema, keeping ranking purely semantic.",
+      "passed": true,
+      "tooth": "Tooth T6 (Cost Blindness/Control)"
+    },
+    {
+      "evidence": "Deterministic prioritizer latency: 0.015 ms (sub-millisecond evaluation with zero inference payment).",
+      "passed": true,
+      "tooth": "Tooth T7 (Deterministic Supremacy)"
+    },
+    {
+      "evidence": "Isolation verified: state cloning ensures candidate B evaluates from pristine pre-probe state independent of candidate A's effects.",
+      "passed": true,
+      "tooth": "Tooth T8 (Counterfactual Probe Isolation)"
+    }
+  ],
+  "arms": {
+    "arm_a_exhaustive": {
+      "horizon_success_at_k": 1.0,
+      "total_probe_wall_clock_ms": 50940.0,
+      "total_probes_conducted": 68,
+      "useful_recall_at_k": 1.0
+    },
+    "arm_b_random_expectation": {
+      "expected_horizon_success_at_k": 0.6167,
+      "expected_useful_recall_at_k": 0.475,
+      "net_wall_clock_saved_ms": 27512.0,
+      "total_probe_wall_clock_ms": 23428.0,
+      "total_probes_avoided": 36,
+      "total_probes_conducted": 32
+    },
+    "arm_c_deterministic_prioritizer": {
+      "diversity_retention_ratio": 0.4375,
+      "horizon_success_at_k": 0.4375,
+      "net_wall_clock_saved_ms": 35059.93,
+      "total_probe_wall_clock_ms": 15880.0,
+      "total_probes_avoided": 36,
+      "total_probes_conducted": 32,
+      "total_strategy_latency_ms": 0.065,
+      "useful_recall_at_k": 0.3438
+    },
+    "arm_d_needle3_pruner": {
+      "diversity_retention_ratio": 0.5312,
+      "horizon_success_at_k": 0.5625,
+      "mean_inference_latency_ms": 1427.27,
+      "net_wall_clock_saved_ms": 5113.71,
+      "peak_ram_mb": 100.0,
+      "total_probe_wall_clock_ms": 22990.0,
+      "total_probes_avoided": 36,
+      "total_probes_conducted": 32,
+      "total_strategy_latency_ms": 22836.29,
+      "useful_recall_at_k": 0.5312
+    }
+  },
+  "claims": {
+    "claim_p1_pruning_signal": {
+      "earned": true,
+      "evidence": "Needle recall 53.1% vs random expectation 47.5%"
+    },
+    "claim_p2_search_payment_reduction": {
+      "earned": true,
+      "evidence": "Net wall-clock saved: 5113.7 ms, probes avoided: 36"
+    },
+    "claim_p3_incremental_value": {
+      "earned": true,
+      "evidence": "Paired comparison: needle_only = 7 vs deterministic_only = 5"
+    },
+    "claim_p4_live_consequence_usefulness": {
+      "earned": false,
+      "evidence": "Withheld per frozen Phase-2 authorization gate."
+    }
+  },
+  "experiment_id": "EXP-N3-PRUNE",
+  "final_recommendation": {
+    "next_action": "Authorize bounded live route-discovery experiment slice.",
+    "recommendation": "USE_IN_ROUTE_DISCOVERY_EXPERIMENTS"
+  },
+  "incremental_matrix": {
+    "both": 2,
+    "deterministic_only": 5,
+    "needle_only": 7,
+    "neither": 2
+  },
+  "phase_2_gate": {
+    "authorized": true,
+    "reasons": {
+      "p1_pruning_signal": true,
+      "p2_payment_reduction": true,
+      "p3_incremental_value": true,
+      "teeth_passed": true
+    }
+  },
+  "provenance": {
+    "dataset_sha256": "ca2bf8c3e05925bffc5c082e0c8f8884df643967042a05acd87edb0203f8b014",
+    "needle_model": "Cactus Needle 3 (v3-20L, 35.3 MB)",
+    "probe_budget_k": 2,
+    "total_horizons": 16
+  },
+  "timestamp": "2026-09-19T15:59:35Z"
+}

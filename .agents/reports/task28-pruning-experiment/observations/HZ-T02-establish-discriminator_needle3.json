@@ -1,0 +1,65 @@
+{
+  "candidates": [
+    {
+      "affordance_id": "probe_t21_lying_max8",
+      "consequence": "ADVANCES",
+      "description": "Execute discriminator probe on e2e-lying scenario with standard budget max_rounds=8.",
+      "probe_wall_clock_ms": 1250.0
+    },
+    {
+      "affordance_id": "probe_t21_lying_max5",
+      "consequence": "COSTLY_ADVANCE",
+      "description": "Execute discriminator probe on e2e-lying scenario with intermediate budget max_rounds=5.",
+      "probe_wall_clock_ms": 1220.0
+    },
+    {
+      "affordance_id": "probe_t21_happy_max8",
+      "consequence": "REDUNDANT",
+      "description": "Execute baseline probe on e2e-happy scenario with standard budget max_rounds=8.",
+      "probe_wall_clock_ms": 1200.0
+    },
+    {
+      "affordance_id": "probe_t21_happy_max2",
+      "consequence": "DEAD_END",
+      "description": "Execute fast probe on e2e-happy scenario with minimal budget max_rounds=2.",
+      "probe_wall_clock_ms": 450.0
+    },
+    {
+      "affordance_id": "probe_t21_forged_max8",
+      "consequence": "REDUNDANT",
+      "description": "Execute forgery check probe on e2e-forged-report scenario with max_rounds=8.",
+      "probe_wall_clock_ms": 1100.0
+    }
+  ],
+  "evaluation": {
+    "horizon_success_at_k": false,
+    "net_wall_clock_saved_ms": 1443.78,
+    "probe_wall_clock_avoided_ms": 3570.0,
+    "probes_avoided": 3,
+    "retained_advances_count": 0,
+    "selected_ids": [
+      "probe_t21_happy_max8",
+      "probe_t21_happy_max2"
+    ],
+    "useful_recall_at_k": 0.0
+  },
+  "family": "native_route_discovery",
+  "horizon_id": "HZ-T02-establish-discriminator",
+  "ranking": {
+    "abstained": false,
+    "ranked_candidate_ids": [
+      "probe_t21_happy_max8",
+      "probe_t21_happy_max2"
+    ],
+    "reported_confidence": 0.6317,
+    "strategy_latency_ms": 2126.22,
+    "telemetry": {
+      "decode_tps": 140.0,
+      "function_calls_count": 1,
+      "peak_ram_mb": 100.0,
+      "prefill_tps": 265.5,
+      "step2_used": true
+    }
+  },
+  "state_summary": "Baseline settled_accepted probe is established on route. Next unmet goal: prove discriminator fails verification. Catalog operations survive hard gates."
+}
