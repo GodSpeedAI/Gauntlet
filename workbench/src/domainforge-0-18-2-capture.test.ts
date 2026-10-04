@@ -7,6 +7,7 @@ import {
 } from "./domainforge-adapter";
 
 /**
+ * HISTORICAL FIXTURE (0.18.2); the current capture is domainforge-0-19-0-capture.test.ts.
  * DomainForge 0.18.2 convergence proof. REAL capture of
  * `domainforge envelope domainforge-core/tests/fixtures/envelope/valid-basic.sea`
  * from release 0.18.2 (same source as the historical 0.16.0 capture in

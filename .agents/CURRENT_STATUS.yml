@@ -1617,10 +1617,10 @@ domainforge_convergence:
   status: settled
   updated: "2026-10-04"
   scope: >-
-    Gauntlet consumes DomainForge only through captured envelope documents and the sxr CLI
+    Re-verified 2026-10-04 on DomainForge 0.19.0: the same source still has semantic_closure_hash 1a1b7053... across 0.16.0, 0.18.2 and 0.19.0. Gauntlet consumes DomainForge only through captured envelope documents and the sxr CLI
     (no direct process spawn). Verified identity is stable across 0.16.0 -> 0.18.2 for the
     same source: semantic_closure_hash identical; only producer.version and self_hash differ.
   historical_fixtures: "workbench/src/domainforge-adapter.test.ts (0.16.0 capture, marked historical)"
-  new_capture: "workbench/src/domainforge-0-18-2-capture.test.ts"
+  new_capture: "workbench/src/domainforge-0-19-0-capture.test.ts (0.19.0; the 0.18.2 capture is now historical)"
   verification: "bun test 1026 pass / 0 fail; bun run check clean; biome clean on touched files"
   debt: "none from this change. Baseline lint errors (4 format, 1 import order, 1 unused import in cell-fit.test.ts, preview-grid.test.ts, preview.ts, shell-trace.test.ts) are fixed, so bun run lint exits 0; 613 informational biome notes (useLiteralKeys) remain and do not fail the gate."
