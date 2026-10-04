@@ -344,7 +344,7 @@ function renderCompactLayout(state: PreviewState): string {
     for (let i = 0; i < 14; i++) {
       if (i < escalated.length) {
         const t = escalated[i];
-          lines.push(`│   • Ticket: ${clipCell(String(t), PREVIEW_COMPACT_COLUMNS.ticket)} │`);
+        lines.push(`│   • Ticket: ${clipCell(String(t), PREVIEW_COMPACT_COLUMNS.ticket)} │`);
       } else {
         lines.push("│                                                                        │");
       }
@@ -354,9 +354,15 @@ function renderCompactLayout(state: PreviewState): string {
     lines.push("│ UNIT DETAILS:                                                          │");
     if (focusedUnit) {
       const st = formatStatus(focusedUnit.status);
-        lines.push(`│ Unit ID:      ${clipCell(focusedUnit.unit_id, PREVIEW_COMPACT_COLUMNS.fieldId)} │`);
-        lines.push(`│ Status:       ${st.glyph} ${clipCell(st.label, PREVIEW_COMPACT_COLUMNS.fieldStatus)} │`);
-        lines.push(`│ Tier:         ${clipCell(focusedUnit.tier ?? "default", PREVIEW_COMPACT_COLUMNS.fieldId)} │`);
+      lines.push(
+        `│ Unit ID:      ${clipCell(focusedUnit.unit_id, PREVIEW_COMPACT_COLUMNS.fieldId)} │`,
+      );
+      lines.push(
+        `│ Status:       ${st.glyph} ${clipCell(st.label, PREVIEW_COMPACT_COLUMNS.fieldStatus)} │`,
+      );
+      lines.push(
+        `│ Tier:         ${clipCell(focusedUnit.tier ?? "default", PREVIEW_COMPACT_COLUMNS.fieldId)} │`,
+      );
       lines.push("│ Evidence:     (metadata preview mode)                                  │");
       lines.push("│ Explanation:  unavailable (T01 read contract required)                 │");
     } else {

@@ -1623,4 +1623,4 @@ domainforge_convergence:
   historical_fixtures: "workbench/src/domainforge-adapter.test.ts (0.16.0 capture, marked historical)"
   new_capture: "workbench/src/domainforge-0-18-2-capture.test.ts"
   verification: "bun test 1026 pass / 0 fail; bun run check clean; biome clean on touched files"
-  debt: "bun run lint fails at baseline on untouched files (useLiteralKeys in action-control.test.ts and others); not changed here"
+  debt: "none from this change. Baseline lint errors (4 format, 1 import order, 1 unused import in cell-fit.test.ts, preview-grid.test.ts, preview.ts, shell-trace.test.ts) are fixed, so bun run lint exits 0; 613 informational biome notes (useLiteralKeys) remain and do not fail the gate."
