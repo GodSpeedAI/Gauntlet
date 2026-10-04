@@ -1612,3 +1612,15 @@ handoff:
     - "NEVER let a confirmation round be static-only. Task 14 is the decisive case: a spec critic that independently re-ran TEN gates and mutation-verified FOUR teeth legs returned CONFIRM on a tree that then failed FOUR successive EXECUTING falsifier rounds on THREE MAJOR containment defects - one of which let a sandboxed process overwrite a host file the policy declared denied, while validation reported CLEAN. Each round found a different DIMENSION (filesystem mask ordering, path resolution, type forgeability, a rename-based bypass, process-namespace escape); re-running one attacker would not have found them."
     - "Falsifier probe hygiene is load-bearing: a transient .gauntlet/policies/irreversible.json probe was captured into git history by an operator commit taken mid-round, which made `just doctor` exit 1 on main. Any agent planting files under .gauntlet/policies/ must remove every one and `ls` the directory to prove it."
     - "One task, one commit discipline: use explicit pathspecs, never stage .jolli/, .tmp/, .agents/prompts/, .agents/agents/ (operator charters), or operator edits (.agents/AGENTS.md, .agents/CURRENT_STATUS*, .agents/research/AGENT.md, prereg-postrun-schema.md, TEMPLATE.prereg.yaml, escalations.md, lessons files)."
+
+domainforge_convergence:
+  status: settled
+  updated: "2026-10-04"
+  scope: >-
+    Gauntlet consumes DomainForge only through captured envelope documents and the sxr CLI
+    (no direct process spawn). Verified identity is stable across 0.16.0 -> 0.18.2 for the
+    same source: semantic_closure_hash identical; only producer.version and self_hash differ.
+  historical_fixtures: "workbench/src/domainforge-adapter.test.ts (0.16.0 capture, marked historical)"
+  new_capture: "workbench/src/domainforge-0-18-2-capture.test.ts"
+  verification: "bun test 1026 pass / 0 fail; bun run check clean; biome clean on touched files"
+  debt: "bun run lint fails at baseline on untouched files (useLiteralKeys in action-control.test.ts and others); not changed here"

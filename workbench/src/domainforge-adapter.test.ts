@@ -30,6 +30,8 @@ import type { ProjectionWorld } from "./relations";
  * from the same capture. Deterministic: no process spawn, no clock, no rng.
  */
 
+// HISTORICAL FIXTURE (0.16.0): kept to prove compatibility with the earlier producer; the
+// 0.18.2 capture lives in domainforge-0-18-2-capture.test.ts.
 // REAL capture: `domainforge envelope domainforge-core/tests/fixtures/envelope/valid-basic.sea`
 // (release build 0.16.0, binary sha256 48a4ed25…), byte-identical across runs.
 const REAL_DOCUMENT_JSON =
