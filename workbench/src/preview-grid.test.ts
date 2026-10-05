@@ -1,9 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  clipCell,
-  PREVIEW_COMPACT_COLUMNS,
-  PREVIEW_FULL_COLUMNS,
-} from "./geometry";
+import { clipCell, PREVIEW_COMPACT_COLUMNS, PREVIEW_FULL_COLUMNS } from "./geometry";
 
 describe("preview grid extraction (single layout truth)", () => {
   it("clipCell pads short cells and truncates long ones like the legacy inline code", () => {

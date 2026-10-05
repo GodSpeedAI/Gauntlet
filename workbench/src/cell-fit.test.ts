@@ -1,10 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { createTestRenderer } from "@opentui/core/testing";
-import {
-  cellWidth,
-  fitCellText,
-  sanitizeCellText,
-} from "./geometry";
+import { FocusRef } from "./focus";
+import { cellWidth, fitCellText, sanitizeCellText } from "./geometry";
 import { TerminalShellRenderer } from "./terminal-renderer";
 import {
   FULL_DIMS,
@@ -13,7 +10,6 @@ import {
   seededModel,
   unitEvent,
 } from "./testing/shell-harness";
-import { FocusRef } from "./focus";
 
 /** ESC as code, so no raw escape byte ever lives in test sources. */
 const ESC = String.fromCharCode(27);
