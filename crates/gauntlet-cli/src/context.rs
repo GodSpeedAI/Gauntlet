@@ -134,26 +134,49 @@ pub fn measure_runner(token: &str) -> Option<gauntlet_app::doctor::checks::Runne
 
     if token == recursive_runner::RUNNER_TOKEN {
         let config = recursive_runner::PrimeAdapterConfig::default();
-        let range = recursive_runner::VersionRange {
-            min: gauntlet_app::config::defaults::HARNESS_VERSION_MIN,
-            limit: gauntlet_app::config::defaults::HARNESS_VERSION_LIMIT,
+        let probe_config = recursive_runner::CapabilityProbeConfig::discover(&config.binary);
+        let report = recursive_runner::probe_capabilities(&probe_config, doctor_bound());
+
+        // Build note from findings and version metadata when not sufficient
+        let note = if report.is_sufficient() {
+            let dialect_label = report
+                .spawn_dialect
+                .map(|d| d.label())
+                .unwrap_or("unknown");
+            if let Some((major, minor, patch)) = report.version {
+                Some(format!(
+                    "capability probe ok; dialect {dialect_label}; version metadata {major}.{minor}.{patch} (informational)"
+                ))
+            } else {
+                Some(format!("capability probe ok; dialect {dialect_label}"))
+            }
+        } else {
+            let findings_text = report
+                .findings
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+            let version_text = report
+                .version
+                .map(|(major, minor, patch)| {
+                    format!("version metadata: {major}.{minor}.{patch}")
+                })
+                .unwrap_or_default();
+            let parts: Vec<String> = [findings_text, version_text]
+                .iter()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+            Some(parts.join("; "))
         };
-        return Some(
-            match recursive_runner::probe(&config.binary, &range, doctor_bound()) {
-                Ok(_) => gauntlet_app::doctor::checks::RunnerDescriptor {
-                    token: token.to_owned(),
-                    kind: gauntlet_app::doctor::checks::RunnerProbeKind::VersionRange,
-                    measured: true,
-                    note: None,
-                },
-                Err(error) => gauntlet_app::doctor::checks::RunnerDescriptor {
-                    token: token.to_owned(),
-                    kind: gauntlet_app::doctor::checks::RunnerProbeKind::VersionRange,
-                    measured: false,
-                    note: Some(error.to_string()),
-                },
-            },
-        );
+
+        return Some(gauntlet_app::doctor::checks::RunnerDescriptor {
+            token: token.to_owned(),
+            kind: gauntlet_app::doctor::checks::RunnerProbeKind::Capability,
+            measured: report.is_sufficient(),
+            note,
+        });
     }
     if token == generic_cli_runner::RUNNER_TOKEN {
         // The configuration probe (plan Task 16; RES-D6): the typed
