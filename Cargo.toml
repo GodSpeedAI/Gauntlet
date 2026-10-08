@@ -21,8 +21,10 @@ members = [
     "crates/adapters/gauntlet-adapter-agent-cli",
     "crates/adapters/gauntlet-adapter-agent-tty",
     "crates/adapters/gauntlet-adapter-state-sqlite",
-    "crates/adapters/gauntlet-adapter-state-postgres",
+    "crates/adapters/gauntlet-adapter-evidence-fs",
     "crates/adapters/gauntlet-adapter-workspace-fs",
+    "crates/adapters/gauntlet-adapter-escalation-fs",
+    "crates/adapters/gauntlet-adapter-id-entropy",
     "crates/adapters/gauntlet-adapter-meter-memory",
     "crates/adapters/gauntlet-adapter-observe-filesystem",
     "crates/adapters/gauntlet-adapter-observe-git",
@@ -34,6 +36,7 @@ members = [
     "crates/adapters/gauntlet-adapter-policy-fs",
     "crates/adapters/gauntlet-adapter-sandbox-bwrap",
     "crates/adapters/gauntlet-adapter-sandbox-none",
+    "crates/adapters/gauntlet-adapter-verify-command-exit-code",
     "crates/adapters/gauntlet-adapter-verify-test-report",
     "crates/adapters/gauntlet-adapter-verify-file-digest",
     "crates/adapters/gauntlet-adapter-verify-schema-check",
@@ -61,8 +64,10 @@ gauntlet-adapter-agent-cli = { path = "crates/adapters/gauntlet-adapter-agent-cl
 gauntlet-adapter-agent-tty = { path = "crates/adapters/gauntlet-adapter-agent-tty" }
 gauntlet-adapter-harness-catalog = { path = "crates/adapters/gauntlet-adapter-harness-catalog" }
 gauntlet-adapter-state-sqlite = { path = "crates/adapters/gauntlet-adapter-state-sqlite" }
-gauntlet-adapter-state-postgres = { path = "crates/adapters/gauntlet-adapter-state-postgres" }
+gauntlet-adapter-evidence-fs = { path = "crates/adapters/gauntlet-adapter-evidence-fs" }
 gauntlet-adapter-workspace-fs = { path = "crates/adapters/gauntlet-adapter-workspace-fs" }
+gauntlet-adapter-escalation-fs = { path = "crates/adapters/gauntlet-adapter-escalation-fs" }
+gauntlet-adapter-id-entropy = { path = "crates/adapters/gauntlet-adapter-id-entropy" }
 gauntlet-adapter-meter-memory = { path = "crates/adapters/gauntlet-adapter-meter-memory" }
 gauntlet-adapter-observe-filesystem = { path = "crates/adapters/gauntlet-adapter-observe-filesystem" }
 gauntlet-adapter-observe-git = { path = "crates/adapters/gauntlet-adapter-observe-git" }
@@ -70,6 +75,7 @@ gauntlet-adapter-observe-build = { path = "crates/adapters/gauntlet-adapter-obse
 gauntlet-adapter-observe-test = { path = "crates/adapters/gauntlet-adapter-observe-test" }
 gauntlet-adapter-observe-command = { path = "crates/adapters/gauntlet-adapter-observe-command" }
 gauntlet-adapter-compare-diff = { path = "crates/adapters/gauntlet-adapter-compare-diff" }
+gauntlet-adapter-verify-command-exit-code = { path = "crates/adapters/gauntlet-adapter-verify-command-exit-code" }
 gauntlet-adapter-verify-test-report = { path = "crates/adapters/gauntlet-adapter-verify-test-report" }
 gauntlet-adapter-verify-file-digest = { path = "crates/adapters/gauntlet-adapter-verify-file-digest" }
 gauntlet-adapter-verify-schema-check = { path = "crates/adapters/gauntlet-adapter-verify-schema-check" }
