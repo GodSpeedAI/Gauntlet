@@ -1,0 +1,33 @@
+schema = 1
+id = "droid"
+label = "Droid"
+executables = ['droid']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["src/detect/mod.rs:140", "src/agent_resume.rs:220-222", "src/detect/manifests/droid.toml"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "id"
+resume_argv = [ '--resume', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "droid"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0

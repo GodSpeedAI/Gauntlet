@@ -1,0 +1,33 @@
+schema = 1
+id = "letta"
+label = "Letta"
+executables = ['letta', 'letta-code']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["src/detect/mod.rs:147", "src/agent_resume.rs:290-309", "src/detect/manifests/letta.toml"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "id"
+resume_argv = [ '--conversation', 'default', '--agent', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "letta"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0

@@ -1,0 +1,33 @@
+schema = 1
+id = "antigravity"
+label = "Antigravity CLI"
+executables = ['agy', 'antigravity', 'antigravity-cli']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["src/detect/mod.rs:207", "src/detect/manifests/antigravity.toml"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "id"
+resume_argv = [ '--conversation', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "antigravity"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0

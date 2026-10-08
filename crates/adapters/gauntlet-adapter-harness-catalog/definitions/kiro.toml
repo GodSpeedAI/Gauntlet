@@ -1,0 +1,32 @@
+schema = 1
+id = "kiro"
+label = "Kiro"
+executables = ['kiro', 'kiro-cli']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["src/detect/mod.rs:139", "src/detect/manifests/kiro.toml"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "none"
+
+[lifecycle]
+source = "screen"
+detection_manifest = "kiro"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = false
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0

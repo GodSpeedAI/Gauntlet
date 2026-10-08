@@ -1,0 +1,33 @@
+schema = 1
+id = "kilo"
+label = "Kilo"
+executables = ['kilo', 'kilo-code']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["src/detect/mod.rs:144", "src/agent_resume.rs:265-267", "src/detect/manifests/kilo.toml"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "id"
+resume_argv = [ '--session', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "kilo"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0

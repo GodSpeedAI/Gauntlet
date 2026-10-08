@@ -1,0 +1,33 @@
+schema = 1
+id = "claude"
+label = "Claude Code"
+executables = ['claude', 'claude-code']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["src/detect/mod.rs:127", "src/agent_resume.rs:204-210", "src/detect/manifests/claude.toml"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "id"
+resume_argv = [ '--resume', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "claude"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0
