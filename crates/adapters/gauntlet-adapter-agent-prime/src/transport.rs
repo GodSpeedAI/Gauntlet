@@ -1455,14 +1455,17 @@ sys.exit(0)
     /// hand-rolled stand-in.
     fn rpc_submission(dir: &Path) -> KernelSubmission {
         let handle_path = dir.join("result.handle");
-        let program = crate::program::render(&crate::program::KernelProgramSpec {
-            envelope_path: dir.join("envelope.json").to_string_lossy().into_owned(),
-            child_input_path: dir.join("child-input.json").to_string_lossy().into_owned(),
-            handle_path: handle_path.to_string_lossy().into_owned(),
-            invocation_name: "fake-invocation".to_owned(),
-            role_prompt: "do the fake work".to_owned(),
-            model_hint: None,
-        });
+        let program = crate::program::render(
+            &crate::program::KernelProgramSpec {
+                envelope_path: dir.join("envelope.json").to_string_lossy().into_owned(),
+                child_input_path: dir.join("child-input.json").to_string_lossy().into_owned(),
+                handle_path: handle_path.to_string_lossy().into_owned(),
+                invocation_name: "fake-invocation".to_owned(),
+                role_prompt: "do the fake work".to_owned(),
+                model_hint: None,
+            },
+            crate::config::SpawnDialect::Spawn09,
+        );
         KernelSubmission {
             program,
             handle_path,

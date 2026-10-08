@@ -27,6 +27,36 @@
 
 use std::path::PathBuf;
 
+/// The Python child-spawn call dialect: version-gated support for prime-agent
+/// harness evolution. Callable08 uses `await rlm(...)` (0.8 style); Spawn09
+/// uses `await rlm.spawn(...)` (0.9+ style).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpawnDialect {
+    /// Prime-agent 0.8: callable model, `await rlm(prompt, name=..., model=...)`
+    Callable08,
+    /// Prime-agent 0.9+: spawn method, `await rlm.spawn(prompt, name=..., model=...)`
+    #[default]
+    Spawn09,
+}
+
+impl SpawnDialect {
+    /// The call expression prefix for this dialect.
+    pub fn call_expr(self) -> &'static str {
+        match self {
+            Self::Callable08 => "rlm(",
+            Self::Spawn09 => "rlm.spawn(",
+        }
+    }
+
+    /// Human-readable label for this dialect (vendor-specific, safe for adapter layer).
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Callable08 => "Callable08",
+            Self::Spawn09 => "Spawn09",
+        }
+    }
+}
+
 /// The configured binary's default NAME (resolved through `PATH` at use,
 /// mirroring the process-isolation backend's `locate`). A name, not a
 /// path: this crate contains no absolute-path literal.
@@ -50,6 +80,8 @@ pub struct PrimeAdapterConfig {
     pub max_depth: u8,
     /// The production transport's admission bound, in seconds.
     pub admission_timeout_seconds: u64,
+    /// The Python child-spawn call dialect (version-gated support).
+    pub spawn_dialect: SpawnDialect,
 }
 
 impl Default for PrimeAdapterConfig {
@@ -58,6 +90,7 @@ impl Default for PrimeAdapterConfig {
             binary: PathBuf::from(DEFAULT_BINARY_NAME),
             max_depth: DEFAULT_MAX_DEPTH,
             admission_timeout_seconds: DEFAULT_ADMISSION_TIMEOUT_SECONDS,
+            spawn_dialect: SpawnDialect::default(),
         }
     }
 }
@@ -82,5 +115,6 @@ mod tests {
             config.admission_timeout(),
             std::time::Duration::from_secs(DEFAULT_ADMISSION_TIMEOUT_SECONDS)
         );
+        assert_eq!(config.spawn_dialect, SpawnDialect::Spawn09);
     }
 }

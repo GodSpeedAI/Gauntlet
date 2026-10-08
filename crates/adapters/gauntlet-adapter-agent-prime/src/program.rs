@@ -51,6 +51,8 @@
 
 use std::path::Path;
 
+use crate::config::SpawnDialect;
+
 /// Everything the renderer needs to emit one Annex C.1 program.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KernelProgramSpec {
@@ -80,7 +82,7 @@ pub struct KernelProgramSpec {
 
 /// Renders the Annex C.1 kernel program. The exact byte shape is pinned by
 /// `the_rendered_program_is_byte_pinned` below.
-pub fn render(spec: &KernelProgramSpec) -> String {
+pub fn render(spec: &KernelProgramSpec, dialect: SpawnDialect) -> String {
     let envelope = py_str(&spec.envelope_path);
     let child_input = py_str(&spec.child_input_path);
     let handle_path = py_str(&spec.handle_path);
@@ -91,6 +93,7 @@ pub fn render(spec: &KernelProgramSpec) -> String {
         .as_ref()
         .map(|model| format!("    model={},\n", py_str(model)))
         .unwrap_or_default();
+    let call_expr = format!("handle = await {}\n", dialect.call_expr());
     // NOTE: no line-continuation backslashes here — Rust string
     // continuations strip leading whitespace, which would silently
     // re-indent the emitted Python. The indentation below is explicit.
@@ -109,7 +112,7 @@ pub fn render(spec: &KernelProgramSpec) -> String {
         child_input.as_str(),
         ")\n",
         "child_input.write_text(envelope)\n",
-        "handle = await rlm(\n",
+        &call_expr,
         "    ",
         prompt.as_str(),
         ",\n",
@@ -251,6 +254,8 @@ mod tests {
     /// the cell's linger/result-poll tail is GONE — the parent process
     /// (rpc mode) outlives this cell on its own, so the program ends the
     /// moment the handle is written.
+    ///
+    /// Default dialect is Spawn09 (prime-agent 0.9+).
     #[test]
     fn the_rendered_program_is_byte_pinned() {
         let expected = [
@@ -264,7 +269,7 @@ mod tests {
             "envelope = pathlib.Path('/state/runs/r/inv/i/envelope.json').read_text()",
             "child_input = pathlib.Path('/state/runs/r/inv/i/child-input.json')",
             "child_input.write_text(envelope)",
-            "handle = await rlm(",
+            "handle = await rlm.spawn(",
             "    'implement the assigned slice',",
             "    name='builder-ws01-01ARZ3N',",
             ")",
@@ -277,7 +282,7 @@ mod tests {
         ]
         .join("\n")
             + "\n";
-        assert_eq!(render(&spec()), expected);
+        assert_eq!(render(&spec(), SpawnDialect::Spawn09), expected);
     }
 
     /// A model hint is forwarded as the `model` kwarg (RES-D6 decision:
@@ -286,9 +291,9 @@ mod tests {
     fn a_model_hint_is_forwarded_as_the_model_kwarg() {
         let mut hinted = spec();
         hinted.model_hint = Some("acme/model-x".to_owned());
-        let program = render(&hinted);
+        let program = render(&hinted, SpawnDialect::Spawn09);
         for line in [
-            "handle = await rlm(",
+            "handle = await rlm.spawn(",
             "    'implement the assigned slice',",
             "    name='builder-ws01-01ARZ3N',",
             "    model='acme/model-x',",
@@ -300,7 +305,7 @@ mod tests {
             );
         }
         // And the unhinted program omits the kwarg entirely.
-        assert!(!render(&spec()).contains("model="));
+        assert!(!render(&spec(), SpawnDialect::Spawn09).contains("model="));
     }
 
     /// The rendered program carries the frozen Annex C.1 semantics: an
@@ -309,38 +314,40 @@ mod tests {
     /// only use is `handle =`), and — the rpc-mode correction's teeth —
     /// there is NO keep-alive loop of any kind: no `time.sleep`, no
     /// `while`, no mailbox read. The handle write is the program's LAST
-    /// effect.
+    /// effect. This holds for all dialects.
     #[test]
     fn the_rendered_program_captures_the_admission_handle_only() {
-        let program = render(&spec());
-        for fragment in [
-            "await rlm(",
-            "'rlm_child_id': str(handle.rlm_child_id)",
-            "'session_dir': str(handle.session_dir)",
-            "'model': str(handle.model)",
-        ] {
+        for dialect in [SpawnDialect::Callable08, SpawnDialect::Spawn09] {
+            let program = render(&spec(), dialect);
+            for fragment in [
+                "await rlm",
+                "'rlm_child_id': str(handle.rlm_child_id)",
+                "'session_dir': str(handle.session_dir)",
+                "'model': str(handle.model)",
+            ] {
+                assert!(
+                    program.contains(fragment),
+                    "missing {fragment:?} for {dialect:?}: {program}"
+                );
+            }
             assert!(
-                program.contains(fragment),
-                "missing {fragment:?}: {program}"
+                !program.contains("time.sleep"),
+                "no keep-alive sleep may remain for {dialect:?}: {program}"
+            );
+            assert!(
+                !program.contains("while "),
+                "no keep-alive loop may remain for {dialect:?}: {program}"
+            );
+            assert!(
+                !program.contains("agent_message"),
+                "no mailbox read for {dialect:?}: {program}"
+            );
+            // The handle write is the LAST effect.
+            assert!(
+                program.trim_end().ends_with("}))"),
+                "the program must end with the handle write for {dialect:?}: {program}"
             );
         }
-        assert!(
-            !program.contains("time.sleep"),
-            "no keep-alive sleep may remain: {program}"
-        );
-        assert!(
-            !program.contains("while "),
-            "no keep-alive loop may remain: {program}"
-        );
-        assert!(
-            !program.contains("agent_message"),
-            "no mailbox read: {program}"
-        );
-        // The handle write is the LAST effect.
-        assert!(
-            program.trim_end().ends_with("}))"),
-            "the program must end with the handle write: {program}"
-        );
     }
 
     /// Prompt and path text round-trips through the Python literal
@@ -352,7 +359,7 @@ mod tests {
         let hostile = "line one\n'single' and \"double\" \\ back\ttab\x01bell\nline two";
         let mut pinned = spec();
         pinned.role_prompt = hostile.to_owned();
-        let program = render(&pinned);
+        let program = render(&pinned, SpawnDialect::Spawn09);
         // The escaped literal appears exactly once, on one physical line.
         let literal = py_str(hostile);
         assert_eq!(
@@ -364,7 +371,7 @@ mod tests {
         // pinned line count: the multiline prompt stayed one literal.
         assert_eq!(
             program.lines().count(),
-            render(&spec()).lines().count(),
+            render(&spec(), SpawnDialect::Spawn09).lines().count(),
             "the multiline prompt must remain a single escaped literal line"
         );
     }
@@ -424,5 +431,33 @@ mod tests {
             "sha256:e5f6a7b8c4d3e2f1a0b1c2d3",
         );
         assert!(prompt.contains(body), "{prompt}");
+    }
+
+    /// Spawn09 dialect (prime-agent 0.9+) emits `await rlm.spawn(` call.
+    #[test]
+    fn spawn09_cell_contains_await_rlm_spawn() {
+        let program = render(&spec(), SpawnDialect::Spawn09);
+        assert!(
+            program.contains("await rlm.spawn("),
+            "Spawn09 dialect must emit 'await rlm.spawn(': {program}"
+        );
+        assert!(
+            !program.contains("await rlm(") || program.contains("await rlm.spawn("),
+            "Spawn09 must not contain bare 'await rlm(' (only 'await rlm.spawn('): {program}"
+        );
+    }
+
+    /// Callable08 dialect (prime-agent 0.8) emits `await rlm(` call.
+    #[test]
+    fn callable08_cell_contains_await_rlm() {
+        let program = render(&spec(), SpawnDialect::Callable08);
+        assert!(
+            program.contains("await rlm("),
+            "Callable08 dialect must emit 'await rlm(': {program}"
+        );
+        assert!(
+            !program.contains("await rlm.spawn("),
+            "Callable08 must not contain 'await rlm.spawn(': {program}"
+        );
     }
 }

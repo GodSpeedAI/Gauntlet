@@ -679,17 +679,20 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
             spec.invocation_id.as_str(),
             &spec.context_envelope.digest().to_string(),
         );
-        let program = render(&KernelProgramSpec {
-            envelope_path: files.envelope_file.to_string_lossy().into_owned(),
-            child_input_path: files.child_input_file.to_string_lossy().into_owned(),
-            handle_path: files.handle_file.to_string_lossy().into_owned(),
-            invocation_name: name.clone(),
-            role_prompt: prompt,
-            model_hint: spec
-                .model_hint
-                .as_ref()
-                .map(|model| model.as_str().to_owned()),
-        });
+        let program = render(
+            &KernelProgramSpec {
+                envelope_path: files.envelope_file.to_string_lossy().into_owned(),
+                child_input_path: files.child_input_file.to_string_lossy().into_owned(),
+                handle_path: files.handle_file.to_string_lossy().into_owned(),
+                invocation_name: name.clone(),
+                role_prompt: prompt,
+                model_hint: spec
+                    .model_hint
+                    .as_ref()
+                    .map(|model| model.as_str().to_owned()),
+            },
+            self.config().spawn_dialect,
+        );
         // ADMISSION ONLY (RES-D1): the transport watches for the HANDLE
         // FILE, parses it, and returns the four admission fields TOGETHER
         // WITH the live parent process (RC1 correction,

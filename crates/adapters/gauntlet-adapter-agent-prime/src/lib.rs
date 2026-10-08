@@ -33,6 +33,7 @@
 //! program's semantics (spec §6.3, §7.3): see this crate's
 //! `tests/contract_suite.rs`.
 
+pub mod capability;
 pub mod clock;
 pub mod config;
 pub mod probe;
@@ -43,6 +44,9 @@ pub mod transport;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+pub use capability::{
+    CapabilityFinding, CapabilityProbeConfig, CapabilityReport, SeamStatus, probe_capabilities,
+};
 pub use clock::SystemClock;
 pub use config::PrimeAdapterConfig;
 pub use probe::{ProbeError, ProbeReport, VersionRange, is_supported, probe};
