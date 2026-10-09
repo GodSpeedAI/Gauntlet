@@ -14,7 +14,7 @@ use gauntlet_domain::{
 };
 use gauntlet_ports::Deadline;
 use gauntlet_ports::agent_runner::Isolation;
-use gauntlet_ports::invocation_graph::{GraphLimits, InvocationGraph, InvocationNode};
+use gauntlet_ports::invocation_graph::{GraphLimits, InvocationGraph, InvocationNode, NodeStatus};
 use gauntlet_ports::json::{JsonNumber, JsonValue, parse};
 use gauntlet_ports::role_result::encode_role_result;
 use gauntlet_ports::tool_surface::{ToolOutcome, ToolSurface};
@@ -645,6 +645,41 @@ fn agents_wire_status_of_a_non_descendant_is_refused_without_leaking_ids() {
         }
         other => panic!("an ancestor is not in the subtree, got {other:?}"),
     }
+}
+
+/// OD-14a: an unanswered collect is a typed, additive `runner_unavailable: true`
+/// on a still-running result. The node is left live, and a normal collect keeps
+/// its exact keys, with no `runner_unavailable` key at all.
+#[test]
+fn agents_wire_collect_reports_runner_unavailable_additively_and_only_then() {
+    let env = Env::rooted();
+    let broker = env.lab.broker();
+    let root = surface(&env, &broker, root_caller());
+    let child = expect_ok(root.call(SPAWN, &pinned_spawn(KEY_SETTLED)));
+    let child_id = InvocationId::new(&text_of(&child, "invocation_id")).expect("well formed");
+
+    env.a.set_transport_down(true);
+    let value = expect_ok(root.call(COLLECT, &target(child_id.as_str())));
+    assert_eq!(value.get("state"), Some(&s("still_running")));
+    assert_eq!(
+        value.get("runner_unavailable"),
+        Some(&JsonValue::Bool(true))
+    );
+    assert_eq!(value.get("note"), Some(&s("completion is not settlement")));
+    assert_valid(COLLECT, true, &value);
+    assert_eq!(env.node(&child_id).status, NodeStatus::Running);
+
+    env.a.set_transport_down(false);
+    env.a.set_status(&child_id, running_status());
+    let value = expect_ok(root.call(COLLECT, &target(child_id.as_str())));
+    assert_eq!(value.get("state"), Some(&s("still_running")));
+    assert_eq!(
+        value.get("runner_unavailable"),
+        None,
+        "a normal collect carries no runner_unavailable key"
+    );
+    assert_eq!(value.keys().len(), 2, "state and note only");
+    assert_valid(COLLECT, true, &value);
 }
 
 #[test]

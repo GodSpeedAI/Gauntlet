@@ -919,6 +919,45 @@ fn acceptance_crash_then_restart_reads_the_graph_and_reports_unreattached_sessio
     }
 }
 
+/// OD-14a: after a SIGKILL and restart, `agents.collect` on a live node whose
+/// session the restarted runner cannot reattach is a typed, non-terminal answer,
+/// not an internal error. The node keeps its graph status and is never completed.
+#[test]
+fn acceptance_collect_after_restart_reports_runner_unavailable_and_never_completes() {
+    let fixture = Fixture::new("collect-restart");
+    let tree = build_tree(&fixture);
+
+    let parent = fixture.serve(RUN, &tree.root, false);
+    let coder = fixture.serve(RUN, &tree.coder, false);
+    parent.crash();
+    coder.crash();
+
+    let mut coder = fixture.serve(RUN, &tree.coder, false);
+    coder.initialize();
+    let reply = coder.tool(
+        3,
+        "agents.collect",
+        &format!(r#"{{"invocation_id":"{}"}}"#, tree.critic),
+    );
+    assert!(reply.contains("\"isError\":false"), "{reply}");
+    let value = payload(&reply);
+    assert_eq!(text_field(&value, "state"), "still_running", "{reply}");
+    assert_eq!(
+        value.get("runner_unavailable"),
+        Some(&JsonValue::Bool(true)),
+        "the restarted runner cannot answer: {reply}"
+    );
+    assert!(value.get("claim").is_none(), "nothing is claimed: {reply}");
+    assert!(coder.finish().0.success());
+
+    let graph = fixture.graph();
+    assert_eq!(
+        node(&graph, &id(&tree.critic)).status,
+        NodeStatus::Running,
+        "the graph keeps the critic live"
+    );
+}
+
 /// Step G: collect reports invocation completion only for a schema-valid contract
 /// bound to the node, and the fabric writes no settlement or verification.
 ///

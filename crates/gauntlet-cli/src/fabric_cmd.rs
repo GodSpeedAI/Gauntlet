@@ -40,7 +40,8 @@ use gauntlet_app::delegation::{
 use gauntlet_app::govern::{AuthorityGate, GovernDeps};
 use gauntlet_app::reference::parse::{ParsedKey, parse_answer_key};
 use gauntlet_app::tools::{
-    EffectPolicy, PROGRAM_RUN_TOOL, ProgramCatalog, ProgramCeilings, program_runtime,
+    EffectPolicy, PROGRAM_RUN_TOOL, ProgramCatalog, RuntimeError, SemanticToolRuntime,
+    program_runtime,
 };
 use gauntlet_domain::{
     AdmissionKey, EffectClass, EpochSeconds, InvocationId, ResultContractPath, RoleId, RunId,
@@ -51,8 +52,7 @@ use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::invocation_graph::{AdmissionOutcome, AdmissionRequest, InvocationGraph};
 use gauntlet_ports::json::JsonValue;
 use gauntlet_ports::state_store::{RunEvent, RunEventKind, StateStore};
-use gauntlet_ports::tool_catalog::{CatalogSurface, ToolCatalog};
-use gauntlet_ports::tool_program::ToolProgramRuntime;
+use gauntlet_ports::tool_catalog::{CatalogSurface, ToolCatalog, ToolInvocation, ToolInvoker};
 use gauntlet_ports::tool_surface::{ToolListing, ToolOutcome, ToolSurface};
 use gauntlet_ports::workspace_provider::{WorkspaceProvider, WorkspaceSubject};
 
@@ -424,17 +424,10 @@ fn release(workspaces: &FsWorkspaceProvider, created: Option<&WorkspaceRef>, dea
     }
 }
 
-/// The `program.run` wiring of one host. It exists only when the host was
-/// started with `--program-host-dir`; otherwise the operation is not listed.
-struct ProgramWiring<'a> {
-    runtime: &'a dyn ToolProgramRuntime,
-    ceilings: ProgramCeilings,
-}
-
-/// One caller's tool surface. Each call rebuilds the service with the current
-/// instant, so the deadline and the spawn timestamp never go stale in a
-/// long-lived process. The caller and every port are fixed at start.
-struct Host<'a> {
+/// One caller's agents service, rebuilt on every call so the deadline and the
+/// spawn timestamp never go stale in a long-lived process. The caller and every
+/// port are fixed at start. The tool runtimes are built once over this invoker.
+struct FreshAgents<'a> {
     caller: AgentsCaller,
     policy: &'a AgentsPolicy,
     broker: &'a DelegationBroker<'a>,
@@ -443,11 +436,10 @@ struct Host<'a> {
     govern: &'a GovernDeps,
     workspaces: &'a dyn WorkspaceProvider,
     clock: &'a dyn Clock,
-    program: Option<ProgramWiring<'a>>,
 }
 
-impl Host<'_> {
-    fn surface(&self) -> AgentsSurface<'_> {
+impl ToolInvoker for FreshAgents<'_> {
+    fn invoke(&self, invocation: &ToolInvocation) -> ToolOutcome {
         let (at, deadline) = now_and_bound(self.clock);
         let service = AgentsService::new(
             self.caller.clone(),
@@ -458,7 +450,7 @@ impl Host<'_> {
             self.govern,
             self.workspaces,
         );
-        AgentsSurface::new(service, CallClock { at, deadline })
+        AgentsSurface::new(service, CallClock { at, deadline }).invoke(invocation)
     }
 }
 
@@ -468,17 +460,32 @@ fn host_effect_policy() -> EffectPolicy {
     EffectPolicy::new(&[EffectClass::Read, EffectClass::ControlPlane])
 }
 
+/// Maps a tool runtime that failed to build into a startup refusal. The process
+/// does not start: it never serves an empty listing or refuses every call.
+fn startup_runtime<T>(surface: &str, built: Result<T, RuntimeError>) -> CmdResult<T> {
+    built.map_err(|error| {
+        refused(format!(
+            "refusing to start: the {surface} tool runtime failed to build: {error}"
+        ))
+    })
+}
+
+/// One caller's tool surface, over runtimes built once at startup. `program`
+/// is present only when the host was started with `--program-host-dir`;
+/// otherwise `program.run` is not listed.
+struct Host<'a> {
+    caller: InvocationId,
+    agents: &'a SemanticToolRuntime<'a>,
+    program: Option<&'a SemanticToolRuntime<'a>>,
+}
+
 impl ToolSurface for Host<'_> {
     /// The listing is the agents catalog, projected through the same runtime
     /// that admits calls, so the names and schemas listed are the ones callable.
     /// `program.run` follows only when this host has a program runtime.
     fn tools(&self) -> Vec<ToolListing> {
-        let surface = self.surface();
-        let caller = self.caller.invocation_id.clone();
-        let mut listings = match agents_runtime(&surface, caller.clone()) {
-            Ok(runtime) => CatalogSurface::new(&AgentsCatalog, &runtime, caller).tools(),
-            Err(_) => Vec::new(),
-        };
+        let mut listings =
+            CatalogSurface::new(&AgentsCatalog, self.agents, self.caller.clone()).tools();
         if self.program.is_some() {
             listings.extend(
                 ProgramCatalog
@@ -497,35 +504,13 @@ impl ToolSurface for Host<'_> {
     /// `program.run` runs its inner calls through the same agents runtime that
     /// direct calls use, so an inner call is admitted exactly as a direct one.
     fn call(&self, name: &str, arguments: &JsonValue) -> ToolOutcome {
-        let surface = self.surface();
-        let caller = self.caller.invocation_id.clone();
-        let runtime = match agents_runtime(&surface, caller.clone()) {
-            Ok(runtime) => runtime,
-            Err(error) => {
-                return ToolOutcome::Refused {
-                    code: "catalog_invalid".to_string(),
-                    detail: error.to_string(),
-                };
+        match self.program {
+            Some(outer) if name == PROGRAM_RUN_TOOL => {
+                CatalogSurface::new(&ProgramCatalog, outer, self.caller.clone())
+                    .call(name, arguments)
             }
-        };
-        match &self.program {
-            Some(program) if name == PROGRAM_RUN_TOOL => match program_runtime(
-                &AgentsCatalog,
-                &runtime,
-                program.runtime,
-                host_effect_policy(),
-                program.ceilings,
-                caller.clone(),
-            ) {
-                Ok(outer) => {
-                    CatalogSurface::new(&ProgramCatalog, &outer, caller).call(name, arguments)
-                }
-                Err(error) => ToolOutcome::Refused {
-                    code: "catalog_invalid".to_string(),
-                    detail: error.to_string(),
-                },
-            },
-            _ => CatalogSurface::new(&AgentsCatalog, &runtime, caller).call(name, arguments),
+            _ => CatalogSurface::new(&AgentsCatalog, self.agents, self.caller.clone())
+                .call(name, arguments),
         }
     }
 }
@@ -639,7 +624,8 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
     let broker = DelegationBroker::new(&graph, &composed.registry, &composed.runners);
     let gate = AuthorityGate::new();
     let govern = GovernDeps::none_backend();
-    let host = Host {
+    let caller_invocation = caller.invocation_id.clone();
+    let fresh = FreshAgents {
         caller,
         policy: &composed.policy,
         broker: &broker,
@@ -648,10 +634,27 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
         govern: &govern,
         workspaces: &workspaces,
         clock: &clock,
-        program: codemode.as_ref().map(|runtime| ProgramWiring {
-            runtime,
-            ceilings: composed.program,
-        }),
+    };
+    // Built once, before the protocol starts. A build failure refuses to start.
+    let agents = startup_runtime("agents", agents_runtime(&fresh, caller_invocation.clone()))?;
+    let program = match codemode.as_ref() {
+        Some(runtime) => Some(startup_runtime(
+            "program",
+            program_runtime(
+                &AgentsCatalog,
+                &agents,
+                runtime,
+                host_effect_policy(),
+                composed.program,
+                caller_invocation.clone(),
+            ),
+        )?),
+        None => None,
+    };
+    let host = Host {
+        caller: caller_invocation,
+        agents: &agents,
+        program: program.as_ref(),
     };
     let info = ServerInfo {
         name: SERVER_NAME.to_owned(),
@@ -701,6 +704,33 @@ pub fn doctor_fabric_section(fabric_dir: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// OD-8: the production catalog builds, so a healthy `fabric serve` starts.
+    #[test]
+    fn the_production_tool_catalogs_build_before_the_protocol_starts() {
+        assert!(SemanticToolRuntime::new(&AgentsCatalog, host_effect_policy()).is_ok());
+        assert!(SemanticToolRuntime::new(&ProgramCatalog, host_effect_policy()).is_ok());
+    }
+
+    /// OD-8: a runtime that fails to build is a startup refusal, with a stable
+    /// message on stderr, and never a silently empty listing. The catalog is
+    /// compiled in, so the failing build is supplied directly to the mapping.
+    #[test]
+    fn a_tool_runtime_build_failure_is_a_startup_refusal() {
+        let failed = startup_runtime::<()>(
+            "agents",
+            Err(RuntimeError::DuplicateOperation("agents.spawn".to_owned())),
+        );
+        match failed {
+            Err(FabricCmdError::Refused(detail)) => {
+                assert!(detail.starts_with("refusing to start"), "{detail}");
+                assert!(detail.contains("agents tool runtime"), "{detail}");
+                assert!(detail.contains("agents.spawn"), "{detail}");
+            }
+            other => panic!("a build failure must refuse to start, got {other:?}"),
+        }
+        assert_eq!(startup_runtime("agents", Ok(7)).expect("built"), 7);
+    }
 
     fn flags(args: &[&str]) -> Flags {
         let owned: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();

@@ -211,6 +211,9 @@ impl AgentView {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CollectView {
     StillRunning(AgentView),
+    /// The node is still live, but its runner could not answer. The node is
+    /// unchanged; the caller may collect again once the runner is reachable.
+    RunnerUnavailable(AgentView),
     Claimed {
         agent: AgentView,
         claim: Box<RoleResult>,
@@ -477,6 +480,9 @@ impl<'a> AgentsService<'a> {
             .map_err(AgentsRefusal::Broker)?;
         Ok(match outcome {
             CollectOutcome::StillRunning(node) => CollectView::StillRunning(AgentView::of(&node)),
+            CollectOutcome::RunnerUnavailable(node) => {
+                CollectView::RunnerUnavailable(AgentView::of(&node))
+            }
             CollectOutcome::Completed { node, result } => CollectView::Claimed {
                 agent: AgentView::of(&node),
                 claim: result,

@@ -652,7 +652,7 @@ fn agent_json(view: &AgentView) -> JsonValue {
 
 fn collect_json(view: &CollectView) -> JsonValue {
     let (state, claim) = match view {
-        CollectView::StillRunning(_) => ("still_running", None),
+        CollectView::StillRunning(_) | CollectView::RunnerUnavailable(_) => ("still_running", None),
         CollectView::Claimed { claim, .. } => ("completed", Some(encode_role_result(claim))),
         CollectView::Failed(_) => ("failed", None),
         CollectView::TimedOut(_) => ("timed_out", None),
@@ -662,6 +662,11 @@ fn collect_json(view: &CollectView) -> JsonValue {
     let mut entries = vec![("state", text(state))];
     if let Some(claim) = claim {
         entries.push(("claim", text(&claim)));
+    }
+    // Additive and present only when true, so every other collect result keeps
+    // its exact bytes.
+    if matches!(view, CollectView::RunnerUnavailable(_)) {
+        entries.push(("runner_unavailable", JsonValue::Bool(true)));
     }
     entries.push(("note", text(COLLECT_NOTE)));
     object(entries)
@@ -720,7 +725,7 @@ impl ToolInvoker for AgentsSurface<'_> {
 /// cancel, and list calls then run through the surface's own service, which
 /// performs the canonical authority and lineage admission.
 pub fn agents_runtime<'s>(
-    surface: &'s AgentsSurface<'_>,
+    invoker: &'s dyn ToolInvoker,
     caller: InvocationId,
 ) -> Result<SemanticToolRuntime<'s>, RuntimeError> {
     let policy = EffectPolicy::new(&[EffectClass::Read, EffectClass::ControlPlane]);
@@ -734,7 +739,7 @@ pub fn agents_runtime<'s>(
                     detail: "the invocation names another caller".to_string(),
                 };
             }
-            surface.invoke(invocation)
+            invoker.invoke(invocation)
         })?;
     }
     Ok(runtime)

@@ -41,11 +41,14 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 ## OD-7 — `cli_surface` doctor smoke writes `crates/gauntlet-cli/.agents/reports/doctor.json`
 
+* **Status: resolved in working tree.**
 * **Evidence:** running `cargo test -p gauntlet-cli` leaves an untracked `crates/gauntlet-cli/.agents/` directory; the arch literal scan then fails (258/261) until it is removed.
-* **Next move:** make the smoke set `GAUNTLET_REPORT_DIR` to a temp dir.
+* **Root cause (found 2026-10-09):** production defect, not a test defect. `doctor::assemble` skipped the environment layer when no `GAUNTLET.md` was discovered (`(None, None)` arm used `EffectiveConfig::from_defaults()` without calling `resolve`), so `GAUNTLET_REPORT_DIR` was ignored and the report fell back to `<project root>/.agents/reports`. The tests that set the variable (`fabric_cli`, `fabric_acceptance` doctor runs) therefore still wrote into the crate directory, which is the cwd under `cargo test`.
+* **Fix:** the no-contract arm now runs `resolve` with no front matter, so the environment layer applies (`crates/gauntlet-app/src/doctor/mod.rs`). Regression test: `the_report_dir_env_is_honoured_without_a_contract`.
 
 ## OD-8 — fabric `Host` swallows a catalog build failure; schema checks duplicated
 
+* **Status: partly resolved in working tree.** Resolved: the tool runtimes (agents, and program when present) are built once at `fabric serve` startup, and a build failure refuses to start with a non-zero exit and `refusing to start: ...` on stderr (`crates/gauntlet-cli/src/fabric_cmd.rs`, `startup_runtime`). Still open: retiring the wire decoder's duplicate schema checks, and the one-off `doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run` failure (not reproduced in this slice).
 * **Evidence:** `fabric_cmd.rs` `Host::tools()` returns an empty list and `call()` returns Refused `catalog_invalid` if the `SemanticToolRuntime` fails to build; the runtime's schema validator and the agents wire decoder both validate arguments. Also one unexplained `doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run` failure seen once (passed on rerun).
 * **Next move:** build the runtime once at `fabric serve` startup and fail to start on error; retire the wire decoder checks once the runtime is trusted; investigate the doctor test flake.
 
@@ -79,5 +82,6 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 ## OD-14 — acceptance gaps: collect after restart is opaque; no stateful mock; doctor report path leak
 
-* **Evidence:** `fabric_acceptance.rs` — scripted children live only in the spawning process, so `agents.collect` from a fresh serve returns the opaque "internal" error (`BrokerError::Runner` on UnknownHandle) whereas `status` degrades to `runner_unavailable`; the mock keeps no state across calls (persistent-state parent not exercised); `gauntlet doctor --fabric-dir` writes under `crates/gauntlet-cli/.agents` even with `GAUNTLET_REPORT_DIR` set (extends OD-7); `context_digest` covers the envelope body only; no exit-without-result fixture (AK-059 locator frozen); late lifecycle samples are not reachable at CLI level (covered by app-level `lifecycle_sequencing_*`).
-* **Next move:** make collect report runner_unavailable typed (never completes); fix the doctor report path; add fixtures only through the AK-059 process.
+* **Status: partly resolved in working tree.** Resolved: (a) collect after restart now reports `runner_unavailable` (app: `CollectOutcome::RunnerUnavailable`; wire: additive `runner_unavailable: true` on `agents.collect`, absent otherwise; acceptance: `acceptance_collect_after_restart_reports_runner_unavailable_and_never_completes`); (b) the doctor report path leak, fixed as OD-7. Still open: no stateful mock; `context_digest` covers the envelope body only; no exit-without-result fixture; late lifecycle samples not reachable at CLI level.
+* **Evidence:** `fabric_acceptance.rs` — scripted children live only in the spawning process, so `agents.collect` from a fresh serve returned the opaque "internal" error (`BrokerError::Runner` on UnknownHandle) whereas `status` degrades to `runner_unavailable`; the mock keeps no state across calls (persistent-state parent not exercised); `gauntlet doctor --fabric-dir` wrote under `crates/gauntlet-cli/.agents` even with `GAUNTLET_REPORT_DIR` set (extends OD-7); `context_digest` covers the envelope body only; no exit-without-result fixture (AK-059 locator frozen); late lifecycle samples are not reachable at CLI level (covered by app-level `lifecycle_sequencing_*`).
+* **Next move:** add a stateful mock runner so a persistent-state parent is exercised; add fixtures only through the AK-059 process.

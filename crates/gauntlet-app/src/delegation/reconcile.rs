@@ -92,6 +92,10 @@ pub struct DelegationStatus {
 #[derive(Debug, Clone, PartialEq)]
 pub enum CollectOutcome {
     StillRunning(InvocationNode),
+    /// The node is live and bound but its runner could not answer the poll (for
+    /// example a session lost across a restart). Like [`DelegationStatus`], the
+    /// graph view stands: the node is not completed, failed, or cancelled.
+    RunnerUnavailable(InvocationNode),
     /// The graph bound the result to the node. The result is an untrusted
     /// claim; this outcome carries no settlement.
     Completed {
@@ -245,6 +249,11 @@ impl DelegationBroker<'_> {
     /// Polls the runner and applies only its contract-derived status. A live
     /// runner status leaves the node open, whatever the child claims.
     ///
+    /// A poll the runner cannot answer is [`CollectOutcome::RunnerUnavailable`],
+    /// the same rule as [`DelegationBroker::status`]: the node is left unchanged
+    /// and the outcome is typed, never an error. Graph and binding errors still
+    /// fail.
+    ///
     /// A failed or timed-out node has its active descendants cancelled as well.
     /// That cascade's runner errors are best-effort and are reported by
     /// [`DelegationBroker::recover`] only, so collect drops them here; the
@@ -263,7 +272,10 @@ impl DelegationBroker<'_> {
             return Ok(CollectOutcome::StillRunning(node));
         };
         let runner = self.runner_for(&node.runner_profile)?;
-        let status = runner.poll(&handle).map_err(BrokerError::Runner)?;
+        let status = match runner.poll(&handle) {
+            Ok(status) => status,
+            Err(_) => return Ok(CollectOutcome::RunnerUnavailable(node)),
+        };
         let mut cascade = Cascade::default();
         Ok(
             match self.apply_status(node, &handle, status, at, deadline, &mut cascade)? {

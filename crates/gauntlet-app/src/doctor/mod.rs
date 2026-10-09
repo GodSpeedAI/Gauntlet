@@ -171,11 +171,25 @@ fn assemble(input: &DoctorInput) -> DoctorRun {
             crate::config::resolve::EffectiveConfig::from_defaults(),
             Vec::new(),
         ),
-        (None, None) => (
-            None,
-            crate::config::resolve::EffectiveConfig::from_defaults(),
-            Vec::new(),
-        ),
+        // No contract was discovered. The environment layer still applies
+        // (defaults, then GAUNTLET.md, then the environment, then flags), so
+        // `GAUNTLET_REPORT_DIR` and the other environment keys are honoured.
+        (None, None) => {
+            let resolved_input = ResolveInput {
+                project_root: project_root.clone(),
+                front_matter: None,
+                env: &env,
+                flags: FlagOverrides::new(),
+            };
+            match resolve(&resolved_input) {
+                Err(err) => (
+                    Some(err),
+                    crate::config::resolve::EffectiveConfig::from_defaults(),
+                    Vec::new(),
+                ),
+                Ok(resolved) => (None, resolved.effective, resolved.unknown_keys),
+            }
+        }
         (None, Some(Err(err))) => (
             Some(ConfigError::FrontMatter(err.clone())),
             crate::config::resolve::EffectiveConfig::from_defaults(),
@@ -488,6 +502,31 @@ mod tests {
             .find(|check| check.id == id)
             .expect("check present")
             .status
+    }
+
+    /// OD-7/OD-14: `GAUNTLET_REPORT_DIR` is honoured without a GAUNTLET.md. The
+    /// environment layer applies whether or not a contract is discovered, so the
+    /// report never falls back to the project root's default `.agents` directory.
+    #[test]
+    fn the_report_dir_env_is_honoured_without_a_contract() {
+        let scratch = Scratch::new();
+        let reports = scratch.root.join("elsewhere-reports");
+        let mut input = scratch.input(None);
+        input
+            .env_pairs
+            .as_mut()
+            .expect("the scratch sets the environment")
+            .push((
+                "GAUNTLET_REPORT_DIR".to_owned(),
+                reports.to_string_lossy().into_owned(),
+            ));
+        let (_, path) = run_doctor_and_write(&input).expect("the report writes");
+        assert_eq!(path, reports.join("doctor.json"));
+        assert!(path.exists(), "the report is written under the env dir");
+        assert!(
+            !scratch.root.join(".agents").exists(),
+            "no report lands in the default project-root directory"
+        );
     }
 
     #[test]

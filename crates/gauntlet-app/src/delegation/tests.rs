@@ -1089,8 +1089,14 @@ fn status_returns_the_graph_view_when_the_runner_cannot_answer() {
     assert!(view.runner_unavailable, "the unanswered poll is reported");
     assert_eq!(a.polls(), 1);
 
-    let collected = lab.broker().collect(&inv(ROOT_TAG), at(), deadline());
-    assert!(collected.is_err(), "collect still needs a runner answer");
+    let collected = lab
+        .broker()
+        .collect(&inv(ROOT_TAG), at(), deadline())
+        .expect("an unanswered collect is a typed outcome, not an error");
+    assert!(
+        matches!(collected, CollectOutcome::RunnerUnavailable(_)),
+        "collect reports the same unavailability status does"
+    );
     assert_eq!(
         lab.node(ROOT_TAG).expect("the root exists").status,
         NodeStatus::Running,
@@ -1104,6 +1110,58 @@ fn status_returns_the_graph_view_when_the_runner_cannot_answer() {
         .expect("the status reads");
     assert!(!back.runner_unavailable);
     assert_eq!(back.runner_status, Some(running_status()));
+}
+
+/// OD-14a: a runner that lost the session (a restart leaves the handle unknown)
+/// makes collect report `RunnerUnavailable`. The node stays live, nothing is
+/// completed or failed, and the runner is never asked for a result.
+#[test]
+fn collect_after_a_lost_session_reports_unavailable_and_never_completes_the_node() {
+    let (lab, a, _, _) = standard_lab();
+    lab.broker()
+        .delegate(root_request(ROOT_TAG, KEY_ROOT, items_for(ROOT_MARKER)))
+        .expect("the root launches");
+    // The restarted process forgot the handle: a poll answers UnknownHandle.
+    a.forget_handle(&inv(ROOT_TAG));
+    let outcome = lab
+        .broker()
+        .collect(&inv(ROOT_TAG), at(), deadline())
+        .expect("an unknown handle is a typed outcome, not a broker error");
+    let CollectOutcome::RunnerUnavailable(node) = outcome else {
+        panic!("an unknown session must be reported as unavailable, got {outcome:?}");
+    };
+    assert_eq!(node.status, NodeStatus::Running, "the node is left live");
+    assert_eq!(
+        a.collects(),
+        0,
+        "no result is requested from a lost session"
+    );
+    assert_eq!(
+        lab.node(ROOT_TAG).expect("the root exists").status,
+        NodeStatus::Running,
+        "the graph is unchanged"
+    );
+    assert_eq!(lab.active_count(), 1, "nothing was cancelled or failed");
+}
+
+/// An unavailable runner never hides a graph fault: an unknown node is still a
+/// typed broker error, even while the runner is down.
+#[test]
+fn collect_refuses_an_unknown_node_even_when_the_runner_is_down() {
+    let (lab, a, _, _) = standard_lab();
+    lab.broker()
+        .delegate(root_request(ROOT_TAG, KEY_ROOT, items_for(ROOT_MARKER)))
+        .expect("the root launches");
+    a.set_transport_down(true);
+    let missing = inv(UNKNOWN_TAG);
+    assert_eq!(
+        lab.broker()
+            .collect(&missing, at(), deadline())
+            .expect_err("the invocation is unknown"),
+        BrokerError::UnknownInvocation {
+            id: missing.clone(),
+        }
+    );
 }
 
 // ---------------------------------------------------------------------------

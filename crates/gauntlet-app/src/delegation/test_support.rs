@@ -351,6 +351,12 @@ impl ScriptedRunner {
         }
     }
 
+    /// Forgets a handle, as a restarted runner does for every session it did not
+    /// create in this process: a poll for it then answers `UnknownHandle`.
+    pub(crate) fn forget_handle(&self, id: &InvocationId) {
+        self.handles.borrow_mut().retain(|(known, _)| known != id);
+    }
+
     pub(crate) fn set_result(&self, result: RoleResult) {
         *self.result.borrow_mut() = Some(result);
     }
