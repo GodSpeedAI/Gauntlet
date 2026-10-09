@@ -60,6 +60,13 @@ doctor:
 schemas:
     @echo "schemas: not implemented — lands with a later task (spec Annex B schema export)" >&2; exit 2
 
+# sync-harness-catalog — REPORT-ONLY drift check of the built-in harness catalog against a
+# Herdr donor checkout (default .tmp/donor/herdr). Prints donor HEAD vs pinned commit, re-verifies
+# every provenance ref, and lists donor agents/manifests missing from the catalog. Exits 1 on drift.
+# Never writes a definition file and never touches the network.
+sync-harness-catalog donor=".tmp/donor/herdr":
+    cargo run -q -p gauntlet-adapter-harness-catalog --bin sync-harness-catalog -- {{donor}}
+
 # roles-verify — re-read installed harness role state and report drift
 # (spec 10.1, plan Task 17): out-of-band edits, source edits since install,
 # missing or extra artifacts, or a hand-edited/re-forged roles.lock are a

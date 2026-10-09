@@ -6,7 +6,7 @@ executables = ['amp', 'amp-local']
 [provenance]
 source = "herdr"
 commit = "4e624cd"
-refs = ["src/detect/mod.rs:141", "src/detect/manifests/amp.toml"]
+refs = ["executables=src/detect/mod.rs:216", "lifecycle.detection_manifest=src/detect/manifest.rs:241"]
 license = "Apache-2.0"
 
 [launch]

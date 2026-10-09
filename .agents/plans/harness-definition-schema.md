@@ -11,7 +11,7 @@ executables = ["claude"]           # [0] canonical; rest are aliases; basenames 
 [provenance]                       # required for catalog-derived entries
 source = "herdr"
 commit = "4e624cd"
-refs = ["src/agent_resume.rs:207-213", "src/detect/mod.rs:202"]
+refs = ["executables=src/detect/mod.rs:202", "session.resume_argv=src/agent_resume.rs:204-210", "lifecycle.detection_manifest=src/detect/manifest.rs:243"]
 license = "Apache-2.0"
 
 [launch]
@@ -39,6 +39,19 @@ native_subagents = false
 structured_events = false
 support_level = 1                  # 0 process | 1 interactive | 2 session | 3 structured | 4 native
 ```
+
+## Provenance refs (schema 1, unchanged version)
+
+Each `refs` entry is `field=path:start[-end]` (or `field=path:line`), 1-based inclusive lines in the Herdr donor checkout pinned by `commit`. The field names the claim the lines support, and every claimed field needs exactly one ref:
+
+| field | donor file | lines must contain |
+|---|---|---|
+| `executables` | `src/detect/mod.rs` | the `lookup_agent` arm with every executable, quoted |
+| `session.resume_argv` | `src/agent_resume.rs` | the `plan()` arm with every literal argv token |
+| `lifecycle.detection_manifest` | `src/detect/manifest.rs` | the bundled-manifest registry entry for `manifests/<name>.toml` |
+| `lifecycle.source` (only for `"process"`) | `src/detect/manifest.rs` | the bundled registry block, and no entry for this definition |
+
+Refs are free-form strings to the existing parser, so the prefix is tolerated without a version bump. Whole-file refs and unlabelled refs are rejected by the catalog tests. `just sync-harness-catalog` re-checks every ref (existence, range, keyword) against a donor checkout, report-only. Per-ref content fingerprints were considered and deferred: they would need a hashing dependency in the catalog crate.
 
 ## Validation rules (fail closed)
 

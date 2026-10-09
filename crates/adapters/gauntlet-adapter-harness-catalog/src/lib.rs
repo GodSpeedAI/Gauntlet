@@ -29,6 +29,7 @@
 
 pub mod catalog;
 pub mod definition;
+pub mod provenance;
 pub mod subset_toml;
 
 pub use catalog::{CatalogError, builtin, load_custom_dir};
@@ -36,5 +37,9 @@ pub use definition::{
     Capabilities, Control, DefinitionError, DefinitionResult, HarnessDefinition, InterruptKind,
     Launch, Lifecycle, LifecycleSource, Origin, PromptMode, Provenance, Session, SessionIdentity,
     SupportLevel,
+};
+pub use provenance::{
+    HERDR_LICENSE, HERDR_PINNED_COMMIT, HERDR_SOURCE, ProvenanceRef, RefField, SyncReport,
+    check_against_donor, parse_ref,
 };
 pub use subset_toml::{ParseError, ParseErrorKind, Parser, Table, Value};

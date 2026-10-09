@@ -6,7 +6,7 @@ executables = ['droid']
 [provenance]
 source = "herdr"
 commit = "4e624cd"
-refs = ["src/detect/mod.rs:140", "src/agent_resume.rs:220-222", "src/detect/manifests/droid.toml"]
+refs = ["executables=src/detect/mod.rs:215", "session.resume_argv=src/agent_resume.rs:220-222", "lifecycle.detection_manifest=src/detect/manifest.rs:248"]
 license = "Apache-2.0"
 
 [launch]

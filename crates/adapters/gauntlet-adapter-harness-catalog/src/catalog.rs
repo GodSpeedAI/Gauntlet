@@ -47,13 +47,13 @@ pub fn builtin() -> Result<Vec<HarnessDefinition>, CatalogError> {
     let mut ids = HashSet::new();
     let mut executables = HashSet::new();
 
-    let definitions_dir = "/home/sprime01/projects/gauntlet/crates/adapters/gauntlet-adapter-harness-catalog/definitions";
+    let definitions_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("definitions");
 
-    if !Path::new(definitions_dir).exists() {
+    if !definitions_dir.exists() {
         return Ok(Vec::new());
     }
 
-    let mut entries: Vec<_> = fs::read_dir(definitions_dir)
+    let mut entries: Vec<_> = fs::read_dir(&definitions_dir)
         .map_err(|e| CatalogError::IoError(e.to_string()))?
         .filter_map(Result::ok)
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "toml"))

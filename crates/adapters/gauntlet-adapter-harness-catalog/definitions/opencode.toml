@@ -6,7 +6,7 @@ executables = ['opencode', 'opencode2', 'open-code']
 [provenance]
 source = "herdr"
 commit = "4e624cd"
-refs = ["src/detect/mod.rs:136", "src/agent_resume.rs:248-254", "src/detect/manifests/opencode.toml"]
+refs = ["executables=src/detect/mod.rs:211", "session.resume_argv=src/agent_resume.rs:248-254", "lifecycle.detection_manifest=src/detect/manifest.rs:258"]
 license = "Apache-2.0"
 
 [launch]

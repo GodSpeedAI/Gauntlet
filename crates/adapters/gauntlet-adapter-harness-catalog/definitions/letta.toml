@@ -6,7 +6,7 @@ executables = ['letta', 'letta-code']
 [provenance]
 source = "herdr"
 commit = "4e624cd"
-refs = ["src/detect/mod.rs:147", "src/agent_resume.rs:290-309", "src/detect/manifests/letta.toml"]
+refs = ["executables=src/detect/mod.rs:222", "session.resume_argv=src/agent_resume.rs:290-309", "lifecycle.detection_manifest=src/detect/manifest.rs:255"]
 license = "Apache-2.0"
 
 [launch]
