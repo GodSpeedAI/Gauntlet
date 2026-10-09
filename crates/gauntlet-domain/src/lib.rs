@@ -11,6 +11,7 @@ mod budget;
 mod capability;
 mod comparison;
 mod correction;
+mod effect_class;
 mod iteration;
 mod observation;
 mod reference;
@@ -37,6 +38,7 @@ pub use correction::{
     BudgetFacts, CorrectionDescriptor, CorrectionError, CorrectionSelection, CorrectionShape,
     DecisionStep, RejectedAlternative, RejectionClass, RejectionReason, SelectionDimension,
 };
+pub use effect_class::EffectClass;
 pub use iteration::{Iteration, IterationError};
 pub use observation::{ObservationBundle, ObservationFailure, UnavailableEvidence};
 pub use reference::{

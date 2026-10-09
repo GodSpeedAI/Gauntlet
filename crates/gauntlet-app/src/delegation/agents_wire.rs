@@ -13,12 +13,16 @@
 //! invocation outside the caller's subtree.
 
 use gauntlet_domain::{
-    AdmissionKey, EpochSeconds, HarnessId, InvocationId, MicroUsd, RoleId, RunnerProfileId,
+    AdmissionKey, EffectClass, EpochSeconds, HarnessId, InvocationId, MicroUsd, RoleId,
+    RunnerProfileId,
 };
 use gauntlet_ports::agent_runner::Isolation;
 use gauntlet_ports::invocation_graph::{AdmissionRefusal, NodeStatus};
-use gauntlet_ports::json::{JsonNumber, JsonValue};
+use gauntlet_ports::json::{JsonNumber, JsonValue, parse};
 use gauntlet_ports::role_result::encode_role_result;
+use gauntlet_ports::tool_catalog::{
+    ToolCatalog, ToolInvocation, ToolInvoker, ToolName, ToolOperation,
+};
 use gauntlet_ports::tool_surface::{ToolListing, ToolOutcome, ToolSurface};
 use gauntlet_ports::{BudgetSlice, Deadline};
 
@@ -30,6 +34,7 @@ use super::context::{ContextItem, ContextItemKind, ContextRefusal, MAX_ENVELOPE_
 use crate::fabric::SupportLevel;
 use crate::fabric::affordance::AGENTS_AFFORDANCES;
 use crate::fabric::selection::{Needs, Preference, Requirements};
+use crate::tools::{EffectPolicy, RuntimeError, SemanticToolRuntime};
 
 /// The tool names, in the order the catalog presents them.
 const SPAWN_TOOL: &str = "agents.spawn";
@@ -669,4 +674,68 @@ fn cancel_json(view: &CancelView) -> JsonValue {
         ("cancelled", ids(view.cancelled.as_slice())),
         ("unconfirmed", ids(view.unconfirmed.as_slice())),
     ])
+}
+
+/// The refusal code for an invocation whose caller is not the host's caller.
+const CALLER_MISMATCH: &str = "caller_mismatch";
+
+/// The `agents.*` operations as a [`ToolCatalog`]. It reads the same
+/// descriptors the surface lists, so names, schemas, and effect classes have
+/// one source.
+pub struct AgentsCatalog;
+
+impl ToolCatalog for AgentsCatalog {
+    fn operations(&self) -> Vec<ToolOperation> {
+        AGENTS_AFFORDANCES
+            .iter()
+            .filter_map(|descriptor| {
+                Some(ToolOperation {
+                    name: ToolName::new(descriptor.name).ok()?,
+                    description: descriptor.summary.to_string(),
+                    input_schema: parse(descriptor.input_schema).ok()?,
+                    effect: descriptor.effect,
+                })
+            })
+            .collect()
+    }
+
+    fn get(&self, name: &ToolName) -> Option<ToolOperation> {
+        self.operations()
+            .into_iter()
+            .find(|operation| &operation.name == name)
+    }
+}
+
+/// [`AgentsSurface`] as a handler: the invocation's arguments decode through
+/// the same strict codec as the surface's own calls.
+impl ToolInvoker for AgentsSurface<'_> {
+    fn invoke(&self, invocation: &ToolInvocation) -> ToolOutcome {
+        self.call(invocation.name.as_str(), &invocation.args)
+    }
+}
+
+/// The `agents.*` semantic runtime for one caller. The policy admits only the
+/// classes the catalog holds (`Read` and `ControlPlane`). Each handler refuses
+/// an invocation that names another caller; the spawn, status, collect,
+/// cancel, and list calls then run through the surface's own service, which
+/// performs the canonical authority and lineage admission.
+pub fn agents_runtime<'s>(
+    surface: &'s AgentsSurface<'_>,
+    caller: InvocationId,
+) -> Result<SemanticToolRuntime<'s>, RuntimeError> {
+    let policy = EffectPolicy::new(&[EffectClass::Read, EffectClass::ControlPlane]);
+    let mut runtime = SemanticToolRuntime::new(&AgentsCatalog, policy)?;
+    for operation in AgentsCatalog.operations() {
+        let bound = caller.clone();
+        runtime.register(&operation.name, move |invocation: &ToolInvocation| {
+            if invocation.caller != bound {
+                return ToolOutcome::Refused {
+                    code: CALLER_MISMATCH.to_string(),
+                    detail: "the invocation names another caller".to_string(),
+                };
+            }
+            surface.invoke(invocation)
+        })?;
+    }
+    Ok(runtime)
 }

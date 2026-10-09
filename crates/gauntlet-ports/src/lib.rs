@@ -55,6 +55,7 @@ pub mod role_result;
 pub mod sandbox;
 pub mod state_store;
 pub mod tokens;
+pub mod tool_catalog;
 pub mod tool_provider;
 pub mod tool_surface;
 pub mod verification_record;
@@ -133,6 +134,10 @@ pub use state_store::{
     SettlementCommit, StateStore, StateStoreError,
 };
 pub use tokens::UnknownToken;
+pub use tool_catalog::{
+    CatalogBuilder, CatalogError, CatalogSurface, Composite, ToolCatalog, ToolInvocation,
+    ToolInvoker, ToolName, ToolNameError, ToolOperation,
+};
 pub use tool_provider::{
     SemanticCapability, ToolBinding, ToolIdentity, ToolProvider, ToolProviderError,
 };

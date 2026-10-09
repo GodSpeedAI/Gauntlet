@@ -10,19 +10,7 @@
 //! and lists its required fields. No schema names a parent. The parent of a
 //! spawned child is always the calling invocation, so a caller cannot choose it.
 
-/// The authority class of one affordance. The class says which gate governs
-/// the call; no class grants authority by itself.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EffectClass {
-    /// Reads state only. Governed by permission and budget.
-    Read,
-    /// Mutates a workspace. Governed by permission and containment.
-    WorkspaceMutation,
-    /// Reaches outside the workspace. Governed by the authority policy.
-    ExternalEffect,
-    /// Changes the control plane. Governed by canonical admission.
-    ControlPlane,
-}
+pub use gauntlet_domain::EffectClass;
 
 /// One model-facing operation. Schemas are JSON Schema documents as text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

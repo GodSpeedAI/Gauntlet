@@ -30,6 +30,7 @@ pub mod roles;
 pub mod settle;
 pub mod skills;
 pub mod state;
+pub mod tools;
 pub mod verify;
 
 pub use config::defaults::{

@@ -43,3 +43,8 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 * **Evidence:** running `cargo test -p gauntlet-cli` leaves an untracked `crates/gauntlet-cli/.agents/` directory; the arch literal scan then fails (258/261) until it is removed.
 * **Next move:** make the smoke set `GAUNTLET_REPORT_DIR` to a temp dir.
+
+## OD-8 — fabric `Host` swallows a catalog build failure; schema checks duplicated
+
+* **Evidence:** `fabric_cmd.rs` `Host::tools()` returns an empty list and `call()` returns Refused `catalog_invalid` if the `SemanticToolRuntime` fails to build; the runtime's schema validator and the agents wire decoder both validate arguments. Also one unexplained `doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run` failure seen once (passed on rerun).
+* **Next move:** build the runtime once at `fabric serve` startup and fail to start on error; retire the wire decoder checks once the runtime is trusted; investigate the doctor test flake.

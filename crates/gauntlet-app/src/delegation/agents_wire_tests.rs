@@ -26,7 +26,9 @@ use super::DelegationBroker;
 use super::agents::{
     AgentsCaller, AgentsPolicy, AgentsService, RoleGrant, WorkspacePolicy, derive_invocation_id,
 };
-use super::agents_wire::{AgentsSurface, CallClock, MAX_CONTENT_BYTES, decode_spawn};
+use super::agents_wire::{
+    AgentsSurface, CallClock, MAX_CONTENT_BYTES, agents_runtime, decode_spawn,
+};
 use super::broker::DelegationOutcome;
 use super::context::{ContextItemKind, ContextPolicy};
 use super::test_support::*;
@@ -34,6 +36,7 @@ use crate::fabric::SupportLevel;
 use crate::fabric::affordance::AGENTS_AFFORDANCES;
 use crate::fabric::selection::Needs;
 use crate::govern::{AuthorityGate, GovernDeps};
+use gauntlet_ports::tool_catalog::{ToolInvocation, ToolInvoker, ToolName};
 
 const UNIT_TAG: &str = "UN-001";
 const ROOT_WORKSPACE: &str = "workspace-a";
@@ -861,4 +864,35 @@ fn agents_wire_encoded_examples_validate_against_their_schemas() {
 
     let listed = expect_ok(root.call(LIST, &obj(vec![])));
     assert_valid(LIST, true, &listed);
+}
+
+const OTHER_CALLER_TEXT: &str = "01BX5ZZKBKACTAV9WEVGEMMVRZ";
+
+#[test]
+fn agents_runtime_matches_the_surface_and_refuses_another_caller() {
+    let env = Env::rooted();
+    let broker = env.lab.broker();
+    let root_id = root_caller().invocation_id.clone();
+    let root = surface(&env, &broker, root_caller());
+    let runtime = agents_runtime(&root, root_id.clone()).expect("the agents catalog builds");
+
+    let list_args = parse("{}").expect("a well-formed document");
+    let via_runtime = runtime.invoke(&ToolInvocation {
+        caller: root_id.clone(),
+        name: ToolName::new("agents.list").expect("a valid name"),
+        args: list_args.clone(),
+    });
+    assert_eq!(via_runtime, root.call("agents.list", &list_args));
+
+    let other = InvocationId::new(OTHER_CALLER_TEXT).expect("a valid invocation id");
+    assert_ne!(other, root_id, "the fixture caller differs");
+    let refused = runtime.invoke(&ToolInvocation {
+        caller: other,
+        name: ToolName::new("agents.list").expect("a valid name"),
+        args: list_args,
+    });
+    assert!(matches!(
+        refused,
+        ToolOutcome::Refused { ref code, .. } if code == "caller_mismatch"
+    ));
 }

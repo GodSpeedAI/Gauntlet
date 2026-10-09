@@ -31,6 +31,7 @@ use gauntlet_adapter_agent_prime::SystemClock;
 use gauntlet_adapter_state_postgres::{EmbeddedInvocationGraph, EmbeddedStateStore, state_exists};
 use gauntlet_adapter_surface_rpc::{ServeEnd, ServeLimits, ServerInfo, serve};
 use gauntlet_adapter_workspace_fs::FsWorkspaceProvider;
+use gauntlet_app::delegation::agents_wire::{AgentsCatalog, agents_runtime};
 use gauntlet_app::delegation::{
     AgentsCaller, AgentsPolicy, AgentsService, AgentsSurface, CallClock, ContextItem,
     ContextItemKind, DelegationBroker, RESULT_CONTRACT_NAME, build_envelope, derive_invocation_id,
@@ -46,6 +47,7 @@ use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::invocation_graph::{AdmissionOutcome, AdmissionRequest, InvocationGraph};
 use gauntlet_ports::json::JsonValue;
 use gauntlet_ports::state_store::{RunEvent, RunEventKind, StateStore};
+use gauntlet_ports::tool_catalog::CatalogSurface;
 use gauntlet_ports::tool_surface::{ToolListing, ToolOutcome, ToolSurface};
 use gauntlet_ports::workspace_provider::{WorkspaceProvider, WorkspaceSubject};
 
@@ -388,12 +390,29 @@ impl Host<'_> {
 }
 
 impl ToolSurface for Host<'_> {
+    /// The listing is the agents catalog, projected through the same runtime
+    /// that admits calls, so the names and schemas listed are the ones callable.
     fn tools(&self) -> Vec<ToolListing> {
-        self.surface().tools()
+        let surface = self.surface();
+        let caller = self.caller.invocation_id.clone();
+        match agents_runtime(&surface, caller.clone()) {
+            Ok(runtime) => CatalogSurface::new(&AgentsCatalog, &runtime, caller).tools(),
+            Err(_) => Vec::new(),
+        }
     }
 
     fn call(&self, name: &str, arguments: &JsonValue) -> ToolOutcome {
-        self.surface().call(name, arguments)
+        let surface = self.surface();
+        let caller = self.caller.invocation_id.clone();
+        match agents_runtime(&surface, caller.clone()) {
+            Ok(runtime) => {
+                CatalogSurface::new(&AgentsCatalog, &runtime, caller).call(name, arguments)
+            }
+            Err(error) => ToolOutcome::Refused {
+                code: "catalog_invalid".to_string(),
+                detail: error.to_string(),
+            },
+        }
     }
 }
 
