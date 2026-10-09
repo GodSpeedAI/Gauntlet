@@ -11,7 +11,7 @@ The logical system is divided into four inward-pointing concentric layers:
 ```text
                   ┌────────────────────────────────────────────────────────┐
    Adapters       │   mock-runner · cli-runner · prime-runner · git-obs    │
-  (Periphery)     │   sqlite-state · fs-evidence · bwrap-sandbox · ...     │
+  (Periphery)     │   pg-state     · fs-evidence · bwrap-sandbox · ...     │
                   └─────────────────────────┬──────────────────────────────┘
                                             │ implements
                   ┌─────────────────────────▼──────────────────────────────┐
@@ -45,7 +45,7 @@ The logical system is divided into four inward-pointing concentric layers:
    - Handles reference freezing, comparison envelope allowlisting, diagnostic testing, and preflight doctor checks.
    - Consumes ports; never imports or references concrete adapters.
 4. **Adapters Layer (`crates/adapters/*`)**:
-   - Implements the ports using concrete technologies: SQLite for state persistence, filesystem for content-addressed evidence, Bubblewrap for Linux sandboxing, and various runners (CLI, Prime-Agent, Mock).
+   - Implements the ports using concrete technologies: PostgreSQL for state persistence, filesystem for content-addressed evidence, Bubblewrap for Linux sandboxing, and various runners (CLI, Prime-Agent, Mock).
    - Never referenced by domain or application crates.
 5. **Composition Root (`crates/gauntlet-cli`)**:
    - The CLI binary and library that parses CLI arguments, resolves configuration, constructs the concrete adapters, injects them into the application layer, and launches execution.
@@ -98,7 +98,7 @@ flowchart TB
         SURF_ADAPT["JsonOperatorSurface\n(HTTP/JSON Loopback API)"]
         
         subgraph FS_Storage ["Durable Local Storage"]
-            SQLITE[("SQLite Database\n(Run state, iterations, invocations)")]
+            POSTGRES[("PostgreSQL Database\n(Run state, iterations, invocations)")]
             EVENT_LOG[("Append-Only EventLog\n(events.jsonl, fsync on commit)")]
             EVIDENCE_DIR[("Immutable Evidence Store\n(/tmp/gauntlet/evidence/sha256/...)")]
             LOCK_FILE[(".gauntlet/reference.lock\n(Answer key SHA-256 hash)")]
@@ -120,7 +120,7 @@ flowchart TB
             TUI_PROC <--> GATEWAY
         end
 
-        CLI_PROC -->|Write / Query| SQLITE
+        CLI_PROC -->|Write / Query| POSTGRES
         CLI_PROC -->|Append Event| EVENT_LOG
         CLI_PROC -->|Store Artifacts| EVIDENCE_DIR
         CLI_PROC -->|Verify Digest| LOCK_FILE
@@ -213,7 +213,7 @@ flowchart LR
 
     subgraph TrustedZone ["Trusted Control Domain"]
         CTRL["RunController"]
-        STATE["SQLite Store"]
+        STATE["PostgreSQL Store"]
         RULER["Answer Key & Reference Lock"]
         VERIF["Verifiers & Instruments"]
     end

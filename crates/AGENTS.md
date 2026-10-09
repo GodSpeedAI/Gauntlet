@@ -9,7 +9,7 @@ Dependency direction points inward and is enforced mechanically by `crates/gaunt
 * **`gauntlet-domain`**: Pure domain entities, value objects, invariants. Zero internal and zero external dependencies.
 * **`gauntlet-ports`**: Port traits and shared contract test suites (`src/contract/`). Depends only on `gauntlet-domain` (external allowlist: `sha2`).
 * **`gauntlet-app`**: Orchestration controller, execution engines, and services. Depends only on `gauntlet-domain` and `gauntlet-ports` (external allowlist: `sha2`). Never depends on adapters or CLI.
-* **`crates/adapters/*`**: 24 pluggable adapter crates implementing ports. Each adapter depends only on `gauntlet-domain` and `gauntlet-ports` (never on `gauntlet-app` or `gauntlet-cli`). External allowlist: `rusqlite` (for `state-sqlite`), `sha2` (for `evidence-fs` and observe adapters).
+* **`crates/adapters/*`**: 24 pluggable adapter crates implementing ports. Each adapter depends only on `gauntlet-domain` and `gauntlet-ports` (never on `gauntlet-app` or `gauntlet-cli`). External allowlist: `postgres` (for `state-postgres`), `sha2` (for `evidence-fs` and observe adapters).
 * **`gauntlet-cli`**: Composition root binary and thin library. Wires domain, ports, app, and adapters. Enables `surface-json` via `--features surfaces`. External allowlist: empty.
 * **`gauntlet-arch-tests`**: Test-only crate owning mechanical boundary scans. Depends on no internal crate (external allowlist: `toml`).
 

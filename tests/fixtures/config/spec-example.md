@@ -36,7 +36,7 @@ workspace:
   root: $GAUNTLET_TMP_DIR/workspaces
   use_worktrees: true
 state:
-  backend: sqlite
+  backend: postgres
   dir: $GAUNTLET_STATE_DIR
 evidence:
   dir: $GAUNTLET_ARTIFACT_DIR

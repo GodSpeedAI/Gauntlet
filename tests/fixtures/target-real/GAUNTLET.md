@@ -25,7 +25,7 @@ budget:
   recovery_reserve_pct: 15
   diagnostic_budget: 1
 state:
-  backend: sqlite
+  backend: postgres
 sandbox:
   backend: bwrap
 operator:

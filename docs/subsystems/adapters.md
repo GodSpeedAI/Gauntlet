@@ -6,7 +6,7 @@ The adapters layer provides concrete, technology-specific implementations of Gau
 
 ## 1. Purpose
 
-Adapters bridge Gauntlet's abstract ports to real-world infrastructure: filesystem hierarchies, SQLite databases, operating system sandboxes (Bubblewrap), external process runners, test harnesses, and model APIs. By keeping adapters strictly at the periphery, Gauntlet can swap runtime dependencies without altering core control logic.
+Adapters bridge Gauntlet's abstract ports to real-world infrastructure: filesystem hierarchies, PostgreSQL databases, operating system sandboxes (Bubblewrap), external process runners, test harnesses, and model APIs. By keeping adapters strictly at the periphery, Gauntlet can swap runtime dependencies without altering core control logic.
 
 ---
 
@@ -30,7 +30,7 @@ crates/adapters/
 │   ├── gauntlet-adapter-agent-cli
 │   └── gauntlet-adapter-agent-prime
 ├── State, Evidence & Workspace (4)
-│   ├── gauntlet-adapter-state-sqlite
+│   ├── gauntlet-adapter-state-postgres
 │   ├── gauntlet-adapter-evidence-fs
 │   ├── gauntlet-adapter-workspace-fs
 │   └── gauntlet-adapter-escalation-fs
@@ -69,7 +69,7 @@ crates/adapters/
 - **`gauntlet-adapter-agent-prime`**: Adapter for recursive agent harnesses (such as Prime-Agent). Generates the kernel invocation, captures admission handles (`rlm_child_id`, `session_dir`), and polls the result contract asynchronously without blocking.
 
 ### 4.2 State, Evidence & Workspace
-- **`gauntlet-adapter-state-sqlite`**: Embedded SQLite persistence storing runs, iterations, role invocations, residuals, verification records, and settlements. Implements `StateStore` and `EventLog`. Supports crash-injection testing and deterministic JSONL export.
+- **`gauntlet-adapter-state-postgres`**: Embedded PostgreSQL persistence storing runs, iterations, role invocations, residuals, verification records, and settlements. Implements `StateStore` and `EventLog`. Supports crash-injection testing and deterministic JSONL export.
 - **`gauntlet-adapter-evidence-fs`**: Content-addressed filesystem store (`/tmp/gauntlet/evidence/sha256/...`). Implements write-once immutability; has no overwrite path in its API.
 - **`gauntlet-adapter-workspace-fs`**: Creates and destroys isolated workspaces (using git worktrees or filesystem mirrors) rooted outside the host repository.
 - **`gauntlet-adapter-escalation-fs`**: Filesystem-backed human escalation queue storing pending, resolved, or rejected tickets in `.gauntlet/escalations/`.
@@ -129,6 +129,6 @@ fn mock_runner_passes_shared_contract() {
 - [`crates/adapters/gauntlet-adapter-agent-mock/src/lib.rs`](../../crates/adapters/gauntlet-adapter-agent-mock/src/lib.rs) — Mock runner implementation.
 - [`crates/adapters/gauntlet-adapter-agent-cli/src/lib.rs`](../../crates/adapters/gauntlet-adapter-agent-cli/src/lib.rs) — Process-backed CLI agent runner.
 - [`crates/adapters/gauntlet-adapter-agent-prime/src/lib.rs`](../../crates/adapters/gauntlet-adapter-agent-prime/src/lib.rs) — Recursive Prime-Agent runner adapter.
-- [`crates/adapters/gauntlet-adapter-state-sqlite/src/lib.rs`](../../crates/adapters/gauntlet-adapter-state-sqlite/src/lib.rs) — SQLite state store and event log.
+- [`crates/adapters/gauntlet-adapter-state-postgres/src/lib.rs`](../../crates/adapters/gauntlet-adapter-state-postgres/src/lib.rs) — PostgreSQL state store and event log.
 - [`crates/adapters/gauntlet-adapter-evidence-fs/src/lib.rs`](../../crates/adapters/gauntlet-adapter-evidence-fs/src/lib.rs) — Content-addressed filesystem evidence store.
 - [`crates/adapters/gauntlet-adapter-sandbox-bwrap/src/lib.rs`](../../crates/adapters/gauntlet-adapter-sandbox-bwrap/src/lib.rs) — Bubblewrap process isolation backend.

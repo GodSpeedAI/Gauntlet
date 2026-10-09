@@ -66,7 +66,7 @@ Every adapter is a substitutable choice resolved from configuration
 | Verification | `verify-command-exit-code`, `verify-file-digest`, `verify-schema-check`, `verify-test-report` |
 | Sandbox | `sandbox-none` (refuses above-`contained`), `sandbox-bwrap` (bubblewrap) |
 | Policy | `policy-fs` (strict decode of `.gauntlet/policies/<tier>.json`) |
-| State / evidence / events | `state-sqlite` (rusqlite), `evidence-fs` (content-addressed), event log inside the state adapter |
+| State / evidence / events | `state-postgres` (postgres), `evidence-fs` (content-addressed), event log inside the state adapter |
 | Workspace | `workspace-fs` (per-unit directory workspaces) |
 | Escalation / ids / metering | `escalation-fs`, `id-entropy` (ULID-class), `meter-memory` |
 | Operator surface | `surface-json` (feature-gated `surfaces` build; loopback JSON API) |

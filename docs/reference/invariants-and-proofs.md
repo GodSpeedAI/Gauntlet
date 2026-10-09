@@ -18,7 +18,7 @@ This document specifies the 12 Non-Negotiable Invariants (I1–I12), the 12 Proo
 | **I8** | Missing evidence is not passing evidence. | `Outcome` is strictly three-state (`PASS`, `FAIL`, `INCONCLUSIVE`). Missing evidence yields `INCONCLUSIVE`, which blocks settlement. | **P12** — [`crates/gauntlet-cli/tests/p12_missing_is_not_passing.rs`](../../crates/gauntlet-cli/tests/p12_missing_is_not_passing.rs) |
 | **I9** | Authority gates whether it runs; sandbox gates how contained it is. | Both checks precede builder process start, in that order; irreversible units are never auto-dispatched. | **P5** — [`crates/gauntlet-cli/tests/p5_hard_gate.rs`](../../crates/gauntlet-cli/tests/p5_hard_gate.rs) |
 | **I10** | The runtime is bounded even when configuration is incomplete. | Every budget dimension has conservative defaults; absence of config never permits infinite loops; recovery reserve (15%) is never spent forward. | **P6** — [`crates/gauntlet-cli/tests/p6_budget_control.rs`](../../crates/gauntlet-cli/tests/p6_budget_control.rs) |
-| **I11** | Critical state is never reconstructed from conversational memory. | Durable append-only event log (`fsync` on commit) + SQLite store; resume reads disk logs, not chat transcripts. | **P7** — [`crates/gauntlet-cli/tests/p7_recovery.rs`](../../crates/gauntlet-cli/tests/p7_recovery.rs) |
+| **I11** | Critical state is never reconstructed from conversational memory. | Durable append-only event log (`fsync` on commit) + PostgreSQL store; resume reads disk logs, not chat transcripts. | **P7** — [`crates/gauntlet-cli/tests/p7_recovery.rs`](../../crates/gauntlet-cli/tests/p7_recovery.rs) |
 | **I12** | Core control logic depends on semantic ports, never on products. | Zero compile-time dependencies on vendor SDKs in domain or app; ports provide shared contract suites; passes across $\ge 2$ runner adapters. | **P8** — [`crates/gauntlet-cli/tests/p8_adapter_substitution.rs`](../../crates/gauntlet-cli/tests/p8_adapter_substitution.rs) |
 
 ---
@@ -42,7 +42,7 @@ Autonomous agents frequently attempt to "game" evaluation rubrics to report succ
 | **G11** | Silent unwrap of sandboxing | `none` sandbox refuses execution for tiers above `contained`; never falls back silently. | `p5_hard_gate.rs` |
 | **G12** | Boolean conversion of Outcome | `gauntlet-arch-tests` asserts no `impl From<Outcome> for bool` exists in the workspace. | `gauntlet-arch-tests/denylist.rs` |
 | **G13** | Infinite recursive self-spawning | Strict `max_depth` (default: 1) and `max_rounds` (default: 8) bounded by `BudgetMeter`. | `p6_budget_control.rs` |
-| **G14** | Reconstructing state from chat | Controller resumes only from `events.jsonl` and SQLite; never accepts prompt state injections. | `p7_recovery.rs` |
+| **G14** | Reconstructing state from chat | Controller resumes only from `events.jsonl` and PostgreSQL; never accepts prompt state injections. | `p7_recovery.rs` |
 | **G15** | Averaging away hard requirements | Hard-gate units cannot be satisfied by weighted quality dimension averages. | `p5_hard_gate.rs` |
 | **G16** | Leaking vendor APIs into core | `gauntlet-arch-tests` denylist scans domain and app crates, failing on vendor identifiers. | `gauntlet-arch-tests/denylist.rs` |
 

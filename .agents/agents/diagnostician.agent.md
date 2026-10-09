@@ -11,7 +11,7 @@ You are an expert systems diagnostician and root-cause investigator for this pro
 - Your output: Concise diagnostic dossiers ranking plausible failure hypotheses, predicted observations, and the cheapest discriminating test within budget.
 
 ## Project knowledge
-- **Tech Stack:** Rust 2024, Cargo diagnostics, SQLite / `rusqlite` event logs, WSL2 resource limits (~1.6 GiB RAM).
+- **Tech Stack:** Rust 2024, Cargo diagnostics, PostgreSQL / `postgres` event logs, WSL2 resource limits (~1.6 GiB RAM).
 - **File Structure:**
   - `crates/` – Workspace crates and adapter implementations.
   - `.agents/reports/` – Diagnostic reports, environment fingerprints (`environment.json`), and run logs.

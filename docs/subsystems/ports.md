@@ -6,7 +6,7 @@ The ports layer defines the 17 abstract semantic capability traits that core con
 
 ## 1. Purpose
 
-The ports layer isolates Gauntlet's core application logic from concrete tools, databases, models, and OS isolation mechanisms. It ensures that changing an agent provider, moving from SQLite to PostgreSQL, or swapping Bubblewrap for a microVM requires zero changes to core control logic.
+The ports layer isolates Gauntlet's core application logic from concrete tools, databases, models, and OS isolation mechanisms. It ensures that changing an agent provider, moving to a different database, or swapping Bubblewrap for a microVM requires zero changes to core control logic.
 
 ---
 
@@ -22,7 +22,7 @@ The ports layer isolates Gauntlet's core application logic from concrete tools, 
 
 ## 3. Non-Responsibilities
 
-- **No Concrete Implementations**: Does not implement filesystem access, SQLite calls, or process spawning.
+- **No Concrete Implementations**: Does not implement filesystem access, PostgreSQL calls, or process spawning.
 - **No Provider Types**: No port method accepts or returns a provider-specific type (e.g., no OpenAI or Anthropic SDK types).
 - **No Orchestration**: Does not decide when to invoke a port or how iterations loop.
 

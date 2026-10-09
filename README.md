@@ -656,7 +656,7 @@ model APIs
 test runners
 Git
 browsers
-SQLite
+PostgreSQL
 filesystems
 sandboxes
 observability systems

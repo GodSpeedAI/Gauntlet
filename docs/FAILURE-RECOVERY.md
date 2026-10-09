@@ -29,7 +29,7 @@ three states through every layer.
 
 ## Substrate
 
-A single-file embedded database (SQLite via rusqlite) is the default
+A PostgreSQL database (the local default is a pg0-managed instance) is the default
 `StateStore` adapter choice — not an architectural commitment (spec
 §18.1). The event log is append-only and crash-safe; the evidence store is
 content-addressed with no overwrite path; deterministic export to JSONL is

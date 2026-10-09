@@ -6,7 +6,7 @@ This document specifies the method signatures, parameters, return types, and typ
 
 ## Governing Port Rules (Spec §6)
 
-1. **Provider-Agnostic**: No port method accepts or returns a provider-specific type (e.g. no OpenAI, Anthropic, SQLite, or Bubblewrap structs).
+1. **Provider-Agnostic**: No port method accepts or returns a provider-specific type (e.g. no OpenAI, Anthropic, PostgreSQL, or Bubblewrap structs).
 2. **Typed Errors**: Every port returns a typed error enum carrying the failure locus (e.g. `AgentError`, `ObserverError`, `StateStoreError`). Bare strings or untyped errors are forbidden.
 3. **Deadlines on Blocking Calls**: Every method that can block takes an explicit `Deadline` parameter.
 

@@ -26,7 +26,7 @@ budget:
 workspace:
   use_worktrees: true
 state:
-  backend: sqlite
+  backend: postgres
 evidence:
 operator:
   surfaces: [cli]

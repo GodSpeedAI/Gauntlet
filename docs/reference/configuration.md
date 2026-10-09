@@ -56,7 +56,7 @@ workspace:
   root: /tmp/gauntlet/workspaces             # Base path for scratch workspaces
 
 state:
-  backend: sqlite                            # State persistence backend (sqlite)
+  backend: postgres                          # State persistence backend (postgres)
   dir: /tmp/gauntlet/state                   # Directory for state database
 
 evidence:
@@ -106,7 +106,8 @@ Any configuration key can be overridden via environment variables:
 | `GAUNTLET_AGENT_RUNNER` | Selects the active AgentRunner adapter. | `prime-agent`, `cli-agent`, `mock-agent` |
 | `GAUNTLET_CLI_AGENT_CMD` | Command template for the generic CLI runner. | E.g. `claude --prompt {prompt_file} --workspace {workspace}` |
 | `GAUNTLET_MOCK_SCENARIO` | Fixture stem for the mock runner adapter. | E.g. `happy_path`, `lying_builder`, `mutating_builder` |
-| `GAUNTLET_STATE_DIR` | Directory where SQLite state and event logs live. | Filesystem path (default: `/tmp/gauntlet/state`) |
+| `GAUNTLET_STATE_DIR` | Directory where run state and event logs live. | Filesystem path (default: `/tmp/gauntlet/state`) |
+| `GAUNTLET_DATABASE_URL` | PostgreSQL connection URI for the durable state store. | URI (optional; default: the local pg0 instance `gauntlet-dev` on `127.0.0.1:54329`) |
 | `GAUNTLET_ARTIFACT_DIR` | Directory for content-addressed immutable evidence. | Filesystem path (default: `/tmp/gauntlet/evidence`) |
 | `GAUNTLET_REPORT_DIR` | Directory where run reports and doctor.json land. | Filesystem path (default: `.agents/reports`) |
 | `GAUNTLET_SANDBOX_BACKEND` | Active process isolation backend. | `bwrap`, `none` |
