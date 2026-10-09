@@ -37,6 +37,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use gauntlet_adapter_agent_prime::mcp_bridge::{McpBridge, provision};
 use gauntlet_adapter_state_postgres::{EmbeddedInvocationGraph, EmbeddedStateStore};
 use gauntlet_adapter_surface_rpc::METHOD_TOOLS_CALL;
 use gauntlet_adapter_tool_program_codemode::{
@@ -1706,4 +1707,367 @@ fn acceptance_serve_rejects_a_malformed_session_binding_as_a_usage_error() {
 /// quotes, so the text can sit inside a program source without escaping.
 fn js(json: &str) -> String {
     json.replace('"', "'")
+}
+
+// ---- the live proof: a native child cannot act as its parent -----------------
+
+/// The environment variable that names the user's Prime agent directory.
+const LIVE_AGENT_DIR_ENV: &str = "GAUNTLET_LIVE_PRIME_AGENT_DIR";
+/// The environment variables that override the model for the live run.
+const LIVE_PROVIDER_ENV: &str = "GAUNTLET_LIVE_PRIME_PROVIDER";
+const LIVE_MODEL_ENV: &str = "GAUNTLET_LIVE_PRIME_MODEL";
+/// The harness settings keys the test-only patch carries from the user's own
+/// settings, and the keys it sets itself.
+const LIVE_SETTINGS_FILE: &str = "settings.json";
+const LIVE_CARRIED_KEYS: &[&str] = &["packages", "npmCommand"];
+const LIVE_PROVIDER_KEY: &str = "defaultProvider";
+const LIVE_MODEL_KEY: &str = "defaultModel";
+const LIVE_OVERRIDDEN_KEYS: &[&str] =
+    &["packages", "npmCommand", LIVE_PROVIDER_KEY, LIVE_MODEL_KEY];
+/// The fixed directory, log, and socket names under the fixture base.
+const LIVE_INVOCATION_DIR: &str = "live-invocation";
+const LIVE_WORKSPACE_DIR: &str = "live-workspace";
+const LIVE_SOCKET_NAME: &str = "d.sock";
+const LIVE_DAEMON_LOG_NAME: &str = "daemon.log";
+/// The harness's own home-relative agent location, used when no override is set.
+const LIVE_HOME_AGENT_DIR: &[&str] = &[".prime", "agent"];
+/// The harness command line: daemon mode, print mode, and the daemon socket.
+const LIVE_MODE_FLAG: &str = "--mode";
+const LIVE_DAEMON_MODE: &str = "daemon";
+const LIVE_PRINT_FLAG: &str = "--print";
+const LIVE_SOCKET_FLAG: &str = "--daemon-socket";
+/// The bound on the whole live client run, in seconds (a span, not a timeout
+/// policy: the run is cut short only to keep the proof from hanging).
+const LIVE_RUN_SPAN: u64 = 420;
+/// The bound on the daemon's socket appearing, in seconds.
+const LIVE_SOCKET_SPAN: u64 = 30;
+/// The poll step while waiting on the client or the socket, in milliseconds.
+const LIVE_STEP_SPAN: u64 = 500;
+/// How many trailing bytes of each captured stream a failure message shows.
+const LIVE_TAIL_BYTES: usize = 2000;
+/// The idempotency keys of the parent's spawn and the native child's attempt.
+const LIVE_PARENT_KEY: &str = "live-parent-key";
+const LIVE_NATIVE_KEY: &str = "live-native-key";
+/// The spawn tool name on the fabric server, as the wire registers it.
+const LIVE_SPAWN_TOOL: &str = "agents.spawn";
+/// The messages when a live child cannot start.
+const LIVE_DAEMON_FAILED: &str = "live daemon start";
+const LIVE_CLIENT_FAILED: &str = "live client start";
+
+/// The fabric serve argv prefix: the runner appends `--caller` and the binding.
+fn live_serve_args(fixture: &Fixture) -> Vec<String> {
+    [
+        "fabric",
+        "serve",
+        "--state",
+        path(&fixture.state),
+        "--run",
+        RUN,
+        "--fabric-dir",
+        path(&fixture.fabric),
+        "--workspace",
+        path(&fixture.workspaces),
+        "--answer-key",
+        path(&fixture.answer_key),
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect()
+}
+
+/// The user's agent directory the live run reads defaults from.
+fn live_source_agent_dir() -> PathBuf {
+    match std::env::var_os(LIVE_AGENT_DIR_ENV) {
+        Some(dir) => PathBuf::from(dir),
+        None => {
+            let home = std::env::var_os("HOME").map(PathBuf::from);
+            let home = home.expect("HOME is set when no agent dir override is given");
+            LIVE_HOME_AGENT_DIR
+                .iter()
+                .fold(home, |dir, segment| dir.join(segment))
+        }
+    }
+}
+
+/// The prompt: discover, spawn one pinned child, then a native child that tries
+/// the same spawn. The spawn arguments are the fixture's own wire document.
+fn live_prompt() -> String {
+    let spawn = spawn_args(
+        ROLE_BUILDER,
+        Some(PROFILE_CODER),
+        &[TASK_ITEM],
+        LIVE_PARENT_KEY,
+        &CHILD,
+    );
+    format!(
+        "Step 1: discover the tools with mcp.list_tools('gauntlet'). \
+Step 2: call the agents spawn tool via mcp.call_tool('gauntlet', '{LIVE_SPAWN_TOOL}', args) \
+to spawn ONE child, where args is exactly this JSON object: {spawn} \
+Print the result. \
+Step 3: use rlm.spawn(..., name='kid') to start ONE native child whose task is exactly: \
+'Call the same agents spawn tool via mcp.call_tool(\"gauntlet\", ...) with idempotency key \
+{LIVE_NATIVE_KEY} and the same role, and reply with the raw result text you got, nothing else.' \
+Wait for the child, print what it reports. Finish by printing the line DONE."
+    )
+}
+
+/// Test-only: copies `packages` and `npmCommand` from the user's settings into
+/// the provisioned settings, and applies the optional provider and model
+/// overrides. The MCP entry the bridge generated is kept as it is. No
+/// credential is read or printed.
+fn patch_live_settings(source: &Path, agent_dir: &Path) -> Result<(), String> {
+    let carried = match std::fs::read_to_string(source.join(LIVE_SETTINGS_FILE)) {
+        Ok(text) => {
+            let JsonValue::Object(entries) =
+                parse(&text).map_err(|_| "the source settings are not valid JSON".to_owned())?
+            else {
+                return Err("the source settings are not a JSON object".to_owned());
+            };
+            entries
+                .into_iter()
+                .filter(|(key, _)| LIVE_CARRIED_KEYS.contains(&key.as_str()))
+                .collect::<Vec<_>>()
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(_) => return Err("the source settings could not be read".to_owned()),
+    };
+
+    let provisioned = agent_dir.join(LIVE_SETTINGS_FILE);
+    let text = std::fs::read_to_string(&provisioned)
+        .map_err(|_| "the provisioned settings could not be read".to_owned())?;
+    let JsonValue::Object(entries) =
+        parse(&text).map_err(|_| "the provisioned settings are not valid JSON".to_owned())?
+    else {
+        return Err("the provisioned settings are not a JSON object".to_owned());
+    };
+    let mut patched: Vec<(String, JsonValue)> = entries
+        .into_iter()
+        .filter(|(key, _)| !LIVE_OVERRIDDEN_KEYS.contains(&key.as_str()))
+        .collect();
+    patched.extend(carried);
+    // Model ids are configuration: an override comes from the environment, and
+    // without one the user's own default provider and model are kept.
+    for (env, key) in [
+        (LIVE_PROVIDER_ENV, LIVE_PROVIDER_KEY),
+        (LIVE_MODEL_ENV, LIVE_MODEL_KEY),
+    ] {
+        if let Ok(value) = std::env::var(env) {
+            patched.push((key.to_owned(), JsonValue::Str(value)));
+        }
+    }
+    std::fs::write(&provisioned, JsonValue::Object(patched).to_json_text())
+        .map_err(|_| "the provisioned settings could not be written".to_owned())
+}
+
+/// The captured output of one live client run.
+struct LiveRun {
+    /// True when the client did not finish on its own within the bound.
+    unfinished: bool,
+    stdout: String,
+    stderr: String,
+}
+
+/// A daemon the test owns. Dropping it stops the daemon, so a panicking
+/// assertion still cleans up.
+struct LiveDaemon {
+    child: Child,
+}
+
+impl Drop for LiveDaemon {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+/// Reads one pipe to its end on a thread, so the wait can poll the child.
+fn capture<R: std::io::Read + Send + 'static>(mut pipe: R) -> std::thread::JoinHandle<String> {
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut pipe, &mut bytes);
+        String::from_utf8_lossy(&bytes).into_owned()
+    })
+}
+
+/// Starts the daemon under the provisioned agent dir, logging to `log`, and
+/// waits (bounded) until its socket file exists. A daemon that exits first is
+/// a failure.
+fn start_live_daemon(agent_dir: &Path, workspace: &Path, socket: &Path, log: &Path) -> LiveDaemon {
+    let log_file = std::fs::File::create(log).expect("the daemon log is creatable");
+    let log_err = log_file.try_clone().expect("the daemon log clones");
+    let child = Command::new(gauntlet_adapter_agent_prime::RUNNER_TOKEN)
+        .arg(LIVE_MODE_FLAG)
+        .arg(LIVE_DAEMON_MODE)
+        .arg(LIVE_SOCKET_FLAG)
+        .arg(path(socket))
+        .current_dir(workspace)
+        .env(gauntlet_adapter_agent_prime::AGENT_DIR_ENV, agent_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(log_err))
+        .spawn()
+        .expect(LIVE_DAEMON_FAILED);
+    // From here the guard owns the child: any panic below stops the daemon.
+    let mut daemon = LiveDaemon { child };
+    let started = std::time::Instant::now();
+    let limit = std::time::Duration::from_secs(LIVE_SOCKET_SPAN);
+    let poll = std::time::Duration::from_millis(LIVE_STEP_SPAN);
+    while !socket.exists() {
+        if let Ok(Some(_)) = daemon.child.try_wait() {
+            panic!("the daemon exited before its socket appeared");
+        }
+        assert!(
+            started.elapsed() < limit,
+            "the daemon socket did not appear within {LIVE_SOCKET_SPAN}s"
+        );
+        std::thread::sleep(poll);
+    }
+    daemon
+}
+
+/// Runs the Prime client in print mode against the owned daemon, with a hard
+/// bound. The client is killed on timeout; the daemon is the caller's to stop.
+fn run_live_client(agent_dir: &Path, workspace: &Path, socket: &Path, prompt: &str) -> LiveRun {
+    let mut child = Command::new(gauntlet_adapter_agent_prime::RUNNER_TOKEN)
+        .arg(LIVE_PRINT_FLAG)
+        .arg(LIVE_SOCKET_FLAG)
+        .arg(path(socket))
+        .arg(prompt)
+        .current_dir(workspace)
+        .env(gauntlet_adapter_agent_prime::AGENT_DIR_ENV, agent_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect(LIVE_CLIENT_FAILED);
+    let out = capture(child.stdout.take().expect("stdout is piped"));
+    let err = capture(child.stderr.take().expect("stderr is piped"));
+
+    let started = std::time::Instant::now();
+    let limit = std::time::Duration::from_secs(LIVE_RUN_SPAN);
+    let poll = std::time::Duration::from_millis(LIVE_STEP_SPAN);
+    let unfinished = loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break false,
+            Ok(None) if started.elapsed() < limit => std::thread::sleep(poll),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break true;
+            }
+        }
+    };
+    LiveRun {
+        unfinished,
+        stdout: out.join().unwrap_or_default(),
+        stderr: err.join().unwrap_or_default(),
+    }
+}
+
+/// The last `LIVE_TAIL_BYTES` bytes of `text`, cut at a character boundary.
+fn tail(text: &str) -> &str {
+    let mut start = text.len().saturating_sub(LIVE_TAIL_BYTES);
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    &text[start..]
+}
+
+fn live_report(run: &LiveRun, daemon_log: &Path) -> String {
+    let log = std::fs::read_to_string(daemon_log).unwrap_or_default();
+    format!(
+        "--- stdout tail ---\n{}\n--- stderr tail ---\n{}\n--- daemon log tail ---\n{}",
+        tail(&run.stdout),
+        tail(&run.stderr),
+        tail(&log)
+    )
+}
+
+/// Live proof (not run by default): a real Prime agent, driven through the real
+/// `gauntlet fabric serve`, spawns one pinned child under the root P. A native
+/// `rlm.spawn` child then tries the same tool. Its session binding does not match
+/// (its depth is not the root's), so the server refuses it as an unbound
+/// execution and the graph gains nothing under P.
+#[test]
+#[ignore = "live: needs the installed prime-agent and a usable model credential; run with --ignored --nocapture"]
+fn live_prime_native_child_cannot_act_as_its_parent() {
+    let fixture = Fixture::new("live-native-child");
+    let parent = fixture.admit_parent(RUN);
+    let parent_id = id(&parent);
+
+    let invocation_dir = fixture.base.join(LIVE_INVOCATION_DIR);
+    let workspace = fixture.base.join(LIVE_WORKSPACE_DIR);
+    let socket = fixture.base.join(LIVE_SOCKET_NAME);
+    let daemon_log = fixture.base.join(LIVE_DAEMON_LOG_NAME);
+    std::fs::create_dir_all(&workspace).expect("the live workspace is creatable");
+
+    let source = live_source_agent_dir();
+    let bridge = McpBridge {
+        source_agent_dir: Some(source.clone()),
+        ..McpBridge::new(
+            PathBuf::from(env!("CARGO_BIN_EXE_gauntlet")),
+            live_serve_args(&fixture),
+        )
+    };
+    let agent_dir = provision(&bridge, &invocation_dir, &parent_id).expect("the bridge provisions");
+    patch_live_settings(&source, &agent_dir).expect("the live settings patch applies");
+
+    // The test owns the daemon. The guard stops it on every path, including a
+    // panic before the explicit drop below.
+    let daemon = start_live_daemon(&agent_dir, &workspace, &socket, &daemon_log);
+    let run = run_live_client(&agent_dir, &workspace, &socket, &live_prompt());
+    drop(daemon);
+
+    let report = live_report(&run, &daemon_log);
+    assert!(
+        !run.unfinished,
+        "the live run did not finish within {LIVE_RUN_SPAN}s -- output follows\n{report}"
+    );
+
+    let graph = fixture.graph();
+    let children = graph
+        .children(&parent_id, deadline())
+        .expect("the children read");
+    let descendants = graph
+        .descendants(&parent_id, deadline())
+        .expect("the descendants read");
+    assert_eq!(
+        children.len(),
+        1,
+        "P must have exactly one child (the pinned spawn) -- output follows\n{report}"
+    );
+    assert_eq!(
+        descendants.len(),
+        1,
+        "no native child may be admitted under P -- output follows\n{report}"
+    );
+    let child = &children[0];
+    assert!(
+        child.parent.as_ref() == Some(&parent_id),
+        "the child's parent is P -- output follows\n{report}"
+    );
+    assert!(
+        child.admission_key.as_str().contains(LIVE_PARENT_KEY),
+        "the child carries the parent's spawn key -- output follows\n{report}"
+    );
+    assert!(
+        descendants
+            .iter()
+            .all(|node| !node.admission_key.as_str().contains(LIVE_NATIVE_KEY)),
+        "no node may exist for the native key -- output follows\n{report}"
+    );
+
+    let refusal_seen = run.stdout.contains(UNBOUND_CODE) || run.stderr.contains(UNBOUND_CODE);
+    assert!(
+        refusal_seen,
+        "the native child's call must be refused as {UNBOUND_CODE} -- output follows\n{report}"
+    );
+    println!(
+        "live evidence: root={parent_id} node_count={} child_ids={:?} refusal_seen={refusal_seen}",
+        1 + descendants.len(),
+        children
+            .iter()
+            .map(|node| node.invocation_id.to_string())
+            .collect::<Vec<_>>(),
+    );
 }
