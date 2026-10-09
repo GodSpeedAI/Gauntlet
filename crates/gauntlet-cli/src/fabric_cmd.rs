@@ -564,6 +564,9 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
         &run_id,
     )?;
     let composed = compose(&fabric_dir, &state_dir, Some(launch))?;
+    for cap in &composed.isolation_caps {
+        eprintln!("fabric: {}", cap.render());
+    }
     let (store, graph) = open_state(&state_dir)?;
     let clock = SystemClock::new();
     let (_, deadline) = now_and_bound(&clock);
@@ -691,6 +694,9 @@ pub fn doctor_fabric_section(fabric_dir: &Path) -> bool {
             );
             for report in &composed.report {
                 println!("fabric: {}", report.render());
+            }
+            for cap in &composed.isolation_caps {
+                println!("fabric: {}", cap.render());
             }
             true
         }

@@ -200,8 +200,9 @@ impl RunnerToken {
     }
 }
 
-/// The graph limits, the per-spawn budget ceiling, and the isolation fact
-/// the authority gate consumes (`limits.toml`).
+/// The graph limits, the per-spawn budget ceiling, and the declared isolation
+/// (`limits.toml`). The declared isolation is validated here; composition
+/// caps the gate's isolation to what is wired (see `compose_fabric`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FabricLimits {
     pub graph: GraphLimits,
@@ -414,6 +415,12 @@ pub struct ProfileReport {
     pub model: Option<String>,
     /// Whether the model is known. `false` means UNKNOWN, never a default.
     pub model_known: bool,
+    /// The isolation the profile declares (`profiles/*.toml`, or the token's
+    /// default).
+    pub declared_isolation: Isolation,
+    /// The isolation the profile can honestly run under: the declared level
+    /// when its runner has a wired containment seam, else `None`.
+    pub isolation: Isolation,
 }
 
 impl ProfileReport {
@@ -425,7 +432,7 @@ impl ProfileReport {
             Availability::Unavailable { reason } => format!("unavailable ({reason})"),
         };
         format!(
-            "profile {} harness {} token {} availability {} support {} lifecycle {} executable {} provider {} model {}",
+            "profile {} harness {} token {} availability {} support {} lifecycle {} executable {} provider {} model {} isolation {}",
             self.id,
             self.harness,
             self.token,
@@ -435,17 +442,40 @@ impl ProfileReport {
             self.executable.as_deref().unwrap_or("none"),
             self.provider.as_deref().unwrap_or(UNKNOWN),
             self.model.as_deref().unwrap_or(UNKNOWN),
+            self.isolation,
+        )
+    }
+}
+
+/// A profile whose declared isolation was capped to what its runner wires.
+/// Recorded at composition so the cap is visible (serve startup, doctor),
+/// never silent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IsolationCap {
+    pub profile: RunnerProfileId,
+    pub declared: Isolation,
+    pub effective: Isolation,
+}
+
+impl IsolationCap {
+    /// One human-readable line naming the profile and why it was capped.
+    pub fn render(&self) -> String {
+        format!(
+            "profile {} declared isolation {} capped to {}: no containment seam wired",
+            self.profile, self.declared, self.effective
         )
     }
 }
 
 /// The composed fabric: the registry, the runners bound to it, the affordance
-/// policy, and the per-profile report.
+/// policy, the per-profile report, and the isolation caps applied.
 pub struct ComposedFabric {
     pub registry: RunnerRegistry,
     pub runners: RunnerSet,
     pub policy: AgentsPolicy,
     pub report: Vec<ProfileReport>,
+    /// Every profile whose declared isolation exceeded its effective one.
+    pub isolation_caps: Vec<IsolationCap>,
     /// The `program.run` ceilings from `limits.toml`.
     pub program: ProgramCeilings,
 }
@@ -505,6 +535,13 @@ pub fn compose_fabric(
     let mut entries: Vec<(RunnerProfileId, Arc<dyn AgentRunner>)> =
         Vec::with_capacity(config.profiles.len());
     let mut report = Vec::with_capacity(config.profiles.len());
+    let mut isolation_caps = Vec::new();
+    // The gate's ceiling is the strongest isolation any AVAILABLE profile can
+    // actually contain. An unwired profile contributes its effective `None`,
+    // so the ceiling is `None` when no available profile is wired. The
+    // declared `limits.toml` isolation is not the gate's fact: it is honoured
+    // only through the profiles whose runners are wired.
+    let mut gate_isolation = Isolation::None;
 
     for spec in &config.profiles {
         let definition = config
@@ -533,7 +570,18 @@ pub fn compose_fabric(
             availability(spec.token, executable.as_deref(), deps.path_lookup)
         };
         let runner = build_runner(spec, &workspace_root, deps)?;
-        let capabilities = capabilities(spec, definition);
+        let isolation = effective_isolation(spec, deps);
+        if isolation < spec.isolation {
+            isolation_caps.push(IsolationCap {
+                profile: spec.id.clone(),
+                declared: spec.isolation,
+                effective: isolation,
+            });
+        }
+        if matches!(availability, Availability::Available) {
+            gate_isolation = gate_isolation.max(isolation);
+        }
+        let capabilities = capabilities(spec, definition, isolation);
         let harness = HarnessId::new(&spec.harness).map_err(|error| CompositionError::Fabric {
             detail: format!("profile '{}': harness id: {error}", spec.id),
         })?;
@@ -549,6 +597,8 @@ pub fn compose_fabric(
             provider: spec.provider.clone(),
             model: spec.model.clone(),
             model_known: spec.model.is_some(),
+            declared_isolation: spec.isolation,
+            isolation,
         });
         instances.push(RunnerInstance {
             profile: RunnerProfile {
@@ -577,15 +627,32 @@ pub fn compose_fabric(
         roles: config.roles.iter().cloned().collect::<HashMap<_, _>>(),
         limits: config.limits.graph,
         max_budget: config.limits.max_budget,
-        isolation: config.limits.isolation,
+        isolation: gate_isolation,
     };
     Ok(ComposedFabric {
         registry,
         runners,
         policy,
         report,
+        isolation_caps,
         program: config.limits.program,
     })
+}
+
+/// Whether a profile's runner has a containment seam wired. Only the
+/// command-template runner takes one, and only when composition installs it.
+fn containment_wired(token: RunnerToken, deps: &FabricDeps<'_>) -> bool {
+    token == RunnerToken::CommandTemplate && deps.containment.is_some()
+}
+
+/// The isolation a profile can honestly run under: its declared level when
+/// its runner is wired, else `None`.
+fn effective_isolation(spec: &ProfileSpec, deps: &FabricDeps<'_>) -> Isolation {
+    if containment_wired(spec.token, deps) {
+        spec.isolation
+    } else {
+        Isolation::None
+    }
 }
 
 fn availability(
@@ -716,7 +783,11 @@ fn command_of(spec: &ProfileSpec) -> Result<&str, CompositionError> {
         })
 }
 
-fn capabilities(spec: &ProfileSpec, definition: &HarnessDefinition) -> FabricCapabilities {
+fn capabilities(
+    spec: &ProfileSpec,
+    definition: &HarnessDefinition,
+    isolation: Isolation,
+) -> FabricCapabilities {
     FabricCapabilities {
         support_level: support_level(definition.capabilities.support_level),
         lifecycle_source: lifecycle_source(definition.lifecycle.source),
@@ -728,7 +799,7 @@ fn capabilities(spec: &ProfileSpec, definition: &HarnessDefinition) -> FabricCap
         // Every fronted runner builds a fresh envelope per invocation.
         fresh_context: true,
         workspace_mutation: spec.workspace_mutation,
-        isolation: spec.isolation,
+        isolation,
         max_depth: spec.max_depth,
     }
 }
@@ -1922,5 +1993,142 @@ mod tests {
             composed.policy.limits.max_children_per_parent,
             LIMIT_CHILDREN
         );
+    }
+
+    /// A containment seam that wraps nothing. Its presence is what makes the
+    /// command-template runner count as wired; no test runs a child through it.
+    #[derive(Debug)]
+    struct PassThroughContainment;
+
+    impl generic_cli_runner::CommandContainment for PassThroughContainment {
+        fn wrap(
+            &self,
+            _workspace: &gauntlet_domain::WorkspaceRef,
+            _policy: &gauntlet_domain::SandboxPolicyRef,
+            command: &str,
+        ) -> Result<String, generic_cli_runner::ContainmentRefusal> {
+            Ok(command.to_owned())
+        }
+    }
+
+    fn compose_wired(
+        config: &FabricConfig,
+        found: &[&str],
+        containment: Option<Arc<dyn generic_cli_runner::CommandContainment>>,
+    ) -> Result<ComposedFabric, CompositionError> {
+        let lookup = FixedLookup(found.iter().map(|name| (*name).to_owned()).collect());
+        let clock = mock_runner::DeterministicClock::start_at(EpochSeconds::new(0));
+        let deps = FabricDeps {
+            state_dir: std::env::temp_dir().join(STATE_DIR_NAME),
+            clock: Arc::new(clock),
+            containment,
+            path_lookup: &lookup,
+            mcp_serve: None,
+        };
+        compose_fabric(config, &deps)
+    }
+
+    fn capability_isolation(composed: &ComposedFabric, profile: &str) -> Isolation {
+        composed
+            .registry
+            .instances()
+            .into_iter()
+            .find(|instance| instance.profile.id.to_string() == profile)
+            .expect("the profile is registered")
+            .capabilities
+            .isolation
+    }
+
+    /// (a) With no containment seam, every profile's capability isolation is
+    /// capped to `None`, the gate's ceiling is `None`, and the report records
+    /// a cap for each profile that declared above `None`.
+    #[test]
+    fn without_containment_every_profile_is_capped_to_none() {
+        let root = fixture("isolation-uncontained");
+        let config = load(&root).expect("the fixture loads");
+        let composed = compose(&config, &[ALPHA_EXECUTABLE, BETA_EXECUTABLE]).expect("composes");
+
+        for instance in composed.registry.instances() {
+            assert_eq!(
+                instance.capabilities.isolation,
+                Isolation::None,
+                "profile {} must not claim a tier no seam contains",
+                instance.profile.id
+            );
+        }
+        assert_eq!(composed.policy.isolation, Isolation::None);
+
+        let capped: Vec<&str> = composed
+            .isolation_caps
+            .iter()
+            .map(|cap| cap.profile.as_str())
+            .collect();
+        assert_eq!(capped, [ALPHA_CLI, ALPHA_INTERACTIVE, BETA_RECURSIVE]);
+        for cap in &composed.isolation_caps {
+            assert_eq!(cap.declared, Isolation::Process);
+            assert_eq!(cap.effective, Isolation::None);
+            assert!(cap.render().contains("capped to none"), "{}", cap.render());
+        }
+        let scripted = composed
+            .report
+            .iter()
+            .find(|r| r.id.to_string() == BETA_SCRIPTED)
+            .expect("the scripted profile is reported");
+        assert_eq!(scripted.declared_isolation, Isolation::None);
+        assert_eq!(scripted.isolation, Isolation::None);
+    }
+
+    /// (b) A command-template profile keeps its declared isolation when the
+    /// containment seam is wired, and the gate's ceiling follows it.
+    #[test]
+    fn a_wired_command_template_profile_keeps_its_declared_isolation() {
+        let root = fixture("isolation-wired-command");
+        let config = load(&root).expect("the fixture loads");
+        let seam: Arc<dyn generic_cli_runner::CommandContainment> =
+            Arc::new(PassThroughContainment);
+        let composed = compose_wired(&config, &[ALPHA_EXECUTABLE, BETA_EXECUTABLE], Some(seam))
+            .expect("composes");
+
+        assert_eq!(
+            capability_isolation(&composed, ALPHA_CLI),
+            Isolation::Process
+        );
+        assert_eq!(composed.policy.isolation, Isolation::Process);
+        assert!(
+            composed
+                .isolation_caps
+                .iter()
+                .all(|cap| cap.profile.as_str() != ALPHA_CLI),
+            "the wired command-template profile is not capped"
+        );
+    }
+
+    /// (c) A non-command-template profile declared `process` is capped even
+    /// when a containment seam exists: only the command-template runner wires it.
+    #[test]
+    fn a_non_command_template_profile_is_capped_even_with_a_seam() {
+        let root = fixture("isolation-wired-other");
+        let config = load(&root).expect("the fixture loads");
+        let seam: Arc<dyn generic_cli_runner::CommandContainment> =
+            Arc::new(PassThroughContainment);
+        let composed = compose_wired(&config, &[ALPHA_EXECUTABLE, BETA_EXECUTABLE], Some(seam))
+            .expect("composes");
+
+        assert_eq!(
+            capability_isolation(&composed, ALPHA_INTERACTIVE),
+            Isolation::None
+        );
+        assert_eq!(
+            capability_isolation(&composed, BETA_RECURSIVE),
+            Isolation::None
+        );
+        let capped: Vec<&str> = composed
+            .isolation_caps
+            .iter()
+            .map(|cap| cap.profile.as_str())
+            .collect();
+        assert!(capped.contains(&ALPHA_INTERACTIVE), "{capped:?}");
+        assert!(capped.contains(&BETA_RECURSIVE), "{capped:?}");
+        assert!(!capped.contains(&ALPHA_CLI), "{capped:?}");
     }
 }
