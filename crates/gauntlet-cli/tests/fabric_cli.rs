@@ -115,8 +115,7 @@ impl Fixture {
             &fixture.fabric.join("roles").join("builder.toml"),
             &format!(
                 "schema = 1\nrole = \"{ROLE}\"\nmay_spawn = true\nallow = [\"task-statement\"]\n\
-                 deny = []\npermissions = \"fabric-permissions\"\n\
-                 sandbox_policy = \"fabric-sandbox\"\nworkspace = \"fresh\"\n"
+                 deny = []\npermissions = \"fabric-permissions\"\nworkspace = \"fresh\"\n"
             ),
         );
         write(&fixture.answer_key, ANSWER_KEY);

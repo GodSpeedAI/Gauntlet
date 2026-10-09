@@ -53,7 +53,7 @@ pub struct DelegationRequest {
     pub preference: Preference,
     pub workspace: WorkspaceRef,
     pub permissions: PermissionSetRef,
-    pub sandbox_policy: SandboxPolicyRef,
+    pub sandbox_policy: Option<SandboxPolicyRef>,
     /// The slice reserved in the graph for this node's subtree.
     pub budget: BudgetSlice,
     /// The budget object the runner's spec carries. Its slice is `budget`.
@@ -314,7 +314,7 @@ impl<'g> DelegationBroker<'g> {
             result_contract_path: request.result_contract.clone(),
             deadline,
             model_hint: None,
-            sandbox_policy: Some(request.sandbox_policy.clone()),
+            sandbox_policy: request.sandbox_policy.clone(),
             budget_slice: request.spec_budget.clone(),
         };
         let handle = runner

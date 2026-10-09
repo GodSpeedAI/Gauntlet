@@ -9,7 +9,7 @@ use std::sync::Arc;
 use gauntlet_domain::{
     AdmissionKey, Budget, DiagnosticAllowance, Digest, EpochSeconds, HarnessId, InvocationId,
     IterationNo, Limits, MicroUsd, Payment, PermissionSetRef, ResultContractPath, RoleId, RunId,
-    RunnerProfileId, SandboxPolicyRef, SessionRef, WorkspaceRef,
+    RunnerProfileId, SessionRef, WorkspaceRef,
 };
 use gauntlet_ports::agent_runner::{
     AgentError, AgentRunner, CancelReason, InvocationFailure, Isolation, ResultDelivery,
@@ -206,7 +206,7 @@ pub(crate) fn request(
         preference: Preference::default(),
         workspace: WorkspaceRef::new("workspace-a").expect("valid workspace"),
         permissions: PermissionSetRef::new("perm-builder").expect("valid permissions"),
-        sandbox_policy: SandboxPolicyRef::new("sandbox-readonly").expect("valid sandbox"),
+        sandbox_policy: None,
         budget: child_slice(),
         spec_budget: spec_budget(),
         limits: GraphLimits {

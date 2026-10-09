@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use gauntlet_domain::{
     AdmissionKey, Authority, BlastRadius, EpochSeconds, HarnessId, InvocationId, PermissionSetRef,
-    RoleId, RunId, SandboxPolicyRef, UnitId, WorkspaceRef,
+    RoleId, RunId, UnitId, WorkspaceRef,
 };
 use gauntlet_ports::Deadline;
 use gauntlet_ports::agent_runner::Isolation;
@@ -190,7 +190,6 @@ fn grant(may_spawn: bool) -> RoleGrant {
             deny: BTreeSet::new(),
         },
         permissions: PermissionSetRef::new("perm-builder").expect("valid permissions"),
-        sandbox_policy: SandboxPolicyRef::new("sandbox-readonly").expect("valid sandbox"),
         workspace: WorkspacePolicy::Fresh,
         may_spawn,
     }

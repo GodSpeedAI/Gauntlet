@@ -16,6 +16,11 @@ use gauntlet_ports::agent_runner::Isolation;
 use gauntlet_ports::invocation_graph::{
     AdmissionRefusal, GraphLimits, InvocationGraph, InvocationNode, NodeStatus,
 };
+use gauntlet_ports::policy_provider::{PolicyProvider, PolicyProviderError};
+use gauntlet_ports::sandbox::{
+    NetworkPosture, PolicyValidation, Sandbox, SandboxBackendRef, SandboxError, SandboxPolicy,
+    SandboxedCommand,
+};
 use gauntlet_ports::workspace_provider::{
     Workspace, WorkspaceHook, WorkspaceProvider, WorkspaceProviderError, WorkspaceSubject,
 };
@@ -38,6 +43,8 @@ const PIN_PROFILE: &str = "profile-a";
 const KEY_THIRD: &str = "key-third";
 const KEY_GREAT: &str = "key-great";
 const OVER_TOKENS: u64 = 1;
+const BACKEND: &str = "test-rung";
+const LOCAL_POLICY: &str = "tier-local-spawn";
 const GRANTED_KINDS: [ContextItemKind; 4] = [
     ContextItemKind::TaskStatement,
     ContextItemKind::ReferenceExcerpt,
@@ -152,6 +159,76 @@ struct Effects {
     active: usize,
 }
 
+/// A real-backend stand-in that validates every policy clean. The spawn path
+/// admits and carries the validation; it never wraps a command.
+struct CleanSandbox;
+
+impl Sandbox for CleanSandbox {
+    fn validate(
+        &self,
+        policy: &SandboxPolicy,
+        _deadline: Deadline,
+    ) -> Result<PolicyValidation, SandboxError> {
+        Ok(PolicyValidation {
+            policy: policy.reference.clone(),
+            backend: policy.backend.clone(),
+            isolation: Isolation::Process,
+            findings: Vec::new(),
+        })
+    }
+
+    fn wrap(
+        &self,
+        _command: &str,
+        _policy: &SandboxPolicy,
+        _validation: &PolicyValidation,
+        _deadline: Deadline,
+    ) -> Result<SandboxedCommand, SandboxError> {
+        Err(SandboxError::WrapFailed {
+            detail: "the spawn path never wraps a command".to_owned(),
+        })
+    }
+
+    fn backend_identity(&self) -> SandboxBackendRef {
+        SandboxBackendRef::new(BACKEND).expect("the test backend ref is non-empty")
+    }
+}
+
+/// Resolves one policy, for the local tier only.
+struct LocalPolicies;
+
+impl PolicyProvider for LocalPolicies {
+    fn policy_for(
+        &self,
+        tier: BlastRadius,
+        _workspace: &WorkspaceRef,
+        _deadline: Deadline,
+    ) -> Result<SandboxPolicy, PolicyProviderError> {
+        if tier != BlastRadius::Local {
+            return Err(PolicyProviderError::NoPolicyForTier { tier });
+        }
+        Ok(SandboxPolicy {
+            reference: SandboxPolicyRef::new(LOCAL_POLICY).expect("valid policy ref"),
+            tier,
+            backend: SandboxBackendRef::new(BACKEND).expect("valid backend ref"),
+            network: NetworkPosture::DenyByDefault,
+            writable_roots: Vec::new(),
+            denied_paths: Vec::new(),
+        })
+    }
+
+    fn permissions_for(
+        &self,
+        _role: &RoleId,
+        _unit: &UnitId,
+        _deadline: Deadline,
+    ) -> Result<gauntlet_ports::policy_provider::PermissionSet, PolicyProviderError> {
+        Err(PolicyProviderError::Unavailable {
+            detail: "the test provider resolves sandbox policies only".to_owned(),
+        })
+    }
+}
+
 fn policy() -> AgentsPolicy {
     let mut roles = HashMap::new();
     roles.insert(RoleId::Orchestrator, grant(true));
@@ -175,7 +252,6 @@ fn grant(may_spawn: bool) -> RoleGrant {
             deny: BTreeSet::new(),
         },
         permissions: PermissionSetRef::new("perm-builder").expect("valid permissions"),
-        sandbox_policy: SandboxPolicyRef::new("sandbox-readonly").expect("valid sandbox"),
         workspace: WorkspacePolicy::Fresh,
         may_spawn,
     }
@@ -408,6 +484,52 @@ fn agents_spawn_gate_judges_the_callers_recorded_tier() {
         AgentsRefusal::Authority(GateRefusal::NoBackendForTier { .. })
     ));
     assert_eq!(env.effects(), before);
+}
+
+#[test]
+fn agents_spawn_under_the_conservative_posture_dispatches_with_no_sandbox_policy() {
+    // The none-backend gate admits a contained critic with no policy, so the
+    // child's dispatch names none. The role grant supplies no policy label.
+    let env = rooted();
+    let broker = env.lab.broker();
+
+    spawned(env.service(&broker, root_caller()).spawn(args(
+        RoleId::Builder,
+        KEY_CHILD,
+        CHILD_MARKER,
+    )));
+
+    assert_eq!(env.a.last_spec().sandbox_policy, None);
+}
+
+#[test]
+fn agents_spawn_carries_exactly_the_admitted_policy_ref() {
+    // A real-backend gate resolves the policy for the caller's local tier.
+    // The child's dispatch carries that admission's policy ref, and nothing
+    // from the role grant.
+    let mut env = rooted();
+    env.govern = GovernDeps::with_backend(
+        BACKEND,
+        Some(Arc::new(CleanSandbox)),
+        Some(Arc::new(LocalPolicies)),
+        Authority::Critic,
+    )
+    .expect("a consistent backend posture composes");
+    let broker = env.lab.broker();
+    let caller = AgentsCaller {
+        recorded: (BlastRadius::Local, Authority::Critic),
+        ..root_caller()
+    };
+
+    spawned(
+        env.service(&broker, caller)
+            .spawn(args(RoleId::Builder, KEY_CHILD, CHILD_MARKER)),
+    );
+
+    assert_eq!(
+        env.a.last_spec().sandbox_policy,
+        Some(SandboxPolicyRef::new(LOCAL_POLICY).expect("valid policy ref"))
+    );
 }
 
 #[test]

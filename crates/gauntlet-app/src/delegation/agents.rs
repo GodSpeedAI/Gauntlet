@@ -23,8 +23,7 @@ use std::fmt;
 use gauntlet_domain::{
     AdmissionKey, Authority, BlastRadius, Budget, BudgetDimension, BudgetError,
     DiagnosticAllowance, EpochSeconds, HarnessId, InvocationId, IterationNo, Limits, MicroUsd,
-    PermissionSetRef, ResultContractPath, RoleId, RunId, RunnerProfileId, SandboxPolicyRef, UnitId,
-    WorkspaceRef,
+    PermissionSetRef, ResultContractPath, RoleId, RunId, RunnerProfileId, UnitId, WorkspaceRef,
 };
 use gauntlet_ports::agent_runner::{CancelReason, Isolation};
 use gauntlet_ports::invocation_graph::{
@@ -116,7 +115,6 @@ pub enum WorkspacePolicy {
 pub struct RoleGrant {
     pub context: ContextPolicy,
     pub permissions: PermissionSetRef,
-    pub sandbox_policy: SandboxPolicyRef,
     pub workspace: WorkspacePolicy,
     /// Whether an invocation of this role may spawn children of its own.
     pub may_spawn: bool,
@@ -375,7 +373,10 @@ impl<'a> AgentsService<'a> {
             runner_isolation: self.policy.isolation,
             workspace: self.caller.workspace.clone(),
         };
-        self.gate
+        // The admission, not the role grant, names the child's containment:
+        // its policy ref is what this exact dispatch was admitted under.
+        let admission = self
+            .gate
             .admit(
                 self.govern,
                 &facts,
@@ -420,7 +421,7 @@ impl<'a> AgentsService<'a> {
             preference: args.preference,
             workspace,
             permissions: grant.permissions.clone(),
-            sandbox_policy: grant.sandbox_policy.clone(),
+            sandbox_policy: admission.policy_ref(),
             budget: args.budget,
             spec_budget: child_budget(args.budget, self.policy.limits.max_depth)?,
             limits: self.policy.limits,

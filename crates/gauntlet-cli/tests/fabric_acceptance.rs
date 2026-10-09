@@ -391,8 +391,7 @@ fn harness_toml(id: &str) -> String {
 fn role_toml(role: &str, may_spawn: bool, allow: &str) -> String {
     format!(
         "schema = 1\nrole = \"{role}\"\nmay_spawn = {may_spawn}\nallow = [{}]\n\
-         deny = []\npermissions = \"fabric-permissions\"\n\
-         sandbox_policy = \"fabric-sandbox\"\nworkspace = \"fresh\"\n",
+         deny = []\npermissions = \"fabric-permissions\"\nworkspace = \"fresh\"\n",
         allow
             .split(", ")
             .map(|kind| format!("\"{kind}\""))

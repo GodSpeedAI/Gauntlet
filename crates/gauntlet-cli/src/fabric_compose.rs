@@ -12,8 +12,8 @@
 //!   `process` for process runners, `none` for the scripted one), `max_depth`
 //!   (default 1).
 //! - `roles/*.toml` one role grant per file: `schema`, `role`, `may_spawn`,
-//!   `allow` and `deny` (context kind tokens), `permissions`,
-//!   `sandbox_policy`, and `workspace` (`fresh`, the only implemented policy).
+//!   `allow` and `deny` (context kind tokens), `permissions`, and `workspace`
+//!   (`fresh`, the only implemented policy).
 //! - `limits.toml` the graph limits, the per-spawn budget ceiling, and the
 //!   isolation fact the authority gate consumes. Every key is required.
 //!
@@ -58,9 +58,7 @@ use gauntlet_app::tools::{
     DEFAULT_PROGRAM_MAX_PARALLEL_CALLS, DEFAULT_PROGRAM_MAX_RESULT_BYTES,
     DEFAULT_PROGRAM_MAX_TOOL_CALLS, ProgramCeilings,
 };
-use gauntlet_domain::{
-    HarnessId, MicroUsd, PermissionSetRef, RoleId, RunnerProfileId, SandboxPolicyRef,
-};
+use gauntlet_domain::{HarnessId, MicroUsd, PermissionSetRef, RoleId, RunnerProfileId};
 use gauntlet_ports::agent_runner::{AgentRunner, Isolation};
 use gauntlet_ports::budget_meter::BudgetSlice;
 use gauntlet_ports::clock::Clock;
@@ -112,7 +110,6 @@ const ROLE_KEYS: &[&str] = &[
     "allow",
     "deny",
     "permissions",
-    "sandbox_policy",
     "workspace",
 ];
 const LIMITS_KEYS: &[&str] = &[
@@ -981,8 +978,6 @@ fn parse_role(path: &Path, table: &Table) -> Result<(RoleId, RoleGrant), FabricC
         },
         permissions: PermissionSetRef::new(&required_str(&file, table, "permissions")?)
             .map_err(|error| invalid(&file, "permissions", error))?,
-        sandbox_policy: SandboxPolicyRef::new(&required_str(&file, table, "sandbox_policy")?)
-            .map_err(|error| invalid(&file, "sandbox_policy", error))?,
         workspace: WorkspacePolicy::Fresh,
         may_spawn: optional_bool(&file, table, "may_spawn")?.unwrap_or(false),
     };
@@ -1197,7 +1192,6 @@ mod tests {
     const BETA_SCRIPTED: &str = "beta-scripted";
     const FABRIC_ROLE: &str = "fabric-reviewer";
     const FABRIC_PERMISSIONS: &str = "fabric-permissions";
-    const FABRIC_SANDBOX: &str = "fabric-sandbox";
     const GOOD_TEMPLATE: &str = "agent {prompt_file} {result_path}";
     const BAD_TEMPLATE: &str = "agent {unknown_placeholder}";
     const LIMIT_DEPTH: u32 = 3;
@@ -1330,7 +1324,7 @@ mod tests {
         };
         format!(
             "schema = 1\nrole = \"{FABRIC_ROLE}\"\nmay_spawn = false\nallow = {}\ndeny = {}\n\
-             permissions = \"{FABRIC_PERMISSIONS}\"\nsandbox_policy = \"{FABRIC_SANDBOX}\"\n\
+             permissions = \"{FABRIC_PERMISSIONS}\"\n\
              workspace = \"fresh\"\n",
             list(allow),
             list(deny)
