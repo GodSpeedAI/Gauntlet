@@ -40,6 +40,7 @@ pub mod event_log;
 pub mod evidence_store;
 pub mod human_escalation;
 pub mod id_generator;
+pub mod invocation_graph;
 pub mod json;
 pub mod observation_digest;
 pub mod observer;

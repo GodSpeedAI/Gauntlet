@@ -52,12 +52,12 @@ pub use unit::{
     blast_rank,
 };
 pub use values::{
-    Authority, BlastRadius, CapabilityId, CustomRoleName, Digest, DimensionId, EpochSeconds,
-    EvidenceKind, EvidenceLocator, EvidenceRef, InstrumentName, InvocationId, InvocationState,
-    IterationNo, ModelIdentity, Outcome, PermissionSetRef, ReferenceId, ResidualId,
-    ResultContractPath, ReviewMode, RevisionId, RoleId, RunId, RunnerIdentity, SandboxPolicyRef,
-    SessionRef, Severity, TerminalState, UnitId, UnitStatus, ValueError, ValueKind, Verdict,
-    VerificationRef, VerifyBy, WorkspaceRef,
+    AdmissionKey, Authority, BlastRadius, CapabilityId, CustomRoleName, Digest, DimensionId,
+    EpochSeconds, EvidenceKind, EvidenceLocator, EvidenceRef, HarnessId, InstrumentName,
+    InvocationId, InvocationState, IterationNo, ModelIdentity, Outcome, PermissionSetRef,
+    ReferenceId, ResidualId, ResultContractPath, ReviewMode, RevisionId, RoleId, RunId,
+    RunnerIdentity, RunnerProfileId, SandboxPolicyRef, SessionRef, Severity, TerminalState, UnitId,
+    UnitStatus, ValueError, ValueKind, Verdict, VerificationRef, VerifyBy, WorkspaceRef,
 };
 pub use verification::VerificationRecord;
 // Producer belongs to the Unit aggregate's evidence contract (spec §5.3.2),

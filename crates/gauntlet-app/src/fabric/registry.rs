@@ -1,57 +1,6 @@
+pub use gauntlet_domain::{HarnessId, RunnerProfileId};
 use gauntlet_ports::agent_runner::Isolation;
 use std::collections::BTreeMap;
-
-/// Runner profile identifier — validated newtype rejecting empty/whitespace.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct RunnerProfileId(String);
-
-impl RunnerProfileId {
-    /// Create a new runner profile ID, rejecting empty or whitespace-only strings.
-    pub fn new(id: impl Into<String>) -> Result<Self, RegistryError> {
-        let id = id.into();
-        if id.is_empty() || id.chars().all(char::is_whitespace) {
-            return Err(RegistryError::EmptyProfileId);
-        }
-        Ok(RunnerProfileId(id))
-    }
-
-    /// Access the inner string.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl std::fmt::Display for RunnerProfileId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Harness identifier — validated newtype rejecting empty/whitespace.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct HarnessId(String);
-
-impl HarnessId {
-    /// Create a new harness ID, rejecting empty or whitespace-only strings.
-    pub fn new(id: impl Into<String>) -> Result<Self, RegistryError> {
-        let id = id.into();
-        if id.is_empty() || id.chars().all(char::is_whitespace) {
-            return Err(RegistryError::EmptyHarnessId);
-        }
-        Ok(HarnessId(id))
-    }
-
-    /// Access the inner string.
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl std::fmt::Display for HarnessId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 /// Support level — a capability ladder from none to native agents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -146,10 +95,6 @@ pub struct RunnerInstance {
 /// Registry errors — typed failures for deterministic construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryError {
-    /// Profile ID is empty or whitespace.
-    EmptyProfileId,
-    /// Harness ID is empty or whitespace.
-    EmptyHarnessId,
     /// Duplicate profile ID in the registry.
     DuplicateProfileId { id: String },
     /// Profile references an unknown harness.
@@ -159,8 +104,6 @@ pub enum RegistryError {
 impl std::fmt::Display for RegistryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EmptyProfileId => write!(f, "runner profile id must not be empty or whitespace"),
-            Self::EmptyHarnessId => write!(f, "harness id must not be empty or whitespace"),
             Self::DuplicateProfileId { id } => {
                 write!(f, "duplicate runner profile id: '{id}'")
             }
