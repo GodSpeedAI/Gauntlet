@@ -8,6 +8,7 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 * **Mechanism (observed):** the test polls for one durable production row and then SIGKILLs the child. Under load the child can complete another produce→re-attempt cycle between the poll and the kill (pre-kill logs show the same `evidence_ref` produced twice, ~5 s apart), so the "kill landed here" branch the assertions assume is sometimes not the branch that happened.
 * **Impact:** recovery proofs P7/T-kill legs cannot be treated as deterministic evidence; AGENTS.md §4 ("repeated green races prove only the branch that happened to win"). Not caused by, and not worsened in kind by, the PostgreSQL migration.
 * **Next move:** replace poll-then-kill with a deterministic pause at the boundary — a test-only hook in the mock runner/controller that blocks at the produce boundary until the test has taken its durable snapshot and sent SIGKILL — and add one deterministic variant per branch (row already present / absent / settled).
+* **Re-measured (2026-10-09, end of the fabric series):** at `758b2c1` (before the OD-5/6/9/10 commits, separate worktree and target dir) `e2e_recovery` failed 4 of 6 sequential runs with the same two tests; at the series head `614949b` it failed 4 of 9 isolated runs and failed once in the full workspace run (2220 passed, 2 failed — exactly these two). Failure seen: `e2e_recovery.rs:1016` dispatch count 3, expected 2. The rate is unchanged by this series, so it is not a regression, but it is a standing source of non-deterministic gate results.
 
 ## OD-2 — workbench `PrimeDelegationDispatcher` is a test-matrix-only projection with diverging policy
 
@@ -30,7 +31,7 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 ## OD-5 — delegation discards the `GateAdmission` containment proof
 
 * **Status: resolved (bd5cab3).** `AgentsService::spawn` keeps the admission and the dispatch spec carries `admission.policy_ref()` (None under the no-backend contained posture); `RoleGrant.sandbox_policy` and the fabric role key were removed (a role TOML still naming it now fails as an unknown key). The command-template runner already refuses a dispatch carrying a policy when no containment seam is installed, so a higher-tier child cannot start unwrapped.
-* **Remaining:** no end-to-end test runs a child through a live sandbox backend from the fabric path (the fabric has no containment seam wired; see OD-6).
+* **Remaining (pending proof, mandatory later):** no end-to-end test runs a child through a live sandbox backend from the fabric path, because `fabric serve` wires no containment seam and truthfully caps effective isolation to `none` (OD-6). When a containment seam is wired into `fabric serve`, a live-sandbox test (a higher-tier child cannot start without its own wrapped command, and runs wrapped under its own admission) becomes REQUIRED before the reported isolation level may rise. Do not stub a sandbox to satisfy it.
 
 ## OD-6 — fabric profile `isolation` is declared, not enforced
 
@@ -50,11 +51,13 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 * **Evidence:** `fabric_cmd.rs` `Host::tools()` returns an empty list and `call()` returns Refused `catalog_invalid` if the `SemanticToolRuntime` fails to build; the runtime's schema validator and the agents wire decoder both validate arguments. Also one unexplained `doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run` failure seen once (passed on rerun).
 * **Next move:** build the runtime once at `fabric serve` startup and fail to start on error; retire the wire decoder checks once the runtime is trusted; investigate the doctor test flake.
 
-## OD-9 — codemode adapter: parallel bound enforced only inside the sandbox; port lacks cancel/memory classes
+## OD-9 — codemode adapter: parallel bound, memory class and caller-side cancel
 
-* **Status: partly resolved.** `ProgramLimit::Memory` now exists (wire `memory` -> `LimitExceeded(Memory)`, catalog token `heap` because `memory` is a reserved adapter segment in core crates). The parallel bound is enforced by the trusted Bun host against the guest's unsettled-call count; the Rust side cannot enforce it because the parent answers one call at a time, so no further defence is possible there. Still open: the port has no caller-side cancel (cancel happens only at the parent deadline).
-* **Evidence (original):** the host protocol sends `call` one line at a time, so the Rust `DriverHost` never sees group boundaries and its parallel check (inside `call_group`) is skipped on this path. A program may finish with unawaited calls in flight (accepted; they are answered and recorded in the trace).
-* **Next move:** if defense in depth is wanted, add an in-flight counter to the protocol (host reports concurrency) and a memory limit variant / cancel input to the port (needs approval).
+* **Status: resolved (c56e532 memory class, 614949b cancel).**
+* **Memory:** `ProgramLimit::Memory` (wire `memory`, catalog token `heap` because `memory` is a reserved adapter segment in core crates); real-engine test `guest_heap_exhaustion_is_a_memory_limit`.
+* **Parallel bound:** enforced by the trusted Bun host against the guest's unsettled-call count; the Rust side cannot enforce it (the parent answers one call at a time). Accepted.
+* **Cancel:** `ProgramHost::cancelled()` / `CancelProbe` carry the owner's cancellation into the runtime. The adapter polls in `CANCEL_POLL_SPAN` slices and before servicing every call; on cancellation it admits no further call, sends `cancel`, waits the bounded ack, stops the host, and returns `ProgramStatus::Cancelled` (distinct from timed_out, failed, limit_exceeded). `DriverHost` refuses calls once cancelled (`call_cancelled`, trace Refused) without reaching the invoker. The fabric host probes the caller's graph node and treats a terminal status as cancellation (a lookup error is not cancellation and is logged once). Cancellation writes no settlement. Proof: contract case `cancellation_stops_further_calls` (reference runtime and the real adapter), real-engine test `a_cancelled_owner_stops_the_program_before_its_timeout` (stable over repeated and single-threaded runs; the Bun process is gone afterwards), acceptance test `acceptance_cancelling_the_caller_stops_its_running_program` (a `while (true) {}` program ends `cancelled` in under half the timeout; the node differs only in status/terminal_at; no settlements or SettlementCommitted events).
+* **Remaining:** cancellation is observed through the graph. If the harness process dies without the node ever becoming terminal, a running program still ends only at its own deadline (then the serve loop sees EOF). The graph poll is one node lookup per slice.
 
 ## OD-10 — native `rlm.spawn` children inherit their Prime parent's MCP caller identity
 
