@@ -46,6 +46,21 @@ impl ContextItemKind {
     }
 }
 
+impl ContextItemKind {
+    /// The inverse of [`ContextItemKind::token`]; any other token is `None`.
+    pub fn parse(token: &str) -> Option<Self> {
+        match token {
+            "task-statement" => Some(Self::TaskStatement),
+            "reference-excerpt" => Some(Self::ReferenceExcerpt),
+            "file-excerpt" => Some(Self::FileExcerpt),
+            "evidence-reference" => Some(Self::EvidenceReference),
+            "constraint-statement" => Some(Self::ConstraintStatement),
+            "result-schema" => Some(Self::ResultSchema),
+            _ => None,
+        }
+    }
+}
+
 impl fmt::Display for ContextItemKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.token())

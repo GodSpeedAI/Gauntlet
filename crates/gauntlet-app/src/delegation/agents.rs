@@ -185,6 +185,8 @@ pub struct AgentView {
     pub status: NodeStatus,
     pub admitted_at: EpochSeconds,
     pub terminal_at: Option<EpochSeconds>,
+    /// The runner session epoch, once the runner has bound a session.
+    pub native_session_epoch: Option<u32>,
 }
 
 impl AgentView {
@@ -199,6 +201,7 @@ impl AgentView {
             status: node.status,
             admitted_at: node.admitted_at,
             terminal_at: node.terminal_at,
+            native_session_epoch: node.native_session.as_ref().map(|binding| binding.epoch),
         }
     }
 }

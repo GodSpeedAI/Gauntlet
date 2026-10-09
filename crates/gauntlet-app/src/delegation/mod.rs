@@ -7,12 +7,15 @@
 //! enforced by the graph; harness topology is never consulted.
 
 pub mod agents;
+pub mod agents_wire;
 pub mod broker;
 pub mod context;
 pub mod reconcile;
 
 #[cfg(test)]
 mod agents_tests;
+#[cfg(test)]
+mod agents_wire_tests;
 #[cfg(test)]
 pub(crate) mod test_support;
 #[cfg(test)]
@@ -22,6 +25,7 @@ pub use agents::{
     AgentView, AgentsCaller, AgentsPolicy, AgentsRefusal, AgentsService, CancelView, CollectView,
     RoleGrant, SpawnArgs, SpawnOutcome, WorkspacePolicy, derive_invocation_id,
 };
+pub use agents_wire::{AgentsSurface, CallClock};
 pub use broker::{
     Delegated, DelegationBroker, DelegationOutcome, DelegationRefusal, DelegationRequest,
     RunnerSet, RunnerSetError,

@@ -56,6 +56,7 @@ pub mod sandbox;
 pub mod state_store;
 pub mod tokens;
 pub mod tool_provider;
+pub mod tool_surface;
 pub mod verification_record;
 pub mod verifier;
 pub mod workspace_provider;
@@ -135,6 +136,7 @@ pub use tokens::UnknownToken;
 pub use tool_provider::{
     SemanticCapability, ToolBinding, ToolIdentity, ToolProvider, ToolProviderError,
 };
+pub use tool_surface::{ToolListing, ToolOutcome, ToolSurface};
 pub use verification_record::{
     BindingClass, RequirementDoc, VERIFICATION_RECORD_SCHEMA, VerificationContent,
     VerificationDocError, VerificationRecordDoc, VerifyingInstrument,
