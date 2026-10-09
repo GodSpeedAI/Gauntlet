@@ -14,7 +14,7 @@
 //!
 //! Nothing in this module writes to the donor or to definition files.
 
-use crate::definition::{HarnessDefinition, LifecycleSource};
+use crate::definition::{HarnessDefinition, LifecycleSource, PromptMode};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -139,12 +139,137 @@ pub fn claimed_fields(def: &HarnessDefinition) -> Vec<RefField> {
     fields
 }
 
+/// Suffix of a probe ref. A probe ref is `field=verification` and points into
+/// `definitions/VERIFICATION.toml` (a `help-verified` or `live-verified` record for the same
+/// harness and field), not into the Herdr donor. It is not Herdr-derived evidence.
+pub const PROBE_REF_TARGET: &str = "verification";
+
+/// A field whose value was established by a probe record rather than by the donor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ProbeField {
+    LaunchArgs,
+    PromptMode,
+    ModelArg,
+    ModelSelection,
+    StructuredEvents,
+}
+
+impl ProbeField {
+    /// The field name, as used in refs and in VERIFICATION.toml.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::LaunchArgs => "launch.args",
+            Self::PromptMode => "launch.prompt_mode",
+            Self::ModelArg => "launch.model_arg",
+            Self::ModelSelection => "capabilities.model_selection",
+            Self::StructuredEvents => "capabilities.structured_events",
+        }
+    }
+}
+
+/// True when `raw` has the probe-ref shape `field=verification`, whatever the field.
+pub fn is_probe_ref(raw: &str) -> bool {
+    raw.split_once('=')
+        .is_some_and(|(_, target)| target == PROBE_REF_TARGET)
+}
+
+/// Parse a probe ref. Returns `None` when `raw` is not probe-shaped.
+pub fn parse_probe_ref(raw: &str) -> Option<Result<ProbeField, String>> {
+    if !is_probe_ref(raw) {
+        return None;
+    }
+    let (name, _) = raw.split_once('=')?;
+    let field = [
+        ProbeField::LaunchArgs,
+        ProbeField::PromptMode,
+        ProbeField::ModelArg,
+        ProbeField::ModelSelection,
+        ProbeField::StructuredEvents,
+    ]
+    .into_iter()
+    .find(|f| f.name() == name);
+    Some(field.ok_or_else(|| format!("probe ref {raw:?} names an unknown probe field")))
+}
+
+/// Probe fields a definition's values depend on, and therefore needs probe refs for.
+pub fn claimed_probe_fields(def: &HarnessDefinition) -> Vec<ProbeField> {
+    let mut fields = Vec::new();
+    if def.launch.prompt_mode != PromptMode::Unknown {
+        fields.push(ProbeField::PromptMode);
+    }
+    if !def.launch.args.is_empty() {
+        fields.push(ProbeField::LaunchArgs);
+    }
+    if def.launch.model_arg.is_some() {
+        fields.push(ProbeField::ModelArg);
+    }
+    if def.capabilities.model_selection {
+        fields.push(ProbeField::ModelSelection);
+    }
+    if def.capabilities.structured_events {
+        fields.push(ProbeField::StructuredEvents);
+    }
+    fields
+}
+
+/// Check every probe ref against the evidence store, and every probe-backed claim for a ref.
+/// Returns one finding per problem. Empty means consistent.
+pub fn check_probe_provenance(
+    defs: &[HarnessDefinition],
+    records: &[crate::verification::VerificationRecord],
+) -> Vec<String> {
+    use crate::verification::EvidenceKind;
+    let mut findings = Vec::new();
+    for def in defs {
+        let id = &def.id;
+        let refs: Vec<String> = def
+            .provenance
+            .as_ref()
+            .map(|p| p.refs.clone())
+            .unwrap_or_default();
+        let mut seen = BTreeSet::new();
+        for raw in refs.iter().filter(|r| is_probe_ref(r)) {
+            match parse_probe_ref(raw) {
+                Some(Ok(field)) => {
+                    seen.insert(field);
+                    let backed = records.iter().any(|r| {
+                        r.harness == *id
+                            && r.field == field.name()
+                            && matches!(
+                                r.kind,
+                                EvidenceKind::HelpVerified | EvidenceKind::LiveVerified
+                            )
+                    });
+                    if !backed {
+                        findings.push(format!(
+                            "{id}: probe ref {raw} has no help-verified record in VERIFICATION.toml"
+                        ));
+                    }
+                }
+                Some(Err(e)) => findings.push(format!("{id}: {e}")),
+                None => {}
+            }
+        }
+        for field in claimed_probe_fields(def) {
+            if !seen.contains(&field) {
+                findings.push(format!(
+                    "{id}: no probe ref for claimed field {}",
+                    field.name()
+                ));
+            }
+        }
+    }
+    findings
+}
+
 /// Result of a report-only check.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct SyncReport {
     pub definitions: usize,
     pub refs_checked: usize,
     pub refs_ok: usize,
+    /// Probe refs are checked against VERIFICATION.toml, not the donor; counted here only.
+    pub probe_refs: usize,
     /// One human-readable line per drift finding. Empty means in sync.
     pub drift: Vec<String>,
 }
@@ -187,6 +312,10 @@ pub fn check_against_donor(
 
         let mut seen = BTreeSet::new();
         for raw in &prov.refs {
+            if is_probe_ref(raw) {
+                report.probe_refs += 1;
+                continue;
+            }
             report.refs_checked += 1;
             match parse_ref(raw) {
                 Err(e) => report.drift.push(format!("{id}: {e}")),

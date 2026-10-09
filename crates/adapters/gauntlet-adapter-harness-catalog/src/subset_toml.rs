@@ -120,6 +120,8 @@ impl Parser {
         let mut root = Table::new();
         let mut current_table: Vec<String> = Vec::new();
         let mut declared_tables = std::collections::HashSet::new();
+        // True while key/value lines belong to the last `[[name]]` array-of-tables element.
+        let mut in_array_element = false;
         let mut line_no = 0;
 
         while line_no < self.lines.len() {
@@ -130,6 +132,38 @@ impl Parser {
             let trimmed = line.split('#').next().unwrap_or("").trim();
 
             if trimmed.is_empty() {
+                continue;
+            }
+
+            // Array of tables: `[[name]]` appends a fresh element to `root[name]`.
+            if trimmed.starts_with("[[") {
+                if !trimmed.ends_with("]]") {
+                    return Err(ParseError {
+                        line: line_no,
+                        kind: ParseErrorKind::InvalidTable,
+                    });
+                }
+                let header = trimmed[2..trimmed.len() - 2].trim();
+                if header.is_empty() || header.contains(['.', '[', ']']) {
+                    return Err(ParseError {
+                        line: line_no,
+                        kind: ParseErrorKind::InvalidTable,
+                    });
+                }
+                match root
+                    .entry(header.to_string())
+                    .or_insert_with(|| Value::Array(Vec::new()))
+                {
+                    Value::Array(items) => items.push(Value::Table(Table::new())),
+                    _ => {
+                        return Err(ParseError {
+                            line: line_no,
+                            kind: ParseErrorKind::DuplicateTable,
+                        });
+                    }
+                }
+                current_table = vec![header.to_string()];
+                in_array_element = true;
                 continue;
             }
 
@@ -160,8 +194,16 @@ impl Parser {
                     });
                 }
 
+                if matches!(root.get(*header), Some(Value::Array(_))) {
+                    return Err(ParseError {
+                        line: line_no,
+                        kind: ParseErrorKind::DuplicateTable,
+                    });
+                }
+
                 declared_tables.insert(header.to_string());
                 current_table = vec![header.to_string()];
+                in_array_element = false;
                 continue;
             }
 
@@ -172,7 +214,21 @@ impl Parser {
             let value = self.parse_value(&value_str, line_no)?;
 
             // Insert into appropriate table
-            if current_table.is_empty() {
+            if !current_table.is_empty() && in_array_element {
+                let table_name = &current_table[0];
+                if let Some(Value::Table(t)) = root.get_mut(table_name).and_then(|v| match v {
+                    Value::Array(items) => items.last_mut(),
+                    _ => None,
+                }) {
+                    if t.contains_key(&key) {
+                        return Err(ParseError {
+                            line: line_no,
+                            kind: ParseErrorKind::DuplicateKey,
+                        });
+                    }
+                    t.insert(key, value);
+                }
+            } else if current_table.is_empty() {
                 if root.contains_key(&key) {
                     return Err(ParseError {
                         line: line_no,

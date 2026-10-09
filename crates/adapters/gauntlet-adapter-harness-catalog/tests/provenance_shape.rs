@@ -1,7 +1,12 @@
 //! Offline shape checks for the 24 built-in definitions' provenance. No donor checkout needed.
 
-use gauntlet_adapter_harness_catalog::provenance::{claimed_fields, parse_ref};
-use gauntlet_adapter_harness_catalog::{HERDR_LICENSE, HERDR_PINNED_COMMIT, HERDR_SOURCE, builtin};
+use gauntlet_adapter_harness_catalog::provenance::{
+    check_probe_provenance, claimed_fields, claimed_probe_fields, is_probe_ref, parse_probe_ref,
+    parse_ref,
+};
+use gauntlet_adapter_harness_catalog::{
+    HERDR_LICENSE, HERDR_PINNED_COMMIT, HERDR_SOURCE, builtin, builtin_with_evidence,
+};
 
 #[test]
 fn every_builtin_has_pinned_provenance_and_well_formed_refs() {
@@ -21,22 +26,57 @@ fn every_builtin_has_pinned_provenance_and_well_formed_refs() {
         );
         assert_eq!(prov.license, HERDR_LICENSE, "{id}: license");
 
-        let parsed: Vec<_> = prov
+        let herdr_refs: Vec<_> = prov
             .refs
             .iter()
+            .filter(|r| !is_probe_ref(r))
             .map(|r| parse_ref(r).unwrap_or_else(|e| panic!("{id}: {e}")))
             .collect();
-
-        let expected = claimed_fields(def);
-        let mut fields: Vec<_> = parsed.iter().map(|r| r.field).collect();
+        let mut fields: Vec<_> = herdr_refs.iter().map(|r| r.field).collect();
         fields.sort();
-        let mut want = expected.clone();
+        let mut want = claimed_fields(def);
         want.sort();
         assert_eq!(
             fields, want,
-            "{id}: refs must be exactly one per claimed field"
+            "{id}: herdr refs must be exactly one per claimed herdr field"
+        );
+
+        let mut probe_fields: Vec<_> = prov
+            .refs
+            .iter()
+            .filter_map(|r| parse_probe_ref(r))
+            .map(|r| r.unwrap_or_else(|e| panic!("{id}: {e}")))
+            .collect();
+        probe_fields.sort();
+        let mut probe_want = claimed_probe_fields(def);
+        probe_want.sort();
+        assert_eq!(
+            probe_fields, probe_want,
+            "{id}: probe refs must be exactly one per probe-backed claim"
         );
     }
+}
+
+#[test]
+fn builtin_probe_refs_are_backed_by_verification_records() {
+    let (defs, records) = builtin_with_evidence().expect("builtin evidence loads");
+    let findings = check_probe_provenance(&defs, &records);
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
+#[test]
+fn probe_refs_are_separate_from_donor_refs() {
+    assert!(is_probe_ref("launch.prompt_mode=verification"));
+    assert!(!is_probe_ref("executables=src/detect/mod.rs:202"));
+    assert!(
+        parse_ref("launch.prompt_mode=verification").is_err(),
+        "a probe ref is not a donor ref"
+    );
+    assert!(
+        parse_probe_ref("launch.shell=verification")
+            .expect("probe shape")
+            .is_err()
+    );
 }
 
 #[test]

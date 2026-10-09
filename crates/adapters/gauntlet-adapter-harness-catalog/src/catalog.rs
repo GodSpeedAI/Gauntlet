@@ -1,5 +1,9 @@
 use crate::definition::{DefinitionError, HarnessDefinition, Origin};
-use std::collections::HashSet;
+use crate::provenance::check_probe_provenance;
+use crate::verification::{
+    ADAPTER_OWNED_HARNESSES, VERIFICATION_FILE, VerificationRecord, parse_verification,
+};
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::path::Path;
 
@@ -13,6 +17,8 @@ pub enum CatalogError {
     IoError(String),
     SymlinkDetected(String),
     FileTooLarge(String),
+    /// VERIFICATION.toml is invalid, or a probe ref is not backed by it.
+    Evidence(String),
 }
 
 impl From<DefinitionError> for CatalogError {
@@ -33,6 +39,7 @@ impl std::fmt::Display for CatalogError {
                 write!(f, "custom harness id conflicts with built-in id: {}", id)
             }
             Self::IoError(msg) => write!(f, "io error: {}", msg),
+            Self::Evidence(msg) => write!(f, "verification evidence: {}", msg),
             Self::SymlinkDetected(path) => write!(f, "symlink not allowed: {}", path),
             Self::FileTooLarge(path) => write!(f, "file exceeds 64 KiB: {}", path),
         }
@@ -41,6 +48,13 @@ impl std::fmt::Display for CatalogError {
 
 /// Load all built-in harness definitions.
 pub fn builtin() -> Result<Vec<HarnessDefinition>, CatalogError> {
+    builtin_with_evidence().map(|(definitions, _)| definitions)
+}
+
+/// Load all built-in definitions together with their verification evidence, and check that
+/// every probe ref is backed by a help-verified or live-verified record.
+pub fn builtin_with_evidence()
+-> Result<(Vec<HarnessDefinition>, Vec<VerificationRecord>), CatalogError> {
     // Note: In a real implementation, definitions would be embedded via include_str!.
     // For now, we load from disk for testing.
     let mut definitions = Vec::new();
@@ -50,13 +64,14 @@ pub fn builtin() -> Result<Vec<HarnessDefinition>, CatalogError> {
     let definitions_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("definitions");
 
     if !definitions_dir.exists() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     }
 
     let mut entries: Vec<_> = fs::read_dir(&definitions_dir)
         .map_err(|e| CatalogError::IoError(e.to_string()))?
         .filter_map(Result::ok)
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "toml"))
+        .filter(|e| e.file_name() != VERIFICATION_FILE)
         .collect();
 
     // Sort for deterministic order
@@ -86,7 +101,22 @@ pub fn builtin() -> Result<Vec<HarnessDefinition>, CatalogError> {
         definitions.push(definition);
     }
 
-    Ok(definitions)
+    let mut known: HashSet<String> = ids.iter().cloned().collect();
+    known.extend(ADAPTER_OWNED_HARNESSES.iter().map(|s| s.to_string()));
+    let known: BTreeSet<String> = known.into_iter().collect();
+
+    let verification_path = definitions_dir.join(VERIFICATION_FILE);
+    let text = fs::read_to_string(&verification_path)
+        .map_err(|e| CatalogError::IoError(format!("{}: {e}", verification_path.display())))?;
+    let records =
+        parse_verification(&text, &known).map_err(|e| CatalogError::Evidence(e.to_string()))?;
+
+    let findings = check_probe_provenance(&definitions, &records);
+    if !findings.is_empty() {
+        return Err(CatalogError::Evidence(findings.join("; ")));
+    }
+
+    Ok((definitions, records))
 }
 
 /// Load custom harness definitions from a directory.

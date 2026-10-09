@@ -40,6 +40,12 @@ structured_events = false
 support_level = 1                  # 0 process | 1 interactive | 2 session | 3 structured | 4 native
 ```
 
+## Probe refs (second source kind, schema 1)
+
+Some fields are established by help-verified probes of the installed binary, not by the Herdr donor. Those claims cite `refs` entries of the form `field=verification`, with no path and no lines. The allowed probe fields are `launch.args`, `launch.prompt_mode`, `launch.model_arg`, `capabilities.model_selection` and `capabilities.structured_events`. Each probe ref must match a `[[record]]` in `definitions/VERIFICATION.toml` with the same harness and field and kind `help-verified` or `live-verified`. The loader fails closed otherwise, and it also fails when a claimed probe field has no probe ref. `[provenance]` keeps `source = "herdr"` and the pinned commit, because the definition is still Herdr-derived. Probe refs are counted separately and are not checked against the donor.
+
+Evidence records are strict: `schema = 1`, `[[record]]` tables with exactly `harness`, `field`, `kind`, `probe_argv`, `observed`, `harness_version` and `date`. Kinds are `catalogued`, `fixture`, `help-verified` and `live-verified`. A harness id must be a definition id or an adapter-owned id (`prime-agent`). `live-verified` requires a non-empty `probe_argv` and a real `harness_version`. Tier definitions are in `definitions/CATALOG.md`.
+
 ## Provenance refs (schema 1, unchanged version)
 
 Each `refs` entry is `field=path:start[-end]` (or `field=path:line`), 1-based inclusive lines in the Herdr donor checkout pinned by `commit`. The field names the claim the lines support, and every claimed field needs exactly one ref:

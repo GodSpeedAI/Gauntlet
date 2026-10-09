@@ -60,6 +60,11 @@ doctor:
 schemas:
     @echo "schemas: not implemented — lands with a later task (spec Annex B schema export)" >&2; exit 2
 
+# harness-matrix — REPORT-ONLY generator of the harness verification matrix (catalog x evidence
+# store x PATH lookup). Prints to stdout; `just harness-matrix <path>` writes the file. Runs no harness.
+harness-matrix path="":
+    cargo run -q -p gauntlet-adapter-harness-catalog --bin harness-matrix -- {{if path == "" { "" } else { "--write " + path }}}
+
 # sync-harness-catalog — REPORT-ONLY drift check of the built-in harness catalog against a
 # Herdr donor checkout (default .tmp/donor/herdr). Prints donor HEAD vs pinned commit, re-verifies
 # every provenance ref, and lists donor agents/manifests missing from the catalog. Exits 1 on drift.

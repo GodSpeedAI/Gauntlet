@@ -6,12 +6,16 @@ executables = ['codex']
 [provenance]
 source = "herdr"
 commit = "4e624cd"
-refs = ["executables=src/detect/mod.rs:203", "session.resume_argv=src/agent_resume.rs:211-213", "lifecycle.detection_manifest=src/detect/manifest.rs:245"]
+refs = ["executables=src/detect/mod.rs:203", "session.resume_argv=src/agent_resume.rs:211-213", "lifecycle.detection_manifest=src/detect/manifest.rs:245", "launch.args=verification", "launch.prompt_mode=verification", "launch.model_arg=verification", "capabilities.model_selection=verification", "capabilities.structured_events=verification"]
 license = "Apache-2.0"
 
+# The non-interactive form is `codex exec [PROMPT]`, and `exec --json` prints JSONL events. All
+# of these come from `codex --help` and `codex exec --help` (help-verified in
+# definitions/VERIFICATION.toml). resume_argv stays the Herdr interactive `codex resume <id>`.
 [launch]
-args = []
-prompt_mode = "unknown"
+args = ["exec"]
+model_arg = ["--model", "{model}"]
+prompt_mode = "argv-tail"
 
 [session]
 identity = "id"
@@ -27,7 +31,7 @@ interrupt = "none"
 [capabilities]
 interactive = false
 resumable = true
-model_selection = false
+model_selection = true
 native_subagents = false
-structured_events = false
-support_level = 0
+structured_events = true
+support_level = 2

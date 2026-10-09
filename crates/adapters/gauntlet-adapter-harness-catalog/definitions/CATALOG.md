@@ -6,9 +6,9 @@ Extracted from herdr source (commit 4e624cd): 24 agents with verified manifest p
 |---|---|---|---|---|---|
 | `amp` | amp, amp-local | — | amp | 0 | prompt_mode, interrupt |
 | `antigravity` | agy, antigravity, antigravity-cli | ✓ | antigravity | 0 | prompt_mode, interrupt |
-| `claude` | claude, claude-code | ✓ | claude | 0 | prompt_mode, interrupt |
+| `claude` | claude, claude-code | ✓ | claude | 2 | interrupt |
 | `cline` | cline, .cline | — | cline | 0 | prompt_mode, interrupt |
-| `codex` | codex | ✓ | codex | 0 | prompt_mode, interrupt |
+| `codex` | codex | ✓ | codex | 2 | interrupt |
 | `cursor` | cursor, cursor-agent | ✓ | cursor | 0 | prompt_mode, interrupt |
 | `devin` | devin, devin-cli | ✓ | devin | 0 | prompt_mode, interrupt |
 | `droid` | droid | ✓ | droid | 0 | prompt_mode, interrupt |
@@ -25,7 +25,7 @@ Extracted from herdr source (commit 4e624cd): 24 agents with verified manifest p
 | `muse` | muse, muse-code, muse-cli | — | muse | 0 | prompt_mode, interrupt |
 | `omp` | omp | ✓ | — | 0 | prompt_mode, interrupt |
 | `opencode` | opencode, opencode2, open-code | ✓ | opencode | 0 | prompt_mode, interrupt |
-| `pi` | pi | ✓ | pi | 0 | prompt_mode, interrupt |
+| `pi` | pi | ✓ | pi | 1 | interrupt, resume argv (`--session` not in help) |
 | `qodercli` | qodercli, qoderclicn, qoder, qodercn | ✓ | qodercli | 0 | prompt_mode, interrupt |
 | `qwen` | qwen, qwen-code | ✓ | qwen | 0 | prompt_mode, interrupt |
 
@@ -35,8 +35,32 @@ Multi-word aliases from the donor (`devin cli`, `kilo code`, `kimi code`, `letta
 
 - **Resume**: ✓ = `session.resume_argv` backed by a `plan()` arm in src/agent_resume.rs; — = omitted (not resumable)
 - **Manifest**: `lifecycle.detection_manifest`, backed by a bundled-manifest registry entry in src/detect/manifest.rs and a file in src/detect/manifests/; — = no manifest (`lifecycle.source = "process"`, backed by the registry block's absence)
-- **Level**: `capabilities.support_level` as stored in the definition. 0 everywhere, because every `prompt_mode` is `unknown` and the validator only allows level 1+ with a known prompt mode.
-- **Unverified Fields**: `launch.prompt_mode` and `control.interrupt` have no donor evidence, so they stay at defaults.
+- **Level**: `capabilities.support_level` as stored in the definition. 21 agents stay at 0, because their `prompt_mode` is `unknown`. claude and codex are 2, pi is 1. Those levels rest on help-verified records (see Verification tiers), not on the donor. Level 3 and 4 are not used.
+- **Unverified Fields**: `control.interrupt` has no donor or help evidence, so it stays at `none`. For pi, the donor resume argv (`--session`) is not in the installed help, which documents `--resume [path|id]`, so pi stays at level 1.
+
+## Verification tiers
+
+Evidence about a harness lives in `definitions/VERIFICATION.toml` as `[[record]]` entries. Each record names the harness, the field, the kind, the probe argv, a short literal `observed` string, the harness version, and a date. The tiers, weakest to strongest:
+
+- **catalogued**: extracted from the pinned Herdr donor, with provenance refs audited by `just sync-harness-catalog`. It says what Herdr does, not what the binary does on this machine.
+- **fixture-tested**: a parser, validator, or launch-argv builder test runs with no real binary. The probe argv names the test.
+- **help-verified**: the real installed binary's own `--help` text documents the flag or behavior. The binary was run only with `--help` or `--version`, never with a prompt.
+- **live-verified**: a real run exercised the claim. `--version` live-verifies only that the executable was discovered and reports that version. Nothing else is live-verified in this slice. A live-verified record must carry a non-empty probe argv and a real harness version.
+
+A definition may only claim what its evidence supports. Probe-backed fields are cited in `[provenance] refs` as `field=verification`. Those refs are not donor refs. `builtin()` fails closed unless each probe ref has a help-verified or live-verified record for the same harness and field.
+
+## Installed on this machine (slice 1b)
+
+Live evidence exists only for executables that the operator installed in `~/.local/bin`: claude 2.1.295, codex 0.160.1, pi 0.8.0, prime-agent 0.9.8. Probes ran with `--version` and `--help` only, from an empty temp directory, under `timeout 20`.
+
+Two facts to keep in mind:
+
+- `pi` on PATH is a symlink to prime-agent's binary. Its help text is prime-agent's. Its version (0.8.0) differs from `prime-agent --version` (0.9.8).
+- A PATH lookup also finds `agy` (antigravity), `cline` and `opencode`. They have no live or help records, so they stay catalogued and fixture-tested only.
+
+The other harnesses have no records beyond the fixture test. `just harness-matrix` renders the current state.
+
+The prime-agent row is adapter-owned and has no definition file. Its evidence comes from `--version` and `--help` (help-verified) and from the adapter's fixture tests in `crates/adapters/gauntlet-adapter-agent-prime`. The env-gated live probe (`tests/live_probe.rs`, which makes a model call) and `tests/mcp_bridge_live.rs` (ignored by default) were not run in this slice, so no live-verified record exists for prime beyond `--version`.
 
 ## Provenance audit (report-only sync against 4e624cd)
 
@@ -67,4 +91,5 @@ Before the audit there were 62 refs. Their problems:
 - Total agents: 24
 - Agents with verified resume_argv: 18
 - Agents with manifests: 22
-- Refs: 66 across 24 definitions, all `field=path:lines`
+- Donor refs: 66 across 24 definitions, all `field=path:lines`, checked by `just sync-harness-catalog`
+- Probe refs: 12 across claude (4), codex (5) and pi (3), all `field=verification`, checked against VERIFICATION.toml at load time

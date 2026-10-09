@@ -29,10 +29,12 @@
 
 pub mod catalog;
 pub mod definition;
+pub mod matrix;
 pub mod provenance;
 pub mod subset_toml;
+pub mod verification;
 
-pub use catalog::{CatalogError, builtin, load_custom_dir};
+pub use catalog::{CatalogError, builtin, builtin_with_evidence, load_custom_dir};
 pub use definition::{
     Capabilities, Control, DefinitionError, DefinitionResult, HarnessDefinition, InterruptKind,
     Launch, Lifecycle, LifecycleSource, Origin, PromptMode, Provenance, Session, SessionIdentity,
@@ -43,3 +45,4 @@ pub use provenance::{
     check_against_donor, parse_ref,
 };
 pub use subset_toml::{ParseError, ParseErrorKind, Parser, Table, Value};
+pub use verification::{EvidenceKind, VerificationError, VerificationRecord, parse_verification};

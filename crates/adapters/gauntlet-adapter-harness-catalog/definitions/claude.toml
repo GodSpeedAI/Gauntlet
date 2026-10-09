@@ -6,12 +6,16 @@ executables = ['claude', 'claude-code']
 [provenance]
 source = "herdr"
 commit = "4e624cd"
-refs = ["executables=src/detect/mod.rs:202", "session.resume_argv=src/agent_resume.rs:204-210", "lifecycle.detection_manifest=src/detect/manifest.rs:243"]
+refs = ["executables=src/detect/mod.rs:202", "session.resume_argv=src/agent_resume.rs:204-210", "lifecycle.detection_manifest=src/detect/manifest.rs:243", "launch.prompt_mode=verification", "launch.model_arg=verification", "capabilities.model_selection=verification", "capabilities.structured_events=verification"]
 license = "Apache-2.0"
 
+# prompt_mode, model_arg, model_selection and structured_events come from `claude --help`
+# (help-verified in definitions/VERIFICATION.toml), not from the Herdr donor.
 [launch]
 args = []
-prompt_mode = "unknown"
+model_arg = ["--model", "{model}"]
+prompt_mode = "flag"
+prompt_flag = "-p"
 
 [session]
 identity = "id"
@@ -27,7 +31,7 @@ interrupt = "none"
 [capabilities]
 interactive = false
 resumable = true
-model_selection = false
+model_selection = true
 native_subagents = false
-structured_events = false
-support_level = 0
+structured_events = true
+support_level = 2
