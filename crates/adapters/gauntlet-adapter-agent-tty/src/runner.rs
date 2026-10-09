@@ -74,10 +74,11 @@ use gauntlet_ports::agent_runner::{
 };
 use gauntlet_ports::clock::Clock;
 use gauntlet_ports::deadline::Deadline;
+use gauntlet_ports::lifecycle::{HarnessLifecycleSample, ObservationSource};
 use gauntlet_ports::role_result::{RoleResult, read_result_contract};
 
 use crate::config::InteractiveAgentConfig;
-use crate::lifecycle::LifecycleTracker;
+use crate::lifecycle::LifecycleClassifier;
 use crate::prompt::render_prompt;
 use crate::template::{Template, TemplateValues, render as render_argv};
 use crate::transport::{InteractiveProcessSpec, InteractiveTransport};
@@ -173,6 +174,9 @@ struct CliEntry {
     control_note: Option<String>,
     /// The observed lifecycle state from tail output (forensics only).
     lifecycle: Option<crate::lifecycle::LifecycleState>,
+    /// The latest tail reading not yet drained by `lifecycle_samples`. One
+    /// slot, replaced on each poll, so an undrained runner stays bounded.
+    pending_sample: Option<HarnessLifecycleSample>,
 }
 
 /// The invocation directory anchor (prime's one-anchor rule): the
@@ -330,8 +334,8 @@ pub struct InteractiveAgentRunner<T: InteractiveTransport> {
     /// conservative world, whose dispatches carry no policy).
     containment: Option<Arc<dyn CommandContainment>>,
     entries: RefCell<HashMap<InvocationId, CliEntry>>,
-    /// Lifecycle tracker for monitoring tail output states.
-    lifecycle_tracker: LifecycleTracker,
+    /// Classifies tail output into lifecycle readings (forensics only).
+    lifecycle_classifier: LifecycleClassifier,
 }
 
 impl<T: InteractiveTransport> InteractiveAgentRunner<T> {
@@ -348,7 +352,7 @@ impl<T: InteractiveTransport> InteractiveAgentRunner<T> {
     ) -> Result<Self, crate::config::ConfigError> {
         let template = config.parsed_template()?;
         let classifier = config.classifier.clone();
-        let lifecycle_tracker = LifecycleTracker::new(classifier);
+        let lifecycle_classifier = LifecycleClassifier::new(classifier);
         Ok(Self {
             config,
             template,
@@ -358,7 +362,7 @@ impl<T: InteractiveTransport> InteractiveAgentRunner<T> {
             clock,
             containment: None,
             entries: RefCell::new(HashMap::new()),
-            lifecycle_tracker,
+            lifecycle_classifier,
         })
     }
 
@@ -694,9 +698,23 @@ impl<T: InteractiveTransport> AgentRunner for InteractiveAgentRunner<T> {
                 result: None,
                 control_note: None,
                 lifecycle: None,
+                pending_sample: None,
             },
         );
         Ok(InvocationHandle::new(invocation_id, session_ref))
+    }
+
+    fn lifecycle_samples(
+        &self,
+        handle: &InvocationHandle,
+    ) -> Result<Vec<HarnessLifecycleSample>, AgentError> {
+        let mut entries = self.entries.borrow_mut();
+        let Some(entry) = entries.get_mut(handle.invocation_id()) else {
+            return Err(AgentError::UnknownHandle {
+                invocation_id: handle.invocation_id().clone(),
+            });
+        };
+        Ok(entry.pending_sample.take().into_iter().collect())
     }
 
     fn poll(&self, handle: &InvocationHandle) -> Result<InvocationStatus, AgentError> {
@@ -777,8 +795,14 @@ impl<T: InteractiveTransport> AgentRunner for InteractiveAgentRunner<T> {
         // is independent of the lifecycle classification (forensics only).
         match self.transport.read_tail(entry.child, 4096) {
             Ok(tail) => {
-                let lifecycle_state = self.lifecycle_tracker.classify_tail(&tail.bytes, 0);
+                let lifecycle_state = self.lifecycle_classifier.classify_tail(&tail.bytes);
                 entry.lifecycle = Some(lifecycle_state);
+                entry.pending_sample = Some(HarnessLifecycleSample {
+                    state: lifecycle_state.to_port(),
+                    source: ObservationSource::Screen,
+                    observed_at: self.clock.now(),
+                    native_session: handle.session_ref().cloned(),
+                });
             }
             Err(error) => {
                 // read_tail errors are swallowed into a forensics note
@@ -1343,6 +1367,30 @@ mod tests {
         assert!(
             matches!(status, InvocationStatus::Running { .. }),
             "poll returns Running"
+        );
+    }
+
+    /// Pins: a poll leaves one reading that carries no sequence and is bound to
+    /// the handle's session. Draining it once empties the slot.
+    #[test]
+    fn lifecycle_samples_are_sequence_free_session_bound_and_drain_once() {
+        let (runner, _state_dir) =
+            runner_with(gauntlet_ports::contract::agent_runner::RunnerScript::NeverWriteResult);
+        let handle = runner.invoke(spec()).expect("admission succeeds");
+        runner.poll(&handle).expect("poll succeeds");
+
+        let samples = runner.lifecycle_samples(&handle).expect("samples drain");
+        assert_eq!(samples.len(), 1);
+        assert_eq!(
+            samples[0].source,
+            gauntlet_ports::lifecycle::ObservationSource::Screen
+        );
+        assert_eq!(samples[0].native_session.as_ref(), handle.session_ref());
+        assert!(
+            runner
+                .lifecycle_samples(&handle)
+                .expect("samples drain")
+                .is_empty()
         );
     }
 

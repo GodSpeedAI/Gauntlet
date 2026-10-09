@@ -1059,7 +1059,7 @@ fn status_polls_only_live_bound_nodes_and_never_moves_the_graph() {
         .expect("the status reads");
     assert_eq!(settled.node.status, NodeStatus::Completed);
     assert_eq!(settled.runner_status, None);
-    assert_eq!(settled.lifecycle.effective, None);
+    assert_eq!(settled.forensic_lifecycle.effective, None);
     assert_eq!(a.polls(), 2);
 }
 

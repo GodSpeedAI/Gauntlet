@@ -21,7 +21,8 @@ use gauntlet_ports::invocation_graph::{
     NativeSessionBinding, NodeStatus, ResultBinding,
 };
 use gauntlet_ports::lifecycle::{
-    HarnessObservation, LifecycleView, ObservationOutcome, ObservationRecord,
+    HarnessLifecycleSample, HarnessObservation, LifecycleView, ObservationOutcome,
+    ObservationRecord,
 };
 use gauntlet_ports::role_result::RoleResult;
 use gauntlet_ports::{BudgetSlice, Deadline, InvocationHandle, InvocationStatus};
@@ -291,6 +292,7 @@ pub(crate) struct ScriptedRunner {
     result: RefCell<Option<RoleResult>>,
     cancel_log: RefCell<Option<CancelLog>>,
     received: RefCell<Vec<RoleInvocationSpec>>,
+    samples: RefCell<Vec<(InvocationId, HarnessLifecycleSample)>>,
 }
 
 impl ScriptedRunner {
@@ -309,7 +311,14 @@ impl ScriptedRunner {
             result: RefCell::new(None),
             cancel_log: RefCell::new(None),
             received: RefCell::new(Vec::new()),
+            samples: RefCell::new(Vec::new()),
         }
+    }
+
+    /// Queues one lifecycle reading for the invocation, drained by
+    /// `lifecycle_samples`.
+    pub(crate) fn push_sample(&self, id: &InvocationId, sample: HarnessLifecycleSample) {
+        self.samples.borrow_mut().push((id.clone(), sample));
     }
 
     pub(crate) fn fail_next_invokes(&self, count: u32) {
@@ -437,6 +446,18 @@ impl AgentRunner for ScriptedRunner {
             });
         }
         Ok(())
+    }
+
+    fn lifecycle_samples(
+        &self,
+        handle: &InvocationHandle,
+    ) -> Result<Vec<HarnessLifecycleSample>, AgentError> {
+        let mut queued = self.samples.borrow_mut();
+        let (mine, rest): (Vec<_>, Vec<_>) = queued
+            .drain(..)
+            .partition(|(id, _)| id == handle.invocation_id());
+        *queued = rest;
+        Ok(mine.into_iter().map(|(_, sample)| sample).collect())
     }
 
     fn capabilities(&self) -> RunnerCapabilities {

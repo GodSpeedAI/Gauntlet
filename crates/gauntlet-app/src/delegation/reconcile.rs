@@ -36,6 +36,7 @@ use gauntlet_ports::lifecycle::LifecycleView;
 use gauntlet_ports::role_result::{RoleResult, encode_role_result};
 
 use super::broker::DelegationBroker;
+use super::lifecycle::LifecycleSupervisor;
 
 /// The reason recorded when the runner reports its own invocation cancelled.
 const RUNNER_CANCELLED_REASON: &str = "runner reported the invocation cancelled";
@@ -81,7 +82,10 @@ pub struct DelegationStatus {
     /// the poll (for example a session lost across a restart). The graph is
     /// canonical: the view is still returned, and harness state is forensics.
     pub runner_unavailable: bool,
-    pub lifecycle: LifecycleView,
+    /// FORENSICS ONLY. The last accepted lifecycle observation per source under
+    /// the node's current session epoch. It never feeds a status, collect,
+    /// cancel, or recover decision, and it cannot complete or fail the node.
+    pub forensic_lifecycle: LifecycleView,
 }
 
 /// What `collect` observed for one invocation.
@@ -189,10 +193,6 @@ impl DelegationBroker<'_> {
         deadline: Deadline,
     ) -> Result<DelegationStatus, BrokerError> {
         let node = self.node_of(id, deadline)?;
-        let lifecycle = self
-            .graph
-            .lifecycle(id, deadline)
-            .map_err(BrokerError::Graph)?;
         // A poll failure is a lost or unreachable harness session, never a
         // graph fact: it reports `runner_unavailable` and the graph view stands.
         // Graph and profile-binding errors above and below still fail.
@@ -200,18 +200,46 @@ impl DelegationBroker<'_> {
             Some(handle) if !node.status.is_terminal() => {
                 let runner = self.runner_for(&node.runner_profile)?;
                 match runner.poll(&handle) {
-                    Ok(status) => (Some(status), false),
+                    Ok(status) => {
+                        self.record_readings(runner.as_ref(), &handle, id, deadline)?;
+                        (Some(status), false)
+                    }
                     Err(_) => (None, true),
                 }
             }
             _ => (None, false),
         };
+        // Read after the poll, so readings recorded by this call are included.
+        let forensic_lifecycle = self
+            .graph
+            .lifecycle(id, deadline)
+            .map_err(BrokerError::Graph)?;
         Ok(DelegationStatus {
             node,
             runner_status,
             runner_unavailable,
-            lifecycle,
+            forensic_lifecycle,
         })
+    }
+
+    /// Feeds the runner's undrained readings through the lifecycle supervisor.
+    /// A readings failure is forensics-only and dropped. A graph failure is
+    /// typed and propagates, because the graph is authoritative.
+    fn record_readings(
+        &self,
+        runner: &dyn AgentRunner,
+        handle: &InvocationHandle,
+        id: &InvocationId,
+        deadline: Deadline,
+    ) -> Result<(), BrokerError> {
+        let samples = runner.lifecycle_samples(handle).unwrap_or_default();
+        let supervisor = LifecycleSupervisor::new(self.graph);
+        for sample in samples {
+            supervisor
+                .receive(id, sample, deadline)
+                .map_err(BrokerError::Graph)?;
+        }
+        Ok(())
     }
 
     /// Polls the runner and applies only its contract-derived status. A live

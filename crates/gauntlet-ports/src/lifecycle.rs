@@ -34,7 +34,7 @@
 
 use core::fmt;
 
-use gauntlet_domain::{EpochSeconds, InvocationId};
+use gauntlet_domain::{EpochSeconds, InvocationId, SessionRef};
 
 use crate::invocation_graph::NativeSessionBinding;
 
@@ -130,6 +130,24 @@ pub struct HarnessObservation {
     /// When the observed state held, as reported by the observer.
     pub observed_at: EpochSeconds,
     pub sequence: ObservationSequence,
+}
+
+/// A raw lifecycle reading as a runner saw it, before Gauntlet sequences it.
+///
+/// This type deliberately has NO sequence: a runner or harness cannot supply
+/// one. The supervising app layer receives the sample, stamps it with a
+/// Gauntlet-assigned sequence at receipt, binds it to the node's current
+/// session and epoch, and only then records it as a [`HarnessObservation`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HarnessLifecycleSample {
+    /// The state the runner read.
+    pub state: LifecycleState,
+    /// Where the runner read it.
+    pub source: ObservationSource,
+    /// When the runner read it, from its injected clock.
+    pub observed_at: EpochSeconds,
+    /// The native session the runner read the state from, when it has one.
+    pub native_session: Option<SessionRef>,
 }
 
 /// The result of recording one observation.

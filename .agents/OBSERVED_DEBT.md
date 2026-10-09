@@ -71,3 +71,8 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 * **Evidence:** `ProcessKernelTransport::submit` and the control calls use `std::process::Command` with no `env_clear()`, so a Prime parent inherits every variable the Gauntlet process has, including provider keys. The phase plan describes an env allowlist that the adapter does not implement. Slice 1b adds only `PRIME_AGENT_CODING_AGENT_DIR` (`rpc_command` in `transport.rs`) and leaves inheritance unchanged.
 * **Impact:** not a regression, but the "env stays an allowlist" premise is false today. Credentials reach the harness through inheritance, not through the bridge.
 * **Next move:** decide whether the Prime launch should `env_clear()` and pass an explicit allowlist (HOME, PATH, TMPDIR, the provider keys the chosen profile needs). That is a behavior change and needs approval.
+
+## OD-13 — lifecycle supervision is poll-driven; history scan is O(n)
+
+* **Evidence:** `LifecycleSupervisor` runs only inside `status` on a bound live node (no scheduled sampling); the high-water mark is derived by scanning persisted history per reading; the supervisor is proven against the in-memory graph at app level (PostgreSQL passes the shared graph contract only).
+* **Next move:** persist a per-key high-water counter row; optional periodic sampler owned by the host.

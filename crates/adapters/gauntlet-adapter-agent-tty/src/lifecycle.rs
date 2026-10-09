@@ -1,13 +1,15 @@
-//! Lifecycle tracking for interactive sessions.
+//! Lifecycle classification for interactive sessions.
 //!
 //! Lifecycle is LIVENESS/FORENSICS ONLY and can never complete an invocation.
-//! It observes the session output to infer state (Working, Blocked, Idle, Done)
-//! using conservative heuristics, with stale-state protection via sequence
-//! tracking.
+//! This module classifies a tail of session output into a state (Working,
+//! Blocked, Idle, Unknown) with conservative heuristics.
+//!
+//! It assigns NO sequence. A reading leaves the adapter as a
+//! [`gauntlet_ports::lifecycle::HarnessLifecycleSample`]; the Gauntlet
+//! supervising layer stamps its sequence at receipt and binds it to the
+//! invocation's current native session (see the `InvocationGraph` port).
 
-use std::collections::HashMap;
-
-/// The liveness state of a session.
+/// The liveness state of a session, as read from its output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LifecycleState {
     /// Session is producing output.
@@ -22,35 +24,19 @@ pub enum LifecycleState {
     Unknown,
 }
 
-/// The source of a lifecycle observation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum LifecycleSource {
-    /// Observation from structured message.
-    Structured,
-    /// Observation from process state.
-    Process,
-    /// Observation from output screen analysis.
-    Screen,
-}
-
-/// One lifecycle observation with sequence tracking.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LifecycleObservation {
-    /// The observed state.
-    pub state: LifecycleState,
-    /// The sequence number for stale-state protection.
-    pub sequence: u64,
-    /// The source of the observation.
-    pub source: LifecycleSource,
-}
-
-/// The result of applying an observation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Observed {
-    /// The observation was applied successfully.
-    Applied,
-    /// The observation was ignored because it was stale.
-    IgnoredStale,
+impl LifecycleState {
+    /// The port-level state this reading maps to. The two enums carry the
+    /// same five states; the port type is the one the graph records.
+    pub fn to_port(self) -> gauntlet_ports::lifecycle::LifecycleState {
+        use gauntlet_ports::lifecycle::LifecycleState as Port;
+        match self {
+            Self::Working => Port::Working,
+            Self::Blocked => Port::Blocked,
+            Self::Idle => Port::Idle,
+            Self::Done => Port::Done,
+            Self::Unknown => Port::Unknown,
+        }
+    }
 }
 
 /// Configuration for lifecycle classification.
@@ -71,70 +57,36 @@ impl Default for ClassifierConfig {
     }
 }
 
-/// Tracks lifecycle state per session, with stale-state protection.
+/// Classifies tail output into a [`LifecycleState`]. Stateless: the same
+/// bytes always classify the same way, and no ordering is tracked here.
 #[derive(Debug)]
-pub struct LifecycleTracker {
-    /// Per-session state and sequence tracking by source.
-    states: HashMap<u64, HashMap<(LifecycleSource, u64), LifecycleState>>,
-    /// Per-session current state.
-    current: HashMap<u64, LifecycleState>,
+pub struct LifecycleClassifier {
     /// Classifier configuration.
     config: ClassifierConfig,
 }
 
-impl LifecycleTracker {
+impl LifecycleClassifier {
     pub fn new(config: ClassifierConfig) -> Self {
-        Self {
-            states: HashMap::new(),
-            current: HashMap::new(),
-            config,
-        }
+        Self { config }
     }
 
-    /// Applies an observation, ignoring stale ones from the same source.
-    pub fn observe(&mut self, session: u64, obs: LifecycleObservation) -> Observed {
-        let states_for_session = self.states.entry(session).or_default();
-        let key = (obs.source, obs.sequence);
-
-        // Check if this sequence from this source is stale
-        if let Some(existing) = states_for_session.get(&key)
-            && *existing == obs.state
-        {
-            return Observed::IgnoredStale;
-        }
-
-        // Store and update current state
-        states_for_session.insert(key, obs.state);
-        self.current.insert(session, obs.state);
-        Observed::Applied
-    }
-
-    /// Returns the current lifecycle state for a session.
-    pub fn current(&self, session: u64) -> LifecycleState {
-        self.current
-            .get(&session)
-            .copied()
-            .unwrap_or(LifecycleState::Unknown)
-    }
-
-    /// Classifies a tail of output to a lifecycle state (conservative heuristic).
-    /// Strip ANSI/OSC escapes, check for idle suffix, blocked marker, or output growth.
-    pub fn classify_tail(&self, bytes: &[u8], last_size: u64) -> LifecycleState {
+    /// Classifies a tail of output (conservative heuristic). Strips ANSI and
+    /// OSC escapes, then checks for an idle suffix, then a blocked marker.
+    /// Non-empty visible output that matches neither is Working; empty or
+    /// fully-escaped output is Unknown.
+    pub fn classify_tail(&self, bytes: &[u8]) -> LifecycleState {
         if bytes.is_empty() {
             return LifecycleState::Unknown;
         }
-
-        // Strip ANSI and OSC escape sequences
         let cleaned = strip_ansi_escapes(bytes);
-
-        // Check for idle suffixes (quiescent tail ending in prompt marker)
+        if cleaned.is_empty() {
+            return LifecycleState::Unknown;
+        }
         for suffix in &self.config.idle_suffixes {
             if cleaned.ends_with(suffix.as_bytes()) {
                 return LifecycleState::Idle;
             }
         }
-
-        // Check for blocked markers
         for marker in &self.config.blocked_markers {
             if cleaned
                 .windows(marker.len())
@@ -143,14 +95,7 @@ impl LifecycleTracker {
                 return LifecycleState::Blocked;
             }
         }
-
-        // If cleaned is empty or output hasn't grown, it's unknown
-        if cleaned.is_empty() || bytes.len() as u64 <= last_size {
-            LifecycleState::Unknown
-        } else {
-            // Output grew and is non-empty after cleanup
-            LifecycleState::Working
-        }
+        LifecycleState::Working
     }
 }
 
@@ -210,46 +155,46 @@ mod tests {
     }
 
     #[test]
-    fn lifecycle_tracker_ignores_stale_sequence() {
-        let mut tracker = LifecycleTracker::new(ClassifierConfig::default());
-        let session = 1;
-
-        let obs1 = LifecycleObservation {
-            state: LifecycleState::Working,
-            sequence: 1,
-            source: LifecycleSource::Screen,
-        };
-
-        assert_eq!(tracker.observe(session, obs1), Observed::Applied);
-        assert_eq!(tracker.current(session), LifecycleState::Working);
-
-        // Same sequence from same source -> stale
-        assert_eq!(tracker.observe(session, obs1), Observed::IgnoredStale);
-        assert_eq!(tracker.current(session), LifecycleState::Working);
-    }
-
-    #[test]
     fn classify_tail_detects_idle() {
-        let tracker = LifecycleTracker::new(ClassifierConfig::default());
-        let bytes = b"output here> ";
-        let state = tracker.classify_tail(bytes, 0);
+        let classifier = LifecycleClassifier::new(ClassifierConfig::default());
+        let state = classifier.classify_tail(b"output here> ");
         assert_eq!(state, LifecycleState::Idle);
     }
 
     #[test]
     fn classify_tail_detects_blocked() {
-        let tracker = LifecycleTracker::new(ClassifierConfig::default());
-        let bytes = b"currently waiting for user input";
-        let state = tracker.classify_tail(bytes, 0);
+        let classifier = LifecycleClassifier::new(ClassifierConfig::default());
+        let state = classifier.classify_tail(b"currently waiting for user input");
         assert_eq!(state, LifecycleState::Blocked);
     }
 
     #[test]
     fn classify_tail_ansi_codes_with_content() {
-        let tracker = LifecycleTracker::new(ClassifierConfig::default());
-        let bytes = b"\x1b[31mred\x1b[0m\x1b[32mgreen\x1b[0m";
-        let state = tracker.classify_tail(bytes, 0);
-        // Stripped output is "redgreen" which is non-empty and grew, so Working
+        let classifier = LifecycleClassifier::new(ClassifierConfig::default());
+        let state = classifier.classify_tail(b"\x1b[31mred\x1b[0m\x1b[32mgreen\x1b[0m");
+        // Stripped output is "redgreen": visible and matching no marker.
         assert_eq!(state, LifecycleState::Working);
+    }
+
+    #[test]
+    fn classify_tail_of_empty_or_escape_only_output_is_unknown() {
+        let classifier = LifecycleClassifier::new(ClassifierConfig::default());
+        assert_eq!(classifier.classify_tail(b""), LifecycleState::Unknown);
+        assert_eq!(
+            classifier.classify_tail(b"\x1b[0m\x1b[2K"),
+            LifecycleState::Unknown
+        );
+    }
+
+    #[test]
+    fn readings_map_one_to_one_onto_the_port_states() {
+        assert_eq!(
+            LifecycleState::Idle.to_port(),
+            gauntlet_ports::lifecycle::LifecycleState::Idle
+        );
+        assert_eq!(
+            LifecycleState::Working.to_port(),
+            gauntlet_ports::lifecycle::LifecycleState::Working
+        );
     }
 }

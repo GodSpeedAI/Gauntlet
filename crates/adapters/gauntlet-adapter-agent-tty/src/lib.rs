@@ -15,10 +15,10 @@
 //!   [`InteractiveChildTransport`] manages sessions with the ability to
 //!   send input and read output; the shared contract suite binds
 //!   in-memory doubles, so the default battery spawns NO real process (R-1b).
-//! - [`lifecycle`] tracks liveness state: classifies tail output to detect
-//!   Idle (prompt-suffix match), Blocked (marker substring), Working
-//!   (output growth), or Unknown. Stale observations are ignored per
-//!   sequence tracking.
+//! - [`lifecycle`] classifies tail output to detect Idle (prompt-suffix
+//!   match), Blocked (marker substring), Working (visible output), or
+//!   Unknown. It assigns no sequence: each reading leaves through
+//!   `AgentRunner::lifecycle_samples` for the Gauntlet supervisor to stamp.
 //! - [`runner`] is the real [`AgentRunner`](gauntlet_ports::AgentRunner).
 //!   Classification uses lifecycle state for liveness inference, but NEVER
 //!   treats it as completion evidence. The result contract is the ONE

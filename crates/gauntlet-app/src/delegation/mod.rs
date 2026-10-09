@@ -10,6 +10,7 @@ pub mod agents;
 pub mod agents_wire;
 pub mod broker;
 pub mod context;
+pub mod lifecycle;
 pub mod reconcile;
 
 #[cfg(test)]
@@ -20,6 +21,10 @@ mod agents_tests;
 #[allow(clippy::arc_with_non_send_sync)]
 // test doubles are single-threaded (RefCell); the broker holds them behind Arc like production runners
 mod agents_wire_tests;
+#[cfg(test)]
+#[allow(clippy::arc_with_non_send_sync)]
+// test doubles are single-threaded (RefCell); the broker holds them behind Arc like production runners
+mod lifecycle_tests;
 #[cfg(test)]
 #[allow(clippy::arc_with_non_send_sync)] // single-threaded test doubles behind Arc
 pub(crate) mod test_support;
