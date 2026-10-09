@@ -1398,9 +1398,10 @@ mod tests {
         let settings =
             std::fs::read_to_string(expected_dir.join("settings.json")).expect("settings exist");
         assert!(settings.contains(&format!(
-            "\"args\":[\"fabric\",\"serve\",\"--caller\",\"{}\"]",
+            "\"args\":[\"fabric\",\"serve\",\"--caller\",\"{}\",\"--session-binding\",\"RLM_DEPTH=0\"]",
             invocation_id.as_str()
         )));
+        assert!(settings.contains("\"env\":{\"RLM_DEPTH\":{\"env\":\"RLM_DEPTH\"}"));
         assert!(settings.contains("\"command\":\"/opt/gauntlet/bin/gauntlet\""));
         assert!(settings.contains("\"defaultModel\":\"m-1\""));
         assert!(!settings.contains("SECRET-XYZ"), "no user secret is copied");

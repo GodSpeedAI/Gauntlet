@@ -6,9 +6,17 @@
 //!   event log. It prints `invocation_id=<id>` and is idempotent on replay:
 //!   the same run and idempotency key derive the same id.
 //! - `serve` is one host process for one caller. The caller is fixed by
-//!   `--caller` at process start and is never model-supplied. The caller's
-//!   node, unit, and authority facts are loaded from durable state before the
-//!   first byte is read. The fabric is then served as MCP-subset JSON-RPC over
+//!   `--caller` at process start and is never model-supplied. The caller is
+//!   the AUTHORITY principal: its node, unit, and authority facts are loaded
+//!   from durable state before the first byte is read, and they decide what
+//!   the invocation may do. Authority is not identity of execution. A
+//!   process may be launched with the same caller as another process, so the
+//!   optional `--session-binding NAME=VALUE` ATTESTS the execution: the host
+//!   acts as the invocation only while the process variable NAME equals VALUE
+//!   exactly, checked once at startup. An unbound host still serves the
+//!   protocol, but every `tools/call` is refused before any service, graph, or
+//!   budget access, so a process that cannot be attributed to the invocation
+//!   never touches its graph. The fabric is served as MCP-subset JSON-RPC over
 //!   stdin and stdout. Stdout carries protocol frames only. Diagnostics go to
 //!   stderr.
 //!
@@ -19,6 +27,7 @@
 //! No tool argument can name a caller, a parent, or an authority.
 
 use std::collections::BTreeMap;
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
 use std::io;
@@ -90,13 +99,20 @@ const SERVE_FLAGS: &[&str] = &[
     "answer-key",
     "program-host-dir",
     "program-runner",
+    "session-binding",
 ];
 const USAGE_ADMIT: &str = "gauntlet fabric admit-root --state <dir> --run <run-id> \
      --fabric-dir <dir> --role <role> --profile <profile-id> --unit <unit> \
      --workspace <path> --answer-key <path> [--idempotency-key <key>]";
 const USAGE_SERVE: &str = "gauntlet fabric serve --state <dir> --run <run-id> \
      --caller <invocation-id> --fabric-dir <dir> --workspace <path> --answer-key <path> \
-     [--program-host-dir <dir> [--program-runner <exe>]]";
+     [--program-host-dir <dir> [--program-runner <exe>]] [--session-binding NAME=VALUE]";
+/// The refusal code of every `tools/call` from an unbound host.
+const UNBOUND_CODE: &str = "unbound_execution";
+/// The stable reason of every refusal from an unbound host. It names no
+/// environment value.
+const UNBOUND_DETAIL: &str =
+    "this process is not the invocation's own execution; it may not use the control plane";
 
 /// Why a fabric command stopped. `Usage` is a bad invocation (exit 2);
 /// `Refused` is a fail-closed refusal of a well-formed request (exit 1).
@@ -221,7 +237,8 @@ fn compose(
 
 /// The fabric server launch a bridge-enabled runner provisions: this
 /// executable and the `fabric serve` argv that reproduces THIS process's
-/// serve flags for its run. The runner appends `--caller <its invocation>`.
+/// serve flags for its run. The runner appends `--caller <its invocation>`
+/// and its own session binding.
 /// Every path is made absolute, because a harness starts the server in the
 /// invocation's own workspace.
 fn serve_launch(
@@ -472,11 +489,42 @@ fn startup_runtime<T>(surface: &str, built: Result<T, RuntimeError>) -> CmdResul
 
 /// One caller's tool surface, over runtimes built once at startup. `program`
 /// is present only when the host was started with `--program-host-dir`;
-/// otherwise `program.run` is not listed.
+/// otherwise `program.run` is not listed. `bound` is the startup evaluation of
+/// the session binding: an unbound host refuses every call.
 struct Host<'a> {
     caller: InvocationId,
     agents: &'a SemanticToolRuntime<'a>,
     program: Option<&'a SemanticToolRuntime<'a>>,
+    bound: bool,
+}
+
+/// A process-environment binding: the host acts as its invocation only while
+/// the process variable `name` equals `value` exactly.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SessionBinding {
+    name: String,
+    value: String,
+}
+
+/// Parses `NAME=VALUE`. No `=`, or an empty NAME, is a usage error. An empty
+/// VALUE is a value like any other.
+fn parse_session_binding(text: &str) -> CmdResult<SessionBinding> {
+    let Some((name, value)) = text.split_once('=') else {
+        return Err(usage("--session-binding expects NAME=VALUE"));
+    };
+    if name.is_empty() {
+        return Err(usage("--session-binding: the NAME is empty"));
+    }
+    Ok(SessionBinding {
+        name: name.to_owned(),
+        value: value.to_owned(),
+    })
+}
+
+/// Whether this process's environment satisfies the binding right now. Only
+/// the variable's presence and exact value matter; the value is never echoed.
+fn binding_satisfied(binding: &SessionBinding) -> bool {
+    std::env::var_os(&binding.name).is_some_and(|actual| actual == OsStr::new(&binding.value))
 }
 
 impl ToolSurface for Host<'_> {
@@ -504,6 +552,12 @@ impl ToolSurface for Host<'_> {
     /// `program.run` runs its inner calls through the same agents runtime that
     /// direct calls use, so an inner call is admitted exactly as a direct one.
     fn call(&self, name: &str, arguments: &JsonValue) -> ToolOutcome {
+        if !self.bound {
+            return ToolOutcome::Refused {
+                code: UNBOUND_CODE.to_owned(),
+                detail: UNBOUND_DETAIL.to_owned(),
+            };
+        }
         match self.program {
             Some(outer) if name == PROGRAM_RUN_TOOL => {
                 CatalogSurface::new(&ProgramCatalog, outer, self.caller.clone())
@@ -547,6 +601,21 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
     let caller_id = flags.typed("caller", InvocationId::new)?;
     let workspace_root = PathBuf::from(flags.require("workspace")?);
     let answer_key = PathBuf::from(flags.require("answer-key")?);
+    let binding = flags
+        .optional("session-binding")
+        .map(parse_session_binding)
+        .transpose()?;
+    // Evaluated once, here. An unbound host still starts, and refuses calls.
+    let bound = match &binding {
+        Some(binding) => binding_satisfied(binding),
+        None => true,
+    };
+    if let Some(binding) = binding.as_ref().filter(|_| !bound) {
+        eprintln!(
+            "fabric: unbound: the process variable {} does not satisfy the session binding; every tool call is refused",
+            binding.name
+        );
+    }
 
     let locator = state_dir.join(STATE_DB_NAME);
     if !state_exists(&locator).map_err(refused)? {
@@ -658,6 +727,7 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
         caller: caller_invocation,
         agents: &agents,
         program: program.as_ref(),
+        bound,
     };
     let info = ServerInfo {
         name: SERVER_NAME.to_owned(),
@@ -803,6 +873,34 @@ mod tests {
 
     /// Without program flags the launch carries none, so the bridged server
     /// refuses program.run exactly as an unconfigured serve does.
+    /// A malformed `--session-binding` is a usage error (exit 2 through `run`),
+    /// and a well-formed one parses with an empty VALUE allowed.
+    #[test]
+    fn malformed_session_bindings_are_usage_errors() {
+        for malformed in ["RLM_DEPTH", "=0", ""] {
+            assert!(
+                matches!(
+                    parse_session_binding(malformed),
+                    Err(FabricCmdError::Usage(_))
+                ),
+                "{malformed:?} must be a usage error"
+            );
+        }
+        assert_eq!(
+            parse_session_binding("TESTBIND_DEPTH=0").expect("well formed"),
+            SessionBinding {
+                name: "TESTBIND_DEPTH".to_owned(),
+                value: "0".to_owned(),
+            }
+        );
+        assert_eq!(
+            parse_session_binding("NAME=")
+                .expect("an empty value is a value")
+                .value,
+            ""
+        );
+    }
+
     #[test]
     fn the_serve_launch_omits_program_flags_when_absent() {
         let base = std::env::temp_dir();

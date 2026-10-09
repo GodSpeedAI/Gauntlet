@@ -9,9 +9,15 @@
 //! at it. The directory holds:
 //!
 //! - `settings.json`, GENERATED: `mcpServers.<name>` for the fabric server,
-//!   with argv = the configured prefix followed by `--caller <invocation id>`
-//!   (the id comes from the runner contract, never from the model or a
-//!   profile), plus the non-secret defaults the user's own settings carry
+//!   with argv = the configured prefix, then `--caller <invocation id>` (the
+//!   id comes from the runner contract, never from the model or a profile),
+//!   then `--session-binding RLM_DEPTH=0`. The binding attests that only the
+//!   root's own process is this invocation: a child process inherits the same
+//!   settings, but its harness sets `RLM_DEPTH` to a deeper value, so its
+//!   server is unbound and may not act on the invocation graph. The server
+//!   entry also passes `RLM_DEPTH` and `RLM_SESSION_DIR` through from the
+//!   harness's own process environment as tagged references (`{"env": NAME}`),
+//!   plus the non-secret defaults the user's own settings carry
 //!   (`defaultModel`, `defaultProvider`, `defaultThinkingLevel`). Nothing else
 //!   is copied: the user's `mcpServers` may hold credentials, so it is never
 //!   read into the generated file.
@@ -49,6 +55,16 @@ const LINKED_FILES: &[&str] = &["auth.json", "models.json"];
 const COPIED_SETTINGS_KEYS: &[&str] = &["defaultModel", "defaultProvider", "defaultThinkingLevel"];
 /// The per-invocation argument the fabric server reads its caller from.
 const CALLER_FLAG: &str = "--caller";
+/// The argument that binds the fabric server to a process environment value.
+const SESSION_BINDING_FLAG: &str = "--session-binding";
+/// The harness environment variable carrying the session's nesting depth.
+const SESSION_DEPTH_ENV: &str = "RLM_DEPTH";
+/// The harness environment variable carrying the session's own directory.
+const SESSION_DIR_ENV: &str = "RLM_SESSION_DIR";
+/// The depth the root invocation's own process carries.
+const ROOT_SESSION_DEPTH: &str = "0";
+/// The key of a tagged reference that copies a named environment variable.
+const ENV_REFERENCE_KEY: &str = "env";
 
 /// The MCP bridge configuration: the fabric server's launch, as composition
 /// supplies it.
@@ -58,7 +74,8 @@ pub struct McpBridge {
     pub server_name: String,
     /// The executable the harness spawns (absolute, supplied by composition).
     pub program: PathBuf,
-    /// The fixed argv prefix. Per-invocation `--caller <id>` is appended to it.
+    /// The fixed argv prefix. Per-invocation `--caller <id>` and the session
+    /// binding are appended to it.
     pub args: Vec<String>,
     /// The user's agent directory the non-secret defaults and the linked
     /// credential files are read from. `None` resolves the harness default
@@ -78,11 +95,14 @@ impl McpBridge {
         }
     }
 
-    /// The exact argv the harness will spawn for `invocation_id`.
+    /// The exact argv the harness will spawn for `invocation_id`: the prefix,
+    /// the caller, then the session binding to the root's depth.
     pub fn argv_for(&self, invocation_id: &InvocationId) -> Vec<String> {
         let mut argv = self.args.clone();
         argv.push(CALLER_FLAG.to_owned());
         argv.push(invocation_id.as_str().to_owned());
+        argv.push(SESSION_BINDING_FLAG.to_owned());
+        argv.push(format!("{SESSION_DEPTH_ENV}={ROOT_SESSION_DEPTH}"));
         argv
     }
 }
@@ -208,10 +228,15 @@ fn settings_document(
         .into_iter()
         .map(JsonValue::Str)
         .collect();
+    let env = [SESSION_DEPTH_ENV, SESSION_DIR_ENV]
+        .into_iter()
+        .map(|name| (name.to_owned(), env_reference(name)))
+        .collect();
     let server = JsonValue::Object(vec![
         ("type".to_owned(), JsonValue::Str("stdio".to_owned())),
         ("command".to_owned(), JsonValue::Str(program.to_owned())),
         ("args".to_owned(), JsonValue::Array(argv)),
+        ("env".to_owned(), JsonValue::Object(env)),
     ]);
     let mut entries = vec![(
         "mcpServers".to_owned(),
@@ -219,6 +244,14 @@ fn settings_document(
     )];
     entries.extend(carried);
     Ok(JsonValue::Object(entries).to_json_text())
+}
+
+/// A tagged reference that passes the harness's own value of `name` through.
+fn env_reference(name: &str) -> JsonValue {
+    JsonValue::Object(vec![(
+        ENV_REFERENCE_KEY.to_owned(),
+        JsonValue::Str(name.to_owned()),
+    )])
 }
 
 #[cfg(unix)]
@@ -296,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn settings_document_is_exact_and_carries_only_the_caller_argv() {
+    fn settings_document_is_exact_and_carries_only_the_caller_and_binding_argv() {
         let source = scratch("exact-empty-source");
         let invocation_dir = scratch("exact-inv");
         let agent_dir = provision(
@@ -311,7 +344,10 @@ mod tests {
             format!(
                 "{{\"mcpServers\":{{\"gauntlet\":{{\"type\":\"stdio\",\
                  \"command\":\"/opt/gauntlet/bin/gauntlet\",\
-                 \"args\":[\"fabric\",\"serve\",\"--run\",\"{RUN}\",\"--caller\",\"{INVOCATION}\"]}}}}}}"
+                 \"args\":[\"fabric\",\"serve\",\"--run\",\"{RUN}\",\"--caller\",\"{INVOCATION}\",\
+                 \"--session-binding\",\"RLM_DEPTH=0\"],\
+                 \"env\":{{\"RLM_DEPTH\":{{\"env\":\"RLM_DEPTH\"}},\
+                 \"RLM_SESSION_DIR\":{{\"env\":\"RLM_SESSION_DIR\"}}}}}}}}}}"
             )
         );
         assert!(
@@ -394,7 +430,7 @@ mod tests {
     }
 
     #[test]
-    fn argv_appends_only_the_caller_to_the_configured_prefix() {
+    fn argv_appends_only_the_caller_and_the_root_binding_to_the_prefix() {
         let argv = bridge(None).argv_for(&id(INVOCATION));
         assert_eq!(
             argv,
@@ -405,6 +441,8 @@ mod tests {
                 RUN.to_owned(),
                 "--caller".to_owned(),
                 INVOCATION.to_owned(),
+                "--session-binding".to_owned(),
+                "RLM_DEPTH=0".to_owned(),
             ]
         );
     }

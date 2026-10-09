@@ -137,6 +137,6 @@ fn usage() {
     println!(
         "       gauntlet fabric serve --state <dir> --run <run-id> --caller <invocation-id> \
          --fabric-dir <dir> --workspace <path> --answer-key <path> \
-         [--program-host-dir <dir> [--program-runner <exe>]]"
+         [--program-host-dir <dir> [--program-runner <exe>]] [--session-binding NAME=VALUE]"
     );
 }

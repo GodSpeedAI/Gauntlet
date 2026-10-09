@@ -60,6 +60,14 @@ const OTHER_RUN: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAB";
 const UNIT: &str = "AK-001";
 const MISSING_CALLER: &str = "01ARZ3NDEKTSV4RRFFQ69G5FZZ";
 const PROGRAM_RUN: &str = "program.run";
+/// The process variable a session binding names, and the binding argument.
+const BINDING_NAME: &str = "TESTBIND_DEPTH";
+const BINDING_ARG: &str = "TESTBIND_DEPTH=0";
+/// The value the bound process carries, and a value that does not satisfy it.
+const MATCHING_VALUE: &str = "0";
+const MISMATCHED_VALUE: &str = "1";
+/// The stable refusal code of an unbound host.
+const UNBOUND_CODE: &str = "unbound_execution";
 
 const ROLE_ORCHESTRATOR: &str = "orchestrator";
 const ROLE_BUILDER: &str = "builder";
@@ -247,6 +255,20 @@ impl Fixture {
 
     /// Starts `gauntlet fabric serve` for `caller`. `program` adds the Codemode host.
     fn serve(&self, run: &str, caller: &str, program: bool) -> Serve {
+        self.serve_bound(run, caller, program, None, None)
+    }
+
+    /// Starts `gauntlet fabric serve` for `caller`, with `--session-binding
+    /// binding` when given. The process's binding variable is set to
+    /// `env_value`, or removed when `None`.
+    fn serve_bound(
+        &self,
+        run: &str,
+        caller: &str,
+        program: bool,
+        binding: Option<&str>,
+        env_value: Option<&str>,
+    ) -> Serve {
         let mut command = self.command();
         command
             .args(["fabric", "serve"])
@@ -260,6 +282,13 @@ impl Fixture {
             let host = workbench_dir();
             command.args(["--program-host-dir", path(&host)]);
         }
+        if let Some(binding) = binding {
+            command.args(["--session-binding", binding]);
+        }
+        match env_value {
+            Some(value) => command.env(BINDING_NAME, value),
+            None => command.env_remove(BINDING_NAME),
+        };
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -326,6 +355,19 @@ impl Serve {
         std::io::Read::read_to_string(&mut self.stdout, &mut rest).expect("stdout drains");
         let status = self.child.wait().expect("the child exits");
         (status, rest)
+    }
+
+    /// Ends the session like `finish`, and also returns the stderr text.
+    fn finish_with_stderr(mut self) -> (std::process::ExitStatus, String) {
+        drop(self.stdin.take());
+        let mut rest = String::new();
+        std::io::Read::read_to_string(&mut self.stdout, &mut rest).expect("stdout drains");
+        let mut diagnostics = String::new();
+        if let Some(mut stderr) = self.child.stderr.take() {
+            std::io::Read::read_to_string(&mut stderr, &mut diagnostics).expect("stderr drains");
+        }
+        let status = self.child.wait().expect("the child exits");
+        (status, diagnostics)
     }
 
     /// Kills the process without a clean shutdown (SIGKILL on unix).
@@ -1434,6 +1476,223 @@ fn acceptance_serve_refuses_an_unknown_caller_before_the_protocol_starts() {
     let root = fixture.admit_parent(RUN);
     let other = fixture.serve(OTHER_RUN, &root, false).finish();
     assert!(!other.0.success(), "a caller of another run does not start");
+}
+
+// ---- session binding: an unbound process cannot act as the invocation ------
+
+/// A worker spawn under the caller, with the child budget.
+fn worker_spawn(key: &str) -> String {
+    spawn_args(
+        ROLE_BUILDER,
+        Some(PROFILE_WORKER),
+        &[TASK_ITEM],
+        key,
+        &CHILD,
+    )
+}
+
+/// Every graph fact of one run and of `root`'s subtree, in a fixed order. Equal
+/// snapshots mean no node moved: status, parent, depth, and the budget slice
+/// each node reserves are all in the debug text.
+fn graph_snapshot(fixture: &Fixture, root: &InvocationId) -> String {
+    let graph = fixture.graph();
+    let run = RunId::new(RUN).expect("the run id is valid");
+    format!(
+        "active={:?}\nroot={:?}\nsubtree={:?}",
+        graph
+            .active_nodes(&run, deadline())
+            .expect("the active nodes read"),
+        node(&graph, root),
+        graph
+            .descendants(root, deadline())
+            .expect("the descendants read"),
+    )
+}
+
+/// A bound process is the invocation: its spawn is admitted as before.
+#[test]
+fn acceptance_session_binding_matching_process_acts_as_the_invocation() {
+    let fixture = Fixture::new("bound-match");
+    let root = fixture.admit_parent(RUN);
+    let mut parent =
+        fixture.serve_bound(RUN, &root, false, Some(BINDING_ARG), Some(MATCHING_VALUE));
+    parent.initialize();
+    let spawned = parent.tool(3, "agents.spawn", &worker_spawn("key-bound"));
+    assert!(
+        !spawned.contains("\"isError\":true"),
+        "a bound spawn is admitted: {spawned}"
+    );
+    let child = text_field(&payload(&spawned), "invocation_id");
+    assert!(parent.finish().0.success());
+
+    let graph = fixture.graph();
+    assert!(
+        child_ids(&graph, &id(&root)).contains(&id(&child)),
+        "the child is the bound root's"
+    );
+}
+
+/// An unbound process (mismatched value, or variable missing) refuses every
+/// tools/call with the stable code before touching the graph, and the graph
+/// is unchanged. The true parent then still has its free slot, and its child
+/// limit still holds.
+#[test]
+fn acceptance_unbound_processes_refuse_every_call_and_leave_the_graph_unchanged() {
+    let fixture = Fixture::new("bound-refuse");
+    let root = fixture.admit_parent(RUN);
+    let root_id = id(&root);
+
+    // The bound root spawns one child, so one of its two slots stays free.
+    let mut parent =
+        fixture.serve_bound(RUN, &root, false, Some(BINDING_ARG), Some(MATCHING_VALUE));
+    parent.initialize();
+    let coder = text_field(
+        &payload(&parent.tool(
+            3,
+            "agents.spawn",
+            &spawn_args(
+                ROLE_BUILDER,
+                Some(PROFILE_CODER),
+                &[TASK_ITEM],
+                "key-coder",
+                &CHILD,
+            ),
+        )),
+        "invocation_id",
+    );
+    assert!(parent.finish().0.success());
+    let before = graph_snapshot(&fixture, &root_id);
+
+    let target = format!(r#"{{"invocation_id":"{coder}"}}"#);
+    let unbound_processes = [(Some(MISMATCHED_VALUE), "mismatched"), (None, "missing")];
+    for (env_value, label) in unbound_processes {
+        let mut unbound = fixture.serve_bound(RUN, &root, true, Some(BINDING_ARG), env_value);
+        unbound.initialize();
+        let replies = [
+            unbound.tool(3, "agents.spawn", &worker_spawn("key-unbound")),
+            unbound.tool(4, "agents.cancel", &target),
+            unbound.tool(5, "agents.status", &target),
+            unbound.tool(6, "agents.collect", &target),
+            unbound.tool(
+                7,
+                PROGRAM_RUN,
+                &format!(
+                    r#"{{"source":"return await tools.agents.spawn({});"}}"#,
+                    js(&worker_spawn("key-program"))
+                ),
+            ),
+        ];
+        for reply in &replies {
+            assert!(
+                reply.contains("\"isError\":true") && reply.contains(UNBOUND_CODE),
+                "{label}: refused as unbound: {reply}"
+            );
+        }
+        let (status, diagnostics) = unbound.finish_with_stderr();
+        assert!(status.success(), "{label}: an unbound host exits cleanly");
+        assert!(
+            diagnostics.contains("unbound") && diagnostics.contains(BINDING_NAME),
+            "{label}: the startup line names the unbound binding: {diagnostics}"
+        );
+        assert_eq!(
+            graph_snapshot(&fixture, &root_id),
+            before,
+            "{label}: the graph is unchanged"
+        );
+    }
+
+    // The unbound spawns consumed no slot: the one free slot admits a bound
+    // spawn, and the parent at its child limit is then refused.
+    let mut bound = fixture.serve_bound(RUN, &root, false, Some(BINDING_ARG), Some(MATCHING_VALUE));
+    bound.initialize();
+    let filled = bound.tool(3, "agents.spawn", &worker_spawn("key-worker"));
+    assert!(
+        !filled.contains("\"isError\":true"),
+        "the free slot is still free: {filled}"
+    );
+    let full = bound.tool(4, "agents.spawn", &worker_spawn("key-third"));
+    assert!(
+        full.contains("\"isError\":true"),
+        "the parent at its child limit is still refused: {full}"
+    );
+    assert!(bound.finish().0.success());
+}
+
+/// An unbound cancel leaves the real child running; a bound cancel of the same
+/// child takes it.
+#[test]
+fn acceptance_unbound_cancel_leaves_the_child_running_and_a_bound_cancel_takes_it() {
+    let fixture = Fixture::new("bound-cancel");
+    let root = fixture.admit_parent(RUN);
+    let mut parent =
+        fixture.serve_bound(RUN, &root, false, Some(BINDING_ARG), Some(MATCHING_VALUE));
+    parent.initialize();
+    let child = text_field(
+        &payload(&parent.tool(3, "agents.spawn", &worker_spawn("key-cancel"))),
+        "invocation_id",
+    );
+    assert!(parent.finish().0.success());
+
+    let target = format!(r#"{{"invocation_id":"{child}"}}"#);
+    let mut unbound =
+        fixture.serve_bound(RUN, &root, false, Some(BINDING_ARG), Some(MISMATCHED_VALUE));
+    unbound.initialize();
+    let refused = unbound.tool(3, "agents.cancel", &target);
+    assert!(refused.contains(UNBOUND_CODE), "refused: {refused}");
+    assert!(unbound.finish().0.success());
+    assert!(
+        !node(&fixture.graph(), &id(&child)).status.is_terminal(),
+        "the unbound cancel left the child running"
+    );
+
+    let mut bound = fixture.serve_bound(RUN, &root, false, Some(BINDING_ARG), Some(MATCHING_VALUE));
+    bound.initialize();
+    let cancelled = payload(&bound.tool(3, "agents.cancel", &target));
+    let JsonValue::Array(ids) = cancelled
+        .get("cancelled")
+        .expect("a cancelled list")
+        .clone()
+    else {
+        panic!("cancelled is an array: {cancelled:?}")
+    };
+    assert!(
+        ids.iter()
+            .any(|item| matches!(item, JsonValue::Str(text) if *text == child)),
+        "the bound cancel names the child: {cancelled:?}"
+    );
+    assert!(bound.finish().0.success());
+    assert_eq!(
+        node(&fixture.graph(), &id(&child)).status,
+        NodeStatus::Cancelled
+    );
+}
+
+/// A malformed `--session-binding` is a usage error, exit 2, before any state
+/// is read.
+#[test]
+fn acceptance_serve_rejects_a_malformed_session_binding_as_a_usage_error() {
+    let fixture = Fixture::new("binding-usage");
+    for malformed in ["NOEQUALS", "=0"] {
+        let output = fixture
+            .command()
+            .args(["fabric", "serve"])
+            .args(["--state", path(&fixture.state)])
+            .args(["--run", RUN])
+            .args(["--caller", MISSING_CALLER])
+            .args(["--fabric-dir", path(&fixture.fabric)])
+            .args(["--workspace", path(&fixture.workspaces)])
+            .args(["--answer-key", path(&fixture.answer_key)])
+            .args(["--session-binding", malformed])
+            .output()
+            .expect("the gauntlet binary runs");
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{malformed:?} is a usage error: {}",
+            stderr(&output)
+        );
+        assert!(stderr(&output).contains("--session-binding"));
+    }
 }
 
 // Step H (late, stale, or wrong-session lifecycle samples) is not repeated here.

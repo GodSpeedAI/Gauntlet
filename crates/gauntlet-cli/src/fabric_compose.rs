@@ -240,9 +240,10 @@ pub struct ProfileSpec {
 
 /// How a bridge-enabled runner launches the fabric MCP server: the executable
 /// and the fixed `fabric serve` argv prefix, with every value a composition
-/// input. A runner appends `--caller <its own invocation id>` to it. Supplied
-/// only by the process that serves a caller (`fabric serve`); absent elsewhere,
-/// where a bridge-enabled profile is registered as unavailable.
+/// input. A runner appends `--caller <its own invocation id>` and its own
+/// session binding to it. Supplied only by the process that serves a caller
+/// (`fabric serve`); absent elsewhere, where a bridge-enabled profile is
+/// registered as unavailable.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McpServeLaunch {
     pub program: PathBuf,
