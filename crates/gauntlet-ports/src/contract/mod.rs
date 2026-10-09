@@ -102,6 +102,8 @@ pub mod reference_provider;
 pub mod revision_ledger;
 pub mod sandbox;
 pub mod state_store;
+pub mod tool_program;
+pub mod tool_program_reference;
 pub mod tool_provider;
 pub mod verifier;
 pub mod workspace_provider;

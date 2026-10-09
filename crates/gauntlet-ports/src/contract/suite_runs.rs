@@ -653,3 +653,106 @@ fn workspace_provider_broken_is_caught() {
         super::workspace_provider::workspace_provider_suite(&WorkspaceProviderBroken),
     );
 }
+
+/// A runtime that drops the host's record and reports an empty trace. The
+/// trace must come from the host, so the suite has to catch it.
+struct TraceForgingRuntime;
+
+impl crate::tool_program::ToolProgramRuntime for TraceForgingRuntime {
+    fn run(
+        &self,
+        request: &crate::tool_program::ToolProgramRequest,
+        host: &dyn crate::tool_program::ProgramHost,
+    ) -> crate::tool_program::ProgramOutcome {
+        if let Ok(name) = crate::tool_catalog::ToolName::new("tools.read") {
+            host.call(&name, &crate::json::JsonValue::Object(Vec::new()));
+        }
+        crate::tool_program::finish_outcome(
+            crate::tool_program::ProgramStatus::Completed(crate::json::JsonValue::Null),
+            crate::tool_program::HostRecord {
+                trace: Vec::new(),
+                breach: None,
+            },
+            request,
+            core::time::Duration::ZERO,
+        )
+    }
+}
+
+struct TraceForgingFactory;
+
+impl super::tool_program::ToolProgramFactory for TraceForgingFactory {
+    fn label(&self) -> &'static str {
+        "trace-forging"
+    }
+
+    fn build(&self) -> Result<Box<dyn crate::tool_program::ToolProgramRuntime>, String> {
+        Ok(Box::new(TraceForgingRuntime))
+    }
+}
+
+/// A runtime that issues one more call after a `Completed` program, as if
+/// completion marked work done. The suite must catch the extra call.
+struct CompletionLeakRuntime;
+
+impl crate::tool_program::ToolProgramRuntime for CompletionLeakRuntime {
+    fn run(
+        &self,
+        request: &crate::tool_program::ToolProgramRequest,
+        host: &dyn crate::tool_program::ProgramHost,
+    ) -> crate::tool_program::ProgramOutcome {
+        let outcome = crate::tool_program::ToolProgramRuntime::run(
+            &super::tool_program_reference::MockProgramRuntime,
+            request,
+            host,
+        );
+        if let (crate::tool_program::ProgramStatus::Completed(_), Ok(name)) = (
+            &outcome.status,
+            crate::tool_catalog::ToolName::new("tools.read"),
+        ) {
+            host.call(&name, &crate::json::JsonValue::Object(Vec::new()));
+        }
+        let record = host.record();
+        crate::tool_program::finish_outcome(outcome.status, record, request, outcome.duration)
+    }
+}
+
+struct CompletionLeakFactory;
+
+impl super::tool_program::ToolProgramFactory for CompletionLeakFactory {
+    fn label(&self) -> &'static str {
+        "completion-leak"
+    }
+
+    fn build(&self) -> Result<Box<dyn crate::tool_program::ToolProgramRuntime>, String> {
+        Ok(Box::new(CompletionLeakRuntime))
+    }
+}
+
+#[test]
+fn tool_program_green_is_clean() {
+    assert_green(
+        "MockProgramRuntime",
+        super::tool_program::tool_program_suite(
+            &super::tool_program_reference::MockProgramRuntimeFactory,
+        ),
+    );
+}
+
+#[test]
+fn tool_program_trace_forging_is_caught() {
+    assert_caught(
+        "TraceForgingRuntime",
+        "trace_is_the_host_record",
+        super::tool_program::tool_program_suite(&TraceForgingFactory),
+    );
+}
+
+#[test]
+fn tool_program_completion_leak_is_caught() {
+    assert_caught(
+        "CompletionLeakRuntime",
+        "completed_is_data_only",
+        super::tool_program::tool_program_suite(&CompletionLeakFactory),
+    );
+}

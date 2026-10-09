@@ -56,6 +56,7 @@ pub mod sandbox;
 pub mod state_store;
 pub mod tokens;
 pub mod tool_catalog;
+pub mod tool_program;
 pub mod tool_provider;
 pub mod tool_surface;
 pub mod verification_record;
@@ -137,6 +138,11 @@ pub use tokens::UnknownToken;
 pub use tool_catalog::{
     CatalogBuilder, CatalogError, CatalogSurface, Composite, ToolCatalog, ToolInvocation,
     ToolInvoker, ToolName, ToolNameError, ToolOperation,
+};
+pub use tool_program::{
+    FailureClass, HostRecord, ProgramHost, ProgramLimit, ProgramLimits, ProgramOutcome,
+    ProgramRequestError, ProgramSource, ProgramSourceError, ProgramStatus, ToolProgramRequest,
+    ToolProgramRuntime, TraceEntry, TraceOutcomeKind,
 };
 pub use tool_provider::{
     SemanticCapability, ToolBinding, ToolIdentity, ToolProvider, ToolProviderError,
