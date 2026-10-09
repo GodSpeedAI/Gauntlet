@@ -1078,6 +1078,128 @@ fn cancel_subtree_cancels_active_descendants_only(
     })
 }
 
+/// Case: cancel_subtree on an already-terminal root leaves the root and its
+/// settled descendants untouched, cancels only the active descendants, and
+/// returns exactly those ids in depth-then-admission order. The broker relies
+/// on this when it cascades after failing or orphaning a node.
+fn cancel_subtree_on_a_terminal_root_cancels_only_active_descendants(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "cancel_subtree_on_a_terminal_root_cancels_only_active_descendants";
+    const RULE: &str = "E2 design: cancel_subtree on a terminal node leaves the node unchanged; only non-terminal descendants become Cancelled, and the returned ids are exactly the newly cancelled ones";
+    const ROOT_FAILED_AT: u64 = 1_800_000_150;
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let run_id = run("1");
+        let (root, c1, c2, c3, g1) = (inv("1"), inv("2"), inv("3"), inv("4"), inv("5"));
+        admit_ok(graph.as_ref(), root_request(&root, &run_id, "key-root"))?;
+        admit_ok(graph.as_ref(), request(&c1, &run_id, Some(&root), "key-c1"))?;
+        admit_ok(graph.as_ref(), request(&c2, &run_id, Some(&root), "key-c2"))?;
+        admit_ok(graph.as_ref(), request(&c3, &run_id, Some(&root), "key-c3"))?;
+        admit_ok(graph.as_ref(), request(&g1, &run_id, Some(&c1), "key-g1"))?;
+        g(graph.mark_running(&c1, dl()))?;
+        g(graph.mark_running(&g1, dl()))?;
+        g(graph.complete(
+            &c2,
+            binding(CONTRACT_A, DIGEST_A),
+            EpochSeconds::new(COMPLETE_AT),
+            dl(),
+        ))?;
+        g(graph.fail(
+            &root,
+            InvocationFailure::Execution,
+            EpochSeconds::new(ROOT_FAILED_AT),
+            dl(),
+        ))?;
+        let before = snapshot(graph.as_ref(), &[&root, &c2])?;
+        ensure(
+            before[0].as_ref().map(|n| n.status)
+                == Some(NodeStatus::Failed(InvocationFailure::Execution)),
+            || "the root did not settle as Failed before the cascade".to_owned(),
+        )?;
+
+        let cancelled = g(graph.cancel_subtree(&root, EpochSeconds::new(CANCEL_AT), dl()))?;
+        ensure(
+            cancelled == vec![c1.clone(), c3.clone(), g1.clone()],
+            || format!("cancelled ids are {cancelled:?}, want [C1, C3, G] (depth, then admission)"),
+        )?;
+        ensure_unchanged(
+            graph.as_ref(),
+            &[&root, &c2],
+            &before,
+            "terminal root and completed child",
+        )?;
+        for id in [&c1, &c3, &g1] {
+            let node = g(graph.node(id, dl()))?.ok_or("an active descendant vanished")?;
+            ensure(
+                node.status == NodeStatus::Cancelled
+                    && node.terminal_at == Some(EpochSeconds::new(CANCEL_AT)),
+                || {
+                    format!(
+                        "active descendant {id} is {} after the cascade",
+                        node.status
+                    )
+                },
+            )?;
+        }
+        let again = g(graph.cancel_subtree(&root, EpochSeconds::new(CANCEL_AT), dl()))?;
+        ensure(again.is_empty(), || {
+            format!("a second cancel_subtree on the terminal root returned {again:?}, want none")
+        })?;
+        ensure_unchanged(
+            graph.as_ref(),
+            &[&root, &c2],
+            &before,
+            "second cascade on the terminal root",
+        )
+    })
+}
+
+/// Case: cancel_subtree on a terminal leaf is a no-op: it returns no ids and
+/// leaves the leaf and its parent exactly as they were.
+fn cancel_subtree_on_a_terminal_leaf_is_a_noop_returning_empty(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "cancel_subtree_on_a_terminal_leaf_is_a_noop_returning_empty";
+    const RULE: &str =
+        "E2 design: cancel_subtree on a terminal leaf returns no ids and changes nothing";
+    const LEAF_FAILED_AT: u64 = 1_800_000_120;
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let run_id = run("1");
+        let (root, leaf) = (inv("1"), inv("2"));
+        admit_ok(graph.as_ref(), root_request(&root, &run_id, "key-root"))?;
+        admit_ok(
+            graph.as_ref(),
+            request(&leaf, &run_id, Some(&root), "key-leaf"),
+        )?;
+        g(graph.mark_running(&leaf, dl()))?;
+        g(graph.fail(
+            &leaf,
+            InvocationFailure::Execution,
+            EpochSeconds::new(LEAF_FAILED_AT),
+            dl(),
+        ))?;
+        let before = snapshot(graph.as_ref(), &[&root, &leaf])?;
+        let cancelled = g(graph.cancel_subtree(&leaf, EpochSeconds::new(CANCEL_AT), dl()))?;
+        ensure(cancelled.is_empty(), || {
+            format!("cancel_subtree on a terminal leaf returned {cancelled:?}, want none")
+        })?;
+        ensure_unchanged(
+            graph.as_ref(),
+            &[&root, &leaf],
+            &before,
+            "terminal leaf cascade",
+        )?;
+        let node = g(graph.node(&leaf, dl()))?.ok_or("the failed leaf vanished")?;
+        ensure(
+            node.status == NodeStatus::Failed(InvocationFailure::Execution)
+                && node.terminal_at == Some(EpochSeconds::new(LEAF_FAILED_AT)),
+            || "the failed leaf was altered by cancel_subtree".to_owned(),
+        )
+    })
+}
+
 /// Case: a child that claims nothing and presents no binding stays
 /// non-terminal; the graph never completes it implicitly.
 fn child_without_binding_stays_non_terminal(
@@ -2455,6 +2577,10 @@ pub fn invocation_graph_suite(factory: &dyn InvocationGraphFactory) -> Vec<Contr
     findings.extend(complete_twice_is_illegal(factory));
     findings.extend(failed_and_timed_out_are_final(factory));
     findings.extend(cancel_subtree_cancels_active_descendants_only(factory));
+    findings.extend(cancel_subtree_on_a_terminal_root_cancels_only_active_descendants(factory));
+    findings.extend(cancel_subtree_on_a_terminal_leaf_is_a_noop_returning_empty(
+        factory,
+    ));
     findings.extend(child_without_binding_stays_non_terminal(factory));
     findings.extend(active_nodes_excludes_terminal(factory));
     findings.extend(descendants_order_is_deterministic(factory));

@@ -285,10 +285,13 @@ pub trait InvocationGraph {
         deadline: Deadline,
     ) -> Result<InvocationNode, GraphError>;
 
-    /// Marks the node and every non-terminal descendant Cancelled in one
-    /// atomic step. Returns exactly the ids newly cancelled, subtree root
-    /// first, then descendants in `descendants` order. Idempotent: a second
-    /// call returns an empty list.
+    /// Marks every non-terminal node in the subtree Cancelled in one atomic
+    /// step. The node itself is included only while it is non-terminal; a
+    /// terminal node (for example a Failed root) and every terminal descendant
+    /// stay exactly as they are. Returns exactly the ids newly cancelled: the
+    /// subtree root first (only when it was non-terminal), then the active
+    /// descendants in `descendants` order (depth, then admission). Idempotent:
+    /// a second call returns an empty list.
     fn cancel_subtree(
         &self,
         id: &InvocationId,
