@@ -5,7 +5,10 @@
 //! (3) admit the node in the invocation graph, (4) invoke the runner once and
 //! record its native session. A refusal at (1)-(3) makes zero runner calls.
 //! An invoke failure leaves the node Admitted so a retry with the same key
-//! launches it.
+//! launches it. A successful invoke whose handle carries no session identity is
+//! never graph-backed: the broker cancels best-effort, fails the node, and
+//! refuses. A replay that finds a bound node still Admitted heals the lost
+//! Running transition instead of launching again.
 
 use core::fmt;
 use std::collections::BTreeMap;
@@ -15,10 +18,12 @@ use gauntlet_domain::{
     AdmissionKey, Budget, EpochSeconds, InvocationId, IterationNo, PermissionSetRef,
     ResultContractPath, RoleId, RunId, RunnerProfileId, SandboxPolicyRef, WorkspaceRef,
 };
-use gauntlet_ports::agent_runner::{AgentError, AgentRunner, InvocationHandle, RoleInvocationSpec};
+use gauntlet_ports::agent_runner::{
+    AgentError, AgentRunner, CancelReason, InvocationFailure, InvocationHandle, RoleInvocationSpec,
+};
 use gauntlet_ports::invocation_graph::{
     AdmissionOutcome, AdmissionRefusal, AdmissionRequest, GraphError, GraphLimits, InvocationGraph,
-    InvocationNode,
+    InvocationNode, NodeStatus,
 };
 use gauntlet_ports::{BudgetSlice, Deadline};
 
@@ -29,6 +34,9 @@ use crate::fabric::selection::{Preference, Requirements, SelectionRefusal, selec
 /// The fixed instruction every delegated child receives. The task itself lives
 /// in the envelope, so the prompt carries no caller content.
 const DELEGATED_PROMPT: &str = "perform the role named in the context envelope and write the typed result document at the declared contract path";
+
+/// The reason recorded when a launched handle proves no session identity.
+const NO_SESSION_CANCEL_REASON: &str = "runner returned no session identity for the launch";
 
 /// Everything one delegation needs. The broker derives the envelope, the
 /// selection, and the admission from these facts; nothing is read from ambient
@@ -75,7 +83,7 @@ pub struct Delegated {
 }
 
 /// Why a delegation was not launched. Every variant except `RunnerAdmission`
-/// is raised before the runner is called.
+/// and `RunnerGaveNoSessionIdentity` is raised before the runner is called.
 #[derive(Debug, Clone, PartialEq)]
 pub enum DelegationRefusal {
     Context(ContextRefusal),
@@ -88,6 +96,17 @@ pub enum DelegationRefusal {
     Graph(GraphError),
     /// The runner refused or failed to admit. The node stays Admitted.
     RunnerAdmission(AgentError),
+    /// The runner accepted the invoke but its handle proves no session
+    /// identity. The broker never invents one, so the node was cancelled
+    /// best-effort and failed with `Execution`.
+    RunnerGaveNoSessionIdentity {
+        profile: RunnerProfileId,
+    },
+    /// The key names a node that already reached a terminal status. A replay
+    /// never launches again; the settled node is returned as the refusal.
+    AlreadyTerminal {
+        node: Box<InvocationNode>,
+    },
 }
 
 impl fmt::Display for DelegationRefusal {
@@ -101,6 +120,15 @@ impl fmt::Display for DelegationRefusal {
             Self::Admission(refusal) => write!(f, "admission refused: {refusal}"),
             Self::Graph(error) => write!(f, "invocation graph failed: {error}"),
             Self::RunnerAdmission(error) => write!(f, "runner admission failed: {error}"),
+            Self::RunnerGaveNoSessionIdentity { profile } => write!(
+                f,
+                "runner profile {profile} returned no session identity; the invocation was failed"
+            ),
+            Self::AlreadyTerminal { node } => write!(
+                f,
+                "invocation {} is already {}",
+                node.invocation_id, node.status
+            ),
         }
     }
 }
@@ -171,16 +199,16 @@ impl RunnerSet {
         Ok(Self { runners })
     }
 
-    fn get(&self, profile: &RunnerProfileId) -> Option<&Rc<dyn AgentRunner>> {
+    pub(super) fn get(&self, profile: &RunnerProfileId) -> Option<&Rc<dyn AgentRunner>> {
         self.runners.get(profile)
     }
 }
 
 /// The harness-neutral delegation broker. Holds borrowed ports only.
 pub struct DelegationBroker<'g> {
-    graph: &'g dyn InvocationGraph,
-    registry: &'g RunnerRegistry,
-    runners: &'g RunnerSet,
+    pub(super) graph: &'g dyn InvocationGraph,
+    pub(super) registry: &'g RunnerRegistry,
+    pub(super) runners: &'g RunnerSet,
 }
 
 impl<'g> DelegationBroker<'g> {
@@ -237,18 +265,38 @@ impl<'g> DelegationBroker<'g> {
             .map_err(DelegationRefusal::Graph)?
         {
             AdmissionOutcome::Admitted(node) => node,
-            AdmissionOutcome::AlreadyAdmitted(node) => match node.native_session.clone() {
-                Some(binding) => {
-                    let handle =
-                        InvocationHandle::new(node.invocation_id.clone(), Some(binding.session));
-                    return Ok(Delegated {
-                        node,
-                        handle,
-                        outcome: DelegationOutcome::AlreadyLaunched,
+            AdmissionOutcome::AlreadyAdmitted(node) => {
+                if node.status.is_terminal() {
+                    return Err(DelegationRefusal::AlreadyTerminal {
+                        node: Box::new(node),
                     });
                 }
-                None => node,
-            },
+                match node.native_session.clone() {
+                    Some(binding) => {
+                        // A binding proves the launch happened. A node still
+                        // Admitted here lost its Running transition, so heal it.
+                        let node = if node.status == NodeStatus::Admitted {
+                            self.graph
+                                .mark_running(&node.invocation_id, deadline)
+                                .map_err(DelegationRefusal::Graph)?
+                        } else {
+                            node
+                        };
+                        let handle = InvocationHandle::new(
+                            node.invocation_id.clone(),
+                            Some(binding.session),
+                        );
+                        return Ok(Delegated {
+                            node,
+                            handle,
+                            outcome: DelegationOutcome::AlreadyLaunched,
+                        });
+                    }
+                    // Unbound and non-terminal: no launch has been proven, so
+                    // the invoke below is the one launch this key may make.
+                    None => node,
+                }
+            }
             AdmissionOutcome::Refused(refusal) => {
                 return Err(DelegationRefusal::Admission(refusal));
             }
@@ -272,11 +320,28 @@ impl<'g> DelegationBroker<'g> {
         let handle = runner
             .invoke(spec)
             .map_err(DelegationRefusal::RunnerAdmission)?;
-        if let Some(session) = handle.session_ref() {
+        let Some(session) = handle.session_ref().cloned() else {
+            // Inventing a session identity would let a later resume name a
+            // session that was never proven. Cancel what may be running, then
+            // fail the node so a replay can never launch it again.
+            let reason = CancelReason::new(NO_SESSION_CANCEL_REASON)
+                .expect("the no-session cancel reason is a non-empty constant");
+            let _ = runner.cancel(&handle, reason, deadline);
             self.graph
-                .attach_native_session(&node.invocation_id, session.clone(), deadline)
+                .fail(
+                    &node.invocation_id,
+                    InvocationFailure::Execution,
+                    request.at,
+                    deadline,
+                )
                 .map_err(DelegationRefusal::Graph)?;
-        }
+            return Err(DelegationRefusal::RunnerGaveNoSessionIdentity {
+                profile: profile.id.clone(),
+            });
+        };
+        self.graph
+            .attach_native_session(&node.invocation_id, session, deadline)
+            .map_err(DelegationRefusal::Graph)?;
         let node = self
             .graph
             .mark_running(&node.invocation_id, deadline)

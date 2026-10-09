@@ -8,6 +8,7 @@
 
 pub mod broker;
 pub mod context;
+pub mod reconcile;
 
 #[cfg(test)]
 mod tests;
@@ -18,4 +19,8 @@ pub use broker::{
 };
 pub use context::{
     ContextItem, ContextItemKind, ContextPolicy, ContextRefusal, MAX_ENVELOPE_BYTES, build_envelope,
+};
+pub use reconcile::{
+    BrokerError, CancelReport, CollectOutcome, DelegationStatus, RecoveryAction, RecoveryReport,
+    Unreconciled,
 };
