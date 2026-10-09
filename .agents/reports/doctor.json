@@ -85,24 +85,22 @@
       "evidence": [],
       "id": 3,
       "name": "runners",
-      "reason": "a sub-check's machinery lands with a later plan task",
-      "status": "unavailable",
+      "status": "pass",
       "sub": [
         {
           "evidence": [
-            "no runners configured (UNK-003): the default runner is an open unknown; selection arrives via the runner variables in later tasks"
+            "runners.default configured"
           ],
           "name": "structure",
-          "reason": "no runners configured (UNK-003)",
-          "status": "skipped"
+          "status": "pass"
         },
         {
           "evidence": [
-            "runtime resolution against a runner registry is unavailable: no runner configured (UNK-003)"
+            "runner 'prime-agent' resolves: the behavioral capability probe measured clean (observed spawn dialect, required methods present, control seam operational)",
+            "capability probe ok; dialect Spawn09; version metadata 0.9.8 (informational)"
           ],
           "name": "resolution",
-          "reason": "no runner configured (UNK-003)",
-          "status": "unavailable"
+          "status": "pass"
         }
       ]
     },
@@ -110,8 +108,7 @@
       "evidence": [],
       "id": 4,
       "name": "capabilities",
-      "reason": "a sub-check's machinery lands with a later plan task",
-      "status": "unavailable",
+      "status": "pass",
       "sub": [
         {
           "evidence": [
@@ -123,11 +120,11 @@
         },
         {
           "evidence": [
-            "runtime runner-capability resolution is unavailable: runner capabilities resolve with plan Tasks 15-16; the dispatch gate enforces per-invocation isolation in the meantime"
+            "runner 'prime-agent' probed: harness behavioral capabilities measured (that dimension only)",
+            "runner isolation-vs-tier enforcement happens per invocation at the dispatch gate (spec 17.3); the doctor measures no rung for runners"
           ],
           "name": "runner capabilities",
-          "reason": "runner capabilities resolve with plan Tasks 15-16; the dispatch gate enforces per-invocation isolation in the meantime",
-          "status": "unavailable"
+          "status": "pass"
         }
       ]
     },
@@ -230,8 +227,8 @@
       ]
     }
   ],
-  "config_fingerprint": "sha256:8e707aafa9cef66d0593e980f7eea5d9c4c821ed424afa1ff4f7153445072f3b",
+  "config_fingerprint": "sha256:808f47a2e132bb2573a3e15ea53cb2e71cda38df34656be424f442b39c2b8397",
   "config_origin": "/home/sprime01/projects/gauntlet/GAUNTLET.md",
   "exit_code": 0,
-  "generated_at": 1789472096
+  "generated_at": 1791398460
 }
