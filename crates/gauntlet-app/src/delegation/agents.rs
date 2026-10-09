@@ -45,7 +45,7 @@ use crate::govern::{AuthorityGate, GateFacts, GateRefusal, GovernDeps};
 
 /// The contract name every delegated child writes its result document under.
 /// Relative by construction, like every contract path.
-const RESULT_CONTRACT_NAME: &str = "delegate-result-document";
+pub const RESULT_CONTRACT_NAME: &str = "delegate-result-document";
 
 /// The reason recorded when an owning invocation cancels its subtree.
 const AGENT_CANCEL_REASON: &str = "cancelled by the owning invocation";

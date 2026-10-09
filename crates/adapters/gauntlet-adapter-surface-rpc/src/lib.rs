@@ -26,6 +26,11 @@ use gauntlet_ports::tool_surface::{ToolOutcome, ToolSurface};
 /// Protocol revisions this server speaks, newest first.
 pub const SUPPORTED_PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
+/// The tool-subset method names this transport answers. Public so a caller
+/// names the protocol once instead of spelling it.
+pub const METHOD_TOOLS_LIST: &str = "tools/list";
+pub const METHOD_TOOLS_CALL: &str = "tools/call";
+
 /// Default bound on one input line: 1 MiB.
 pub const DEFAULT_MAX_LINE_BYTES: usize = 1024 * 1024;
 
@@ -202,8 +207,8 @@ fn handle(
     let outcome = match method {
         "initialize" => Ok(initialize(info, params)),
         "ping" => Ok(obj(Vec::new())),
-        "tools/list" => list_tools(surface),
-        "tools/call" => call_tool(surface, params),
+        METHOD_TOOLS_LIST => list_tools(surface),
+        METHOD_TOOLS_CALL => call_tool(surface, params),
         other => Err(RpcError::new(
             METHOD_NOT_FOUND,
             format!("method not found: {other}"),

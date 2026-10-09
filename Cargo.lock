@@ -472,6 +472,7 @@ dependencies = [
  "gauntlet-adapter-sandbox-bwrap",
  "gauntlet-adapter-state-postgres",
  "gauntlet-adapter-surface-json",
+ "gauntlet-adapter-surface-rpc",
  "gauntlet-adapter-verify-command-exit-code",
  "gauntlet-adapter-verify-file-digest",
  "gauntlet-adapter-verify-schema-check",

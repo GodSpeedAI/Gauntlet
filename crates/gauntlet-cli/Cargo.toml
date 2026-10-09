@@ -63,6 +63,9 @@ gauntlet-adapter-agent-cli.workspace = true
 # composition root is the one crate allowed to name adapters (spec 4.1);
 # the boundary suite masks the crate name only.
 gauntlet-adapter-state-postgres.workspace = true
+# F2b2: `gauntlet fabric serve` projects the agents tool surface over stdio
+# through the std-only JSON-RPC transport adapter (not feature-gated).
+gauntlet-adapter-surface-rpc.workspace = true
 gauntlet-adapter-evidence-fs.workspace = true
 gauntlet-adapter-escalation-fs.workspace = true
 gauntlet-adapter-id-entropy.workspace = true

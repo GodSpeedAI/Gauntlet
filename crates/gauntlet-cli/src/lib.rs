@@ -23,6 +23,7 @@ pub mod context;
 pub mod deliver_cmd;
 pub mod doctor_cmd;
 pub mod escalations_cmd;
+pub mod fabric_cmd;
 pub mod fabric_compose;
 pub mod improve_cmd;
 pub mod init_cmd;
@@ -77,6 +78,7 @@ pub fn run_cli(args: &[String]) -> ExitCode {
         Some("improve") => improve_cmd::run(&args[1..]),
         Some("export") => state_cmd::export(&args[1..]),
         Some("deliver") => deliver_cmd::run(&args[1..]),
+        Some("fabric") => fabric_cmd::run(&args[1..]),
         Some(other) => {
             eprintln!("gauntlet: unknown command '{other}'");
             usage();
@@ -93,7 +95,7 @@ pub fn run_cli(args: &[String]) -> ExitCode {
 /// frozen by the `cli_surface` snapshot, plan Task 20).
 fn usage() {
     println!("gauntlet <version> — see spec 20.1 for the full surface");
-    println!("usage: gauntlet doctor [--config <path>]");
+    println!("usage: gauntlet doctor [--config <path>] [--fabric-dir <path>]");
     println!("       gauntlet init");
     println!("       gauntlet reference digest --path <path>");
     println!("       gauntlet reference validate --path <path>");
@@ -127,4 +129,13 @@ fn usage() {
     println!("       gauntlet improve rollback <revision>");
     println!("       gauntlet export --run <run-id> [--out <path>]");
     println!("       gauntlet deliver [--run <run-id>] [--apply]");
+    println!(
+        "       gauntlet fabric admit-root --state <dir> --run <run-id> --fabric-dir <dir> \
+         --role <role> --profile <profile-id> --unit <unit> --workspace <path> \
+         --answer-key <path> [--idempotency-key <key>]"
+    );
+    println!(
+        "       gauntlet fabric serve --state <dir> --run <run-id> --caller <invocation-id> \
+         --fabric-dir <dir> --workspace <path> --answer-key <path>"
+    );
 }

@@ -56,6 +56,7 @@ const COMMANDS: &[&str] = &[
     "improve",
     "export",
     "deliver",
+    "fabric",
 ];
 #[cfg(feature = "surfaces")]
 const COMMANDS: &[&str] = &[
@@ -74,6 +75,7 @@ const COMMANDS: &[&str] = &[
     "improve",
     "export",
     "deliver",
+    "fabric",
 ];
 
 /// The whole-tree help, byte-for-byte against the committed snapshot.
@@ -113,6 +115,7 @@ fn every_surface_command_dispatches_and_unknown_commands_are_usage_errors() {
         "improve",
         "export",
         "deliver",
+        "fabric",
     ];
     #[cfg(not(feature = "surfaces"))]
     {

@@ -38,3 +38,8 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 * **Evidence:** `crates/gauntlet-cli/src/fabric_compose.rs` accepts `isolation` per profile/limits, but a `CommandContainment` seam is wired only for the command-template runner token (as in `compose.rs`); other tokens receive none.
 * **Impact:** a profile declaring process/container isolation without a containment seam is an honesty gap; related to OD-5.
 * **Next move:** have the gate (or `fabric serve` startup/doctor) refuse or report any profile whose declared isolation has no wired containment before it is used.
+
+## OD-7 — `cli_surface` doctor smoke writes `crates/gauntlet-cli/.agents/reports/doctor.json`
+
+* **Evidence:** running `cargo test -p gauntlet-cli` leaves an untracked `crates/gauntlet-cli/.agents/` directory; the arch literal scan then fails (258/261) until it is removed.
+* **Next move:** make the smoke set `GAUNTLET_REPORT_DIR` to a temp dir.

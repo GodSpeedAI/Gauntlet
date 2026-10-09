@@ -504,7 +504,7 @@ fn workspace_seed(
     }))
 }
 
-fn ensure_configured_dir(path: &std::path::Path) -> Result<(), CompositionError> {
+pub(crate) fn ensure_configured_dir(path: &std::path::Path) -> Result<(), CompositionError> {
     std::fs::create_dir_all(path).map_err(|error| CompositionError::Store {
         detail: format!("{}: {error}", path.display()),
     })

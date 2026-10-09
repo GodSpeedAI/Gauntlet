@@ -53,11 +53,12 @@ pub use capability_ledger::PostgresCapabilityLedger as EmbeddedCapabilityLedger;
 /// The capability name of [`PostgresEventLog`] for the composition root —
 /// see the module docs.
 pub use event_log::PostgresEventLog as EmbeddedEventLog;
+/// The capability name of [`PostgresStateStore`] for the composition root —
+/// the §18 run state store (core group E1b-1).
+pub use invocation_graph::PostgresInvocationGraph as EmbeddedInvocationGraph;
 /// The capability name of [`PostgresRevisionLedger`] for the composition
 /// root — the §19.3/§19.4 candidate-revision store.
 pub use revision_ledger::PostgresRevisionLedger as EmbeddedRevisionLedger;
-/// The capability name of [`PostgresStateStore`] for the composition root —
-/// the §18 run state store (core group E1b-1).
 pub use state_store::PostgresStateStore as EmbeddedStateStore;
 
 pub use capability_ledger::PostgresCapabilityLedger;

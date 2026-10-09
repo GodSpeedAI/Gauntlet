@@ -1063,6 +1063,49 @@ fn status_polls_only_live_bound_nodes_and_never_moves_the_graph() {
     assert_eq!(a.polls(), 2);
 }
 
+/// A lost harness session (the runner cannot answer a poll) is harness state,
+/// not a graph fact: status returns the canonical graph view with the runner
+/// marked unavailable, and the graph does not move. Collect still refuses to
+/// complete anything without a bound contract.
+#[test]
+fn status_returns_the_graph_view_when_the_runner_cannot_answer() {
+    let (lab, a, _, _) = standard_lab();
+    lab.broker()
+        .delegate(root_request(ROOT_TAG, KEY_ROOT, items_for(ROOT_MARKER)))
+        .expect("the root launches");
+    a.set_status(&inv(ROOT_TAG), running_status());
+
+    a.set_transport_down(true);
+    let view = lab
+        .broker()
+        .status(&inv(ROOT_TAG), deadline())
+        .expect("a lost runner session is not a status error");
+    assert_eq!(
+        view.node.status,
+        NodeStatus::Running,
+        "the graph is canonical"
+    );
+    assert_eq!(view.runner_status, None);
+    assert!(view.runner_unavailable, "the unanswered poll is reported");
+    assert_eq!(a.polls(), 1);
+
+    let collected = lab.broker().collect(&inv(ROOT_TAG), at(), deadline());
+    assert!(collected.is_err(), "collect still needs a runner answer");
+    assert_eq!(
+        lab.node(ROOT_TAG).expect("the root exists").status,
+        NodeStatus::Running,
+        "no completion without a bound contract"
+    );
+
+    a.set_transport_down(false);
+    let back = lab
+        .broker()
+        .status(&inv(ROOT_TAG), deadline())
+        .expect("the status reads");
+    assert!(!back.runner_unavailable);
+    assert_eq!(back.runner_status, Some(running_status()));
+}
+
 // ---------------------------------------------------------------------------
 // cancel: graph first, runners leaf-first, idempotent
 // ---------------------------------------------------------------------------

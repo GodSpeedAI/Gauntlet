@@ -74,8 +74,13 @@ impl std::error::Error for BrokerError {}
 #[derive(Debug, Clone, PartialEq)]
 pub struct DelegationStatus {
     pub node: InvocationNode,
-    /// `None` when the node is terminal, unbound, or never launched.
+    /// `None` when the node is terminal, unbound, never launched, or its
+    /// runner could not answer (see `runner_unavailable`).
     pub runner_status: Option<InvocationStatus>,
+    /// `true` when the node is live and bound but its runner could not answer
+    /// the poll (for example a session lost across a restart). The graph is
+    /// canonical: the view is still returned, and harness state is forensics.
+    pub runner_unavailable: bool,
     pub lifecycle: LifecycleView,
 }
 
@@ -188,16 +193,23 @@ impl DelegationBroker<'_> {
             .graph
             .lifecycle(id, deadline)
             .map_err(BrokerError::Graph)?;
-        let runner_status = match bound_handle(&node) {
+        // A poll failure is a lost or unreachable harness session, never a
+        // graph fact: it reports `runner_unavailable` and the graph view stands.
+        // Graph and profile-binding errors above and below still fail.
+        let (runner_status, runner_unavailable) = match bound_handle(&node) {
             Some(handle) if !node.status.is_terminal() => {
                 let runner = self.runner_for(&node.runner_profile)?;
-                Some(runner.poll(&handle).map_err(BrokerError::Runner)?)
+                match runner.poll(&handle) {
+                    Ok(status) => (Some(status), false),
+                    Err(_) => (None, true),
+                }
             }
-            _ => None,
+            _ => (None, false),
         };
         Ok(DelegationStatus {
             node,
             runner_status,
+            runner_unavailable,
             lifecycle,
         })
     }

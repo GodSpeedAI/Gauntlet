@@ -30,7 +30,8 @@ mod tests;
 
 pub use agents::{
     AgentView, AgentsCaller, AgentsPolicy, AgentsRefusal, AgentsService, CancelView, CollectView,
-    RoleGrant, SpawnArgs, SpawnOutcome, WorkspacePolicy, derive_invocation_id,
+    RESULT_CONTRACT_NAME, RoleGrant, SpawnArgs, SpawnOutcome, WorkspacePolicy,
+    derive_invocation_id,
 };
 pub use agents_wire::{AgentsSurface, CallClock};
 pub use broker::{
