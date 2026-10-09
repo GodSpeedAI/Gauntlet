@@ -28,7 +28,6 @@
 //! this adapter runs single bounded statements with no retry loop and no
 //! clock of its own, so the bound is noted and not consulted.
 
-
 use gauntlet_domain::{
     Authority, BlastRadius, Budget, CorrectionDescriptor, CorrectionSelection, CorrectionShape,
     DecisionStep, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceLocator,
@@ -640,20 +639,26 @@ pub struct PostgresStateStore {
 }
 
 impl PostgresStateStore {
+    /// Opens the store of the state instance at `path` (see [`crate::locator`]):
+    /// the namespace is derived from the path, the URL from the environment.
+    pub fn open_at(path: &std::path::Path) -> Result<Self, StateStoreError> {
+        Self::open(&PostgresConfig::for_state_path(path))
+    }
+
     /// Opens (creating if needed) the store at the configured PostgreSQL database,
     /// applying any migrations not yet recorded.
     pub fn open(config: &PostgresConfig) -> Result<Self, StateStoreError> {
         // `db::connect` creates the namespace schema and pins search_path to
         // it, so every table this store touches lives in that namespace.
-        let mut client = crate::db::connect(config).map_err(|detail| StateStoreError::WriteFailed {
-            detail: format!("failed to connect to PostgreSQL: {}", detail),
-        })?;
+        let mut client =
+            crate::db::connect(config).map_err(|detail| StateStoreError::WriteFailed {
+                detail: format!("failed to connect to PostgreSQL: {}", detail),
+            })?;
 
         // Apply migrations
-        crate::migrations::apply(&mut client)
-            .map_err(|err| StateStoreError::WriteFailed {
-                detail: format!("failed to apply migrations: {}", err),
-            })?;
+        crate::migrations::apply(&mut client).map_err(|err| StateStoreError::WriteFailed {
+            detail: format!("failed to apply migrations: {}", err),
+        })?;
 
         Ok(Self {
             conn: Conn::new(client),
@@ -678,8 +683,9 @@ impl PostgresStateStore {
             .unwrap_or(0);
 
         let namespace = format!("test_ss_{}_{:x}_{:x}", pid, counter, nanos);
-        let url = std::env::var("GAUNTLET_DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://postgres:postgres@127.0.0.1:54329/postgres".to_string());
+        let url = std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://postgres:postgres@127.0.0.1:54329/postgres".to_string()
+        });
 
         let config = PostgresConfig { url, namespace };
         Self::open(&config)
@@ -902,10 +908,7 @@ impl PostgresStateStore {
     }
 
     /// Loads the authoritative runs row, when there is one.
-    fn load_recorded_run(
-        conn: &Conn,
-        run_id: &RunId,
-    ) -> Result<Option<Run>, StateStoreError> {
+    fn load_recorded_run(conn: &Conn, run_id: &RunId) -> Result<Option<Run>, StateStoreError> {
         let row = conn.query_row(
             "SELECT created_at, reference_id, reference_version, reference_digest, \
              reference_evidence_ref, intent, config_fingerprint, environment_fingerprint, \
@@ -1143,7 +1146,13 @@ fn insert_settlement(
                     commit.unit_id.as_str(),
                     commit.verification.as_str(),
                 ),
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?)),
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
             )
             .map_err(|err| StateStoreError::ReadFailed {
                 detail: format!(
@@ -1335,10 +1344,7 @@ fn verify_settlement_event_at(
 }
 
 /// The settlement rows of one run, ordered by `(unit_id, verification_ref)`.
-fn settlements_of(
-    conn: &Conn,
-    run_id: &RunId,
-) -> Result<Vec<SettlementRecord>, StateStoreError> {
+fn settlements_of(conn: &Conn, run_id: &RunId) -> Result<Vec<SettlementRecord>, StateStoreError> {
     let statement = conn
         .prepare(
             "SELECT unit_id, verification_ref, evidence_ref, event_log_offset \
@@ -1620,7 +1626,8 @@ impl PostgresStateStore {
         _deadline: Deadline,
     ) -> Result<Vec<gauntlet_ports::state_store::EvidenceProductionBinding>, StateStoreError> {
         let conn = &self.conn;
-        let statement = self.conn
+        let statement = self
+            .conn
             .prepare(
                 "SELECT producer_name, producer_version, locator, iteration_no, produced_at, \
                  event_log_offset, content_digest FROM evidence_productions WHERE run_id = ?1 \
@@ -1777,27 +1784,28 @@ impl StateStore for PostgresStateStore {
         checkpoint: Checkpoint,
         _deadline: Deadline,
     ) -> Result<(), StateStoreError> {
-        self.conn.execute(
-            "INSERT INTO checkpoints (
+        self.conn
+            .execute(
+                "INSERT INTO checkpoints (
                 run_id, iteration_no, reference_digest, unit_states, budget_spent,
                 in_flight, event_log_offset
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            (
-                checkpoint.run_id.to_string(),
-                u64::from(checkpoint.iteration_no.get()),
-                checkpoint.reference_digest.to_string(),
-                encode::encode_unit_states(&checkpoint.unit_states),
-                encode::encode_spent(&checkpoint.budget_spent),
-                encode::encode_in_flight(&checkpoint.in_flight),
-                checkpoint.event_log_offset.get(),
-            ),
-        )
-        .map_err(|err| StateStoreError::WriteFailed {
-            detail: format!(
-                "writing the iteration-{} checkpoint of run {} failed: {err}",
-                checkpoint.iteration_no, checkpoint.run_id
-            ),
-        })?;
+                (
+                    checkpoint.run_id.to_string(),
+                    u64::from(checkpoint.iteration_no.get()),
+                    checkpoint.reference_digest.to_string(),
+                    encode::encode_unit_states(&checkpoint.unit_states),
+                    encode::encode_spent(&checkpoint.budget_spent),
+                    encode::encode_in_flight(&checkpoint.in_flight),
+                    checkpoint.event_log_offset.get(),
+                ),
+            )
+            .map_err(|err| StateStoreError::WriteFailed {
+                detail: format!(
+                    "writing the iteration-{} checkpoint of run {} failed: {err}",
+                    checkpoint.iteration_no, checkpoint.run_id
+                ),
+            })?;
         Ok(())
     }
 
@@ -1988,7 +1996,8 @@ impl StateStore for PostgresStateStore {
         _deadline: Deadline,
     ) -> Result<Vec<VerificationRecordDoc>, StateStoreError> {
         let conn = &self.conn;
-        let statement = self.conn
+        let statement = self
+            .conn
             .prepare(
                 "SELECT payload FROM records WHERE run_id = ?1 AND record_type = \
                  'verification_record' ORDER BY seq ASC",
@@ -2418,7 +2427,8 @@ impl StateStore for PostgresStateStore {
         _deadline: Deadline,
     ) -> Result<Vec<gauntlet_ports::state_store::EvidenceProductionBinding>, StateStoreError> {
         let conn = &self.conn;
-        let statement = self.conn
+        let statement = self
+            .conn
             .prepare(
                 "SELECT evidence_ref, producer_name, producer_version, iteration_no, produced_at, \
                  event_log_offset, content_digest FROM evidence_productions WHERE run_id = ?1 AND \
@@ -2512,8 +2522,8 @@ impl StateStore for PostgresStateStore {
             });
         }
         let invocation_present: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM records WHERE run_id = ?1 AND record_type = 'role_invocation' AND json_extract(payload, '$.id') = ?2 AND json_extract(payload, '$.iteration_no') = ?3 AND json_extract(payload, '$.context_envelope_digest') = ?4",
-            (spec.run_id.to_string(), spec.invocation_id.to_string(), u64::from(spec.iteration_no.get()), spec.context_envelope.digest().to_string()),
+            "SELECT COUNT(*) FROM records WHERE run_id = ?1 AND record_type = 'role_invocation' AND payload::jsonb ->> 'id' = ?2 AND payload::jsonb ->> 'iteration_no' = ?3 AND payload::jsonb ->> 'context_envelope_digest' = ?4",
+            (spec.run_id.to_string(), spec.invocation_id.to_string(), u64::from(spec.iteration_no.get()).to_string(), spec.context_envelope.digest().to_string()),
             |row| row.get::<_, i64>(0),
         ).map_err(|error| StateStoreError::ReadFailed { detail: format!("checking durable admitted invocation failed: {error}") })?;
         if invocation_present != 1 {
@@ -3965,7 +3975,8 @@ mod tests {
         // The event at that offset decodes to SettlementCommitted with
         // exactly the commit's fields.
         {
-            let entries = read_entries(&store.conn, EventLogOffset::new(0)).expect("the log replays");
+            let entries =
+                read_entries(&store.conn, EventLogOffset::new(0)).expect("the log replays");
             assert_eq!(entries.len(), 1, "one event, at the returned offset");
             assert_eq!(entries[0].offset, offset);
             assert_eq!(entries[0].event.run_id, commit.run_id);
@@ -4520,11 +4531,7 @@ mod tests {
             2,
             b"the replayed report bytes",
         );
-        let entries = read_entries(
-            &store.conn,
-            EventLogOffset::new(0),
-        )
-        .expect("the log replays");
+        let entries = read_entries(&store.conn, EventLogOffset::new(0)).expect("the log replays");
         let produced = entries
             .iter()
             .find(|entry| matches!(entry.event.kind, RunEventKind::EvidenceProduced { .. }));

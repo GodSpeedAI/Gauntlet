@@ -41,6 +41,11 @@ pub struct PostgresCapabilityLedger {
 }
 
 impl PostgresCapabilityLedger {
+    /// Opens the ledger of the state instance at `path` (see [`crate::locator`]).
+    pub fn open_at(path: &std::path::Path) -> Result<Self, CapabilityLedgerError> {
+        Self::open(&PostgresConfig::for_state_path(path))
+    }
+
     /// Opens (creating if needed) the ledger by connecting and applying any
     /// migrations not yet recorded.
     pub fn open(config: &PostgresConfig) -> Result<Self, CapabilityLedgerError> {

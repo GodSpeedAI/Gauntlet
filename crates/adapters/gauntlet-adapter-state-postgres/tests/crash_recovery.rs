@@ -14,6 +14,7 @@
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use gauntlet_adapter_state_postgres::test_support::quiesce_namespace;
 use gauntlet_adapter_state_postgres::{
     LOCAL_DEFAULT_URL, PostgresConfig, PostgresEventLog, PostgresStateStore,
 };
@@ -25,7 +26,7 @@ use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::event_log::{EventLog, EventLogError};
 use gauntlet_ports::state_store::{Checkpoint, RunEventKind, StateStore};
 
-const HELPER: &str = env!("CARGO_BIN_EXE_crash_helper");
+const HELPER: &str = env!("CARGO_BIN_EXE_state_crash_helper");
 const RUN: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const UNIT: &str = "AK-900";
 
@@ -71,6 +72,10 @@ impl Drop for Scratch {
     }
 }
 
+/// The bounded deadline for the database connections of an aborted helper to
+/// drain (the quiescence barrier after every helper exit).
+const QUIESCE_BOUND: u64 = 10;
+
 fn run_id() -> RunId {
     RunId::new(RUN).expect("valid run id")
 }
@@ -86,7 +91,12 @@ fn helper(script: &str, config: &PostgresConfig, rest: &[&str]) -> std::process:
         .arg(&config.url)
         .arg(&config.namespace)
         .args(rest);
-    command.status().expect("the crash helper binary runs")
+    let status = command.status().expect("the crash helper binary runs");
+    // The aborted helper's last COMMIT may still be completing server-side:
+    // drain its backends before the parent reads anything back.
+    quiesce_namespace(config, std::time::Duration::from_secs(QUIESCE_BOUND))
+        .expect("the aborted helper's database connections drain");
+    status
 }
 
 /// Reopens the log over the crashed namespace — a fresh connection, exactly

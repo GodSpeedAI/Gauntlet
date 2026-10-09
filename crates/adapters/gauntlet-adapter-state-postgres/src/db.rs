@@ -46,8 +46,7 @@ pub fn validate_identifier(name: &str) -> Result<(), String> {
     if name.is_empty() || name.len() > 63 {
         return Err(format!("identifier length must be 1-63 chars: {}", name));
     }
-    if !name.chars().next().unwrap_or('x').is_ascii_lowercase() && !name.starts_with('_')
-    {
+    if !name.chars().next().unwrap_or('x').is_ascii_lowercase() && !name.starts_with('_') {
         return Err(format!("identifier must start with [a-z_]: {}", name));
     }
     if !name
@@ -57,6 +56,13 @@ pub fn validate_identifier(name: &str) -> Result<(), String> {
         return Err(format!("identifier must contain only [a-z0-9_]: {}", name));
     }
     Ok(())
+}
+
+/// The `application_name` a connection of the namespace `namespace` opened by
+/// the process `pid` carries: `gauntlet:<namespace>:<pid>`. The pid makes a
+/// process's own connections distinguishable from another process's.
+pub fn application_name(namespace: &str, pid: u32) -> String {
+    format!("gauntlet:{}:{}", namespace, pid)
 }
 
 /// Establishes a PostgreSQL connection and initializes the namespace (schema).
@@ -71,10 +77,19 @@ pub fn validate_identifier(name: &str) -> Result<(), String> {
 /// Returns an error if connection fails, identifier validation fails,
 /// or schema creation fails.
 pub fn connect(config: &PostgresConfig) -> Result<Client, String> {
-    let mut client = Client::connect(&config.url, NoTls)
-        .map_err(|e| format!("failed to connect to database: {}", e))?;
-
     validate_identifier(&config.namespace)?;
+
+    // Tag every backend with its namespace so a state instance's live
+    // connections are identifiable in `pg_stat_activity` (see
+    // `test_support::quiesce_writers`).
+    let mut pg_config: postgres::Config = config
+        .url
+        .parse()
+        .map_err(|e| format!("failed to connect to database: {}", e))?;
+    pg_config.application_name(&application_name(&config.namespace, std::process::id()));
+    let mut client = pg_config
+        .connect(NoTls)
+        .map_err(|e| format!("failed to connect to database: {}", e))?;
 
     // Create schema if not exists
     let create_schema_sql = format!("CREATE SCHEMA IF NOT EXISTS \"{}\"", config.namespace);

@@ -15,19 +15,23 @@ pub(crate) struct Migration {
 /// The migration set, in the order it is applied. Append-only: entries are
 /// never reordered, edited, or removed. This is slice E1a: all tables for
 /// EventLog, CapabilityLedger, and RevisionLedger; E1b (StateStore) deferred.
-pub(crate) const MIGRATIONS: &[Migration] = &[Migration {
-    version: 1,
-    name: "initial",
-    sql: include_str!("../migrations/0001_initial.sql"),
-}, Migration {
-    version: 2,
-    name: "frozen_reference_evidence_and_bigint_version",
-    sql: include_str!("../migrations/0002_frozen_reference_evidence.sql"),
-}, Migration {
-    version: 3,
-    name: "observation_bindings",
-    sql: include_str!("../migrations/0003_observation_bindings.sql"),
-}];
+pub(crate) const MIGRATIONS: &[Migration] = &[
+    Migration {
+        version: 1,
+        name: "initial",
+        sql: include_str!("../migrations/0001_initial.sql"),
+    },
+    Migration {
+        version: 2,
+        name: "frozen_reference_evidence_and_bigint_version",
+        sql: include_str!("../migrations/0002_frozen_reference_evidence.sql"),
+    },
+    Migration {
+        version: 3,
+        name: "observation_bindings",
+        sql: include_str!("../migrations/0003_observation_bindings.sql"),
+    },
+];
 
 /// Why a migration could not be applied — typed, carrying the version.
 #[derive(Debug, Clone)]
@@ -156,7 +160,7 @@ pub(crate) fn applied_versions(client: &mut Client) -> Result<Vec<i64>, Migratio
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     use std::time::SystemTime;
 
     #[test]

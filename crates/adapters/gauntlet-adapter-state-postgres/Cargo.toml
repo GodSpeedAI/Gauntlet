@@ -14,6 +14,13 @@ workspace = true
 # Declared direction (plan Task 2 step 2, spec §4.1): an adapter implements
 # port traits over domain types. Declaring these makes the direction a fact in
 # the manifest, not only an upper bound the boundary tests decline to exceed.
+# The crash-injection child binary. Named distinctly from the sqlite crate's
+# `crash_helper`: both crates' binaries land in one target/debug directory, and
+# a shared name would let one overwrite the other.
+[[bin]]
+name = "state_crash_helper"
+path = "src/bin/crash_helper.rs"
+
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true

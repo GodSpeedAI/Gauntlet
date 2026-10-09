@@ -3,9 +3,9 @@
 //! Absorbs all type and API differences between rusqlite and postgres crate,
 //! allowing state_store.rs to remain unchanged from the SQLite version.
 
-use std::sync::{Mutex, MutexGuard};
 use std::error::Error as StdError;
 use std::fmt;
+use std::sync::{Mutex, MutexGuard};
 
 /// Error type matching rusqlite-style errors.
 #[derive(Debug, Clone)]
@@ -55,7 +55,8 @@ impl SqlParam for i64 {
 
 impl SqlParam for u64 {
     fn to_pg(&self) -> Result<Box<dyn postgres::types::ToSql + Sync>, Error> {
-        let as_i64: i64 = (*self).try_into()
+        let as_i64: i64 = (*self)
+            .try_into()
             .map_err(|_| Error::CorruptData(format!("u64 value {} exceeds i64::MAX", self)))?;
         Ok(Box::new(as_i64))
     }
@@ -75,7 +76,8 @@ impl SqlParam for u32 {
 
 impl SqlParam for usize {
     fn to_pg(&self) -> Result<Box<dyn postgres::types::ToSql + Sync>, Error> {
-        let as_i64: i64 = (*self).try_into()
+        let as_i64: i64 = (*self)
+            .try_into()
             .map_err(|_| Error::CorruptData(format!("usize value {} exceeds i64::MAX", self)))?;
         Ok(Box::new(as_i64))
     }
@@ -227,9 +229,7 @@ impl<T: SqlRowValue> SqlRowValue for Option<T> {
     fn from_row(row: &postgres::Row, idx: usize) -> Result<Self, Error> {
         match row.try_get::<_, Option<NullProbe>>(idx) {
             Ok(None) => Ok(None),
-            Ok(Some(_)) => {
-                T::from_row(row, idx).map(Some)
-            }
+            Ok(Some(_)) => T::from_row(row, idx).map(Some),
             Err(e) => Err(Error::from_postgres(e)),
         }
     }
@@ -302,7 +302,8 @@ impl Statement {
             .query(&rewritten, &refs)
             .map_err(Error::from_postgres)?;
 
-        let results: Vec<Result<T, Error>> = rows.iter()
+        let results: Vec<Result<T, Error>> = rows
+            .iter()
             .map(|pg_row| {
                 let row = Row::new(pg_row);
                 f(&row)
@@ -331,28 +332,21 @@ impl Conn {
             .expect("the store connection is not poisoned")
     }
 
-    pub fn execute<P: Params>(
-        &self,
-        sql: &str,
-        params: P,
-    ) -> Result<usize, Error> {
+    pub fn execute<P: Params>(&self, sql: &str, params: P) -> Result<usize, Error> {
         let owned: Vec<Box<dyn postgres::types::ToSql + Sync>> = params.to_postgres_params()?;
         let refs: Vec<&(dyn postgres::types::ToSql + Sync)> = owned.iter().map(|b| &**b).collect();
 
         let rewritten = rewrite_placeholders(sql);
-        let res = self.client_mut()
+        let res = self
+            .client_mut()
             .execute(&rewritten, &refs)
             .map_err(Error::from_postgres)?;
 
-        usize::try_from(res).map_err(|_| Error::CorruptData("execute result exceeds usize::MAX".to_string()))
+        usize::try_from(res)
+            .map_err(|_| Error::CorruptData("execute result exceeds usize::MAX".to_string()))
     }
 
-    pub fn query_row<P: Params, T, F>(
-        &self,
-        sql: &str,
-        params: P,
-        f: F,
-    ) -> Result<T, Error>
+    pub fn query_row<P: Params, T, F>(&self, sql: &str, params: P, f: F) -> Result<T, Error>
     where
         F: FnOnce(&Row) -> Result<T, Error>,
     {
@@ -413,11 +407,7 @@ impl<A: SqlParam, B: SqlParam> Params for (A, B) {
 
 impl<A: SqlParam, B: SqlParam, C: SqlParam> Params for (A, B, C) {
     fn to_postgres_params(&self) -> Result<Vec<Box<dyn postgres::types::ToSql + Sync>>, Error> {
-        Ok(vec![
-            self.0.to_pg()?,
-            self.1.to_pg()?,
-            self.2.to_pg()?,
-        ])
+        Ok(vec![self.0.to_pg()?, self.1.to_pg()?, self.2.to_pg()?])
     }
 }
 
@@ -459,15 +449,8 @@ impl<A: SqlParam, B: SqlParam, C: SqlParam, D: SqlParam, E: SqlParam, F: SqlPara
     }
 }
 
-impl<
-    A: SqlParam,
-    B: SqlParam,
-    C: SqlParam,
-    D: SqlParam,
-    E: SqlParam,
-    F: SqlParam,
-    G: SqlParam,
-> Params for (A, B, C, D, E, F, G)
+impl<A: SqlParam, B: SqlParam, C: SqlParam, D: SqlParam, E: SqlParam, F: SqlParam, G: SqlParam>
+    Params for (A, B, C, D, E, F, G)
 {
     fn to_postgres_params(&self) -> Result<Vec<Box<dyn postgres::types::ToSql + Sync>>, Error> {
         Ok(vec![

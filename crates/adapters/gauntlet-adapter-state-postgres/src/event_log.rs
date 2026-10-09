@@ -12,12 +12,12 @@
 
 use std::sync::Mutex;
 
+use crate::sql::Conn;
 use gauntlet_domain::EventLogOffset;
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::event_log::{EventLog, EventLogError, LogEntry};
 use gauntlet_ports::state_store::{RunEvent, RunEventKind};
 use postgres::Client;
-use crate::sql::Conn;
 
 use crate::db::PostgresConfig;
 use crate::encode;
@@ -29,6 +29,12 @@ pub struct PostgresEventLog {
 }
 
 impl PostgresEventLog {
+    /// Opens the log of the state instance at `path` (see [`crate::locator`]):
+    /// the namespace is derived from the path, the URL from the environment.
+    pub fn open_at(path: &std::path::Path) -> Result<Self, EventLogError> {
+        Self::open(&PostgresConfig::for_state_path(path))
+    }
+
     /// Opens (creating if needed) the log by connecting and applying any migrations
     /// not yet recorded. Open failures surface as `AppendFailed`.
     pub fn open(config: &PostgresConfig) -> Result<Self, EventLogError> {
@@ -59,11 +65,11 @@ pub(crate) fn append_to_log(
         let client = &mut *client_ref;
 
         // Start a transaction to ensure atomicity of counter increment and insert
-        let mut transaction = client
-            .transaction()
-            .map_err(|err| gauntlet_ports::event_log::EventLogError::AppendFailed {
+        let mut transaction = client.transaction().map_err(|err| {
+            gauntlet_ports::event_log::EventLogError::AppendFailed {
                 detail: format!("failed to start transaction: {err}"),
-            })?;
+            }
+        })?;
 
         // Atomically increment the counter and get the new offset
         let offset: i64 = transaction
@@ -92,18 +98,20 @@ pub(crate) fn append_to_log(
             })?;
 
         // Commit the transaction
-        transaction
-            .commit()
-            .map_err(|err| gauntlet_ports::event_log::EventLogError::AppendFailed {
+        transaction.commit().map_err(|err| {
+            gauntlet_ports::event_log::EventLogError::AppendFailed {
                 detail: format!(
                     "committing the append for {kind} event for run {run_id_str} failed: {err}"
                 ),
-            })?;
+            }
+        })?;
 
         offset
     };
 
-    Ok(gauntlet_domain::EventLogOffset::new(u64::try_from(offset).unwrap_or(0)))
+    Ok(gauntlet_domain::EventLogOffset::new(
+        u64::try_from(offset).unwrap_or(0),
+    ))
 }
 
 /// Reads entries from the event log starting at the given offset.
@@ -112,7 +120,8 @@ pub(crate) fn read_entries(
     conn: &Conn,
     offset: EventLogOffset,
 ) -> Result<Vec<gauntlet_ports::event_log::LogEntry>, gauntlet_ports::event_log::EventLogError> {
-    let rows = conn.client_mut()
+    let rows = conn
+        .client_mut()
         .query(
             "SELECT \"offset\", run_id, kind, payload, at FROM event_log WHERE \"offset\" >= $1 \
              ORDER BY \"offset\" ASC",
@@ -134,14 +143,15 @@ pub(crate) fn read_entries(
 
         // Check for holes in the offset sequence
         if let Some(expected) = next_expected
-            && raw_offset != expected {
-                return Err(gauntlet_ports::event_log::EventLogError::Damaged {
-                    detail: format!(
-                        "expected offset {expected} but found {raw_offset} — rows were removed \
+            && raw_offset != expected
+        {
+            return Err(gauntlet_ports::event_log::EventLogError::Damaged {
+                detail: format!(
+                    "expected offset {expected} but found {raw_offset} — rows were removed \
                          out of band; an append-only log has no holes"
-                    ),
-                });
-            }
+                ),
+            });
+        }
         next_expected = Some(raw_offset.saturating_add(1));
 
         // Check for negative timestamp (tamper evidence)
@@ -155,10 +165,11 @@ pub(crate) fn read_entries(
         }
 
         // Decode the event
-        let run_id =
-            gauntlet_domain::RunId::new(&run_id_str).map_err(|err| gauntlet_ports::event_log::EventLogError::Damaged {
+        let run_id = gauntlet_domain::RunId::new(&run_id_str).map_err(|err| {
+            gauntlet_ports::event_log::EventLogError::Damaged {
                 detail: format!("offset {raw_offset}: the stored run id is not a ULID: {err}"),
-            })?;
+            }
+        })?;
 
         let decoded = encode::decode_event(
             run_id,
@@ -285,14 +296,15 @@ impl EventLog for PostgresEventLog {
 
             // Check for holes in the offset sequence
             if let Some(expected) = next_expected
-                && raw_offset != expected {
-                    return Err(EventLogError::Damaged {
-                        detail: format!(
-                            "expected offset {expected} but found {raw_offset} — rows were removed \
+                && raw_offset != expected
+            {
+                return Err(EventLogError::Damaged {
+                    detail: format!(
+                        "expected offset {expected} but found {raw_offset} — rows were removed \
                              out of band; an append-only log has no holes"
-                        ),
-                    });
-                }
+                    ),
+                });
+            }
             next_expected = Some(raw_offset.saturating_add(1));
 
             // Check for negative timestamp (tamper evidence)

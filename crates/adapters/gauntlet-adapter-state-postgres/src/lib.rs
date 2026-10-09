@@ -26,10 +26,16 @@ mod capability_ledger;
 mod db;
 mod encode;
 mod event_log;
+mod locator;
 mod migrations;
 mod revision_ledger;
 mod sql;
 mod state_store;
+
+/// TEST INSTRUMENTATION: out-of-band damage injection and read-back over a
+/// state instance's durable rows (see the module docs). Never a production surface.
+#[doc(hidden)]
+pub mod test_support;
 
 /// The configuration token that selects this persistence adapter
 /// (`state.backend` / `GAUNTLET_STATE_BACKEND`). The token is the
@@ -54,7 +60,11 @@ pub use revision_ledger::PostgresRevisionLedger as EmbeddedRevisionLedger;
 pub use state_store::PostgresStateStore as EmbeddedStateStore;
 
 pub use capability_ledger::PostgresCapabilityLedger;
+/// The capability name of [`PostgresConfig`] for the composition root and its
+/// tests: the state instance's connection configuration (see [`locator`]).
+pub use db::PostgresConfig as StateInstanceConfig;
 pub use db::{LOCAL_DEFAULT_URL, PostgresConfig};
 pub use event_log::PostgresEventLog;
+pub use locator::{DATABASE_URL_ENV, namespace_for_path, state_exists};
 pub use revision_ledger::PostgresRevisionLedger;
-pub use state_store::PostgresStateStore;
+pub use state_store::{PostgresStateStore, RecordKind};
