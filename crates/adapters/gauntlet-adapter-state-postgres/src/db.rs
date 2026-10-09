@@ -91,10 +91,23 @@ pub fn connect(config: &PostgresConfig) -> Result<Client, String> {
         .connect(NoTls)
         .map_err(|e| format!("failed to connect to database: {}", e))?;
 
-    // Create schema if not exists
+    // Create schema if not exists. `CREATE SCHEMA IF NOT EXISTS` is not safe
+    // under concurrency (two sessions can both pass the existence check and one
+    // raises unique_violation), so it runs under the same advisory lock that
+    // serializes migrations. The transaction ends before `apply` starts, so the
+    // two never nest.
     let create_schema_sql = format!("CREATE SCHEMA IF NOT EXISTS \"{}\"", config.namespace);
-    client
-        .execute(&create_schema_sql, &[])
+    let mut tx = client
+        .transaction()
+        .map_err(|e| format!("failed to create schema: {}", e))?;
+    tx.execute(
+        "SELECT pg_advisory_xact_lock($1)",
+        &[&crate::migrations::MIGRATION_LOCK_KEY],
+    )
+    .map_err(|e| format!("failed to create schema: {}", e))?;
+    tx.execute(&create_schema_sql, &[])
+        .map_err(|e| format!("failed to create schema: {}", e))?;
+    tx.commit()
         .map_err(|e| format!("failed to create schema: {}", e))?;
 
     // Set search_path to the namespace
