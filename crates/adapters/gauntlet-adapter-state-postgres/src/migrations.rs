@@ -36,6 +36,11 @@ pub(crate) const MIGRATIONS: &[Migration] = &[
         name: "invocation_graph",
         sql: include_str!("../migrations/0004_invocation_graph.sql"),
     },
+    Migration {
+        version: 5,
+        name: "lifecycle",
+        sql: include_str!("../migrations/0005_lifecycle.sql"),
+    },
 ];
 
 /// Session-level advisory lock key (`pg_advisory_xact_lock`) that serializes

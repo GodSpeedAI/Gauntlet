@@ -17,6 +17,8 @@
 //! Decoding never silently defaults: any stored value that does not decode
 //! is [`GraphError::Corrupt`].
 
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::path::Path;
 use std::sync::Mutex;
@@ -32,6 +34,10 @@ use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::invocation_graph::{
     AdmissionOutcome, AdmissionRefusal, AdmissionRequest, GraphError, InvocationGraph,
     InvocationNode, NativeSessionBinding, NodeStatus, ResultBinding,
+};
+use gauntlet_ports::lifecycle::{
+    HarnessObservation, LifecycleEntry, LifecycleState, LifecycleView, ObservationOutcome,
+    ObservationRecord, ObservationSequence, ObservationSource, SequenceOrigin,
 };
 use postgres::types::ToSql;
 use postgres::{Client, Row, Transaction, error::SqlState};
@@ -384,6 +390,427 @@ impl InvocationGraph for PostgresInvocationGraph {
             )
         })
     }
+
+    fn record_observation(
+        &self,
+        observation: HarnessObservation,
+        received_at: EpochSeconds,
+        deadline: Deadline,
+    ) -> Result<ObservationOutcome, GraphError> {
+        self.run(deadline, |tx| {
+            record_observation_in(tx, &observation, received_at)
+        })
+    }
+
+    fn lifecycle(
+        &self,
+        id: &InvocationId,
+        deadline: Deadline,
+    ) -> Result<LifecycleView, GraphError> {
+        self.run(deadline, |tx| {
+            let node = require(tx, id)?;
+            let epoch = binding_epoch(node.native_session.as_ref());
+            let rows = tx
+                .query(
+                    "SELECT session_epoch, source, last_sequence, state, origin, observed_at \
+                     FROM invocation_lifecycle WHERE invocation_id = $1 AND session_epoch = $2",
+                    &[&id.as_str(), &i64::from(epoch)],
+                )
+                .map_err(read_err)?;
+            let mut per_source = rows
+                .iter()
+                .map(decode_entry)
+                .collect::<Result<Vec<LifecycleEntry>, GraphError>>()?;
+            per_source.sort_by_key(|entry| Reverse(entry.source));
+            Ok(LifecycleView {
+                effective: per_source.first().cloned(),
+                per_source,
+            })
+        })
+    }
+
+    fn observation_history(
+        &self,
+        id: &InvocationId,
+        deadline: Deadline,
+    ) -> Result<Vec<ObservationRecord>, GraphError> {
+        self.run(deadline, |tx| {
+            require(tx, id)?;
+            let rows = tx
+                .query(
+                    "SELECT invocation_id, session_ref, session_epoch, source, origin, sequence, \
+                     state, observed_at, received_at, outcome, outcome_detail, current_session_ref \
+                     FROM invocation_observations WHERE invocation_id = $1 ORDER BY obs_id",
+                    &[&id.as_str()],
+                )
+                .map_err(read_err)?;
+            // Replaying the receipt order reproduces each applied row's
+            // `previous` state: the last applied state of its (epoch, source).
+            let mut applied_states: BTreeMap<(u32, ObservationSource), LifecycleState> =
+                BTreeMap::new();
+            rows.iter()
+                .map(|row| decode_observation(row, &mut applied_states))
+                .collect()
+        })
+    }
+}
+
+/// The epoch of a binding; 0 when no session is attached (the reference's rule).
+fn binding_epoch(binding: Option<&NativeSessionBinding>) -> u32 {
+    binding.map_or(0, |bound| bound.epoch)
+}
+
+/// One observation under the node lock: the node's status is read, the
+/// outcome decided by the reference's rule order, and the history row
+/// appended in the same transaction. The node row itself is never written.
+fn record_observation_in(
+    tx: &mut Transaction<'_>,
+    observation: &HarnessObservation,
+    received_at: EpochSeconds,
+) -> Result<ObservationOutcome, GraphError> {
+    // The row lock serializes this against attach, completion, cancellation,
+    // and every other observation of the node.
+    let node = load_for_update(tx, &observation.invocation_id)?;
+    let current = node.native_session.clone();
+    let outcome = if node.status.is_terminal() {
+        ObservationOutcome::IgnoredTerminal
+    } else if observation.native_session != current {
+        ObservationOutcome::RejectedStaleSession {
+            current: current.clone(),
+        }
+    } else {
+        apply_observation_in(tx, observation, binding_epoch(current.as_ref()))?
+    };
+    insert_observation_row(tx, observation, received_at, &outcome)?;
+    Ok(outcome)
+}
+
+/// Sequencing for one (invocation, epoch, source) key, per the reference.
+fn apply_observation_in(
+    tx: &mut Transaction<'_>,
+    observation: &HarnessObservation,
+    epoch: u32,
+) -> Result<ObservationOutcome, GraphError> {
+    let previous = fetch_entry(tx, &observation.invocation_id, epoch, observation.source)?;
+    let last_applied = previous.as_ref().map_or(0, |entry| entry.sequence);
+    let sequence = match observation.sequence {
+        ObservationSequence::SourceProvided(number) if number <= last_applied => {
+            return Ok(ObservationOutcome::IgnoredStale { last_applied });
+        }
+        ObservationSequence::SourceProvided(number) => number,
+        ObservationSequence::GauntletAssigned => {
+            last_applied
+                .checked_add(1)
+                .ok_or_else(|| GraphError::WriteFailed {
+                    detail: "lifecycle sequence exhausted".to_owned(),
+                })?
+        }
+    };
+    let previous_state = previous.map(|entry| entry.state);
+    let epoch_db = i64::from(epoch);
+    let source = observation.source.as_str();
+    let sequence_db = to_i64(sequence, "lifecycle sequence")?;
+    let observed_db = to_i64(observation.observed_at.get(), "observation instant")?;
+    let applied_db = to_i64(now_epoch()?, "application instant")?;
+    let state = observation.state.as_str();
+    let origin = origin_token(observation.sequence);
+    let advanced = tx
+        .execute(
+            "INSERT INTO invocation_lifecycle (invocation_id, session_epoch, source, \
+             last_sequence, state, origin, observed_at, applied_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             ON CONFLICT (invocation_id, session_epoch, source) DO UPDATE SET \
+             last_sequence = EXCLUDED.last_sequence, state = EXCLUDED.state, \
+             origin = EXCLUDED.origin, observed_at = EXCLUDED.observed_at, \
+             applied_at = EXCLUDED.applied_at \
+             WHERE invocation_lifecycle.last_sequence < EXCLUDED.last_sequence",
+            &[
+                &observation.invocation_id.as_str(),
+                &epoch_db,
+                &source,
+                &sequence_db,
+                &state,
+                &origin,
+                &observed_db,
+                &applied_db,
+            ],
+        )
+        .map_err(write_err)?;
+    if advanced != 1 {
+        return Err(GraphError::WriteFailed {
+            detail: "a lifecycle entry did not advance under its node lock".to_owned(),
+        });
+    }
+    Ok(ObservationOutcome::Applied {
+        sequence,
+        previous: previous_state,
+    })
+}
+
+/// Appends one history row. Every received observation lands here, whatever
+/// its outcome; the row is the forensic record and the reconstruction source.
+fn insert_observation_row(
+    tx: &mut Transaction<'_>,
+    observation: &HarnessObservation,
+    received_at: EpochSeconds,
+    outcome: &ObservationOutcome,
+) -> Result<(), GraphError> {
+    let session_ref: Option<&str> = observation
+        .native_session
+        .as_ref()
+        .map(|bound| bound.session.as_str());
+    let session_epoch = i64::from(binding_epoch(observation.native_session.as_ref()));
+    let sequence: Option<i64> = history_sequence(observation.sequence, outcome)
+        .map(|number| to_i64(number, "observation sequence"))
+        .transpose()?;
+    let (detail, current_ref): (Option<i64>, Option<&str>) = match outcome {
+        ObservationOutcome::IgnoredStale { last_applied } => {
+            (Some(to_i64(*last_applied, "last applied sequence")?), None)
+        }
+        ObservationOutcome::RejectedStaleSession {
+            current: Some(bound),
+        } => (Some(i64::from(bound.epoch)), Some(bound.session.as_str())),
+        _ => (None, None),
+    };
+    let observed_db = to_i64(observation.observed_at.get(), "observation instant")?;
+    let received_db = to_i64(received_at.get(), "receipt instant")?;
+    let source = observation.source.as_str();
+    let origin = origin_token(observation.sequence);
+    let state = observation.state.as_str();
+    let outcome_name = outcome_token(outcome);
+    tx.execute(
+        "INSERT INTO invocation_observations (invocation_id, session_ref, session_epoch, \
+         source, origin, sequence, state, observed_at, received_at, outcome, outcome_detail, \
+         current_session_ref) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+        &[
+            &observation.invocation_id.as_str(),
+            &session_ref,
+            &session_epoch,
+            &source,
+            &origin,
+            &sequence,
+            &state,
+            &observed_db,
+            &received_db,
+            &outcome_name,
+            &detail,
+            &current_ref,
+        ],
+    )
+    .map_err(write_err)?;
+    Ok(())
+}
+
+/// The sequence a history row records: the number used when applied, else the
+/// source-provided number, else nothing (a Gauntlet-assigned observation that
+/// consumed no number).
+fn history_sequence(sequence: ObservationSequence, outcome: &ObservationOutcome) -> Option<u64> {
+    match (outcome, sequence) {
+        (ObservationOutcome::Applied { sequence, .. }, _) => Some(*sequence),
+        (_, ObservationSequence::SourceProvided(number)) => Some(number),
+        (_, ObservationSequence::GauntletAssigned) => None,
+    }
+}
+
+fn outcome_token(outcome: &ObservationOutcome) -> &'static str {
+    match outcome {
+        ObservationOutcome::Applied { .. } => "applied",
+        ObservationOutcome::IgnoredStale { .. } => "ignored_stale",
+        ObservationOutcome::RejectedStaleSession { .. } => "rejected_stale_session",
+        ObservationOutcome::IgnoredTerminal => "ignored_terminal",
+    }
+}
+
+fn origin_token(sequence: ObservationSequence) -> &'static str {
+    match sequence {
+        ObservationSequence::SourceProvided(_) => "source_provided",
+        ObservationSequence::GauntletAssigned => "gauntlet_assigned",
+    }
+}
+
+fn parse_origin(token: &str) -> Result<SequenceOrigin, GraphError> {
+    match token {
+        "source_provided" => Ok(SequenceOrigin::SourceProvided),
+        "gauntlet_assigned" => Ok(SequenceOrigin::GauntletAssigned),
+        other => Err(corrupt(format!("unknown sequence origin {other:?}"))),
+    }
+}
+
+fn parse_state(token: &str) -> Result<LifecycleState, GraphError> {
+    match token {
+        "working" => Ok(LifecycleState::Working),
+        "blocked" => Ok(LifecycleState::Blocked),
+        "idle" => Ok(LifecycleState::Idle),
+        "done" => Ok(LifecycleState::Done),
+        "unknown" => Ok(LifecycleState::Unknown),
+        other => Err(corrupt(format!("unknown lifecycle state {other:?}"))),
+    }
+}
+
+fn parse_source(token: &str) -> Result<ObservationSource, GraphError> {
+    match token {
+        "structured" => Ok(ObservationSource::Structured),
+        "process" => Ok(ObservationSource::Process),
+        "screen" => Ok(ObservationSource::Screen),
+        other => Err(corrupt(format!("unknown observation source {other:?}"))),
+    }
+}
+
+/// The latest applied entry of one (invocation, epoch, source) key.
+fn fetch_entry(
+    tx: &mut Transaction<'_>,
+    id: &InvocationId,
+    epoch: u32,
+    source: ObservationSource,
+) -> Result<Option<LifecycleEntry>, GraphError> {
+    let source = source.as_str();
+    tx.query_opt(
+        "SELECT session_epoch, source, last_sequence, state, origin, observed_at \
+         FROM invocation_lifecycle WHERE invocation_id = $1 AND session_epoch = $2 \
+         AND source = $3",
+        &[&id.as_str(), &i64::from(epoch), &source],
+    )
+    .map_err(read_err)?
+    .as_ref()
+    .map(decode_entry)
+    .transpose()
+}
+
+/// Decodes one `invocation_lifecycle` row. A zero sequence is corrupt: applied
+/// sequences start at 1.
+fn decode_entry(row: &Row) -> Result<LifecycleEntry, GraphError> {
+    let sequence = unsigned64(row, "last_sequence")?;
+    if sequence == 0 {
+        return Err(corrupt("a lifecycle entry has sequence 0"));
+    }
+    Ok(LifecycleEntry {
+        state: parse_state(&text(row, "state")?)?,
+        source: parse_source(&text(row, "source")?)?,
+        sequence,
+        origin: parse_origin(&text(row, "origin")?)?,
+        observed_at: EpochSeconds::new(unsigned64(row, "observed_at")?),
+        epoch: unsigned32(row, "session_epoch")?,
+    })
+}
+
+/// Decodes one `invocation_observations` row back into the record the
+/// reference holds, checking every column. `applied_states` carries the last
+/// applied state of each (epoch, source) across the receipt-ordered rows.
+fn decode_observation(
+    row: &Row,
+    applied_states: &mut BTreeMap<(u32, ObservationSource), LifecycleState>,
+) -> Result<ObservationRecord, GraphError> {
+    let invocation_id = domain(InvocationId::new(&text(row, "invocation_id")?))?;
+    let epoch = unsigned32(row, "session_epoch")?;
+    let native_session = match opt_text(row, "session_ref")? {
+        Some(session) => {
+            if epoch == 0 {
+                return Err(corrupt("an observation binds a session with epoch 0"));
+            }
+            Some(NativeSessionBinding {
+                session: domain(SessionRef::new(&session))?,
+                epoch,
+            })
+        }
+        None => {
+            if epoch != 0 {
+                return Err(corrupt("an observation has epoch without a session"));
+            }
+            None
+        }
+    };
+    let source = parse_source(&text(row, "source")?)?;
+    let origin = parse_origin(&text(row, "origin")?)?;
+    let state = parse_state(&text(row, "state")?)?;
+    let sequence_column = opt_int(row, "sequence")?
+        .map(|number| u64::try_from(number).map_err(|_| corrupt("column sequence is negative")))
+        .transpose()?;
+    let observed_at = unsigned64(row, "observed_at")?;
+    let received_at = unsigned64(row, "received_at")?;
+    let detail = opt_int(row, "outcome_detail")?;
+    let current_ref = opt_text(row, "current_session_ref")?;
+
+    let outcome_name = text(row, "outcome")?;
+    let outcome = match outcome_name.as_str() {
+        "applied" => {
+            let sequence =
+                sequence_column.ok_or_else(|| corrupt("an applied observation has no sequence"))?;
+            let previous = applied_states.insert((epoch, source), state);
+            ObservationOutcome::Applied { sequence, previous }
+        }
+        "ignored_stale" => {
+            let last =
+                detail.ok_or_else(|| corrupt("an ignored_stale row has no last sequence"))?;
+            if current_ref.is_some() {
+                return Err(corrupt("an ignored_stale row carries a session"));
+            }
+            ObservationOutcome::IgnoredStale {
+                last_applied: u64::try_from(last)
+                    .map_err(|_| corrupt("the last applied sequence is negative"))?,
+            }
+        }
+        "rejected_stale_session" => {
+            let current = match (current_ref, detail) {
+                (None, None) => None,
+                (Some(session), Some(current_epoch)) => {
+                    let current_epoch = u32::try_from(current_epoch)
+                        .map_err(|_| corrupt("the current epoch is out of range"))?;
+                    if current_epoch == 0 {
+                        return Err(corrupt("the current binding has epoch 0"));
+                    }
+                    Some(NativeSessionBinding {
+                        session: domain(SessionRef::new(&session))?,
+                        epoch: current_epoch,
+                    })
+                }
+                _ => return Err(corrupt("a rejected row has a partial current binding")),
+            };
+            ObservationOutcome::RejectedStaleSession { current }
+        }
+        "ignored_terminal" => {
+            if detail.is_some() || current_ref.is_some() {
+                return Err(corrupt("an ignored_terminal row carries outcome detail"));
+            }
+            ObservationOutcome::IgnoredTerminal
+        }
+        other => return Err(corrupt(format!("unknown observation outcome {other:?}"))),
+    };
+
+    // The recorded sequence: an applied observation records the number it
+    // used; a Gauntlet-assigned observation that consumed no number stays
+    // GauntletAssigned. This mirrors the reference's record exactly.
+    let applied = matches!(outcome, ObservationOutcome::Applied { .. });
+    let sequence = match (origin, sequence_column) {
+        (SequenceOrigin::SourceProvided, Some(number)) => {
+            ObservationSequence::SourceProvided(number)
+        }
+        (SequenceOrigin::GauntletAssigned, Some(number)) if applied => {
+            ObservationSequence::SourceProvided(number)
+        }
+        (SequenceOrigin::GauntletAssigned, None) if !applied => {
+            ObservationSequence::GauntletAssigned
+        }
+        _ => {
+            return Err(corrupt(
+                "an observation's sequence does not match its origin and outcome",
+            ));
+        }
+    };
+
+    Ok(ObservationRecord {
+        observation: HarnessObservation {
+            invocation_id,
+            native_session,
+            state,
+            source,
+            observed_at: EpochSeconds::new(observed_at),
+            sequence,
+        },
+        origin,
+        outcome,
+        received_at: EpochSeconds::new(received_at),
+    })
 }
 
 /// The admission transaction. Refusal order mirrors the in-memory reference.

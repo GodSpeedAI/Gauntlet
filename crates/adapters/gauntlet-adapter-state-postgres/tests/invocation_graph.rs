@@ -20,7 +20,10 @@ use gauntlet_ports::contract::invocation_graph::{InvocationGraphFactory, invocat
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::invocation_graph::{
     AdmissionOutcome, AdmissionRefusal, AdmissionRequest, GraphError, GraphLimits, InvocationGraph,
-    InvocationNode, NodeStatus, ResultBinding,
+    InvocationNode, NativeSessionBinding, NodeStatus, ResultBinding,
+};
+use gauntlet_ports::lifecycle::{
+    HarnessObservation, LifecycleState, ObservationOutcome, ObservationSequence, ObservationSource,
 };
 use postgres::{Client, NoTls};
 
@@ -659,5 +662,624 @@ fn cancel_subtree_cancels_only_active_descendants() {
             .expect("second cancel")
             .is_empty(),
         "a second cancel is a no-op"
+    );
+}
+
+// E3a: harness lifecycle observations on PostgreSQL. Every test has its own
+// namespace; nodes are fresh roots (one run each) so rounds never interfere.
+
+const OBSERVE_AT: u64 = 1_800_000_050;
+const LIFECYCLE_ROUNDS: u32 = 50;
+
+fn observation(
+    id: &InvocationId,
+    native_session: Option<NativeSessionBinding>,
+    state: LifecycleState,
+    source: ObservationSource,
+    sequence: ObservationSequence,
+) -> HarnessObservation {
+    HarnessObservation {
+        invocation_id: id.clone(),
+        native_session,
+        state,
+        source,
+        observed_at: EpochSeconds::new(OBSERVE_AT),
+        sequence,
+    }
+}
+
+/// Admits a fresh root under its own run. The tail names both the node and the run.
+fn fresh_root(graph: &PostgresInvocationGraph, tail: u32) -> InvocationId {
+    let id = inv(&tail.to_string());
+    let run_id = run(&tail.to_string());
+    admitted(graph.admit(root_request(&id, &run_id), dl()).expect("root"));
+    id
+}
+
+fn attach(graph: &PostgresInvocationGraph, id: &InvocationId, name: &str) -> NativeSessionBinding {
+    graph
+        .attach_native_session(id, SessionRef::new(name).expect("session"), dl())
+        .expect("attach")
+}
+
+fn applied_sequences(history: &[gauntlet_ports::lifecycle::ObservationRecord]) -> Vec<u64> {
+    history
+        .iter()
+        .filter_map(|record| match record.outcome {
+            ObservationOutcome::Applied { sequence, .. } => Some(sequence),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn racing_late_and_new_source_sequences_keep_the_higher_number() {
+    let config = fresh_config();
+    let graph = PostgresInvocationGraph::open(&config).expect("graph");
+    let ids: Vec<InvocationId> = (0..LIFECYCLE_ROUNDS)
+        .map(|round| fresh_root(&graph, 100 + round))
+        .collect();
+    drop(graph);
+
+    for (round, id) in ids.iter().enumerate() {
+        // A deterministic mix of which thread submits the late number first.
+        let late_first = (round * 7 + 3) % 5 < 3;
+        let target = id.clone();
+        let outcomes = on_connections(
+            &config,
+            2,
+            Arc::new(move |graph: &PostgresInvocationGraph, index: usize| {
+                let late = (index == 0) == late_first;
+                let (sequence, state) = if late {
+                    (42, LifecycleState::Working)
+                } else {
+                    (43, LifecycleState::Idle)
+                };
+                graph.record_observation(
+                    observation(
+                        &target,
+                        None,
+                        state,
+                        ObservationSource::Structured,
+                        ObservationSequence::SourceProvided(sequence),
+                    ),
+                    EpochSeconds::new(OBSERVE_AT),
+                    dl(),
+                )
+            }),
+        );
+        for outcome in outcomes {
+            outcome.expect("observation");
+        }
+
+        let graph = PostgresInvocationGraph::open(&config).expect("graph");
+        let effective = graph
+            .lifecycle(id, dl())
+            .expect("view")
+            .effective
+            .expect("an effective entry");
+        assert_eq!(
+            (effective.state, effective.sequence),
+            (LifecycleState::Idle, 43),
+            "round {round}: the higher sequence must win"
+        );
+        let history = graph.observation_history(id, dl()).expect("history");
+        let ignored: Vec<u64> = history
+            .iter()
+            .filter_map(|record| match record.outcome {
+                ObservationOutcome::IgnoredStale { last_applied } => Some(last_applied),
+                _ => None,
+            })
+            .collect();
+        match (applied_sequences(&history).as_slice(), ignored.as_slice()) {
+            ([42, 43], []) | ([43], [43]) => {}
+            other => panic!("round {round}: unexpected outcomes {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn gauntlet_assigned_sequences_are_exact_and_unique_under_contention() {
+    let config = fresh_config();
+    let graph = PostgresInvocationGraph::open(&config).expect("graph");
+    let id = fresh_root(&graph, 1);
+    drop(graph);
+
+    let target = id.clone();
+    let batches = on_connections(
+        &config,
+        8,
+        Arc::new(move |graph: &PostgresInvocationGraph, _index: usize| {
+            (0..5)
+                .map(|_| {
+                    graph.record_observation(
+                        observation(
+                            &target,
+                            None,
+                            LifecycleState::Working,
+                            ObservationSource::Screen,
+                            ObservationSequence::GauntletAssigned,
+                        ),
+                        EpochSeconds::new(OBSERVE_AT),
+                        dl(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        }),
+    );
+    let mut sequences = Vec::new();
+    for outcome in batches.into_iter().flatten() {
+        match outcome.expect("observation") {
+            ObservationOutcome::Applied { sequence, .. } => sequences.push(sequence),
+            other => panic!("a Gauntlet-assigned observation must apply, got {other:?}"),
+        }
+    }
+    sequences.sort_unstable();
+    assert_eq!(sequences, (1..=40).collect::<Vec<u64>>());
+
+    let graph = PostgresInvocationGraph::open(&config).expect("graph");
+    assert_eq!(
+        graph.observation_history(&id, dl()).expect("history").len(),
+        40
+    );
+    let effective = graph
+        .lifecycle(&id, dl())
+        .expect("view")
+        .effective
+        .expect("an effective entry");
+    assert_eq!(effective.sequence, 40);
+}
+
+enum Step {
+    Attached(NativeSessionBinding),
+    Observed(ObservationOutcome),
+}
+
+#[test]
+fn a_session_replacement_racing_an_old_epoch_observation_never_shows_that_epoch() {
+    let config = fresh_config();
+    let graph = PostgresInvocationGraph::open(&config).expect("graph");
+    for round in 0..20 {
+        let id = fresh_root(&graph, 200 + round);
+        let first = attach(&graph, &id, "sess-1");
+        assert_eq!(first.epoch, 1);
+        let (target, old) = (id.clone(), first.clone());
+        let steps = on_connections(
+            &config,
+            2,
+            Arc::new(move |graph: &PostgresInvocationGraph, index: usize| {
+                if index == 0 {
+                    graph
+                        .attach_native_session(
+                            &target,
+                            SessionRef::new("sess-2").expect("session"),
+                            dl(),
+                        )
+                        .map(Step::Attached)
+                } else {
+                    graph
+                        .record_observation(
+                            observation(
+                                &target,
+                                Some(old.clone()),
+                                LifecycleState::Working,
+                                ObservationSource::Structured,
+                                ObservationSequence::SourceProvided(999),
+                            ),
+                            EpochSeconds::new(OBSERVE_AT),
+                            dl(),
+                        )
+                        .map(Step::Observed)
+                }
+            }),
+        );
+        for step in steps {
+            match step.expect("step") {
+                Step::Attached(binding) => assert_eq!(binding.epoch, 2, "round {round}"),
+                Step::Observed(outcome) => assert!(
+                    matches!(
+                        outcome,
+                        ObservationOutcome::Applied { .. }
+                            | ObservationOutcome::RejectedStaleSession { .. }
+                    ),
+                    "round {round}: the old-epoch observation was {outcome:?}"
+                ),
+            }
+        }
+
+        let view = graph.lifecycle(&id, dl()).expect("view");
+        assert!(
+            view.per_source.iter().all(|entry| entry.epoch == 2),
+            "round {round}: an epoch-1 entry leaked into the current view"
+        );
+        assert!(
+            view.effective.is_none(),
+            "round {round}: epoch 2 has no observations"
+        );
+        let history = graph.observation_history(&id, dl()).expect("history");
+        assert_eq!(history.len(), 1, "round {round}");
+        match &history[0].outcome {
+            ObservationOutcome::Applied {
+                sequence: 999,
+                previous: None,
+            } => {}
+            ObservationOutcome::RejectedStaleSession {
+                current: Some(bound),
+            } if bound.epoch == 2 => {}
+            other => panic!("round {round}: unexpected outcome {other:?}"),
+        }
+    }
+}
+
+enum Racer {
+    Completion(Result<NodeStatus, GraphError>),
+    Observations(Vec<Result<ObservationOutcome, GraphError>>),
+}
+
+#[test]
+fn completion_racing_observations_settles_once_and_later_observations_are_terminal() {
+    let config = fresh_config();
+    let graph = PostgresInvocationGraph::open(&config).expect("graph");
+    for round in 0..10 {
+        let id = fresh_root(&graph, 300 + round);
+        graph.mark_running(&id, dl()).expect("running");
+        let bound = attach(&graph, &id, "sess-1");
+        let (target, old) = (id.clone(), bound.clone());
+        let racers = on_connections(
+            &config,
+            5,
+            Arc::new(move |graph: &PostgresInvocationGraph, index: usize| {
+                if index == 0 {
+                    Racer::Completion(
+                        graph
+                            .complete(&target, binding(), EpochSeconds::new(COMPLETE_AT), dl())
+                            .map(|node| node.status),
+                    )
+                } else {
+                    Racer::Observations(
+                        (0..5)
+                            .map(|_| {
+                                graph.record_observation(
+                                    observation(
+                                        &target,
+                                        Some(old.clone()),
+                                        LifecycleState::Working,
+                                        ObservationSource::Process,
+                                        ObservationSequence::GauntletAssigned,
+                                    ),
+                                    EpochSeconds::new(OBSERVE_AT),
+                                    dl(),
+                                )
+                            })
+                            .collect(),
+                    )
+                }
+            }),
+        );
+        let mut completions = 0;
+        for racer in racers {
+            match racer {
+                Racer::Completion(result) => {
+                    let status = result.expect("the completion is accepted");
+                    assert_eq!(status, NodeStatus::Completed, "round {round}");
+                    completions += 1;
+                }
+                Racer::Observations(outcomes) => {
+                    for outcome in outcomes {
+                        outcome.expect("observation");
+                    }
+                }
+            }
+        }
+        assert_eq!(completions, 1, "round {round}");
+
+        let graph = PostgresInvocationGraph::open(&config).expect("graph");
+        let node = graph.node(&id, dl()).expect("read").expect("node");
+        assert_eq!(node.status, NodeStatus::Completed, "round {round}");
+        assert!(
+            matches!(
+                graph.complete(&id, binding(), EpochSeconds::new(COMPLETE_AT), dl()),
+                Err(GraphError::IllegalTransition { .. })
+            ),
+            "round {round}: a second completion must be refused"
+        );
+        let history = graph.observation_history(&id, dl()).expect("history");
+        assert_eq!(
+            history.len(),
+            20,
+            "round {round}: every observation is recorded"
+        );
+        if let Some(cut) = history
+            .iter()
+            .position(|record| record.outcome == ObservationOutcome::IgnoredTerminal)
+        {
+            assert!(
+                history[cut..]
+                    .iter()
+                    .all(|record| record.outcome == ObservationOutcome::IgnoredTerminal),
+                "round {round}: an applied observation followed the terminal state"
+            );
+        }
+        assert!(
+            history.iter().all(|record| matches!(
+                record.outcome,
+                ObservationOutcome::Applied { .. } | ObservationOutcome::IgnoredTerminal
+            )),
+            "round {round}: unexpected outcome in a binding-correct race"
+        );
+
+        let view = graph.lifecycle(&id, dl()).expect("view");
+        graph
+            .record_observation(
+                observation(
+                    &id,
+                    Some(bound.clone()),
+                    LifecycleState::Done,
+                    ObservationSource::Structured,
+                    ObservationSequence::GauntletAssigned,
+                ),
+                EpochSeconds::new(OBSERVE_AT),
+                dl(),
+            )
+            .expect("observation");
+        assert_eq!(
+            graph.lifecycle(&id, dl()).expect("view"),
+            view,
+            "round {round}: the view must not change after completion"
+        );
+    }
+}
+
+#[test]
+fn observations_never_change_node_status_budget_or_binding() {
+    let config = fresh_config();
+    let graph = PostgresInvocationGraph::open(&config).expect("graph");
+    let id = fresh_root(&graph, 400);
+    let bound = attach(&graph, &id, "sess-1");
+    let before = graph.node(&id, dl()).expect("read").expect("node");
+
+    for (state, source, sequence) in [
+        (LifecycleState::Done, ObservationSource::Structured, 1),
+        (LifecycleState::Idle, ObservationSource::Process, 1),
+    ] {
+        let outcome = graph
+            .record_observation(
+                observation(
+                    &id,
+                    Some(bound.clone()),
+                    state,
+                    source,
+                    ObservationSequence::SourceProvided(sequence),
+                ),
+                EpochSeconds::new(OBSERVE_AT),
+                dl(),
+            )
+            .expect("observation");
+        assert!(matches!(outcome, ObservationOutcome::Applied { .. }));
+    }
+    assert_eq!(
+        graph.node(&id, dl()).expect("read").expect("node"),
+        before,
+        "observations must not touch the node row"
+    );
+    let effective = graph
+        .lifecycle(&id, dl())
+        .expect("view")
+        .effective
+        .expect("effective");
+    assert_eq!(
+        (effective.state, effective.source),
+        (LifecycleState::Done, ObservationSource::Structured)
+    );
+
+    graph.mark_running(&id, dl()).expect("running");
+    graph
+        .record_observation(
+            observation(
+                &id,
+                Some(bound.clone()),
+                LifecycleState::Done,
+                ObservationSource::Structured,
+                ObservationSequence::SourceProvided(2),
+            ),
+            EpochSeconds::new(OBSERVE_AT),
+            dl(),
+        )
+        .expect("observation");
+    let wrong = ResultBinding {
+        contract_path: ResultContractPath::new("contract-b").expect("contract"),
+        context_digest: Digest::parse(DIGEST).expect("digest"),
+        result_digest: Digest::parse("sha256:e5f6a7b8").expect("digest"),
+    };
+    assert!(
+        matches!(
+            graph.complete(&id, wrong, EpochSeconds::new(COMPLETE_AT), dl()),
+            Err(GraphError::ContractMismatch { .. })
+        ),
+        "a Done observation must not stand in for the result binding"
+    );
+    let node = graph
+        .complete(&id, binding(), EpochSeconds::new(COMPLETE_AT), dl())
+        .expect("the right binding completes");
+    assert_eq!(node.status, NodeStatus::Completed);
+}
+
+#[test]
+fn history_and_lifecycle_refuse_raw_update_and_delete() {
+    let config = fresh_config();
+    let graph = PostgresInvocationGraph::open(&config).expect("graph");
+    let id = fresh_root(&graph, 500);
+    let bound = attach(&graph, &id, "sess-1");
+    graph
+        .record_observation(
+            observation(
+                &id,
+                Some(bound),
+                LifecycleState::Working,
+                ObservationSource::Structured,
+                ObservationSequence::SourceProvided(1),
+            ),
+            EpochSeconds::new(OBSERVE_AT),
+            dl(),
+        )
+        .expect("observation");
+    drop(graph);
+
+    let mut client = raw(&config);
+    let refused = [
+        (
+            "UPDATE invocation_observations SET state = 'idle'",
+            "append-only",
+        ),
+        ("DELETE FROM invocation_observations", "append-only"),
+        ("DELETE FROM invocation_lifecycle", "never deleted"),
+    ];
+    for (sql, expected) in refused {
+        let error = client
+            .execute(sql, &[])
+            .expect_err("the append-only guard must refuse this");
+        assert!(
+            error
+                .as_db_error()
+                .is_some_and(|db| db.message().contains(expected)),
+            "unexpected error for {sql}: {error}"
+        );
+    }
+    client
+        .execute(
+            "UPDATE invocation_lifecycle SET observed_at = observed_at",
+            &[],
+        )
+        .expect("lifecycle rows may be advanced in place");
+}
+
+#[test]
+fn lifecycle_and_history_reconstruct_identically_after_reopen() {
+    let path = PathBuf::from(format!(
+        "/nonexistent-gauntlet-e3a/{}-{:x}/gauntlet-state.db",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    let graph = PostgresInvocationGraph::open_at(&path).expect("graph");
+    let id = fresh_root(&graph, 600);
+    let first = attach(&graph, &id, "sess-1");
+    let stale_binding = NativeSessionBinding {
+        session: SessionRef::new("sess-0").expect("session"),
+        epoch: 1,
+    };
+    let obs = |native: Option<NativeSessionBinding>, state, source, sequence| {
+        observation(&id, native, state, source, sequence)
+    };
+    let at = |o: HarnessObservation| {
+        graph
+            .record_observation(o, EpochSeconds::new(OBSERVE_AT), dl())
+            .expect("observation")
+    };
+    at(obs(
+        Some(first.clone()),
+        LifecycleState::Working,
+        ObservationSource::Structured,
+        ObservationSequence::SourceProvided(1),
+    ));
+    at(obs(
+        Some(first.clone()),
+        LifecycleState::Idle,
+        ObservationSource::Structured,
+        ObservationSequence::SourceProvided(2),
+    ));
+    at(obs(
+        Some(first.clone()),
+        LifecycleState::Blocked,
+        ObservationSource::Structured,
+        ObservationSequence::SourceProvided(1),
+    ));
+    at(obs(
+        Some(first.clone()),
+        LifecycleState::Blocked,
+        ObservationSource::Screen,
+        ObservationSequence::GauntletAssigned,
+    ));
+    at(obs(
+        Some(first.clone()),
+        LifecycleState::Done,
+        ObservationSource::Screen,
+        ObservationSequence::GauntletAssigned,
+    ));
+    at(obs(
+        None,
+        LifecycleState::Working,
+        ObservationSource::Process,
+        ObservationSequence::GauntletAssigned,
+    ));
+    at(obs(
+        Some(stale_binding),
+        LifecycleState::Working,
+        ObservationSource::Process,
+        ObservationSequence::SourceProvided(7),
+    ));
+    let second = attach(&graph, &id, "sess-2");
+    assert_eq!(second.epoch, 2);
+    at(obs(
+        Some(first.clone()),
+        LifecycleState::Working,
+        ObservationSource::Structured,
+        ObservationSequence::SourceProvided(9),
+    ));
+    at(obs(
+        Some(second.clone()),
+        LifecycleState::Working,
+        ObservationSource::Structured,
+        ObservationSequence::SourceProvided(5),
+    ));
+    at(obs(
+        Some(second.clone()),
+        LifecycleState::Unknown,
+        ObservationSource::Process,
+        ObservationSequence::GauntletAssigned,
+    ));
+    graph
+        .complete(&id, binding(), EpochSeconds::new(COMPLETE_AT), dl())
+        .expect("complete");
+    at(obs(
+        Some(second.clone()),
+        LifecycleState::Done,
+        ObservationSource::Structured,
+        ObservationSequence::SourceProvided(6),
+    ));
+
+    let snapshot = |graph: &PostgresInvocationGraph| {
+        (
+            graph.lifecycle(&id, dl()).expect("view"),
+            graph.observation_history(&id, dl()).expect("history"),
+            graph.node(&id, dl()).expect("node"),
+        )
+    };
+    let before = snapshot(&graph);
+    let outcomes: Vec<&ObservationOutcome> = before.1.iter().map(|r| &r.outcome).collect();
+    assert!(
+        outcomes
+            .iter()
+            .any(|o| matches!(o, ObservationOutcome::IgnoredStale { .. }))
+    );
+    assert!(
+        outcomes
+            .iter()
+            .any(|o| matches!(o, ObservationOutcome::RejectedStaleSession { .. }))
+    );
+    assert!(
+        outcomes
+            .iter()
+            .any(|o| matches!(o, ObservationOutcome::IgnoredTerminal))
+    );
+    drop(graph);
+
+    let reopened = PostgresInvocationGraph::open_at(&path).expect("reopened graph");
+    assert_eq!(
+        snapshot(&reopened),
+        before,
+        "reconstruction differs after reopen"
     );
 }
