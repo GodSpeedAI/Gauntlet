@@ -348,10 +348,12 @@ fn durable_settlements(world: &World, task_id: &str, scenario: &str, run_id: &st
     let mut counts = Vec::new();
     for world_dir in world.leg_worlds(task_id, scenario) {
         let db = world_dir.join(RUNS_STATE_DB);
-        if !db.is_file() {
+        if !gauntlet_adapter_state_postgres::state_exists(&db)
+            .expect("the state database is reachable")
+        {
             continue;
         }
-        let store = gauntlet_adapter_state_sqlite::EmbeddedStateStore::open(&db)
+        let store = gauntlet_adapter_state_postgres::EmbeddedStateStore::open_at(&db)
             .expect("the D leg's state store opens");
         if store
             .load_run(&parsed, deadline)

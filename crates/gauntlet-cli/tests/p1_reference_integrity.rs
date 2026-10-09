@@ -30,7 +30,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_app::reference::normalize::{digest_of, normalize_bytes};
 use gauntlet_app::reference::parse::parse_answer_key;
 use gauntlet_app::reference::provider::FileReferenceProvider;
@@ -347,7 +347,7 @@ fn the_run_carries_the_frozen_version() {
     let (_reference, version) = freeze_active_copy(&provider);
 
     let db = scratch.path.join("state.db");
-    let state = EmbeddedStateStore::open(&db).expect("the state store opens");
+    let state = EmbeddedStateStore::open_at(&db).expect("the state store opens");
     let run = Run::new(RunDefinition {
         id: run_id(),
         created_at: EpochSeconds::new(RUN_CREATED_AT),
@@ -407,7 +407,7 @@ fn the_run_carries_the_frozen_version() {
     )
     .expect("the observation binds durably");
 
-    let reopened = EmbeddedStateStore::open(&db).expect("the state store reopens");
+    let reopened = EmbeddedStateStore::open_at(&db).expect("the state store reopens");
     let loaded = reopened
         .load_run(&run_id(), bound())
         .expect("the run loads")

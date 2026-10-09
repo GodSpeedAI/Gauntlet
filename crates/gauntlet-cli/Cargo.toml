@@ -62,7 +62,7 @@ gauntlet-adapter-agent-cli.workspace = true
 # production ULID ids, and the mock runner the E2E selects by token. The
 # composition root is the one crate allowed to name adapters (spec 4.1);
 # the boundary suite masks the crate name only.
-gauntlet-adapter-state-sqlite.workspace = true
+gauntlet-adapter-state-postgres.workspace = true
 gauntlet-adapter-evidence-fs.workspace = true
 gauntlet-adapter-escalation-fs.workspace = true
 gauntlet-adapter-id-entropy.workspace = true
@@ -99,7 +99,7 @@ gauntlet-adapter-verify-test-report.workspace = true
 # content-addressed store. Still dev-only — the production wiring lands with
 # the plan-task composition that needs it.
 [dev-dependencies]
-gauntlet-adapter-state-sqlite.workspace = true
+gauntlet-adapter-state-postgres.workspace = true
 gauntlet-adapter-evidence-fs.workspace = true
 # Task 11 correction round 1 (C1/B-M1): the p12 proof Wires the rung set at
 # the composition root, which requires the application layer's audited

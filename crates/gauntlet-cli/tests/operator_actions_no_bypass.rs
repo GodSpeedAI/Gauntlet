@@ -40,7 +40,7 @@ use std::sync::Arc;
 
 use gauntlet_adapter_escalation_fs::FsEscalationQueue;
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_domain::{
     Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceKind, EvidenceLocator, EvidenceRef,
     IterationNo, Limits, MicroUsd, Outcome, Producer, Run, RunDefinition, RunId, UnitId,
@@ -157,7 +157,7 @@ impl World {
 
         let run_id = RunId::new(RUN_ULID).expect("a valid run id");
         let state: Arc<EmbeddedStateStore> = Arc::new(
-            EmbeddedStateStore::open(&state_dir.join("gauntlet-state.db"))
+            EmbeddedStateStore::open_at(&state_dir.join("gauntlet-state.db"))
                 .expect("the state store opens"),
         );
 
@@ -252,7 +252,7 @@ impl World {
         // The evidence production bound through the production authority
         // (run-exists + durable-iteration validated, content digested).
         let production_state: Arc<dyn gauntlet_ports::state_store::StateStore> = Arc::new(
-            EmbeddedStateStore::open(&state_dir.join("gauntlet-state.db")).expect("opens"),
+            EmbeddedStateStore::open_at(&state_dir.join("gauntlet-state.db")).expect("opens"),
         );
         let production_evidence = FsEvidenceStore::open(&root.join("evidence")).expect("opens");
         let authority =

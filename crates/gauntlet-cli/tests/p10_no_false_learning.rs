@@ -90,7 +90,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use gauntlet_adapter_agent_mock::DeterministicClock;
-use gauntlet_adapter_state_sqlite::{EmbeddedCapabilityLedger, EmbeddedStateStore, test_support};
+use gauntlet_adapter_state_postgres::{EmbeddedCapabilityLedger, EmbeddedStateStore, test_support};
 use gauntlet_app::memory::developmental::DevelopmentalImport;
 use gauntlet_app::memory::promotion::{PromotionDecision, PromotionService, PromotionServiceError};
 use gauntlet_domain::{
@@ -185,11 +185,11 @@ impl Scratch {
     }
 
     fn open_state(&self) -> Arc<EmbeddedStateStore> {
-        Arc::new(EmbeddedStateStore::open(&self.path).expect("the p10 state store opens"))
+        Arc::new(EmbeddedStateStore::open_at(&self.path).expect("the p10 state store opens"))
     }
 
     fn open_ledger(&self) -> Arc<EmbeddedCapabilityLedger> {
-        Arc::new(EmbeddedCapabilityLedger::open(&self.path).expect("the p10 ledger opens"))
+        Arc::new(EmbeddedCapabilityLedger::open_at(&self.path).expect("the p10 ledger opens"))
     }
 }
 

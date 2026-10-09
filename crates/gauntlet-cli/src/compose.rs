@@ -80,7 +80,7 @@ use gauntlet_adapter_observe_git::GitObserver;
 use gauntlet_adapter_observe_test::{TestCommand, TestObserver};
 use gauntlet_adapter_policy_fs::PolicyFs;
 use gauntlet_adapter_sandbox_bwrap::ProcessIsolationBackend;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_adapter_verify_command_exit_code::CommandExitVerifier;
 use gauntlet_adapter_verify_file_digest::FileDigestVerifier;
 use gauntlet_adapter_verify_test_report::TestReportVerifier;
@@ -862,9 +862,15 @@ impl Clone for OperatorSurface {
 }
 
 impl OperatorSurface {
-    /// Why a read command refuses: the state database does not exist.
-    pub fn state_exists(state_dir: &std::path::Path) -> bool {
-        state_dir.join(STATE_DB_NAME).is_file()
+    /// Why a read command refuses: the state instance does not exist. The
+    /// instance is identified by its locator path under `state_dir`; an
+    /// unreachable database is a typed store error, never `false`.
+    pub fn state_exists(state_dir: &std::path::Path) -> Result<bool, CompositionError> {
+        gauntlet_adapter_state_postgres::state_exists(&state_dir.join(STATE_DB_NAME)).map_err(
+            |error| CompositionError::Store {
+                detail: error.to_string(),
+            },
+        )
     }
 }
 
@@ -874,7 +880,7 @@ pub fn open_operator_surface(
     context: &RuntimeContext,
 ) -> Result<OperatorSurface, CompositionError> {
     let state_dir = context.state_dir().to_path_buf();
-    if !OperatorSurface::state_exists(&state_dir) {
+    if !OperatorSurface::state_exists(&state_dir)? {
         return Err(CompositionError::Store {
             detail: format!(
                 "no run state at {} — no run has been composed here yet",
@@ -882,7 +888,7 @@ pub fn open_operator_surface(
             ),
         });
     }
-    let state = EmbeddedStateStore::open(&state_dir.join(STATE_DB_NAME)).map_err(|error| {
+    let state = EmbeddedStateStore::open_at(&state_dir.join(STATE_DB_NAME)).map_err(|error| {
         CompositionError::Store {
             detail: error.to_string(),
         }
@@ -939,7 +945,7 @@ pub fn compose_run(
     ensure_configured_dir(&evidence_root)?;
     ensure_configured_dir(&workspace_root)?;
     let state = Arc::new(
-        EmbeddedStateStore::open(&state_dir.join(STATE_DB_NAME)).map_err(|error| {
+        EmbeddedStateStore::open_at(&state_dir.join(STATE_DB_NAME)).map_err(|error| {
             CompositionError::Store {
                 detail: error.to_string(),
             }

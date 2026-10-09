@@ -24,7 +24,7 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use gauntlet_adapter_state_sqlite::STATE_BACKEND_TOKEN;
+use gauntlet_adapter_state_postgres::STATE_BACKEND_TOKEN;
 use gauntlet_ports::sandbox::Sandbox;
 
 /// The real composed binary (same package: `src/bin/gauntlet.rs`).
@@ -275,7 +275,10 @@ fn an_unset_runner_token_refuses_naming_key_and_env_and_nothing_runs() {
     );
     // Nothing ran: no state store was ever created.
     assert!(
-        !world.state_dir().join("gauntlet-state.db").exists(),
+        !gauntlet_adapter_state_postgres::state_exists(
+            &world.state_dir().join("gauntlet-state.db")
+        )
+        .expect("the state database is reachable"),
         "the fail-closed selection never opens a store, let alone dispatches"
     );
 }
@@ -308,7 +311,10 @@ fn an_unknown_runner_token_refuses_naming_the_fronted_set() {
         );
     }
     assert!(
-        !world.state_dir().join("gauntlet-state.db").exists(),
+        !gauntlet_adapter_state_postgres::state_exists(
+            &world.state_dir().join("gauntlet-state.db")
+        )
+        .expect("the state database is reachable"),
         "nothing ran"
     );
 }

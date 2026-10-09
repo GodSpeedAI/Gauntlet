@@ -65,7 +65,7 @@ use gauntlet_app::baseline::{
 };
 
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
-use gauntlet_adapter_state_sqlite::{EmbeddedCapabilityLedger, EmbeddedRevisionLedger};
+use gauntlet_adapter_state_postgres::{EmbeddedCapabilityLedger, EmbeddedRevisionLedger};
 use gauntlet_app::config::{EnvLayer, resolve as config_resolve};
 use gauntlet_app::promote::delta::DeltaDocument;
 use gauntlet_app::promote::evaluate::{
@@ -114,7 +114,7 @@ fn revision_ledger(
     context: &crate::context::RuntimeContext,
 ) -> Result<Arc<EmbeddedRevisionLedger>, String> {
     let path = context.state_dir().join(crate::compose::STATE_DB_NAME);
-    EmbeddedRevisionLedger::open(&path)
+    EmbeddedRevisionLedger::open_at(&path)
         .map(Arc::new)
         .map_err(|error| format!("opening the revision ledger at {}: {error}", path.display()))
 }
@@ -123,7 +123,7 @@ fn capability_ledger(
     context: &crate::context::RuntimeContext,
 ) -> Result<Arc<EmbeddedCapabilityLedger>, String> {
     let path = context.state_dir().join(crate::compose::STATE_DB_NAME);
-    EmbeddedCapabilityLedger::open(&path)
+    EmbeddedCapabilityLedger::open_at(&path)
         .map(Arc::new)
         .map_err(|error| {
             format!(
@@ -296,7 +296,7 @@ fn dispatch_proposal(
     let projection = match source_run.as_ref() {
         Some(run_id) => {
             let path = context.state_dir().join(crate::compose::STATE_DB_NAME);
-            let store = gauntlet_adapter_state_sqlite::EmbeddedStateStore::open(&path)
+            let store = gauntlet_adapter_state_postgres::EmbeddedStateStore::open_at(&path)
                 .map_err(|error| format!("opening the state store: {error}"))?;
             let store: Arc<dyn gauntlet_ports::state_store::StateStore> = Arc::new(store);
             match store.load_run(run_id, deadline) {

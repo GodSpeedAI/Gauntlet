@@ -41,7 +41,7 @@ use gauntlet_adapter_compare_model::{
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
 use gauntlet_adapter_observe_command::{CommandObserver, CommandSpec};
 use gauntlet_adapter_observe_filesystem::FilesystemObserver;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_app::compare::RecordingAgentRunner;
 use gauntlet_app::compare::authority::{ComparisonAuthority, IssuedComparison};
 use gauntlet_app::compare::contract::ComparisonContract;
@@ -478,7 +478,8 @@ fn composed_envelope(scratch: &Scratch) -> Composed {
         .expect("the repository's frozen comparison contract loads");
     let reference_version = frozen_reference_version(store.as_ref(), &spec.run_id);
     let state = Arc::new(
-        EmbeddedStateStore::open(&scratch.path.join("state.db")).expect("real state store opens"),
+        EmbeddedStateStore::open_at(&scratch.path.join("state.db"))
+            .expect("real state store opens"),
     );
     let durable_run = Run::new(RunDefinition {
         id: spec.run_id.clone(),
@@ -1119,7 +1120,8 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
     drop(state);
     drop(composed.state);
 
-    let reopened = EmbeddedStateStore::open(&state_path).expect("state reopens after process loss");
+    let reopened =
+        EmbeddedStateStore::open_at(&state_path).expect("state reopens after process loss");
     let exported = reopened
         .export_jsonl(envelope.run_id(), bound())
         .expect("durable binding exports after reopen");
@@ -1166,7 +1168,8 @@ fn durable_critic_invocation_and_accepted_document_survive_reopen_and_reject_cro
     // Tooth: the adapter detects a nested cross-wire before the recorder can
     // pin or persist an accepted comparison record.
     let rejected_path = scratch.path.join("crosswire.db");
-    let rejected = Arc::new(EmbeddedStateStore::open(&rejected_path).expect("second state opens"));
+    let rejected =
+        Arc::new(EmbeddedStateStore::open_at(&rejected_path).expect("second state opens"));
     let rejected_evidence = Arc::new(
         FsEvidenceStore::open(&scratch.path.join("crosswire-evidence"))
             .expect("second evidence opens"),
@@ -1415,7 +1418,7 @@ fn teeth() {
 fn comparison_authority_requires_a_durable_run() {
     let scratch = Scratch::new("authority-requires-durable-run");
     let state = Arc::new(
-        EmbeddedStateStore::open(&scratch.path.join("empty-state.db")).expect("state opens"),
+        EmbeddedStateStore::open_at(&scratch.path.join("empty-state.db")).expect("state opens"),
     );
     let evidence = Arc::new(
         FsEvidenceStore::open(&scratch.path.join("empty-evidence")).expect("evidence opens"),

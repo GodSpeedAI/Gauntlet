@@ -60,7 +60,7 @@ use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use gauntlet_adapter_agent_mock::DeterministicClock;
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
 use gauntlet_adapter_meter_memory::MeteredBudget;
-use gauntlet_adapter_state_sqlite::{
+use gauntlet_adapter_state_postgres::{
     EmbeddedCapabilityLedger, EmbeddedRevisionLedger, EmbeddedStateStore,
 };
 use gauntlet_app::compare::authority::ComparisonAuthority;
@@ -186,19 +186,21 @@ impl GateScratch {
     }
 
     fn open_state(&self) -> Arc<EmbeddedStateStore> {
-        Arc::new(EmbeddedStateStore::open(&self.path).expect("the gate-fixture state store opens"))
+        Arc::new(
+            EmbeddedStateStore::open_at(&self.path).expect("the gate-fixture state store opens"),
+        )
     }
 
     fn open_revisions(&self) -> Arc<EmbeddedRevisionLedger> {
         Arc::new(
-            EmbeddedRevisionLedger::open(&self.path)
+            EmbeddedRevisionLedger::open_at(&self.path)
                 .expect("the gate-fixture revision ledger opens"),
         )
     }
 
     fn open_capabilities(&self) -> Arc<EmbeddedCapabilityLedger> {
         Arc::new(
-            EmbeddedCapabilityLedger::open(&self.path)
+            EmbeddedCapabilityLedger::open_at(&self.path)
                 .expect("the gate-fixture capability ledger opens"),
         )
     }
@@ -1654,8 +1656,9 @@ fn g8_review(shape: G8ResidualShape) -> G8ReviewWorld {
 
     let scratch = Scratch::new("g8-review");
     let store = Arc::new(FsEvidenceStore::open(&scratch.child("evidence")).expect("opens"));
-    let state =
-        Arc::new(EmbeddedStateStore::open(&scratch.child("state").join("g8.db")).expect("opens"));
+    let state = Arc::new(
+        EmbeddedStateStore::open_at(&scratch.child("state").join("g8.db")).expect("opens"),
+    );
 
     // The bundle: a real, self-digest-consistent observation document,
     // stored and durably bound as the run's observation at this iteration.

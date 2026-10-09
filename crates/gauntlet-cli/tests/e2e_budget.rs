@@ -491,10 +491,12 @@ fn the_escalated_resume_re_affirms_one_ticket_per_fact_and_records_the_re_entry(
 
 /// The durable settlement events, as a count.
 fn settlement_event_count(state_db: &Path) -> usize {
-    if !state_db.is_file() {
+    if !gauntlet_adapter_state_postgres::state_exists(state_db)
+        .expect("the state database is reachable")
+    {
         return 0;
     }
-    gauntlet_adapter_state_sqlite::test_support::settlement_committed_events(state_db)
+    gauntlet_adapter_state_postgres::test_support::settlement_committed_events(state_db)
         .map(|events| events.len())
         .unwrap_or(0)
 }

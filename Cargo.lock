@@ -509,7 +509,7 @@ dependencies = [
  "gauntlet-adapter-observe-test",
  "gauntlet-adapter-policy-fs",
  "gauntlet-adapter-sandbox-bwrap",
- "gauntlet-adapter-state-sqlite",
+ "gauntlet-adapter-state-postgres",
  "gauntlet-adapter-surface-json",
  "gauntlet-adapter-verify-command-exit-code",
  "gauntlet-adapter-verify-file-digest",
