@@ -42,6 +42,7 @@ pub mod human_escalation;
 pub mod id_generator;
 pub mod invocation_graph;
 pub mod json;
+pub mod lifecycle;
 pub mod observation_digest;
 pub mod observer;
 pub mod observer_evidence;

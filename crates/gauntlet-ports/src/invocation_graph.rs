@@ -20,6 +20,7 @@ use gauntlet_domain::{
 use crate::agent_runner::InvocationFailure;
 use crate::budget_meter::BudgetSlice;
 use crate::deadline::Deadline;
+use crate::lifecycle::{HarnessObservation, LifecycleView, ObservationOutcome, ObservationRecord};
 
 /// Lifecycle status of a graph node. Harness lifecycle states are NOT node
 /// status; they are liveness evidence owned by the observation path.
@@ -329,4 +330,30 @@ pub trait InvocationGraph {
         run_id: &RunId,
         deadline: Deadline,
     ) -> Result<Vec<InvocationNode>, GraphError>;
+
+    /// Records one lifecycle observation (E3a). Liveness and forensics only:
+    /// this never changes node status, completes or fails an invocation, or
+    /// touches its budget. The outcome is decided against the node's current
+    /// binding and per-key sequencing; see [`crate::lifecycle`]. Every
+    /// received observation is appended to the history, whatever its outcome.
+    /// Unknown invocation: `UnknownInvocation`.
+    fn record_observation(
+        &self,
+        observation: HarnessObservation,
+        received_at: EpochSeconds,
+        deadline: Deadline,
+    ) -> Result<ObservationOutcome, GraphError>;
+
+    /// The current lifecycle view of a node, computed under its current
+    /// epoch. Unknown invocation: `UnknownInvocation`.
+    fn lifecycle(&self, id: &InvocationId, deadline: Deadline)
+    -> Result<LifecycleView, GraphError>;
+
+    /// Every observation received for a node, in receipt order, with its
+    /// outcome. Append-only. Unknown invocation: `UnknownInvocation`.
+    fn observation_history(
+        &self,
+        id: &InvocationId,
+        deadline: Deadline,
+    ) -> Result<Vec<ObservationRecord>, GraphError>;
 }

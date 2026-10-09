@@ -22,6 +22,13 @@ use crate::invocation_graph::{
     AdmissionOutcome, AdmissionRefusal, AdmissionRequest, GraphError, InvocationGraph,
     InvocationNode, NativeSessionBinding, NodeStatus, ResultBinding,
 };
+use crate::lifecycle::{
+    HarnessObservation, LifecycleEntry, LifecycleView, ObservationOutcome, ObservationRecord,
+    ObservationSequence, ObservationSource, SequenceOrigin,
+};
+
+/// The epoch of a node with no native session attached.
+const NO_SESSION_EPOCH: u32 = 0;
 
 /// Node storage. A node's index in `nodes` is its admission sequence, so
 /// index order is admission order everywhere.
@@ -30,6 +37,23 @@ struct State {
     nodes: Vec<InvocationNode>,
     by_id: BTreeMap<InvocationId, usize>,
     by_key: BTreeMap<(RunId, AdmissionKey), usize>,
+    /// The latest applied observation per (invocation, epoch, source).
+    /// Superseded epochs keep their entries; only the current epoch is viewed.
+    lifecycle: BTreeMap<(InvocationId, u32, ObservationSource), LifecycleEntry>,
+    /// Every received observation, in receipt order.
+    observations: Vec<ObservationRecord>,
+}
+
+/// The epoch an observation or view is judged under for a binding.
+fn epoch_of(binding: Option<&NativeSessionBinding>) -> u32 {
+    binding.map_or(NO_SESSION_EPOCH, |bound| bound.epoch)
+}
+
+fn origin_of(sequence: ObservationSequence) -> SequenceOrigin {
+    match sequence {
+        ObservationSequence::SourceProvided(_) => SequenceOrigin::SourceProvided,
+        ObservationSequence::GauntletAssigned => SequenceOrigin::GauntletAssigned,
+    }
 }
 
 /// The reference graph. Construct with `Default` or via
@@ -262,6 +286,102 @@ impl State {
         node.terminal_at = at;
         Ok(node.clone())
     }
+
+    /// Decides one observation for a non-terminal node whose binding matches.
+    /// Returns the outcome and the observation as it is recorded. Mutates the
+    /// lifecycle map only when the observation applies.
+    fn apply_observation(
+        &mut self,
+        observation: &HarnessObservation,
+        epoch: u32,
+    ) -> Result<(ObservationOutcome, HarnessObservation), GraphError> {
+        let key = (observation.invocation_id.clone(), epoch, observation.source);
+        let previous = self.lifecycle.get(&key).cloned();
+        let last_applied = previous.as_ref().map_or(0, |entry| entry.sequence);
+        let sequence = match observation.sequence {
+            ObservationSequence::SourceProvided(number) if number <= last_applied => {
+                return Ok((
+                    ObservationOutcome::IgnoredStale { last_applied },
+                    observation.clone(),
+                ));
+            }
+            ObservationSequence::SourceProvided(number) => number,
+            ObservationSequence::GauntletAssigned => {
+                last_applied
+                    .checked_add(1)
+                    .ok_or_else(|| GraphError::WriteFailed {
+                        detail: "lifecycle sequence exhausted".to_owned(),
+                    })?
+            }
+        };
+        self.lifecycle.insert(
+            key,
+            LifecycleEntry {
+                state: observation.state,
+                source: observation.source,
+                sequence,
+                origin: origin_of(observation.sequence),
+                observed_at: observation.observed_at,
+                epoch,
+            },
+        );
+        let mut recorded = observation.clone();
+        recorded.sequence = ObservationSequence::SourceProvided(sequence);
+        Ok((
+            ObservationOutcome::Applied {
+                sequence,
+                previous: previous.map(|entry| entry.state),
+            },
+            recorded,
+        ))
+    }
+
+    fn record_observation(
+        &mut self,
+        observation: HarnessObservation,
+        received_at: EpochSeconds,
+    ) -> Result<ObservationOutcome, GraphError> {
+        let index = self.index(&observation.invocation_id)?;
+        let terminal = self.nodes[index].status.is_terminal();
+        let current = self.nodes[index].native_session.clone();
+        let (outcome, recorded) = if terminal {
+            (ObservationOutcome::IgnoredTerminal, observation.clone())
+        } else if observation.native_session != current {
+            (
+                ObservationOutcome::RejectedStaleSession {
+                    current: current.clone(),
+                },
+                observation.clone(),
+            )
+        } else {
+            self.apply_observation(&observation, epoch_of(current.as_ref()))?
+        };
+        self.observations.push(ObservationRecord {
+            origin: origin_of(observation.sequence),
+            observation: recorded,
+            outcome: outcome.clone(),
+            received_at,
+        });
+        Ok(outcome)
+    }
+
+    /// The current view: entries of the node's current epoch, highest trust
+    /// first. The effective entry is the first one.
+    fn lifecycle_view(&self, index: usize) -> LifecycleView {
+        let node = &self.nodes[index];
+        let epoch = epoch_of(node.native_session.as_ref());
+        let mut per_source: Vec<LifecycleEntry> = self
+            .lifecycle
+            .iter()
+            .filter(|(key, _)| key.0 == node.invocation_id && key.1 == epoch)
+            .map(|(_, entry)| entry.clone())
+            .collect();
+        per_source.sort_by_key(|entry| core::cmp::Reverse(entry.source));
+        LifecycleView {
+            effective: per_source.first().cloned(),
+            per_source,
+        }
+    }
 }
 
 impl InvocationGraph for InMemoryInvocationGraph {
@@ -458,6 +578,42 @@ impl InvocationGraph for InMemoryInvocationGraph {
             .nodes
             .iter()
             .filter(|n| &n.run_id == run_id && !n.status.is_terminal())
+            .cloned()
+            .collect())
+    }
+
+    fn record_observation(
+        &self,
+        observation: HarnessObservation,
+        received_at: EpochSeconds,
+        _deadline: Deadline,
+    ) -> Result<ObservationOutcome, GraphError> {
+        self.state
+            .borrow_mut()
+            .record_observation(observation, received_at)
+    }
+
+    fn lifecycle(
+        &self,
+        id: &InvocationId,
+        _deadline: Deadline,
+    ) -> Result<LifecycleView, GraphError> {
+        let state = self.state.borrow();
+        let index = state.index(id)?;
+        Ok(state.lifecycle_view(index))
+    }
+
+    fn observation_history(
+        &self,
+        id: &InvocationId,
+        _deadline: Deadline,
+    ) -> Result<Vec<ObservationRecord>, GraphError> {
+        let state = self.state.borrow();
+        state.index(id)?;
+        Ok(state
+            .observations
+            .iter()
+            .filter(|record| &record.observation.invocation_id == id)
             .cloned()
             .collect())
     }

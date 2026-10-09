@@ -13,6 +13,8 @@ use gauntlet_domain::{
     ResultContractPath, RoleId, RunId, RunnerProfileId, SessionRef, WorkspaceRef,
 };
 
+use std::fmt::Debug;
+
 use crate::agent_runner::InvocationFailure;
 use crate::budget_meter::BudgetSlice;
 use crate::contract::ContractFinding;
@@ -20,6 +22,10 @@ use crate::deadline::Deadline;
 use crate::invocation_graph::{
     AdmissionOutcome, AdmissionRefusal, AdmissionRequest, GraphError, GraphLimits, InvocationGraph,
     InvocationNode, NativeSessionBinding, NodeStatus, ResultBinding,
+};
+use crate::lifecycle::{
+    HarnessObservation, LifecycleState, LifecycleView, ObservationOutcome, ObservationRecord,
+    ObservationSequence, ObservationSource, SequenceOrigin,
 };
 
 /// The suite's name in findings.
@@ -1220,6 +1226,1211 @@ fn unknown_invocations_are_reported(factory: &dyn InvocationGraphFactory) -> Vec
     })
 }
 
+// E3a: lifecycle observation sequencing. Every case re-reads the view or the
+// history after each refused, ignored, or terminal observation to prove it had
+// no effect.
+
+const LIFECYCLE_OBSERVED_AT: u64 = 1_800_000_050;
+const LIFECYCLE_RECEIVED_AT: u64 = 1_800_000_051;
+const LIFECYCLE_LATE_RECEIVED_AT: u64 = 1_800_000_090;
+const LIFECYCLE_FINAL_RECEIVED_AT: u64 = 1_800_000_095;
+const LIFECYCLE_LAST_RECEIVED_AT: u64 = 1_800_000_096;
+const SEQ_FIRST: u64 = 1;
+const SEQ_SECOND: u64 = 2;
+const SEQ_THIRD: u64 = 3;
+const SEQ_EARLY: u64 = 42;
+const SEQ_LATE: u64 = 43;
+const SEQ_HIGHEST: u64 = 100;
+const SEQ_FAR_FUTURE: u64 = 999;
+const EPOCH_NONE: u32 = 0;
+const EPOCH_FIRST: u32 = 1;
+const EPOCH_SECOND: u32 = 2;
+const HISTORY_LEN_LATE: usize = 2;
+const HISTORY_LEN_REPLAY: usize = 2;
+const HISTORY_LEN_WRONG_BINDING: usize = 3;
+const HISTORY_LEN_PRE_SESSION: usize = 3;
+const HISTORY_LEN_TERMINAL: usize = 3;
+const HISTORY_LEN_RECEIPT: usize = 4;
+const TWO_SOURCES: usize = 2;
+
+/// Compares two values; the detail names what was wanted and what was seen.
+fn want<T: PartialEq + Debug>(actual: T, expected: T, what: &str) -> Result<(), String> {
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(format!("{what}: got {actual:?}, want {expected:?}"))
+    }
+}
+
+fn bound(name: &str, epoch: u32) -> NativeSessionBinding {
+    NativeSessionBinding {
+        session: session(name),
+        epoch,
+    }
+}
+
+fn observation(
+    id: &InvocationId,
+    native: Option<NativeSessionBinding>,
+    state: LifecycleState,
+    source: ObservationSource,
+    sequence: ObservationSequence,
+) -> HarnessObservation {
+    HarnessObservation {
+        invocation_id: id.clone(),
+        native_session: native,
+        state,
+        source,
+        observed_at: EpochSeconds::new(LIFECYCLE_OBSERVED_AT),
+        sequence,
+    }
+}
+
+fn observe(
+    graph: &dyn InvocationGraph,
+    observation: HarnessObservation,
+    received_at: u64,
+) -> Result<ObservationOutcome, String> {
+    g(graph.record_observation(observation, EpochSeconds::new(received_at), dl()))
+}
+
+fn view_of(graph: &dyn InvocationGraph, id: &InvocationId) -> Result<LifecycleView, String> {
+    g(graph.lifecycle(id, dl()))
+}
+
+fn history_of(
+    graph: &dyn InvocationGraph,
+    id: &InvocationId,
+) -> Result<Vec<ObservationRecord>, String> {
+    g(graph.observation_history(id, dl()))
+}
+
+fn effective_state(view: &LifecycleView) -> Option<LifecycleState> {
+    view.effective.as_ref().map(|entry| entry.state)
+}
+
+fn attach(
+    graph: &dyn InvocationGraph,
+    id: &InvocationId,
+    name: &str,
+) -> Result<NativeSessionBinding, String> {
+    g(graph.attach_native_session(id, session(name), dl()))
+}
+
+/// Admits a root and one child of it under the run.
+fn admit_pair(
+    graph: &dyn InvocationGraph,
+    run_id: &RunId,
+    root: &InvocationId,
+    child: &InvocationId,
+) -> Result<(), String> {
+    admit_ok(graph, root_request(root, run_id, "key-root"))?;
+    admit_ok(graph, request(child, run_id, Some(root), "key-child"))?;
+    Ok(())
+}
+
+/// Case: a late, lower sequence from the same source is IgnoredStale and the
+/// view stays on the higher sequence (seq 43 idle, then late seq 42 working).
+fn lifecycle_late_lower_sequence_is_ignored_stale(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_late_lower_sequence_is_ignored_stale";
+    const RULE: &str = "E3a: a source-provided sequence not above the last applied one of its key is IgnoredStale, and the view never rolls back";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let idle = observation(
+            &child,
+            Some(binding.clone()),
+            LifecycleState::Idle,
+            ObservationSource::Structured,
+            ObservationSequence::SourceProvided(SEQ_LATE),
+        );
+        want(
+            observe(graph.as_ref(), idle, LIFECYCLE_RECEIVED_AT)?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_LATE,
+                previous: None,
+            },
+            "seq 43 idle",
+        )?;
+        let before = view_of(graph.as_ref(), &child)?;
+        let late = observation(
+            &child,
+            Some(binding),
+            LifecycleState::Working,
+            ObservationSource::Structured,
+            ObservationSequence::SourceProvided(SEQ_EARLY),
+        );
+        want(
+            observe(graph.as_ref(), late, LIFECYCLE_LATE_RECEIVED_AT)?,
+            ObservationOutcome::IgnoredStale {
+                last_applied: SEQ_LATE,
+            },
+            "late seq 42 working",
+        )?;
+        let after = view_of(graph.as_ref(), &child)?;
+        want(
+            after.clone(),
+            before,
+            "the late observation changed the view",
+        )?;
+        want(
+            effective_state(&after),
+            Some(LifecycleState::Idle),
+            "effective state after the late observation",
+        )?;
+        let history = history_of(graph.as_ref(), &child)?;
+        want(history.len(), HISTORY_LEN_LATE, "history length")?;
+        want(
+            history.last().map(|record| record.outcome.clone()),
+            Some(ObservationOutcome::IgnoredStale {
+                last_applied: SEQ_LATE,
+            }),
+            "outcome of the late observation in history",
+        )
+    })
+}
+
+/// Case: replaying an applied sequence number is ignored and changes nothing.
+fn lifecycle_equal_sequence_replay_is_ignored(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_equal_sequence_replay_is_ignored";
+    const RULE: &str =
+        "E3a: a source-provided sequence equal to the last applied one is IgnoredStale";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let first = observation(
+            &child,
+            Some(binding.clone()),
+            LifecycleState::Idle,
+            ObservationSource::Structured,
+            ObservationSequence::SourceProvided(SEQ_LATE),
+        );
+        want(
+            observe(graph.as_ref(), first, LIFECYCLE_RECEIVED_AT)?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_LATE,
+                previous: None,
+            },
+            "first seq 43",
+        )?;
+        let before = view_of(graph.as_ref(), &child)?;
+        let replay = observation(
+            &child,
+            Some(binding),
+            LifecycleState::Working,
+            ObservationSource::Structured,
+            ObservationSequence::SourceProvided(SEQ_LATE),
+        );
+        want(
+            observe(graph.as_ref(), replay, LIFECYCLE_LATE_RECEIVED_AT)?,
+            ObservationOutcome::IgnoredStale {
+                last_applied: SEQ_LATE,
+            },
+            "replayed seq 43",
+        )?;
+        want(
+            view_of(graph.as_ref(), &child)?,
+            before,
+            "the replayed observation changed the view",
+        )?;
+        want(
+            history_of(graph.as_ref(), &child)?.len(),
+            HISTORY_LEN_REPLAY,
+            "replay is recorded in history",
+        )
+    })
+}
+
+/// Case: a higher sequence applies, and reports the state it replaced.
+fn lifecycle_higher_sequence_applies(factory: &dyn InvocationGraphFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_higher_sequence_applies";
+    const RULE: &str = "E3a: a source-provided sequence above the last applied one applies and becomes the entry of its key";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let idle = observation(
+            &child,
+            Some(binding.clone()),
+            LifecycleState::Idle,
+            ObservationSource::Structured,
+            ObservationSequence::SourceProvided(SEQ_LATE),
+        );
+        observe(graph.as_ref(), idle, LIFECYCLE_RECEIVED_AT)?;
+        let working = observation(
+            &child,
+            Some(binding),
+            LifecycleState::Working,
+            ObservationSource::Structured,
+            ObservationSequence::SourceProvided(SEQ_HIGHEST),
+        );
+        want(
+            observe(graph.as_ref(), working, LIFECYCLE_LATE_RECEIVED_AT)?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_HIGHEST,
+                previous: Some(LifecycleState::Idle),
+            },
+            "seq 100 working",
+        )?;
+        let view = view_of(graph.as_ref(), &child)?;
+        want(
+            effective_state(&view),
+            Some(LifecycleState::Working),
+            "effective state after seq 100",
+        )?;
+        want(
+            view.effective.map(|entry| entry.sequence),
+            Some(SEQ_HIGHEST),
+            "effective sequence",
+        )?;
+        want(view.per_source.len(), 1, "one entry for the one source")
+    })
+}
+
+/// Case: sources sequence independently, and the effective entry is the
+/// highest-trust source (Screen working + Structured idle is Idle).
+fn lifecycle_sources_are_independent_and_trust_ranked(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_sources_are_independent_and_trust_ranked";
+    const RULE: &str = "E3a: each source sequences independently; the effective entry is the highest-trust source with an applied observation";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let screen = observation(
+            &child,
+            Some(binding.clone()),
+            LifecycleState::Working,
+            ObservationSource::Screen,
+            ObservationSequence::SourceProvided(SEQ_HIGHEST),
+        );
+        want(
+            observe(graph.as_ref(), screen, LIFECYCLE_RECEIVED_AT)?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_HIGHEST,
+                previous: None,
+            },
+            "screen seq 100",
+        )?;
+        let structured = observation(
+            &child,
+            Some(binding),
+            LifecycleState::Idle,
+            ObservationSource::Structured,
+            ObservationSequence::SourceProvided(SEQ_FIRST),
+        );
+        want(
+            observe(graph.as_ref(), structured, LIFECYCLE_LATE_RECEIVED_AT)?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_FIRST,
+                previous: None,
+            },
+            "structured seq 1 is not stale against the screen sequence",
+        )?;
+        let view = view_of(graph.as_ref(), &child)?;
+        want(
+            view.effective.as_ref().map(|entry| entry.source),
+            Some(ObservationSource::Structured),
+            "effective source",
+        )?;
+        want(
+            effective_state(&view),
+            Some(LifecycleState::Idle),
+            "structured idle outranks screen working",
+        )?;
+        want(
+            view.per_source
+                .iter()
+                .map(|entry| entry.source)
+                .collect::<Vec<_>>(),
+            vec![ObservationSource::Structured, ObservationSource::Screen],
+            "per-source entries, highest trust first",
+        )
+    })
+}
+
+/// Case: with only a process observation the effective entry is that process
+/// entry, and a later screen observation does not displace it.
+fn lifecycle_process_only_entry_is_effective(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_process_only_entry_is_effective";
+    const RULE: &str = "E3a: a process entry is effective when no structured entry exists, and a lower-trust screen entry does not displace it";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let process = observation(
+            &child,
+            Some(binding.clone()),
+            LifecycleState::Blocked,
+            ObservationSource::Process,
+            ObservationSequence::SourceProvided(SEQ_FIRST),
+        );
+        observe(graph.as_ref(), process, LIFECYCLE_RECEIVED_AT)?;
+        let view = view_of(graph.as_ref(), &child)?;
+        want(
+            view.effective.as_ref().map(|entry| entry.source),
+            Some(ObservationSource::Process),
+            "process-only effective source",
+        )?;
+        want(
+            effective_state(&view),
+            Some(LifecycleState::Blocked),
+            "process-only effective state",
+        )?;
+        let screen = observation(
+            &child,
+            Some(binding),
+            LifecycleState::Working,
+            ObservationSource::Screen,
+            ObservationSequence::SourceProvided(SEQ_FIRST),
+        );
+        observe(graph.as_ref(), screen, LIFECYCLE_LATE_RECEIVED_AT)?;
+        let after = view_of(graph.as_ref(), &child)?;
+        want(
+            effective_state(&after),
+            Some(LifecycleState::Blocked),
+            "a screen entry displaced the process entry",
+        )?;
+        want(
+            after.per_source.len(),
+            TWO_SOURCES,
+            "screen and process each keep one entry",
+        )
+    })
+}
+
+/// Case: Gauntlet-assigned sequences are 1, 2, 3 per (invocation, epoch,
+/// source), independent across sources, and recorded with their origin.
+fn lifecycle_gauntlet_sequences_count_per_key(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_gauntlet_sequences_count_per_key";
+    const RULE: &str = "E3a: a GauntletAssigned sequence is last applied + 1 per (invocation, epoch, source), always applied";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let gauntlet = |state: LifecycleState, source: ObservationSource| {
+            observation(
+                &child,
+                Some(binding.clone()),
+                state,
+                source,
+                ObservationSequence::GauntletAssigned,
+            )
+        };
+        want(
+            observe(
+                graph.as_ref(),
+                gauntlet(LifecycleState::Working, ObservationSource::Screen),
+                LIFECYCLE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_FIRST,
+                previous: None,
+            },
+            "screen assigned 1",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                gauntlet(LifecycleState::Blocked, ObservationSource::Screen),
+                LIFECYCLE_LATE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_SECOND,
+                previous: Some(LifecycleState::Working),
+            },
+            "screen assigned 2",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                gauntlet(LifecycleState::Idle, ObservationSource::Screen),
+                LIFECYCLE_FINAL_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_THIRD,
+                previous: Some(LifecycleState::Blocked),
+            },
+            "screen assigned 3",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                gauntlet(LifecycleState::Done, ObservationSource::Structured),
+                LIFECYCLE_LAST_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_FIRST,
+                previous: None,
+            },
+            "structured assigned 1 (independent of screen)",
+        )?;
+        let view = view_of(graph.as_ref(), &child)?;
+        let structured = view
+            .effective
+            .ok_or_else(|| "no effective entry after four applied observations".to_owned())?;
+        want(structured.sequence, SEQ_FIRST, "structured entry sequence")?;
+        want(
+            structured.origin,
+            SequenceOrigin::GauntletAssigned,
+            "structured entry origin",
+        )?;
+        let screen = view
+            .per_source
+            .iter()
+            .find(|entry| entry.source == ObservationSource::Screen)
+            .ok_or_else(|| "no screen entry in the view".to_owned())?;
+        want(screen.sequence, SEQ_THIRD, "screen entry sequence")?;
+        let history = history_of(graph.as_ref(), &child)?;
+        let third = history
+            .get(2)
+            .ok_or_else(|| "history lacks the third observation".to_owned())?;
+        want(
+            third.observation.sequence,
+            ObservationSequence::SourceProvided(SEQ_THIRD),
+            "history records the sequence actually used",
+        )?;
+        want(
+            third.origin,
+            SequenceOrigin::GauntletAssigned,
+            "history records who assigned the sequence",
+        )
+    })
+}
+
+/// Case: a new epoch starts its sequences again; the superseded epoch's
+/// entries remain history and leave the current view.
+fn lifecycle_gauntlet_sequences_restart_per_epoch(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_gauntlet_sequences_restart_per_epoch";
+    const RULE: &str =
+        "E3a: sequences restart at each epoch; a superseded epoch's entries are history only";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let first = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let gauntlet = |binding: &NativeSessionBinding, state: LifecycleState| {
+            observation(
+                &child,
+                Some(binding.clone()),
+                state,
+                ObservationSource::Screen,
+                ObservationSequence::GauntletAssigned,
+            )
+        };
+        observe(
+            graph.as_ref(),
+            gauntlet(&first, LifecycleState::Working),
+            LIFECYCLE_RECEIVED_AT,
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                gauntlet(&first, LifecycleState::Idle),
+                LIFECYCLE_LATE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_SECOND,
+                previous: Some(LifecycleState::Working),
+            },
+            "epoch 1 second assignment",
+        )?;
+        let second = attach(graph.as_ref(), &child, SESSION_TWO)?;
+        want(second.epoch, EPOCH_SECOND, "second attach epoch")?;
+        want(
+            observe(
+                graph.as_ref(),
+                gauntlet(&second, LifecycleState::Working),
+                LIFECYCLE_FINAL_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_FIRST,
+                previous: None,
+            },
+            "epoch 2 restarts at 1",
+        )?;
+        let view = view_of(graph.as_ref(), &child)?;
+        want(
+            view.per_source.len(),
+            1,
+            "only the current epoch's entries are in the view",
+        )?;
+        want(
+            view.effective.map(|entry| (entry.epoch, entry.sequence)),
+            Some((EPOCH_SECOND, SEQ_FIRST)),
+            "effective entry is the epoch 2 entry",
+        )
+    })
+}
+
+/// Case: an observation naming a superseded binding is rejected and leaves the
+/// view unchanged; the new binding's sequence restarts at 1 and applies.
+fn lifecycle_stale_session_observation_is_rejected(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_stale_session_observation_is_rejected";
+    const RULE: &str = "E3a: an observation naming a superseded session binding is RejectedStaleSession; the new session's sequence restarts";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let s1 = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    Some(s1.clone()),
+                    LifecycleState::Idle,
+                    ObservationSource::Structured,
+                    ObservationSequence::SourceProvided(SEQ_HIGHEST),
+                ),
+                LIFECYCLE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_HIGHEST,
+                previous: None,
+            },
+            "S1 seq 100 under epoch 1",
+        )?;
+        let s2 = attach(graph.as_ref(), &child, SESSION_TWO)?;
+        want(s2.epoch, EPOCH_SECOND, "replacement epoch")?;
+        let before = view_of(graph.as_ref(), &child)?;
+        want(
+            effective_state(&before),
+            None,
+            "a fresh epoch has no effective entry",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    Some(s1),
+                    LifecycleState::Working,
+                    ObservationSource::Structured,
+                    ObservationSequence::SourceProvided(SEQ_FAR_FUTURE),
+                ),
+                LIFECYCLE_LATE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::RejectedStaleSession {
+                current: Some(s2.clone()),
+            },
+            "S1 seq 999 after replacement",
+        )?;
+        want(
+            view_of(graph.as_ref(), &child)?,
+            before,
+            "the rejected S1 observation changed the view",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    Some(s2),
+                    LifecycleState::Working,
+                    ObservationSource::Structured,
+                    ObservationSequence::SourceProvided(SEQ_FIRST),
+                ),
+                LIFECYCLE_FINAL_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_FIRST,
+                previous: None,
+            },
+            "S2 seq 1 under epoch 2",
+        )?;
+        let view = view_of(graph.as_ref(), &child)?;
+        want(
+            effective_state(&view),
+            Some(LifecycleState::Working),
+            "S2 working is effective",
+        )?;
+        want(
+            history_of(graph.as_ref(), &child)?
+                .iter()
+                .filter(|record| {
+                    matches!(
+                        record.outcome,
+                        ObservationOutcome::RejectedStaleSession { .. }
+                    )
+                })
+                .count(),
+            1,
+            "one rejection in history",
+        )
+    })
+}
+
+/// Case: a binding that differs in epoch, or in session ref, or an absent
+/// binding while a session is attached, is RejectedStaleSession.
+fn lifecycle_wrong_binding_is_rejected(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_wrong_binding_is_rejected";
+    const RULE: &str =
+        "E3a: an observation must name the node's current binding exactly (session ref and epoch)";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let current = attach(graph.as_ref(), &child, SESSION_TWO)?;
+        let before = view_of(graph.as_ref(), &child)?;
+        let named = [
+            Some(bound(SESSION_TWO, EPOCH_FIRST)),
+            Some(bound(SESSION_ONE, EPOCH_SECOND)),
+            None,
+        ];
+        for (index, native) in named.into_iter().enumerate() {
+            let outcome = observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    native,
+                    LifecycleState::Working,
+                    ObservationSource::Structured,
+                    ObservationSequence::SourceProvided(SEQ_FIRST),
+                ),
+                LIFECYCLE_RECEIVED_AT,
+            )?;
+            want(
+                outcome,
+                ObservationOutcome::RejectedStaleSession {
+                    current: Some(current.clone()),
+                },
+                &format!("wrong binding #{index}"),
+            )?;
+        }
+        want(
+            view_of(graph.as_ref(), &child)?,
+            before,
+            "a wrong-binding observation changed the view",
+        )?;
+        want(
+            history_of(graph.as_ref(), &child)?.len(),
+            HISTORY_LEN_WRONG_BINDING,
+            "rejections are recorded in history",
+        )
+    })
+}
+
+/// Case: before any session an observation with no binding applies at epoch 0;
+/// one naming a binding is rejected; once a session is attached the epoch-0
+/// entries leave the view and a binding-less observation is rejected.
+fn lifecycle_pre_session_observation_needs_no_binding(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_pre_session_observation_needs_no_binding";
+    const RULE: &str = "E3a: with no session attached only observations naming no binding apply (epoch 0); once attached, binding-less observations are rejected";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    None,
+                    LifecycleState::Working,
+                    ObservationSource::Screen,
+                    ObservationSequence::SourceProvided(SEQ_FIRST),
+                ),
+                LIFECYCLE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_FIRST,
+                previous: None,
+            },
+            "pre-session observation without a binding",
+        )?;
+        let pre = view_of(graph.as_ref(), &child)?;
+        want(
+            pre.effective.map(|entry| entry.epoch),
+            Some(EPOCH_NONE),
+            "pre-session entries are epoch 0",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    Some(bound(SESSION_ONE, EPOCH_FIRST)),
+                    LifecycleState::Working,
+                    ObservationSource::Structured,
+                    ObservationSequence::SourceProvided(SEQ_FIRST),
+                ),
+                LIFECYCLE_LATE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::RejectedStaleSession { current: None },
+            "pre-session observation naming a binding",
+        )?;
+        let session = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        want(
+            view_of(graph.as_ref(), &child)?.effective,
+            None,
+            "attaching a session starts a new epoch with no entries",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    None,
+                    LifecycleState::Idle,
+                    ObservationSource::Screen,
+                    ObservationSequence::SourceProvided(SEQ_SECOND),
+                ),
+                LIFECYCLE_FINAL_RECEIVED_AT,
+            )?,
+            ObservationOutcome::RejectedStaleSession {
+                current: Some(session),
+            },
+            "binding-less observation after attach",
+        )?;
+        want(
+            history_of(graph.as_ref(), &child)?.len(),
+            HISTORY_LEN_PRE_SESSION,
+            "every pre-session observation is recorded",
+        )
+    })
+}
+
+/// Case: a terminal node ignores every observation (IgnoredTerminal), the view
+/// is unchanged, and the node's status does not move.
+fn lifecycle_terminal_node_ignores_observations(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_terminal_node_ignores_observations";
+    const RULE: &str = "E3a: observations on a terminal node are IgnoredTerminal, appended to history, and leave the view unchanged";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        observe(
+            graph.as_ref(),
+            observation(
+                &child,
+                Some(binding.clone()),
+                LifecycleState::Working,
+                ObservationSource::Structured,
+                ObservationSequence::SourceProvided(SEQ_FIRST),
+            ),
+            LIFECYCLE_RECEIVED_AT,
+        )?;
+        let before = view_of(graph.as_ref(), &child)?;
+        g(graph.time_out(&child, EpochSeconds::new(COMPLETE_AT), dl()))?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    Some(binding),
+                    LifecycleState::Done,
+                    ObservationSource::Structured,
+                    ObservationSequence::SourceProvided(SEQ_SECOND),
+                ),
+                LIFECYCLE_LATE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::IgnoredTerminal,
+            "done after timeout",
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    None,
+                    LifecycleState::Idle,
+                    ObservationSource::Screen,
+                    ObservationSequence::GauntletAssigned,
+                ),
+                LIFECYCLE_FINAL_RECEIVED_AT,
+            )?,
+            ObservationOutcome::IgnoredTerminal,
+            "gauntlet-assigned after timeout",
+        )?;
+        want(
+            view_of(graph.as_ref(), &child)?,
+            before,
+            "observations after timeout changed the view",
+        )?;
+        let node = g(graph.node(&child, dl()))?.ok_or_else(|| "child vanished".to_owned())?;
+        want(
+            node.status,
+            NodeStatus::TimedOut,
+            "status after observations",
+        )?;
+        let history = history_of(graph.as_ref(), &child)?;
+        want(
+            history.len(),
+            HISTORY_LEN_TERMINAL,
+            "terminal observations are appended to history",
+        )?;
+        want(
+            history
+                .iter()
+                .skip(1)
+                .all(|record| record.outcome == ObservationOutcome::IgnoredTerminal),
+            true,
+            "every post-terminal record is IgnoredTerminal",
+        )
+    })
+}
+
+/// Case: Done and Idle observations leave the node's status, binding, and
+/// budget untouched, and the node stays non-terminal.
+fn lifecycle_done_and_idle_leave_node_status_unchanged(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_done_and_idle_leave_node_status_unchanged";
+    const RULE: &str =
+        "E3a hierarchy: harness Done and Idle never change node status, binding, or budget";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        g(graph.mark_running(&child, dl()))?;
+        let subjects = [&child];
+        let before = snapshot(graph.as_ref(), &subjects)?;
+        observe(
+            graph.as_ref(),
+            observation(
+                &child,
+                Some(binding.clone()),
+                LifecycleState::Done,
+                ObservationSource::Structured,
+                ObservationSequence::SourceProvided(SEQ_FIRST),
+            ),
+            LIFECYCLE_RECEIVED_AT,
+        )?;
+        want(
+            observe(
+                graph.as_ref(),
+                observation(
+                    &child,
+                    Some(binding),
+                    LifecycleState::Idle,
+                    ObservationSource::Structured,
+                    ObservationSequence::GauntletAssigned,
+                ),
+                LIFECYCLE_LATE_RECEIVED_AT,
+            )?,
+            ObservationOutcome::Applied {
+                sequence: SEQ_SECOND,
+                previous: Some(LifecycleState::Done),
+            },
+            "idle after done",
+        )?;
+        ensure_unchanged(
+            graph.as_ref(),
+            &subjects,
+            &before,
+            "done and idle observations",
+        )?;
+        let node = g(graph.node(&child, dl()))?.ok_or_else(|| "child vanished".to_owned())?;
+        ensure(!node.status.is_terminal(), || {
+            format!("observations made the node terminal: {}", node.status)
+        })?;
+        want(
+            effective_state(&view_of(graph.as_ref(), &child)?),
+            Some(LifecycleState::Idle),
+            "the view still reports the observed idle",
+        )
+    })
+}
+
+/// Case: a Done observation cannot complete a node (a mismatched binding is
+/// still refused), and its node fails and cancels exactly as a node without
+/// the observation does.
+fn lifecycle_done_observation_does_not_complete_or_fail(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_done_observation_does_not_complete_or_fail";
+    const RULE: &str = "E3a hierarchy: a Done observation neither completes nor fails a node, and cancel/fail behave exactly as without it";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let run_id = run("1");
+        let (root, with_done, without_done, fail_done, fail_plain) =
+            (inv("1"), inv("2"), inv("3"), inv("4"), inv("5"));
+        admit_ok(graph.as_ref(), root_request(&root, &run_id, "key-root"))?;
+        for (id, key) in [
+            (&with_done, "key-done"),
+            (&without_done, "key-plain"),
+            (&fail_done, "key-fail-done"),
+            (&fail_plain, "key-fail-plain"),
+        ] {
+            admit_ok(graph.as_ref(), request(id, &run_id, Some(&root), key))?;
+        }
+        let done_binding = attach(graph.as_ref(), &with_done, SESSION_ONE)?;
+        let fail_binding = attach(graph.as_ref(), &fail_done, SESSION_TWO)?;
+        for id in [&with_done, &without_done, &fail_done, &fail_plain] {
+            g(graph.mark_running(id, dl()))?;
+        }
+        observe(
+            graph.as_ref(),
+            observation(
+                &with_done,
+                Some(done_binding.clone()),
+                LifecycleState::Done,
+                ObservationSource::Structured,
+                ObservationSequence::SourceProvided(SEQ_FIRST),
+            ),
+            LIFECYCLE_RECEIVED_AT,
+        )?;
+        observe(
+            graph.as_ref(),
+            observation(
+                &fail_done,
+                Some(fail_binding),
+                LifecycleState::Done,
+                ObservationSource::Structured,
+                ObservationSequence::SourceProvided(SEQ_FIRST),
+            ),
+            LIFECYCLE_RECEIVED_AT,
+        )?;
+        ensure(
+            matches!(
+                graph.complete(
+                    &with_done,
+                    binding(CONTRACT_B, DIGEST_A),
+                    EpochSeconds::new(COMPLETE_AT),
+                    dl()
+                ),
+                Err(GraphError::ContractMismatch { .. })
+            ),
+            || "a Done observation let a mismatched binding complete the node".to_owned(),
+        )?;
+        let still = g(graph.node(&with_done, dl()))?
+            .ok_or_else(|| "the admitted child is missing".to_owned())?;
+        want(
+            still.status,
+            NodeStatus::Running,
+            "status after a refused completion",
+        )?;
+
+        let failure = InvocationFailure::Execution;
+        let failed_with = g(graph.fail(&fail_done, failure, EpochSeconds::new(COMPLETE_AT), dl()))?;
+        let failed_plain =
+            g(graph.fail(&fail_plain, failure, EpochSeconds::new(COMPLETE_AT), dl()))?;
+        want(failed_with.status, failed_plain.status, "fail status")?;
+        want(
+            failed_with.terminal_at,
+            failed_plain.terminal_at,
+            "fail terminal time",
+        )?;
+
+        let cancelled = g(graph.cancel_subtree(&root, EpochSeconds::new(CANCEL_AT), dl()))?;
+        want(
+            cancelled,
+            vec![root.clone(), with_done.clone(), without_done.clone()],
+            "cancel_subtree returns the same ids with or without the Done observation",
+        )
+    })
+}
+
+/// Case: every received observation is in history in receipt order with its
+/// outcome, origin, and receipt time; the sequence used is recorded.
+fn lifecycle_history_records_every_received_observation(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_history_records_every_received_observation";
+    const RULE: &str = "E3a: observation history is append-only and holds every received observation, ignored and rejected ones included, in receipt order";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let (run_id, root, child) = (run("1"), inv("1"), inv("2"));
+        admit_pair(graph.as_ref(), &run_id, &root, &child)?;
+        let binding = attach(graph.as_ref(), &child, SESSION_ONE)?;
+        let working = |sequence: ObservationSequence| {
+            observation(
+                &child,
+                Some(binding.clone()),
+                LifecycleState::Working,
+                ObservationSource::Structured,
+                sequence,
+            )
+        };
+        let received = [
+            (
+                working(ObservationSequence::SourceProvided(SEQ_FIRST)),
+                LIFECYCLE_RECEIVED_AT,
+            ),
+            (
+                working(ObservationSequence::SourceProvided(SEQ_FIRST)),
+                LIFECYCLE_LATE_RECEIVED_AT,
+            ),
+            (
+                observation(
+                    &child,
+                    None,
+                    LifecycleState::Working,
+                    ObservationSource::Structured,
+                    ObservationSequence::SourceProvided(SEQ_LATE),
+                ),
+                LIFECYCLE_FINAL_RECEIVED_AT,
+            ),
+            (
+                observation(
+                    &child,
+                    Some(binding.clone()),
+                    LifecycleState::Idle,
+                    ObservationSource::Structured,
+                    ObservationSequence::GauntletAssigned,
+                ),
+                LIFECYCLE_LAST_RECEIVED_AT,
+            ),
+        ];
+        let mut outcomes = Vec::new();
+        for (observation, at) in received {
+            outcomes.push(observe(graph.as_ref(), observation, at)?);
+        }
+        let expected_outcomes = vec![
+            ObservationOutcome::Applied {
+                sequence: SEQ_FIRST,
+                previous: None,
+            },
+            ObservationOutcome::IgnoredStale {
+                last_applied: SEQ_FIRST,
+            },
+            ObservationOutcome::RejectedStaleSession {
+                current: Some(binding),
+            },
+            ObservationOutcome::Applied {
+                sequence: SEQ_SECOND,
+                previous: Some(LifecycleState::Working),
+            },
+        ];
+        want(
+            outcomes,
+            expected_outcomes,
+            "outcomes returned by the writes",
+        )?;
+
+        let history = history_of(graph.as_ref(), &child)?;
+        want(history.len(), HISTORY_LEN_RECEIPT, "history length")?;
+        want(
+            history
+                .iter()
+                .map(|record| record.received_at)
+                .collect::<Vec<_>>(),
+            [
+                LIFECYCLE_RECEIVED_AT,
+                LIFECYCLE_LATE_RECEIVED_AT,
+                LIFECYCLE_FINAL_RECEIVED_AT,
+                LIFECYCLE_LAST_RECEIVED_AT,
+            ]
+            .map(EpochSeconds::new)
+            .to_vec(),
+            "receipt times in receipt order",
+        )?;
+        want(
+            history
+                .iter()
+                .map(|record| record.origin)
+                .collect::<Vec<_>>(),
+            vec![
+                SequenceOrigin::SourceProvided,
+                SequenceOrigin::SourceProvided,
+                SequenceOrigin::SourceProvided,
+                SequenceOrigin::GauntletAssigned,
+            ],
+            "origins in receipt order",
+        )?;
+        want(
+            history.last().map(|record| record.observation.sequence),
+            Some(ObservationSequence::SourceProvided(SEQ_SECOND)),
+            "the assigned sequence is recorded as used",
+        )?;
+        want(
+            history
+                .iter()
+                .map(|record| record.outcome.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                ObservationOutcome::Applied {
+                    sequence: SEQ_FIRST,
+                    previous: None,
+                },
+                ObservationOutcome::IgnoredStale {
+                    last_applied: SEQ_FIRST,
+                },
+                ObservationOutcome::RejectedStaleSession {
+                    current: Some(bound(SESSION_ONE, EPOCH_FIRST)),
+                },
+                ObservationOutcome::Applied {
+                    sequence: SEQ_SECOND,
+                    previous: Some(LifecycleState::Working),
+                },
+            ],
+            "history outcomes match the writes",
+        )
+    })
+}
+
+/// Case: the three lifecycle queries report an unknown invocation as
+/// UnknownInvocation.
+fn lifecycle_unknown_invocation_is_reported(
+    factory: &dyn InvocationGraphFactory,
+) -> Vec<ContractFinding> {
+    const CASE: &str = "lifecycle_unknown_invocation_is_reported";
+    const RULE: &str = "E3a: record_observation, lifecycle and observation_history on an unknown invocation are UnknownInvocation";
+    check(CASE, RULE, || {
+        let graph = build(factory)?;
+        let stranger = inv("9");
+        let probe = observation(
+            &stranger,
+            None,
+            LifecycleState::Working,
+            ObservationSource::Screen,
+            ObservationSequence::GauntletAssigned,
+        );
+        ensure(
+            matches!(
+                graph.record_observation(probe, EpochSeconds::new(LIFECYCLE_RECEIVED_AT), dl()),
+                Err(GraphError::UnknownInvocation { .. })
+            ),
+            || "record_observation of an unknown id was not UnknownInvocation".to_owned(),
+        )?;
+        ensure(
+            matches!(
+                graph.lifecycle(&stranger, dl()),
+                Err(GraphError::UnknownInvocation { .. })
+            ),
+            || "lifecycle() of an unknown id was not UnknownInvocation".to_owned(),
+        )?;
+        ensure(
+            matches!(
+                graph.observation_history(&stranger, dl()),
+                Err(GraphError::UnknownInvocation { .. })
+            ),
+            || "observation_history() of an unknown id was not UnknownInvocation".to_owned(),
+        )
+    })
+}
+
 /// Runs the full `InvocationGraph` contract suite against one factory.
 pub fn invocation_graph_suite(factory: &dyn InvocationGraphFactory) -> Vec<ContractFinding> {
     let mut findings = Vec::new();
@@ -1248,5 +2459,24 @@ pub fn invocation_graph_suite(factory: &dyn InvocationGraphFactory) -> Vec<Contr
     findings.extend(active_nodes_excludes_terminal(factory));
     findings.extend(descendants_order_is_deterministic(factory));
     findings.extend(unknown_invocations_are_reported(factory));
+    findings.extend(lifecycle_late_lower_sequence_is_ignored_stale(factory));
+    findings.extend(lifecycle_equal_sequence_replay_is_ignored(factory));
+    findings.extend(lifecycle_higher_sequence_applies(factory));
+    findings.extend(lifecycle_sources_are_independent_and_trust_ranked(factory));
+    findings.extend(lifecycle_process_only_entry_is_effective(factory));
+    findings.extend(lifecycle_gauntlet_sequences_count_per_key(factory));
+    findings.extend(lifecycle_gauntlet_sequences_restart_per_epoch(factory));
+    findings.extend(lifecycle_stale_session_observation_is_rejected(factory));
+    findings.extend(lifecycle_wrong_binding_is_rejected(factory));
+    findings.extend(lifecycle_pre_session_observation_needs_no_binding(factory));
+    findings.extend(lifecycle_terminal_node_ignores_observations(factory));
+    findings.extend(lifecycle_done_and_idle_leave_node_status_unchanged(factory));
+    findings.extend(lifecycle_done_observation_does_not_complete_or_fail(
+        factory,
+    ));
+    findings.extend(lifecycle_history_records_every_received_observation(
+        factory,
+    ));
+    findings.extend(lifecycle_unknown_invocation_is_reported(factory));
     findings
 }
