@@ -11,7 +11,8 @@
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "bun test",
     "lint": "biome check .",
-    "lint:fix": "biome check --write ."
+    "lint:fix": "biome check --write .",
+    "codemode-host": "bun src/codemode/cli.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.12",
@@ -22,6 +23,7 @@
   "dependencies": {
     "@opentui/core": "0.5.11",
     "@opentui/react": "0.5.11",
+    "quickjs-wasi": "3.6.2",
     "react": "19.2.8",
     "react-reconciler": "0.33.0"
   }
