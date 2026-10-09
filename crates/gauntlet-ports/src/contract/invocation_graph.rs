@@ -785,7 +785,37 @@ fn complete_with_matching_binding_succeeds(
         ensure(
             node.terminal_at == Some(EpochSeconds::new(COMPLETE_AT)),
             || "terminal_at does not carry the completion instant".to_owned(),
-        )
+        )?;
+        let expected = Some(Digest::parse(DIGEST_B).expect("suite digest is valid"));
+        ensure(node.result_digest == expected, || {
+            format!(
+                "the returned completion carries result digest {:?}, want the binding's",
+                node.result_digest
+            )
+        })?;
+        let reread = g(graph.node(&child, dl()))?;
+        ensure(
+            reread.as_ref().map(|n| &n.result_digest) == Some(&expected),
+            || {
+                format!(
+                    "the re-read completed node carries {reread:?}, want the binding's result digest"
+                )
+            },
+        )?;
+        let pending = inv("3");
+        admit_ok(
+            graph.as_ref(),
+            request(&pending, &run_id, Some(&root), "key-pending"),
+        )?;
+        g(graph.mark_running(&pending, dl()))?;
+        for id in [&root, &pending] {
+            let other = g(graph.node(id, dl()))?;
+            ensure(
+                other.as_ref().is_some_and(|n| n.result_digest.is_none()),
+                || format!("non-completed node {id} carries a result digest: {other:?}"),
+            )?;
+        }
+        Ok(())
     })
 }
 

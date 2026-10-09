@@ -231,6 +231,7 @@ impl State {
             budget: request.budget,
             status: NodeStatus::Admitted,
             native_session: None,
+            result_digest: None,
             admitted_at: request.at,
             terminal_at: None,
         };
@@ -343,7 +344,11 @@ impl InvocationGraph for InMemoryInvocationGraph {
         {
             return Err(GraphError::ContractMismatch { id: id.clone() });
         }
-        state.settle(id, NodeStatus::Completed, Some(at))
+        let result_digest = binding.result_digest;
+        let mut completed = state.settle(id, NodeStatus::Completed, Some(at))?;
+        completed.result_digest = Some(result_digest.clone());
+        state.nodes[index].result_digest = Some(result_digest);
+        Ok(completed)
     }
 
     fn fail(

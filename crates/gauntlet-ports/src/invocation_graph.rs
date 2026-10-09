@@ -80,6 +80,9 @@ pub struct InvocationNode {
     pub budget: BudgetSlice,
     pub status: NodeStatus,
     pub native_session: Option<NativeSessionBinding>,
+    /// The digest of the schema-valid result, set by `complete`. `None`
+    /// until the node completes; never set by any other transition.
+    pub result_digest: Option<Digest>,
     pub admitted_at: EpochSeconds,
     pub terminal_at: Option<EpochSeconds>,
 }
