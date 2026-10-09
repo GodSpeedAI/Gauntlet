@@ -53,3 +53,21 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 * **Evidence:** the host protocol sends `call` one line at a time, so the Rust `DriverHost` never sees group boundaries and its parallel check (inside `call_group`) is skipped on this path; the JS sandbox is the sole enforcer. The port has no caller-side cancel (cancel happens only at the parent deadline) and `ProgramLimit` has no memory variant (guest heap exhaustion reports as Runtime). A program may finish with unawaited calls in flight (accepted; they are answered and recorded in the trace).
 * **Next move:** if defense in depth is wanted, add an in-flight counter to the protocol (host reports concurrency) and a memory limit variant / cancel input to the port (needs approval).
+
+## OD-10 — native `rlm.spawn` children inherit their Prime parent's MCP caller identity
+
+* **Evidence (Phase I slice 1b, 2026-10-09):** a bridged invocation's `<invocation dir>/agent/settings.json` registers `mcpServers.gauntlet` with `--caller <this invocation id>` (`crates/adapters/gauntlet-adapter-agent-prime/src/mcp_bridge.rs`). Recon of prime-agent 0.9.8: native `rlm.spawn` children run inside the same rpc parent process and reuse that parent's MCP settings, so a `mcp.call_tool("gauntlet", "agents.spawn", ...)` issued from a native child is attributed to the PARENT's invocation id. Live-verified only that the parent reads the provisioned settings (`prime-agent mcp list`, `tests/mcp_bridge_live.rs`); the native-child inheritance itself was not exercised live.
+* **Impact:** an accepted limitation. Gauntlet-admitted children created through `agents.spawn` get their own graph node and their own `--caller` through their own serve process. Only a harness-native child shares the parent's identity, so it cannot claim authority beyond its parent's.
+* **Next move:** route every child through `agents.spawn` (no native `rlm.spawn` under a bridged profile), or give native children a per-child settings scope; then verify live with a real child.
+
+## OD-11 — bridged credentials are symlinks: a token refresh during an invocation does not reach the user's `auth.json`
+
+* **Evidence:** `auth.json` and `models.json` are symlinks from the invocation's agent dir to the user's `~/.prime/agent`, so provider logins resolve without any copy. Prime writes `auth.json` through `atomic_write` (temp file then rename: `.tmp/donor/prime-agent/crates/pa-core/src/settings/storage.rs` and `auth/storage.rs`). A rename replaces the symlink with a regular file inside the invocation dir. The user's file keeps the old refresh token, and the OAuth providers in the user's file (`openai-codex`, `clinepass`) may rotate or revoke that token.
+* **Impact:** after a refresh inside a bridged invocation, the user's global login can go stale. Credentials are not duplicated or exposed, but they are not single-sourced after a refresh either.
+* **Next move:** operator decision. Options: (a) after an invocation, sync a refreshed `auth.json` back to the source under the auth lock; (b) use env API keys for bridged profiles; (c) keep bridged profiles off OAuth providers. Add a test that a refresh is visible at the source.
+
+## OD-12 — the Prime launch inherits the full parent environment; there is no env allowlist
+
+* **Evidence:** `ProcessKernelTransport::submit` and the control calls use `std::process::Command` with no `env_clear()`, so a Prime parent inherits every variable the Gauntlet process has, including provider keys. The phase plan describes an env allowlist that the adapter does not implement. Slice 1b adds only `PRIME_AGENT_CODING_AGENT_DIR` (`rpc_command` in `transport.rs`) and leaves inheritance unchanged.
+* **Impact:** not a regression, but the "env stays an allowlist" premise is false today. Credentials reach the harness through inheritance, not through the bridge.
+* **Next move:** decide whether the Prime launch should `env_clear()` and pass an explicit allowlist (HOME, PATH, TMPDIR, the provider keys the chosen profile needs). That is a behavior change and needs approval.

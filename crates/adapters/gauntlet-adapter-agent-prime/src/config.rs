@@ -27,6 +27,8 @@
 
 use std::path::PathBuf;
 
+use crate::mcp_bridge::McpBridge;
+
 /// The Python child-spawn call dialect: version-gated support for prime-agent
 /// harness evolution. Callable08 uses `await rlm(...)` (0.8 style); Spawn09
 /// uses `await rlm.spawn(...)` (0.9+ style).
@@ -71,6 +73,12 @@ pub const DEFAULT_MAX_DEPTH: u8 = 1;
 /// so the default is generous — but bounded.
 pub const DEFAULT_ADMISSION_TIMEOUT_SECONDS: u64 = 600;
 
+/// The harness's agent-state directory override. Every invocation with a
+/// provisioned MCP bridge is launched with this variable pointing at its own
+/// per-invocation agent directory; the harness's own control calls get the
+/// same value so they address the same state.
+pub const AGENT_DIR_ENV: &str = "PRIME_AGENT_CODING_AGENT_DIR";
+
 /// The prime-agent adapter's typed configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrimeAdapterConfig {
@@ -82,6 +90,9 @@ pub struct PrimeAdapterConfig {
     pub admission_timeout_seconds: u64,
     /// The Python child-spawn call dialect (version-gated support).
     pub spawn_dialect: SpawnDialect,
+    /// The per-invocation MCP bridge, when this runner provisions one. `None`
+    /// (the default) launches the harness exactly as before.
+    pub mcp_bridge: Option<McpBridge>,
 }
 
 impl Default for PrimeAdapterConfig {
@@ -91,6 +102,7 @@ impl Default for PrimeAdapterConfig {
             max_depth: DEFAULT_MAX_DEPTH,
             admission_timeout_seconds: DEFAULT_ADMISSION_TIMEOUT_SECONDS,
             spawn_dialect: SpawnDialect::default(),
+            mcp_bridge: None,
         }
     }
 }
@@ -116,5 +128,6 @@ mod tests {
             std::time::Duration::from_secs(DEFAULT_ADMISSION_TIMEOUT_SECONDS)
         );
         assert_eq!(config.spawn_dialect, SpawnDialect::Spawn09);
+        assert!(config.mcp_bridge.is_none(), "the bridge is off by default");
     }
 }

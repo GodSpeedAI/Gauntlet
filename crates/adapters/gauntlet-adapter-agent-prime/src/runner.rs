@@ -145,6 +145,9 @@ struct PrimeEntry {
     contract_file: PathBuf,
     /// The harness child identifier from the admission handle.
     child: String,
+    /// The per-invocation agent dir the child was launched with, when an MCP
+    /// bridge is provisioned. Scopes every control call on this child.
+    agent_dir: Option<PathBuf>,
     /// The deterministic `rlm(name=…)` invocation name — the orphan
     /// sweep searches the harness by it.
     invocation_name: String,
@@ -574,7 +577,10 @@ impl<T: KernelTransport, C: HarnessControl> PrimeAgentRunner<T, C> {
     /// The bound is the caller's: `cancel` passes the port's deadline;
     /// the timeout path bounds a fresh stop past now.
     fn stop_child(&self, entry: &mut PrimeEntry, bound: Deadline) -> Result<(), AgentError> {
-        match self.control.stop(&entry.child, bound) {
+        match self
+            .control
+            .stop(&entry.child, entry.agent_dir.as_deref(), bound)
+        {
             Ok(()) => Ok(()),
             Err(error @ ControlError::NoSuchChild { .. }) => {
                 entry.control_note = Some(error.to_string());
@@ -591,11 +597,11 @@ impl<T: KernelTransport, C: HarnessControl> PrimeAgentRunner<T, C> {
     /// listing by the deterministic invocation name, stopping any child
     /// discovered. The outcome is appended to `detail` — recorded in the
     /// error, never swallowed.
-    fn sweep_orphans(&self, name: &str, detail: &mut String) {
+    fn sweep_orphans(&self, name: &str, agent_dir: Option<&Path>, detail: &mut String) {
         let bound = Deadline::at_epoch(EpochSeconds::new(
             self.clock.now().get().saturating_add(SWEEP_SPAN_SECONDS),
         ));
-        match self.control.list(bound) {
+        match self.control.list(agent_dir, bound) {
             Ok(records) => {
                 let orphans: Vec<&SubagentRecord> = records
                     .iter()
@@ -606,7 +612,7 @@ impl<T: KernelTransport, C: HarnessControl> PrimeAgentRunner<T, C> {
                     return;
                 }
                 for orphan in orphans {
-                    match self.control.stop(&orphan.session_name, bound) {
+                    match self.control.stop(&orphan.session_name, agent_dir, bound) {
                         Ok(()) => detail.push_str(&format!(
                             " orphan sweep: stopped discovered child {:?}",
                             orphan.session_name
@@ -672,6 +678,17 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
         // The child prompt: role body + explicit result-contract
         // instruction (Annex C.1: the prompt carries the path and the
         // atomic-write protocol).
+        // The per-invocation MCP bridge (slice 1b): the agent dir is
+        // provisioned before any child can start, and a failure refuses
+        // admission. Absent a bridge, the harness is launched as before.
+        let agent_dir = match &self.config().mcp_bridge {
+            Some(bridge) => Some(crate::mcp_bridge::provision(
+                bridge,
+                &files.dir,
+                &spec.invocation_id,
+            )?),
+            None => None,
+        };
         let name = invocation_name(&spec);
         let prompt = compose_child_prompt(
             &spec.prompt,
@@ -708,6 +725,7 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
                 .model_hint
                 .as_ref()
                 .map(|model| model.as_str().to_owned()),
+            agent_dir: agent_dir.clone(),
         };
         let (admission, parent) = match self.transport.submit(&submission, spec.deadline) {
             Ok(pair) => pair,
@@ -726,7 +744,7 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
                     }
                     other => format!("admission of {invocation_id} refused: {other}"),
                 };
-                self.sweep_orphans(&name, &mut detail);
+                self.sweep_orphans(&name, agent_dir.as_deref(), &mut detail);
                 return Err(AgentError::AdmissionRefused { detail });
             }
         };
@@ -754,6 +772,7 @@ impl<T: KernelTransport, C: HarnessControl> AgentRunner for PrimeAgentRunner<T, 
                 spec,
                 contract_file: files.contract_file,
                 child: admission.rlm_child_id,
+                agent_dir,
                 invocation_name: name,
                 session_ref: session_ref.clone(),
                 admission_at,
@@ -1120,11 +1139,20 @@ mod tests {
     struct NoopControl;
 
     impl HarnessControl for NoopControl {
-        fn stop(&self, _child: &str, _deadline: Deadline) -> Result<(), ControlError> {
+        fn stop(
+            &self,
+            _child: &str,
+            _agent_dir: Option<&Path>,
+            _deadline: Deadline,
+        ) -> Result<(), ControlError> {
             Ok(())
         }
 
-        fn list(&self, _deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+        fn list(
+            &self,
+            _agent_dir: Option<&Path>,
+            _deadline: Deadline,
+        ) -> Result<Vec<SubagentRecord>, ControlError> {
             Ok(Vec::new())
         }
     }
@@ -1284,6 +1312,168 @@ mod tests {
             payment.wall_seconds() >= 1,
             "wall must be measured, not the reported 0"
         );
+        std::fs::remove_dir_all(&state_dir).ok();
+    }
+
+    /// A [`KernelTransport`] double that records every submission and admits
+    /// without spawning anything.
+    #[derive(Debug, Default)]
+    struct RecordingTransport {
+        seen: std::sync::Mutex<Vec<KernelSubmission>>,
+    }
+
+    impl KernelTransport for RecordingTransport {
+        fn submit(
+            &self,
+            submission: &KernelSubmission,
+            _deadline: Deadline,
+        ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
+            self.seen
+                .lock()
+                .expect("the recording mutex")
+                .push(submission.clone());
+            Ok((
+                AdmissionHandle {
+                    rlm_child_id: "sub-recorded".to_owned(),
+                    name: "recorded-invocation".to_owned(),
+                    session_dir: "/sessions/recorded".to_owned(),
+                    model: "fake-model".to_owned(),
+                },
+                Box::new(crate::transport::NullParentHandle) as Box<dyn ParentHandle>,
+            ))
+        }
+    }
+
+    fn bridged_config(source: PathBuf) -> PrimeAdapterConfig {
+        let mut bridge = crate::mcp_bridge::McpBridge::new(
+            PathBuf::from("/opt/gauntlet/bin/gauntlet"),
+            vec!["fabric".to_owned(), "serve".to_owned()],
+        );
+        bridge.source_agent_dir = Some(source);
+        PrimeAdapterConfig {
+            mcp_bridge: Some(bridge),
+            ..PrimeAdapterConfig::default()
+        }
+    }
+
+    fn spec_with_invocation(id: &str) -> RoleInvocationSpec {
+        let mut spec = dispatch_spec();
+        spec.invocation_id = InvocationId::new(id).expect("a valid invocation id");
+        spec
+    }
+
+    /// A bridged invocation's submission names its own per-invocation agent
+    /// dir, and that dir's settings name the invocation as the caller. The
+    /// user's `mcpServers` secret never reaches the generated file.
+    #[test]
+    fn a_bridged_invocation_is_launched_with_its_own_agent_dir_and_caller() {
+        let state_dir = scratch("bridge-state");
+        let source = scratch("bridge-source");
+        std::fs::write(
+            source.join("settings.json"),
+            "{\"defaultModel\":\"m-1\",\"mcpServers\":{\"x\":{\"env\":{\"K\":\"SECRET-XYZ\"}}}}",
+        )
+        .expect("the user settings are written");
+        let runner = PrimeAgentRunner::new(
+            bridged_config(source),
+            state_dir.clone(),
+            scratch("bridge-cwd"),
+            RecordingTransport::default(),
+            NoopControl,
+            Arc::new(StepClock::default()),
+        );
+        let spec = dispatch_spec();
+        let expected_dir = state_dir
+            .join("runs")
+            .join(spec.run_id.as_str())
+            .join("inv")
+            .join(spec.invocation_id.as_str())
+            .join("agent");
+        let invocation_id = spec.invocation_id.clone();
+        runner.invoke(spec).expect("the recording double admits");
+
+        let seen = runner.transport.seen.lock().expect("the recording mutex");
+        assert_eq!(seen.len(), 1);
+        assert_eq!(seen[0].agent_dir.as_deref(), Some(expected_dir.as_path()));
+        let settings =
+            std::fs::read_to_string(expected_dir.join("settings.json")).expect("settings exist");
+        assert!(settings.contains(&format!(
+            "\"args\":[\"fabric\",\"serve\",\"--caller\",\"{}\"]",
+            invocation_id.as_str()
+        )));
+        assert!(settings.contains("\"command\":\"/opt/gauntlet/bin/gauntlet\""));
+        assert!(settings.contains("\"defaultModel\":\"m-1\""));
+        assert!(!settings.contains("SECRET-XYZ"), "no user secret is copied");
+        std::fs::remove_dir_all(&state_dir).ok();
+    }
+
+    /// Two invocations under one bridged runner get distinct agent dirs and
+    /// distinct callers: no invocation can name another's identity.
+    #[test]
+    fn two_bridged_invocations_get_distinct_dirs_and_callers() {
+        let state_dir = scratch("two-state");
+        let source = scratch("two-source");
+        let runner = PrimeAgentRunner::new(
+            bridged_config(source),
+            state_dir.clone(),
+            scratch("two-cwd"),
+            RecordingTransport::default(),
+            NoopControl,
+            Arc::new(StepClock::default()),
+        );
+        let first = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
+        let second = "01ARZ3NDEKTSV4RRFFQ69G5FAX";
+        runner
+            .invoke(spec_with_invocation(first))
+            .expect("the first admits");
+        runner
+            .invoke(spec_with_invocation(second))
+            .expect("the second admits");
+
+        let seen = runner.transport.seen.lock().expect("the recording mutex");
+        assert_eq!(seen.len(), 2);
+        assert_ne!(seen[0].agent_dir, seen[1].agent_dir, "distinct agent dirs");
+        let first_settings = std::fs::read_to_string(
+            seen[0]
+                .agent_dir
+                .as_deref()
+                .expect("bridged")
+                .join("settings.json"),
+        )
+        .expect("first settings");
+        let second_settings = std::fs::read_to_string(
+            seen[1]
+                .agent_dir
+                .as_deref()
+                .expect("bridged")
+                .join("settings.json"),
+        )
+        .expect("second settings");
+        assert!(first_settings.contains(&format!("\"--caller\",\"{first}\"")));
+        assert!(second_settings.contains(&format!("\"--caller\",\"{second}\"")));
+        assert!(!first_settings.contains(second));
+        std::fs::remove_dir_all(&state_dir).ok();
+    }
+
+    /// Bridge disabled: the submission carries no agent dir, so the harness is
+    /// launched with the inherited environment exactly as before.
+    #[test]
+    fn an_unbridged_invocation_submits_no_agent_dir() {
+        let state_dir = scratch("unbridged-state");
+        let runner = PrimeAgentRunner::new(
+            PrimeAdapterConfig::default(),
+            state_dir.clone(),
+            scratch("unbridged-cwd"),
+            RecordingTransport::default(),
+            NoopControl,
+            Arc::new(StepClock::default()),
+        );
+        runner
+            .invoke(dispatch_spec())
+            .expect("the recording double admits");
+        let seen = runner.transport.seen.lock().expect("the recording mutex");
+        assert_eq!(seen.len(), 1);
+        assert!(seen[0].agent_dir.is_none());
         std::fs::remove_dir_all(&state_dir).ok();
     }
 }

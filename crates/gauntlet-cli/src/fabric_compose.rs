@@ -103,6 +103,7 @@ const PROFILE_KEYS: &[&str] = &[
     "workspace_mutation",
     "isolation",
     "max_depth",
+    "mcp_bridge",
 ];
 const ROLE_KEYS: &[&str] = &[
     SCHEMA_KEY,
@@ -233,6 +234,21 @@ pub struct ProfileSpec {
     pub workspace_mutation: bool,
     pub isolation: Isolation,
     pub max_depth: u8,
+    /// Whether this profile's invocations get a per-invocation MCP bridge to
+    /// the fabric server (`mcp_bridge = true`, recursive token only). The
+    /// bridge is provisioned only in a process that has a serve launch.
+    pub mcp_bridge: bool,
+}
+
+/// How a bridge-enabled runner launches the fabric MCP server: the executable
+/// and the fixed `fabric serve` argv prefix, with every value a composition
+/// input. A runner appends `--caller <its own invocation id>` to it. Supplied
+/// only by the process that serves a caller (`fabric serve`); absent elsewhere,
+/// where a bridge-enabled profile is registered as unavailable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct McpServeLaunch {
+    pub program: PathBuf,
+    pub args: Vec<String>,
 }
 
 /// A validated fabric configuration: pure data, nothing constructed.
@@ -379,6 +395,9 @@ pub struct FabricDeps<'a> {
     pub containment: Option<Arc<dyn generic_cli_runner::CommandContainment>>,
     /// Executable discovery for the availability decision.
     pub path_lookup: &'a dyn ExecutableLookup,
+    /// The fabric server launch a bridge-enabled profile provisions, when this
+    /// process serves a caller. `None` makes such profiles unavailable here.
+    pub mcp_serve: Option<McpServeLaunch>,
 }
 
 /// Why a profile is or is not available, with the facts the report prints.
@@ -502,7 +521,20 @@ pub fn compose_fabric(
                 ),
             })?;
         let executable = definition.executables.first().cloned();
-        let availability = availability(spec.token, executable.as_deref(), deps.path_lookup);
+        // A bridge-enabled profile without a serve launch is registered as
+        // unavailable: selection refuses it, and composition still succeeds
+        // for processes (such as admit-root) that never invoke runners.
+        let availability = if spec.mcp_bridge && deps.mcp_serve.is_none() {
+            Availability::Unavailable {
+                reason: format!(
+                    "profile '{}' enables the MCP bridge, but this process has no fabric serve \
+                     launch to provision it with",
+                    spec.id
+                ),
+            }
+        } else {
+            availability(spec.token, executable.as_deref(), deps.path_lookup)
+        };
         let runner = build_runner(spec, &workspace_root, deps)?;
         let capabilities = capabilities(spec, definition);
         let harness = HarnessId::new(&spec.harness).map_err(|error| CompositionError::Fabric {
@@ -581,6 +613,22 @@ fn availability(
     }
 }
 
+/// The Prime adapter configuration for a recursive profile. The bridge is set
+/// only when the profile enables it AND this process has a serve launch; the
+/// availability gate already refuses the other case.
+fn prime_adapter_config(
+    spec: &ProfileSpec,
+    deps: &FabricDeps<'_>,
+) -> recursive_runner::PrimeAdapterConfig {
+    let mut config = recursive_runner::PrimeAdapterConfig::default();
+    if spec.mcp_bridge {
+        config.mcp_bridge = deps.mcp_serve.as_ref().map(|launch| {
+            recursive_runner::McpBridge::new(launch.program.clone(), launch.args.clone())
+        });
+    }
+    config
+}
+
 #[allow(clippy::arc_with_non_send_sync)] // single-threaded loop; the adapters carry interior mutability (as in compose::runner_for)
 fn build_runner(
     spec: &ProfileSpec,
@@ -591,7 +639,7 @@ fn build_runner(
     let workspace = workspace_root.to_path_buf();
     match spec.token {
         RunnerToken::Recursive => {
-            let config = recursive_runner::PrimeAdapterConfig::default();
+            let config = prime_adapter_config(spec, deps);
             let transport = recursive_runner::ProcessKernelTransport::new(
                 config.binary.clone(),
                 config.admission_timeout(),
@@ -885,6 +933,14 @@ fn parse_profile(
         Some(value) => bounded(&file, "max_depth", value)?,
         None => generic_cli_runner::config::DEFAULT_MAX_DEPTH,
     };
+    let mcp_bridge = optional_bool(&file, table, "mcp_bridge")?.unwrap_or(false);
+    if mcp_bridge && token != RunnerToken::Recursive {
+        return Err(invalid(
+            &file,
+            "mcp_bridge",
+            "only the recursive runner token takes an MCP bridge",
+        ));
+    }
 
     Ok(ProfileSpec {
         id,
@@ -897,6 +953,7 @@ fn parse_profile(
         workspace_mutation: optional_bool(&file, table, "workspace_mutation")?.unwrap_or(false),
         isolation,
         max_depth,
+        mcp_bridge,
     })
 }
 
@@ -1297,6 +1354,14 @@ mod tests {
     }
 
     fn compose(config: &FabricConfig, found: &[&str]) -> Result<ComposedFabric, CompositionError> {
+        compose_with_launch(config, found, None)
+    }
+
+    fn compose_with_launch(
+        config: &FabricConfig,
+        found: &[&str],
+        mcp_serve: Option<McpServeLaunch>,
+    ) -> Result<ComposedFabric, CompositionError> {
         let lookup = FixedLookup(found.iter().map(|name| (*name).to_owned()).collect());
         let clock = mock_runner::DeterministicClock::start_at(EpochSeconds::new(0));
         let deps = FabricDeps {
@@ -1304,8 +1369,148 @@ mod tests {
             clock: Arc::new(clock),
             containment: None,
             path_lookup: &lookup,
+            mcp_serve,
         };
         compose_fabric(config, &deps)
+    }
+
+    const BRIDGED_RECURSIVE: &str = "bridged-recursive";
+
+    fn launch_program() -> PathBuf {
+        std::env::temp_dir().join("bridge-bin").join("gauntlet")
+    }
+
+    fn serve_launch() -> McpServeLaunch {
+        McpServeLaunch {
+            program: launch_program(),
+            args: vec!["fabric".to_owned(), "serve".to_owned()],
+        }
+    }
+
+    /// `mcp_bridge` is a strict optional key: a recursive profile may enable
+    /// it, and every other runner token refuses it at load time.
+    #[test]
+    fn mcp_bridge_is_recursive_only() {
+        let root = fixture("mcp-bridge-strict");
+        write_profile(
+            &root,
+            "bridged-cli",
+            &profile(
+                "bridged-cli",
+                ALPHA_HARNESS,
+                RunnerToken::CommandTemplate,
+                &format!("command = \"{GOOD_TEMPLATE}\"\nmcp_bridge = true\n"),
+            ),
+        );
+        let error = load(&root).expect_err("a bridge on a command runner is refused");
+        assert!(error.to_string().contains("mcp_bridge"), "{error}");
+    }
+
+    /// A bridge-enabled recursive profile is registered as unavailable in a
+    /// process with no serve launch, so selection refuses it there; the rest of
+    /// the composition still builds (admit-root needs no runners).
+    #[test]
+    fn a_bridged_profile_without_a_serve_launch_is_unavailable() {
+        let root = fixture("mcp-bridge-unavailable");
+        write_profile(
+            &root,
+            BRIDGED_RECURSIVE,
+            &profile(
+                BRIDGED_RECURSIVE,
+                BETA_HARNESS,
+                RunnerToken::Recursive,
+                "mcp_bridge = true\n",
+            ),
+        );
+        let config = load(&root).expect("the fixture loads");
+        let composed = compose(&config, &[ALPHA_EXECUTABLE, BETA_EXECUTABLE])
+            .expect("composition still succeeds without a launch");
+        let bridged = composed
+            .report
+            .iter()
+            .find(|r| r.id.to_string() == BRIDGED_RECURSIVE)
+            .expect("the bridged profile is reported");
+        assert!(matches!(
+            &bridged.availability,
+            Availability::Unavailable { reason } if reason.contains("MCP bridge")
+        ));
+        let pinned = Preference {
+            pin: Some(RunnerProfileId::new(BRIDGED_RECURSIVE).expect("valid id")),
+            ..Preference::default()
+        };
+        assert!(select(&composed.registry, &Requirements::default(), &pinned).is_err());
+
+        let with_launch = compose_with_launch(
+            &config,
+            &[ALPHA_EXECUTABLE, BETA_EXECUTABLE],
+            Some(serve_launch()),
+        )
+        .expect("composes with a launch");
+        let launched = with_launch
+            .report
+            .iter()
+            .find(|r| r.id.to_string() == BRIDGED_RECURSIVE)
+            .expect("the bridged profile is reported");
+        assert_eq!(launched.availability, Availability::Available);
+    }
+
+    /// The Prime configuration carries the bridge only for a profile that
+    /// enables it, and only with a serve launch present. The launch's argv
+    /// prefix is passed through exactly; the runner appends the caller.
+    #[test]
+    fn the_prime_config_takes_the_bridge_only_when_enabled_and_launched() {
+        let root = fixture("mcp-bridge-config");
+        write_profile(
+            &root,
+            BRIDGED_RECURSIVE,
+            &profile(
+                BRIDGED_RECURSIVE,
+                BETA_HARNESS,
+                RunnerToken::Recursive,
+                "mcp_bridge = true\n",
+            ),
+        );
+        let config = load(&root).expect("the fixture loads");
+        let spec_of = |id: &str| {
+            config
+                .profiles
+                .iter()
+                .find(|profile| profile.id.to_string() == id)
+                .expect("the profile is loaded")
+                .clone()
+        };
+        let lookup = FixedLookup(Vec::new());
+        let deps = FabricDeps {
+            state_dir: std::env::temp_dir().join(STATE_DIR_NAME),
+            clock: Arc::new(mock_runner::DeterministicClock::start_at(
+                EpochSeconds::new(0),
+            )),
+            containment: None,
+            path_lookup: &lookup,
+            mcp_serve: Some(serve_launch()),
+        };
+        let bridged = prime_adapter_config(&spec_of(BRIDGED_RECURSIVE), &deps);
+        assert_eq!(
+            bridged.mcp_bridge,
+            Some(recursive_runner::McpBridge::new(
+                launch_program(),
+                vec!["fabric".to_owned(), "serve".to_owned()],
+            ))
+        );
+        let plain = prime_adapter_config(&spec_of(BETA_RECURSIVE), &deps);
+        assert_eq!(
+            plain.mcp_bridge, None,
+            "an unbridged profile stays unbridged"
+        );
+
+        let no_launch = FabricDeps {
+            mcp_serve: None,
+            ..deps
+        };
+        assert_eq!(
+            prime_adapter_config(&spec_of(BRIDGED_RECURSIVE), &no_launch).mcp_bridge,
+            None
+        );
     }
 
     #[test]

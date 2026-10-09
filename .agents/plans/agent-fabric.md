@@ -79,3 +79,25 @@ Atomic operations (one transaction each; PostgreSQL: row lock `FOR UPDATE` on th
 * Queries: node, children, descendants, ancestors, active (non-terminal) nodes of a run, for restart reconstruction.
 Reconstruction order after restart: PostgreSQL graph -> active/recoverable invocations -> reattach/reconcile native sessions. Never from harness topology.
 Slices: E2a ports+reference+suite, E2b PostgreSQL adapter + migration, E2c DelegationBroker (app), E3 lifecycle observation sequencing (session-epoch aware).
+
+## Phase I result — slice 1b: per-invocation MCP bridge
+
+**Credential finding (read first).** The user's Prime agent dir (`~/.prime/agent`, the default when `PRIME_AGENT_CODING_AGENT_DIR` is unset) holds `auth.json` (OAuth-style logins for `openai-codex` and `clinepass`), `models.json` (provider definitions), and `settings.json` (defaults plus `mcpServers`, which may carry secrets). It also holds stateful directories (`sessions`, `logs`, `session-leases`, `daemon-workers`, `session-artifacts`). Replacing that dir with a bare generated one would drop the logins and the state. Copying the files would duplicate credentials. So the bridge copies NO credential and NO user `mcpServers`:
+
+* `auth.json` and `models.json` are SYMLINKS to the user's files, created only when they exist. Provider auth still resolves through the link.
+* `settings.json` is GENERATED: `mcpServers.gauntlet` plus three allowlisted non-secret defaults (`defaultModel`, `defaultProvider`, `defaultThinkingLevel`). Nothing else is carried. A malformed user settings file refuses admission.
+* Caveat, OPEN (OD-11): Prime writes `auth.json` by temp-file-then-rename, which replaces the symlink with a local file. A token refreshed inside a bridged invocation does not reach the user's file. Needs an operator decision before bridged profiles use OAuth providers.
+
+**Design.** Profile key `mcp_bridge = true` (recursive token only; strict key). A bridged invocation gets `<state>/runs/<run>/inv/<invocation>/agent/`. Its `settings.json` names the server as `{"type":"stdio","command":<gauntlet exe>,"args":[fabric,serve,--state,…,--run,<run>,--caller,<invocation id>]}`. The fixed prefix comes from the `fabric serve` process's own flags (state, fabric-dir, workspace, answer-key, optional program host), with absolute paths. `--caller` comes from the runner contract (`RoleInvocationSpec.invocation_id`), never from the model or a profile. The harness is launched with `PRIME_AGENT_CODING_AGENT_DIR` set to that dir, and so are its stop/list control calls. No other variable is added. `admit-root` and `doctor` compose without a serve launch, so a bridged profile there is reported UNAVAILABLE and selection refuses it. Composition still succeeds.
+
+**Live-verified (2026-10-09).** `cargo test -p gauntlet-adapter-agent-prime --test mcp_bridge_live -- --ignored --nocapture` passes: `prime-agent mcp list` under a provisioned dir lists `gauntlet: stdio`. No model was called.
+
+**Hermetic-verified.** Exact `settings.json` text and exact argv; no user secret in the generated file; credentials are symlinks, not copies; two invocations get distinct dirs and callers; the submission carries the agent dir only when bridged; the rpc command adds only the agent-dir variable; the bridged runner path end to end through a recording transport; strict `mcp_bridge` key (recursive only); unavailable without a launch; serve-launch argv.
+
+**NOT live-verified.** (1) A real rpc run that starts the bridged server and makes `mcp.call_tool("gauntlet", "agents.spawn", ...)` from Python. This needs a model call and was not run. (2) That a real child's `stop`/`list` answers under the per-invocation dir; the scoping follows the harness's agent-dir resolution, read from source only. (3) That provider auth resolves through the symlinks in a real model run.
+
+**Native-child limitation (OD-10).** A harness-native `rlm.spawn` child reuses its parent's MCP settings, so its `agents.spawn` calls carry the PARENT's caller id. Children admitted through `agents.spawn` get their own graph node and id.
+
+**Deviations from the brief.** (a) The adapter did not have an env allowlist. It inherits the full environment, unchanged (OD-12). (b) `--run` is in the fixed prefix, because `fabric serve` requires it. The per-invocation addition is `--caller` only. (c) No new `limits.toml` key: the bridge's paths come from the serving process's own flags, so there is no second copy of them to drift. (d) `HarnessControl::stop`/`list` take the agent dir. This is an adapter-internal port change; the shared ports contract suite is untouched.
+
+**Risks.** Credential refresh divergence (OD-11). The model can read the generated `settings.json` and the symlinked files, because containment is still `isolation: none`. Caller identity is only as strong as the serve process's admission check (`caller ... is not admitted`). Native-child attribution (OD-10).

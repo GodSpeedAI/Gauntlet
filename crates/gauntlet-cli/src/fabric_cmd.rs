@@ -58,7 +58,7 @@ use gauntlet_ports::workspace_provider::{WorkspaceProvider, WorkspaceSubject};
 
 use crate::compose::STATE_DB_NAME;
 use crate::fabric_compose::{
-    ComposedFabric, FabricDeps, SearchPathLookup, compose_fabric, load_fabric,
+    ComposedFabric, FabricDeps, McpServeLaunch, SearchPathLookup, compose_fabric, load_fabric,
 };
 
 /// The custom harness definitions a fabric directory may carry.
@@ -196,7 +196,11 @@ impl Flags {
 
 /// Composes the fabric from its directory. Constructing runners spawns
 /// nothing; `state_dir` only anchors their invocation paths.
-fn compose(fabric_dir: &Path, state_dir: &Path) -> CmdResult<ComposedFabric> {
+fn compose(
+    fabric_dir: &Path,
+    state_dir: &Path,
+    mcp_serve: Option<McpServeLaunch>,
+) -> CmdResult<ComposedFabric> {
     let custom = fabric_dir.join(CUSTOM_HARNESS_DIR);
     let custom_dir = if custom.is_dir() {
         Some(custom.as_path())
@@ -210,8 +214,61 @@ fn compose(fabric_dir: &Path, state_dir: &Path) -> CmdResult<ComposedFabric> {
         clock: Arc::new(SystemClock::new()),
         containment: None,
         path_lookup: &lookup,
+        mcp_serve,
     };
     compose_fabric(&config, &deps).map_err(refused)
+}
+
+/// The fabric server launch a bridge-enabled runner provisions: this
+/// executable and the `fabric serve` argv that reproduces THIS process's
+/// serve flags for its run. The runner appends `--caller <its invocation>`.
+/// Every path is made absolute, because a harness starts the server in the
+/// invocation's own workspace.
+fn serve_launch(
+    flags: &Flags,
+    state_dir: &Path,
+    fabric_dir: &Path,
+    workspace_root: &Path,
+    answer_key: &Path,
+    run_id: &RunId,
+) -> CmdResult<McpServeLaunch> {
+    let program = std::env::current_exe().map_err(|error| {
+        refused(format!(
+            "the gauntlet executable cannot be located for the MCP bridge: {error}"
+        ))
+    })?;
+    let mut args = vec!["fabric".to_owned(), "serve".to_owned()];
+    for (flag, path) in [
+        ("--state", state_dir),
+        ("--fabric-dir", fabric_dir),
+        ("--workspace", workspace_root),
+        ("--answer-key", answer_key),
+    ] {
+        args.push(flag.to_owned());
+        args.push(absolute_text(path)?);
+    }
+    args.push("--run".to_owned());
+    args.push(run_id.as_str().to_owned());
+    if let Some(dir) = flags.optional("program-host-dir") {
+        args.push("--program-host-dir".to_owned());
+        args.push(absolute_text(Path::new(dir))?);
+    }
+    if let Some(runner) = flags.optional("program-runner") {
+        args.push("--program-runner".to_owned());
+        args.push(runner.to_owned());
+    }
+    Ok(McpServeLaunch { program, args })
+}
+
+fn absolute_text(path: &Path) -> CmdResult<String> {
+    let absolute = std::path::absolute(path)
+        .map_err(|error| refused(format!("{}: {error}", path.display())))?;
+    absolute.into_os_string().into_string().map_err(|_| {
+        refused(format!(
+            "{} is not valid UTF-8 and cannot be passed to the MCP bridge",
+            path.display()
+        ))
+    })
 }
 
 fn parse_answer_key_file(path: &Path) -> CmdResult<ParsedKey> {
@@ -254,7 +311,7 @@ fn admit_root(args: &[String]) -> CmdResult<ExitCode> {
     let result_contract = ResultContractPath::new(RESULT_CONTRACT_NAME).map_err(refused)?;
 
     crate::compose::ensure_configured_dir(&state_dir).map_err(refused)?;
-    let composed = compose(&fabric_dir, &state_dir)?;
+    let composed = compose(&fabric_dir, &state_dir, None)?;
     let grant = composed
         .policy
         .roles
@@ -513,7 +570,15 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
             locator.display()
         )));
     }
-    let composed = compose(&fabric_dir, &state_dir)?;
+    let launch = serve_launch(
+        &flags,
+        &state_dir,
+        &fabric_dir,
+        &workspace_root,
+        &answer_key,
+        &run_id,
+    )?;
+    let composed = compose(&fabric_dir, &state_dir, Some(launch))?;
     let (store, graph) = open_state(&state_dir)?;
     let clock = SystemClock::new();
     let (_, deadline) = now_and_bound(&clock);
@@ -614,7 +679,7 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
 /// profile, from the composed report (UNKNOWN where a model is unset).
 /// Returns `false` when the fabric does not load or compose.
 pub fn doctor_fabric_section(fabric_dir: &Path) -> bool {
-    match compose(fabric_dir, fabric_dir) {
+    match compose(fabric_dir, fabric_dir, None) {
         Ok(composed) => {
             println!(
                 "fabric: {} profile(s) from {}",
@@ -630,5 +695,92 @@ pub fn doctor_fabric_section(fabric_dir: &Path) -> bool {
             eprintln!("fabric: refused: {error}");
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn flags(args: &[&str]) -> Flags {
+        let owned: Vec<String> = args.iter().map(|arg| (*arg).to_owned()).collect();
+        Flags::parse(&owned, SERVE_FLAGS).expect("the test flags parse")
+    }
+
+    fn under(base: &Path, parts: &[&str]) -> PathBuf {
+        parts
+            .iter()
+            .fold(base.to_path_buf(), |path, part| path.join(part))
+    }
+
+    fn text(path: &Path) -> String {
+        path.to_string_lossy().into_owned()
+    }
+
+    /// The bridge's argv is this serve's own flags for its run, in a fixed
+    /// order; the runner appends `--caller` after it.
+    #[test]
+    fn the_serve_launch_reproduces_the_serve_flags_for_the_run() {
+        let base = std::env::temp_dir();
+        let state = under(&base, &["state"]);
+        let fabric = under(&base, &["fabric"]);
+        let workspaces = under(&state, &["workspaces"]);
+        let key = under(&base, &["keys", "answer-key.md"]);
+        let host = under(&base, &["hosts", "host-dir"]);
+        let run = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("a valid run id");
+        let launch = serve_launch(
+            &flags(&[
+                "--program-host-dir",
+                &text(&host),
+                "--program-runner",
+                "host-exe",
+            ]),
+            &state,
+            &fabric,
+            &workspaces,
+            &key,
+            &run,
+        )
+        .expect("the launch is built");
+        assert_eq!(
+            launch.args,
+            vec![
+                "fabric".to_owned(),
+                "serve".to_owned(),
+                "--state".to_owned(),
+                text(&state),
+                "--fabric-dir".to_owned(),
+                text(&fabric),
+                "--workspace".to_owned(),
+                text(&workspaces),
+                "--answer-key".to_owned(),
+                text(&key),
+                "--run".to_owned(),
+                run.as_str().to_owned(),
+                "--program-host-dir".to_owned(),
+                text(&host),
+                "--program-runner".to_owned(),
+                "host-exe".to_owned(),
+            ]
+        );
+    }
+
+    /// Without program flags the launch carries none, so the bridged server
+    /// refuses program.run exactly as an unconfigured serve does.
+    #[test]
+    fn the_serve_launch_omits_program_flags_when_absent() {
+        let base = std::env::temp_dir();
+        let run = RunId::new("01ARZ3NDEKTSV4RRFFQ69G5FAV").expect("a valid run id");
+        let launch = serve_launch(
+            &flags(&[]),
+            &under(&base, &["state"]),
+            &under(&base, &["fabric"]),
+            &under(&base, &["state", "workspaces"]),
+            &under(&base, &["keys", "answer-key.md"]),
+            &run,
+        )
+        .expect("the launch is built");
+        assert!(!launch.args.iter().any(|arg| arg.starts_with("--program")));
+        assert_eq!(launch.args.len(), 12);
     }
 }
