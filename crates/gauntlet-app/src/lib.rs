@@ -16,6 +16,7 @@ pub mod compare;
 pub mod config;
 pub mod conformance;
 pub mod control;
+pub mod delegation;
 pub mod doctor;
 pub mod fabric;
 pub mod formation;
