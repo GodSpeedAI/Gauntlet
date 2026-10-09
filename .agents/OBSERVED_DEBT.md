@@ -76,3 +76,8 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 * **Evidence:** `LifecycleSupervisor` runs only inside `status` on a bound live node (no scheduled sampling); the high-water mark is derived by scanning persisted history per reading; the supervisor is proven against the in-memory graph at app level (PostgreSQL passes the shared graph contract only).
 * **Next move:** persist a per-key high-water counter row; optional periodic sampler owned by the host.
+
+## OD-14 — acceptance gaps: collect after restart is opaque; no stateful mock; doctor report path leak
+
+* **Evidence:** `fabric_acceptance.rs` — scripted children live only in the spawning process, so `agents.collect` from a fresh serve returns the opaque "internal" error (`BrokerError::Runner` on UnknownHandle) whereas `status` degrades to `runner_unavailable`; the mock keeps no state across calls (persistent-state parent not exercised); `gauntlet doctor --fabric-dir` writes under `crates/gauntlet-cli/.agents` even with `GAUNTLET_REPORT_DIR` set (extends OD-7); `context_digest` covers the envelope body only; no exit-without-result fixture (AK-059 locator frozen); late lifecycle samples are not reachable at CLI level (covered by app-level `lifecycle_sequencing_*`).
+* **Next move:** make collect report runner_unavailable typed (never completes); fix the doctor report path; add fixtures only through the AK-059 process.
