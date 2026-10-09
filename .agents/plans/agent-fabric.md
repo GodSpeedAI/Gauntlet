@@ -62,3 +62,20 @@ Operator decision: SQLite is replaced, not migrated (single user; no upgrade pat
 * Slices: E1a scaffold+event-log+ledgers → E1b state_store → E1c crash/tamper/gate tests → E1d CLI/compose/docs/Annex E/justfile `db-*`/arch allowlist, delete the sqlite crate + rusqlite.
 * Invocation graph (E2) lives in the same database/transactions; no independent LineageStore truth. Identities kept distinct: run, invocation, parent, root, runner profile, harness kind, native session ref, workspace, OS process.
 * Lifecycle sequencing (E3) is mandatory, not a limitation: observations carry (invocation, native_session_ref, source, sequence, observed_at); stale sequences and observations of a replaced native session can never mutate current state.
+
+## E2 design — Gauntlet-owned invocation graph (frozen 2026-10-08)
+
+Port `InvocationGraph` (gauntlet-ports), implemented by the PostgreSQL adapter inside the same database/transactions as run state, plus an in-memory reference implementation that the same contract suite also runs against (proves backend-independent semantics and serves broker unit tests).
+
+Distinct identities (never collapsed): `RunId`, `InvocationId`, `parent: Option<InvocationId>`, `root: InvocationId`, `RunnerProfileId`, `HarnessId`, `NativeSessionRef` (+ per-invocation `session_epoch`), `WorkspaceRef`; OS/process identity stays adapter forensics, not graph truth.
+
+`InvocationNode { invocation_id, run_id, parent, root, depth, role, runner_profile, harness, workspace, context_digest, result_contract, admission_key, budget (reserved BudgetSlice), status, native_session: Option<(ref, epoch)>, admitted_at, terminal_at }`. Status = Admitted | Running | Completed | Failed(class) | TimedOut | Cancelled. Harness lifecycle states are NOT node status.
+
+Atomic operations (one transaction each; PostgreSQL: row lock `FOR UPDATE` on the parent, UNIQUE(run_id, admission_key), recursive CTEs, FKs/CHECKs):
+* `admit(AdmissionRequest) -> Admitted(node) | AlreadyAdmitted(node) | Refused(reason)`: verifies parent exists and is non-terminal, depth < max_depth, live children < max_children, sum of live children's reserved budget + slice ≤ parent budget (componentwise), then inserts. Same key + same facts = idempotent replay; same key + different facts = refusal. Exactly-once logical admission under crash/retry. Root admission (parent = None) takes the run's budget slice.
+* `attach_native_session(id, ref)` bumps `session_epoch`; later observations must name (ref, epoch).
+* `complete(id, ResultBinding{contract_path, envelope_digest, result_digest})`: refused unless node non-terminal AND the binding equals the node's admitted contract path and context digest. A child can never complete another child's contract.
+* `fail/time_out`, `cancel_subtree(id)`: marks every non-terminal descendant Cancelled in one transaction and returns them for physical cancellation; settled descendants stay historical facts. No detached children.
+* Queries: node, children, descendants, ancestors, active (non-terminal) nodes of a run, for restart reconstruction.
+Reconstruction order after restart: PostgreSQL graph -> active/recoverable invocations -> reattach/reconcile native sessions. Never from harness topology.
+Slices: E2a ports+reference+suite, E2b PostgreSQL adapter + migration, E2c DelegationBroker (app), E3 lifecycle observation sequencing (session-epoch aware).
