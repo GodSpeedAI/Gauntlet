@@ -363,6 +363,7 @@ fn limit_token(limit: ProgramLimit) -> &'static str {
         ProgramLimit::ParallelCalls => "parallel_calls",
         ProgramLimit::ResultBytes => "result_bytes",
         ProgramLimit::SourceBytes => "source_bytes",
+        ProgramLimit::Memory => "heap",
     }
 }
 

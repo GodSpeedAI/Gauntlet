@@ -104,6 +104,9 @@ pub enum ProgramLimit {
     ParallelCalls,
     ResultBytes,
     SourceBytes,
+    /// The guest heap cap. The cap belongs to the adapter, not to the request,
+    /// so `ProgramLimits` has no field for it.
+    Memory,
 }
 
 /// Why a request was refused.

@@ -91,6 +91,33 @@ return "done";"#;
     );
 }
 
+/// The wall-clock bound for the memory program. Exhaustion should come well
+/// inside it; if it did not, the run would be `TimedOut`, not a memory limit.
+const MEMORY_PROGRAM_TIMEOUT_MS: u64 = 8_000;
+
+/// Each kept string is one MiB, so the 64 MiB guest heap cap is reached after
+/// a few dozen live allocations.
+const MEMORY_PROGRAM_CHUNK_CHARS: usize = 1 << 20;
+
+/// A program that keeps every allocation alive until the 64 MiB guest heap cap
+/// is exhausted is `LimitExceeded(Memory)`, not a runtime failure.
+#[test]
+fn guest_heap_exhaustion_is_a_memory_limit() {
+    let text = format!(
+        r#"const kept = [];
+while (true) {{ kept.push("x".repeat({MEMORY_PROGRAM_CHUNK_CHARS}) + kept.length); }}"#
+    );
+    let (outcome, _, _) = run(
+        &text,
+        &["tools.read"],
+        limits(MEMORY_PROGRAM_TIMEOUT_MS, 8, 4, 4096),
+    );
+    assert_eq!(
+        outcome.status,
+        ProgramStatus::LimitExceeded(ProgramLimit::Memory)
+    );
+}
+
 /// A program that never ends is `TimedOut`, never `Completed`.
 #[test]
 fn a_program_that_never_ends_is_timed_out() {

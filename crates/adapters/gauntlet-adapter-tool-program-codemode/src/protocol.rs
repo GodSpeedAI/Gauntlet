@@ -163,7 +163,7 @@ fn decode_done(fields: &[(String, JsonValue)]) -> Result<HostMessage, String> {
                 }
                 "timed_out" => ProgramStatus::TimedOut,
                 "cancelled" => ProgramStatus::Cancelled,
-                _ => ProgramStatus::LimitExceeded(map_limit(limit, &message)?),
+                _ => ProgramStatus::LimitExceeded(map_limit(limit)?),
             }
         }
         other => return Err(format!("unknown done status {other:?}")),
@@ -171,15 +171,13 @@ fn decode_done(fields: &[(String, JsonValue)]) -> Result<HostMessage, String> {
     Ok(HostMessage::Done(status))
 }
 
-/// The port has no memory bound, so a guest-heap exhaustion is reported as a
-/// runtime failure that names it, not as a limit the port cannot express.
-fn map_limit(limit: Option<&str>, message: &str) -> Result<ProgramLimit, String> {
+fn map_limit(limit: Option<&str>) -> Result<ProgramLimit, String> {
     match limit {
         Some("tool_calls") => Ok(ProgramLimit::ToolCalls),
         Some("parallel") => Ok(ProgramLimit::ParallelCalls),
         Some("result_bytes") => Ok(ProgramLimit::ResultBytes),
         Some("source_bytes") => Ok(ProgramLimit::SourceBytes),
-        Some("memory") => Err(format!("the guest heap limit was exceeded: {message}")),
+        Some("memory") => Ok(ProgramLimit::Memory),
         Some(other) => Err(format!("unknown limit {other:?}")),
         None => Err("a limit_exceeded done message names no limit".to_owned()),
     }

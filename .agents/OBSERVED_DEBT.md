@@ -29,15 +29,13 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 ## OD-5 — delegation discards the `GateAdmission` containment proof
 
-* **Evidence:** `AgentsService::spawn` (`gauntlet-app/src/delegation/agents.rs`) calls `AuthorityGate::admit` fresh with the caller's recorded facts but drops the returned `GateAdmission`; `DelegationBroker`/`RoleInvocationSpec` carry no containment proof and the runner's `CommandContainment` is fixed at composition time (`compose.rs` `wrap_checked_posture`, recorded=None — see OD-4).
-* **Impact:** safe today only because the none-backend posture refuses every tier above `contained` (`dispatchable_posture`); with a live sandbox backend a delegated child could start under the composition-time wrap instead of one derived from its admission (AGENTS.md §5: authority and containment both precede process start).
-* **Next move:** before enabling any non-none sandbox backend for delegated children, thread the admission into the spawn path (broker spec -> runner containment) and add a test that a child of a higher tier cannot start without its own wrapped command.
+* **Status: resolved (bd5cab3).** `AgentsService::spawn` keeps the admission and the dispatch spec carries `admission.policy_ref()` (None under the no-backend contained posture); `RoleGrant.sandbox_policy` and the fabric role key were removed (a role TOML still naming it now fails as an unknown key). The command-template runner already refuses a dispatch carrying a policy when no containment seam is installed, so a higher-tier child cannot start unwrapped.
+* **Remaining:** no end-to-end test runs a child through a live sandbox backend from the fabric path (the fabric has no containment seam wired; see OD-6).
 
 ## OD-6 — fabric profile `isolation` is declared, not enforced
 
-* **Evidence:** `crates/gauntlet-cli/src/fabric_compose.rs` accepts `isolation` per profile/limits, but a `CommandContainment` seam is wired only for the command-template runner token (as in `compose.rs`); other tokens receive none.
-* **Impact:** a profile declaring process/container isolation without a containment seam is an honesty gap; related to OD-5.
-* **Next move:** have the gate (or `fabric serve` startup/doctor) refuse or report any profile whose declared isolation has no wired containment before it is used.
+* **Status: resolved as an honesty cap (13afcd2).** Effective isolation is the declared level only for a command-template profile with a wired containment seam; otherwise `none`. The gate's ceiling is the maximum effective isolation of available profiles, each cap is recorded in the composition report and printed by `fabric serve` and the doctor fabric section.
+* **Remaining:** enabling real isolation for fabric children means wiring a containment seam in `fabric serve` (today `containment: None`); the cap lifts automatically once it is wired.
 
 ## OD-7 — `cli_surface` doctor smoke writes `crates/gauntlet-cli/.agents/reports/doctor.json`
 
@@ -54,7 +52,8 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 ## OD-9 — codemode adapter: parallel bound enforced only inside the sandbox; port lacks cancel/memory classes
 
-* **Evidence:** the host protocol sends `call` one line at a time, so the Rust `DriverHost` never sees group boundaries and its parallel check (inside `call_group`) is skipped on this path; the JS sandbox is the sole enforcer. The port has no caller-side cancel (cancel happens only at the parent deadline) and `ProgramLimit` has no memory variant (guest heap exhaustion reports as Runtime). A program may finish with unawaited calls in flight (accepted; they are answered and recorded in the trace).
+* **Status: partly resolved.** `ProgramLimit::Memory` now exists (wire `memory` -> `LimitExceeded(Memory)`, catalog token `heap` because `memory` is a reserved adapter segment in core crates). The parallel bound is enforced by the trusted Bun host against the guest's unsettled-call count; the Rust side cannot enforce it because the parent answers one call at a time, so no further defence is possible there. Still open: the port has no caller-side cancel (cancel happens only at the parent deadline).
+* **Evidence (original):** the host protocol sends `call` one line at a time, so the Rust `DriverHost` never sees group boundaries and its parallel check (inside `call_group`) is skipped on this path. A program may finish with unawaited calls in flight (accepted; they are answered and recorded in the trace).
 * **Next move:** if defense in depth is wanted, add an in-flight counter to the protocol (host reports concurrency) and a memory limit variant / cancel input to the port (needs approval).
 
 ## OD-10 — native `rlm.spawn` children inherit their Prime parent's MCP caller identity
