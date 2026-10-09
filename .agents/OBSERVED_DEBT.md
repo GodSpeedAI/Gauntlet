@@ -26,3 +26,9 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 * **Evidence:** `crates/gauntlet-cli/src/compose.rs:1236` calls `AuthorityGate::admit(.., recorded=None, ..)`, which skips the lattice conjunct; the per-dispatch call (`controller.rs:2239`) passes recorded facts.
 * **Impact:** composition-time wrap check cannot catch lattice movement; delegation must always pass recorded facts (the Fabric's AgentsService does).
 * **Next move:** confirm intent with the authority owner; pass recorded facts where available.
+
+## OD-5 — delegation discards the `GateAdmission` containment proof
+
+* **Evidence:** `AgentsService::spawn` (`gauntlet-app/src/delegation/agents.rs`) calls `AuthorityGate::admit` fresh with the caller's recorded facts but drops the returned `GateAdmission`; `DelegationBroker`/`RoleInvocationSpec` carry no containment proof and the runner's `CommandContainment` is fixed at composition time (`compose.rs` `wrap_checked_posture`, recorded=None — see OD-4).
+* **Impact:** safe today only because the none-backend posture refuses every tier above `contained` (`dispatchable_posture`); with a live sandbox backend a delegated child could start under the composition-time wrap instead of one derived from its admission (AGENTS.md §5: authority and containment both precede process start).
+* **Next move:** before enabling any non-none sandbox backend for delegated children, thread the admission into the spawn path (broker spec -> runner containment) and add a test that a child of a higher tier cannot start without its own wrapped command.

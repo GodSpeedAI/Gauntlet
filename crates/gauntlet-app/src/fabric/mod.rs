@@ -15,6 +15,7 @@
 //! Lifecycle is liveness/forensics only: captured at snapshot time,
 //! never used for completion semantics.
 
+pub mod affordance;
 pub mod registry;
 pub mod selection;
 

@@ -6,13 +6,22 @@
 //! admission key ([`broker`]). Lineage, depth, child, and budget limits are
 //! enforced by the graph; harness topology is never consulted.
 
+pub mod agents;
 pub mod broker;
 pub mod context;
 pub mod reconcile;
 
 #[cfg(test)]
+mod agents_tests;
+#[cfg(test)]
+pub(crate) mod test_support;
+#[cfg(test)]
 mod tests;
 
+pub use agents::{
+    AgentView, AgentsCaller, AgentsPolicy, AgentsRefusal, AgentsService, CancelView, CollectView,
+    RoleGrant, SpawnArgs, SpawnOutcome, WorkspacePolicy, derive_invocation_id,
+};
 pub use broker::{
     Delegated, DelegationBroker, DelegationOutcome, DelegationRefusal, DelegationRequest,
     RunnerSet, RunnerSetError,
