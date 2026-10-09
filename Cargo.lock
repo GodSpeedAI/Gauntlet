@@ -383,6 +383,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-surface-rpc"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-adapter-verify-command-exit-code"
 version = "0.1.0"
 dependencies = [

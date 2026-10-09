@@ -41,6 +41,7 @@ members = [
     "crates/adapters/gauntlet-adapter-verify-file-digest",
     "crates/adapters/gauntlet-adapter-verify-schema-check",
     "crates/adapters/gauntlet-adapter-surface-json",
+    "crates/adapters/gauntlet-adapter-surface-rpc",
     "crates/adapters/gauntlet-adapter-harness-catalog",
     "crates/gauntlet-arch-tests",
 ]
@@ -88,6 +89,10 @@ gauntlet-adapter-sandbox-none = { path = "crates/adapters/gauntlet-adapter-sandb
 # domain only. NON-default: gauntlet-cli's `surfaces` feature is the only
 # edge that enables it (charter D1 — the default build stays CLI-only).
 gauntlet-adapter-surface-json = { path = "crates/adapters/gauntlet-adapter-surface-json" }
+# Stdio JSON-RPC projection of the ToolSurface port (MCP-compatible tool
+# subset). Std-only; deps are ports + domain only. Not enabled by any feature
+# yet — a composition root opts in by depending on it.
+gauntlet-adapter-surface-rpc = { path = "crates/adapters/gauntlet-adapter-surface-rpc" }
 # The one external dependency permitted by plan Task 2: manifest parsing for
 # the architecture boundary tests. gauntlet-arch-tests is NOT listed above as
 # anything's dependency — it is test-only.
