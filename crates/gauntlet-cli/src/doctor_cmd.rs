@@ -55,6 +55,12 @@ pub fn run(args: &[String]) -> ExitCode {
     match run_doctor_and_write(&input) {
         Ok((report, path)) => {
             print!("{}", report.human_summary());
+            // Phase H slice 2b: optional capability, reported plainly; it never
+            // changes the exit status (absence is not an error).
+            println!(
+                "codemode (optional): {}",
+                crate::context::measure_codemode().summary()
+            );
             println!("report: {}", path.display());
             let fabric_ok = fabric_dir
                 .as_deref()

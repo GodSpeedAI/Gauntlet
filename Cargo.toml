@@ -42,6 +42,7 @@ members = [
     "crates/adapters/gauntlet-adapter-verify-schema-check",
     "crates/adapters/gauntlet-adapter-surface-json",
     "crates/adapters/gauntlet-adapter-surface-rpc",
+    "crates/adapters/gauntlet-adapter-tool-program-codemode",
     "crates/adapters/gauntlet-adapter-harness-catalog",
     "crates/gauntlet-arch-tests",
 ]
@@ -93,6 +94,9 @@ gauntlet-adapter-surface-json = { path = "crates/adapters/gauntlet-adapter-surfa
 # subset). Std-only; deps are ports + domain only. Not enabled by any feature
 # yet — a composition root opts in by depending on it.
 gauntlet-adapter-surface-rpc = { path = "crates/adapters/gauntlet-adapter-surface-rpc" }
+# Phase H slice 2b: the ToolProgramRuntime port run by the Bun codemode host
+# (spawned per run; no external dependency). Enabled by gauntlet-cli only.
+gauntlet-adapter-tool-program-codemode = { path = "crates/adapters/gauntlet-adapter-tool-program-codemode" }
 # The one external dependency permitted by plan Task 2: manifest parsing for
 # the architecture boundary tests. gauntlet-arch-tests is NOT listed above as
 # anything's dependency — it is test-only.

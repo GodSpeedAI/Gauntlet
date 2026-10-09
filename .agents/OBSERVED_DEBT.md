@@ -48,3 +48,8 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 
 * **Evidence:** `fabric_cmd.rs` `Host::tools()` returns an empty list and `call()` returns Refused `catalog_invalid` if the `SemanticToolRuntime` fails to build; the runtime's schema validator and the agents wire decoder both validate arguments. Also one unexplained `doctor::tests::a_present_top_tier_policy_fails_check_five_and_the_run` failure seen once (passed on rerun).
 * **Next move:** build the runtime once at `fabric serve` startup and fail to start on error; retire the wire decoder checks once the runtime is trusted; investigate the doctor test flake.
+
+## OD-9 — codemode adapter: parallel bound enforced only inside the sandbox; port lacks cancel/memory classes
+
+* **Evidence:** the host protocol sends `call` one line at a time, so the Rust `DriverHost` never sees group boundaries and its parallel check (inside `call_group`) is skipped on this path; the JS sandbox is the sole enforcer. The port has no caller-side cancel (cancel happens only at the parent deadline) and `ProgramLimit` has no memory variant (guest heap exhaustion reports as Runtime). A program may finish with unawaited calls in flight (accepted; they are answered and recorded in the trace).
+* **Next move:** if defense in depth is wanted, add an in-flight counter to the protocol (host reports concurrency) and a memory limit variant / cancel input to the port (needs approval).

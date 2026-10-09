@@ -391,6 +391,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "gauntlet-adapter-tool-program-codemode"
+version = "0.1.0"
+dependencies = [
+ "gauntlet-domain",
+ "gauntlet-ports",
+]
+
+[[package]]
 name = "gauntlet-adapter-verify-command-exit-code"
 version = "0.1.0"
 dependencies = [
@@ -473,6 +481,7 @@ dependencies = [
  "gauntlet-adapter-state-postgres",
  "gauntlet-adapter-surface-json",
  "gauntlet-adapter-surface-rpc",
+ "gauntlet-adapter-tool-program-codemode",
  "gauntlet-adapter-verify-command-exit-code",
  "gauntlet-adapter-verify-file-digest",
  "gauntlet-adapter-verify-schema-check",

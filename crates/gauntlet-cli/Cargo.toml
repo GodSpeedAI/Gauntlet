@@ -66,6 +66,9 @@ gauntlet-adapter-state-postgres.workspace = true
 # F2b2: `gauntlet fabric serve` projects the agents tool surface over stdio
 # through the std-only JSON-RPC transport adapter (not feature-gated).
 gauntlet-adapter-surface-rpc.workspace = true
+# Phase H slice 2b: the codemode tool-program runtime (the Bun host). The doctor
+# probes it; a program run through it is composed in tests/tool_program_codemode.rs.
+gauntlet-adapter-tool-program-codemode.workspace = true
 gauntlet-adapter-evidence-fs.workspace = true
 gauntlet-adapter-escalation-fs.workspace = true
 gauntlet-adapter-id-entropy.workspace = true

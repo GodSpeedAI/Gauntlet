@@ -128,6 +128,15 @@ pub fn resolve_context(
 /// used are the adapters' capability-named surfaces and their runner
 /// token constants — the crate names are the composition root's to
 /// spell (§4.1).
+/// Phase H slice 2b (`gauntlet doctor`): the codemode tool-program runtime is
+/// probed in the default workbench. Absence is reported plainly and is not an
+/// error for any other feature, so it never changes the doctor's exit status.
+pub fn measure_codemode() -> gauntlet_adapter_tool_program_codemode::CodemodeProbe {
+    gauntlet_adapter_tool_program_codemode::probe_codemode_in(std::path::Path::new(
+        gauntlet_adapter_tool_program_codemode::DEFAULT_WORKBENCH_DIR,
+    ))
+}
+
 pub fn measure_runner(token: &str) -> Option<gauntlet_app::doctor::checks::RunnerDescriptor> {
     use gauntlet_adapter_agent_cli as generic_cli_runner;
     use gauntlet_adapter_agent_prime as recursive_runner;
