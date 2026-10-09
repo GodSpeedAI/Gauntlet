@@ -11,12 +11,13 @@ use gauntlet_ports::tool_catalog::{
     ToolCatalog, ToolInvocation, ToolInvoker, ToolName, ToolOperation,
 };
 use gauntlet_ports::tool_program::{
-    ProgramLimit, ProgramLimits, ProgramOutcome, ProgramSource, ProgramStatus, ToolProgramRequest,
-    TraceOutcomeKind,
+    CancelProbe, NeverCancelled, ProgramHost, ProgramLimit, ProgramLimits, ProgramOutcome,
+    ProgramSource, ProgramStatus, ToolProgramRequest, ToolProgramRuntime, TraceOutcomeKind,
+    finish_outcome,
 };
 use gauntlet_ports::tool_surface::ToolOutcome;
 
-use super::program::{AdmissionError, ProgramDriver, admitted_subset};
+use super::program::{AdmissionError, CALL_CANCELLED_REFUSED, ProgramDriver, admitted_subset};
 use super::runtime::{EffectPolicy, SemanticToolRuntime};
 
 const CALLER_TEXT: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -112,7 +113,147 @@ fn request(
 }
 
 fn run(invoker: &dyn ToolInvoker, request: &ToolProgramRequest) -> ProgramOutcome {
-    ProgramDriver::new(invoker).run(&MockProgramRuntime, request)
+    ProgramDriver::new(invoker, &NeverCancelled).run(&MockProgramRuntime, request)
+}
+
+/// A cancellation the test controls.
+#[derive(Default)]
+struct FlagProbe {
+    cancelled: Cell<bool>,
+}
+
+impl CancelProbe for FlagProbe {
+    fn cancelled(&self) -> bool {
+        self.cancelled.get()
+    }
+}
+
+/// Calls one tool, or a group of one, and completes with the refusal code the
+/// host returned, so a test can read the code the program saw.
+struct CallOnce {
+    tool: &'static str,
+    grouped: bool,
+}
+
+impl ToolProgramRuntime for CallOnce {
+    fn run(&self, request: &ToolProgramRequest, host: &dyn ProgramHost) -> ProgramOutcome {
+        let args = JsonValue::Object(Vec::new());
+        let outcome = if self.grouped {
+            host.call_group(&[(name(self.tool), args)])
+                .into_iter()
+                .next()
+                .expect("the group returns one outcome")
+        } else {
+            host.call(&name(self.tool), &args)
+        };
+        let code = match outcome {
+            ToolOutcome::Refused { code, .. } => code,
+            _ => "ok".to_owned(),
+        };
+        finish_outcome(
+            ProgramStatus::Completed(JsonValue::Str(code)),
+            host.record(),
+            request,
+            Duration::ZERO,
+        )
+    }
+}
+
+/// Cancels its probe on the first invocation it receives.
+struct CancellingInvoker<'a> {
+    probe: &'a FlagProbe,
+    invoked: Cell<u32>,
+}
+
+impl ToolInvoker for CancellingInvoker<'_> {
+    fn invoke(&self, _invocation: &ToolInvocation) -> ToolOutcome {
+        self.invoked.set(self.invoked.get() + 1);
+        self.probe.cancelled.set(true);
+        ToolOutcome::Ok(JsonValue::Object(vec![(
+            "ok".to_owned(),
+            JsonValue::Bool(true),
+        )]))
+    }
+}
+
+#[test]
+fn a_cancelled_owner_refuses_a_call_before_the_invoker_is_reached() {
+    let invoker = RecordingInvoker::default();
+    let probe = FlagProbe {
+        cancelled: Cell::new(true),
+    };
+    let req = request(
+        CALLER_TEXT,
+        r#"[{"call":"tools.read"}]"#,
+        &["tools.read"],
+        limits(8, 4),
+    );
+    let outcome = ProgramDriver::new(&invoker, &probe).run(
+        &CallOnce {
+            tool: "tools.read",
+            grouped: false,
+        },
+        &req,
+    );
+    assert!(
+        invoker.names().is_empty(),
+        "the invoker must not be reached"
+    );
+    assert_eq!(
+        outcome.status,
+        ProgramStatus::Completed(JsonValue::Str(CALL_CANCELLED_REFUSED.to_owned()))
+    );
+    assert_eq!(outcome.trace.len(), 1);
+    assert_eq!(outcome.trace[0].outcome, TraceOutcomeKind::Refused);
+}
+
+#[test]
+fn a_cancelled_owner_refuses_a_call_group_before_the_invoker_is_reached() {
+    let invoker = RecordingInvoker::default();
+    let probe = FlagProbe {
+        cancelled: Cell::new(true),
+    };
+    let req = request(
+        CALLER_TEXT,
+        r#"[{"call":"tools.read"}]"#,
+        &["tools.read"],
+        limits(8, 4),
+    );
+    let outcome = ProgramDriver::new(&invoker, &probe).run(
+        &CallOnce {
+            tool: "tools.read",
+            grouped: true,
+        },
+        &req,
+    );
+    assert!(
+        invoker.names().is_empty(),
+        "the invoker must not be reached"
+    );
+    assert_eq!(
+        outcome.status,
+        ProgramStatus::Completed(JsonValue::Str(CALL_CANCELLED_REFUSED.to_owned()))
+    );
+    assert_eq!(outcome.trace[0].outcome, TraceOutcomeKind::Refused);
+}
+
+#[test]
+fn a_cancellation_mid_run_ends_the_run_as_cancelled_and_is_not_rewritten() {
+    let probe = FlagProbe::default();
+    let invoker = CancellingInvoker {
+        probe: &probe,
+        invoked: Cell::new(0),
+    };
+    let req = request(
+        CALLER_TEXT,
+        r#"[{"call":"tools.read"},{"call":"tools.read"},{"return":"done"}]"#,
+        &["tools.read"],
+        limits(8, 4),
+    );
+    let outcome = ProgramDriver::new(&invoker, &probe).run(&MockProgramRuntime, &req);
+    assert_eq!(invoker.invoked.get(), 1, "no call follows the cancellation");
+    assert_eq!(outcome.status, ProgramStatus::Cancelled);
+    assert_eq!(outcome.trace.len(), 1);
 }
 
 #[test]

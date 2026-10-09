@@ -248,6 +248,34 @@ pub trait ProgramHost {
 
     /// What the host has recorded so far.
     fn record(&self) -> HostRecord;
+
+    /// True once the owning invocation was cancelled. A runtime polls this
+    /// while a program runs; once it is true, the runtime issues no further
+    /// call and ends the run as [`ProgramStatus::Cancelled`].
+    ///
+    /// The default never reports cancellation so that a host with no owner to
+    /// watch still compiles. A real host, one that serves an owning invocation,
+    /// must implement it.
+    fn cancelled(&self) -> bool {
+        false
+    }
+}
+
+/// Where a driver learns that its owning invocation was cancelled. The app
+/// layer implements it over the invocation graph; a probe must not report a
+/// lookup failure as cancellation.
+pub trait CancelProbe {
+    fn cancelled(&self) -> bool;
+}
+
+/// The probe for an owner that cannot be cancelled.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct NeverCancelled;
+
+impl CancelProbe for NeverCancelled {
+    fn cancelled(&self) -> bool {
+        false
+    }
 }
 
 /// The result of one run.

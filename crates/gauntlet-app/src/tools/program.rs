@@ -18,8 +18,9 @@ use gauntlet_domain::{Digest, InvocationId};
 use gauntlet_ports::json::JsonValue;
 use gauntlet_ports::tool_catalog::{ToolCatalog, ToolInvocation, ToolInvoker, ToolName};
 use gauntlet_ports::tool_program::{
-    HostRecord, ProgramHost, ProgramLimit, ProgramLimits, ProgramOutcome, ToolProgramRequest,
-    ToolProgramRuntime, TraceEntry, TraceOutcomeKind, args_digest, finish_outcome,
+    CancelProbe, HostRecord, ProgramHost, ProgramLimit, ProgramLimits, ProgramOutcome,
+    ToolProgramRequest, ToolProgramRuntime, TraceEntry, TraceOutcomeKind, args_digest,
+    finish_outcome,
 };
 use gauntlet_ports::tool_surface::ToolOutcome;
 
@@ -30,6 +31,10 @@ pub const TOOL_NOT_ADMITTED: &str = "tool_not_admitted";
 
 /// The stable refusal code for a call refused because a bound was exceeded.
 pub const CALL_LIMIT_REFUSED: &str = "call_limit_refused";
+
+/// The stable refusal code for a call refused because the owning invocation
+/// was cancelled. The invoker is never reached.
+pub const CALL_CANCELLED_REFUSED: &str = "call_cancelled";
 
 /// Why an admitted set could not be derived.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,11 +78,13 @@ pub fn admitted_subset(
 /// each request, which the host that built it fixed.
 pub struct ProgramDriver<'a> {
     invoker: &'a dyn ToolInvoker,
+    cancel: &'a dyn CancelProbe,
 }
 
 impl<'a> ProgramDriver<'a> {
-    pub fn new(invoker: &'a dyn ToolInvoker) -> Self {
-        Self { invoker }
+    /// `cancel` reports whether the run's owning invocation was cancelled.
+    pub fn new(invoker: &'a dyn ToolInvoker, cancel: &'a dyn CancelProbe) -> Self {
+        Self { invoker, cancel }
     }
 
     /// Runs one request. The outcome is assembled from this driver's own host
@@ -87,7 +94,7 @@ impl<'a> ProgramDriver<'a> {
         runtime: &dyn ToolProgramRuntime,
         request: &ToolProgramRequest,
     ) -> ProgramOutcome {
-        let host = DriverHost::new(self.invoker, request);
+        let host = DriverHost::new(self.invoker, self.cancel, request);
         let outcome = runtime.run(request, &host);
         finish_outcome(outcome.status, host.record(), request, outcome.duration)
     }
@@ -96,6 +103,7 @@ impl<'a> ProgramDriver<'a> {
 /// The host a single run sees. It is the only route from a program to a tool.
 struct DriverHost<'a> {
     invoker: &'a dyn ToolInvoker,
+    cancel: &'a dyn CancelProbe,
     caller: InvocationId,
     admitted: Vec<ToolName>,
     limits: ProgramLimits,
@@ -111,9 +119,14 @@ struct DriverState {
 }
 
 impl<'a> DriverHost<'a> {
-    fn new(invoker: &'a dyn ToolInvoker, request: &ToolProgramRequest) -> Self {
+    fn new(
+        invoker: &'a dyn ToolInvoker,
+        cancel: &'a dyn CancelProbe,
+        request: &ToolProgramRequest,
+    ) -> Self {
         Self {
             invoker,
+            cancel,
             caller: request.caller().clone(),
             admitted: request.admitted().to_vec(),
             limits: request.limits(),
@@ -123,6 +136,13 @@ impl<'a> DriverHost<'a> {
 
     fn dispatch(&self, state: &mut DriverState, name: &ToolName, args: &JsonValue) -> ToolOutcome {
         let digest = args_digest(args);
+        if self.cancel.cancelled() {
+            push(&mut state.trace, name, &digest, TraceOutcomeKind::Refused);
+            return refused(
+                CALL_CANCELLED_REFUSED,
+                "the owning invocation was cancelled",
+            );
+        }
         if state.breach.is_some() {
             push(&mut state.trace, name, &digest, TraceOutcomeKind::Limit);
             return refused(CALL_LIMIT_REFUSED, "a bound was already exceeded");
@@ -178,6 +198,23 @@ impl ProgramHost for DriverHost<'_> {
     fn call_group(&self, calls: &[(ToolName, JsonValue)]) -> Vec<ToolOutcome> {
         let mut state = self.state.borrow_mut();
         let size = u32::try_from(calls.len()).unwrap_or(u32::MAX);
+        if self.cancel.cancelled() {
+            return calls
+                .iter()
+                .map(|(name, args)| {
+                    push(
+                        &mut state.trace,
+                        name,
+                        &args_digest(args),
+                        TraceOutcomeKind::Refused,
+                    );
+                    refused(
+                        CALL_CANCELLED_REFUSED,
+                        "the owning invocation was cancelled",
+                    )
+                })
+                .collect();
+        }
         if state.breach.is_none()
             && state.in_flight.saturating_add(size) > self.limits.max_parallel_calls
         {
@@ -214,5 +251,9 @@ impl ProgramHost for DriverHost<'_> {
             trace: state.trace.clone(),
             breach: state.breach,
         }
+    }
+
+    fn cancelled(&self) -> bool {
+        self.cancel.cancelled()
     }
 }

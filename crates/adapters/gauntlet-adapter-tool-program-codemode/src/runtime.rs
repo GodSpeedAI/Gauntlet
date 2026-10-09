@@ -36,6 +36,11 @@ const LINE_HEADROOM: usize = 64 * 1024;
 /// How long a cancel gets to reach the host before the group is killed.
 const CANCEL_ACK: Duration = Duration::from_millis(200);
 
+/// The longest the parent waits for host output before it checks whether the
+/// owning invocation was cancelled. A cancelled run stops within about one span
+/// of the cancel, plus the cancel's own ack bound.
+const CANCEL_POLL_SPAN: Duration = Duration::from_millis(100);
+
 /// The codemode runtime. It holds configuration only; no process starts until
 /// [`ToolProgramRuntime::run`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,6 +70,8 @@ enum Ending {
     Done(ProgramStatus),
     Fault(String),
     Deadline,
+    /// The owning invocation was cancelled. No call is serviced after this.
+    Cancelled,
 }
 
 impl ToolProgramRuntime for CodemodeRuntime {
@@ -103,10 +110,16 @@ impl CodemodeRuntime {
             .unwrap_or(started);
         let mut seen_ids = HashSet::new();
         let ending = loop {
+            if host.cancelled() {
+                break Ending::Cancelled;
+            }
             let remaining = deadline.saturating_duration_since(Instant::now());
-            match running.next(remaining) {
+            match running.next(remaining.min(CANCEL_POLL_SPAN)) {
                 Next::Frame(crate::process::Frame::Line(text)) => match protocol::decode(&text) {
                     Ok(HostMessage::Call { id, tool, args }) => {
+                        if host.cancelled() {
+                            break Ending::Cancelled;
+                        }
                         if !seen_ids.insert(id) {
                             break Ending::Fault(format!("call id {id} repeats"));
                         }
@@ -131,7 +144,11 @@ impl CodemodeRuntime {
                 Next::Frame(crate::process::Frame::IoError(detail)) => {
                     break Ending::Fault(detail);
                 }
-                Next::Timeout => break Ending::Deadline,
+                Next::Timeout => {
+                    if Instant::now() >= deadline {
+                        break Ending::Deadline;
+                    }
+                }
                 Next::Disconnected => {
                     break Ending::Fault("the host output ended without a frame".to_owned());
                 }
@@ -148,13 +165,22 @@ impl CodemodeRuntime {
                 runtime_failure(format!("codemode host protocol fault: {detail}{stderr}"))
             }
             Ending::Deadline => {
-                running.send(protocol::encode_cancel());
-                let _ = running.next(CANCEL_ACK);
-                running.stop();
+                stop_cancelled(running);
                 ProgramStatus::TimedOut
+            }
+            Ending::Cancelled => {
+                stop_cancelled(running);
+                ProgramStatus::Cancelled
             }
         }
     }
+}
+
+/// Asks the host to stop, waits a bounded time for its ack, and kills the group.
+fn stop_cancelled(running: Running) {
+    running.send(protocol::encode_cancel());
+    let _ = running.next(CANCEL_ACK);
+    running.stop();
 }
 
 fn runtime_failure(message: String) -> ProgramStatus {

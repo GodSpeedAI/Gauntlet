@@ -11,6 +11,9 @@
 //! - `{"fail": "<message>"}` stops the program with a runtime failure.
 //! - `{"return": <json>}` stops the program and completes with that value.
 //!
+//! Before each step the runtime asks the host whether it was cancelled; if so,
+//! it stops with `Cancelled` and issues nothing further.
+//!
 //! A program that runs out of steps completes with `null`. A source that is not
 //! a JSON array of these steps is `Failed(Script)`. The mock never reads a clock,
 //! so its duration is zero.
@@ -73,6 +76,10 @@ fn interpret(text: &str, host: &dyn ProgramHost) -> ProgramStatus {
         Err(error) => return script_error(error.to_string()),
     };
     for step in &steps {
+        // Checked before each step, so a cancelled owner gets no further call.
+        if host.cancelled() {
+            return ProgramStatus::Cancelled;
+        }
         match parse_step(step) {
             Ok(Step::Call(name, args)) => {
                 host.call(&name, &args);

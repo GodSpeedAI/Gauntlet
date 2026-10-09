@@ -50,6 +50,9 @@ pub trait ToolProgramFactory {
 pub struct ContractHost {
     admitted: Vec<ToolName>,
     limits: ProgramLimits,
+    /// The host reports cancellation once this many calls have executed. `None`
+    /// never cancels; `Some(0)` is cancelled from the start.
+    cancel_after: Option<usize>,
     state: RefCell<ContractState>,
 }
 
@@ -60,15 +63,28 @@ struct ContractState {
     attempts: u32,
     in_flight: u32,
     breach: Option<ProgramLimit>,
+    /// Calls the host received while it already reported cancellation.
+    calls_after_cancel: u32,
 }
 
 impl ContractHost {
-    fn new(admitted: Vec<ToolName>, limits: ProgramLimits) -> Self {
+    fn new(admitted: Vec<ToolName>, limits: ProgramLimits, cancel_after: Option<usize>) -> Self {
         Self {
             admitted,
             limits,
+            cancel_after,
             state: RefCell::new(ContractState::default()),
         }
+    }
+
+    fn cancelled_in(&self, state: &ContractState) -> bool {
+        self.cancel_after
+            .is_some_and(|after| state.executed.len() >= after)
+    }
+
+    /// Calls that arrived after the host already reported cancellation.
+    fn calls_after_cancel(&self) -> u32 {
+        self.state.borrow().calls_after_cancel
     }
 
     /// The tools that executed, in order. A refused or limited call never
@@ -83,6 +99,9 @@ impl ContractHost {
         name: &ToolName,
         args: &JsonValue,
     ) -> ToolOutcome {
+        if self.cancelled_in(state) {
+            state.calls_after_cancel = state.calls_after_cancel.saturating_add(1);
+        }
         let seq = u32::try_from(state.trace.len()).unwrap_or(u32::MAX);
         let digest = args_digest(args);
         let mut record = |outcome: TraceOutcomeKind| {
@@ -127,6 +146,11 @@ impl ProgramHost for ContractHost {
     fn call(&self, name: &ToolName, args: &JsonValue) -> ToolOutcome {
         let mut state = self.state.borrow_mut();
         self.dispatch(&mut state, name, args)
+    }
+
+    fn cancelled(&self) -> bool {
+        let state = self.state.borrow();
+        self.cancelled_in(&state)
     }
 
     fn call_group(&self, calls: &[(ToolName, JsonValue)]) -> Vec<ToolOutcome> {
@@ -216,6 +240,20 @@ fn run(
     admitted: &[&str],
     limits: ProgramLimits,
 ) -> Result<(ProgramOutcome, ContractHost, ToolProgramRequest), Vec<ContractFinding>> {
+    run_with_cancel(factory, case, rule, text, admitted, limits, None)
+}
+
+/// As [`run`], with a host that reports cancellation after `cancel_after`
+/// executed calls.
+fn run_with_cancel(
+    factory: &dyn ToolProgramFactory,
+    case: &'static str,
+    rule: &'static str,
+    text: &str,
+    admitted: &[&str],
+    limits: ProgramLimits,
+    cancel_after: Option<usize>,
+) -> Result<(ProgramOutcome, ContractHost, ToolProgramRequest), Vec<ContractFinding>> {
     let runtime = factory.build().map_err(|detail| {
         vec![finding(
             case,
@@ -230,7 +268,7 @@ fn run(
             format!("the case request was refused: {detail}"),
         )]
     })?;
-    let host = ContractHost::new(request.admitted().to_vec(), limits);
+    let host = ContractHost::new(request.admitted().to_vec(), limits, cancel_after);
     let outcome = runtime.run(&request, &host);
     Ok((outcome, host, request))
 }
@@ -464,6 +502,72 @@ fn trace_digest_is_stable_and_argument_sensitive(
     findings
 }
 
+/// Case: a host that reports cancellation stops the run as `Cancelled`, and
+/// the runtime issues no call after the report. A host cancelled from the start
+/// sees no call at all; a host cancelled after one call sees exactly that call.
+fn cancellation_stops_further_calls(factory: &dyn ToolProgramFactory) -> Vec<ContractFinding> {
+    const CASE: &str = "cancellation_stops_further_calls";
+    const RULE: &str = "a host reporting cancellation gets no call after the report; the run ends Cancelled, never Completed";
+    let text = format!(r#"[{{"call":"{READ}"}},{{"call":"{READ}"}},{{"return":"done"}}]"#);
+    let mut findings = Vec::new();
+
+    let bounds = limits(8, 4, 4096);
+    let (outcome, host, _) =
+        match run_with_cancel(factory, CASE, RULE, &text, &[READ], bounds, Some(0)) {
+            Ok(parts) => parts,
+            Err(found) => return found,
+        };
+    if outcome.status != ProgramStatus::Cancelled {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "cancelled from the start, the status was {:?}",
+                outcome.status
+            ),
+        ));
+    }
+    if !host.executed().is_empty() || host.calls_after_cancel() != 0 {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "cancelled from the start, {} tools executed and {} calls arrived after the report",
+                host.executed().len(),
+                host.calls_after_cancel()
+            ),
+        ));
+    }
+
+    let (outcome, host, _) =
+        match run_with_cancel(factory, CASE, RULE, &text, &[READ], bounds, Some(1)) {
+            Ok(parts) => parts,
+            Err(found) => return found,
+        };
+    if outcome.status != ProgramStatus::Cancelled {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "cancelled after one call, the status was {:?}",
+                outcome.status
+            ),
+        ));
+    }
+    if host.executed() != [tool(READ)] || host.calls_after_cancel() != 0 {
+        findings.push(finding(
+            CASE,
+            RULE,
+            format!(
+                "cancelled after one call, {} tools executed and {} calls arrived after the report",
+                host.executed().len(),
+                host.calls_after_cancel()
+            ),
+        ));
+    }
+    findings
+}
+
 /// Case: a `Completed` value over the result cap is `LimitExceeded(ResultBytes)`.
 fn result_cap_is_enforced(factory: &dyn ToolProgramFactory) -> Vec<ContractFinding> {
     const CASE: &str = "result_cap_is_enforced";
@@ -538,5 +642,6 @@ pub fn tool_program_suite(factory: &dyn ToolProgramFactory) -> Vec<ContractFindi
     findings.extend(trace_digest_is_stable_and_argument_sensitive(factory));
     findings.extend(result_cap_is_enforced(factory));
     findings.extend(malformed_source_fails_typed(factory));
+    findings.extend(cancellation_stops_further_calls(factory));
     findings
 }

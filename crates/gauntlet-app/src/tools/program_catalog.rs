@@ -27,8 +27,8 @@ use gauntlet_ports::tool_catalog::{
     ToolCatalog, ToolInvocation, ToolInvoker, ToolName, ToolOperation,
 };
 use gauntlet_ports::tool_program::{
-    FailureClass, ProgramLimit, ProgramLimits, ProgramOutcome, ProgramSource, ProgramStatus,
-    ToolProgramRequest, ToolProgramRuntime, TraceOutcomeKind,
+    CancelProbe, FailureClass, ProgramLimit, ProgramLimits, ProgramOutcome, ProgramSource,
+    ProgramStatus, ToolProgramRequest, ToolProgramRuntime, TraceOutcomeKind,
 };
 use gauntlet_ports::tool_surface::ToolOutcome;
 
@@ -189,11 +189,14 @@ impl ToolCatalog for ProgramCatalog {
 /// tools a program may be given. Both come from the host.
 ///
 /// `invoker` is the host's semantic runtime for direct calls, so an inner call
-/// is admitted exactly as a direct call would be.
+/// is admitted exactly as a direct call would be. `cancel` reports whether the
+/// caller's invocation was cancelled; a cancelled run stops and its inner calls
+/// are refused.
 pub fn program_runtime<'s>(
     inner: &'s dyn ToolCatalog,
     invoker: &'s dyn ToolInvoker,
     program: &'s dyn ToolProgramRuntime,
+    cancel: &'s dyn CancelProbe,
     policy: EffectPolicy,
     ceilings: ProgramCeilings,
     caller: InvocationId,
@@ -212,6 +215,7 @@ pub fn program_runtime<'s>(
             inner,
             invoker,
             program,
+            cancel,
             &policy,
             ceilings,
             &bound,
@@ -223,10 +227,12 @@ pub fn program_runtime<'s>(
 
 /// Decodes the (already schema-checked) arguments, builds the request, runs
 /// it, and encodes the outcome. A malformed argument is `Invalid`; nothing runs.
+#[allow(clippy::too_many_arguments)] // each argument is a host-owned port or bound
 fn run(
     inner: &dyn ToolCatalog,
     invoker: &dyn ToolInvoker,
     program: &dyn ToolProgramRuntime,
+    cancel: &dyn CancelProbe,
     policy: &EffectPolicy,
     ceilings: ProgramCeilings,
     caller: &InvocationId,
@@ -236,7 +242,7 @@ fn run(
         Ok(request) => request,
         Err(detail) => return ToolOutcome::Invalid { detail },
     };
-    let outcome = ProgramDriver::new(invoker).run(program, &request);
+    let outcome = ProgramDriver::new(invoker, cancel).run(program, &request);
     ToolOutcome::Ok(outcome_json(&outcome))
 }
 

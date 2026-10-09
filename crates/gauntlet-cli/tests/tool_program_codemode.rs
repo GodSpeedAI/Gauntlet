@@ -19,7 +19,8 @@ use gauntlet_domain::{EffectClass, InvocationId};
 use gauntlet_ports::json::parse;
 use gauntlet_ports::tool_catalog::{ToolCatalog, ToolInvocation, ToolName, ToolOperation};
 use gauntlet_ports::tool_program::{
-    ProgramLimit, ProgramLimits, ProgramSource, ProgramStatus, ToolProgramRequest, TraceOutcomeKind,
+    NeverCancelled, ProgramLimit, ProgramLimits, ProgramSource, ProgramStatus, ToolProgramRequest,
+    TraceOutcomeKind,
 };
 use gauntlet_ports::tool_surface::ToolOutcome;
 
@@ -137,7 +138,7 @@ return { a: a, pair: pair };"#,
     )
     .expect("the request is valid");
 
-    let driver = ProgramDriver::new(&runtime);
+    let driver = ProgramDriver::new(&runtime, &NeverCancelled);
     let outcome = driver.run(&CodemodeRuntime::new(bun_host()), &request);
 
     assert_eq!(
@@ -196,7 +197,7 @@ fn a_tool_outside_the_admitted_set_never_reaches_its_handler() {
     )
     .expect("the request is valid");
 
-    let driver = ProgramDriver::new(&runtime);
+    let driver = ProgramDriver::new(&runtime, &NeverCancelled);
     let outcome = driver.run(&CodemodeRuntime::new(bun_host()), &request);
 
     assert_eq!(
@@ -237,7 +238,7 @@ return "done";"#,
     )
     .expect("the request is valid");
 
-    let driver = ProgramDriver::new(&runtime);
+    let driver = ProgramDriver::new(&runtime, &NeverCancelled);
     let outcome = driver.run(&CodemodeRuntime::new(bun_host()), &request);
     assert_eq!(
         outcome.status,

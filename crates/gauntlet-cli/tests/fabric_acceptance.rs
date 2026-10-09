@@ -35,13 +35,14 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Output, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use gauntlet_adapter_agent_prime::mcp_bridge::{McpBridge, provision};
 use gauntlet_adapter_state_postgres::{EmbeddedInvocationGraph, EmbeddedStateStore};
 use gauntlet_adapter_surface_rpc::METHOD_TOOLS_CALL;
 use gauntlet_adapter_tool_program_codemode::{
-    DEFAULT_WORKBENCH_DIR, HOST_ENTRY, bun_codemode_host,
+    DEFAULT_PROGRAM_TIMEOUT, DEFAULT_WORKBENCH_DIR, HOST_ENTRY, bun_codemode_host,
 };
 use gauntlet_app::delegation::DelegationBroker;
 use gauntlet_app::delegation::reconcile::DelegationStatus;
@@ -96,6 +97,9 @@ const ROOT_COST: u64 = 8100;
 const SPAWN_BOUND: u64 = 30;
 /// The span a test deadline reaches past now.
 const HORIZON: u64 = 600;
+
+/// Milliseconds the running program is left to start before its caller is cancelled.
+const PROGRAM_CANCEL_LEAD: u64 = 1_000;
 
 static COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -347,6 +351,13 @@ impl Serve {
     fn tool(&mut self, id: u32, name: &str, arguments: &str) -> String {
         let params = format!(r#"{{"name":"{name}","arguments":{arguments}}}"#);
         self.call(&rpc(id, METHOD_TOOLS_CALL, &params))
+    }
+
+    /// Reads the one response line of a request sent with `send`.
+    fn receive(&mut self) -> String {
+        let mut line = String::new();
+        self.stdout.read_line(&mut line).expect("a response line");
+        line
     }
 
     /// Ends the session by closing stdin and waits for a clean exit.
@@ -1508,6 +1519,86 @@ fn graph_snapshot(fixture: &Fixture, root: &InvocationId) -> String {
             .descendants(root, deadline())
             .expect("the descendants read"),
     )
+}
+
+/// Cancelling the caller while its program runs ends the run: `program.run`
+/// replies `cancelled` long before the program's own timeout, and the cancel
+/// changes only the caller's node. Nothing settles the cancelled invocation.
+#[test]
+fn acceptance_cancelling_the_caller_stops_its_running_program() {
+    let fixture = Fixture::new("program-cancel");
+    let root = fixture.admit_parent(RUN);
+    let root_id = id(&root);
+    let run = RunId::new(RUN).expect("the run id is valid");
+
+    let graph = fixture.graph();
+    let before = node(&graph, &root_id);
+    assert!(
+        !before.status.is_terminal(),
+        "the caller is live: {before:?}"
+    );
+
+    let mut parent = fixture.serve(RUN, &root, true);
+    parent.initialize();
+    let params =
+        format!(r#"{{"name":"{PROGRAM_RUN}","arguments":{{"source":"while (true) {{}}"}}}}"#);
+    let started = Instant::now();
+    parent.send(&rpc(3, METHOD_TOOLS_CALL, &params));
+    thread::sleep(Duration::from_millis(PROGRAM_CANCEL_LEAD));
+    let cancelled = graph
+        .cancel_subtree(&root_id, EpochSeconds::new(now_seconds()), deadline())
+        .expect("the caller cancels");
+    assert_eq!(
+        cancelled,
+        vec![root_id.clone()],
+        "only the caller is cancelled"
+    );
+
+    let reply = parent.receive();
+    let elapsed = started.elapsed();
+    assert!(parent.finish().0.success(), "serve exits cleanly");
+
+    assert!(!reply.contains("\"isError\":true"), "not an error: {reply}");
+    let outcome = payload(&reply);
+    assert_eq!(text_field(&outcome, "status"), "cancelled", "{reply}");
+    assert!(
+        elapsed < DEFAULT_PROGRAM_TIMEOUT / 2,
+        "the cancelled run took {elapsed:?}; the program's timeout is {DEFAULT_PROGRAM_TIMEOUT:?}"
+    );
+
+    let after = node(&graph, &root_id);
+    assert_eq!(after.status, NodeStatus::Cancelled);
+    assert!(after.terminal_at.is_some(), "the cancel stamps the node");
+    let mut expected = before.clone();
+    expected.status = NodeStatus::Cancelled;
+    expected.terminal_at = after.terminal_at;
+    assert_eq!(
+        after, expected,
+        "the cancel changes only the caller's status"
+    );
+    assert!(
+        graph
+            .descendants(&root_id, deadline())
+            .expect("the descendants read")
+            .is_empty(),
+        "the caller has no subtree to change"
+    );
+
+    let store = fixture.store();
+    assert!(
+        store
+            .settlements(&run, deadline())
+            .expect("reads")
+            .is_empty(),
+        "a cancelled invocation is never settled"
+    );
+    let export = store
+        .export_jsonl(&run, deadline())
+        .expect("the log exports");
+    assert!(
+        !export.contains("SettlementCommitted"),
+        "no settlement event in the run log"
+    );
 }
 
 /// A bound process is the invocation: its spawn is admitted as before.

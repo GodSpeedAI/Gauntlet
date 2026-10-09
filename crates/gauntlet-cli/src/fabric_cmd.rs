@@ -26,6 +26,7 @@
 //! `UnitDispatch` events. Children inherit the root's unit through the graph.
 //! No tool argument can name a caller, a parent, or an authority.
 
+use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::fmt;
@@ -62,6 +63,7 @@ use gauntlet_ports::invocation_graph::{AdmissionOutcome, AdmissionRequest, Invoc
 use gauntlet_ports::json::JsonValue;
 use gauntlet_ports::state_store::{RunEvent, RunEventKind, StateStore};
 use gauntlet_ports::tool_catalog::{CatalogSurface, ToolCatalog, ToolInvocation, ToolInvoker};
+use gauntlet_ports::tool_program::CancelProbe;
 use gauntlet_ports::tool_surface::{ToolListing, ToolOutcome, ToolSurface};
 use gauntlet_ports::workspace_provider::{WorkspaceProvider, WorkspaceSubject};
 
@@ -593,6 +595,36 @@ fn program_host(flags: &Flags) -> CmdResult<Option<CodemodeRuntime>> {
     Ok(Some(CodemodeRuntime::new(host)))
 }
 
+/// Reads the caller's own node at each poll. A terminal node means the owning
+/// invocation was cancelled, or otherwise ended, so a running program must stop.
+/// A failed lookup is not cancellation: it reports `false`, and the first failure
+/// is logged to stderr.
+struct CallerCancelProbe<'a> {
+    graph: &'a dyn InvocationGraph,
+    caller: InvocationId,
+    clock: &'a dyn Clock,
+    warned: Cell<bool>,
+}
+
+impl CancelProbe for CallerCancelProbe<'_> {
+    fn cancelled(&self) -> bool {
+        let (_, deadline) = now_and_bound(self.clock);
+        match self.graph.node(&self.caller, deadline) {
+            Ok(Some(node)) => node.status.is_terminal(),
+            Ok(None) => false,
+            Err(error) => {
+                if !self.warned.replace(true) {
+                    eprintln!(
+                        "fabric: could not read caller {} for cancellation: {error}",
+                        self.caller
+                    );
+                }
+                false
+            }
+        }
+    }
+}
+
 fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
     let flags = Flags::parse(args, SERVE_FLAGS)?;
     let state_dir = PathBuf::from(flags.require("state")?);
@@ -709,6 +741,12 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
     };
     // Built once, before the protocol starts. A build failure refuses to start.
     let agents = startup_runtime("agents", agents_runtime(&fresh, caller_invocation.clone()))?;
+    let cancel = CallerCancelProbe {
+        graph: &graph,
+        caller: caller_invocation.clone(),
+        clock: &clock,
+        warned: Cell::new(false),
+    };
     let program = match codemode.as_ref() {
         Some(runtime) => Some(startup_runtime(
             "program",
@@ -716,6 +754,7 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
                 &AgentsCatalog,
                 &agents,
                 runtime,
+                &cancel,
                 host_effect_policy(),
                 composed.program,
                 caller_invocation.clone(),
