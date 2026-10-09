@@ -12,7 +12,7 @@
 
 use core::fmt;
 use std::collections::BTreeMap;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gauntlet_domain::{
     AdmissionKey, Budget, EpochSeconds, InvocationId, IterationNo, PermissionSetRef,
@@ -170,7 +170,7 @@ impl std::error::Error for RunnerSetError {}
 /// Runners keyed by profile, built together with the registry they serve.
 #[derive(Clone, Default)]
 pub struct RunnerSet {
-    runners: BTreeMap<RunnerProfileId, Rc<dyn AgentRunner>>,
+    runners: BTreeMap<RunnerProfileId, Arc<dyn AgentRunner>>,
 }
 
 impl RunnerSet {
@@ -178,7 +178,7 @@ impl RunnerSet {
     /// for unknown profiles, and profiles without a runner are typed refusals.
     pub fn for_registry(
         registry: &RunnerRegistry,
-        entries: Vec<(RunnerProfileId, Rc<dyn AgentRunner>)>,
+        entries: Vec<(RunnerProfileId, Arc<dyn AgentRunner>)>,
     ) -> Result<Self, RunnerSetError> {
         let mut runners = BTreeMap::new();
         for (profile, runner) in entries {
@@ -199,7 +199,7 @@ impl RunnerSet {
         Ok(Self { runners })
     }
 
-    pub(super) fn get(&self, profile: &RunnerProfileId) -> Option<&Rc<dyn AgentRunner>> {
+    pub(super) fn get(&self, profile: &RunnerProfileId) -> Option<&Arc<dyn AgentRunner>> {
         self.runners.get(profile)
     }
 }

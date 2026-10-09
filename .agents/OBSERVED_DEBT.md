@@ -32,3 +32,9 @@ Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each e
 * **Evidence:** `AgentsService::spawn` (`gauntlet-app/src/delegation/agents.rs`) calls `AuthorityGate::admit` fresh with the caller's recorded facts but drops the returned `GateAdmission`; `DelegationBroker`/`RoleInvocationSpec` carry no containment proof and the runner's `CommandContainment` is fixed at composition time (`compose.rs` `wrap_checked_posture`, recorded=None — see OD-4).
 * **Impact:** safe today only because the none-backend posture refuses every tier above `contained` (`dispatchable_posture`); with a live sandbox backend a delegated child could start under the composition-time wrap instead of one derived from its admission (AGENTS.md §5: authority and containment both precede process start).
 * **Next move:** before enabling any non-none sandbox backend for delegated children, thread the admission into the spawn path (broker spec -> runner containment) and add a test that a child of a higher tier cannot start without its own wrapped command.
+
+## OD-6 — fabric profile `isolation` is declared, not enforced
+
+* **Evidence:** `crates/gauntlet-cli/src/fabric_compose.rs` accepts `isolation` per profile/limits, but a `CommandContainment` seam is wired only for the command-template runner token (as in `compose.rs`); other tokens receive none.
+* **Impact:** a profile declaring process/container isolation without a containment seam is an honesty gap; related to OD-5.
+* **Next move:** have the gate (or `fabric serve` startup/doctor) refuse or report any profile whose declared isolation has no wired containment before it is used.

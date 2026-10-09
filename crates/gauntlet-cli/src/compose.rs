@@ -141,6 +141,10 @@ pub enum CompositionError {
     Plan { detail: String },
     /// The composition-time wrap was refused by the gate.
     WrapRefused { detail: String },
+    /// A fabric configuration could not be composed into runners (see
+    /// [`crate::fabric_compose`]): a scenario did not load, or the registry
+    /// and runner set disagree.
+    Fabric { detail: String },
 }
 
 impl core::fmt::Display for CompositionError {
@@ -169,6 +173,7 @@ impl core::fmt::Display for CompositionError {
             Self::WrapRefused { detail } => {
                 write!(f, "the composition-time wrap was refused: {detail}")
             }
+            Self::Fabric { detail } => write!(f, "the fabric could not be composed: {detail}"),
         }
     }
 }

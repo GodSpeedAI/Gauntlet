@@ -109,6 +109,25 @@ impl InteractiveAgentConfig {
         }
     }
 
+    /// A configuration from explicit parts, with no environment read: the
+    /// composition root's constructor. The prompt delivery and lifecycle
+    /// classifier take their defaults. `max_depth` is the recursion depth
+    /// the runner reports; `cancel_span_seconds` bounds one cancellation's
+    /// stop operation past the caller's bound.
+    pub fn from_parts(
+        command_template: impl Into<String>,
+        max_depth: u8,
+        cancel_span_seconds: u64,
+    ) -> Self {
+        Self {
+            command_template: command_template.into(),
+            max_depth,
+            cancel_span_seconds,
+            prompt_delivery: PromptDelivery::default(),
+            classifier: ClassifierConfig::default(),
+        }
+    }
+
     /// Reads the configuration from the process environment.
     pub fn from_env() -> Result<Self, ConfigError> {
         let template = match std::env::var(crate::COMMAND_ENV_VAR) {

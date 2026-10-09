@@ -22,7 +22,7 @@
 //!   untrusted claim.
 
 use core::fmt;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gauntlet_domain::{
     Digest, EpochSeconds, InvocationId, ResultContractPath, RunId, RunnerProfileId,
@@ -366,7 +366,7 @@ impl DelegationBroker<'_> {
             .ok_or_else(|| BrokerError::UnknownInvocation { id: id.clone() })
     }
 
-    fn runner_for(&self, profile: &RunnerProfileId) -> Result<&Rc<dyn AgentRunner>, BrokerError> {
+    fn runner_for(&self, profile: &RunnerProfileId) -> Result<&Arc<dyn AgentRunner>, BrokerError> {
         self.runners
             .get(profile)
             .ok_or_else(|| BrokerError::RunnerUnbound {

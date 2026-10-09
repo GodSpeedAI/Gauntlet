@@ -3,7 +3,7 @@
 
 use super::test_support::*;
 use std::collections::BTreeSet;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gauntlet_domain::{BudgetDimension, EpochSeconds, HarnessId, InvocationId};
 use gauntlet_ports::InvocationStatus;
@@ -364,16 +364,16 @@ fn terminal_parent_refuses_new_children_with_zero_runner_calls() {
 
 #[test]
 fn selection_refusals_make_no_node_and_no_runner_call() {
-    let a = Rc::new(ScriptedRunner::new("a"));
+    let a = Arc::new(ScriptedRunner::new("a"));
     let mut without_model_selection = instance("profile-a", "harness-a");
     without_model_selection.capabilities.model_selection = false;
     let lab = Lab::new(
         vec![instance("profile-a", "harness-a")],
-        &[("profile-a", Rc::clone(&a))],
+        &[("profile-a", Arc::clone(&a))],
     );
     let no_model = Lab::new(
         vec![without_model_selection],
-        &[("profile-a", Rc::clone(&a))],
+        &[("profile-a", Arc::clone(&a))],
     );
 
     // No instance reaches the required support level.
@@ -674,10 +674,10 @@ fn a_handle_without_session_identity_is_failed_cancelled_and_never_replayed() {
 
 #[test]
 fn a_replay_heals_a_lost_running_transition_without_a_second_launch() {
-    let a = Rc::new(ScriptedRunner::new("a"));
+    let a = Arc::new(ScriptedRunner::new("a"));
     let lab = Lab::new(
         vec![instance("profile-a", "harness-a")],
-        &[("profile-a", Rc::clone(&a))],
+        &[("profile-a", Arc::clone(&a))],
     );
     let graph = ProbeGraph::default();
     graph.mark_running_failures.set(1);
@@ -852,10 +852,10 @@ fn a_same_digest_result_from_another_invocation_is_refused_by_the_broker() {
 
 #[test]
 fn a_child_that_says_done_through_its_lifecycle_never_completes_its_node() {
-    let a = Rc::new(ScriptedRunner::new("a"));
+    let a = Arc::new(ScriptedRunner::new("a"));
     let lab = Lab::new(
         vec![instance("profile-a", "harness-a")],
-        &[("profile-a", Rc::clone(&a))],
+        &[("profile-a", Arc::clone(&a))],
     );
     let graph = ProbeGraph::default();
     let broker = DelegationBroker::new(&graph, &lab.registry, &lab.runners);
@@ -1070,7 +1070,7 @@ fn status_polls_only_live_bound_nodes_and_never_moves_the_graph() {
 #[test]
 fn cancel_reaches_the_leaves_first_and_a_second_cancel_is_a_no_op() {
     let (lab, a, b, c) = standard_lab();
-    let log: CancelLog = Rc::default();
+    let log: CancelLog = Arc::default();
     for double in [&a, &b, &c] {
         double.share_cancel_log(&log);
     }
@@ -1259,9 +1259,9 @@ fn a_runner_cancel_failure_is_reported_and_the_graph_stays_cancelled() {
 /// failed, so it is admitted with no binding.
 fn recovery_tree() -> (
     Lab,
-    Rc<ScriptedRunner>,
-    Rc<ScriptedRunner>,
-    Rc<ScriptedRunner>,
+    Arc<ScriptedRunner>,
+    Arc<ScriptedRunner>,
+    Arc<ScriptedRunner>,
 ) {
     let (lab, a, b, c) = standard_lab();
     lab.broker()
@@ -1316,9 +1316,9 @@ fn recovery_reattaches_orphans_cancels_running_descendants_and_reports_never_lau
 
     // A restart: fresh doubles over the same graph. The first still holds the
     // root. The second forgot the child. The third still holds the grandchild.
-    let restart_a = Rc::new(ScriptedRunner::new("a4"));
-    let restart_b = Rc::new(ScriptedRunner::new("b4"));
-    let restart_c = Rc::new(ScriptedRunner::new("c4"));
+    let restart_a = Arc::new(ScriptedRunner::new("a4"));
+    let restart_b = Arc::new(ScriptedRunner::new("b4"));
+    let restart_c = Arc::new(ScriptedRunner::new("c4"));
     restart_a.set_status(&inv(ROOT_TAG), running_status());
     restart_c.set_status(&inv(GRANDCHILD_TAG), running_status());
     let restarted = Lab::new(
@@ -1328,9 +1328,9 @@ fn recovery_reattaches_orphans_cancels_running_descendants_and_reports_never_lau
             instance("profile-c", "harness-c"),
         ],
         &[
-            ("profile-a", Rc::clone(&restart_a)),
-            ("profile-b", Rc::clone(&restart_b)),
-            ("profile-c", Rc::clone(&restart_c)),
+            ("profile-a", Arc::clone(&restart_a)),
+            ("profile-b", Arc::clone(&restart_b)),
+            ("profile-c", Arc::clone(&restart_c)),
         ],
     );
     let broker = DelegationBroker::new(&lab.graph, &restarted.registry, &restarted.runners);
@@ -1380,12 +1380,12 @@ fn recovery_applies_a_terminal_runner_status_once() {
         ))
         .expect("the root launches")
         .node;
-    let restart_a = Rc::new(ScriptedRunner::new("a5"));
+    let restart_a = Arc::new(ScriptedRunner::new("a5"));
     restart_a.set_status(&inv(ROOT_TAG), completed_status());
     restart_a.set_result(builder_result(&inv(ROOT_TAG), &root.context_digest, false));
     let restarted = Lab::new(
         vec![instance("profile-a", "harness-a")],
-        &[("profile-a", Rc::clone(&restart_a))],
+        &[("profile-a", Arc::clone(&restart_a))],
     );
     let broker = DelegationBroker::new(&lab.graph, &restarted.registry, &restarted.runners);
 

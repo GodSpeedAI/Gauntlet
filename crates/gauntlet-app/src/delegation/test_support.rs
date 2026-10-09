@@ -4,7 +4,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeSet;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gauntlet_domain::{
     AdmissionKey, Budget, DiagnosticAllowance, Digest, EpochSeconds, HarnessId, InvocationId,
@@ -271,7 +271,7 @@ pub(crate) fn instance(profile: &str, harness: &str) -> RunnerInstance {
 }
 
 /// The order of runner cancels, shared across doubles to observe global order.
-pub(crate) type CancelLog = Rc<RefCell<Vec<InvocationId>>>;
+pub(crate) type CancelLog = Arc<RefCell<Vec<InvocationId>>>;
 
 /// A runner double. Counts every call and records each spec it was handed. It
 /// keeps the status of every handle it admitted, so a fresh double can stand in
@@ -330,7 +330,7 @@ impl ScriptedRunner {
     }
 
     pub(crate) fn share_cancel_log(&self, log: &CancelLog) {
-        *self.cancel_log.borrow_mut() = Some(Rc::clone(log));
+        *self.cancel_log.borrow_mut() = Some(Arc::clone(log));
     }
 
     /// Sets (or remembers) the status this runner reports for one handle.
@@ -601,14 +601,14 @@ impl InvocationGraph for ProbeGraph {
 
 pub(crate) fn runner_set(
     registry: &RunnerRegistry,
-    doubles: &[(&str, Rc<ScriptedRunner>)],
+    doubles: &[(&str, Arc<ScriptedRunner>)],
 ) -> RunnerSet {
-    let entries: Vec<(RunnerProfileId, Rc<dyn AgentRunner>)> = doubles
+    let entries: Vec<(RunnerProfileId, Arc<dyn AgentRunner>)> = doubles
         .iter()
         .map(|(profile, double)| {
             (
                 profile_id(profile),
-                Rc::clone(double) as Rc<dyn AgentRunner>,
+                Arc::clone(double) as Arc<dyn AgentRunner>,
             )
         })
         .collect();
@@ -625,7 +625,7 @@ pub(crate) struct Lab {
 impl Lab {
     pub(crate) fn new(
         instances: Vec<RunnerInstance>,
-        doubles: &[(&str, Rc<ScriptedRunner>)],
+        doubles: &[(&str, Arc<ScriptedRunner>)],
     ) -> Self {
         let registry = RunnerRegistry::new(instances).expect("registry profiles are unique");
         let runners = runner_set(&registry, doubles);
@@ -664,13 +664,13 @@ impl Lab {
 /// Three harnesses, one profile each, one double each.
 pub(crate) fn standard_lab() -> (
     Lab,
-    Rc<ScriptedRunner>,
-    Rc<ScriptedRunner>,
-    Rc<ScriptedRunner>,
+    Arc<ScriptedRunner>,
+    Arc<ScriptedRunner>,
+    Arc<ScriptedRunner>,
 ) {
-    let a = Rc::new(ScriptedRunner::new("a"));
-    let b = Rc::new(ScriptedRunner::new("b"));
-    let c = Rc::new(ScriptedRunner::new("c"));
+    let a = Arc::new(ScriptedRunner::new("a"));
+    let b = Arc::new(ScriptedRunner::new("b"));
+    let c = Arc::new(ScriptedRunner::new("c"));
     let lab = Lab::new(
         vec![
             instance("profile-a", "harness-a"),
@@ -678,9 +678,9 @@ pub(crate) fn standard_lab() -> (
             instance("profile-c", "harness-c"),
         ],
         &[
-            ("profile-a", Rc::clone(&a)),
-            ("profile-b", Rc::clone(&b)),
-            ("profile-c", Rc::clone(&c)),
+            ("profile-a", Arc::clone(&a)),
+            ("profile-b", Arc::clone(&b)),
+            ("profile-c", Arc::clone(&c)),
         ],
     );
     (lab, a, b, c)

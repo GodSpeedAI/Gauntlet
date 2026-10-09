@@ -23,6 +23,7 @@ pub mod context;
 pub mod deliver_cmd;
 pub mod doctor_cmd;
 pub mod escalations_cmd;
+pub mod fabric_compose;
 pub mod improve_cmd;
 pub mod init_cmd;
 pub mod operator_action;

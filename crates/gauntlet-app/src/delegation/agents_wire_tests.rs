@@ -6,7 +6,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gauntlet_domain::{
     AdmissionKey, Authority, BlastRadius, EpochSeconds, HarnessId, InvocationId, PermissionSetRef,
@@ -108,7 +108,7 @@ struct Effects {
 
 struct Env {
     lab: Lab,
-    a: Rc<ScriptedRunner>,
+    a: Arc<ScriptedRunner>,
     policy: AgentsPolicy,
     gate: AuthorityGate,
     govern: GovernDeps,

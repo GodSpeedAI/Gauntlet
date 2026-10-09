@@ -72,6 +72,12 @@ gauntlet-adapter-compare-diff.workspace = true
 gauntlet-adapter-compare-model.workspace = true
 gauntlet-adapter-policy-fs.workspace = true
 gauntlet-adapter-agent-mock.workspace = true
+# F2b1: the fabric composition root reads harness definitions through the
+# catalog adapter and constructs the interactive runner the same way it
+# constructs the command-template runner (the composition root names
+# capabilities; the adapter crates hold every vendor word).
+gauntlet-adapter-harness-catalog.workspace = true
+gauntlet-adapter-agent-tty.workspace = true
 gauntlet-adapter-observe-test.workspace = true
 gauntlet-adapter-observe-build.workspace = true
 gauntlet-adapter-observe-filesystem.workspace = true

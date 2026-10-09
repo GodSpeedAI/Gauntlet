@@ -6,7 +6,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use gauntlet_domain::{
     AdmissionKey, Authority, BlastRadius, BudgetDimension, EpochSeconds, InvocationId,
@@ -89,7 +89,7 @@ impl WorkspaceProvider for CountingWorkspaces {
 /// the scripted runner `a`), the policy, the gate, and the workspace counter.
 struct Env {
     lab: Lab,
-    a: Rc<ScriptedRunner>,
+    a: Arc<ScriptedRunner>,
     policy: AgentsPolicy,
     gate: AuthorityGate,
     govern: GovernDeps,
@@ -641,7 +641,7 @@ fn agents_recursion_refuses_a_third_level_by_depth_limit_with_zero_effects() {
 #[test]
 fn agents_cancel_from_the_root_cancels_the_child_and_grandchild_leaf_first() {
     let env = rooted();
-    let log: CancelLog = Rc::new(RefCell::new(Vec::new()));
+    let log: CancelLog = Arc::new(RefCell::new(Vec::new()));
     env.a.share_cancel_log(&log);
     let broker = env.lab.broker();
     let root = env.service(&broker, root_caller());
