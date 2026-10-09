@@ -1,7 +1,8 @@
 //! The codemode runtime: one `ToolProgramRuntime` run is one host process.
 //!
-//! The parent answers each `call` as it arrives, so the host's own in-flight
-//! bound is what limits parallel calls. The host refuses an over-bound call
+//! The parent answers each `call` as it arrives. The host bounds parallel calls
+//! by the sandbox's own count of unsettled calls at each call, which does not
+//! depend on when those answers arrive. The host refuses an over-bound call
 //! inside the sandbox and ends the run with `limit_exceeded: parallel`; the
 //! parent cannot see group boundaries, so calls the sandbox sent before that
 //! refusal were dispatched. The trace always comes from the host's record.

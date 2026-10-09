@@ -58,6 +58,10 @@ export const SANDBOX_PRELUDE = `(function (host, admittedJson) {
 
   var nextId = 1;
   var waiting = Object.create(null);
+  // Calls issued and not yet settled in this VM. A group such as Promise.all issues all of its
+  // calls synchronously, so this count is the group's size at each call: it does not depend on
+  // when the parent's answers reach the host.
+  var pendingCount = 0;
 
   function callTool(path, args) {
     if (args === undefined) args = {};
@@ -65,7 +69,8 @@ export const SANDBOX_PRELUDE = `(function (host, admittedJson) {
     var id = nextId++;
     return new Promise(function (resolve, reject) {
       waiting[id] = { resolve: resolve, reject: reject };
-      host("call", id, path, JSON.stringify(args));
+      host("call", id, path, JSON.stringify(args), pendingCount);
+      pendingCount += 1;
     });
   }
 
@@ -73,6 +78,7 @@ export const SANDBOX_PRELUDE = `(function (host, admittedJson) {
     var entry = waiting[id];
     if (!entry) return;
     delete waiting[id];
+    pendingCount -= 1;
     var parsed = JSON.parse(payload);
     if (ok) {
       entry.resolve(parsed);

@@ -59,11 +59,17 @@ async function main(data: SandboxStart): Promise<void> {
     wasi: discardOutput,
   });
 
-  // The only host capability in the guest. Arguments are primitives: a kind, then up to three.
-  const bridge = vm.newFunction("host", (kindHandle, a, b, c) => {
+  // The only host capability in the guest. Arguments are primitives: a kind, then up to four.
+  const bridge = vm.newFunction("host", (kindHandle, a, b, c, d) => {
     const kind = kindHandle.toString();
     if (kind === "call") {
-      post({ type: "call", id: a.toNumber(), tool: b.toString(), args: c.toString() });
+      post({
+        type: "call",
+        id: a.toNumber(),
+        tool: b.toString(),
+        args: c.toString(),
+        pending: d.toNumber(),
+      });
     } else if (kind === "attempt") {
       post({ type: "attempt", path: a.toString() });
     } else if (kind === "done") {

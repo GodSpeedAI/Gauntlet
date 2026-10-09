@@ -12,7 +12,18 @@ export interface SandboxStart {
 }
 
 export type WorkerToHost =
-  | { readonly type: "call"; readonly id: number; readonly tool: string; readonly args: string }
+  /**
+   * `pending` is the number of calls the guest had issued and not yet settled when this call was
+   * issued. The host enforces max_parallel_calls against it, so a group's count is set by the
+   * guest's synchronous issue order rather than by the timing of the parent's answers.
+   */
+  | {
+      readonly type: "call";
+      readonly id: number;
+      readonly tool: string;
+      readonly args: string;
+      readonly pending: number;
+    }
   | { readonly type: "attempt"; readonly path: string }
   /** `payload` is the JSON text of the result when `ok`, otherwise JSON `{name, message}`. */
   | { readonly type: "done"; readonly ok: boolean; readonly payload: string }

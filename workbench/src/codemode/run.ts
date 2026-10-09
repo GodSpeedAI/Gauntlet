@@ -114,7 +114,7 @@ export class RunSession {
     if (this.finished) return;
     switch (message.type) {
       case "call":
-        this.onCall(message.id, message.tool, message.args);
+        this.onCall(message.id, message.tool, message.args, message.pending);
         return;
       case "attempt":
         // A probe of a name that is not admitted: it counts, and never reaches the parent.
@@ -129,7 +129,12 @@ export class RunSession {
     }
   }
 
-  private onCall(id: number, tool: string, argsText: string): void {
+  /**
+   * `pending` counts the guest's unsettled calls before this one. Using the guest's count, not
+   * `inFlight`, makes the bound independent of when the parent's answers arrive: an answer can
+   * land between two synchronously issued calls of a group, and must not admit the over-bound one.
+   */
+  private onCall(id: number, tool: string, argsText: string, pending: number): void {
     if (!this.admitted.has(tool)) {
       // The prelude never forwards a non-admitted name; reaching here means the VM misbehaved.
       this.finish({
@@ -140,7 +145,7 @@ export class RunSession {
       return;
     }
     if (this.spendAttempt(tool)) return;
-    if (this.inFlight.size >= this.run.limits.max_parallel_calls) {
+    if (pending >= this.run.limits.max_parallel_calls) {
       this.finish({
         status: "limit_exceeded",
         value: null,
