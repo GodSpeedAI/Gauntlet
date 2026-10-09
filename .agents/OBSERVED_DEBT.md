@@ -1,0 +1,10 @@
+# Observed debt
+
+Concrete out-of-scope debt, gaps, risks or defects noticed while working. Each entry: evidence, impact, suggested next move. Update entries in place.
+
+## OD-1 — `e2e_recovery` kill-window legs are timing-flaky (pre-existing, backend-independent)
+
+* **Evidence (2026-10-08):** on the committed SQLite baseline (`git worktree` at `691ec1c`, isolated target dir) `cargo test -p gauntlet-cli --test e2e_recovery` failed in 4 of 14 sequential runs (2/8, 2/6). Failing tests were always the same two: `the_kill_in_the_produce_window_resumes_with_the_production_recovered` (assertions at `e2e_recovery.rs` ~729/747: dispatch count / production-row count off by one) and `the_kill_after_the_production_record_pins_the_resume_exactly_once_claim` (~1001). On the PostgreSQL cut-over the same two tests fail in the same way at a similar-or-higher rate (5/8 in one sample, small n). A post-kill writer-quiescence barrier (`test_support::quiesce_writers`, keyed on `application_name`) was added and is correct for PostgreSQL, but did not change the rate — the cause is not a late server commit.
+* **Mechanism (observed):** the test polls for one durable production row and then SIGKILLs the child. Under load the child can complete another produce→re-attempt cycle between the poll and the kill (pre-kill logs show the same `evidence_ref` produced twice, ~5 s apart), so the "kill landed here" branch the assertions assume is sometimes not the branch that happened.
+* **Impact:** recovery proofs P7/T-kill legs cannot be treated as deterministic evidence; AGENTS.md §4 ("repeated green races prove only the branch that happened to win"). Not caused by, and not worsened in kind by, the PostgreSQL migration.
+* **Next move:** replace poll-then-kill with a deterministic pause at the boundary — a test-only hook in the mock runner/controller that blocks at the produce boundary until the test has taken its durable snapshot and sent SIGKILL — and add one deterministic variant per branch (row already present / absent / settled).
