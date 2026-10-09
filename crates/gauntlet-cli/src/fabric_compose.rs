@@ -45,6 +45,7 @@ use gauntlet_adapter_harness_catalog::{
     HarnessDefinition, LifecycleSource as CatalogLifecycle, Parser, SupportLevel as CatalogSupport,
     Table, Value, builtin, load_custom_dir,
 };
+use gauntlet_adapter_tool_program_codemode::DEFAULT_PROGRAM_TIMEOUT;
 use gauntlet_app::config::defaults;
 use gauntlet_app::delegation::{
     AgentsPolicy, ContextItemKind, ContextPolicy, RoleGrant, RunnerSet, WorkspacePolicy,
@@ -52,6 +53,10 @@ use gauntlet_app::delegation::{
 use gauntlet_app::fabric::{
     Availability, FabricCapabilities, LifecycleSource, ModelFacts, RunnerInstance, RunnerProfile,
     RunnerRegistry, SupportLevel,
+};
+use gauntlet_app::tools::{
+    DEFAULT_PROGRAM_MAX_PARALLEL_CALLS, DEFAULT_PROGRAM_MAX_RESULT_BYTES,
+    DEFAULT_PROGRAM_MAX_TOOL_CALLS, ProgramCeilings,
 };
 use gauntlet_domain::{
     HarnessId, MicroUsd, PermissionSetRef, RoleId, RunnerProfileId, SandboxPolicyRef,
@@ -118,7 +123,16 @@ const LIMITS_KEYS: &[&str] = &[
     "tokens",
     "cost_usd_micros",
     "isolation",
+    PROGRAM_TIMEOUT_KEY,
+    PROGRAM_MAX_TOOL_CALLS_KEY,
+    PROGRAM_MAX_PARALLEL_KEY,
+    PROGRAM_MAX_RESULT_BYTES_KEY,
 ];
+/// Optional ceilings for `program.run` (see [`FabricLimits::program`]).
+const PROGRAM_TIMEOUT_KEY: &str = "program_timeout_ms";
+const PROGRAM_MAX_TOOL_CALLS_KEY: &str = "program_max_tool_calls";
+const PROGRAM_MAX_PARALLEL_KEY: &str = "program_max_parallel";
+const PROGRAM_MAX_RESULT_BYTES_KEY: &str = "program_max_result_bytes";
 
 /// The four runner tokens this composition fronts. The token strings live in
 /// the adapters' `RUNNER_TOKEN` constants; this enum only names the choice.
@@ -195,6 +209,12 @@ pub struct FabricLimits {
     pub graph: GraphLimits,
     pub max_budget: BudgetSlice,
     pub isolation: Isolation,
+    /// Ceilings for `program.run`. Optional keys in `limits.toml`:
+    /// `program_timeout_ms` (default: the codemode adapter's program timeout),
+    /// `program_max_tool_calls` (default 16), `program_max_parallel` (default
+    /// 4), and `program_max_result_bytes` (default 64 KiB). Each request may
+    /// ask for less, never more.
+    pub program: ProgramCeilings,
 }
 
 /// One runner profile as declared in `profiles/*.toml`.
@@ -410,6 +430,8 @@ pub struct ComposedFabric {
     pub runners: RunnerSet,
     pub policy: AgentsPolicy,
     pub report: Vec<ProfileReport>,
+    /// The `program.run` ceilings from `limits.toml`.
+    pub program: ProgramCeilings,
 }
 
 /// Loads and validates a fabric configuration directory. Pure: reads files,
@@ -533,6 +555,7 @@ pub fn compose_fabric(
         runners,
         policy,
         report,
+        program: config.limits.program,
     })
 }
 
@@ -758,11 +781,39 @@ fn parse_limits(path: &Path) -> Result<FabricLimits, FabricConfigError> {
         "isolation",
         &required_str(&file, &table, "isolation")?,
     )?;
+    let program = parse_program_ceilings(&file, &table)?;
     Ok(FabricLimits {
         graph,
         max_budget,
         isolation,
+        program,
     })
+}
+
+/// The optional `program.run` ceilings. An absent key takes its documented
+/// default; a present key must be an integer in range.
+fn parse_program_ceilings(file: &str, table: &Table) -> Result<ProgramCeilings, FabricConfigError> {
+    let timeout = match optional_int(file, table, PROGRAM_TIMEOUT_KEY)? {
+        None => DEFAULT_PROGRAM_TIMEOUT,
+        Some(value) => {
+            let millis: u64 = bounded(file, PROGRAM_TIMEOUT_KEY, value)?;
+            std::time::Duration::from_millis(millis)
+        }
+    };
+    let max_tool_calls = match optional_int(file, table, PROGRAM_MAX_TOOL_CALLS_KEY)? {
+        None => DEFAULT_PROGRAM_MAX_TOOL_CALLS,
+        Some(value) => bounded(file, PROGRAM_MAX_TOOL_CALLS_KEY, value)?,
+    };
+    let max_parallel = match optional_int(file, table, PROGRAM_MAX_PARALLEL_KEY)? {
+        None => DEFAULT_PROGRAM_MAX_PARALLEL_CALLS,
+        Some(value) => bounded(file, PROGRAM_MAX_PARALLEL_KEY, value)?,
+    };
+    let max_result_bytes = match optional_int(file, table, PROGRAM_MAX_RESULT_BYTES_KEY)? {
+        None => DEFAULT_PROGRAM_MAX_RESULT_BYTES,
+        Some(value) => bounded(file, PROGRAM_MAX_RESULT_BYTES_KEY, value)?,
+    };
+    ProgramCeilings::new(timeout, max_tool_calls, max_parallel, max_result_bytes)
+        .map_err(|error| invalid(file, "program_*", error))
 }
 
 fn parse_profile(
@@ -1075,6 +1126,7 @@ mod tests {
     use super::*;
     use gauntlet_app::fabric::selection::{Preference, Requirements, select};
     use gauntlet_domain::EpochSeconds;
+    use std::time::Duration;
 
     const CUSTOM_HARNESS_DIR: &str = "harnesses";
     const STATE_DIR_NAME: &str = "gauntlet-fabric-compose-state";
@@ -1315,6 +1367,71 @@ mod tests {
             matches!(&error, FabricConfigError::UnknownKey { key, .. } if key == "bogus"),
             "{error}"
         );
+    }
+
+    /// Declared `program.run` ceilings, each distinct from its default.
+    const DECLARED_CAP: u64 = 2500;
+    const DECLARED_CALLS: u32 = 3;
+    const DECLARED_PARALLEL: u32 = 2;
+    const DECLARED_RESULT: usize = 1024;
+
+    #[test]
+    fn program_ceilings_default_when_absent_and_take_declared_values_when_present() {
+        let root = base("program-defaults");
+        let config = load(&root).expect("the fabric loads without program keys");
+        assert_eq!(
+            config.limits.program.max_tool_calls(),
+            DEFAULT_PROGRAM_MAX_TOOL_CALLS
+        );
+        assert_eq!(
+            config.limits.program.max_parallel_calls(),
+            DEFAULT_PROGRAM_MAX_PARALLEL_CALLS
+        );
+        assert_eq!(
+            config.limits.program.max_result_bytes(),
+            DEFAULT_PROGRAM_MAX_RESULT_BYTES
+        );
+        assert_eq!(config.limits.program.timeout(), DEFAULT_PROGRAM_TIMEOUT);
+
+        let root = base("program-declared");
+        write_named(
+            &root,
+            "",
+            LIMITS_FILE,
+            &format!(
+                "{}program_timeout_ms = {DECLARED_CAP}\nprogram_max_tool_calls = {DECLARED_CALLS}\n\
+                 program_max_parallel = {DECLARED_PARALLEL}\nprogram_max_result_bytes = {DECLARED_RESULT}\n",
+                limits_toml()
+            ),
+        );
+        let config = load(&root).expect("the declared program ceilings load");
+        assert_eq!(
+            config.limits.program.timeout(),
+            Duration::from_millis(DECLARED_CAP)
+        );
+        assert_eq!(config.limits.program.max_tool_calls(), DECLARED_CALLS);
+        assert_eq!(
+            config.limits.program.max_parallel_calls(),
+            DECLARED_PARALLEL
+        );
+        assert_eq!(config.limits.program.max_result_bytes(), DECLARED_RESULT);
+    }
+
+    #[test]
+    fn an_out_of_range_program_ceiling_fails_closed() {
+        let root = base("program-bad");
+        write_named(
+            &root,
+            "",
+            LIMITS_FILE,
+            &format!("{}program_max_parallel = 0\n", limits_toml()),
+        );
+        let error = load(&root).expect_err("a zero parallel bound is refused");
+        assert!(
+            matches!(&error, FabricConfigError::InvalidValue { .. }),
+            "{error}"
+        );
+        assert!(error.to_string().contains("max_parallel_calls"), "{error}");
     }
 
     #[test]

@@ -15,10 +15,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use gauntlet_adapter_state_postgres::EmbeddedInvocationGraph;
 use gauntlet_adapter_surface_rpc::{METHOD_TOOLS_CALL, METHOD_TOOLS_LIST};
+use gauntlet_adapter_tool_program_codemode::{DEFAULT_WORKBENCH_DIR, HOST_ENTRY};
 use gauntlet_cli::fabric_compose::RunnerToken;
 use gauntlet_domain::{EpochSeconds, InvocationId};
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::invocation_graph::{InvocationGraph, NodeStatus};
+use gauntlet_ports::json::{JsonValue, parse};
 
 const STATE_DB: &str = "gauntlet-state.db";
 const RUN: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAA";
@@ -152,6 +154,11 @@ impl Fixture {
 
     /// Starts `gauntlet fabric serve` for `caller` with stdio pipes.
     fn serve(&self, run: &str, caller: &str) -> Serve {
+        self.serve_with(run, caller, &[])
+    }
+
+    /// Starts `gauntlet fabric serve` with `extra` flags appended.
+    fn serve_with(&self, run: &str, caller: &str, extra: &[&str]) -> Serve {
         let mut child = gauntlet()
             .args(["fabric", "serve"])
             .args(["--state", path(&self.state)])
@@ -160,6 +167,7 @@ impl Fixture {
             .args(["--fabric-dir", path(&self.fabric)])
             .args(["--workspace", path(&self.workspaces)])
             .args(["--answer-key", path(&self.answer_key)])
+            .args(extra)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -581,4 +589,257 @@ fn doctor_lists_each_profile_with_an_unknown_model() {
         stdout.contains("model UNKNOWN"),
         "the unset model is UNKNOWN: {stdout}"
     );
+}
+
+// ---- `program.run` over stdio (Phase I slice 1a) ----
+
+const PROGRAM_RUN: &str = "program.run";
+
+/// The repository's workbench, located from this crate's manifest. These tests
+/// run the real host, so they fail rather than skip when its entry is missing.
+fn workbench_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .map(|dir| dir.join(DEFAULT_WORKBENCH_DIR))
+        .find(|dir| dir.join(HOST_ENTRY).is_file())
+        .unwrap_or_else(|| panic!("the codemode host entry ({HOST_ENTRY}) is missing"))
+}
+
+/// Starts a serve process with the program host directory given.
+fn serve_with_program(fixture: &Fixture, caller: &str) -> Serve {
+    let host = workbench_dir();
+    fixture.serve_with(RUN, caller, &["--program-host-dir", path(&host)])
+}
+
+/// The JSON payload of one successful `tools/call` reply.
+fn payload(reply: &str) -> JsonValue {
+    let envelope = parse(reply).expect("the reply is JSON");
+    let text = envelope
+        .get("result")
+        .and_then(|result| result.get("content"))
+        .and_then(|content| match content {
+            JsonValue::Array(items) => items.first(),
+            _ => None,
+        })
+        .and_then(|item| item.get("text"))
+        .and_then(|text| match text {
+            JsonValue::Str(text) => Some(text.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no text payload in {reply}"));
+    parse(&text).expect("the payload is JSON")
+}
+
+/// The string under `key` of an object payload.
+fn text_field(value: &JsonValue, key: &str) -> String {
+    match value.get(key) {
+        Some(JsonValue::Str(text)) => text.clone(),
+        other => panic!("{key}: expected a string, got {other:?}"),
+    }
+}
+
+/// A JSON document as a JavaScript object literal: double quotes become single
+/// quotes, so the text can sit inside a program source without escaping.
+fn js(json: &str) -> String {
+    json.replace('"', "'")
+}
+
+#[test]
+fn program_run_is_listed_only_when_a_host_directory_is_given() {
+    let fixture = Fixture::new("program-listing");
+    let root = fixture.root(RUN);
+
+    let mut without = fixture.serve(RUN, &root);
+    without.initialize();
+    let listing = without.call(&rpc(2, METHOD_TOOLS_LIST, "{}"));
+    assert!(
+        !listing.contains(PROGRAM_RUN),
+        "absent without a host directory: {listing}"
+    );
+    assert!(without.finish().0.success());
+
+    let mut with = serve_with_program(&fixture, &root);
+    with.initialize();
+    let listing = with.call(&rpc(2, METHOD_TOOLS_LIST, "{}"));
+    assert!(
+        listing.contains(PROGRAM_RUN) && listing.contains("agents.spawn"),
+        "listed with a host directory, beside the agents tools: {listing}"
+    );
+    let (status, rest) = with.finish();
+    assert!(status.success() && rest.is_empty(), "{status:?} {rest:?}");
+}
+
+#[test]
+fn a_program_reads_the_same_data_as_a_direct_call_and_the_trace_records_it() {
+    let fixture = Fixture::new("program-list");
+    let root = fixture.root(RUN);
+    let mut serve = serve_with_program(&fixture, &root);
+    serve.initialize();
+    let spawned = serve.tool(3, "agents.spawn", &spawn_args("listed-child", &CHILD));
+    assert!(spawned.contains("\"isError\":false"), "{spawned}");
+
+    let direct = payload(&serve.tool(4, "agents.list", "{}"));
+    let reply = serve.tool(
+        5,
+        PROGRAM_RUN,
+        r#"{"source":"return await tools.agents.list({});"}"#,
+    );
+    let run = payload(&reply);
+    assert_eq!(text_field(&run, "status"), "completed", "{reply}");
+    assert_eq!(
+        run.get("value"),
+        Some(&direct),
+        "the same data as a direct call"
+    );
+    let JsonValue::Array(trace) = run.get("trace").expect("a trace") else {
+        panic!("the trace is an array: {run:?}")
+    };
+    assert_eq!(trace.len(), 1, "one inner call: {trace:?}");
+    assert_eq!(text_field(&trace[0], "tool"), "agents.list");
+    assert_eq!(text_field(&trace[0], "outcome"), "ok");
+    assert!(serve.finish().0.success());
+}
+
+#[test]
+fn a_program_cannot_name_program_run_or_a_tool_outside_its_allow_list() {
+    let fixture = Fixture::new("program-names");
+    let root = fixture.root(RUN);
+    let mut serve = serve_with_program(&fixture, &root);
+    serve.initialize();
+
+    let no_namespace = payload(&serve.tool(
+        3,
+        PROGRAM_RUN,
+        r#"{"source":"return typeof tools.program;"}"#,
+    ));
+    assert_eq!(
+        no_namespace.get("value"),
+        Some(&JsonValue::Str("undefined".to_owned())),
+        "program.run is not a name inside a program"
+    );
+
+    let unlisted = payload(&serve.tool(
+        4,
+        PROGRAM_RUN,
+        r#"{"source":"return typeof tools.agents.spawn;","allow":["agents.list"]}"#,
+    ));
+    assert_eq!(
+        unlisted.get("value"),
+        Some(&JsonValue::Str("undefined".to_owned())),
+        "a tool outside allow is undefined"
+    );
+
+    let naming_itself = serve.tool(
+        5,
+        PROGRAM_RUN,
+        r#"{"source":"return 1;","allow":["program.run"]}"#,
+    );
+    assert!(
+        naming_itself.contains("\"error\""),
+        "allow cannot name program.run: {naming_itself}"
+    );
+    assert!(serve.finish().0.success());
+    assert!(child_ids(&fixture.graph(), &id(&root)).is_empty());
+}
+
+#[test]
+fn a_program_spawn_creates_the_child_under_the_caller() {
+    let fixture = Fixture::new("program-spawn");
+    let root = fixture.root(RUN);
+    let mut serve = serve_with_program(&fixture, &root);
+    serve.initialize();
+    let source = format!(
+        "return await tools.agents.spawn({});",
+        js(&spawn_args("program-child", &CHILD))
+    );
+    let reply = serve.tool(3, PROGRAM_RUN, &format!(r#"{{"source":"{source}"}}"#));
+    let run = payload(&reply);
+    assert_eq!(text_field(&run, "status"), "completed", "{reply}");
+    assert!(serve.finish().0.success());
+
+    let children = child_ids(&fixture.graph(), &id(&root));
+    assert_eq!(children.len(), 1, "one child of the caller: {children:?}");
+    let child = fixture
+        .graph()
+        .node(&children[0], deadline())
+        .expect("the graph reads")
+        .expect("the child is in the graph");
+    assert_eq!(child.parent, Some(id(&root)), "the caller is the parent");
+    assert_eq!(child.root, id(&root));
+    assert_eq!(child.depth, 1);
+}
+
+#[test]
+fn program_run_rejects_caller_and_parent_arguments() {
+    let fixture = Fixture::new("program-codec");
+    let root = fixture.root(RUN);
+    let mut serve = serve_with_program(&fixture, &root);
+    serve.initialize();
+    let caller = serve.tool(
+        3,
+        PROGRAM_RUN,
+        &format!(r#"{{"source":"return 1;","caller":"{MISSING_CALLER}"}}"#),
+    );
+    assert!(caller.contains("\"error\""), "caller refused: {caller}");
+    let parent = serve.tool(
+        4,
+        PROGRAM_RUN,
+        &format!(r#"{{"source":"return 1;","parent":"{root}"}}"#),
+    );
+    assert!(parent.contains("\"error\""), "parent refused: {parent}");
+    assert!(serve.finish().0.success());
+    assert!(child_ids(&fixture.graph(), &id(&root)).is_empty());
+}
+
+/// The operator's program timeout ceiling, and a request far above it.
+const PROGRAM_CEILING: u64 = 300;
+const REQUESTED: u64 = 100_000_000;
+
+#[test]
+fn the_program_timeout_is_clamped_to_the_operator_ceiling() {
+    let fixture = Fixture::new("program-timeout");
+    write(
+        &fixture.fabric.join("limits.toml"),
+        &format!("{}program_timeout_ms = {PROGRAM_CEILING}\n", limits_text()),
+    );
+    let root = fixture.root(RUN);
+    let mut serve = serve_with_program(&fixture, &root);
+    serve.initialize();
+    // The request asks for far more than the ceiling, which is what binds.
+    let arguments = format!(r#"{{"source":"while (true) {{}}","timeout_ms":{REQUESTED}}}"#);
+    let reply = serve.tool(3, PROGRAM_RUN, &arguments);
+    let run = payload(&reply);
+    assert_eq!(text_field(&run, "status"), "timed_out", "{reply}");
+    assert!(serve.finish().0.success());
+}
+
+#[test]
+fn a_completed_program_changes_no_invocation_status() {
+    let fixture = Fixture::new("program-settle");
+    let root = fixture.root(RUN);
+    let before = fixture
+        .graph()
+        .node(&id(&root), deadline())
+        .expect("the graph reads")
+        .expect("the root is in the graph")
+        .status;
+    let mut serve = serve_with_program(&fixture, &root);
+    serve.initialize();
+    let reply = serve.tool(
+        3,
+        PROGRAM_RUN,
+        r#"{"source":"return { settled: true, completed: true };"}"#,
+    );
+    let run = payload(&reply);
+    assert_eq!(text_field(&run, "status"), "completed", "{reply}");
+    assert!(serve.finish().0.success());
+
+    let after = fixture
+        .graph()
+        .node(&id(&root), deadline())
+        .expect("the graph reads")
+        .expect("the root is in the graph")
+        .status;
+    assert_eq!(after, before, "a program value is data, not settlement");
+    assert!(child_ids(&fixture.graph(), &id(&root)).is_empty());
 }

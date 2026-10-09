@@ -29,4 +29,4 @@ usage: gauntlet doctor [--config <path>] [--fabric-dir <path>]
        gauntlet export --run <run-id> [--out <path>]
        gauntlet deliver [--run <run-id>] [--apply]
        gauntlet fabric admit-root --state <dir> --run <run-id> --fabric-dir <dir> --role <role> --profile <profile-id> --unit <unit> --workspace <path> --answer-key <path> [--idempotency-key <key>]
-       gauntlet fabric serve --state <dir> --run <run-id> --caller <invocation-id> --fabric-dir <dir> --workspace <path> --answer-key <path>
+       gauntlet fabric serve --state <dir> --run <run-id> --caller <invocation-id> --fabric-dir <dir> --workspace <path> --answer-key <path> [--program-host-dir <dir> [--program-runner <exe>]]

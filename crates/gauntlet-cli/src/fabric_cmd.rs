@@ -30,6 +30,7 @@ use std::sync::Arc;
 use gauntlet_adapter_agent_prime::SystemClock;
 use gauntlet_adapter_state_postgres::{EmbeddedInvocationGraph, EmbeddedStateStore, state_exists};
 use gauntlet_adapter_surface_rpc::{ServeEnd, ServeLimits, ServerInfo, serve};
+use gauntlet_adapter_tool_program_codemode::{CodemodeRuntime, bun_codemode_host, probe_host};
 use gauntlet_adapter_workspace_fs::FsWorkspaceProvider;
 use gauntlet_app::delegation::agents_wire::{AgentsCatalog, agents_runtime};
 use gauntlet_app::delegation::{
@@ -38,16 +39,20 @@ use gauntlet_app::delegation::{
 };
 use gauntlet_app::govern::{AuthorityGate, GovernDeps};
 use gauntlet_app::reference::parse::{ParsedKey, parse_answer_key};
+use gauntlet_app::tools::{
+    EffectPolicy, PROGRAM_RUN_TOOL, ProgramCatalog, ProgramCeilings, program_runtime,
+};
 use gauntlet_domain::{
-    AdmissionKey, EpochSeconds, InvocationId, ResultContractPath, RoleId, RunId, RunnerProfileId,
-    UnitId, WorkspaceRef,
+    AdmissionKey, EffectClass, EpochSeconds, InvocationId, ResultContractPath, RoleId, RunId,
+    RunnerProfileId, UnitId, WorkspaceRef,
 };
 use gauntlet_ports::clock::Clock;
 use gauntlet_ports::deadline::Deadline;
 use gauntlet_ports::invocation_graph::{AdmissionOutcome, AdmissionRequest, InvocationGraph};
 use gauntlet_ports::json::JsonValue;
 use gauntlet_ports::state_store::{RunEvent, RunEventKind, StateStore};
-use gauntlet_ports::tool_catalog::CatalogSurface;
+use gauntlet_ports::tool_catalog::{CatalogSurface, ToolCatalog};
+use gauntlet_ports::tool_program::ToolProgramRuntime;
 use gauntlet_ports::tool_surface::{ToolListing, ToolOutcome, ToolSurface};
 use gauntlet_ports::workspace_provider::{WorkspaceProvider, WorkspaceSubject};
 
@@ -83,12 +88,15 @@ const SERVE_FLAGS: &[&str] = &[
     "fabric-dir",
     "workspace",
     "answer-key",
+    "program-host-dir",
+    "program-runner",
 ];
 const USAGE_ADMIT: &str = "gauntlet fabric admit-root --state <dir> --run <run-id> \
      --fabric-dir <dir> --role <role> --profile <profile-id> --unit <unit> \
      --workspace <path> --answer-key <path> [--idempotency-key <key>]";
 const USAGE_SERVE: &str = "gauntlet fabric serve --state <dir> --run <run-id> \
-     --caller <invocation-id> --fabric-dir <dir> --workspace <path> --answer-key <path>";
+     --caller <invocation-id> --fabric-dir <dir> --workspace <path> --answer-key <path> \
+     [--program-host-dir <dir> [--program-runner <exe>]]";
 
 /// Why a fabric command stopped. `Usage` is a bad invocation (exit 2);
 /// `Refused` is a fail-closed refusal of a well-formed request (exit 1).
@@ -359,6 +367,13 @@ fn release(workspaces: &FsWorkspaceProvider, created: Option<&WorkspaceRef>, dea
     }
 }
 
+/// The `program.run` wiring of one host. It exists only when the host was
+/// started with `--program-host-dir`; otherwise the operation is not listed.
+struct ProgramWiring<'a> {
+    runtime: &'a dyn ToolProgramRuntime,
+    ceilings: ProgramCeilings,
+}
+
 /// One caller's tool surface. Each call rebuilds the service with the current
 /// instant, so the deadline and the spawn timestamp never go stale in a
 /// long-lived process. The caller and every port are fixed at start.
@@ -371,6 +386,7 @@ struct Host<'a> {
     govern: &'a GovernDeps,
     workspaces: &'a dyn WorkspaceProvider,
     clock: &'a dyn Clock,
+    program: Option<ProgramWiring<'a>>,
 }
 
 impl Host<'_> {
@@ -389,31 +405,96 @@ impl Host<'_> {
     }
 }
 
+/// The effect classes a host admits: reads and control-plane dispatch. Each
+/// call still passes its own canonical admission.
+fn host_effect_policy() -> EffectPolicy {
+    EffectPolicy::new(&[EffectClass::Read, EffectClass::ControlPlane])
+}
+
 impl ToolSurface for Host<'_> {
     /// The listing is the agents catalog, projected through the same runtime
     /// that admits calls, so the names and schemas listed are the ones callable.
+    /// `program.run` follows only when this host has a program runtime.
     fn tools(&self) -> Vec<ToolListing> {
         let surface = self.surface();
         let caller = self.caller.invocation_id.clone();
-        match agents_runtime(&surface, caller.clone()) {
+        let mut listings = match agents_runtime(&surface, caller.clone()) {
             Ok(runtime) => CatalogSurface::new(&AgentsCatalog, &runtime, caller).tools(),
             Err(_) => Vec::new(),
+        };
+        if self.program.is_some() {
+            listings.extend(
+                ProgramCatalog
+                    .operations()
+                    .into_iter()
+                    .map(|operation| ToolListing {
+                        name: operation.name.as_str().to_owned(),
+                        description: operation.description,
+                        input_schema: operation.input_schema.to_json_text(),
+                    }),
+            );
         }
+        listings
     }
 
+    /// `program.run` runs its inner calls through the same agents runtime that
+    /// direct calls use, so an inner call is admitted exactly as a direct one.
     fn call(&self, name: &str, arguments: &JsonValue) -> ToolOutcome {
         let surface = self.surface();
         let caller = self.caller.invocation_id.clone();
-        match agents_runtime(&surface, caller.clone()) {
-            Ok(runtime) => {
-                CatalogSurface::new(&AgentsCatalog, &runtime, caller).call(name, arguments)
+        let runtime = match agents_runtime(&surface, caller.clone()) {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                return ToolOutcome::Refused {
+                    code: "catalog_invalid".to_string(),
+                    detail: error.to_string(),
+                };
             }
-            Err(error) => ToolOutcome::Refused {
-                code: "catalog_invalid".to_string(),
-                detail: error.to_string(),
+        };
+        match &self.program {
+            Some(program) if name == PROGRAM_RUN_TOOL => match program_runtime(
+                &AgentsCatalog,
+                &runtime,
+                program.runtime,
+                host_effect_policy(),
+                program.ceilings,
+                caller.clone(),
+            ) {
+                Ok(outer) => {
+                    CatalogSurface::new(&ProgramCatalog, &outer, caller).call(name, arguments)
+                }
+                Err(error) => ToolOutcome::Refused {
+                    code: "catalog_invalid".to_string(),
+                    detail: error.to_string(),
+                },
             },
+            _ => CatalogSurface::new(&AgentsCatalog, &runtime, caller).call(name, arguments),
         }
     }
+}
+
+/// The codemode host for `program.run`, probed before the protocol starts.
+/// Without `--program-host-dir` there is none, and the operation is not listed.
+/// `--program-runner` replaces the host's executable and needs the directory.
+fn program_host(flags: &Flags) -> CmdResult<Option<CodemodeRuntime>> {
+    let Some(dir) = flags.optional("program-host-dir") else {
+        if flags.optional("program-runner").is_some() {
+            return Err(usage("--program-runner requires --program-host-dir"));
+        }
+        return Ok(None);
+    };
+    let mut host = bun_codemode_host(Path::new(dir));
+    if let Some(executable) = flags.optional("program-runner") {
+        host.executable = executable.to_owned();
+    }
+    let probe = probe_host(&host);
+    if !probe.available() {
+        return Err(refused(format!(
+            "the program host is unavailable: {}",
+            probe.summary()
+        )));
+    }
+    Ok(Some(CodemodeRuntime::new(host)))
 }
 
 fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
@@ -488,6 +569,7 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
         recorded: (unit.blast_radius(), unit.authority()),
     };
 
+    let codemode = program_host(&flags)?;
     let workspaces = FsWorkspaceProvider::open(&workspace_root).map_err(refused)?;
     let broker = DelegationBroker::new(&graph, &composed.registry, &composed.runners);
     let gate = AuthorityGate::new();
@@ -501,6 +583,10 @@ fn serve_command(args: &[String]) -> CmdResult<ExitCode> {
         govern: &govern,
         workspaces: &workspaces,
         clock: &clock,
+        program: codemode.as_ref().map(|runtime| ProgramWiring {
+            runtime,
+            ceilings: composed.program,
+        }),
     };
     let info = ServerInfo {
         name: SERVER_NAME.to_owned(),
