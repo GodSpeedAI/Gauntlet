@@ -140,23 +140,16 @@ pub const APPLICATION_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[(
 pub const CLI_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[];
 
 /// External crates an adapter under `crates/adapters/**` may depend on.
-/// Plan Task 6 adds the first two, following the recorded-act procedure
-/// above: the embedded-SQL state store needs the database engine, and the
-/// filesystem evidence store needs SHA-256 for content addressing. Slice E1a
-/// adds postgres for the canonical durable store.
+/// Slice E1a adds postgres for the canonical durable store (the state-postgres
+/// adapter's synchronous client). Plan Task 6 added sha2 for the filesystem
+/// evidence store's SHA-256 content addressing, following the recorded-act
+/// procedure above. The embedded SQL engine was removed with the SQLite adapter.
 pub const ADAPTER_EXTERNAL_ALLOWLIST: &[ExternalAllowance] = &[
     (
         "postgres",
         "the synchronous PostgreSQL client for the state-postgres adapter (slice E1a); \
          canonical durable store replacing SQLite, sync client matches the synchronous \
          single-threaded ports contract; declared in the adapter's own manifest",
-    ),
-    (
-        "rusqlite",
-        "the embedded SQL engine behind the state-sqlite adapter's StateStore and EventLog (plan \
-         Task 6; spec 18.1: a single-file embedded database is a StateStore adapter choice); \
-         declared with the bundled feature in that adapter's own manifest, never in the root \
-         table the denylist keeps vendor-free",
     ),
     (
         "sha2",
@@ -2032,22 +2025,22 @@ toml = "0.9"
             "the application allowlist carries only the Task 5 digest crate"
         );
         assert!(CLI_EXTERNAL_ALLOWLIST.is_empty());
-        // Plan Task 6 (spec §18.1 embedded SQL, §6.2 content-addressed
-        // evidence) added the adapter layer's two recorded dependencies; slice E1a
-        // adds postgres for the canonical durable store. The empty list was the
+        // Plan Task 6 (spec §6.2 content-addressed evidence) added sha2; slice E1a
+        // adds postgres for the canonical durable store. The embedded SQL engine
+        // was removed with the SQLite adapter. The empty list was the
         // design until the first adapter needed a vendor, and growth stays a
         // deliberate edit that updates this pin.
         assert_eq!(
             allowlist_names(ADAPTER_EXTERNAL_ALLOWLIST),
-            vec!["postgres", "rusqlite", "sha2"],
-            "the adapter allowlist carries postgres (E1a), rusqlite (Task 6), and digest crates"
+            vec!["postgres", "sha2"],
+            "the adapter allowlist carries postgres (E1a) and the digest crate"
         );
         assert_eq!(
             allowlist_names(BOUNDARY_TESTS_EXTERNAL_ALLOWLIST),
             vec!["toml"],
             "the boundary suite's one permitted dependency is the manifest parser"
         );
-        assert_eq!(external_allowlist_union(), vec!["sha2", "postgres", "rusqlite", "toml"]);
+        assert_eq!(external_allowlist_union(), vec!["sha2", "postgres", "toml"]);
         assert_eq!(
             ALL_EXTERNAL_ALLOWLISTS.len(),
             6,

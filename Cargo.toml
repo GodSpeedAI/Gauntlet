@@ -20,7 +20,6 @@ members = [
     "crates/adapters/gauntlet-adapter-agent-prime",
     "crates/adapters/gauntlet-adapter-agent-cli",
     "crates/adapters/gauntlet-adapter-agent-tty",
-    "crates/adapters/gauntlet-adapter-state-sqlite",
     "crates/adapters/gauntlet-adapter-state-postgres",
     "crates/adapters/gauntlet-adapter-evidence-fs",
     "crates/adapters/gauntlet-adapter-workspace-fs",
@@ -64,7 +63,6 @@ gauntlet-adapter-agent-prime = { path = "crates/adapters/gauntlet-adapter-agent-
 gauntlet-adapter-agent-cli = { path = "crates/adapters/gauntlet-adapter-agent-cli" }
 gauntlet-adapter-agent-tty = { path = "crates/adapters/gauntlet-adapter-agent-tty" }
 gauntlet-adapter-harness-catalog = { path = "crates/adapters/gauntlet-adapter-harness-catalog" }
-gauntlet-adapter-state-sqlite = { path = "crates/adapters/gauntlet-adapter-state-sqlite" }
 gauntlet-adapter-state-postgres = { path = "crates/adapters/gauntlet-adapter-state-postgres" }
 gauntlet-adapter-evidence-fs = { path = "crates/adapters/gauntlet-adapter-evidence-fs" }
 gauntlet-adapter-workspace-fs = { path = "crates/adapters/gauntlet-adapter-workspace-fs" }

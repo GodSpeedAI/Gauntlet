@@ -19,12 +19,12 @@ check:
 # (AGENTS.md "The testing loop"). Includes surfaces-feature tests so the
 # repository closure gate observes the workbench HTTP/JSON read path
 # (plan T00, gate_binding_rule).
-test:
+test: db-start
     cargo nextest run --workspace
     cargo nextest run -p gauntlet-cli --features surfaces --test operator_actions_no_bypass --test cli_surface
 
 # Run only the surfaces-feature tests in gauntlet-cli.
-test-surfaces:
+test-surfaces: db-start
     cargo nextest run -p gauntlet-cli --features surfaces --test operator_actions_no_bypass --test cli_surface
 
 # Lint gate: clippy warnings are errors, then formatting must match exactly.
@@ -46,7 +46,7 @@ boundaries:
 
 # Every global gate in order, ruler last (I1): nothing above may claim green
 # while the frozen reference has moved.
-ci: check test lint deny boundaries ruler
+ci: db-start check test lint deny boundaries ruler
     @echo "ci: all gates green"
 
 # doctor — the spec §8.5 preflight checks (plan Task 5). Machine report at
@@ -80,10 +80,10 @@ prereg-check task:
 check-package package:
     cargo check -p {{package}} --all-targets
 
-test-package package:
+test-package package: db-start
     cargo nextest run -p {{package}}
 
-test-doc:
+test-doc: db-start
     cargo test --workspace --doc
 
 fmt-check:
@@ -92,10 +92,10 @@ fmt-check:
 timings:
     cargo build --workspace --timings
 
-coverage:
+coverage: db-start
     cargo llvm-cov nextest --workspace --html
 
-mutation:
+mutation: db-start
     cargo mutants
 
 cache-stats:
@@ -585,4 +585,97 @@ demo-deliver:
     cd "$TARGET"
     "$GAUNTLET_BIN" deliver --apply
 
-verify: ci
+# --- Local PostgreSQL substrate (durable state store) ----------------------
+# PostgreSQL is the canonical state store; SQLite is removed. The local
+# substrate is a pg0-managed PostgreSQL 18 instance named `gauntlet-dev` on
+# 127.0.0.1:54329. pg0 is pinned by version and sha256 under .tmp/bin/ (never
+# committed, never fetched via curl|bash). GAUNTLET_DATABASE_URL overrides the
+# connection URI; the adapter's built-in default is this instance.
+
+# Download the pinned pg0 release binary into .tmp/bin/pg0 (idempotent). Refuses
+# to install a binary whose sha256 does not match the pin.
+db-install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    PG0_VERSION=v0.15.2
+    PG0_ASSET=pg0-linux-x86_64-gnu
+    PG0_SHA256=06c4678ff7b461dba8ed1f95c5e202ead3b57b70f549a22c17a94985121c0bf5
+    BIN=.tmp/bin/pg0
+    if [ -x "$BIN" ] && [ "$(sha256sum "$BIN" | cut -d' ' -f1)" = "$PG0_SHA256" ]; then
+        echo "db-install: pg0 $PG0_VERSION already installed at $BIN (sha256 verified)."
+        exit 0
+    fi
+    mkdir -p .tmp/pg0-dl .tmp/bin
+    gh release download "$PG0_VERSION" --repo vectorize-io/pg0 -p "$PG0_ASSET" -D .tmp/pg0-dl --clobber
+    GOT="$(sha256sum ".tmp/pg0-dl/$PG0_ASSET" | cut -d' ' -f1)"
+    if [ "$GOT" != "$PG0_SHA256" ]; then
+        echo "db-install: sha256 mismatch for $PG0_ASSET ($PG0_VERSION): got $GOT, expected $PG0_SHA256 — refusing to install." >&2
+        exit 1
+    fi
+    install -m 755 ".tmp/pg0-dl/$PG0_ASSET" "$BIN"
+    echo "db-install: pg0 $PG0_VERSION installed at $BIN (sha256 verified)."
+
+# Start the gauntlet-dev PostgreSQL instance on port 54329 (idempotent: a
+# running instance is left untouched).
+db-start: db-install
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BIN=.tmp/bin/pg0
+    if "$BIN" info --name gauntlet-dev 2>/dev/null | grep -q "is running"; then
+        echo "db-start: gauntlet-dev already running on port 54329."
+        exit 0
+    fi
+    "$BIN" start --name gauntlet-dev --port 54329
+
+# Stop the gauntlet-dev instance (no-op when it is not running or not installed).
+db-stop:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BIN=.tmp/bin/pg0
+    if [ ! -x "$BIN" ]; then
+        echo "db-stop: pg0 is not installed — nothing to stop."
+        exit 0
+    fi
+    if "$BIN" info --name gauntlet-dev 2>/dev/null | grep -q "is running"; then
+        "$BIN" stop --name gauntlet-dev
+    else
+        echo "db-stop: gauntlet-dev is not running."
+    fi
+
+# Show the gauntlet-dev instance status (stopped, running, or missing).
+db-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BIN=.tmp/bin/pg0
+    if [ ! -x "$BIN" ]; then
+        echo "db-status: pg0 is not installed — run 'just db-install'."
+        exit 0
+    fi
+    "$BIN" info --name gauntlet-dev
+
+# Print the gauntlet-dev PostgreSQL connection URI (the GAUNTLET_DATABASE_URL value).
+db-url:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BIN=.tmp/bin/pg0
+    URI="$("$BIN" info --name gauntlet-dev 2>/dev/null | sed -n 's/^URI: //p')"
+    if [ -z "$URI" ]; then
+        echo "db-url: gauntlet-dev has no connection URI — run 'just db-start' first." >&2
+        exit 1
+    fi
+    echo "$URI"
+
+# Drop the gauntlet-dev instance (stops it and deletes all data), then start a
+# fresh one.
+db-reset: db-install
+    #!/usr/bin/env bash
+    set -euo pipefail
+    BIN=.tmp/bin/pg0
+    if "$BIN" info --name gauntlet-dev 2>/dev/null | grep -qE "is (running|stopped)"; then
+        "$BIN" drop --name gauntlet-dev --force
+    else
+        echo "db-reset: gauntlet-dev does not exist — nothing to drop."
+    fi
+    "{{just_executable()}}" --justfile "{{justfile()}}" db-start
+
+verify: db-start ci
