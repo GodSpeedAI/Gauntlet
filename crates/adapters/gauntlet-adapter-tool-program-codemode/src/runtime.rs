@@ -14,7 +14,7 @@ use gauntlet_ports::tool_program::{
     ToolProgramRuntime, finish_outcome,
 };
 
-use crate::process::{HostCommand, Next, Running};
+use crate::process::{HostCommand, Next, Running, STDERR_SETTLE};
 use crate::protocol::{self, HostMessage};
 
 /// How long the parent waits past the program's own timeout before it stops
@@ -143,8 +143,7 @@ impl CodemodeRuntime {
                 status
             }
             Ending::Fault(detail) => {
-                let stderr = running.stderr_excerpt();
-                running.stop();
+                let stderr = running.stop_and_collect_stderr(STDERR_SETTLE);
                 runtime_failure(format!("codemode host protocol fault: {detail}{stderr}"))
             }
             Ending::Deadline => {

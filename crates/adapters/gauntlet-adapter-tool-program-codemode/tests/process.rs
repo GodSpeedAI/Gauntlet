@@ -116,6 +116,47 @@ fn a_host_that_exits_without_done_fails_closed_with_its_stderr() {
     assert!(message.contains("boom from the host"), "{message}");
 }
 
+/// The stderr race: the host writes its diagnostic and exits at once, so the
+/// parent can see stdout end before the capture thread has read the pipe.
+/// Every run must still carry the stderr, so this repeats the scenario.
+#[test]
+fn a_host_that_writes_stderr_and_exits_always_reports_it() {
+    let dir = scratch("crash-loop");
+    let host = sh_host(
+        &dir,
+        "read -r _run\necho 'boom from the host' >&2\nexit 3\n",
+    );
+    for attempt in 0..50 {
+        let (outcome, _, _) = run_with(host.clone(), GRACE, "return 1;", limits(5_000, 8, 4, 4096));
+        let message = failure_message(&outcome);
+        assert!(
+            message.contains("boom from the host"),
+            "attempt {attempt}: {message}"
+        );
+    }
+}
+
+/// A grandchild that escapes the group and holds stderr open must not hang a
+/// fault. The wait for stderr is bounded, and the message says it was cut.
+#[test]
+fn a_fault_with_stderr_held_open_by_a_grandchild_is_bounded() {
+    let dir = scratch("leaked-stderr");
+    let host = sh_host(
+        &dir,
+        "read -r _run\nsetsid sleep 20 </dev/null >/dev/null &\necho 'boom from the host' >&2\nexit 3\n",
+    );
+    let started = std::time::Instant::now();
+    let (outcome, _, _) = run_with(host, GRACE, "return 1;", limits(5_000, 8, 4, 4096));
+    let message = failure_message(&outcome);
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "the fault waited {:?} for a leaked pipe",
+        started.elapsed()
+    );
+    assert!(message.contains("did not close"), "{message}");
+    assert!(message.contains("boom from the host"), "{message}");
+}
+
 #[test]
 fn a_call_to_a_tool_that_was_not_admitted_fails_closed() {
     let dir = scratch("not-admitted");

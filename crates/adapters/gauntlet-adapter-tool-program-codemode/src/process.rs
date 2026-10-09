@@ -4,7 +4,10 @@
 //!
 //! The reader threads are detached on purpose. A grandchild that outlives the
 //! group kill could hold the pipes open, and joining on them would hang the
-//! run. The channel is the only synchronization the run waits on.
+//! run. The frame channel is the only synchronization the run waits on for
+//! protocol traffic. The stderr thread reports its end on its own channel, and
+//! a fault waits on that channel with a bound, so the diagnostic includes the
+//! host's stderr whenever the pipe closes in time.
 
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
@@ -27,6 +30,11 @@ const STDERR_CAP: usize = 16 * 1024;
 
 /// The stderr excerpt quoted in a failure message.
 const STDERR_EXCERPT: usize = 512;
+
+/// How long a fault waits for the host's stderr pipe to reach end-of-file
+/// after the host is killed. A leaked grandchild that holds the pipe open
+/// cannot stretch the run past this bound.
+pub(crate) const STDERR_SETTLE: Duration = Duration::from_millis(500);
 
 /// The host command: an executable and its argv, run in `workdir`. It is
 /// configuration. It is never a shell string.
@@ -55,6 +63,9 @@ pub(crate) struct Running {
     input: Sender<String>,
     frames: Receiver<Frame>,
     stderr: Arc<Mutex<Vec<u8>>>,
+    /// Fires (or disconnects) once the stderr capture thread has hit end of
+    /// file or a read error, so every byte the pipe held is in `stderr`.
+    stderr_done: Receiver<()>,
 }
 
 /// What the next frame wait produced.
@@ -99,13 +110,18 @@ impl Running {
         thread::spawn(move || read_lines(stdout, line_cap, frames_tx));
         let stderr = Arc::new(Mutex::new(Vec::new()));
         let sink = Arc::clone(&stderr);
-        thread::spawn(move || capture_stderr(stderr_pipe, sink));
+        let (done_tx, stderr_done) = mpsc::channel::<()>();
+        thread::spawn(move || {
+            capture_stderr(stderr_pipe, sink);
+            let _ = done_tx.send(());
+        });
         Ok(Self {
             child,
             pid,
             input,
             frames,
             stderr,
+            stderr_done,
         })
     }
 
@@ -137,18 +153,36 @@ impl Running {
         }
     }
 
-    /// The bounded stderr excerpt, for a diagnostic. Empty when none arrived.
-    pub(crate) fn stderr_excerpt(&self) -> String {
-        let Ok(buffer) = self.stderr.lock() else {
-            return String::new();
+    /// Ends the host after a protocol fault and returns the diagnostic suffix
+    /// for its stderr. The group is killed first, so the host's pipe writers
+    /// die. Then the parent waits up to `settle` for the stderr capture to
+    /// reach end of file, so bytes the host wrote before exiting are read
+    /// before the excerpt is taken. If the pipe is still open after `settle`
+    /// (a grandchild that escaped the group holds it), the excerpt says so
+    /// and the run does not wait longer.
+    pub(crate) fn stop_and_collect_stderr(mut self, settle: Duration) -> String {
+        kill_group(self.pid);
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        let closed = match self.stderr_done.recv_timeout(settle) {
+            Ok(()) | Err(RecvTimeoutError::Disconnected) => true,
+            Err(RecvTimeoutError::Timeout) => false,
         };
-        let text = String::from_utf8_lossy(&buffer);
-        let trimmed = text.trim();
-        if trimmed.is_empty() {
-            return String::new();
+        let text = match self.stderr.lock() {
+            Ok(buffer) => String::from_utf8_lossy(&buffer).trim().to_owned(),
+            Err(_) => String::new(),
+        };
+        let excerpt: String = text.chars().take(STDERR_EXCERPT).collect();
+        match (closed, excerpt.is_empty()) {
+            (true, true) => String::new(),
+            (true, false) => format!("; host stderr: {excerpt}"),
+            (false, true) => {
+                format!("; host stderr did not close within {settle:?} and captured nothing")
+            }
+            (false, false) => format!(
+                "; host stderr did not close within {settle:?}, so this excerpt may be incomplete: {excerpt}"
+            ),
         }
-        let excerpt: String = trimmed.chars().take(STDERR_EXCERPT).collect();
-        format!("; host stderr: {excerpt}")
     }
 
     /// Ends the host and its group, and reaps it. Killing a group that has
