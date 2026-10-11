@@ -1,0 +1,5 @@
+[2026-10-10T12:25:52.953Z] INFO  [SkillAutoRefresh] [trace=dabcb685f558e32c6491772ca873640a] Refreshed Jolli skills at /home/sprime01/projects/gauntlet for version 0.99.11
+[2026-10-10T12:25:52.990Z] INFO  [StorageFactory] [trace=dabcb685f558e32c6491772ca873640a] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-10-10T12:25:53.024Z] INFO  [McpServer] [trace=dabcb685f558e32c6491772ca873640a] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
+[2026-10-10T12:26:17.810Z] INFO  [StorageFactory] [trace=8b25cd13d12793484550af8e7eaadd08] StorageFactory.create: route=cutover, projectPath=/home/sprime01/projects/gauntlet
+[2026-10-10T12:26:17.839Z] INFO  [McpServer] [trace=8b25cd13d12793484550af8e7eaadd08] MCP server connected over stdio (cwd=/home/sprime01/projects/gauntlet)
