@@ -1,0 +1,83 @@
+# Gauntlet's existing AGENTS.md and scoped guides remain the agent contract.
+# This blueprint configures Devin's environment; it does not alter Gauntlet gates.
+initialize:
+  - name: Install Linux build and sandbox prerequisites
+    run: |
+      if command -v apt-get >/dev/null 2>&1; then
+        if command -v sudo >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential pkg-config libsqlite3-dev bubblewrap unzip curl
+        else
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential pkg-config libsqlite3-dev bubblewrap unzip curl
+        fi
+      fi
+  - name: Install Rust 1.92 toolchain and quality components
+    run: |
+      if ! command -v rustup >/dev/null 2>&1; then
+        curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.92.0
+      fi
+      export PATH="$HOME/.cargo/bin:$PATH"
+      rustup toolchain install 1.92.0 --profile minimal --component clippy --component rustfmt
+      rustup default 1.92.0
+      printf 'PATH=%s\n' "$PATH" >> "$ENVRC"
+  - name: Install just recipe runner
+    uses: github.com/extractions/setup-just@v2
+  - name: Install Rust test and dependency audit tools
+    uses: github.com/taiki-e/install-action@v2
+    with:
+      tool: cargo-nextest,cargo-deny
+  - name: Install Bun 1.4.3
+    run: |
+      curl -fsSL https://bun.sh/install | bash -s "bun-v1.4.3"
+      export PATH="$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+      bun --version
+      printf 'PATH=%s\n' "$PATH" >> "$ENVRC"
+maintenance:
+  - name: Fetch exact Rust dependencies
+    run: |
+      export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+      cargo fetch --locked
+  - name: Install locked Workbench dependencies
+    run: |
+      export PATH="$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+      cd workbench
+      bun install --frozen-lockfile
+knowledge:
+  - name: orientation
+    contents: |
+      Read root AGENTS.md, then nearest scoped AGENTS.md, .agents/CURRENT_STATUS.yml,
+      .agents/specs/Core-spec.md and the active plan before substantial work.
+      docs/documentation-map.md and docs/source-map.md are navigation aids.
+      Do not edit the frozen .wayfinder answer key or weaken evidence/settlement gates.
+      GAUNTLET.md intentionally has no default live runner; use mock-backed fixtures
+      for safe tests, not a live agent run as a smoke test.
+  - name: lint
+    contents: |
+      Rust: just lint
+      Rust dependency and license audit: just deny
+      Architecture contracts: just boundaries
+      Bun/TypeScript/OpenTUI: just tui-lint
+      TUI gates are separate from just ci.
+  - name: test
+    contents: |
+      Focused Rust crate: just test-package <crate-name>
+      Rust workspace and operator-surface tests: just test
+      Frozen-ruler integrity: just ruler
+      TUI tests: just tui-test
+      Full registered TUI conformance suites: just tui-test all
+      Never equate INCONCLUSIVE or missing evidence with PASS.
+  - name: build
+    contents: |
+      Rust workspace: just check
+      Single Rust crate: just check-package <crate-name>
+      TUI strict typecheck: just tui-check
+      TUI bootstrap preflight: just tui-preflight bootstrap
+      Check workbench/AGENTS.md before any Workbench change.
+  - name: verification
+    contents: |
+      Rust closure gate: just ci (check, test, lint, deny, boundaries, ruler).
+      For workbench/ changes additionally run: just tui-check, just tui-test,
+      just tui-lint, and just tui-preflight bootstrap.
+      Run narrow checks while iterating; run applicable closure gates before
+      claiming verified completion. Record exact results and open blockers.

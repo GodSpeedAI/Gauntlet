@@ -1,0 +1,114 @@
+{
+  "repo_notes": [
+    {
+      "content": "Treat .agents/specs/Core-spec.md as the normative Gauntlet runtime specification and .wayfinder/answer-key.md as the frozen ruler for the present conformance effort. Root and scoped AGENTS.md establish agent work instructions. Do not elevate implementation descriptions, old plans, or generated wiki prose above the governing specification; distinguish normative requirements, implemented behavior, and unproven proposals.",
+      "author": "Gauntlet maintainers"
+    },
+    {
+      "content": "Gauntlet's core loop is Reference → Transform → Observe → Compare → Verify → Select → Correct → Settle → Remember. Critic/comparator is not verifier. A builder cannot author its own ruler or certify settlement. Completion claims require independent instrument evidence; PASS, FAIL, and INCONCLUSIVE are different.",
+      "author": "Gauntlet maintainers"
+    },
+    {
+      "content": "Orient source discovery using docs/documentation-map.md and docs/source-map.md, then verify facts against Rust/TypeScript code, focused tests, and current conformance records (.agents/reports/conformance.json and .agents/reports/handoff.md). .agents/ contains extensive historical evidence and plans; index those as provenance when relevant but do not mistake their bulk or age for production architecture.",
+      "author": "Gauntlet maintainers"
+    },
+    {
+      "content": "The Cargo workspace has 29 Rust crates: pure domain, ports, application, CLI composition root, 24 pluggable adapters, and an architecture-test crate. Dependency direction is mechanically enforced by just boundaries. Workbench is a sibling Bun/TypeScript/OpenTUI application, not a Rust crate or browser React SPA; it receives canonical state through a loopback operator surface and is never an authority source.",
+      "author": "Gauntlet maintainers"
+    },
+    {
+      "content": "Prefer diagrams of information flow, runtime gates, capability/authority boundaries, lifecycle states, and evidence provenance over directory-only maps. Anchor pages to executable symbols/tests. Describe experimental harnesses (e.g. harness/needle_nav) as experiments and distinguish prior results, active features, proposed features, and unresolved questions.",
+      "author": "Gauntlet maintainers"
+    },
+    {
+      "content": "For development instructions use the repository justfile and scoped AGENTS.md; do not invent setup commands, model/provider requirements, or claim the self-hosting GAUNTLET.md has a configured default runner. Do not recommend live agent dispatch or destructive integration as a setup smoke test.",
+      "author": "Gauntlet maintainers"
+    }
+  ],
+  "pages": [
+    {
+      "title": "System Overview and Source Authority",
+      "purpose": "Explain what Gauntlet is, its bounded comparison-and-correction control loop, roles, trust model, and which documents govern truth. Start with README.md, AGENTS.md, .agents/specs/Core-spec.md, .wayfinder/, docs/index.md and docs/documentation-map.md."
+    },
+    {
+      "title": "Architecture and Dependency Boundaries",
+      "purpose": "Trace the hexagonal Rust workspace across gauntlet-domain, gauntlet-ports, gauntlet-app, gauntlet-cli, gauntlet-arch-tests, and crates/adapters. Show exact allowed dependency directions and the just boundaries enforcement; use Cargo.toml, crates/AGENTS.md, docs/architecture.md and tests.",
+      "parent": "System Overview and Source Authority"
+    },
+    {
+      "title": "Reference, Answer Key, and Frozen Ruler",
+      "purpose": "Explain Reference resolution, digests, freeze enforcement, typed Answer Key Units, builder isolation from criteria, and mutation detection. Trace .wayfinder/, reference code and ruler/integrity proofs; distinguish changing criteria between runs from tampering during a run.",
+      "parent": "System Overview and Source Authority"
+    },
+    {
+      "title": "Domain Types and State Machines",
+      "purpose": "Document canonical objects, typed outcomes, units, roles, blast radius, authority, observations, comparisons, settlements, budgets and run/iteration states in crates/gauntlet-domain, with relevant invariants and test anchors.",
+      "parent": "Architecture and Dependency Boundaries"
+    },
+    {
+      "title": "Ports, Contracts, and Adapter Substitution",
+      "purpose": "Document semantic port traits and their shared contract test suites, plugin/adapter selection, typed errors and boundaries. Identify individual responsibilities of crates/gauntlet-ports and crates/adapters and how substitution is validated.",
+      "parent": "Architecture and Dependency Boundaries"
+    },
+    {
+      "title": "Orchestration and Run Lifecycle",
+      "purpose": "Trace the executable lifecycle through gauntlet-app controllers, scheduler, iteration engine, correction selection and CLI composition. Include admission, blocking/escalation, termination statuses, and budget/recovery gates.",
+      "parent": "Architecture and Dependency Boundaries"
+    },
+    {
+      "title": "Agent Runners and Delegation Contracts",
+      "purpose": "Document mock, generic CLI, and Prime-Agent adapters; admission handles vs completion; role invocation, out-of-band result files, role isolation and orchestration. Identify which integration is proven and which is conditional from source/tests.",
+      "parent": "Orchestration and Run Lifecycle"
+    },
+    {
+      "title": "Observations, Comparison, and Residuals",
+      "purpose": "Follow instrument-generated observation facets and provenance through normalized bundles, fresh-context comparator envelopes, residual records, and anti-gaming barriers. Distinguish builder assertion from observation and critic output from instrument proof.",
+      "parent": "Orchestration and Run Lifecycle"
+    },
+    {
+      "title": "Verification and Settlement",
+      "purpose": "Trace verifier implementations, evidence requirements, three-state PASS/FAIL/INCONCLUSIVE outcomes, atomic settlement predicates, durable evidence, and closure safeguards. Cross-reference docs/CONFORMANCE.md, docs/source-map.md and instrument tests.",
+      "parent": "Orchestration and Run Lifecycle"
+    },
+    {
+      "title": "Authority, Sandbox, and Resource Budgets",
+      "purpose": "Explain why authorization and containment are separate pre-execution gates. Trace blast-radius policy, human escalation, Bubblewrap vs no-sandbox adapters, failure behavior, non-downgrade invariants and recovery reserve from code, policy files and security proofs.",
+      "parent": "Architecture and Dependency Boundaries"
+    },
+    {
+      "title": "State Persistence and Recovery",
+      "purpose": "Explain SQLite state, event/evidence stores, content-addressing, idempotency, workspace handling, interrupted-run reconciliation, checkpoints, and recovery. Identify what is canonical vs reconstructible and show relevant persistence/contract tests.",
+      "parent": "Orchestration and Run Lifecycle"
+    },
+    {
+      "title": "Capability Ledger and Governed Revision",
+      "purpose": "Explain developmental memory vs capability promotion, repeated settlement under variation, burden/recovery evidence and the propose-evaluate-promote-or-rollback boundary for revisions. Do not confuse one success, tool access or an experiment with proven capability.",
+      "parent": "Orchestration and Run Lifecycle"
+    },
+    {
+      "title": "CLI, Configuration, and Operator Workflows",
+      "purpose": "Document CLI commands, GAUNTLET.md frontmatter, env/config precedence, doctor checks, just recipes, examples/demo-calculator, and bounded operator journeys. Explain that this repository deliberately has no default production runner configured.",
+      "parent": "System Overview and Source Authority"
+    },
+    {
+      "title": "Operator Workbench and Interface Projection",
+      "purpose": "Document Bun/TypeScript/OpenTUI Workbench architecture, source projection, focus/horizon, SQLite read models, terminal interaction and renderer. Follow workbench/AGENTS.md, DESIGN.md, workbench/src and docs/subsystems/tui.md. Distinguish view state from canonical Rust authority.",
+      "parent": "System Overview and Source Authority"
+    },
+    {
+      "title": "Operator Surface and Gateway Enforcement",
+      "purpose": "Trace the Rust surface-json adapter, loopback JSON/SSE communication, Workbench operation-gateway and admission revalidation. Document idempotency, actor/session binding, stale-state handling, and why UI affordances cannot bypass governance.",
+      "parent": "Operator Workbench and Interface Projection"
+    },
+    {
+      "title": "Proof Architecture and Continuous Integration",
+      "purpose": "Catalog the actual Rust and Workbench commands from justfile; boundary, ruler, conformance, shared adapter, contract, E2E, anti-gaming and workbench test suites. Explain separate Rust just ci and TUI gates; cite current CI workflow and proof traces without treating historical PASS as current test execution.",
+      "parent": "System Overview and Source Authority"
+    },
+    {
+      "title": "Experimentation and Evidence Interpretation",
+      "purpose": "Map harness/needle_nav, .agents/research, .agents/reports and historical benchmarks as experimental/diagnostic material. Explain how failed or inconclusive results are retained without automatic promotion into runtime capability; use frozen preregistrations and current status as evidence.",
+      "parent": "System Overview and Source Authority"
+    }
+  ]
+}
