@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { createShellState, handleCommand, ShellSession, type ShellState } from "./shell";
+import { ShellSession } from "./shell";
 import { FULL_DIMS, renderOptions, seededModel, unitEvent } from "./testing/shell-harness";
 import { streamVisibleWindow } from "./trace-stream";
 
