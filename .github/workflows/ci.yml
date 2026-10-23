@@ -46,6 +46,10 @@ jobs:
         with:
           bun-version: "1.4.0"
 
+      - name: Install workbench dependencies (frozen)
+        working-directory: workbench
+        run: bun install --frozen-lockfile
+
       - name: Install cargo-nextest and cargo-deny
         uses: taiki-e/install-action@v2 # resolve to commit SHA per supply-chain policy before merge
         with:
