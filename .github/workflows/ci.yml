@@ -49,5 +49,5 @@ jobs:
       - name: Fetch locked dependencies
         run: cargo fetch --locked
 
-      - name: gates (just ci: check test lint deny boundaries ruler)
+      - name: "gates (just ci: check test lint deny boundaries ruler)"
         run: just ci
