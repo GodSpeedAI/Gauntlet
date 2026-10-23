@@ -142,7 +142,7 @@ Each invariant has an identifier, an enforcement mechanism, and a proof obligati
 ```text
               ┌──────────────────────────────────────────────────────────┐
  adapters  →  │  prime-agent · cli-agent · mock-agent · git · test-runner │
-              │  browser · sqlite · fs-evidence · mxc/bwrap/none sandbox  │
+              │  browser · postgres · fs-evidence · mxc/bwrap/none sandbox  │
               │  json-api · tui · dashboard · otel/openobserve logging    │
               └───────────────────────────┬──────────────────────────────┘
                                           │ implements
@@ -445,7 +445,7 @@ Rules:
 | `Observer` | `observe(request: ObservationRequest) -> ObservationFacet` · `facet_kind()` | One adapter per instrument class (versioning, fs, build, test, bench, browser, http, scanner). Facets merge into a bundle. |
 | `Comparator` | `compare(envelope: ComparisonEnvelope) -> ComparisonRecord` | Envelope is built by the runtime (I4). Comparator implementations MAY be model-backed or deterministic. |
 | `Verifier` | `verify(claim: VerificationRequest) -> VerificationRecord` · `is_deterministic()` | Deterministic verifiers are tried first (§14.2). |
-| `StateStore` | `append_event` · `load_run` · `checkpoint` · `resume(run_id)` · `export_jsonl` | Default adapter: embedded SQL (SQLite). Export is deterministic. |
+| `StateStore` | `append_event` · `load_run` · `checkpoint` · `resume(run_id)` · `export_jsonl` | Default adapter: PostgreSQL (`gauntlet-adapter-state-postgres`; the local default is the pg0 instance from `just db-start`). Export is deterministic. |
 | `EvidenceStore` | `put(bytes, kind) -> EvidenceRef` (content-addressed) · `get` · `pin(run_id, ref)` | Immutable. No overwrite. Pinned evidence survives cleanup. |
 | `EventLog` | `append(event) -> Offset` · `read_from(offset)` · `last_offset()` | Append-only, fsync-on-append, the durability spine of §16.3. |
 | `Sandbox` | `validate(policy) -> PolicyValidation` (dry run) · `wrap(command, policy) -> SandboxedCommand` · `backend_identity()` | Validation precedes every use. Failure escalates; it never falls back to unsandboxed. |
@@ -553,7 +553,7 @@ workspace:
   root: $GAUNTLET_TMP_DIR/workspaces
   use_worktrees: true
 state:
-  backend: sqlite
+  backend: postgres
   dir: $GAUNTLET_STATE_DIR
 evidence:
   dir: $GAUNTLET_ARTIFACT_DIR
@@ -1097,7 +1097,7 @@ Payment includes verification cost and orchestration burden, not just builder to
 
 ### 18.1 Substrate
 
-Prefer the simplest durable local substrate the environment already supports. A single-file embedded database (SQLite) is a reasonable default when structured persistent state is warranted; it is a **`StateStore` adapter choice**, not an architectural commitment. Deterministic export to portable JSON/JSONL is REQUIRED regardless of backend.
+Prefer the simplest durable local substrate the environment already supports. A PostgreSQL server is a reasonable default when structured persistent state is warranted (the local default is a pg0-managed instance, `just db-start`); it is a **`StateStore` adapter choice**, not an architectural commitment. Deterministic export to portable JSON/JSONL is REQUIRED regardless of backend.
 
 Minimum durable records: runs · iterations · role invocations · reference versions · observations · comparisons · verification records · residuals · payments · settlements · failures · recovery events · candidate revisions · promotion decisions · escalations.
 
@@ -1329,7 +1329,7 @@ Extended and Self-improving MUST NOT be started before Core proofs pass. The sys
 
 ### 24.2 Reference implementation profile (default, non-normative)
 
-Rust workspace; `just` as the repository command surface; `cargo-nextest` for test execution; `cargo-mutants` at settlement boundaries to check that tests discriminate; `clippy` in normal verification; `cargo-deny` for dependency policy; `rusqlite` for the default `StateStore`; typed model interfaces where a model-facing contract benefits from schema enforcement; a reproducible environment manager for toolchain pinning. Every one of these is an adapter or tool choice recorded in configuration — none appears in the domain layer.
+Rust workspace; `just` as the repository command surface; `cargo-nextest` for test execution; `cargo-mutants` at settlement boundaries to check that tests discriminate; `clippy` in normal verification; `cargo-deny` for dependency policy; `postgres` for the default `StateStore`; typed model interfaces where a model-facing contract benefits from schema enforcement; a reproducible environment manager for toolchain pinning. Every one of these is an adapter or tool choice recorded in configuration — none appears in the domain layer.
 
 ### 24.3 Architecture boundary enforcement (REQUIRED, mechanical)
 
@@ -1366,7 +1366,7 @@ AGENTS.md                       # agent operating rules for this repository
   domain/                       # entities, value objects, invariants — no infra
   application/                  # controller, engines, services — ports only
   ports/                        # trait definitions + shared contract tests
-  adapters/                     # prime-agent, cli-agent, mock, git, sqlite, …
+  adapters/                     # prime-agent, cli-agent, mock, git, postgres, …
   cli/
 tests/
   contract/                     # per-port adapter contract suites
@@ -2091,7 +2091,7 @@ All optional; all defaulted; none required for a safe bounded run.
 | Limits | `GAUNTLET_INTERACTIVE` `GAUNTLET_MAX_ROUNDS` `GAUNTLET_MAX_PARALLEL` `GAUNTLET_MAX_DEPTH` `GAUNTLET_MAX_WALL_SECONDS` `GAUNTLET_MAX_TOKENS` `GAUNTLET_MAX_COST_USD` `GAUNTLET_RECOVERY_RESERVE_PCT` `GAUNTLET_DIAGNOSTIC_BUDGET` `GAUNTLET_REVIEW_MODE` `GAUNTLET_MAX_CRITICS` `GAUNTLET_MAX_ATTEMPTS_PER_UNIT` `GAUNTLET_NONCONVERGENCE_N` `GAUNTLET_POLL_INTERVAL_MS` `GAUNTLET_STALL_TIMEOUT_MS` `GAUNTLET_RETRY_BASE_MS` `GAUNTLET_RETRY_MAX_MS` |
 | Permissions | `GAUNTLET_ALLOW_INSTALL` `GAUNTLET_ALLOW_NETWORK` `GAUNTLET_ALLOW_DESTRUCTIVE` `GAUNTLET_ALLOW_ORCHESTRATOR_IMPLEMENTATION` `GAUNTLET_VERSIONING_STRATEGY` |
 | Containment | `GAUNTLET_SANDBOX_BACKEND` `GAUNTLET_SANDBOX_POLICY_DIR` `GAUNTLET_SANDBOX_BINARY` `GAUNTLET_SANDBOX_EXPERIMENTAL` |
-| Persistence | `GAUNTLET_STATE_BACKEND` `GAUNTLET_EVIDENCE_BACKEND` `GAUNTLET_EXPORT_DIR` |
+| Persistence | `GAUNTLET_STATE_BACKEND` `GAUNTLET_DATABASE_URL` `GAUNTLET_EVIDENCE_BACKEND` `GAUNTLET_EXPORT_DIR` |
 | Surfaces | `GAUNTLET_OPERATOR_SURFACES` `GAUNTLET_API_BIND` `GAUNTLET_LOG_FORMAT` `GAUNTLET_LOG_SINK` `GAUNTLET_OTEL_ENDPOINT` |
 | Promotion | `GAUNTLET_PROMOTION_MIN_SETTLEMENTS` `GAUNTLET_PROMOTION_MARGIN` |
 | Test hooks | `GAUNTLET_CLOCK` `GAUNTLET_ID_SEED` (deterministic clock/ids for tests only) |

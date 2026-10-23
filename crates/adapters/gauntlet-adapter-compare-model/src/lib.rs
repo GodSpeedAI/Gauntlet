@@ -986,12 +986,12 @@ mod tests {
             };
             let reference_digest = envelope
                 .get("reference_digest")
-                .map(&text_of)
+                .map(text_of)
                 .unwrap_or_default();
             let observation_digest = envelope
                 .get("observation")
                 .and_then(|observation| observation.get("observation_digest"))
-                .map(&text_of)
+                .map(text_of)
                 .unwrap_or_default();
             let failing = envelope
                 .get("observation")

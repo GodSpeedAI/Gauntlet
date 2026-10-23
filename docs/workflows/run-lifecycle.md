@@ -58,7 +58,7 @@ sequenceDiagram
 
         alt All Blocking Units PASS
             Ctrl->>Settle: settle_run(run_id)
-            Settle->>Store: Atomic commit (events.jsonl + sqlite)
+            Settle->>Store: Atomic commit (events.jsonl + PostgreSQL)
             Settle-->>Ctrl: SettlementRecord
         else Open Residuals Exist
             Ctrl->>Sel: select_correction(ResidualSet, Budget)

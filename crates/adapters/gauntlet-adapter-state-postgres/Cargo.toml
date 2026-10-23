@@ -1,0 +1,34 @@
+[package]
+name = "gauntlet-adapter-state-postgres"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+[lints]
+workspace = true
+
+# Spec §4.1/§24.3: adapters depend on domain and ports only — never on
+# gauntlet-app or gauntlet-cli. Provider-specific code belongs here and only
+# here; the port traits this adapter implements land in plan Task 4.
+
+# Declared direction (plan Task 2 step 2, spec §4.1): an adapter implements
+# port traits over domain types. Declaring these makes the direction a fact in
+# the manifest, not only an upper bound the boundary tests decline to exceed.
+# The crash-injection child binary. Named distinctly from the sqlite crate's
+# `crash_helper`: both crates' binaries land in one target/debug directory, and
+# a shared name would let one overwrite the other.
+[[bin]]
+name = "state_crash_helper"
+path = "src/bin/crash_helper.rs"
+
+[dependencies]
+gauntlet-domain.workspace = true
+gauntlet-ports.workspace = true
+# Slice E1a: the durable store substrate behind `StateStore`/`EventLog`
+# is PostgreSQL (canonical durable store). The sync client (postgres = "0.19")
+# matches the synchronous single-threaded ports contract. Declared HERE in the
+# adapter's own manifest (not in workspace.dependencies: adapter-specific
+# vendor dependencies belong in the adapter manifest, not a table every member
+# inherits). On the adapter external allowlist
+# (crates/gauntlet-arch-tests/src/deps.rs) with recorded justification.
+postgres = "0.19"

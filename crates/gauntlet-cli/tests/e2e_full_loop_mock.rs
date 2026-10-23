@@ -335,8 +335,10 @@ fn records_containing(evidence_dir: &Path, needle: &str) -> Vec<String> {
 /// removed (the callers ASSERT the count: damage that touched nothing must
 /// fail the test, not pass it silently).
 fn delete_production_rows(state_db: &Path, locator: Option<&str>) -> usize {
-    gauntlet_adapter_state_sqlite::test_support::delete_evidence_production_rows(state_db, locator)
-        .expect("the damage injection runs")
+    gauntlet_adapter_state_postgres::test_support::delete_evidence_production_rows(
+        state_db, locator,
+    )
+    .expect("the damage injection runs")
 }
 
 /// Out-of-band SURGERY (COR-R4-1's E2E leg): regresses the LATEST
@@ -347,7 +349,7 @@ fn delete_production_rows(state_db: &Path, locator: Option<&str>) -> usize {
 /// exercised as GIVEN damage (never widened, never repaired here). Returns
 /// the PREVIOUS offset so the caller asserts the forge landed.
 fn regress_latest_checkpoint_offset(state_db: &Path, run_id: &str, new_offset: u64) -> u64 {
-    gauntlet_adapter_state_sqlite::test_support::regress_latest_checkpoint_offset(
+    gauntlet_adapter_state_postgres::test_support::regress_latest_checkpoint_offset(
         state_db, run_id, new_offset,
     )
     .expect("the anchor surgery runs")
@@ -357,7 +359,7 @@ fn regress_latest_checkpoint_offset(state_db: &Path, run_id: &str, new_offset: u
 /// `(offset, evidence ref, locator, stored timestamp)` — the event-side
 /// facts the COR-R4-1 leg pins the re-minted row against.
 fn evidence_produced_events(state_db: &Path) -> Vec<(u64, String, String, i64)> {
-    gauntlet_adapter_state_sqlite::test_support::evidence_produced_events(state_db)
+    gauntlet_adapter_state_postgres::test_support::evidence_produced_events(state_db)
         .expect("the event reader runs")
 }
 
@@ -365,7 +367,7 @@ fn evidence_produced_events(state_db: &Path) -> Vec<(u64, String, String, i64)> 
 /// `(evidence ref, locator, produced_at, event-log offset)` — the row-side
 /// facts the COR-R4-1 leg pins the re-mint against.
 fn evidence_production_rows(state_db: &Path) -> Vec<(String, String, i64, i64)> {
-    gauntlet_adapter_state_sqlite::test_support::evidence_production_rows(state_db)
+    gauntlet_adapter_state_postgres::test_support::evidence_production_rows(state_db)
         .expect("the production reader runs")
 }
 
@@ -1353,7 +1355,7 @@ fn the_resume_of_a_settled_run_with_a_recovery_completed_production_is_the_settl
 /// instrument (beside the production-row damage injection). Returns how many
 /// rows the statement removed (callers ASSERT the count).
 fn delete_settlement_rows(state_db: &Path, unit: Option<&str>) -> usize {
-    gauntlet_adapter_state_sqlite::test_support::delete_settlement_rows(state_db, unit)
+    gauntlet_adapter_state_postgres::test_support::delete_settlement_rows(state_db, unit)
         .expect("the settlement damage injection runs")
 }
 
@@ -1363,8 +1365,8 @@ fn delete_settlement_rows(state_db: &Path, unit: Option<&str>) -> usize {
 /// settlement row against.
 fn settlement_committed_events(
     state_db: &Path,
-) -> Vec<gauntlet_adapter_state_sqlite::test_support::SettlementEventFacts> {
-    gauntlet_adapter_state_sqlite::test_support::settlement_committed_events(state_db)
+) -> Vec<gauntlet_adapter_state_postgres::test_support::SettlementEventFacts> {
+    gauntlet_adapter_state_postgres::test_support::settlement_committed_events(state_db)
         .expect("the settlement event reader runs")
 }
 
@@ -1374,8 +1376,8 @@ fn settlement_committed_events(
 /// against.
 fn settlement_rows(
     state_db: &Path,
-) -> Vec<gauntlet_adapter_state_sqlite::test_support::SettlementRowFacts> {
-    gauntlet_adapter_state_sqlite::test_support::settlement_rows(state_db)
+) -> Vec<gauntlet_adapter_state_postgres::test_support::SettlementRowFacts> {
+    gauntlet_adapter_state_postgres::test_support::settlement_rows(state_db)
         .expect("the settlement row reader runs")
 }
 

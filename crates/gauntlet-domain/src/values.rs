@@ -46,6 +46,9 @@ pub enum ValueKind {
     SandboxPolicyRef,
     PermissionSetRef,
     WorkspaceRef,
+    HarnessId,
+    RunnerProfileId,
+    AdmissionKey,
     Producer,
     // Fixed-value-set enums (§5.2) and the §5.3.8 capability status
     VerifyBy,
@@ -88,6 +91,9 @@ impl fmt::Display for ValueKind {
             Self::SandboxPolicyRef => "SandboxPolicyRef",
             Self::PermissionSetRef => "PermissionSetRef",
             Self::WorkspaceRef => "WorkspaceRef",
+            Self::HarnessId => "HarnessId",
+            Self::RunnerProfileId => "RunnerProfileId",
+            Self::AdmissionKey => "AdmissionKey",
             Self::Producer => "Producer",
             Self::VerifyBy => "VerifyBy",
             Self::BlastRadius => "BlastRadius",
@@ -850,6 +856,24 @@ string_newtype! {
     /// `workspace_ref`). Opaque to the domain; workspaces come from the
     /// `WorkspaceProvider` port (§6).
     pub struct WorkspaceRef
+}
+
+string_newtype! {
+    /// A harness kind identifier (spec §5.3.5 `harness`). Opaque to the
+    /// domain: the harness vocabulary is configuration, never a literal here.
+    pub struct HarnessId
+}
+
+string_newtype! {
+    /// A runner profile identifier (spec §5.3.5 `runner_profile`). Opaque to
+    /// the domain; profiles are resolved from configuration.
+    pub struct RunnerProfileId
+}
+
+string_newtype! {
+    /// The idempotency key of a role invocation admission (E2 design): the
+    /// same key with identical immutable facts replays the same admission.
+    pub struct AdmissionKey
 }
 
 /// A point in time supplied by the `Clock` port (§6). The domain never reads

@@ -148,6 +148,10 @@ pub struct KernelSubmission {
     pub handle_path: PathBuf,
     pub workspace: PathBuf,
     pub model_hint: Option<String>,
+    /// The per-invocation agent directory, when an MCP bridge is provisioned.
+    /// `Some` sets `PRIME_AGENT_CODING_AGENT_DIR` on the parent process and
+    /// nothing else; `None` inherits the environment exactly as before.
+    pub agent_dir: Option<PathBuf>,
 }
 
 /// One harness child's latest telemetry, as the rpc-mode parent's
@@ -418,8 +422,32 @@ pub struct SubagentRecord {
 /// The harness-control seam: `stop` for cancellation, `list` for
 /// forensics.
 pub trait HarnessControl: fmt::Debug {
-    fn stop(&self, child: &str, deadline: Deadline) -> Result<(), ControlError>;
-    fn list(&self, deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError>;
+    /// Stops one child. `agent_dir` scopes the call to the harness state the
+    /// child was launched with (`None` is the harness default).
+    fn stop(
+        &self,
+        child: &str,
+        agent_dir: Option<&Path>,
+        deadline: Deadline,
+    ) -> Result<(), ControlError>;
+    /// Lists the children the harness state under `agent_dir` knows about.
+    fn list(
+        &self,
+        agent_dir: Option<&Path>,
+        deadline: Deadline,
+    ) -> Result<Vec<SubagentRecord>, ControlError>;
+}
+
+/// The rpc-mode parent's command: the binary in `--mode rpc`, started in the
+/// invocation's workspace. The agent-dir override is the only variable added
+/// to the inherited environment, and only when a bridge is provisioned.
+fn rpc_command(binary: &Path, workspace: &Path, agent_dir: Option<&Path>) -> std::process::Command {
+    let mut command = std::process::Command::new(binary);
+    command.arg("--mode").arg("rpc").current_dir(workspace);
+    if let Some(dir) = agent_dir {
+        command.env(crate::config::AGENT_DIR_ENV, dir);
+    }
+    command
 }
 
 /// The poll interval of the bounded process waits, in milliseconds.
@@ -922,22 +950,23 @@ impl KernelTransport for ProcessKernelTransport {
         submission: &KernelSubmission,
         deadline: Deadline,
     ) -> Result<(AdmissionHandle, Box<dyn ParentHandle>), TransportError> {
-        use std::process::{Command, Stdio};
+        use std::process::Stdio;
         *self.forensics.lock().expect("the forensics mutex") = None;
         let mut note = String::new();
         let timeout_ends = Self::now_secs().saturating_add(self.admission_timeout.as_secs().max(1));
-        let mut child = Command::new(&self.binary)
-            .arg("--mode")
-            .arg("rpc")
-            .current_dir(&submission.workspace)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| TransportError::SpawnFailed {
-                binary: self.binary.clone(),
-                detail: error.to_string(),
-            })?;
+        let mut child = rpc_command(
+            &self.binary,
+            &submission.workspace,
+            submission.agent_dir.as_deref(),
+        )
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| TransportError::SpawnFailed {
+            binary: self.binary.clone(),
+            detail: error.to_string(),
+        })?;
         note.push_str(&format!("rpc parent pid {} started; ", child.id()));
 
         // Stderr is drained into a bounded buffer so the pipe can never
@@ -1145,10 +1174,19 @@ impl ProcessHarnessControl {
         Self { binary }
     }
 
-    fn run_bounded(&self, args: &[&str], deadline: Deadline) -> Result<String, ControlError> {
+    fn run_bounded(
+        &self,
+        args: &[&str],
+        agent_dir: Option<&Path>,
+        deadline: Deadline,
+    ) -> Result<String, ControlError> {
         use std::process::{Command, Stdio};
-        let mut child = Command::new(&self.binary)
-            .args(args)
+        let mut command = Command::new(&self.binary);
+        command.args(args);
+        if let Some(dir) = agent_dir {
+            command.env(crate::config::AGENT_DIR_ENV, dir);
+        }
+        let mut child = command
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -1212,8 +1250,13 @@ impl ProcessHarnessControl {
 }
 
 impl HarnessControl for ProcessHarnessControl {
-    fn stop(&self, child: &str, deadline: Deadline) -> Result<(), ControlError> {
-        match self.run_bounded(&["stop", child], deadline) {
+    fn stop(
+        &self,
+        child: &str,
+        agent_dir: Option<&Path>,
+        deadline: Deadline,
+    ) -> Result<(), ControlError> {
+        match self.run_bounded(&["stop", child], agent_dir, deadline) {
             Ok(_output) => Ok(()),
             // Already gone: cancellation's goal is achieved (idempotent).
             // "Unknown active session" is the RC3 addition
@@ -1233,9 +1276,13 @@ impl HarnessControl for ProcessHarnessControl {
         }
     }
 
-    fn list(&self, deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+    fn list(
+        &self,
+        agent_dir: Option<&Path>,
+        deadline: Deadline,
+    ) -> Result<Vec<SubagentRecord>, ControlError> {
         let text = self
-            .run_bounded(&["list", "--json"], deadline)
+            .run_bounded(&["list", "--json"], agent_dir, deadline)
             .map_err(|error| ControlError::ListFailed {
                 detail: error.to_string(),
             })?;
@@ -1455,19 +1502,23 @@ sys.exit(0)
     /// hand-rolled stand-in.
     fn rpc_submission(dir: &Path) -> KernelSubmission {
         let handle_path = dir.join("result.handle");
-        let program = crate::program::render(&crate::program::KernelProgramSpec {
-            envelope_path: dir.join("envelope.json").to_string_lossy().into_owned(),
-            child_input_path: dir.join("child-input.json").to_string_lossy().into_owned(),
-            handle_path: handle_path.to_string_lossy().into_owned(),
-            invocation_name: "fake-invocation".to_owned(),
-            role_prompt: "do the fake work".to_owned(),
-            model_hint: None,
-        });
+        let program = crate::program::render(
+            &crate::program::KernelProgramSpec {
+                envelope_path: dir.join("envelope.json").to_string_lossy().into_owned(),
+                child_input_path: dir.join("child-input.json").to_string_lossy().into_owned(),
+                handle_path: handle_path.to_string_lossy().into_owned(),
+                invocation_name: "fake-invocation".to_owned(),
+                role_prompt: "do the fake work".to_owned(),
+                model_hint: None,
+            },
+            crate::config::SpawnDialect::Spawn09,
+        );
         KernelSubmission {
             program,
             handle_path,
             workspace: dir.to_path_buf(),
             model_hint: None,
+            agent_dir: None,
         }
     }
 
@@ -1713,7 +1764,7 @@ sys.exit(0)
         let binary = fake_unknown_session_binary("stderr-detail");
         let control = ProcessHarnessControl::new(binary.clone());
         let error = control
-            .run_bounded(&["stop", "sub-x"], far_future_deadline())
+            .run_bounded(&["stop", "sub-x"], None, far_future_deadline())
             .expect_err("the fake binary always fails");
         let ControlError::StopFailed { detail, .. } = &error else {
             panic!("expected StopFailed, got {error:?}")
@@ -1734,13 +1785,47 @@ sys.exit(0)
         let binary = fake_unknown_session_binary("no-such-child");
         let control = ProcessHarnessControl::new(binary.clone());
         let error = control
-            .stop("sub-x", far_future_deadline())
+            .stop("sub-x", None, far_future_deadline())
             .expect_err("the fake binary always fails");
         assert!(
             matches!(error, ControlError::NoSuchChild { ref child } if child == "sub-x"),
             "got {error:?}"
         );
         std::fs::remove_dir_all(binary.parent().expect("has a parent")).ok();
+    }
+
+    /// The parent process's environment: with no bridge, the command adds
+    /// NOTHING to the inherited environment; with one, exactly the agent-dir
+    /// override is added, and it names the per-invocation dir.
+    #[test]
+    fn the_rpc_command_adds_only_the_agent_dir_override_when_bridged() {
+        let binary = PathBuf::from("prime-agent");
+        let workspace = std::env::temp_dir();
+        let plain = rpc_command(&binary, &workspace, None);
+        assert_eq!(plain.get_envs().count(), 0, "no bridge, no env change");
+        let agent_dir = PathBuf::from("/state/runs/r/inv/i/agent");
+        let bridged = rpc_command(&binary, &workspace, Some(&agent_dir));
+        let envs: Vec<(String, Option<String>)> = bridged
+            .get_envs()
+            .map(|(key, value)| {
+                (
+                    key.to_string_lossy().into_owned(),
+                    value.map(|v| v.to_string_lossy().into_owned()),
+                )
+            })
+            .collect();
+        assert_eq!(
+            envs,
+            vec![(
+                "PRIME_AGENT_CODING_AGENT_DIR".to_owned(),
+                Some(agent_dir.to_string_lossy().into_owned())
+            )]
+        );
+        let args: Vec<String> = bridged
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(args, vec!["--mode".to_owned(), "rpc".to_owned()]);
     }
 
     /// THE PIN (COR-D2 divergence #2): the harness's `list --json`

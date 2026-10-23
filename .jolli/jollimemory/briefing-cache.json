@@ -1,7 +1,0 @@
-{
-	"branch": "task26-dcritic-apparatus-repair",
-	"lastCommitHash": "540e3dd356fdbc09c7cfa003e92627fa19ec5fc4",
-	"briefingText": "[Jolli Memory — task26-dcritic-apparatus-repair]\n79 commits (2026-09-08 ~ 2026-09-14) | 863 files, +173161 -3634\nLast: fix(controller): release truncated dispatches' workspaces; pin why an invocation failed (2026-09-14)",
-	"clientKind": "shared",
-	"generatedAt": "2026-09-14T14:53:21.527Z"
-}

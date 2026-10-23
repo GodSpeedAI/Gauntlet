@@ -52,6 +52,9 @@ const TERMINATE_BOUND: u64 = 180;
 /// round 1, F6): how long the run's own cancels get to reap every
 /// hostile child before this test calls the leak a defect again.
 const LIVENESS_BOUND: u64 = 30;
+/// The bounded deadline for the database connections of a killed child to
+/// drain (the quiescence barrier after every SIGKILL).
+const QUIESCE_BOUND: u64 = 10;
 
 /// The workspace root: this package's manifest sits two levels below it.
 fn workspace_root() -> PathBuf {
@@ -273,20 +276,24 @@ where
 /// adapter's doc-hidden test-support reader — the same instrument the
 /// settled p7/mock proofs read through).
 fn settlement_event_count(state_db: &Path) -> usize {
-    if !state_db.is_file() {
+    if !gauntlet_adapter_state_postgres::state_exists(state_db)
+        .expect("the state database is reachable")
+    {
         return 0;
     }
-    gauntlet_adapter_state_sqlite::test_support::settlement_committed_events(state_db)
+    gauntlet_adapter_state_postgres::test_support::settlement_committed_events(state_db)
         .map(|events| events.len())
         .unwrap_or(0)
 }
 
 /// The durable settlement ROWS for one unit, as a count.
 fn settlement_row_count(state_db: &Path, unit: &str) -> usize {
-    if !state_db.is_file() {
+    if !gauntlet_adapter_state_postgres::state_exists(state_db)
+        .expect("the state database is reachable")
+    {
         return 0;
     }
-    gauntlet_adapter_state_sqlite::test_support::settlement_rows(state_db)
+    gauntlet_adapter_state_postgres::test_support::settlement_rows(state_db)
         .map(|rows| {
             rows.iter()
                 .filter(|(row_unit, ..)| row_unit.as_str() == unit)
@@ -297,10 +304,12 @@ fn settlement_row_count(state_db: &Path, unit: &str) -> usize {
 
 /// Whether the durable evidence production rows are fewer than `n`.
 fn production_rows_below(state_db: &Path, n: usize) -> bool {
-    if !state_db.is_file() {
+    if !gauntlet_adapter_state_postgres::state_exists(state_db)
+        .expect("the state database is reachable")
+    {
         return true;
     }
-    gauntlet_adapter_state_sqlite::test_support::evidence_production_rows(state_db)
+    gauntlet_adapter_state_postgres::test_support::evidence_production_rows(state_db)
         .map(|rows| rows.len() < n)
         .unwrap_or(true)
 }
@@ -308,10 +317,12 @@ fn production_rows_below(state_db: &Path, n: usize) -> bool {
 /// How many durable evidence production rows name a locator containing
 /// `needle` (leg 2b's window fact: the unit's own production record).
 fn production_rows_for_locator(state_db: &Path, needle: &str) -> usize {
-    if !state_db.is_file() {
+    if !gauntlet_adapter_state_postgres::state_exists(state_db)
+        .expect("the state database is reachable")
+    {
         return 0;
     }
-    gauntlet_adapter_state_sqlite::test_support::evidence_production_rows(state_db)
+    gauntlet_adapter_state_postgres::test_support::evidence_production_rows(state_db)
         .map(|rows| {
             rows.iter()
                 .filter(|(_, locator, ..)| locator.contains(needle))
@@ -325,10 +336,12 @@ fn production_rows_for_locator(state_db: &Path, needle: &str) -> usize {
 /// the adjudicated assertions read the crashed attempt's row and the
 /// resumed pass's own row from this surface.
 fn marker_rows(state_db: &Path) -> Vec<(String, String, i64, i64)> {
-    if !state_db.is_file() {
+    if !gauntlet_adapter_state_postgres::state_exists(state_db)
+        .expect("the state database is reachable")
+    {
         return Vec::new();
     }
-    gauntlet_adapter_state_sqlite::test_support::evidence_production_rows(state_db)
+    gauntlet_adapter_state_postgres::test_support::evidence_production_rows(state_db)
         .map(|rows| {
             rows.into_iter()
                 .filter(|(_, locator, ..)| locator.contains("real-marker-report"))
@@ -360,10 +373,12 @@ fn ak951_dispatch_count(
 /// AK-951's durable settlement-event count (the §16.3 step-1 append —
 /// the branch discriminator and the exactly-once event fact).
 fn ak951_settlement_event_count(state_db: &Path) -> usize {
-    if !state_db.is_file() {
+    if !gauntlet_adapter_state_postgres::state_exists(state_db)
+        .expect("the state database is reachable")
+    {
         return 0;
     }
-    gauntlet_adapter_state_sqlite::test_support::settlement_committed_events(state_db)
+    gauntlet_adapter_state_postgres::test_support::settlement_committed_events(state_db)
         .map(|events| {
             events
                 .iter()
@@ -429,11 +444,21 @@ fn wait_bounded(child: &mut std::process::Child, deadline: Duration, what: &str)
 }
 
 /// SIGKILLs the child and collects its (partial) output.
-fn kill_and_collect(child: &mut std::process::Child) -> Output {
+///
+/// The kill does NOT freeze the database: a COMMIT the child already sent
+/// can still complete on the server after the child is dead. So after the
+/// reap, the state instance at `state_db` is quiesced (every backend the
+/// child opened has exited) before the caller reads any durable state.
+fn kill_and_collect(child: &mut std::process::Child, state_db: &Path) -> Output {
     child.kill().expect("the SIGKILL lands");
     let mut stdout = child.stdout.take().expect("the piped stdout");
     let mut stderr = child.stderr.take().expect("the piped stderr");
     let status = child.wait().expect("the killed child reaps");
+    gauntlet_adapter_state_postgres::test_support::quiesce_writers(
+        state_db,
+        Duration::from_secs(QUIESCE_BOUND),
+    )
+    .expect("the killed child's database connections drain");
     let mut out_bytes = Vec::new();
     let mut err_bytes = Vec::new();
     std::io::Read::read_to_end(&mut stdout, &mut out_bytes).expect("the stdout reads");
@@ -469,7 +494,7 @@ fn the_kill_at_the_first_settlement_boundary_resumes_to_exactly_once() {
             (count >= 1).then(|| format!("settlement events durable: {count}"))
         },
     );
-    let output = kill_and_collect(&mut child);
+    let output = kill_and_collect(&mut child, &world.state_db());
     assert!(
         !output.status.success(),
         "a SIGKILLed run did not succeed — the kill was real"
@@ -648,7 +673,7 @@ fn the_kill_in_the_produce_window_resumes_with_the_production_recovered() {
             }
         },
     );
-    let _ = kill_and_collect(&mut child);
+    let _ = kill_and_collect(&mut child, &world.state_db());
 
     // THE ADJUDICATED PRE-RESUME FACTS (post-kill durable reads): which
     // side of the produce/settlement pair the kill landed on is a durable
@@ -753,7 +778,7 @@ fn the_kill_in_the_produce_window_resumes_with_the_production_recovered() {
     // certified; the fixture's auto-closable pair (AK-951 + AK-954) is
     // exactly two settlement events in total.
     let settlements =
-        gauntlet_adapter_state_sqlite::test_support::settlement_rows(&world.state_db())
+        gauntlet_adapter_state_postgres::test_support::settlement_rows(&world.state_db())
             .expect("the settlement row reader runs");
     let ak951_settlements: Vec<_> = settlements
         .iter()
@@ -898,7 +923,7 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
                 );
             }
         }
-        let _ = kill_and_collect(&mut child);
+        let _ = kill_and_collect(&mut child, &world.state_db());
 
         // THE CLASSIFICATION (durable, post-kill): the §16.3 settlement
         // event is the branch discriminator. Absent ⇒ the kill landed
@@ -1021,7 +1046,7 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
         // record, not the pre-crash one adopted" is the ROW, keyed by its
         // iteration and ordering anchor.
         let marker_iterations: Vec<_> =
-            gauntlet_adapter_state_sqlite::test_support::evidence_production_rows_with_iteration(
+            gauntlet_adapter_state_postgres::test_support::evidence_production_rows_with_iteration(
                 &world.state_db(),
             )
             .expect("the iteration-aware production reader runs")
@@ -1056,7 +1081,7 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
         // keyed row and one event for AK-951; the fixture's auto-closable
         // pair (AK-951 + AK-954) is exactly two settlement events in total.
         let settlements =
-            gauntlet_adapter_state_sqlite::test_support::settlement_rows(&world.state_db())
+            gauntlet_adapter_state_postgres::test_support::settlement_rows(&world.state_db())
                 .expect("the settlement row reader runs");
         let ak951_settlements: Vec<_> = settlements
             .iter()

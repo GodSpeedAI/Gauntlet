@@ -40,7 +40,9 @@ pub mod event_log;
 pub mod evidence_store;
 pub mod human_escalation;
 pub mod id_generator;
+pub mod invocation_graph;
 pub mod json;
+pub mod lifecycle;
 pub mod observation_digest;
 pub mod observer;
 pub mod observer_evidence;
@@ -53,7 +55,10 @@ pub mod role_result;
 pub mod sandbox;
 pub mod state_store;
 pub mod tokens;
+pub mod tool_catalog;
+pub mod tool_program;
 pub mod tool_provider;
+pub mod tool_surface;
 pub mod verification_record;
 pub mod verifier;
 pub mod workspace_provider;
@@ -130,9 +135,19 @@ pub use state_store::{
     SettlementCommit, StateStore, StateStoreError,
 };
 pub use tokens::UnknownToken;
+pub use tool_catalog::{
+    CatalogBuilder, CatalogError, CatalogSurface, Composite, ToolCatalog, ToolInvocation,
+    ToolInvoker, ToolName, ToolNameError, ToolOperation,
+};
+pub use tool_program::{
+    FailureClass, HostRecord, ProgramHost, ProgramLimit, ProgramLimits, ProgramOutcome,
+    ProgramRequestError, ProgramSource, ProgramSourceError, ProgramStatus, ToolProgramRequest,
+    ToolProgramRuntime, TraceEntry, TraceOutcomeKind,
+};
 pub use tool_provider::{
     SemanticCapability, ToolBinding, ToolIdentity, ToolProvider, ToolProviderError,
 };
+pub use tool_surface::{ToolListing, ToolOutcome, ToolSurface};
 pub use verification_record::{
     BindingClass, RequirementDoc, VERIFICATION_RECORD_SCHEMA, VerificationContent,
     VerificationDocError, VerificationRecordDoc, VerifyingInstrument,

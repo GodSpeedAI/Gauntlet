@@ -72,7 +72,7 @@ use gauntlet_adapter_compare_model::{ModelComparator, ModelComparatorSource};
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
 use gauntlet_adapter_meter_memory::MeteredBudget;
 use gauntlet_adapter_observe_command::{CommandObserver, CommandSpec};
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_app::compare::contract::ComparisonContract;
 use gauntlet_app::control::controller::{
     BudgetShape, ComparisonDeps, ControlError, ControllerDeps, RunController,
@@ -700,7 +700,7 @@ fn compose(tag: &str, key_text: &str, tamper: Tamper) -> Fixture {
         FsEvidenceStore::open(&evidence_root).expect("the real fs evidence store opens"),
     ));
     let state: Arc<EmbeddedStateStore> =
-        Arc::new(EmbeddedStateStore::open(&db).expect("the real embedded state store opens"));
+        Arc::new(EmbeddedStateStore::open_at(&db).expect("the real embedded state store opens"));
     let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(
         BASE_INSTANT,
     )));

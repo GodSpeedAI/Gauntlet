@@ -19,7 +19,8 @@ members = [
     "crates/adapters/gauntlet-adapter-agent-mock",
     "crates/adapters/gauntlet-adapter-agent-prime",
     "crates/adapters/gauntlet-adapter-agent-cli",
-    "crates/adapters/gauntlet-adapter-state-sqlite",
+    "crates/adapters/gauntlet-adapter-agent-tty",
+    "crates/adapters/gauntlet-adapter-state-postgres",
     "crates/adapters/gauntlet-adapter-evidence-fs",
     "crates/adapters/gauntlet-adapter-workspace-fs",
     "crates/adapters/gauntlet-adapter-escalation-fs",
@@ -40,6 +41,9 @@ members = [
     "crates/adapters/gauntlet-adapter-verify-file-digest",
     "crates/adapters/gauntlet-adapter-verify-schema-check",
     "crates/adapters/gauntlet-adapter-surface-json",
+    "crates/adapters/gauntlet-adapter-surface-rpc",
+    "crates/adapters/gauntlet-adapter-tool-program-codemode",
+    "crates/adapters/gauntlet-adapter-harness-catalog",
     "crates/gauntlet-arch-tests",
 ]
 
@@ -59,7 +63,9 @@ gauntlet-app = { path = "crates/gauntlet-app" }
 gauntlet-adapter-agent-mock = { path = "crates/adapters/gauntlet-adapter-agent-mock" }
 gauntlet-adapter-agent-prime = { path = "crates/adapters/gauntlet-adapter-agent-prime" }
 gauntlet-adapter-agent-cli = { path = "crates/adapters/gauntlet-adapter-agent-cli" }
-gauntlet-adapter-state-sqlite = { path = "crates/adapters/gauntlet-adapter-state-sqlite" }
+gauntlet-adapter-agent-tty = { path = "crates/adapters/gauntlet-adapter-agent-tty" }
+gauntlet-adapter-harness-catalog = { path = "crates/adapters/gauntlet-adapter-harness-catalog" }
+gauntlet-adapter-state-postgres = { path = "crates/adapters/gauntlet-adapter-state-postgres" }
 gauntlet-adapter-evidence-fs = { path = "crates/adapters/gauntlet-adapter-evidence-fs" }
 gauntlet-adapter-workspace-fs = { path = "crates/adapters/gauntlet-adapter-workspace-fs" }
 gauntlet-adapter-escalation-fs = { path = "crates/adapters/gauntlet-adapter-escalation-fs" }
@@ -84,6 +90,13 @@ gauntlet-adapter-sandbox-none = { path = "crates/adapters/gauntlet-adapter-sandb
 # domain only. NON-default: gauntlet-cli's `surfaces` feature is the only
 # edge that enables it (charter D1 — the default build stays CLI-only).
 gauntlet-adapter-surface-json = { path = "crates/adapters/gauntlet-adapter-surface-json" }
+# Stdio JSON-RPC projection of the ToolSurface port (MCP-compatible tool
+# subset). Std-only; deps are ports + domain only. Not enabled by any feature
+# yet — a composition root opts in by depending on it.
+gauntlet-adapter-surface-rpc = { path = "crates/adapters/gauntlet-adapter-surface-rpc" }
+# Phase H slice 2b: the ToolProgramRuntime port run by the Bun codemode host
+# (spawned per run; no external dependency). Enabled by gauntlet-cli only.
+gauntlet-adapter-tool-program-codemode = { path = "crates/adapters/gauntlet-adapter-tool-program-codemode" }
 # The one external dependency permitted by plan Task 2: manifest parsing for
 # the architecture boundary tests. gauntlet-arch-tests is NOT listed above as
 # anything's dependency — it is test-only.

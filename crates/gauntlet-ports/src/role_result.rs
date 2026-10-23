@@ -1252,6 +1252,217 @@ fn dollars_to_micros(dollars: f64) -> u64 {
     }
 }
 
+/// The self-check object keys, in wire order. Named here so the encoder and the
+/// tests reference the wire keys by index instead of spelling them inline.
+const SELF_CHECK_KEYS: &[&str] = &["command", "exit_code"];
+
+/// Micro-dollars per dollar: the scale between the wire `cost_usd` (dollars)
+/// and the domain `MicroUsd`.
+const MICROS_PER_DOLLAR: f64 = 1_000_000.0;
+
+/// The canonical bytes of a `role_result@v1` document.
+///
+/// Field order is fixed, integers are written as integers, and `cost_usd` is
+/// written as the shortest decimal dollars that decodes back to the same
+/// micro-dollars. Strings use the JSON escaping of [`JsonValue::to_json_text`].
+/// `decode(encode(x)) == x`, and encoding a decoded value reproduces the same
+/// bytes. A result digest is taken over these bytes.
+pub fn encode_role_result(result: &RoleResult) -> String {
+    let payload = match &result.payload {
+        RolePayload::BuilderResult(payload) => builder_payload_json(payload),
+        RolePayload::Comparison(doc) => payload_text_json(&doc.to_payload_json()),
+        RolePayload::Verification(doc) => payload_text_json(&doc.to_payload_json()),
+        RolePayload::CandidateRevision(payload) => candidate_payload_json(payload),
+    };
+    let unavailable = JsonValue::Array(
+        result
+            .unavailable_evidence
+            .iter()
+            .map(|entry| {
+                json_object(vec![
+                    ("kind", json_text(&entry.kind.wire())),
+                    ("reason", json_text(&entry.reason)),
+                ])
+            })
+            .collect(),
+    );
+    json_object(vec![
+        ("schema", json_text(ROLE_RESULT_SCHEMA)),
+        ("invocation_id", json_text(result.invocation_id.as_str())),
+        ("run_id", json_text(result.run_id.as_str())),
+        (
+            "iteration_no",
+            json_uint(u64::from(result.iteration_no.get())),
+        ),
+        ("role", json_text(&result.role.to_string())),
+        (
+            "context_envelope_digest",
+            json_text(&result.context_envelope_digest.to_string()),
+        ),
+        (
+            "state",
+            json_text(match result.state {
+                RoleResultState::Completed => "completed",
+                RoleResultState::Failed => "failed",
+            }),
+        ),
+        ("payload_schema", json_text(result.payload.schema_token())),
+        ("payload", payload),
+        ("payment", payment_json(result.payment)),
+        ("unavailable_evidence", unavailable),
+        (
+            "errors",
+            json_texts(result.errors.iter().map(String::as_str)),
+        ),
+    ])
+    .to_json_text()
+}
+
+fn json_object(entries: Vec<(&str, JsonValue)>) -> JsonValue {
+    JsonValue::Object(
+        entries
+            .into_iter()
+            .map(|(key, value)| (key.to_owned(), value))
+            .collect(),
+    )
+}
+
+fn json_text(value: &str) -> JsonValue {
+    JsonValue::Str(value.to_owned())
+}
+
+fn json_texts<'a>(values: impl IntoIterator<Item = &'a str>) -> JsonValue {
+    JsonValue::Array(values.into_iter().map(json_text).collect())
+}
+
+fn json_uint(value: u64) -> JsonValue {
+    JsonValue::Number(JsonNumber::Uint(value))
+}
+
+fn json_signed(value: i64) -> JsonValue {
+    match u64::try_from(value) {
+        Ok(unsigned) => json_uint(unsigned),
+        Err(_) => JsonValue::Number(JsonNumber::NegInt(value)),
+    }
+}
+
+fn payment_json(payment: ResultPayment) -> JsonValue {
+    json_object(vec![
+        ("input_tokens", json_uint(payment.input_tokens())),
+        ("output_tokens", json_uint(payment.output_tokens())),
+        ("tool_calls", json_uint(payment.tool_calls())),
+        ("wall_seconds", json_uint(payment.wall_seconds())),
+        (
+            "cost_usd",
+            JsonValue::Number(JsonNumber::Float(
+                payment.cost_usd().get() as f64 / MICROS_PER_DOLLAR,
+            )),
+        ),
+    ])
+}
+
+/// A payload whose codec already owns its canonical text (comparison and
+/// verification records). The text was produced by that codec, so it parses.
+fn payload_text_json(text: &str) -> JsonValue {
+    crate::json::parse(text).expect("a record codec's canonical payload is valid JSON")
+}
+
+fn builder_payload_json(payload: &BuilderResultPayload) -> JsonValue {
+    json_object(vec![
+        (
+            "attempted",
+            JsonValue::Array(
+                payload
+                    .attempted
+                    .iter()
+                    .map(|unit| json_text(unit.as_str()))
+                    .collect(),
+            ),
+        ),
+        (
+            "changed_paths",
+            json_texts(payload.changed_paths.iter().map(String::as_str)),
+        ),
+        (
+            "commands_run",
+            json_texts(payload.commands_run.iter().map(String::as_str)),
+        ),
+        (
+            "artifacts",
+            JsonValue::Array(
+                payload
+                    .artifacts
+                    .iter()
+                    .map(|artifact| {
+                        json_object(vec![
+                            ("path", json_text(&artifact.path)),
+                            ("evidence_ref", json_text(artifact.evidence_ref.as_str())),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "claims",
+            json_texts(payload.claims.iter().map(String::as_str)),
+        ),
+        (
+            "self_checks",
+            JsonValue::Array(
+                payload
+                    .self_checks
+                    .iter()
+                    .map(|check| {
+                        json_object(vec![
+                            (SELF_CHECK_KEYS[0], json_text(&check.command)),
+                            ("exit_code", json_signed(check.exit_code)),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "blocked_on",
+            json_texts(payload.blocked_on.iter().map(String::as_str)),
+        ),
+    ])
+}
+
+fn candidate_payload_json(payload: &CandidateRevisionPayload) -> JsonValue {
+    json_object(vec![
+        ("claimed_problem", json_text(&payload.claimed_problem)),
+        (
+            "supporting_evidence",
+            JsonValue::Array(
+                payload
+                    .supporting_evidence
+                    .iter()
+                    .map(|evidence| json_text(evidence.as_str()))
+                    .collect(),
+            ),
+        ),
+        ("affected_component", json_text(&payload.affected_component)),
+        (
+            "predicted_improvement",
+            json_text(&payload.predicted_improvement),
+        ),
+        (
+            "potential_regression",
+            json_texts(payload.potential_regression.iter().map(String::as_str)),
+        ),
+        (
+            "candidate_change",
+            json_text(payload.candidate_change.as_str()),
+        ),
+        ("evaluation_plan", json_text(&payload.evaluation_plan)),
+        (
+            "held_out_evaluation",
+            json_text(&payload.held_out_evaluation),
+        ),
+        ("rollback", json_text(payload.rollback.as_str())),
+    ])
+}
+
 /// Reads and validates a result-contract document against the dispatch
 /// facts: strict decode (unknown fields rejected, every value typed), then
 /// the §10.3 rule 6 identity check. Runners call this in `poll`/`collect`
@@ -1864,5 +2075,291 @@ mod tests {
             Err(RoleResultError::UnknownField { schema, field, .. })
                 if schema == CANDIDATE_REVISION_SCHEMA && field == "fabricated"
         ));
+    }
+}
+
+#[cfg(test)]
+mod encoding_tests {
+    use super::*;
+    use crate::verification_record::{
+        RequirementDoc, VERIFICATION_RECORD_SCHEMA, VerificationContent, VerificationRecordDoc,
+        VerifyingInstrument,
+    };
+    use gauntlet_domain::{
+        Digest, EpochSeconds, EvidenceKind, EvidenceLocator, EvidenceRef, IterationNo, Outcome,
+        Producer, RunId, UnitId, VerificationRef,
+    };
+
+    const RUN: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+    const INVOCATION: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
+    const CONTRACT_HEX: &str = "ab";
+    const HEX_REPEATS: usize = 32;
+    const ITERATION: u32 = 2;
+    const CHECK_EXIT: i64 = -3;
+    const INPUT_TOKENS: u64 = 10;
+    const OUTPUT_TOKENS: u64 = 20;
+    const TOOL_CALLS: u64 = 3;
+    const ELAPSED_PAYMENT: u64 = 4;
+    const HOSTILE: &str = "quote \" backslash \\ newline\nreturn\rtab\t control\u{1} unicode caf\u{e9} emoji \u{1F600} delimiters \"},{\"x\":[ ]} end";
+
+    fn digest() -> Digest {
+        Digest::new("sha256", &CONTRACT_HEX.repeat(HEX_REPEATS)).expect("a valid digest")
+    }
+
+    fn payment(cost_dollars: f64) -> JsonValue {
+        json_object(vec![
+            ("input_tokens", json_uint(INPUT_TOKENS)),
+            ("output_tokens", json_uint(OUTPUT_TOKENS)),
+            ("tool_calls", json_uint(TOOL_CALLS)),
+            ("wall_seconds", json_uint(ELAPSED_PAYMENT)),
+            (
+                "cost_usd",
+                JsonValue::Number(JsonNumber::Float(cost_dollars)),
+            ),
+        ])
+    }
+
+    /// A full envelope built from parts, decoded by the strict decoder.
+    fn document(
+        state: &str,
+        payload_schema: &str,
+        payload: JsonValue,
+        cost_dollars: f64,
+        unavailable: &[(&str, &str)],
+        errors: &[&str],
+    ) -> RoleResult {
+        let value = json_object(vec![
+            ("schema", json_text(ROLE_RESULT_SCHEMA)),
+            ("invocation_id", json_text(INVOCATION)),
+            ("run_id", json_text(RUN)),
+            ("iteration_no", json_uint(u64::from(ITERATION))),
+            ("role", json_text("builder")),
+            ("context_envelope_digest", json_text(&digest().to_string())),
+            ("state", json_text(state)),
+            ("payload_schema", json_text(payload_schema)),
+            ("payload", payload),
+            ("payment", payment(cost_dollars)),
+            (
+                "unavailable_evidence",
+                JsonValue::Array(
+                    unavailable
+                        .iter()
+                        .map(|(kind, reason)| {
+                            json_object(vec![
+                                ("kind", json_text(kind)),
+                                ("reason", json_text(reason)),
+                            ])
+                        })
+                        .collect(),
+                ),
+            ),
+            ("errors", json_texts(errors.iter().copied())),
+        ]);
+        RoleResult::decode(&value.to_json_text()).expect("the fixture is a valid role_result")
+    }
+
+    fn hostile_builder() -> JsonValue {
+        json_object(vec![
+            ("attempted", JsonValue::Array(Vec::new())),
+            ("changed_paths", json_texts([HOSTILE, "artifact-b"])),
+            ("commands_run", json_texts([HOSTILE])),
+            (
+                "artifacts",
+                JsonValue::Array(vec![json_object(vec![
+                    ("path", json_text(HOSTILE)),
+                    ("evidence_ref", json_text("evd-hostile-1")),
+                ])]),
+            ),
+            ("claims", json_texts([HOSTILE, "plain claim"])),
+            (
+                "self_checks",
+                JsonValue::Array(vec![
+                    json_object(vec![
+                        (SELF_CHECK_KEYS[0], json_text(HOSTILE)),
+                        ("exit_code", json_signed(CHECK_EXIT)),
+                    ]),
+                    json_object(vec![
+                        (SELF_CHECK_KEYS[0], json_text("check-a")),
+                        ("exit_code", json_signed(0)),
+                    ]),
+                ]),
+            ),
+            ("blocked_on", json_texts([HOSTILE])),
+        ])
+    }
+
+    fn candidate() -> JsonValue {
+        json_object(vec![
+            ("claimed_problem", json_text(HOSTILE)),
+            ("supporting_evidence", json_texts(["evd-candidate-1"])),
+            ("affected_component", json_text("component-a")),
+            ("predicted_improvement", json_text("a measurable gain")),
+            ("potential_regression", json_texts(["slower startup"])),
+            ("candidate_change", json_text("evd-candidate-2")),
+            ("evaluation_plan", json_text("plan-a")),
+            ("held_out_evaluation", json_text("held-out-a")),
+            ("rollback", json_text("evd-candidate-3")),
+        ])
+    }
+
+    fn verification_payload() -> JsonValue {
+        let doc = VerificationRecordDoc::new(VerificationContent {
+            verification: VerificationRef::new("vrf-encode-0001").expect("valid ref"),
+            run_id: RunId::new(RUN).expect("valid run id"),
+            iteration_no: IterationNo::new(ITERATION).expect("1-based"),
+            unit_id: UnitId::new("AK-0007").expect("valid unit id"),
+            claim: HOSTILE.to_owned(),
+            requirement: RequirementDoc::new(
+                EvidenceKind::TestReport,
+                EvidenceLocator::new("locator-encode").expect("valid locator"),
+                Producer::Instrument,
+            ),
+            instrument: VerifyingInstrument::new(
+                "verifier-fixture".to_owned(),
+                "1".to_owned(),
+                true,
+            ),
+            evidence: EvidenceRef::new("evd-encode-1").expect("valid evidence"),
+            produced_at: EpochSeconds::new(1_700_000_042),
+            outcome: Outcome::Pass,
+            class: None,
+            detail: HOSTILE.to_owned(),
+        })
+        .expect("the fixture content is well formed");
+        payload_text_json(&doc.to_payload_json())
+    }
+
+    /// Every state and payload variant, with and without unavailable evidence
+    /// and errors, and hostile content in every free-text slot.
+    fn corpus() -> Vec<RoleResult> {
+        vec![
+            document(
+                "completed",
+                BUILDER_RESULT_SCHEMA,
+                hostile_builder(),
+                1.5,
+                &[("file", HOSTILE)],
+                &[HOSTILE, "second error"],
+            ),
+            document(
+                "failed",
+                BUILDER_RESULT_SCHEMA,
+                json_object(vec![
+                    ("attempted", JsonValue::Array(Vec::new())),
+                    ("changed_paths", json_texts(Vec::<&str>::new())),
+                    ("commands_run", json_texts(Vec::<&str>::new())),
+                    ("artifacts", JsonValue::Array(Vec::new())),
+                    ("claims", json_texts(Vec::<&str>::new())),
+                    ("self_checks", JsonValue::Array(Vec::new())),
+                    ("blocked_on", json_texts(Vec::<&str>::new())),
+                ]),
+                0.0,
+                &[],
+                &[],
+            ),
+            document(
+                "completed",
+                CANDIDATE_REVISION_SCHEMA,
+                candidate(),
+                0.000_001,
+                &[],
+                &[],
+            ),
+            document(
+                "completed",
+                VERIFICATION_RECORD_SCHEMA,
+                verification_payload(),
+                1_234.567_891,
+                &[("test_report", HOSTILE)],
+                &[],
+            ),
+        ]
+    }
+
+    #[test]
+    fn decode_of_encode_is_the_identity_for_every_variant() {
+        for original in corpus() {
+            let text = encode_role_result(&original);
+            let back = RoleResult::decode(&text).expect("the canonical bytes decode");
+            assert_eq!(back, original, "round trip changed the value");
+            assert_eq!(
+                encode_role_result(&back),
+                text,
+                "re-encoding changed the bytes"
+            );
+        }
+    }
+
+    #[test]
+    fn encoding_is_stable_across_calls_and_has_a_fixed_field_order() {
+        for original in corpus() {
+            let first = encode_role_result(&original);
+            assert_eq!(first, encode_role_result(&original));
+            assert!(first.starts_with(&format!(
+                "{{\"schema\":\"{ROLE_RESULT_SCHEMA}\",\"invocation_id\":\"{INVOCATION}\",\"run_id\":\"{RUN}\""
+            )));
+        }
+    }
+
+    #[test]
+    fn hostile_content_survives_the_round_trip_exactly() {
+        let original = corpus().remove(0);
+        let back = RoleResult::decode(&encode_role_result(&original)).expect("decodes");
+        let RolePayload::BuilderResult(payload) = back.payload() else {
+            panic!("the builder payload survives");
+        };
+        assert_eq!(payload.claims()[0], HOSTILE);
+        assert_eq!(payload.blocked_on()[0], HOSTILE);
+        assert_eq!(payload.self_checks()[0].command(), HOSTILE);
+        assert_eq!(payload.self_checks()[0].exit_code(), CHECK_EXIT);
+        assert_eq!(back.errors()[0], HOSTILE);
+        assert_eq!(back.unavailable_evidence()[0].reason(), HOSTILE);
+    }
+
+    #[test]
+    fn cost_survives_at_micro_dollar_precision() {
+        for dollars in [0.0, 0.000_001, 1.234_567, 12_345.678_901] {
+            let original = document(
+                "completed",
+                BUILDER_RESULT_SCHEMA,
+                hostile_builder(),
+                dollars,
+                &[],
+                &[],
+            );
+            let back = RoleResult::decode(&encode_role_result(&original)).expect("decodes");
+            assert_eq!(back.payment(), original.payment());
+        }
+    }
+
+    #[test]
+    fn equal_results_encode_equal_and_a_one_field_change_encodes_differently() {
+        let original = corpus().remove(0);
+        let same = corpus().remove(0);
+        assert_eq!(encode_role_result(&original), encode_role_result(&same));
+
+        let changed = document(
+            "completed",
+            BUILDER_RESULT_SCHEMA,
+            json_object(vec![
+                ("attempted", JsonValue::Array(Vec::new())),
+                ("changed_paths", json_texts([HOSTILE, "artifact-b"])),
+                ("commands_run", json_texts([HOSTILE])),
+                (
+                    "artifacts",
+                    JsonValue::Array(vec![json_object(vec![
+                        ("path", json_text(HOSTILE)),
+                        ("evidence_ref", json_text("evd-hostile-1")),
+                    ])]),
+                ),
+                ("claims", json_texts([HOSTILE, "plain claim changed"])),
+                ("self_checks", JsonValue::Array(Vec::new())),
+                ("blocked_on", json_texts([HOSTILE])),
+            ]),
+            1.5,
+            &[("file", HOSTILE)],
+            &[HOSTILE, "second error"],
+        );
+        assert_ne!(encode_role_result(&original), encode_role_result(&changed));
     }
 }

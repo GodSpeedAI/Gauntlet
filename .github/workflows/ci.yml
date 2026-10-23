@@ -41,6 +41,22 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v2 # resolve to commit SHA per supply-chain policy before merge
 
+      - name: Install bubblewrap (sandbox backend the e2e fixtures configure)
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; bwrap needs them (disposable VM).
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version && bwrap --ro-bind / / true && echo "bwrap usable"
+
+      - name: Setup Bun (the Codemode tool-program tests run on bun)
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+
+      - name: Install workbench dependencies (frozen)
+        working-directory: workbench
+        run: bun install --frozen-lockfile
+
       - name: Install cargo-nextest and cargo-deny
         uses: taiki-e/install-action@v2 # resolve to commit SHA per supply-chain policy before merge
         with:
@@ -49,5 +65,5 @@ jobs:
       - name: Fetch locked dependencies
         run: cargo fetch --locked
 
-      - name: gates (just ci: check test lint deny boundaries ruler)
+      - name: "gates (just ci: check test lint deny boundaries ruler)"
         run: just ci

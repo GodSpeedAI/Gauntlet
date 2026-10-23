@@ -33,8 +33,10 @@
 //! program's semantics (spec §6.3, §7.3): see this crate's
 //! `tests/contract_suite.rs`.
 
+pub mod capability;
 pub mod clock;
 pub mod config;
+pub mod mcp_bridge;
 pub mod probe;
 pub mod program;
 pub mod runner;
@@ -43,8 +45,12 @@ pub mod transport;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+pub use capability::{
+    CapabilityFinding, CapabilityProbeConfig, CapabilityReport, SeamStatus, probe_capabilities,
+};
 pub use clock::SystemClock;
-pub use config::PrimeAdapterConfig;
+pub use config::{AGENT_DIR_ENV, PrimeAdapterConfig};
+pub use mcp_bridge::McpBridge;
 pub use probe::{ProbeError, ProbeReport, VersionRange, is_supported, probe};
 pub use runner::{InvocationForensics, PrimeAgentRunner};
 pub use transport::{

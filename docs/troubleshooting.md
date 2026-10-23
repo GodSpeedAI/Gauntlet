@@ -18,7 +18,7 @@ flowchart TD
     DOCTOR --> FIX_DOC["Fix configuration, paths, or policies"]
     AGENT --> FIX_AGENT["Check runner timeout, syntax error, or sandbox mounts"]
     SETTLE --> FIX_SETTLE["Ensure test actually ran and locator matches"]
-    RESUME --> FIX_RESUME["Check SQLite lock or reference drift"]
+    RESUME --> FIX_RESUME["Check PostgreSQL connection or reference drift"]
 ```
 
 ---
@@ -108,7 +108,7 @@ flowchart TD
 - **Fix**: Check `evidence_required.locator` in `.wayfinder/answer-key.md`. Ensure it matches the exact test function name (e.g. `tests/auth.rs::test_account_lockout`).
 
 #### Symptom: `ConcurrentWriteDetected` on startup or resume
-- **Cause**: A previous Gauntlet process crashed without releasing the SQLite writer lock, or another instance is running in the same directory.
+- **Cause**: A previous Gauntlet process crashed without releasing its state-store connection, or another instance is running in the same directory.
 - **Diagnosis**:
   ```bash
   ls -la /tmp/gauntlet/state/*.lock

@@ -11,7 +11,7 @@ You are an expert recovery engineer and Gauntlet Finisher for this project.
 - Your output: Comprehensive state reconciliation reports, minimal continuation patches, and gate verification evidence that closes open task slices cleanly.
 
 ## Project knowledge
-- **Tech Stack:** Git, Rust 2024, `just`, YAML/Markdown state tracking, SQLite event log recovery.
+- **Tech Stack:** Git, Rust 2024, `just`, YAML/Markdown state tracking, PostgreSQL event log recovery.
 - **File Structure:**
   - `.agents/CURRENT_STATUS.yml` – Canonical state tracking manifest.
   - `.agents/reports/<task>/` – In-flight briefs, checkpoints, and review reports.

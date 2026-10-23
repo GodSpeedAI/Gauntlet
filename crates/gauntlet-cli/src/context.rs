@@ -128,32 +128,59 @@ pub fn resolve_context(
 /// used are the adapters' capability-named surfaces and their runner
 /// token constants — the crate names are the composition root's to
 /// spell (§4.1).
+/// Phase H slice 2b (`gauntlet doctor`): the codemode tool-program runtime is
+/// probed in the default workbench. Absence is reported plainly and is not an
+/// error for any other feature, so it never changes the doctor's exit status.
+pub fn measure_codemode() -> gauntlet_adapter_tool_program_codemode::CodemodeProbe {
+    gauntlet_adapter_tool_program_codemode::probe_codemode_in(std::path::Path::new(
+        gauntlet_adapter_tool_program_codemode::DEFAULT_WORKBENCH_DIR,
+    ))
+}
+
 pub fn measure_runner(token: &str) -> Option<gauntlet_app::doctor::checks::RunnerDescriptor> {
     use gauntlet_adapter_agent_cli as generic_cli_runner;
     use gauntlet_adapter_agent_prime as recursive_runner;
 
     if token == recursive_runner::RUNNER_TOKEN {
         let config = recursive_runner::PrimeAdapterConfig::default();
-        let range = recursive_runner::VersionRange {
-            min: gauntlet_app::config::defaults::HARNESS_VERSION_MIN,
-            limit: gauntlet_app::config::defaults::HARNESS_VERSION_LIMIT,
+        let probe_config = recursive_runner::CapabilityProbeConfig::discover(&config.binary);
+        let report = recursive_runner::probe_capabilities(&probe_config, doctor_bound());
+
+        // Build note from findings and version metadata when not sufficient
+        let note = if report.is_sufficient() {
+            let dialect_label = report.spawn_dialect.map(|d| d.label()).unwrap_or("unknown");
+            if let Some((major, minor, patch)) = report.version {
+                Some(format!(
+                    "capability probe ok; dialect {dialect_label}; version metadata {major}.{minor}.{patch} (informational)"
+                ))
+            } else {
+                Some(format!("capability probe ok; dialect {dialect_label}"))
+            }
+        } else {
+            let findings_text = report
+                .findings
+                .iter()
+                .map(|f| f.to_string())
+                .collect::<Vec<_>>()
+                .join("; ");
+            let version_text = report
+                .version
+                .map(|(major, minor, patch)| format!("version metadata: {major}.{minor}.{patch}"))
+                .unwrap_or_default();
+            let parts: Vec<String> = [findings_text, version_text]
+                .iter()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect();
+            Some(parts.join("; "))
         };
-        return Some(
-            match recursive_runner::probe(&config.binary, &range, doctor_bound()) {
-                Ok(_) => gauntlet_app::doctor::checks::RunnerDescriptor {
-                    token: token.to_owned(),
-                    kind: gauntlet_app::doctor::checks::RunnerProbeKind::VersionRange,
-                    measured: true,
-                    note: None,
-                },
-                Err(error) => gauntlet_app::doctor::checks::RunnerDescriptor {
-                    token: token.to_owned(),
-                    kind: gauntlet_app::doctor::checks::RunnerProbeKind::VersionRange,
-                    measured: false,
-                    note: Some(error.to_string()),
-                },
-            },
-        );
+
+        return Some(gauntlet_app::doctor::checks::RunnerDescriptor {
+            token: token.to_owned(),
+            kind: gauntlet_app::doctor::checks::RunnerProbeKind::Capability,
+            measured: report.is_sufficient(),
+            note,
+        });
     }
     if token == generic_cli_runner::RUNNER_TOKEN {
         // The configuration probe (plan Task 16; RES-D6): the typed

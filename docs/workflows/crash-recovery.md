@@ -8,7 +8,7 @@ This document details how Gauntlet recovers from unexpected process crashes, pow
 
 In standard agent harnesses, restarting an interrupted session results in amnesia: the orchestrator asks the model "remind me what we were doing," leading to re-doing already-settled work, skipping unverified steps, or hallucinating progress.
 
-Gauntlet preserves **Invariant I11**: *Critical state is never reconstructed from conversational memory.* Every iteration boundary and settlement is durably committed to an append-only event log (`fsync` on commit) and an embedded SQLite database. Resuming a run (`gauntlet resume <run_id>`) replays the event log from disk, re-verifies reference integrity, and picks up exactly where execution left off.
+Gauntlet preserves **Invariant I11**: *Critical state is never reconstructed from conversational memory.* Every iteration boundary and settlement is durably committed to an append-only event log (`fsync` on commit) and an embedded PostgreSQL database. Resuming a run (`gauntlet resume <run_id>`) replays the event log from disk, re-verifies reference integrity, and picks up exactly where execution left off.
 
 ---
 
@@ -20,7 +20,7 @@ sequenceDiagram
     actor Op as Operator
     participant CLI as gauntlet-cli
     participant Ctrl as RunController
-    participant State as SQLite StateStore
+    participant State as PostgreSQL StateStore
     participant Log as EventLog (events.jsonl)
     participant Freez as ReferenceFreezer
     participant Evid as EvidenceStore
@@ -56,12 +56,12 @@ To guarantee that crash recovery is crash-proof even at the moment of settlement
 
 ```text
 Step 1: Durable Event Append  ──►  Step 2: State Store Write  ──►  Step 3: In-Memory Advance
-(events.jsonl + fsync)             (SQLite transaction)            (Advance controller pointers)
+(events.jsonl + fsync)             (PostgreSQL transaction)            (Advance controller pointers)
 ```
 
 If the system crashes:
 - **Before Step 1**: The settlement did not happen; on resume, the unit is still `open` and verification re-runs.
-- **Between Step 1 and Step 2**: The event log contains the settlement event with `(run_id, unit_id, verification_ref)`. On resume, the log replay detects the event and reconciles the SQLite database idempotently.
+- **Between Step 1 and Step 2**: The event log contains the settlement event with `(run_id, unit_id, verification_ref)`. On resume, the log replay detects the event and reconciles the PostgreSQL database idempotently.
 - **After Step 2**: Both log and state store record the settlement; in-memory pointers are reloaded immediately.
 
 Replay is guaranteed to be idempotent. An already-settled Unit is never re-dispatched.
@@ -96,5 +96,5 @@ Gauntlet's recovery mechanism is continuously tested under simulated crashes via
 
 - [`crates/gauntlet-app/src/control/controller.rs`](../../crates/gauntlet-app/src/control/controller.rs) — `RunController::resume`.
 - [`crates/gauntlet-app/src/settle/mod.rs`](../../crates/gauntlet-app/src/settle/mod.rs) — 3-step atomic commit implementation.
-- [`crates/adapters/gauntlet-adapter-state-sqlite/src/event_log.rs`](../../crates/adapters/gauntlet-adapter-state-sqlite/src/lib.rs) — Append-only event log with `fsync`.
+- [`crates/adapters/gauntlet-adapter-state-postgres/src/event_log.rs`](../../crates/adapters/gauntlet-adapter-state-postgres/src/lib.rs) — Append-only event log with `fsync`.
 - [`crates/gauntlet-cli/tests/p7_recovery.rs`](../../crates/gauntlet-cli/tests/p7_recovery.rs) — Executable crash-recovery proof test.

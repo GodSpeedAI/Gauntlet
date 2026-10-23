@@ -19,7 +19,7 @@ Inside Gauntlet:
 - An isolated **Comparator** (critic) receives a blind comparison envelope and identifies **Residuals** (deviations from the reference).
 - A deterministic **Verifier** evaluates specific claims against hard instrument evidence, producing a three-state outcome (`PASS`, `FAIL`, `INCONCLUSIVE`).
 - A **Controller** selects the minimal affordable, governable correction to close open residuals until the run settles or stops honestly at a bounded limit.
-- Durable state is persisted across an append-only event log and SQLite store, surviving process termination and machine restarts.
+- Durable state is persisted across an append-only event log and PostgreSQL store, surviving process termination and machine restarts.
 
 ---
 
@@ -74,7 +74,7 @@ flowchart TB
 
     subgraph Memory ["2. Persistence & Capability Promotion"]
         SETTLE --> EVENTLOG["Append-Only EventLog (fsync)"]
-        SETTLE --> STATE["SQLite StateStore"]
+        SETTLE --> STATE["PostgreSQL StateStore"]
         SETTLE --> MEM["Developmental Memory"]
         MEM -->|N Settlements + Variation + Recovery| CAP["Capability Ledger (Promoted)"]
     end
@@ -117,7 +117,7 @@ flowchart TB
 8. **Deterministic Verification**: `Verifier` inspects test reports and exit codes against the unit's `evidence_required` locators. If a test passed, it marks `Outcome::PASS`. If missing or unrun, it marks `Outcome::INCONCLUSIVE`.
 9. **Correction or Settlement**:
    - If residuals remain and budget allows, `CorrectionSelector` picks the smallest targeted correction and repeats the loop.
-   - If all blocking units are `PASS`, `SettlementService` re-verifies the reference digest, writes the atomic settlement event to the append-only event log, commits the state to SQLite, and outputs a certified run report.
+   - If all blocking units are `PASS`, `SettlementService` re-verifies the reference digest, writes the atomic settlement event to the append-only event log, commits the state to PostgreSQL, and outputs a certified run report.
 
 ---
 

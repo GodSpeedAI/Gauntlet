@@ -54,7 +54,7 @@ use gauntlet_adapter_meter_memory::MeteredBudget;
 use gauntlet_adapter_observe_command::{CommandObserver, CommandSpec};
 use gauntlet_adapter_policy_fs::{AnchorRoots, PolicyFs};
 use gauntlet_adapter_sandbox_bwrap::ProcessIsolationBackend;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_app::compare::contract::ComparisonContract;
 use gauntlet_app::control::controller::{
     BudgetShape, ComparisonDeps, ControllerDeps, RunController,
@@ -640,7 +640,7 @@ impl LoopFixture {
             FsEvidenceStore::open(&evidence_root).expect("the real fs evidence store opens"),
         );
         let state = CountingState::new(Arc::new(
-            EmbeddedStateStore::open(&scratch.child("state").join("p5-state.db"))
+            EmbeddedStateStore::open_at(&scratch.child("state").join("p5-state.db"))
                 .expect("the real embedded state store opens"),
         ));
         let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(
@@ -1296,7 +1296,7 @@ fn irreversible_fixture(escalation: Arc<RecordingEscalation>) -> LoopFixture {
     let evidence =
         Arc::new(FsEvidenceStore::open(&evidence_root).expect("the real fs evidence store opens"));
     let state = CountingState::new(Arc::new(
-        EmbeddedStateStore::open(&scratch.child("state").join("p5-irreversible.db"))
+        EmbeddedStateStore::open_at(&scratch.child("state").join("p5-irreversible.db"))
             .expect("the real embedded state store opens"),
     ));
     let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(

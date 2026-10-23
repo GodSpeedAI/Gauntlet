@@ -87,7 +87,7 @@ use gauntlet_adapter_compare_model::{ModelComparator, ModelComparatorSource};
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
 use gauntlet_adapter_meter_memory::MeteredBudget;
 use gauntlet_adapter_observe_command::{CommandObserver, CommandSpec};
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_app::compare::contract::ComparisonContract;
 use gauntlet_app::control::controller::{
     BudgetShape, ComparisonDeps, ControllerDeps, ReferenceBreach, RunController,
@@ -1004,7 +1004,7 @@ impl Fixture {
             FsEvidenceStore::open(&evidence_root).expect("the real fs evidence store opens"),
         );
         let state = CountingState::new(Arc::new(
-            EmbeddedStateStore::open(&scratch.child("state").join("p4-state.db"))
+            EmbeddedStateStore::open_at(&scratch.child("state").join("p4-state.db"))
                 .expect("the real embedded state store opens"),
         ));
         let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(
@@ -1555,7 +1555,7 @@ fn a_recurring_residual_through_the_real_diff_comparator_enters_bounded_diagnosi
 fn correction_selection_durably_carries_rejected_alternatives_with_reasons() {
     let scratch = Scratch::new("selection");
     let state = Arc::new(
-        EmbeddedStateStore::open(&scratch.child("state").join("p4-selection.db"))
+        EmbeddedStateStore::open_at(&scratch.child("state").join("p4-selection.db"))
             .expect("the real embedded state store opens"),
     );
     let run_id = RunId::new(SELECTION_RUN_ULID).expect("the fixture run id is a valid ULID");

@@ -674,6 +674,10 @@ pub enum RunnerProbeKind {
     /// the command template parses and every placeholder is known. No
     /// binary is touched and no version is claimed.
     Configuration,
+    /// Behavioral capability probe: observed spawn dialect, presence of
+    /// required methods, and control seam operational status. Version is
+    /// metadata only; compatibility established through observed capability.
+    Capability,
 }
 
 impl RunnerProbeKind {
@@ -689,6 +693,10 @@ impl RunnerProbeKind {
                 "runner '{token}' resolves: the typed configuration probe measured clean \
                  (command template parses and every placeholder is known — configuration \
                  only, no binary probed and no version claimed)"
+            ),
+            Self::Capability => format!(
+                "runner '{token}' resolves: the behavioral capability probe measured clean \
+                 (observed spawn dialect, required methods present, control seam operational)"
             ),
         }
     }
@@ -708,6 +716,10 @@ impl RunnerProbeKind {
                  template that does not parse (unknown placeholder, unbalanced quoting, or a \
                  missing value) is a configuration failure (spec 8.5 check 3, 21.1)"
             ),
+            Self::Capability => format!(
+                "runner_probe_failed: runner '{token}' capability probe failed{note} — check \
+                 that the runner's harness is installed and meets the required capabilities"
+            ),
         }
     }
 
@@ -721,6 +733,10 @@ impl RunnerProbeKind {
             Self::Configuration => format!(
                 "runner '{token}' probed: runner configuration measured (that dimension only \
                  — no binary probed and no version claimed)"
+            ),
+            Self::Capability => format!(
+                "runner '{token}' probed: harness behavioral capabilities measured (that \
+                 dimension only)"
             ),
         }
     }
@@ -808,10 +824,13 @@ pub fn check_runners(resolved: &ResolvedConfig, runner: Option<&RunnerDescriptor
                 descriptor.note.as_deref(),
             )],
         ),
-        (true, Some(descriptor)) => (
-            CheckStatus::Pass,
-            vec![descriptor.kind.clean_phrase(&descriptor.token)],
-        ),
+        (true, Some(descriptor)) => {
+            let mut evidence = vec![descriptor.kind.clean_phrase(&descriptor.token)];
+            if let Some(note) = &descriptor.note {
+                evidence.push(note.clone());
+            }
+            (CheckStatus::Pass, evidence)
+        }
         (true, None) => {
             // COR-D8 (Task 20 RES-09): token-neutral and present-tense —
             // the composition fronting no MEASUREMENT for this token is

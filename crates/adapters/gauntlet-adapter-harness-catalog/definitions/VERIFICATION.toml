@@ -1,0 +1,420 @@
+# Verification evidence store for the harness catalog (see CATALOG.md, "Verification tiers").
+# Parsed and validated by src/verification.rs. Strict: unknown keys, harnesses, fields, kinds
+# and malformed dates are rejected. Records are facts about one harness field and the evidence
+# behind them. Nothing here runs a harness with a prompt.
+schema = 1
+
+[[record]]
+harness = "claude"
+field = "executables"
+kind = "live-verified"
+probe_argv = ["claude", "--version"]
+observed = "2.1.295 (Claude Code)"
+harness_version = "2.1.295"
+date = "2026-10-09"
+
+[[record]]
+harness = "claude"
+field = "launch.prompt_mode"
+kind = "help-verified"
+probe_argv = ["claude", "--help"]
+observed = "-p, --print Print response and exit (useful for pipes)"
+harness_version = "2.1.295"
+date = "2026-10-09"
+
+[[record]]
+harness = "claude"
+field = "launch.model_arg"
+kind = "help-verified"
+probe_argv = ["claude", "--help"]
+observed = "--model <model> Model for the current session"
+harness_version = "2.1.295"
+date = "2026-10-09"
+
+[[record]]
+harness = "claude"
+field = "capabilities.model_selection"
+kind = "help-verified"
+probe_argv = ["claude", "--help"]
+observed = "--model <model> Model for the current session"
+harness_version = "2.1.295"
+date = "2026-10-09"
+
+[[record]]
+harness = "claude"
+field = "session.resume_argv"
+kind = "help-verified"
+probe_argv = ["claude", "--help"]
+observed = "-r, --resume [value] Resume a conversation by session ID"
+harness_version = "2.1.295"
+date = "2026-10-09"
+
+[[record]]
+harness = "claude"
+field = "capabilities.structured_events"
+kind = "help-verified"
+probe_argv = ["claude", "--help"]
+observed = "--output-format <format> stream-json (realtime streaming), only with --print"
+harness_version = "2.1.295"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "executables"
+kind = "live-verified"
+probe_argv = ["codex", "--version"]
+observed = "codex-cli 0.160.1"
+harness_version = "0.160.1"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "launch.args"
+kind = "help-verified"
+probe_argv = ["codex", "exec", "--help"]
+observed = "Usage: codex exec [OPTIONS] [PROMPT]; exec = Run Codex non-interactively"
+harness_version = "0.160.1"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "launch.prompt_mode"
+kind = "help-verified"
+probe_argv = ["codex", "exec", "--help"]
+observed = "[PROMPT] Initial instructions for the agent, read from stdin when omitted"
+harness_version = "0.160.1"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "launch.model_arg"
+kind = "help-verified"
+probe_argv = ["codex", "--help"]
+observed = "-m, --model <MODEL> Model the agent should use"
+harness_version = "0.160.1"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "capabilities.model_selection"
+kind = "help-verified"
+probe_argv = ["codex", "--help"]
+observed = "-m, --model <MODEL> Model the agent should use"
+harness_version = "0.160.1"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "capabilities.structured_events"
+kind = "help-verified"
+probe_argv = ["codex", "exec", "--help"]
+observed = "--json Print events to stdout as JSONL"
+harness_version = "0.160.1"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "session.resume_argv"
+kind = "help-verified"
+probe_argv = ["codex", "--help"]
+observed = "resume Resume a previous interactive session (picker by default; use --last)"
+harness_version = "0.160.1"
+date = "2026-10-09"
+
+[[record]]
+harness = "pi"
+field = "executables"
+kind = "live-verified"
+probe_argv = ["pi", "--version"]
+observed = "0.8.0"
+harness_version = "0.8.0"
+date = "2026-10-09"
+
+[[record]]
+harness = "pi"
+field = "launch.prompt_mode"
+kind = "help-verified"
+probe_argv = ["pi", "--help"]
+observed = "-p, --print Print a response and exit"
+harness_version = "0.8.0"
+date = "2026-10-09"
+
+[[record]]
+harness = "pi"
+field = "launch.model_arg"
+kind = "help-verified"
+probe_argv = ["pi", "--help"]
+observed = "--model <id> Select a model"
+harness_version = "0.8.0"
+date = "2026-10-09"
+
+[[record]]
+harness = "pi"
+field = "capabilities.model_selection"
+kind = "help-verified"
+probe_argv = ["pi", "--help"]
+observed = "--model <id> Select a model"
+harness_version = "0.8.0"
+date = "2026-10-09"
+
+[[record]]
+harness = "prime-agent"
+field = "executables"
+kind = "live-verified"
+probe_argv = ["prime-agent", "--version"]
+observed = "0.9.8"
+harness_version = "0.9.8"
+date = "2026-10-09"
+
+[[record]]
+harness = "prime-agent"
+field = "launch.prompt_mode"
+kind = "help-verified"
+probe_argv = ["prime-agent", "--help"]
+observed = "-p, --print Print a response and exit"
+harness_version = "0.9.8"
+date = "2026-10-09"
+
+[[record]]
+harness = "prime-agent"
+field = "launch.args"
+kind = "help-verified"
+probe_argv = ["prime-agent", "--help"]
+observed = "--mode <text|json|rpc|acp|daemon> Select the output mode"
+harness_version = "0.9.8"
+date = "2026-10-09"
+
+[[record]]
+harness = "prime-agent"
+field = "launch.args"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-agent-prime", "the_rpc_command_adds_only_the_agent_dir_override_when_bridged"]
+observed = "transport argv asserts --mode rpc"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "prime-agent"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-agent-prime", "a_stderr_only_version_probes_clean"]
+observed = "version probe parses --version and checks the 0.8.0 to 1.0.0 range (tests in src/probe.rs)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "amp"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "antigravity"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "cline"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "cursor"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "devin"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "droid"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "gemini"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "github-copilot"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "grok"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "hermes"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "kilo"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "kimi"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "kiro"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "letta"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "maki"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "mastracode"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "muse"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "omp"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "opencode"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "qodercli"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "qwen"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "claude"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "codex"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+
+[[record]]
+harness = "pi"
+field = "executables"
+kind = "fixture"
+probe_argv = ["cargo", "test", "-p", "gauntlet-adapter-harness-catalog", "test_all_definition_files_parse"]
+observed = "definition parses and validates offline; executables checked (test_all_definition_files_parse)"
+harness_version = "n/a"
+date = "2026-10-09"
+

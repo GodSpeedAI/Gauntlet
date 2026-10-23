@@ -258,12 +258,21 @@ struct ScriptedControl {
 }
 
 impl HarnessControl for ScriptedControl {
-    fn stop(&self, child: &str, _deadline: Deadline) -> Result<(), ControlError> {
+    fn stop(
+        &self,
+        child: &str,
+        _agent_dir: Option<&Path>,
+        _deadline: Deadline,
+    ) -> Result<(), ControlError> {
         self.stopped.borrow_mut().push(child.to_owned());
         Ok(())
     }
 
-    fn list(&self, _deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+    fn list(
+        &self,
+        _agent_dir: Option<&Path>,
+        _deadline: Deadline,
+    ) -> Result<Vec<SubagentRecord>, ControlError> {
         Ok(Vec::new())
     }
 }
@@ -367,11 +376,20 @@ struct OrphanedChildControl {
     stops: RefCell<Vec<String>>,
 }
 impl HarnessControl for OrphanedChildControl {
-    fn stop(&self, child: &str, _deadline: Deadline) -> Result<(), ControlError> {
+    fn stop(
+        &self,
+        child: &str,
+        _agent_dir: Option<&Path>,
+        _deadline: Deadline,
+    ) -> Result<(), ControlError> {
         self.stops.borrow_mut().push(child.to_owned());
         Ok(())
     }
-    fn list(&self, _deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+    fn list(
+        &self,
+        _agent_dir: Option<&Path>,
+        _deadline: Deadline,
+    ) -> Result<Vec<SubagentRecord>, ControlError> {
         // The deterministic invocation name (role + run short + invocation
         // short) — the exact name the sweep searches by.
         Ok(vec![SubagentRecord {
@@ -695,11 +713,20 @@ struct CountingControl {
     stops: std::rc::Rc<RefCell<Vec<String>>>,
 }
 impl HarnessControl for CountingControl {
-    fn stop(&self, child: &str, _deadline: Deadline) -> Result<(), ControlError> {
+    fn stop(
+        &self,
+        child: &str,
+        _agent_dir: Option<&Path>,
+        _deadline: Deadline,
+    ) -> Result<(), ControlError> {
         self.stops.borrow_mut().push(child.to_owned());
         Ok(())
     }
-    fn list(&self, _deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+    fn list(
+        &self,
+        _agent_dir: Option<&Path>,
+        _deadline: Deadline,
+    ) -> Result<Vec<SubagentRecord>, ControlError> {
         Ok(Vec::new())
     }
 }
@@ -907,12 +934,21 @@ fn cancel_terminates_the_parent_and_treats_an_already_gone_child_as_success() {
     #[derive(Debug)]
     struct AlreadyGoneControl;
     impl HarnessControl for AlreadyGoneControl {
-        fn stop(&self, child: &str, _deadline: Deadline) -> Result<(), ControlError> {
+        fn stop(
+            &self,
+            child: &str,
+            _agent_dir: Option<&Path>,
+            _deadline: Deadline,
+        ) -> Result<(), ControlError> {
             Err(ControlError::NoSuchChild {
                 child: child.to_owned(),
             })
         }
-        fn list(&self, _deadline: Deadline) -> Result<Vec<SubagentRecord>, ControlError> {
+        fn list(
+            &self,
+            _agent_dir: Option<&Path>,
+            _deadline: Deadline,
+        ) -> Result<Vec<SubagentRecord>, ControlError> {
             Ok(Vec::new())
         }
     }

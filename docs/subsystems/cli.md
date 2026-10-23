@@ -17,7 +17,7 @@ The CLI provides:
 ## 2. Responsibilities
 
 - **Argument Parsing**: Standard command-line argument parsing (`std::env::args`), keeping dependencies light and startup instantaneous. Unknown arguments return exit code 2.
-- **Adapter Construction**: Instantiates the 24 concrete adapters based on configuration (e.g. SQLite path, evidence root, chosen agent runner).
+- **Adapter Construction**: Instantiates the 24 concrete adapters based on configuration (e.g. PostgreSQL URL, evidence root, chosen agent runner).
 - **Run Composition (`compose.rs`)**: Assembles `ControllerDeps` and injects them into `RunController`.
 - **Command Dispatch**: Routes commands to dedicated command modules (`doctor_cmd`, `run_cmd`, `reference_cmd`, `state_cmd`, etc.).
 - **Thin Library Architecture**: Exposes `gauntlet_cli::run_cli(&[String]) -> ExitCode` as a library function so integration tests and end-to-end harnesses can drive the CLI in-process.

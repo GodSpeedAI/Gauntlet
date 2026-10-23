@@ -49,7 +49,7 @@ use gauntlet_adapter_agent_mock::{
 use gauntlet_adapter_compare_model::{ModelComparator, ModelComparatorSource};
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
 use gauntlet_adapter_meter_memory::MeteredBudget;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_app::compare::contract::ComparisonContract;
 use gauntlet_app::control::controller::{
     BudgetShape, ComparisonDeps, ControllerDeps, RunController,
@@ -409,7 +409,7 @@ impl LoopFixture {
             FsEvidenceStore::open(&evidence_root).expect("the real fs evidence store opens"),
         );
         let state = CountingState::new(Arc::new(
-            EmbeddedStateStore::open(&scratch.child("state").join("g7-state.db"))
+            EmbeddedStateStore::open_at(&scratch.child("state").join("g7-state.db"))
                 .expect("the real embedded state store opens"),
         ));
         let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(

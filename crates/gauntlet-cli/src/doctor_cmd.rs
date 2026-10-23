@@ -24,6 +24,7 @@ pub fn run(args: &[String]) -> ExitCode {
     // (correction RES-D8), so the adapter never owns its compatibility
     // ruler. A probe mismatch fails doctor as a configuration failure.
     input.runner_measure = Some(crate::context::measure_runner);
+    let mut fabric_dir: Option<std::path::PathBuf> = None;
     let mut index = 0;
     while index < args.len() {
         match args[index].as_str() {
@@ -35,9 +36,18 @@ pub fn run(args: &[String]) -> ExitCode {
                 input.config_override = Some(std::path::PathBuf::from(path));
                 index += 2;
             }
+            // F2b2: the fabric section lists each configured runner profile.
+            "--fabric-dir" => {
+                let Some(path) = args.get(index + 1) else {
+                    eprintln!("gauntlet doctor: --fabric-dir requires a path");
+                    return ExitCode::from(2);
+                };
+                fabric_dir = Some(std::path::PathBuf::from(path));
+                index += 2;
+            }
             other => {
                 eprintln!("gauntlet doctor: unknown argument '{other}'");
-                println!("usage: gauntlet doctor [--config <path>]");
+                println!("usage: gauntlet doctor [--config <path>] [--fabric-dir <path>]");
                 return ExitCode::from(2);
             }
         }
@@ -45,8 +55,17 @@ pub fn run(args: &[String]) -> ExitCode {
     match run_doctor_and_write(&input) {
         Ok((report, path)) => {
             print!("{}", report.human_summary());
+            // Phase H slice 2b: optional capability, reported plainly; it never
+            // changes the exit status (absence is not an error).
+            println!(
+                "codemode (optional): {}",
+                crate::context::measure_codemode().summary()
+            );
             println!("report: {}", path.display());
-            if report.exit_ok() {
+            let fabric_ok = fabric_dir
+                .as_deref()
+                .is_none_or(crate::fabric_cmd::doctor_fabric_section);
+            if report.exit_ok() && fabric_ok {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::FAILURE

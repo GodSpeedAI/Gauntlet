@@ -1,0 +1,33 @@
+schema = 1
+id = "opencode"
+label = "OpenCode"
+executables = ['opencode', 'opencode2', 'open-code']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["executables=src/detect/mod.rs:211", "session.resume_argv=src/agent_resume.rs:248-254", "lifecycle.detection_manifest=src/detect/manifest.rs:258"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "id"
+resume_argv = [ '--session', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "opencode"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0

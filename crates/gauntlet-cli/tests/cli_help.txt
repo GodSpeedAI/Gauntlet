@@ -1,5 +1,5 @@
 gauntlet <version> — see spec 20.1 for the full surface
-usage: gauntlet doctor [--config <path>]
+usage: gauntlet doctor [--config <path>] [--fabric-dir <path>]
        gauntlet init
        gauntlet reference digest --path <path>
        gauntlet reference validate --path <path>
@@ -28,3 +28,5 @@ usage: gauntlet doctor [--config <path>]
        gauntlet improve rollback <revision>
        gauntlet export --run <run-id> [--out <path>]
        gauntlet deliver [--run <run-id>] [--apply]
+       gauntlet fabric admit-root --state <dir> --run <run-id> --fabric-dir <dir> --role <role> --profile <profile-id> --unit <unit> --workspace <path> --answer-key <path> [--idempotency-key <key>]
+       gauntlet fabric serve --state <dir> --run <run-id> --caller <invocation-id> --fabric-dir <dir> --workspace <path> --answer-key <path> [--program-host-dir <dir> [--program-runner <exe>]] [--session-binding NAME=VALUE]

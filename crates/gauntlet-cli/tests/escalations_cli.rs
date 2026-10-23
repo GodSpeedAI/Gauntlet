@@ -30,7 +30,7 @@ use std::process::{Command, Output};
 use std::sync::Arc;
 
 use gauntlet_adapter_escalation_fs::FsEscalationQueue;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_domain::{
     Budget, DiagnosticAllowance, Digest, EpochSeconds, EvidenceKind, EvidenceLocator, EvidenceRef,
     IterationNo, Limits, MicroUsd, Outcome, Producer, ReferenceId, ReferenceVersion, Run,
@@ -121,7 +121,7 @@ impl World {
             parent_run: None,
         })
         .expect("legal run");
-        let state = EmbeddedStateStore::open(&root.join("state").join("gauntlet-state.db"))
+        let state = EmbeddedStateStore::open_at(&root.join("state").join("gauntlet-state.db"))
             .expect("the state store opens");
         state.record_run(&run, bound()).expect("the run records");
 
@@ -161,7 +161,7 @@ impl World {
     /// minted through the SAME record authority the governed chain uses.
     fn seed_anchor_and_record(&self, pass: bool) {
         let state: Arc<dyn StateStore> = Arc::new(
-            EmbeddedStateStore::open(&self.state_dir().join("gauntlet-state.db"))
+            EmbeddedStateStore::open_at(&self.state_dir().join("gauntlet-state.db"))
                 .expect("the state store opens"),
         );
         state
@@ -372,7 +372,7 @@ fn even_an_earned_pass_record_never_settles_without_the_governed_chain_s_readine
         "the refusal is the governed chain's own (AK-062 through the chain): {stderr}"
     );
     assert!(world.ticket_is_open(), "the ticket is untouched");
-    let state = EmbeddedStateStore::open(&world.state_dir().join("gauntlet-state.db"))
+    let state = EmbeddedStateStore::open_at(&world.state_dir().join("gauntlet-state.db"))
         .expect("the state store opens");
     let settlements = state
         .settlements(&world.run_id, bound())

@@ -70,7 +70,7 @@ use std::sync::Arc;
 
 use gauntlet_adapter_agent_mock::SeededIdGenerator;
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_adapter_verify_command_exit_code::CommandExitVerifier;
 use gauntlet_adapter_verify_file_digest::FileDigestVerifier;
 use gauntlet_adapter_verify_schema_check::SchemaCheckVerifier;
@@ -247,7 +247,7 @@ impl Fixture {
             FsEvidenceStore::open(&evidence_root).expect("the real fs evidence store opens"),
         );
         let state = Arc::new(
-            EmbeddedStateStore::open(&scratch.child("state").join("p12-state.db"))
+            EmbeddedStateStore::open_at(&scratch.child("state").join("p12-state.db"))
                 .expect("the real embedded state store opens"),
         );
         // Freeze the reference through the real store: normalized bytes in,

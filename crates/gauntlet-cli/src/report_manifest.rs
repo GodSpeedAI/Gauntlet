@@ -84,6 +84,12 @@ const COMMAND_TABLE: &[CommandRow] = &[
         name: "deliver",
         wired: true,
     },
+    // F2b2: `fabric` fronts the agent-fabric root admission and the per-caller
+    // host process (`admit-root`, `serve`).
+    CommandRow {
+        name: "fabric",
+        wired: true,
+    },
 ];
 
 /// The manifest entries handed to `gauntlet_app::report::build_report`.

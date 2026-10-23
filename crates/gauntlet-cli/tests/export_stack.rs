@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use gauntlet_adapter_state_sqlite::{EmbeddedStateStore, RecordKind};
+use gauntlet_adapter_state_postgres::{EmbeddedStateStore, RecordKind};
 use gauntlet_app::state::export_run;
 use gauntlet_domain::{
     Budget, DiagnosticAllowance, Digest, EpochSeconds, EventLogOffset, EvidenceKind,
@@ -193,7 +193,7 @@ fn the_real_adapter_export_stack_is_deterministic_and_canonical() {
     let scratch = Scratch::new();
     let db: PathBuf = scratch.db();
     let store =
-        std::sync::Arc::new(EmbeddedStateStore::open(Path::new(&db)).expect("the store opens"));
+        std::sync::Arc::new(EmbeddedStateStore::open_at(Path::new(&db)).expect("the store opens"));
 
     // A representative history, in the order a run would write it.
     store.record_run(&run(), bound()).expect("the run records");

@@ -16,7 +16,9 @@ pub mod compare;
 pub mod config;
 pub mod conformance;
 pub mod control;
+pub mod delegation;
 pub mod doctor;
+pub mod fabric;
 pub mod formation;
 pub mod govern;
 pub mod memory;
@@ -28,6 +30,7 @@ pub mod roles;
 pub mod settle;
 pub mod skills;
 pub mod state;
+pub mod tools;
 pub mod verify;
 
 pub use config::defaults::{

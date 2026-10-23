@@ -81,7 +81,7 @@ use gauntlet_adapter_compare_model::{ModelComparator, ModelComparatorSource};
 use gauntlet_adapter_evidence_fs::FsEvidenceStore;
 use gauntlet_adapter_meter_memory::MeteredBudget;
 use gauntlet_adapter_observe_command::{CommandObserver, CommandSpec};
-use gauntlet_adapter_state_sqlite::EmbeddedStateStore;
+use gauntlet_adapter_state_postgres::EmbeddedStateStore;
 use gauntlet_app::compare::contract::ComparisonContract;
 use gauntlet_app::control::controller::{
     BudgetShape, ComparisonDeps, ControllerDeps, RunController,
@@ -1003,20 +1003,37 @@ fn crash_helper() -> PathBuf {
         .clone()
 }
 
-const HELPER_BIN: &str = "crash_helper";
+const HELPER_BIN: &str = "state_crash_helper";
+/// The crash helper's script name for the settlement sequence.
+const SETTLE_SCRIPT: &str = "settle";
+/// The bounded deadline for the database connections of an aborted helper to
+/// drain (the quiescence barrier after every helper exit).
+const QUIESCE_BOUND: u64 = 10;
 
 /// Spawns the real crash helper against a database file and returns its
 /// exit status — the abort must NOT be a success exit.
 fn helper_settle(db: &Path, run: &str, unit: &str, abort_point: &str) -> std::process::ExitStatus {
-    let db_text = db.to_str().expect("the scratch path is UTF-8");
-    Command::new(crash_helper())
-        .arg("settle")
-        .arg(db_text)
+    // The helper addresses its namespace by `<url> <namespace>`: the same
+    // locator the composed run derives from this state path.
+    let config = gauntlet_adapter_state_postgres::StateInstanceConfig::for_state_path(db);
+    let status = Command::new(crash_helper())
+        .arg(SETTLE_SCRIPT)
+        .arg(&config.url)
+        .arg(&config.namespace)
         .arg(run)
         .arg(unit)
         .arg(abort_point)
-        .status()
-        .expect("the crash helper binary runs")
+        .status();
+    // Prose expect-messages live OUTSIDE the Command::new unit (spec §8.1).
+    let status = status.expect("the crash helper binary runs");
+    // The aborted helper's last COMMIT may still be completing server-side:
+    // drain its backends before any durable read.
+    gauntlet_adapter_state_postgres::test_support::quiesce_writers(
+        db,
+        std::time::Duration::from_secs(QUIESCE_BOUND),
+    )
+    .expect("the aborted helper's database connections drain");
+    status
 }
 
 // ---------------------------------------------------------------------------
@@ -1071,7 +1088,7 @@ impl World {
             FsEvidenceStore::open(&self.evidence_root).expect("the real fs evidence store opens"),
         );
         let state = OrderProbe::new(Arc::new(
-            EmbeddedStateStore::open(&self.db).expect("the real embedded state store opens"),
+            EmbeddedStateStore::open_at(&self.db).expect("the real embedded state store opens"),
         ));
         let clock = Arc::new(DeterministicClock::start_at(EpochSeconds::new(
             BASE_INSTANT + lag,
@@ -1567,7 +1584,7 @@ fn a_crash_between_event_and_row_completes_exactly_once_through_resume() {
     );
     // The half-applied state is real: one event, no row.
     {
-        let probe = EmbeddedStateStore::open(&world.db).expect("the crashed store reopens");
+        let probe = EmbeddedStateStore::open_at(&world.db).expect("the crashed store reopens");
         assert_eq!(
             probe
                 .export_jsonl(&run_id, bound())
@@ -1635,7 +1652,7 @@ fn a_crash_between_event_and_row_completes_exactly_once_through_resume() {
          {restart_checkpoints:?}"
     );
     {
-        let store = EmbeddedStateStore::open(&world.db).expect("the crashed store reopens");
+        let store = EmbeddedStateStore::open_at(&world.db).expect("the crashed store reopens");
         let checkpoint = store
             .resume(&run_id, bound())
             .expect("checkpoint readable")
@@ -1798,7 +1815,7 @@ fn a_crash_after_the_durable_row_never_reruns_settled_work() {
     );
     // Both durable steps landed before the kill.
     {
-        let probe = EmbeddedStateStore::open(&world.db).expect("the crashed store reopens");
+        let probe = EmbeddedStateStore::open_at(&world.db).expect("the crashed store reopens");
         assert_eq!(
             probe
                 .settlements(&run_id, bound())

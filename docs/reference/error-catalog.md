@@ -20,7 +20,7 @@ Every error in Gauntlet maps to one of sixteen architectural failure loci:
 | `comparison` | Model or diff comparison error. | Invalid JSON payload from critic, malformed envelope. |
 | `verification` | Claim cannot be checked against declared evidence. | Missing JUnit XML, stale evidence, or locator mismatch. |
 | `settlement` | Failure during settlement precondition evaluation. | Open blocking residuals, unverified units, or missing pass record. |
-| `persistence` | SQLite or event log I/O failure. | Database lock contention, corrupt SQLite file, disk write error. |
+| `persistence` | PostgreSQL or event log I/O failure. | Database lock contention, corrupt or unreachable PostgreSQL database, disk write error. |
 | `environment` | Host toolchain or platform incompatibility. | Missing Rust toolchain, unsupported OS, missing Bubblewrap. |
 | `budget` | Exhaustion of iteration, token, wall-clock, or cost limits. | Run exceeded $25.00 limit or breached 15% recovery reserve. |
 | `governance` | Security, permission, or blast-radius violation. | Agent attempting to execute irreversible action without human authority. |
@@ -65,7 +65,7 @@ Every error in Gauntlet maps to one of sixteen architectural failure loci:
 - `StaleEvidence`: Evidence artifact timestamp predates the builder transform it certifies.
 
 ### `StateStoreError` ([`crates/gauntlet-ports/src/state_store.rs`](../../crates/gauntlet-ports/src/state_store.rs))
-- `DatabaseError(String)`: SQLite query or migration failure.
+- `DatabaseError(String)`: PostgreSQL query or migration failure.
 - `RecordNotFound(String)`: Specified run, iteration, or unit does not exist in the database.
 - `ConcurrentWriteDetected`: Another Gauntlet process is currently writing to this state directory.
 

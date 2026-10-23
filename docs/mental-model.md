@@ -125,4 +125,4 @@ The run report is generated. Raw execution details enter developmental memory. O
 2. **Structural context blindness**: Reviewers never see builder excuses or reasoning trails.
 3. **Missing evidence is not passing**: If a test didn't run, the outcome is `INCONCLUSIVE`, not `PASS`.
 4. **Authority before containment**: We decide if work is allowed *before* launching a sandbox.
-5. **State survives crashes**: Everything is written to durable logs and SQLite; restarts rebuild state from disk, never from conversation history.
+5. **State survives crashes**: Everything is written to durable logs and PostgreSQL; restarts rebuild state from disk, never from conversation history.

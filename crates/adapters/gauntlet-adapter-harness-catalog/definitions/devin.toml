@@ -1,0 +1,33 @@
+schema = 1
+id = "devin"
+label = "Devin"
+executables = ['devin', 'devin-cli']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["executables=src/detect/mod.rs:206", "session.resume_argv=src/agent_resume.rs:217-219", "lifecycle.detection_manifest=src/detect/manifest.rs:247"]
+license = "Apache-2.0"
+
+[launch]
+args = []
+prompt_mode = "unknown"
+
+[session]
+identity = "id"
+resume_argv = [ '--resume', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "devin"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = false
+native_subagents = false
+structured_events = false
+support_level = 0

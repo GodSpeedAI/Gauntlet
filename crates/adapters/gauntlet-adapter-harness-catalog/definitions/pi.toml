@@ -1,0 +1,39 @@
+schema = 1
+id = "pi"
+label = "Pi"
+executables = ['pi']
+
+[provenance]
+source = "herdr"
+commit = "4e624cd"
+refs = ["executables=src/detect/mod.rs:201", "session.resume_argv=src/agent_resume.rs:233-235", "lifecycle.detection_manifest=src/detect/manifest.rs:259", "launch.prompt_mode=verification", "launch.model_arg=verification", "capabilities.model_selection=verification"]
+license = "Apache-2.0"
+
+# The `pi` executable on this machine is a symlink to prime-agent's binary, and its --help
+# documents -p/--print and --model (help-verified in definitions/VERIFICATION.toml). The Herdr
+# resume argv (`--session`) is NOT in that help, which documents `-r, --resume [path|id]`.
+# Because of that mismatch, support_level stays at 1 until the resume argv is verified.
+[launch]
+args = []
+model_arg = ["--model", "{model}"]
+prompt_mode = "flag"
+prompt_flag = "-p"
+
+[session]
+identity = "path"
+resume_argv = [ '--session', '{session}']
+
+[lifecycle]
+source = "screen"
+detection_manifest = "pi"
+
+[control]
+interrupt = "none"
+
+[capabilities]
+interactive = false
+resumable = true
+model_selection = true
+native_subagents = false
+structured_events = false
+support_level = 1

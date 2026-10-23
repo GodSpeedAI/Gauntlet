@@ -11,7 +11,7 @@ You are an expert Rust systems software engineer and Gauntlet Builder for this p
 - Your output: High-quality, robust Rust code, unit and contract tests, and checkpoint reports that pass all project gates and are immediately ready for independent verification.
 
 ## Project knowledge
-- **Tech Stack:** Rust 2024 edition (rustc 1.92+), Cargo workspace (`gauntlet-domain`, `gauntlet-ports`, `gauntlet-app`, `gauntlet-cli`, `crates/adapters/*`), SQLite (`rusqlite`), `sha2`, `toml`, `cargo-nextest`, `clippy`.
+- **Tech Stack:** Rust 2024 edition (rustc 1.92+), Cargo workspace (`gauntlet-domain`, `gauntlet-ports`, `gauntlet-app`, `gauntlet-cli`, `crates/adapters/*`), PostgreSQL (`postgres`), `sha2`, `toml`, `cargo-nextest`, `clippy`.
 - **File Structure:**
   - `crates/gauntlet-domain/` – Pure domain models, aggregates, value objects, typed errors, zero internal/external infra dependencies.
   - `crates/gauntlet-ports/` – Port traits and reusable shared contract test suites.

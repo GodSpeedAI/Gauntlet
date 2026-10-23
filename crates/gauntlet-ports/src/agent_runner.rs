@@ -30,6 +30,7 @@ use gauntlet_domain::{
 };
 
 use crate::deadline::Deadline;
+use crate::lifecycle::HarnessLifecycleSample;
 use crate::role_result::RoleResult;
 
 /// `AgentRunner` failures — typed, carrying the invocation locus (spec
@@ -463,6 +464,19 @@ pub trait AgentRunner {
         reason: CancelReason,
         deadline: Deadline,
     ) -> Result<(), AgentError>;
+
+    /// Drains the lifecycle readings this runner has taken for one invocation
+    /// since the previous call (E3 forensics input). Readings are liveness
+    /// evidence only: they carry no sequence, never change the invocation's
+    /// status, and never complete or fail it. The default takes none, so a
+    /// runner without a lifecycle source reports nothing.
+    fn lifecycle_samples(
+        &self,
+        handle: &InvocationHandle,
+    ) -> Result<Vec<HarnessLifecycleSample>, AgentError> {
+        let _ = handle;
+        Ok(Vec::new())
+    }
 
     /// The runner's capabilities (spec §6.1). Drives scheduling decisions;
     /// cannot block.
