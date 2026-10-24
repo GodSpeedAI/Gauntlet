@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gauntlet — Cognitive Representation Portal</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #111827;
+      --surface-2: #1f2937;
+      --surface-3: #374151;
+      --border: #2d3748;
+      --border-focus: #4b5563;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #38bdf8;
+      --accent-muted: #0284c7;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --success: #34d399;
+      --success-bg: rgba(52, 211, 153, 0.1);
+      --warning: #fbbf24;
+      --warning-bg: rgba(251, 191, 36, 0.1);
+      --danger: #f87171;
+      --danger-bg: rgba(248, 113, 113, 0.1);
+      --purple: #c084fc;
+      --purple-bg: rgba(192, 132, 252, 0.1);
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      padding: 32px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+
+    .breadcrumb {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    h1 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      letter-spacing: -0.02em;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .subtitle {
+      margin-top: 10px;
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 900px;
+    }
+    .subtitle strong { color: #fff; }
+
+    /* Highlights Grid */
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .explainer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .explainer-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px var(--accent-glow);
+    }
+    .explainer-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent-muted);
+    }
+    .explainer-card:nth-child(2)::before { background: var(--purple); }
+    .explainer-card:nth-child(3)::before { background: var(--success); }
+
+    .card-badge {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      color: var(--accent);
+      margin-bottom: 12px;
+      font-family: var(--font-mono);
+      width: fit-content;
+    }
+    .card-badge.purple { color: var(--purple); }
+    .card-badge.green { color: var(--success); }
+
+    .card-title {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .card-desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      margin-bottom: 16px;
+      flex-grow: 1;
+    }
+
+    .card-features {
+      list-style: none;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .card-features li {
+      font-size: 0.82rem;
+      color: var(--text);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .card-features li span { color: var(--accent); font-weight: 700; }
+
+    .btn-launch {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+    .btn-launch:hover {
+      background: var(--accent);
+      color: #0b0f19;
+      border-color: var(--accent);
+    }
+
+    /* Cognitive Matrix Table */
+    .matrix-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 40px;
+    }
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin-top: 14px;
+    }
+    .matrix-table th {
+      background: var(--surface-2);
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      text-align: left;
+      font-weight: 600;
+    }
+    .matrix-table td {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .matrix-table tr:hover td {
+      background: rgba(31, 41, 55, 0.4);
+    }
+    .matrix-table a { color: var(--accent); text-decoration: none; }
+    .matrix-table a:hover { text-decoration: underline; }
+
+    /* Intent Navigation Grid */
+    .intent-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .intent-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px;
+    }
+    .intent-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .intent-name span { color: var(--accent); font-family: var(--font-mono); font-size: 0.8rem; }
+    .intent-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
+    .intent-links { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; }
+    .intent-links a { color: var(--accent); text-decoration: none; }
+    .intent-links a:hover { text-decoration: underline; }
+
+    /* Bret Victor Philosophy Callout */
+    .philosophy-callout {
+      background: rgba(56, 189, 248, 0.05);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 40px;
+    }
+    .phil-quote {
+      font-size: 1.05rem;
+      font-style: italic;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .phil-author {
+      font-size: 0.82rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="breadcrumb">
+      <a href="../index.md">Gauntlet Documentation</a> / Explainers
+    </div>
+    <h1>
+      Cognitive Representation Portal
+      <span class="badge">Bret Victor Representation Ladder</span>
+    </h1>
+    <p class="subtitle">
+      Transforming Gauntlet's reference-anchored control architecture, 33-crate hexagonal boundaries, and Bubblewrap sandboxing into <strong>visually intelligible, interactively explorable software models</strong>.
+    </p>
+  </header>
+
+  <!-- Bret Victor Callout -->
+  <div class="philosophy-callout">
+    <div class="phil-quote">
+      "The form in which an idea is represented determines which human cognitive capabilities can be brought to bear on understanding it."
+    </div>
+    <div class="phil-author">
+      — Bret Victor, <em>The Humane Representation of Thought</em>
+    </div>
+    <p style="font-size: 0.88rem; color: var(--text-muted); margin-top: 8px;">
+      Gauntlet's cognitive representations externalize working memory. Instead of forcing you to mentally simulate 9 lifecycle stages, compile-time crate boundaries, and bubblewrap flag combinations from source code, these interactive models make causality visible and directly manipulable.
+    </p>
+  </div>
+
+  <!-- Primary Interactive Explainer Cards -->
+  <div class="section-title">
+    <span>⚡</span> Interactive Explanatory Applications (Level 3 Representations)
+  </div>
+
+  <div class="cards-grid">
+    
+    <!-- Explainer 1 -->
+    <div class="explainer-card">
+      <div>
+        <span class="card-badge">LIFECYCLE & GOVERNANCE</span>
+        <h2 class="card-title">Execution Loop & Governance Replay</h2>
+        <p class="card-desc">
+          Step through Gauntlet's closed-loop runtime: from preflight doctor and reference hash freezing to blind comparison, 3-state verification, and atomic settlement.
+        </p>
+        <ul class="card-features">
+          <li><span>✓</span> <strong>9-Stage Stepper:</strong> Doctor → Freeze → Schedule → Dispatch → Observe → Compare → Verify → Settle → Remember</li>
+          <li><span>✓</span> <strong>5 Scenarios:</strong> Single-pass settlement, test failure fix, inconclusive unrun tests, grader tampering, and irreversible refusal</li>
+          <li><span>✓</span> <strong>Separation 1 Probe:</strong> Live side-by-side view of raw instrument facts vs excluded builder claims</li>
+          <li><span>✓</span> <strong>Verifier Matrix:</strong> Real-time 3-state Outcome (PASS, FAIL, INCONCLUSIVE) evaluation</li>
+        </ul>
+      </div>
+      <a href="run-execution-loop.html" class="btn-launch">
+        Launch Execution Explorer ▶
+      </a>
+    </div>
+
+    <!-- Explainer 2 -->
+    <div class="explainer-card">
+      <div>
+        <span class="card-badge purple">HEXAGONAL ARCHITECTURE</span>
+        <h2 class="card-title">Architecture & Invariant Lab</h2>
+        <p class="card-desc">
+          Explore the 4 concentric inward layers across 33 crates. Inspect the directory of all 17 ports and 24 adapters, and test architecture rules in the Invariant Lab.
+        </p>
+        <ul class="card-features">
+          <li><span>✓</span> <strong>Concentric Explorer:</strong> Interactive layer-by-layer dependency highlighting with compile-time rules</li>
+          <li><span>✓</span> <strong>Ports Directory:</strong> Complete filterable catalog of 17 abstract traits, contract test suites, and 24 adapters</li>
+          <li><span>✓</span> <strong>Four Great Separations:</strong> Transform ≠ Observe, Observe ≠ Compare, Compare ≠ Verify, Execute ≠ Settle</li>
+          <li><span>✓</span> <strong>Invariant Stress-Tester:</strong> Interactive simulations of 6 core architectural stress conditions</li>
+        </ul>
+      </div>
+      <a href="architecture-and-invariants.html" class="btn-launch">
+        Launch Architecture Lab ▶
+      </a>
+    </div>
+
+    <!-- Explainer 3 -->
+    <div class="explainer-card">
+      <div>
+        <span class="card-badge green">SANDBOX & SAFETY</span>
+        <h2 class="card-title">Governance & Containment Simulator</h2>
+        <p class="card-desc">
+          Understand why Authority and Containment are orthogonal. Generate exact Bubblewrap command lines and simulate how the 15% recovery reserve protects budgets.
+        </p>
+        <ul class="card-features">
+          <li><span>✓</span> <strong>4x4 Orthogonal Matrix:</strong> Authority (Autonomous, Operator, Human, Two-Party) × Containment Tiers</li>
+          <li><span>✓</span> <strong>bwrap Generator:</strong> Dynamic Linux flag generation with sealed credentials and read-only rubrics</li>
+          <li><span>✓</span> <strong>Budget Reserve Meter:</strong> Real-time token/cost simulation showing graceful halt at the 85% threshold</li>
+          <li><span>✓</span> <strong>Security Invariants:</strong> Why irreversible operations have no sandbox policy and refuse unattended dispatch</li>
+        </ul>
+      </div>
+      <a href="governance-and-containment.html" class="btn-launch">
+        Launch Governance Simulator ▶
+      </a>
+    </div>
+
+  </div>
+
+  <!-- System Cognitive Matrix -->
+  <div class="section-title">
+    <span>🧭</span> System Cognitive Matrix
+  </div>
+
+  <div class="matrix-section">
+    <p style="font-size: 0.88rem; color: var(--text-muted); margin-bottom: 12px;">
+      This matrix bridges high-level mental models, structural diagrams, interactive simulators, and verifiable source code evidence:
+    </p>
+    <table class="matrix-table" aria-label="System Cognitive Matrix">
+      <thead>
+        <tr>
+          <th>Subsystem / Mechanism</th>
+          <th>Cognitive Challenge</th>
+          <th>Level 1: Canonical Docs</th>
+          <th>Level 2: Structural Diagram</th>
+          <th>Level 3: Dynamic Explainer</th>
+          <th>Implementation Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Runtime Execution Loop</strong></td>
+          <td>Understanding why agent claims are hidden from critics and how 9 stages coordinate</td>
+          <td><a href="../workflows/run-lifecycle.md">workflows/run-lifecycle.md</a></td>
+          <td>Sequence flow in <a href="../architecture.md">architecture.md §4</a></td>
+          <td><a href="run-execution-loop.html">run-execution-loop.html</a></td>
+          <td><code>crates/gauntlet-app/src/control/</code></td>
+        </tr>
+        <tr>
+          <td><strong>Inward Layering (Hexagonal)</strong></td>
+          <td>Visualizing 33-crate dependency flow and compile-time boundaries</td>
+          <td><a href="../architecture.md">architecture.md §1-2</a></td>
+          <td>Hexagonal graph in <a href="../architecture.md">architecture.md §2</a></td>
+          <td><a href="architecture-and-invariants.html">architecture-and-invariants.html</a></td>
+          <td><code>crates/gauntlet-arch-tests</code></td>
+        </tr>
+        <tr>
+          <td><strong>The Four Great Separations</strong></td>
+          <td>Preventing collapse of Observe, Compare, Verify, and Settle</td>
+          <td><a href="../mental-model.md">mental-model.md §3</a></td>
+          <td>Cleanroom inspection flow in <a href="../index.md">index.md</a></td>
+          <td><a href="architecture-and-invariants.html">architecture-and-invariants.html (Tab 3)</a></td>
+          <td><code>crates/gauntlet-domain/src/values.rs</code></td>
+        </tr>
+        <tr>
+          <td><strong>Authority vs Containment</strong></td>
+          <td>Distinguishing permission to run from sandboxed execution constraints</td>
+          <td><a href="../SECURITY.md">SECURITY.md</a>, <a href="../CONFORMANCE.md">CONFORMANCE.md</a></td>
+          <td>Tier mapping table in <a href="../CONFORMANCE.md">CONFORMANCE.md</a></td>
+          <td><a href="governance-and-containment.html">governance-and-containment.html</a></td>
+          <td><code>crates/adapters/gauntlet-adapter-sandbox-bwrap/</code></td>
+        </tr>
+        <tr>
+          <td><strong>Deterministic Verification</strong></td>
+          <td>Type-theoretic 3-state Outcome (PASS, FAIL, INCONC) vs bool coercion</td>
+          <td><a href="../explanations/three-state-verification.md">three-state-verification.md</a></td>
+          <td>Verifier ladder in <a href="../index.md">index.md</a></td>
+          <td><a href="run-execution-loop.html">run-execution-loop.html (Matrix Panel)</a></td>
+          <td><code>crates/gauntlet-ports/src/verifier.rs</code></td>
+        </tr>
+        <tr>
+          <td><strong>Budget & Recovery Reserve</strong></td>
+          <td>Understanding why runs stop at 85% to protect diagnostic recovery</td>
+          <td><a href="../subsystems/governance.md">subsystems/governance.md</a></td>
+          <td>Budget lifecycle in <a href="../how-to/configure-runtime-budgets.md">configure-runtime-budgets.md</a></td>
+          <td><a href="governance-and-containment.html">governance-and-containment.html (Section 3)</a></td>
+          <td><code>crates/gauntlet-domain/src/budget.rs</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Reader Intent Navigation -->
+  <div class="section-title">
+    <span>🎯</span> Reader Intent Navigation: What Do You Need to Do?
+  </div>
+
+  <div class="intent-grid">
+    
+    <div class="intent-card">
+      <div class="intent-name">
+        <span>01</span> Understand
+      </div>
+      <div class="intent-desc">First 5 minutes with Gauntlet? Grasp the core thesis and cleanroom metaphor.</div>
+      <div class="intent-links">
+        <a href="../index.md">System Overview & Core Thesis</a>
+        <a href="../mental-model.md">Mental Model: The Cleanroom Line</a>
+        <a href="run-execution-loop.html">Run Execution Explorer</a>
+      </div>
+    </div>
+
+    <div class="intent-card">
+      <div class="intent-name">
+        <span>02</span> Explore
+      </div>
+      <div class="intent-desc">Follow an operation end-to-end and see how residuals become minimal fixes.</div>
+      <div class="intent-links">
+        <a href="run-execution-loop.html">Step Through Scenario 2 (Test Fix)</a>
+        <a href="../workflows/iteration-loop.md">Iteration Loop Deep Dive</a>
+        <a href="../workflows/tui-session.md">Interactive TUI Session Lifecycle</a>
+      </div>
+    </div>
+
+    <div class="intent-card">
+      <div class="intent-name">
+        <span>03</span> Operate
+      </div>
+      <div class="intent-desc">Run preflight checks, configure budgets, launch sandbox, and handle tickets.</div>
+      <div class="intent-links">
+        <a href="../OPERATOR-GUIDE.md">Operator Guide</a>
+        <a href="../workflows/preflight-doctor.md">Preflight Doctor Checks</a>
+        <a href="governance-and-containment.html">Bubblewrap Command Generator</a>
+        <a href="../how-to/handle-escalations.md">Handle Escalation Tickets</a>
+      </div>
+    </div>
+
+    <div class="intent-card">
+      <div class="intent-name">
+        <span>04</span> Investigate
+      </div>
+      <div class="intent-desc">Diagnose unexpected run states, hash mismatches, or inconclusive units.</div>
+      <div class="intent-links">
+        <a href="../troubleshooting.md">Troubleshooting & Diagnostics</a>
+        <a href="../workflows/crash-recovery.md">Crash Recovery & PostgreSQL Resume</a>
+        <a href="architecture-and-invariants.html">Invariant Stress-Testing Lab</a>
+      </div>
+    </div>
+
+    <div class="intent-card">
+      <div class="intent-name">
+        <span>05</span> Extend
+      </div>
+      <div class="intent-desc">Implement a new port adapter, runner, observer, or verification instrument.</div>
+      <div class="intent-links">
+        <a href="architecture-and-invariants.html">17 Ports & 24 Adapters Directory</a>
+        <a href="../how-to/add-an-adapter.md">How-To: Add an Adapter</a>
+        <a href="../how-to/add-a-verification-method.md">Add a Verification Method</a>
+      </div>
+    </div>
+
+    <div class="intent-card">
+      <div class="intent-name">
+        <span>06</span> Verify
+      </div>
+      <div class="intent-desc">Check compile-time boundaries, run contract test suites, and prove ruler locks.</div>
+      <div class="intent-links">
+        <a href="../reference/invariants-and-proofs.md">Invariants & Verification Proofs</a>
+        <a href="../CONFORMANCE.md">Conformance & Trust Posture</a>
+        <code>just ruler</code> · <code>just boundaries</code> · <code>just ci</code>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <div>
+      Gauntlet Cognitive Representation System · <a href="../index.md">Documentation Root</a> · <a href="../../README.md">Repository README</a>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 0.8rem;">
+      Self-Contained Offline Artifacts · Open Source Apache-2.0
+    </div>
+  </footer>
+
+</body>
+</html>

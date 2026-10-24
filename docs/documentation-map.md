@@ -41,6 +41,18 @@ Along with DeepWiki-style architectural guides, subsystem guides, workflows, and
 
 ---
 
+### Interactive Cognitive Explainers (Level 3 Representations)
+
+| Page | Medium | Purpose | Primary Audience Need | Prerequisites | Related Pages |
+|---|---|---|---|---|---|
+| [`explainers/index.html`](explainers/index.html) | Interactive Portal | Central cognitive representation portal: Bret Victor ladder, system matrix, reader-intent navigation router. | "How do all Gauntlet concepts, journeys, and explainers fit together?" | [`index.md`](index.md) | All explainers & canonical docs |
+| [`explainers/run-execution-loop.html`](explainers/run-execution-loop.html) | Interactive Stepper | 9-stage closed-loop execution simulator, 5 scenarios, Separation 1 claim probe, 3-state Verifier matrix. | "What happens step-by-step during a run and why are builder claims segregated?" | [`workflows/run-lifecycle.md`](workflows/run-lifecycle.md) | [`architecture.md`](architecture.md), [`concepts.md`](concepts.md) |
+| [`explainers/architecture-and-invariants.html`](explainers/architecture-and-invariants.html) | Interactive Lab | Concentric 4-layer inspector, 17 ports & 24 adapters directory with contract test suites, Four Separations lab. | "How do 33 crates enforce inward dependency boundaries at compile time?" | [`architecture.md`](architecture.md) | [`subsystems/ports.md`](subsystems/ports.md), [`subsystems/domain.md`](subsystems/domain.md) |
+| [`explainers/governance-and-containment.html`](explainers/governance-and-containment.html) | Interactive Simulator | 4x4 Authority vs Containment matrix, dynamic `bwrap` command generator with sealed paths, 15% recovery reserve. | "Why are Authority and Containment orthogonal and how is the sandbox enforced?" | [`subsystems/governance.md`](subsystems/governance.md) | [`SECURITY.md`](SECURITY.md), [`CONFORMANCE.md`](CONFORMANCE.md) |
+| [`explainers/README.md`](explainers/README.md) | Markdown Companion | Version-controlled directory guide, Bret Victor principles, cognitive affordances, verification evidence. | "How do I navigate and verify the explainers in terminal / offline?" | None | [`explainers/index.html`](explainers/index.html) |
+
+---
+
 ### Subsystem Guides (DeepWiki Layer)
 
 | Page | Diátaxis | Purpose | Primary Audience Need | Prerequisites | Related Pages |

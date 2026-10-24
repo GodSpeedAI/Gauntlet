@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gauntlet — Governance, Containment & Sandbox Simulator</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #111827;
+      --surface-2: #1f2937;
+      --surface-3: #374151;
+      --border: #2d3748;
+      --border-focus: #4b5563;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #38bdf8;
+      --accent-muted: #0284c7;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --success: #34d399;
+      --success-bg: rgba(52, 211, 153, 0.1);
+      --warning: #fbbf24;
+      --warning-bg: rgba(251, 191, 36, 0.1);
+      --danger: #f87171;
+      --danger-bg: rgba(248, 113, 113, 0.1);
+      --purple: #c084fc;
+      --purple-bg: rgba(192, 132, 252, 0.1);
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+
+    .breadcrumb {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .takeaway {
+      margin-top: 8px;
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 950px;
+    }
+    .takeaway strong { color: var(--text); }
+
+    /* Layout Grid */
+    .gov-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 30px;
+    }
+    @media (max-width: 1024px) {
+      .gov-grid { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .panel-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    /* 4x4 Orthogonal Matrix */
+    .matrix-container {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      margin-bottom: 16px;
+    }
+    .matrix-container th {
+      background: var(--surface-2);
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: center;
+    }
+    .matrix-container td {
+      border: 1px solid var(--border);
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+    }
+    .matrix-container td:hover {
+      box-shadow: 0 0 10px var(--accent-glow);
+      filter: brightness(1.2);
+    }
+    .matrix-container td.selected {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+
+    .cell-auto { background: rgba(52, 211, 153, 0.12); color: var(--success); font-weight: 700; }
+    .cell-esc { background: rgba(251, 191, 36, 0.12); color: var(--warning); font-weight: 700; }
+    .cell-forbid { background: rgba(248, 113, 113, 0.15); color: var(--danger); font-weight: 700; }
+
+    .matrix-detail {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    }
+
+    /* Bubblewrap Simulator */
+    .config-group {
+      margin-bottom: 14px;
+    }
+    .config-label {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    select, input[type="range"] {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 5px;
+      font-size: 0.85rem;
+    }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+    .toggle-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .cli-display {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: #7dd3fc;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      margin-top: 10px;
+    }
+
+    /* Budget Metering Section */
+    .budget-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 30px;
+    }
+    .slider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .slider-card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px;
+    }
+    .slider-val {
+      font-family: var(--font-mono);
+      font-size: 1rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .reserve-bar-container {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .bar-visual {
+      height: 24px;
+      background: var(--surface-3);
+      border-radius: 6px;
+      display: flex;
+      overflow: hidden;
+      margin: 12px 0;
+      position: relative;
+    }
+    .bar-active {
+      background: var(--accent);
+      height: 100%;
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #0b0f19;
+    }
+    .bar-reserve {
+      background: repeating-linear-gradient(
+        45deg,
+        #b45309,
+        #b45309 8px,
+        #d97706 8px,
+        #d97706 16px
+      );
+      height: 100%;
+      width: 15%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+
+    .btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary {
+      background: var(--accent-muted);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="breadcrumb">
+      <a href="index.html">Cognitive Models</a> / <a href="../index.md">Documentation</a> / Governance & Containment
+    </div>
+    <h1>
+      Authority, Containment & Sandbox Simulator
+      <span class="badge">Interactive Explainer</span>
+    </h1>
+    <p class="takeaway">
+      <strong>Core Thesis:</strong> Authority and Containment are orthogonal. Authority gates whether something is allowed to run; Containment gates how constrained it is if it runs. Neither substitutes for the other.
+    </p>
+  </header>
+
+  <!-- Section 1: Orthogonal 4x4 Matrix -->
+  <div class="gov-grid">
+    
+    <div class="panel">
+      <div class="panel-title">
+        <span>🛡</span> The Authority vs Containment Matrix
+      </div>
+      <div class="panel-subtitle">
+        Click any cell in the 4x4 matrix to inspect scheduling rules, escalation requirements, and sandbox enforcement.
+      </div>
+
+      <table class="matrix-container" aria-label="Authority vs Containment Matrix">
+        <thead>
+          <tr>
+            <th style="text-align: left;">Authority \ Blast Radius</th>
+            <th>Contained</th>
+            <th>Local</th>
+            <th>Cross-Cutting</th>
+            <th>Irreversible</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th style="text-align: left;">Autonomous</th>
+            <td class="cell-auto" id="c-0-0" onclick="selectCell(0,0)">AUTO</td>
+            <td class="cell-auto" id="c-0-1" onclick="selectCell(0,1)">AUTO</td>
+            <td class="cell-esc" id="c-0-2" onclick="selectCell(0,2)">ESCALATE</td>
+            <td class="cell-forbid" id="c-0-3" onclick="selectCell(0,3)">REFUSED</td>
+          </tr>
+          <tr>
+            <th style="text-align: left;">Operator</th>
+            <td class="cell-auto" id="c-1-0" onclick="selectCell(1,0)">AUTO</td>
+            <td class="cell-auto" id="c-1-1" onclick="selectCell(1,1)">AUTO</td>
+            <td class="cell-auto" id="c-1-2" onclick="selectCell(1,2)">AUTO</td>
+            <td class="cell-esc" id="c-1-3" onclick="selectCell(1,3)">ESCALATE</td>
+          </tr>
+          <tr>
+            <th style="text-align: left;">Human</th>
+            <td class="cell-auto" id="c-2-0" onclick="selectCell(2,0)">AUTO</td>
+            <td class="cell-auto" id="c-2-1" onclick="selectCell(2,1)">AUTO</td>
+            <td class="cell-auto" id="c-2-2" onclick="selectCell(2,2)">AUTO</td>
+            <td class="cell-auto" id="c-2-3" onclick="selectCell(2,3)">PERMITTED</td>
+          </tr>
+          <tr>
+            <th style="text-align: left;">Two-Party</th>
+            <td class="cell-auto" id="c-3-0" onclick="selectCell(3,0)">AUTO</td>
+            <td class="cell-auto" id="c-3-1" onclick="selectCell(3,1)">AUTO</td>
+            <td class="cell-auto" id="c-3-2" onclick="selectCell(3,2)">AUTO</td>
+            <td class="cell-auto" id="c-3-3" onclick="selectCell(3,3)">PERMITTED</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="matrix-detail" id="matrix-detail">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+    <!-- Section 2: Bubblewrap Command Generator -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>📦</span> Bubblewrap (bwrap) Sandbox Generator
+      </div>
+      <div class="panel-subtitle">
+        Inspect the exact Linux namespace flags and filesystem mount boundaries Gauntlet applies before launching builders.
+      </div>
+
+      <div class="config-group">
+        <div class="config-label">
+          <span>Containment Tier:</span>
+          <span style="font-family: var(--font-mono); color: var(--accent);" id="label-tier">local</span>
+        </div>
+        <select id="select-tier" onchange="updateBwrap()">
+          <option value="contained">contained (Ephemeral workspace, deny network)</option>
+          <option value="local" selected>local (Deny credentials, deny .git, deny network)</option>
+          <option value="cross_cutting">cross_cutting (Tightest available, process isolation)</option>
+          <option value="irreversible">irreversible (NO POLICY — Dispatch Refused)</option>
+        </select>
+      </div>
+
+      <div class="toggle-row">
+        <input type="checkbox" id="chk-net" onchange="updateBwrap()" checked>
+        <label for="chk-net"><strong>Deny Network:</strong> <code>--unshare-net</code> (Default: offline cleanroom)</label>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="chk-creds" onchange="updateBwrap()" checked>
+        <label for="chk-creds"><strong>Mask Host Secrets:</strong> Hide <code>~/.ssh</code>, <code>~/.aws</code>, <code>.env</code></label>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" id="chk-grader" onchange="updateBwrap()" checked>
+        <label for="chk-grader"><strong>Protect Answer Key:</strong> Make <code>.wayfinder/answer-key.md</code> Read-Only</label>
+      </div>
+
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 10px;">
+        GENERATED BWRAP COMMAND LINE:
+      </div>
+      <div class="cli-display" id="bwrap-cli">
+        <!-- Populated by JS -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Section 3: Budget Metering & 15% Recovery Reserve -->
+  <div class="budget-section">
+    <div class="panel-title">
+      <span>💰</span> Budget Metering & The 15% Protected Recovery Reserve
+    </div>
+    <div class="panel-subtitle">
+      Why does Gauntlet stop before 100% token or cost exhaustion? The 15% recovery reserve ensures that when budgets run low, the runtime has enough headroom to run final observers, generate crash diagnostics, commit partial state, and notify the operator without data corruption.
+    </div>
+
+    <div class="slider-grid">
+      <div class="slider-card">
+        <div class="config-label">
+          <span>Token Limit:</span>
+          <span class="slider-val" id="val-tokens">500,000</span>
+        </div>
+        <input type="range" id="rng-tokens" min="100000" max="2000000" step="50000" value="500000" oninput="updateBudget()">
+      </div>
+
+      <div class="slider-card">
+        <div class="config-label">
+          <span>Dollar Budget:</span>
+          <span class="slider-val" id="val-cost">$10.00</span>
+        </div>
+        <input type="range" id="rng-cost" min="1" max="50" step="1" value="10" oninput="updateBudget()">
+      </div>
+
+      <div class="slider-card">
+        <div class="config-label">
+          <span>Iteration Cap:</span>
+          <span class="slider-val" id="val-iter">5</span>
+        </div>
+        <input type="range" id="rng-iter" min="1" max="15" step="1" value="5" oninput="updateBudget()">
+      </div>
+
+      <div class="slider-card">
+        <div class="config-label">
+          <span>Active Spending:</span>
+          <span class="slider-val" id="val-spent">0% (0 tokens)</span>
+        </div>
+        <button class="btn btn-primary" style="width: 100%; margin-top: 6px;" onclick="simulateSpend()">
+          ▶ Simulate Multi-Turn Run
+        </button>
+      </div>
+    </div>
+
+    <div class="reserve-bar-container">
+      <div style="display: flex; justify-content: space-between; font-size: 0.85rem; font-family: var(--font-mono);">
+        <span>Allocated Spending Zone: <strong id="alloc-text">0 / 425,000 tokens (0%)</strong></span>
+        <span style="color: var(--warning);">Protected Recovery Reserve: <strong>75,000 tokens (15%)</strong></span>
+      </div>
+
+      <div class="bar-visual">
+        <div class="bar-active" id="bar-active" style="width: 0%;">0%</div>
+        <div style="flex: 1;"></div>
+        <div class="bar-reserve">RESERVE (15%)</div>
+      </div>
+
+      <div style="font-size: 0.82rem; color: var(--text-muted); line-height: 1.6;" id="budget-status-text">
+        <strong>Runtime State:</strong> Normal execution zone. Full builder dispatch permitted.
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>
+      Gauntlet Cognitive Architecture · <a href="index.html">All Explainers</a> · <a href="../SECURITY.md">Security Invariants</a> · <a href="../CONFORMANCE.md">Conformance</a>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 0.8rem;">
+      Offline Self-Contained Document · Bret Victor Cognitive Representation Ladder
+    </div>
+  </footer>
+
+  <script>
+    // Matrix Cell Details
+    const CELL_DATA = {
+      "0,0": {
+        auth: "Autonomous", tier: "Contained",
+        status: "AUTO DISPATCH PERMITTED", color: "var(--success)",
+        desc: "Low-impact, isolated task (e.g. updating an internal unit test). Workspace is ephemeral, network is denied. Autonomous dispatch proceeds immediately."
+      },
+      "0,1": {
+        auth: "Autonomous", tier: "Local",
+        status: "AUTO DISPATCH PERMITTED", color: "var(--success)",
+        desc: "Local workspace modifications. Credential paths (~/.ssh, ~/.aws) and the repository git database are explicitly sealed. Builder can edit project files in its worktree."
+      },
+      "0,2": {
+        auth: "Autonomous", tier: "Cross-Cutting",
+        status: "ESCALATION REQUIRED", color: "var(--warning)",
+        desc: "Task alters shared public interfaces, migrations, or core configuration across crates. Autonomous authority is insufficient; run pauses and generates an escalation ticket."
+      },
+      "0,3": {
+        auth: "Autonomous", tier: "Irreversible",
+        status: "REFUSED BEFORE PROCESS START", color: "var(--danger)",
+        desc: "Spec §17.3 invariant: Irreversible operations (production DB drops, publishing, external network pushes) are NEVER auto-dispatched. No sandbox policy exists. Run halts."
+      },
+      "1,3": {
+        auth: "Operator", tier: "Irreversible",
+        status: "ESCALATION REQUIRED", color: "var(--warning)",
+        desc: "Standard operator approval is insufficient for irreversible actions without explicit GAUNTLET_ALLOW_DESTRUCTIVE=1 and human confirmation."
+      },
+      "2,3": {
+        auth: "Human", tier: "Irreversible",
+        status: "DISPATCH PERMITTED (WITH OPERATOR CONFIRMATION)", color: "var(--success)",
+        desc: "A verified human operator has granted authority. Process runs under strict observation with destructive operation gate enabled."
+      }
+    };
+
+    function selectCell(row, col) {
+      document.querySelectorAll(".matrix-container td").forEach(td => td.classList.remove("selected"));
+      const cell = document.getElementById(`c-${row}-${col}`);
+      if (cell) cell.classList.add("selected");
+
+      const key = `${row},${col}`;
+      const data = CELL_DATA[key] || {
+        auth: ["Autonomous", "Operator", "Human", "Two-Party"][row],
+        tier: ["Contained", "Local", "Cross-Cutting", "Irreversible"][col],
+        status: row >= 2 ? "DISPATCH PERMITTED" : "EVALUATED BY GATE",
+        color: row >= 2 ? "var(--success)" : "var(--accent)",
+        desc: `Authority tier ${["Autonomous", "Operator", "Human", "Two-Party"][row]} evaluated against ${["Contained", "Local", "Cross-Cutting", "Irreversible"][col]} containment.`
+      };
+
+      const detailEl = document.getElementById("matrix-detail");
+      detailEl.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <strong style="color: #fff;">${data.auth} Authority × ${data.tier} Containment</strong>
+          <span style="font-family: var(--font-mono); font-weight: 700; color: ${data.color}; font-size: 0.8rem;">${data.status}</span>
+        </div>
+        <p style="color: var(--text);">${data.desc}</p>
+      `;
+    }
+
+    // Bubblewrap Generator
+    function updateBwrap() {
+      const tier = document.getElementById("select-tier").value;
+      const net = document.getElementById("chk-net").checked;
+      const creds = document.getElementById("chk-creds").checked;
+      const grader = document.getElementById("chk-grader").checked;
+      document.getElementById("label-tier").innerText = tier;
+
+      const cliEl = document.getElementById("bwrap-cli");
+      if (tier === "irreversible") {
+        cliEl.innerHTML = `<span style="color: var(--danger); font-weight: 700;">[FATAL] Spec §17.3 Violation: No sandbox policy exists for the irreversible tier.</span>\n` +
+          `The action never reaches the sandbox port unattended.\n` +
+          `A policy file configured for irreversible is a 'gauntlet doctor' preflight failure.\n` +
+          `Scheduler halts dispatch before process spawn.`;
+        return;
+      }
+
+      let cmd = `bwrap \\\n  --unshare-all \\\n`;
+      if (net) cmd += `  --unshare-net \\\n`;
+      cmd += `  --ro-bind /usr /usr \\\n  --ro-bind /lib /lib \\\n  --ro-bind /lib64 /lib64 \\\n  --ro-bind /etc /etc \\\n  --tmpfs /tmp \\\n`;
+
+      if (creds) {
+        cmd += `  --tmpfs /home/user/.ssh \\\n  --tmpfs /home/user/.aws \\\n`;
+      }
+      if (grader) {
+        cmd += `  --ro-bind .wayfinder/answer-key.md .wayfinder/answer-key.md \\\n`;
+      }
+
+      cmd += `  --dir /workspace \\\n  --bind /tmp/gauntlet/workspaces/run_8912/iter_01 /workspace \\\n  --die-with-parent \\\n  /bin/bash -c "claude-code ..."`;
+
+      cliEl.innerText = cmd;
+    }
+
+    // Budget Simulation
+    let spendTokens = 0;
+    let spendInterval = null;
+
+    function updateBudget() {
+      const tokens = parseInt(document.getElementById("rng-tokens").value);
+      const cost = parseInt(document.getElementById("rng-cost").value);
+      const iter = parseInt(document.getElementById("rng-iter").value);
+
+      document.getElementById("val-tokens").innerText = tokens.toLocaleString();
+      document.getElementById("val-cost").innerText = "$" + cost.toFixed(2);
+      document.getElementById("val-iter").innerText = iter;
+
+      const maxAlloc = tokens * 0.85;
+      const reserve = tokens * 0.15;
+      document.getElementById("alloc-text").innerText = `${spendTokens.toLocaleString()} / ${maxAlloc.toLocaleString()} tokens (${Math.round((spendTokens / tokens) * 100)}%)`;
+      document.querySelector(".reserve-bar-container span:last-child").innerHTML = `Protected Recovery Reserve: <strong>${reserve.toLocaleString()} tokens (15%)</strong>`;
+
+      const pct = Math.min(85, Math.round((spendTokens / tokens) * 100));
+      const bar = document.getElementById("bar-active");
+      bar.style.width = pct + "%";
+      bar.innerText = pct + "%";
+      document.getElementById("val-spent").innerText = `${pct}% (${spendTokens.toLocaleString()} tokens)`;
+
+      const statusEl = document.getElementById("budget-status-text");
+      if (spendTokens >= maxAlloc) {
+        bar.style.background = "var(--danger)";
+        statusEl.innerHTML = `<strong style="color: var(--danger);">HALT FOR BUDGET TRIGGERED:</strong> Active spending crossed 85% threshold. ` +
+          `Runtime refuses further builder dispatches. Preserved 15% reserve used to run diagnostic probes, commit state, and notify operator.`;
+      } else if (spendTokens >= maxAlloc * 0.75) {
+        bar.style.background = "var(--warning)";
+        statusEl.innerHTML = `<strong style="color: var(--warning);">WARNING:</strong> Budget at 75% capacity. Bounding iteration scope.`;
+      } else {
+        bar.style.background = "var(--accent)";
+        statusEl.innerHTML = `<strong>Runtime State:</strong> Normal execution zone. Full builder dispatch permitted.`;
+      }
+    }
+
+    function simulateSpend() {
+      if (spendInterval) {
+        clearInterval(spendInterval);
+        spendInterval = null;
+        spendTokens = 0;
+        updateBudget();
+        return;
+      }
+
+      spendTokens = 0;
+      const tokens = parseInt(document.getElementById("rng-tokens").value);
+      const target = tokens * 0.88; // Crosses 85% boundary
+
+      spendInterval = setInterval(() => {
+        spendTokens += 35000;
+        if (spendTokens >= target) {
+          spendTokens = target;
+          clearInterval(spendInterval);
+          spendInterval = null;
+        }
+        updateBudget();
+      }, 250);
+    }
+
+    // Initial setup
+    selectCell(0, 0);
+    updateBwrap();
+    updateBudget();
+  </script>
+</body>
+</html>
