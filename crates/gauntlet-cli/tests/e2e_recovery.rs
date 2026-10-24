@@ -21,9 +21,10 @@
 //! 1. mid-settlement SIGKILL: poll until the first settlement event is
 //!    durable, SIGKILL the binary, resume — exactly-once settlement,
 //!    preserved run identity, prior evidence intact;
-//! 2. the produce window (task-12 trigger): poll until the locator
-//!    artifact's bytes are in the evidence store, SIGKILL, resume — the
-//!    artifact's production is recovered exactly once;
+//! 2. the produce window (task-12 trigger): the child parks deterministically
+//!    once the locator artifact's bytes are in the evidence store and before
+//!    its production row is recorded; SIGKILL, resume — the artifact's
+//!    production is recovered exactly once;
 //! 3. R16-F2 discharge: the hostile child poisons its own contract path
 //!    (a DIRECTORY at the result path) and stays alive — the composed
 //!    loop reaches a BOUNDED honest terminal through its own machinery,
@@ -644,36 +645,38 @@ fn the_kill_in_the_produce_window_resumes_with_the_production_recovered() {
     let world = World::new("produce-window");
     let env = world.env("recovery-produce-seed");
 
-    // THE RUN, as a child. The produce boundary observed here: the
-    // locator artifact's bytes are durable in the evidence store while
-    // the durable production rows are still short of the unit's own.
-    let mut child = world.spawn(&env, &["run", "seeded bounded task"]);
-    poll_until(
-        "the artifact-without-production boundary",
-        Duration::from_secs(BOUNDARY_BOUND),
-        || {
-            let artifact_durable = store_holds_text_containing(
-                &world.evidence_dir(),
-                "\"kind\":\"child-work-record\"",
-            );
-            if artifact_durable && production_rows_below(&world.state_db(), 1) {
-                Some("the artifact is durable and the production row is not".to_owned())
-            } else if artifact_durable {
-                // The window closed before the kill could land in it — the
-                // production row won the race (the MISSED-window branch).
-                // The boundary is still the artifact's durability. The
-                // branch claims are NOT symmetric and the assertions below
-                // are stated against the POST-KILL DURABLE FACTS, so both
-                // landings are honest (leg 2b places this branch
-                // deterministically; the adjudicated semantics are in this
-                // leg's header).
-                Some("the artifact and its production row are both durable".to_owned())
-            } else {
-                None
-            }
-        },
+    // THE RUN, as a child, PARKED inside the produce window by the
+    // test-only park point after the artifact ingest (see
+    // `park_at("GAUNTLET_TEST_PARK_AFTER_ARTIFACT_INGEST")` in gauntlet-app's
+    // controller). The locator artifact is durable in the evidence store and
+    // its production row is not yet recorded when the child writes the
+    // marker and parks. The child cannot advance until it is killed, so the
+    // kill lands in the window every time: no race, no retry.
+    let marker = world.state_dir().join("parked-in-produce-window");
+    let mut park_env = env.clone();
+    park_env.insert(
+        "GAUNTLET_TEST_PARK_AFTER_ARTIFACT_INGEST",
+        marker.display().to_string(),
     );
+    let mut child = world.spawn(&park_env, &["run", "seeded bounded task"]);
+    let started = Instant::now();
+    while !marker.exists() {
+        if started.elapsed() > Duration::from_secs(BOUNDARY_BOUND) {
+            // Kill the parked child before the typed failure: no orphan.
+            let _ = kill_and_collect(&mut child, &world.state_db());
+            panic!("the child never parked in the produce window within {BOUNDARY_BOUND:?}");
+        }
+        std::thread::sleep(Duration::from_millis(STEP));
+    }
     let _ = kill_and_collect(&mut child, &world.state_db());
+    assert!(
+        store_holds_text_containing(&world.evidence_dir(), "\"kind\":\"child-work-record\""),
+        "the parked kill follows the locator artifact's durable write"
+    );
+    assert!(
+        production_rows_below(&world.state_db(), 1),
+        "the parked kill precedes the locator's production row"
+    );
 
     // THE ADJUDICATED PRE-RESUME FACTS (post-kill durable reads): which
     // side of the produce/settlement pair the kill landed on is a durable

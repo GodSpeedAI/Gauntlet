@@ -17,6 +17,11 @@ workspace = true
 # this workspace enables it.
 [features]
 composition = []
+# TEST-ONLY park points (the e2e recovery placement). Compiled in ONLY when a
+# test target enables it: gauntlet-cli enables it from its [dev-dependencies]
+# alone, and resolver 3 keeps dev-dependency features out of a plain
+# `cargo build`. Never enabled by any normal dependency or default feature.
+test-park = []
 
 [dependencies]
 gauntlet-domain.workspace = true

@@ -118,7 +118,7 @@ gauntlet-adapter-evidence-fs.workspace = true
 # `composition` feature (the §7.1 seam — the ONLY edge in the workspace that
 # enables it; no production dependency does, so `Ladder::new` and friends do
 # not exist in a normal build of any crate).
-gauntlet-app = { workspace = true, features = ["composition"] }
+gauntlet-app = { workspace = true, features = ["composition", "test-park"] }
 # Task 9 adds the observe adapters + the mock runner the same way: the P3
 # and G6 proofs (tests/p3_real_observation.rs,
 # tests/g6_hide_failed_observations.rs) compose REAL observers over the
