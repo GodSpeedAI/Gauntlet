@@ -48,7 +48,9 @@ pub const WORKSPACE_PACKAGES: &[&str] = &[
 /// workspace Cargo.tomls by a test, so a new edge fails until it is
 /// inventoried here; the composition root owns the full allowlist's
 /// edges (`parse_manifest_with`).
-pub const WORKSPACE_FEATURES: &[&str] = &["composition", "surfaces"];
+/// `test-park` is the TEST-ONLY park-point edge (gauntlet-app's e2e recovery
+/// seam). Only gauntlet-cli's dev-dependencies enable it; no release build does.
+pub const WORKSPACE_FEATURES: &[&str] = &["composition", "surfaces", "test-park"];
 
 /// How a nextest invocation selects its targets.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

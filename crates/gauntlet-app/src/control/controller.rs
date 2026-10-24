@@ -461,6 +461,28 @@ impl core::fmt::Display for ControlError {
 
 impl std::error::Error for ControlError {}
 
+/// TEST-ONLY deterministic placement (the e2e recovery park points). Each
+/// call site names its own arming variable. When the `test-park` feature is
+/// compiled in AND that variable is set, the process writes the variable's
+/// value as a marker path and parks until the observing e2e test SIGKILLs it
+/// (every such test kills a parked child on every path). Unset, it returns at
+/// once with no I/O. Without the feature the call compiles to nothing, so the
+/// release binary carries no park code and no variable names.
+#[cfg(feature = "test-park")]
+fn park_at(arming_var: &'static str) {
+    let Some(marker) = std::env::var_os(arming_var) else {
+        return;
+    };
+    let _ = std::fs::write(PathBuf::from(marker), b"parked\n");
+    loop {
+        std::thread::park();
+    }
+}
+
+#[cfg(not(feature = "test-park"))]
+#[inline(always)]
+fn park_at(_arming_var: &'static str) {}
+
 impl From<SchedulerError> for ControlError {
     fn from(source: SchedulerError) -> Self {
         Self::Scheduler(source)
@@ -4235,6 +4257,10 @@ impl RunController {
                     }
                 };
                 let produced_ref = if let Some(ingested) = produced_ref {
+                    // TEST-ONLY park point: the artifact is durable in the
+                    // evidence store and its production row is not yet
+                    // recorded (the produce window).
+                    park_at("GAUNTLET_TEST_PARK_AFTER_ARTIFACT_INGEST");
                     ingested
                 } else {
                     if let Some(parent) = locator_path.parent() {
@@ -4289,6 +4315,7 @@ impl RunController {
                     self.clock.now(),
                     self.operation_bound(),
                 )?;
+                park_at("GAUNTLET_TEST_PARK_AFTER_PRODUCTION_RECORD");
                 Ok(())
             }
         }

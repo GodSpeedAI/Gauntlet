@@ -21,9 +21,10 @@
 //! 1. mid-settlement SIGKILL: poll until the first settlement event is
 //!    durable, SIGKILL the binary, resume — exactly-once settlement,
 //!    preserved run identity, prior evidence intact;
-//! 2. the produce window (task-12 trigger): poll until the locator
-//!    artifact's bytes are in the evidence store, SIGKILL, resume — the
-//!    artifact's production is recovered exactly once;
+//! 2. the produce window (task-12 trigger): the child parks deterministically
+//!    once the locator artifact's bytes are in the evidence store and before
+//!    its production row is recorded; SIGKILL, resume — the artifact's
+//!    production is recovered exactly once;
 //! 3. R16-F2 discharge: the hostile child poisons its own contract path
 //!    (a DIRECTORY at the result path) and stays alive — the composed
 //!    loop reaches a BOUNDED honest terminal through its own machinery,
@@ -644,36 +645,38 @@ fn the_kill_in_the_produce_window_resumes_with_the_production_recovered() {
     let world = World::new("produce-window");
     let env = world.env("recovery-produce-seed");
 
-    // THE RUN, as a child. The produce boundary observed here: the
-    // locator artifact's bytes are durable in the evidence store while
-    // the durable production rows are still short of the unit's own.
-    let mut child = world.spawn(&env, &["run", "seeded bounded task"]);
-    poll_until(
-        "the artifact-without-production boundary",
-        Duration::from_secs(BOUNDARY_BOUND),
-        || {
-            let artifact_durable = store_holds_text_containing(
-                &world.evidence_dir(),
-                "\"kind\":\"child-work-record\"",
-            );
-            if artifact_durable && production_rows_below(&world.state_db(), 1) {
-                Some("the artifact is durable and the production row is not".to_owned())
-            } else if artifact_durable {
-                // The window closed before the kill could land in it — the
-                // production row won the race (the MISSED-window branch).
-                // The boundary is still the artifact's durability. The
-                // branch claims are NOT symmetric and the assertions below
-                // are stated against the POST-KILL DURABLE FACTS, so both
-                // landings are honest (leg 2b places this branch
-                // deterministically; the adjudicated semantics are in this
-                // leg's header).
-                Some("the artifact and its production row are both durable".to_owned())
-            } else {
-                None
-            }
-        },
+    // THE RUN, as a child, PARKED inside the produce window by the
+    // test-only park point after the artifact ingest (see
+    // `park_at("GAUNTLET_TEST_PARK_AFTER_ARTIFACT_INGEST")` in gauntlet-app's
+    // controller). The locator artifact is durable in the evidence store and
+    // its production row is not yet recorded when the child writes the
+    // marker and parks. The child cannot advance until it is killed, so the
+    // kill lands in the window every time: no race, no retry.
+    let marker = world.state_dir().join("parked-in-produce-window");
+    let mut park_env = env.clone();
+    park_env.insert(
+        "GAUNTLET_TEST_PARK_AFTER_ARTIFACT_INGEST",
+        marker.display().to_string(),
     );
+    let mut child = world.spawn(&park_env, &["run", "seeded bounded task"]);
+    let started = Instant::now();
+    while !marker.exists() {
+        if started.elapsed() > Duration::from_secs(BOUNDARY_BOUND) {
+            // Kill the parked child before the typed failure: no orphan.
+            let _ = kill_and_collect(&mut child, &world.state_db());
+            panic!("the child never parked in the produce window within {BOUNDARY_BOUND:?}");
+        }
+        std::thread::sleep(Duration::from_millis(STEP));
+    }
     let _ = kill_and_collect(&mut child, &world.state_db());
+    assert!(
+        store_holds_text_containing(&world.evidence_dir(), "\"kind\":\"child-work-record\""),
+        "the parked kill follows the locator artifact's durable write"
+    );
+    assert!(
+        production_rows_below(&world.state_db(), 1),
+        "the parked kill precedes the locator's production row"
+    );
 
     // THE ADJUDICATED PRE-RESUME FACTS (post-kill durable reads): which
     // side of the produce/settlement pair the kill landed on is a durable
@@ -841,20 +844,18 @@ fn the_kill_in_the_produce_window_resumes_with_the_production_recovered() {
 //   assertion `left == right` failed: the locator's production is durable
 //   EXACTLY once after the resume: left: 2, right: 1
 //
-// THE PLACEMENT (honest mechanics): the branch's span in the binary —
+// THE PLACEMENT (deterministic, no race): the branch's span in the binary —
 // from the production record's durability to the §16.3 settlement-event
-// append — is a few milliseconds of record-derived work (verification and
-// settlement entry are store reads; nothing external stretches it), so NO
-// external poll can react within it every time. This leg therefore polls
-// the production row with a BUSY bounded loop (a durable fact, never a
-// sleep) — measured on this host, the kill then lands inside the branch
-// in 12 of 13 trials — and CLASSIFIES the landing AFTER the kill from the
-// durable state itself: the §16.3 settlement-event count. A kill with the
-// event absent is a §16.3 crash BEFORE step 1 (the branch this leg
-// exists for); a kill with the event durable is post-settlement (the
-// claim's precondition is gone — honestly retryable, bounded rounds).
-// The classification is durable fact, never a guess, so the assertion
-// below never fires on the wrong branch.
+// append — is a few milliseconds of record-derived work, so no external
+// poll could reliably react inside it (the earlier busy-poll landed after
+// the settlement event on loaded GitHub runners, 12/13 at best). The binary
+// therefore carries a TEST-ONLY park point, inert unless armed by env var
+// (`GAUNTLET_TEST_PARK_AFTER_PRODUCTION_RECORD`): right after the production
+// record is durable it writes a marker and parks before verification and
+// settlement. This test kills the child while it is provably parked, and
+// CLASSIFIES the landing from the durable state itself: the §16.3
+// settlement-event count must be absent — a §16.3 crash BEFORE step 1, the
+// branch this leg exists for.
 //
 // COR-4 DIAGNOSIS AND ADJUDICATION (full case:
 // .agents/reports/task25/cor4-report.md): the kill is a §16.3 crash
@@ -896,254 +897,259 @@ fn the_kill_in_the_produce_window_resumes_with_the_production_recovered() {
 
 #[test]
 fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
-    // BOUNDED PLACEMENT ROUNDS: each round runs a fresh world, kills at
-    // the locator production's durability, and classifies the landing
-    // from the durable settlement-event count. A round that provably
-    // missed (the settlement event already durable at the kill) asserts
-    // nothing and is retried; a round that landed pins the adjudicated
-    // semantics. Three rounds make a total miss a <1% event on this host
-    // (12/13 measured per-round hit rate) — and even then the failure is
-    // this leg's own typed placement failure, never a false pass.
-    for round in 0..3u32 {
-        let world = World::new(&format!("missed-window-{round}"));
-        let env = world.env("recovery-missed-seed");
+    // DETERMINISTIC PLACEMENT: the binary's test-only park point
+    // (`GAUNTLET_TEST_PARK_AFTER_PRODUCTION_RECORD`, inert unless set —
+    // see `park_after_production_record_if_armed` in gauntlet-app's
+    // controller) writes a marker the moment the locator's production row
+    // is durable, then parks BEFORE verification and the §16.3 settlement
+    // event. The child cannot advance past that point until it is killed,
+    // so the kill lands at the missed-window boundary every time — no
+    // race against a few-millisecond span, no retry rounds, no sleep-and-hope.
+    let world = World::new("missed-window");
+    let env = world.env("recovery-missed-seed");
+    let marker = world.state_dir().join("parked-after-production-record");
+    let mut park_env = env.clone();
+    park_env.insert(
+        "GAUNTLET_TEST_PARK_AFTER_PRODUCTION_RECORD",
+        marker.display().to_string(),
+    );
 
-        // THE RUN, as a child. The kill fires the moment the locator's
-        // production row is durable — the busy bounded poll, no sleep.
-        let mut child = world.spawn(&env, &["run", "seeded bounded task"]);
-        let started = Instant::now();
-        loop {
-            if production_rows_for_locator(&world.state_db(), "real-marker-report") >= 1 {
-                break;
-            }
-            if started.elapsed() > Duration::from_secs(BOUNDARY_BOUND) {
-                panic!(
-                    "the locator's production record never appeared within {BOUNDARY_BOUND:?} \
-                     (placement round {round})"
-                );
-            }
+    // THE RUN, as a child, parked at the boundary; bounded wait for the
+    // park marker (a durable-side fact the child itself writes).
+    let mut child = world.spawn(&park_env, &["run", "seeded bounded task"]);
+    let started = Instant::now();
+    while !marker.exists() {
+        if started.elapsed() > Duration::from_secs(BOUNDARY_BOUND) {
+            // The parked child never reaches its own exit: kill it before
+            // the typed failure so no orphan outlives this test.
+            let _ = kill_and_collect(&mut child, &world.state_db());
+            panic!(
+                "the child never parked after the locator's production record \
+                 within {BOUNDARY_BOUND:?}"
+            );
         }
-        let _ = kill_and_collect(&mut child, &world.state_db());
-
-        // THE CLASSIFICATION (durable, post-kill): the §16.3 settlement
-        // event is the branch discriminator. Absent ⇒ the kill landed
-        // BEFORE settlement step 1 — the missed-window branch, the crash
-        // class this leg discharges. Durable ⇒ post-settlement: retry in
-        // a fresh world.
-        if settlement_event_count(&world.state_db()) > 0 {
-            continue;
-        }
-
-        // THE ADJUDICATED PRE-RESUME FACTS: exactly the crashed attempt's
-        // own production row is durable, and no settlement stands.
-        let rows_before = marker_rows(&world.state_db());
-        assert_eq!(
-            rows_before.len(),
-            1,
-            "the crashed attempt's own production row is durable: {rows_before:?}"
-        );
-        let crashed_row = rows_before[0].clone();
-        assert_eq!(
-            ak951_settlement_event_count(&world.state_db()),
-            0,
-            "the crash landed before settlement step 1"
-        );
-
-        let run_id = {
-            let runs = world.state_dir().join("runs");
-            let mut ids: Vec<String> = std::fs::read_dir(&runs)
-                .expect("the run io root reads")
-                .filter_map(Result::ok)
-                .map(|entry| entry.file_name().to_string_lossy().into_owned())
-                .collect();
-            ids.sort();
-            assert_eq!(ids.len(), 1, "exactly one run exists: {ids:?}");
-            ids.remove(0)
-        };
-
-        // The operator's typed stale-lock refusal and manual recovery,
-        // exactly as legs 1 and 2 model it.
-        let refused = world.run(&env, &["resume", &run_id]);
-        let refused_stderr = String::from_utf8_lossy(&refused.stderr).into_owned();
-        assert!(
-            !refused.status.success() && refused_stderr.contains("stale or unreadable writer lock"),
-            "the post-crash resume is refused typed by the single-writer guard: {refused_stderr}"
-        );
-        std::fs::remove_file(world.state_dir().join("writer.lock"))
-            .expect("the operator's manual removal of the stale lock");
-
-        // THE RESUME, under the ADJUDICATED recovery semantics (COR-4
-        // report, adjudication section).
-        let resume = world.run(&env, &["resume", &run_id]);
-        let resume_stdout = String::from_utf8_lossy(&resume.stdout).into_owned();
-        assert!(
-            resume_stdout.contains("run_id=") || resume_stdout.contains("terminal="),
-            "the resume completes: {resume_stdout}"
-        );
-
-        // EXACTLY-ONCE-BOUNDED DISPATCH on the resume — never a storm, and
-        // never a wasted extra attempt either (task26 correction).
-        //
-        // F-C4-1 (cor4-report.md) originally OBSERVED "TWO fresh resumed
-        // dispatches" and adjudicated it as the recovery's intended shape:
-        // the resume's first re-dispatch deterministically inherits the
-        // crashed attempt's workspace, "dedupes onto that row, and
-        // verifies stale (§14.3)", forcing a second, fresh-workspace
-        // attempt before the unit could settle. That was the DEFECT this
-        // task fixes, not a feature: §14.3 condition 3 requires evidence
-        // "produced in this run AT OR AFTER the transform it certifies" —
-        // a fact about WHEN the instrument made bytes — and the resumed
-        // pass's first re-dispatch genuinely re-ran the instrument THIS
-        // iteration; treating that real, fresh production as stale just
-        // because a durable row already named its ref was the bug. The
-        // frozen, settled p7 proof
-        // `a_crash_before_the_settlement_event_retries_as_if_never_verified`
-        // already pins the correct shape — "exactly ONE fresh dispatch" —
-        // and this fix moves the resumed-shape leg here to match it: the
-        // first resumed re-dispatch now earns its OWN durable production
-        // (never mutating or discarding the crashed attempt's), verifies
-        // fresh, and settles without needing a second, fresh-workspace
-        // attempt.
-        //
-        // The ruler-owner CandidateRevision this leg's original
-        // adjudication raised — "should §18.3 recovery ADOPT the
-        // pre-crash production outright, without re-verifying?" — remains
-        // OPEN and is untouched by this fix: nothing here credits the
-        // pre-crash row itself as sufficient: the settlement below still
-        // stands over a FRESH, current-iteration production the resumed
-        // pass's own instrument execution actually made, never the
-        // crashed attempt's bytes on say-so alone.
-        assert_eq!(
-            ak951_dispatch_count(&world, &env, &run_id),
-            2,
-            "the durable AK-951 dispatch count across both passes: the crashed attempt's own \
-             dispatch plus exactly ONE fresh resumed dispatch — the frozen p7 shape, not the \
-             F-C4-1 defect's wasted extra attempt"
-        );
-
-        // THE PRE-CRASH ROW INTACT (write-once, the crashed iteration's own
-        // fact); the resumed pass's OWN per-iteration production beside it,
-        // under its own ref.
-        let rows_after = marker_rows(&world.state_db());
-        assert_eq!(
-            rows_after.len(),
-            2,
-            "the resumed pass minted its own production beside the crashed attempt's: \
-             {rows_after:?}"
-        );
-        assert!(
-            rows_after.contains(&crashed_row),
-            "the pre-crash production row {crashed_row:?} survived the resume untouched \
-             (write-once)"
-        );
-        let freshest_ref = rows_after
-            .last()
-            .map(|(reference, ..)| reference.clone())
-            .expect("the marker locator holds the productions");
-        // task26: row identity is (evidence_ref, iteration_no) now — the
-        // ref may legitimately repeat because identical bytes were
-        // genuinely re-produced; what proves "the resumed pass's own
-        // record, not the pre-crash one adopted" is the ROW, keyed by its
-        // iteration and ordering anchor.
-        let marker_iterations: Vec<_> =
-            gauntlet_adapter_state_postgres::test_support::evidence_production_rows_with_iteration(
-                &world.state_db(),
-            )
-            .expect("the iteration-aware production reader runs")
-            .into_iter()
-            .filter(|(_, locator, ..)| locator.contains("real-marker-report"))
-            .collect();
-        assert_eq!(
-            marker_iterations.len(),
-            2,
-            "the crashed and resumed productions are two distinct rows: {marker_iterations:?}"
-        );
-        let crashed_iteration = &marker_iterations[0];
-        let freshest_iteration = &marker_iterations[1];
-        assert_eq!(
-            crashed_iteration.0, freshest_iteration.0,
-            "the resumed pass genuinely re-produced the identical bytes (the fixture inherits \
-             the crashed workspace on its first resumed dispatch), so the content-addressed ref \
-             legitimately repeats: {marker_iterations:?}"
-        );
-        assert!(
-            freshest_iteration.2 > crashed_iteration.2,
-            "the freshest row's iteration_no is strictly greater than the crashed row's — a \
-             DIFFERENT row, the resumed pass's own: {marker_iterations:?}"
-        );
-        assert!(
-            freshest_iteration.4 > crashed_iteration.4,
-            "the freshest row's event-log offset is later than the crashed row's own: \
-             {marker_iterations:?}"
-        );
-
-        // EXACTLY-ONCE SETTLEMENT over the CURRENT (freshest) ref — one
-        // keyed row and one event for AK-951; the fixture's auto-closable
-        // pair (AK-951 + AK-954) is exactly two settlement events in total.
-        let settlements =
-            gauntlet_adapter_state_postgres::test_support::settlement_rows(&world.state_db())
-                .expect("the settlement row reader runs");
-        let ak951_settlements: Vec<_> = settlements
-            .iter()
-            .filter(|(unit, ..)| unit == "AK-951")
-            .collect();
-        assert_eq!(
-            ak951_settlements.len(),
-            1,
-            "exactly-once settlement for AK-951: {settlements:?}"
-        );
-        assert_eq!(
-            ak951_settlements[0].2, freshest_ref,
-            "the settlement stands over the CURRENT (freshest) production ref"
-        );
-        // The ref alone no longer distinguishes the two rows (task26: it
-        // legitimately repeats). The settlement's own event-log offset
-        // must stand AT OR AFTER the freshest row's offset — a
-        // pre-crash-only production (the earlier offset) could never have
-        // satisfied a settlement committed this late.
-        assert!(
-            ak951_settlements[0].3 >= freshest_iteration.4,
-            "the settlement (offset {}) stands at or after the freshest production's own \
-             offset ({}), never the crashed row's alone",
-            ak951_settlements[0].3,
-            freshest_iteration.4
-        );
-        assert_eq!(
-            ak951_settlement_event_count(&world.state_db()),
-            1,
-            "exactly-once settlement EVENT for AK-951"
-        );
-        assert_eq!(
-            settlement_event_count(&world.state_db()),
-            2,
-            "exactly the fixture's two auto-closable settlements (AK-951 + AK-954)"
-        );
-
-        // RUN IDENTITY PRESERVED: the export answers for the same run, and
-        // the settlement stands on the run's own durable record.
-        let export = world.run(&env, &["export", "--run", &run_id]);
-        assert!(
-            export.status.success(),
-            "the export of the resumed run succeeds: {}",
-            String::from_utf8_lossy(&export.stderr)
-        );
-        let exported = String::from_utf8_lossy(&export.stdout).into_owned();
-        assert!(
-            exported.contains("\"record\":\"settlement\"") && exported.contains("AK-951"),
-            "the settlement stands on the resumed run's own durable record"
-        );
-
-        // PRIOR ARTIFACT BYTES INTACT.
-        assert!(
-            store_holds_text_containing(&world.evidence_dir(), "\"kind\":\"child-work-record\""),
-            "the artifact bytes survive the crash and the resume"
-        );
-        return;
+        std::thread::sleep(Duration::from_millis(STEP));
     }
-    panic!(
-        "the missed-window placement was not reached in 3 bounded rounds — the kill kept \
-         landing after the settlement event; the branch's span closed before the observer \
-         could react"
+    // The parked child is killed before any further assertion can fail,
+    // so it never outlives this test.
+    let _ = kill_and_collect(&mut child, &world.state_db());
+    assert!(
+        production_rows_for_locator(&world.state_db(), "real-marker-report") >= 1,
+        "the park follows the locator's durable production record"
+    );
+
+    // THE CLASSIFICATION (durable, post-kill): the park sits BEFORE
+    // settlement step 1, so the §16.3 settlement event is absent — the
+    // missed-window branch, the crash class this leg discharges.
+    assert_eq!(
+        settlement_event_count(&world.state_db()),
+        0,
+        "the parked kill landed before the §16.3 settlement event"
+    );
+
+    // THE ADJUDICATED PRE-RESUME FACTS: exactly the crashed attempt's
+    // own production row is durable, and no settlement stands.
+    let rows_before = marker_rows(&world.state_db());
+    assert_eq!(
+        rows_before.len(),
+        1,
+        "the crashed attempt's own production row is durable: {rows_before:?}"
+    );
+    let crashed_row = rows_before[0].clone();
+    assert_eq!(
+        ak951_settlement_event_count(&world.state_db()),
+        0,
+        "the crash landed before settlement step 1"
+    );
+
+    let run_id = {
+        let runs = world.state_dir().join("runs");
+        let mut ids: Vec<String> = std::fs::read_dir(&runs)
+            .expect("the run io root reads")
+            .filter_map(Result::ok)
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .collect();
+        ids.sort();
+        assert_eq!(ids.len(), 1, "exactly one run exists: {ids:?}");
+        ids.remove(0)
+    };
+
+    // The operator's typed stale-lock refusal and manual recovery,
+    // exactly as legs 1 and 2 model it.
+    let refused = world.run(&env, &["resume", &run_id]);
+    let refused_stderr = String::from_utf8_lossy(&refused.stderr).into_owned();
+    assert!(
+        !refused.status.success() && refused_stderr.contains("stale or unreadable writer lock"),
+        "the post-crash resume is refused typed by the single-writer guard: {refused_stderr}"
+    );
+    std::fs::remove_file(world.state_dir().join("writer.lock"))
+        .expect("the operator's manual removal of the stale lock");
+
+    // THE RESUME, under the ADJUDICATED recovery semantics (COR-4
+    // report, adjudication section).
+    let resume = world.run(&env, &["resume", &run_id]);
+    let resume_stdout = String::from_utf8_lossy(&resume.stdout).into_owned();
+    assert!(
+        resume_stdout.contains("run_id=") || resume_stdout.contains("terminal="),
+        "the resume completes: {resume_stdout}"
+    );
+
+    // EXACTLY-ONCE-BOUNDED DISPATCH on the resume — never a storm, and
+    // never a wasted extra attempt either (task26 correction).
+    //
+    // F-C4-1 (cor4-report.md) originally OBSERVED "TWO fresh resumed
+    // dispatches" and adjudicated it as the recovery's intended shape:
+    // the resume's first re-dispatch deterministically inherits the
+    // crashed attempt's workspace, "dedupes onto that row, and
+    // verifies stale (§14.3)", forcing a second, fresh-workspace
+    // attempt before the unit could settle. That was the DEFECT this
+    // task fixes, not a feature: §14.3 condition 3 requires evidence
+    // "produced in this run AT OR AFTER the transform it certifies" —
+    // a fact about WHEN the instrument made bytes — and the resumed
+    // pass's first re-dispatch genuinely re-ran the instrument THIS
+    // iteration; treating that real, fresh production as stale just
+    // because a durable row already named its ref was the bug. The
+    // frozen, settled p7 proof
+    // `a_crash_before_the_settlement_event_retries_as_if_never_verified`
+    // already pins the correct shape — "exactly ONE fresh dispatch" —
+    // and this fix moves the resumed-shape leg here to match it: the
+    // first resumed re-dispatch now earns its OWN durable production
+    // (never mutating or discarding the crashed attempt's), verifies
+    // fresh, and settles without needing a second, fresh-workspace
+    // attempt.
+    //
+    // The ruler-owner CandidateRevision this leg's original
+    // adjudication raised — "should §18.3 recovery ADOPT the
+    // pre-crash production outright, without re-verifying?" — remains
+    // OPEN and is untouched by this fix: nothing here credits the
+    // pre-crash row itself as sufficient: the settlement below still
+    // stands over a FRESH, current-iteration production the resumed
+    // pass's own instrument execution actually made, never the
+    // crashed attempt's bytes on say-so alone.
+    assert_eq!(
+        ak951_dispatch_count(&world, &env, &run_id),
+        2,
+        "the durable AK-951 dispatch count across both passes: the crashed attempt's own \
+         dispatch plus exactly ONE fresh resumed dispatch — the frozen p7 shape, not the \
+         F-C4-1 defect's wasted extra attempt"
+    );
+
+    // THE PRE-CRASH ROW INTACT (write-once, the crashed iteration's own
+    // fact); the resumed pass's OWN per-iteration production beside it,
+    // under its own ref.
+    let rows_after = marker_rows(&world.state_db());
+    assert_eq!(
+        rows_after.len(),
+        2,
+        "the resumed pass minted its own production beside the crashed attempt's: \
+         {rows_after:?}"
+    );
+    assert!(
+        rows_after.contains(&crashed_row),
+        "the pre-crash production row {crashed_row:?} survived the resume untouched \
+         (write-once)"
+    );
+    let freshest_ref = rows_after
+        .last()
+        .map(|(reference, ..)| reference.clone())
+        .expect("the marker locator holds the productions");
+    // task26: row identity is (evidence_ref, iteration_no) now — the
+    // ref may legitimately repeat because identical bytes were
+    // genuinely re-produced; what proves "the resumed pass's own
+    // record, not the pre-crash one adopted" is the ROW, keyed by its
+    // iteration and ordering anchor.
+    let marker_iterations: Vec<_> =
+        gauntlet_adapter_state_postgres::test_support::evidence_production_rows_with_iteration(
+            &world.state_db(),
+        )
+        .expect("the iteration-aware production reader runs")
+        .into_iter()
+        .filter(|(_, locator, ..)| locator.contains("real-marker-report"))
+        .collect();
+    assert_eq!(
+        marker_iterations.len(),
+        2,
+        "the crashed and resumed productions are two distinct rows: {marker_iterations:?}"
+    );
+    let crashed_iteration = &marker_iterations[0];
+    let freshest_iteration = &marker_iterations[1];
+    assert_eq!(
+        crashed_iteration.0, freshest_iteration.0,
+        "the resumed pass genuinely re-produced the identical bytes (the fixture inherits \
+         the crashed workspace on its first resumed dispatch), so the content-addressed ref \
+         legitimately repeats: {marker_iterations:?}"
+    );
+    assert!(
+        freshest_iteration.2 > crashed_iteration.2,
+        "the freshest row's iteration_no is strictly greater than the crashed row's — a \
+         DIFFERENT row, the resumed pass's own: {marker_iterations:?}"
+    );
+    assert!(
+        freshest_iteration.4 > crashed_iteration.4,
+        "the freshest row's event-log offset is later than the crashed row's own: \
+         {marker_iterations:?}"
+    );
+
+    // EXACTLY-ONCE SETTLEMENT over the CURRENT (freshest) ref — one
+    // keyed row and one event for AK-951; the fixture's auto-closable
+    // pair (AK-951 + AK-954) is exactly two settlement events in total.
+    let settlements =
+        gauntlet_adapter_state_postgres::test_support::settlement_rows(&world.state_db())
+            .expect("the settlement row reader runs");
+    let ak951_settlements: Vec<_> = settlements
+        .iter()
+        .filter(|(unit, ..)| unit == "AK-951")
+        .collect();
+    assert_eq!(
+        ak951_settlements.len(),
+        1,
+        "exactly-once settlement for AK-951: {settlements:?}"
+    );
+    assert_eq!(
+        ak951_settlements[0].2, freshest_ref,
+        "the settlement stands over the CURRENT (freshest) production ref"
+    );
+    // The ref alone no longer distinguishes the two rows (task26: it
+    // legitimately repeats). The settlement's own event-log offset
+    // must stand AT OR AFTER the freshest row's offset — a
+    // pre-crash-only production (the earlier offset) could never have
+    // satisfied a settlement committed this late.
+    assert!(
+        ak951_settlements[0].3 >= freshest_iteration.4,
+        "the settlement (offset {}) stands at or after the freshest production's own \
+         offset ({}), never the crashed row's alone",
+        ak951_settlements[0].3,
+        freshest_iteration.4
+    );
+    assert_eq!(
+        ak951_settlement_event_count(&world.state_db()),
+        1,
+        "exactly-once settlement EVENT for AK-951"
+    );
+    assert_eq!(
+        settlement_event_count(&world.state_db()),
+        2,
+        "exactly the fixture's two auto-closable settlements (AK-951 + AK-954)"
+    );
+
+    // RUN IDENTITY PRESERVED: the export answers for the same run, and
+    // the settlement stands on the run's own durable record.
+    let export = world.run(&env, &["export", "--run", &run_id]);
+    assert!(
+        export.status.success(),
+        "the export of the resumed run succeeds: {}",
+        String::from_utf8_lossy(&export.stderr)
+    );
+    let exported = String::from_utf8_lossy(&export.stdout).into_owned();
+    assert!(
+        exported.contains("\"record\":\"settlement\"") && exported.contains("AK-951"),
+        "the settlement stands on the resumed run's own durable record"
+    );
+
+    // PRIOR ARTIFACT BYTES INTACT.
+    assert!(
+        store_holds_text_containing(&world.evidence_dir(), "\"kind\":\"child-work-record\""),
+        "the artifact bytes survive the crash and the resume"
     );
 }
 
