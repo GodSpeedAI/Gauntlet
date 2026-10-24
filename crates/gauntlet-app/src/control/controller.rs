@@ -467,24 +467,19 @@ impl std::error::Error for ControlError {}
 /// it is parked.
 const PARK_AFTER_PRODUCTION_RECORD_ENV: &str = "GAUNTLET_TEST_PARK_AFTER_PRODUCTION_RECORD";
 
-/// How long a parked process waits before it resumes on its own. The
-/// observing e2e test SIGKILLs the parked child well inside this bound;
-/// the bound only keeps a misarmed run from hanging forever.
-const PARK_BOUND_SECS: u64 = 150;
-
 /// TEST-ONLY deterministic placement: called right after an evidence
 /// production row is durably recorded and BEFORE the verification and
 /// the §16.3 settlement event. When `GAUNTLET_TEST_PARK_AFTER_PRODUCTION_RECORD`
-/// is set, writes that marker file and parks until killed. Inert when
+/// is set, writes that marker file and parks until the observing e2e test
+/// SIGKILLs the process (that test always kills a parked child). Inert when
 /// unset: no behaviour change, no I/O.
 fn park_after_production_record_if_armed() {
     let Some(marker) = std::env::var_os(PARK_AFTER_PRODUCTION_RECORD_ENV) else {
         return;
     };
     let _ = std::fs::write(PathBuf::from(marker), b"parked\n");
-    let started = std::time::Instant::now();
-    while started.elapsed() < std::time::Duration::from_secs(PARK_BOUND_SECS) {
-        std::thread::sleep(std::time::Duration::from_millis(50));
+    loop {
+        std::thread::park();
     }
 }
 

@@ -917,6 +917,9 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
     let started = Instant::now();
     while !marker.exists() {
         if started.elapsed() > Duration::from_secs(BOUNDARY_BOUND) {
+            // The parked child never reaches its own exit: kill it before
+            // the typed failure so no orphan outlives this test.
+            let _ = kill_and_collect(&mut child, &world.state_db());
             panic!(
                 "the child never parked after the locator's production record \
                  within {BOUNDARY_BOUND:?}"
@@ -924,11 +927,13 @@ fn the_kill_after_the_production_record_pins_the_resume_exactly_once_claim() {
         }
         std::thread::sleep(Duration::from_millis(STEP));
     }
+    // The parked child is killed before any further assertion can fail,
+    // so it never outlives this test.
+    let _ = kill_and_collect(&mut child, &world.state_db());
     assert!(
         production_rows_for_locator(&world.state_db(), "real-marker-report") >= 1,
         "the park follows the locator's durable production record"
     );
-    let _ = kill_and_collect(&mut child, &world.state_db());
 
     // THE CLASSIFICATION (durable, post-kill): the park sits BEFORE
     // settlement step 1, so the §16.3 settlement event is absent — the
