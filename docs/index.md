@@ -121,12 +121,26 @@ flowchart TB
 
 ---
 
+## Interactive Cognitive Representations
+
+For interactive exploration of Gauntlet's closed-loop runtime mechanisms, hexagonal architecture, and sandbox boundaries, use the single-page offline explainers in [`docs/explainers/`](explainers/index.html):
+
+| Explainer | Core Question Answered | Cognitive Affordance |
+|---|---|---|
+| [**Cognitive Representation Portal**](explainers/index.html) | How do all Gauntlet concepts, journeys, and models connect? | Central navigation matrix, Bret Victor representation ladder, intent router |
+| [**Execution Loop & Governance Replay**](explainers/run-execution-loop.html) | How does a run transition through 9 stages without letting the executor redefine success? | Synchronized 9-stage stepper, 5 scenarios (clean pass, test fix, inconclusive report, grader tampering, irreversible refusal), Separation 1 claim probe |
+| [**Hexagonal Architecture & Invariant Lab**](explainers/architecture-and-invariants.html) | How do 33 crates enforce strict inward layering and the Four Great Separations? | Interactive concentric layer inspector, 17 ports & 24 adapters directory with contract test suites, 6-scenario stress-tester |
+| [**Governance & Containment Simulator**](explainers/governance-and-containment.html) | Why are Authority and Containment orthogonal, and how does Bubblewrap isolate builders? | 4x4 interactive Authority vs Containment matrix, dynamic `bwrap` command generator with sealed credential paths, real-time 15% recovery reserve simulator |
+
+---
+
 ## Navigation by Intent
 
 Find what you need based on what you are trying to accomplish:
 
 | Intent | Recommended Starting Point | Description |
 |---|---|---|
+| **Interactive Models** | [Cognitive Portal](explainers/index.html) → [Execution Replay](explainers/run-execution-loop.html) | Step through 9-stage execution, inspect crate boundaries, and simulate bwrap containment. |
 | **Learn the System** | [Mental Model](mental-model.md) → [Architecture](architecture.md) | Form an accurate conceptual model and understand the layered architecture. |
 | **Get Something Done** | [First Gauntlet Run Tutorial](tutorials/first-gauntlet-run.md) → [How-To Guides](how-to/add-an-adapter.md) | Run a guided scenario, implement an adapter, or configure budgets. |
 | **Understand Why** | [Explanations Directory](explanations/why-separate-critic-verifier.md) | Architectural rationale: why critic $\neq$ verifier, structural blindness, and 3-state logic. |

@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gauntlet — Closed-Loop Governance & Execution Replay</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #111827;
+      --surface-2: #1f2937;
+      --surface-3: #374151;
+      --border: #2d3748;
+      --border-focus: #4b5563;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #38bdf8;
+      --accent-muted: #0284c7;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --success: #34d399;
+      --success-bg: rgba(52, 211, 153, 0.1);
+      --warning: #fbbf24;
+      --warning-bg: rgba(251, 191, 36, 0.1);
+      --danger: #f87171;
+      --danger-bg: rgba(248, 113, 113, 0.1);
+      --purple: #c084fc;
+      --purple-bg: rgba(192, 132, 252, 0.1);
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+
+    .breadcrumb {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .breadcrumb a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .takeaway {
+      margin-top: 8px;
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 950px;
+    }
+    .takeaway strong { color: var(--text); }
+
+    /* Scenario selector */
+    .scenario-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .scenario-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .scenario-btn:hover {
+      background: var(--surface-2);
+      color: var(--text);
+      border-color: var(--border-focus);
+    }
+    .scenario-btn.active {
+      background: var(--surface-2);
+      color: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    /* Controls Bar */
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 18px;
+      margin-bottom: 24px;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 5px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover:not(:disabled) {
+      background: var(--surface-3);
+      border-color: var(--border-focus);
+    }
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: var(--accent-muted);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent);
+    }
+
+    .step-indicator {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Pipeline Step Tracker */
+    .pipeline-track {
+      display: grid;
+      grid-template-columns: repeat(9, 1fr);
+      gap: 8px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .stage-pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 0.78rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 105px;
+    }
+    .stage-pill .stage-num {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .stage-pill .stage-name {
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .stage-pill.active {
+      border-color: var(--accent);
+      background: var(--surface-2);
+      box-shadow: 0 0 10px var(--accent-glow);
+    }
+    .stage-pill.active .stage-name { color: #fff; }
+    .stage-pill.active .stage-num { color: var(--accent); }
+    .stage-pill.completed {
+      border-color: var(--success);
+      background: var(--success-bg);
+    }
+    .stage-pill.completed .stage-name { color: var(--success); }
+    .stage-pill.failed {
+      border-color: var(--danger);
+      background: var(--danger-bg);
+    }
+    .stage-pill.failed .stage-name { color: var(--danger); }
+
+    /* Active Step Focus Banner */
+    .phase-banner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 18px 22px;
+      margin-bottom: 24px;
+    }
+    .phase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .phase-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    .phase-invariant {
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      background: var(--surface-2);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--warning);
+    }
+    .phase-desc {
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .phase-subtext {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Workspace Dashboard Grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 1024px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .pipeline-track { grid-template-columns: repeat(9, minmax(110px, 1fr)); }
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .panel-header {
+      background: var(--surface-2);
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+    }
+    .panel-tag {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--surface-3);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .panel-body {
+      padding: 16px;
+      font-size: 0.88rem;
+      flex: 1;
+    }
+
+    /* Code & Terminal Panels */
+    .code-block {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #e2e8f0;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+    .code-line { margin-bottom: 3px; }
+    .code-comment { color: #64748b; }
+    .code-hl { background: rgba(56, 189, 248, 0.15); border-left: 2px solid var(--accent); padding-left: 4px; }
+    .code-pass { color: var(--success); }
+    .code-fail { color: var(--danger); }
+    .code-inconc { color: var(--warning); }
+
+    /* Invariant Badges & Tags */
+    .tag-clean { color: var(--success); font-weight: 600; }
+    .tag-blocked { color: var(--danger); font-weight: 600; }
+    .tag-warn { color: var(--warning); font-weight: 600; }
+
+    /* Comparison Split View */
+    .comparison-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .split-col {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+    }
+    .split-col-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .col-allowed { color: var(--success); }
+    .col-excluded { color: var(--danger); }
+
+    /* Verification Matrix Table */
+    .matrix-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      text-align: left;
+    }
+    .matrix-table th {
+      padding: 8px 10px;
+      background: var(--surface-2);
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .matrix-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+    }
+    .outcome-pill {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .outcome-pass { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+    .outcome-fail { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+    .outcome-inconc { background: var(--warning-bg); color: var(--warning); border: 1px solid var(--warning); }
+    .outcome-pending { background: var(--surface-3); color: var(--text-muted); }
+
+    /* Event Stream */
+    .event-stream {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 230px;
+      overflow-y: auto;
+    }
+    .event-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 10px;
+      border-radius: 4px;
+      background: #06090e;
+      border-left: 3px solid var(--border);
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+    }
+    .event-item.commit { border-left-color: var(--success); }
+    .event-item.fail { border-left-color: var(--danger); }
+    .event-item.active { border-left-color: var(--accent); background: rgba(56, 189, 248, 0.05); }
+    .event-time { color: var(--text-muted); font-size: 0.7rem; }
+
+    /* Budget Gauge */
+    .budget-gauge {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .gauge-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+    }
+    .progress-bar {
+      height: 6px;
+      background: var(--surface-3);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.3s ease;
+    }
+    .progress-fill.warn { background: var(--warning); }
+    .progress-fill.danger { background: var(--danger); }
+
+    /* Footer Navigation */
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="breadcrumb">
+      <a href="index.html">Cognitive Models</a> / <a href="../index.md">Documentation</a> / Runtime Loop
+    </div>
+    <h1>
+      Closed-Loop Governance & Execution Replay
+      <span class="badge">Interactive Explainer</span>
+    </h1>
+    <p class="takeaway">
+      <strong>Core Thesis:</strong> An agent claiming "done" is not a control system. Gauntlet untangles the entity performing work from the entity observing reality, the entity comparing deviations, and the deterministic instruments certifying truth.
+    </p>
+  </header>
+
+  <!-- Scenario Selector -->
+  <div class="scenario-nav" role="tablist" aria-label="Simulation Scenarios">
+    <button class="scenario-btn active" id="btn-scen-1" onclick="loadScenario(1)">
+      <span>✓</span> Scenario 1: Clean Single-Pass Settlement
+    </button>
+    <button class="scenario-btn" id="btn-scen-2" onclick="loadScenario(2)">
+      <span>↻</span> Scenario 2: Test Failure & Corrective Fix
+    </button>
+    <button class="scenario-btn" id="btn-scen-3" onclick="loadScenario(3)">
+      <span>⚠</span> Scenario 3: Missing Test Report (Inconclusive)
+    </button>
+    <button class="scenario-btn" id="btn-scen-4" onclick="loadScenario(4)">
+      <span>⛔</span> Scenario 4: Grader Tampering (Lock Drift)
+    </button>
+    <button class="scenario-btn" id="btn-scen-5" onclick="loadScenario(5)">
+      <span>🛡</span> Scenario 5: High Blast Radius Containment Refusal
+    </button>
+  </div>
+
+  <!-- Stepper Controls Bar -->
+  <div class="controls-bar">
+    <div class="ctrl-group">
+      <button class="btn" id="btn-prev" onclick="prevStep()" disabled title="Go to previous step (Left Arrow)">◀ Previous</button>
+      <button class="btn btn-primary" id="btn-next" onclick="nextStep()" title="Go to next step (Right Arrow or Space)">Next Step ▶</button>
+      <button class="btn" id="btn-play" onclick="togglePlay()" title="Auto-advance through lifecycle">▶ Auto Play</button>
+      <button class="btn" id="btn-reset" onclick="resetLifecycle()" title="Reset to Step 1">↺ Reset</button>
+    </div>
+    <div class="ctrl-group">
+      <span class="step-indicator" id="step-label">Step 1 of 9: Preflight Doctor</span>
+    </div>
+  </div>
+
+  <!-- 9-Stage Pipeline Track -->
+  <div class="pipeline-track" id="pipeline-track">
+    <!-- Populated by JS -->
+  </div>
+
+  <!-- Active Phase Callout Banner -->
+  <div class="phase-banner" id="phase-banner">
+    <div class="phase-header">
+      <div class="phase-title" id="phase-title">1. Preflight Doctor (DoctorService)</div>
+      <div class="phase-invariant" id="phase-invariant">Invariant: Gate Precedes Process Start</div>
+    </div>
+    <div class="phase-desc" id="phase-desc">
+      Before allocating resources, Gauntlet executes 8 diagnostic checks: validates <code>GAUNTLET.md</code>, inspects available sandbox backends (Bubblewrap), verifies the answer-key path is outside any builder-writable directory, and confirms storage readiness.
+    </div>
+    <div class="phase-subtext" id="phase-subtext">
+      <strong>Source Evidence:</strong> <code>crates/gauntlet-app/src/doctor/</code> · Spec §8.5 · Command: <code>gauntlet doctor</code>
+    </div>
+  </div>
+
+  <!-- Main Inspection Dashboard -->
+  <div class="dashboard-grid">
+    
+    <!-- Left Column: Ruler & Workspace Environment -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>🏛</span> The Vault & Cleanroom Worktree
+        </div>
+        <span class="panel-tag" id="tag-vault">IMMUTABLE RULER</span>
+      </div>
+      <div class="panel-body">
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">FROZEN REFERENCE DIGEST (.gauntlet/reference.lock)</div>
+          <div class="code-block" id="vault-digest">
+            SHA-256: 7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069
+            Status: <span class="tag-clean">LOCKED & VERIFIED (Zero Drift)</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">ISOLATED WORKSPACE PATH & SANDBOX</div>
+          <div class="code-block" id="workspace-info">
+            Worktree: /tmp/gauntlet/workspaces/run_8912/iter_01/
+            Containment: Bubblewrap (bwrap) — Tier: local
+            Network: DENY-BY-DEFAULT (--unshare-net)
+            Mounted Grader: READ-ONLY / FORBIDDEN
+          </div>
+        </div>
+
+        <div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">ACTIVE WORKSPACE FILE STATUS</div>
+          <div class="code-block" id="workspace-files">
+            [src/auth.rs] Modified (added lockout logic)
+            [tests/auth_lockout.rs] Created (regression spec)
+            [.wayfinder/answer-key.md] Protected (Read-Only)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Column: Separation 1 — Observation vs Builder Claims -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>🔬</span> Separation 1: Transform ≠ Observe
+        </div>
+        <span class="panel-tag" id="tag-obs">STRUCTURAL SEGREGATION</span>
+      </div>
+      <div class="panel-body">
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">
+          The builder's subjective reasoning and self-claims are placed into an excluded facet that verifiers and critics cannot read. Only raw instrument probes enter the official observation bundle.
+        </p>
+
+        <div class="comparison-split">
+          <div class="split-col">
+            <div class="split-col-title col-allowed">✓ Admitted Instrument Facts</div>
+            <div id="obs-instrument-facts" style="line-height: 1.4;">
+              • Git: +42 lines, -4 lines in src/auth.rs<br>
+              • Cargo check: exit 0 (compiled)<br>
+              • Cargo nextest: exit 0 (14 passed, 0 failed)<br>
+              • FS Probe: auth_lockout.rs exists (SHA: a4b1..)
+            </div>
+          </div>
+          <div class="split-col">
+            <div class="split-col-title col-excluded">✗ Excluded Builder Self-Claims</div>
+            <div id="obs-builder-claims" style="color: #94a3b8; line-height: 1.4;">
+              • "I carefully tested the auth edge cases"<br>
+              • "All tests passed with flying colors"<br>
+              • "The prompt requirement was ambiguous so I skipped step 3"<br>
+              <em>(Filtered out by EnvelopeBuilder)</em>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px;">
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">OBSERVATION BUNDLE CONTENT HASH</div>
+          <div class="code-block" id="obs-bundle-hash">
+            bundle_digest: 4c3e809e21... (Content-Addressed SHA-256)
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Left Lower: Verifier 3-State Matrix -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>⚖</span> Deterministic Verifier Matrix (Instruments First)
+        </div>
+        <span class="panel-tag">OUTCOME: 3-STATE</span>
+      </div>
+      <div class="panel-body">
+        <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 8px;">
+          Review models find residuals; only deterministic instruments certify truth. Outcome is strictly 3-state (<code>PASS</code>, <code>FAIL</code>, <code>INCONCLUSIVE</code>). Missing evidence is never passing.
+        </p>
+        <table class="matrix-table" aria-label="Verifier Matrix">
+          <thead>
+            <tr>
+              <th>Unit ID</th>
+              <th>Checkable Claim</th>
+              <th>Evidence Locator</th>
+              <th>Outcome</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-tbody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right Lower: Budget Meter & Immutable Event Log -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">
+          <span>📜</span> Event Log & Budget Meter
+        </div>
+        <span class="panel-tag" id="tag-eventlog">FSYNC ON COMMIT</span>
+      </div>
+      <div class="panel-body">
+        <div class="budget-gauge" style="margin-bottom: 14px;">
+          <div>
+            <div class="gauge-row">
+              <span>Token Budget: <strong id="token-count">142,000 / 500,000</strong></span>
+              <span id="token-pct">28%</span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="token-fill" style="width: 28%;"></div>
+            </div>
+          </div>
+          <div>
+            <div class="gauge-row">
+              <span>Iteration Limit: <strong id="iter-count">1 / 5 max</strong></span>
+              <span>Reserve: <strong>15% Protected</strong></span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-fill" id="iter-fill" style="width: 20%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">DURABLE EVENT LOG (events.jsonl)</div>
+        <div class="event-stream" id="event-stream">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    <div>
+      Gauntlet Cognitive Architecture · <a href="index.html">All Explainers</a> · <a href="../architecture.md">System Architecture</a> · <a href="../workflows/run-lifecycle.md">Run Lifecycle</a>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 0.8rem;">
+      Offline Self-Contained Document · Bret Victor Cognitive Representation Ladder
+    </div>
+  </footer>
+
+  <script>
+    // 9 Stages Definition
+    const STAGES = [
+      {
+        id: "doctor",
+        num: "01",
+        name: "Doctor",
+        title: "1. Preflight Doctor (DoctorService)",
+        invariant: "Invariant: Gate Precedes Process Start",
+        desc: "Before allocating resources, Gauntlet executes 8 diagnostic checks: validates GAUNTLET.md, inspects available sandbox backends (Bubblewrap), verifies the answer-key path is outside any builder-writable directory, and confirms storage readiness.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/doctor/ · Spec §8.5 · Command: gauntlet doctor"
+      },
+      {
+        id: "freeze",
+        num: "02",
+        name: "Freeze",
+        title: "2. Reference Normalization & Digest Locking",
+        invariant: "Invariant: The Grader Cannot Be Altered",
+        desc: "The Reference and Answer Key are normalized, digested with SHA-256, and locked in .gauntlet/reference.lock. Any builder attempt to modify requirements during the run will fail-close at settlement time.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/reference/ · Spec §9.4 · Task 1: scripts/verify-ruler.sh"
+      },
+      {
+        id: "schedule",
+        num: "03",
+        name: "Schedule",
+        title: "3. Unit Scheduling & Authority Gating",
+        invariant: "Invariant: Authority & Containment Precede Dispatch",
+        desc: "UnitScheduler resolves dependency DAGs, inspects blast radius, and verifies permissions with AuthorityGate. Units requiring human authority (e.g. irreversible) refuse unattended dispatch. Sandbox containment (bwrap) is selected before process launch.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/control/scheduler.rs · Spec §17.1"
+      },
+      {
+        id: "dispatch",
+        num: "04",
+        name: "Dispatch",
+        title: "4. Builder Dispatch (Isolated Worktree)",
+        invariant: "Invariant: Isolated Cleanroom Execution",
+        desc: "AgentRunner launches the assigned builder (Claude CLI, Prime-Agent, or Mock) inside an ephemeral Git worktree wrapped by Bubblewrap. The builder modifies code and writes a strictly typed role_result@v1 payload.",
+        subtext: "Source Evidence: crates/adapters/gauntlet-adapter-agent-* · crates/gauntlet-ports/src/role_result.rs"
+      },
+      {
+        id: "observe",
+        num: "05",
+        name: "Observe",
+        title: "5. Instrument Observation & Segregation",
+        invariant: "Separation 1: Transform is not Observe",
+        desc: "Non-model instruments (compilers, test runners, git diff probes) inspect the physical workspace. Results are normalized into an ObservationBundle. The builder's self-claims and excuses are strictly segregated into an excluded facet.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/observation/ · crates/gauntlet-ports/src/observer.rs"
+      },
+      {
+        id: "compare",
+        num: "06",
+        name: "Compare",
+        title: "6. Structural Blind Comparison (Critic)",
+        invariant: "Separation 2: Observe is not Compare",
+        desc: "An independent Comparator receives an allowlist-constructed comparison envelope containing only the frozen reference and instrument observations. All builder trajectories, explanations, and prior attempt counts are strictly excluded.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/compare/ · docs/explanations/context-isolation-blindness.md"
+      },
+      {
+        id: "verify",
+        num: "07",
+        name: "Verify",
+        title: "7. Deterministic Verification (3-State Outcome)",
+        invariant: "Separation 3: Compare is not Verify",
+        desc: "Verifier evaluates specific unit claims against concrete instrument evidence locators (test reports, exit codes). Outcome is strictly PASS, FAIL, or INCONCLUSIVE. Missing evidence is never passing; critic opinions cannot produce a PASS.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/verify/ · docs/explanations/three-state-verification.md"
+      },
+      {
+        id: "select",
+        num: "08",
+        name: "Select / Settle",
+        title: "8. Correction Selection or Atomic Settlement",
+        invariant: "Separation 4: Execute is not Settle",
+        desc: "If blocking residuals remain, CorrectionSelector evaluates a 10-dimensional scoring vector to dispatch the smallest targeted fix. If all blocking units PASS, SettlementService verifies the Reference lockfile hash and triggers atomic commit.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/settle/ · crates/gauntlet-domain/src/settlement.rs"
+      },
+      {
+        id: "remember",
+        num: "09",
+        name: "Remember",
+        title: "9. Developmental Memory & Capability Promotion",
+        invariant: "Invariant: Single Success ≠ Capability",
+        desc: "The run state is written to the append-only event log (fsync) and PostgreSQL. A successful run updates developmental memory. Capability promotion requires reliable settlement across N runs under variation and recovery from failure.",
+        subtext: "Source Evidence: crates/gauntlet-app/src/memory/ · crates/gauntlet-domain/src/capability.rs"
+      }
+    ];
+
+    // Scenarios Configuration
+    const SCENARIOS = {
+      1: {
+        name: "Clean Single-Pass Settlement",
+        description: "Unit passes on first attempt with complete evidence, zero lock drift, and atomic settlement commit.",
+        steps: [
+          {
+            stageIndex: 0,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED & VERIFIED (Preflight OK)",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_101/iter_01/\nContainment: Bubblewrap (bwrap) — Tier: local\nNetwork: DENY-BY-DEFAULT",
+            workspaceFiles: "Workspace initialized from commit 8f92a1\nNo modifications yet",
+            instrumentFacts: "• Doctor checks: 8/8 PASS\n• Sandbox: bwrap functional\n• Storage: PostgreSQL & EventLog ready",
+            builderClaims: "No builder dispatched yet.",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pending" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pending" }
+            ],
+            tokens: "12,000 / 500,000", tokenPct: 2, iter: "0 / 5", iterPct: 0,
+            events: [
+              { time: "00:00.12", text: "doctor_check_completed: 8 checks passed", type: "active" },
+              { time: "00:00.18", text: "reference_freeze_verified: sha256:7f83b1...", type: "" }
+            ]
+          },
+          {
+            stageIndex: 1,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT (.gauntlet/reference.lock)",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_101/iter_01/\nContainment: Bubblewrap (bwrap) — Tier: local",
+            workspaceFiles: "Workspace sealed outside answer-key.md",
+            instrumentFacts: "• Reference normalized\n• 2 checkable units identified\n• Lockfile written to disk",
+            builderClaims: "No builder dispatched yet.",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pending" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pending" }
+            ],
+            tokens: "14,000 / 500,000", tokenPct: 3, iter: "0 / 5", iterPct: 0,
+            events: [
+              { time: "00:00.18", text: "reference_freeze_verified: sha256:7f83b1...", type: "" },
+              { time: "00:00.22", text: "units_indexed: AK-012, AK-013 active", type: "active" }
+            ]
+          },
+          {
+            stageIndex: 2,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_101/iter_01/\nContainment: Bubblewrap (bwrap) — Tier: local\nAuthority: autonomous (allowed)",
+            workspaceFiles: "Clean worktree prepared",
+            instrumentFacts: "• UnitScheduler: AK-012 selected (roots)\n• AuthorityGate: autonomous admitted\n• SandboxPolicy: local approved",
+            builderClaims: "No builder dispatched yet.",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pending" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pending" }
+            ],
+            tokens: "18,000 / 500,000", tokenPct: 4, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:00.25", text: "unit_scheduled: AK-012 (blast_radius: local)", type: "" },
+              { time: "00:00.30", text: "authority_admitted: autonomous dispatch permitted", type: "active" }
+            ]
+          },
+          {
+            stageIndex: 3,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_101/iter_01/\nBuilder: Claude CLI inside bwrap isolation\nPID: 49102",
+            workspaceFiles: "[src/auth.rs] Modified (+38 lines)\n[tests/auth_lockout.rs] Created (+64 lines)\nResult contract: role_result@v1 written",
+            instrumentFacts: "• Builder process exited with code 0\n• Worktree has uncommitted modifications\n• Result payload written to contract file",
+            builderClaims: "• 'I implemented exponential lockout in auth.rs'\n• 'Added thorough test coverage'\n• 'Tests passed locally'",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pending" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pending" }
+            ],
+            tokens: "142,000 / 500,000", tokenPct: 28, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:01.40", text: "builder_dispatched: Claude CLI in bwrap", type: "" },
+              { time: "00:24.10", text: "builder_completed: role_result@v1 contract received", type: "active" }
+            ]
+          },
+          {
+            stageIndex: 4,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_101/iter_01/\nProbing reality with compiler & test instruments",
+            workspaceFiles: "[src/auth.rs] Diff verified\n[tests/auth_lockout.rs] Diff verified\n[target/debug/...] Built successfully",
+            instrumentFacts: "• Git: +38 in src/auth.rs, +64 in tests/auth_lockout.rs\n• Cargo check: exit 0 (0 warnings)\n• Cargo nextest: exit 0 (all 15 passed)\n• Telemetry: security event emitted in logs",
+            builderClaims: "• 'I implemented exponential lockout in auth.rs'\n• 'Added thorough test coverage'\n[SEGREGATED: Hidden from Verifier/Critic]",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pending" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pending" }
+            ],
+            tokens: "155,000 / 500,000", tokenPct: 31, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:24.50", text: "observation_bundle_created: digest sha256:4c3e80...", type: "active" },
+              { time: "00:24.55", text: "claims_segregated: builder prose moved to excluded facet", type: "" }
+            ]
+          },
+          {
+            stageIndex: 5,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Comparator: Fresh Context Evaluation\nAllowlist Envelope: [Reference + Instrument Facts]",
+            workspaceFiles: "Blind comparison in progress",
+            instrumentFacts: "• Critic sees test exit codes and git diffs\n• Critic blind to builder attempt count & excuses\n• Zero open residuals detected against reference",
+            builderClaims: "[EXCLUDED: Filtered out by EnvelopeBuilder]",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pending" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pending" }
+            ],
+            tokens: "185,000 / 500,000", tokenPct: 37, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:25.10", text: "comparison_envelope_built: 0 claims admitted", type: "" },
+              { time: "00:27.40", text: "comparison_completed: 0 residuals emitted", type: "active" }
+            ]
+          },
+          {
+            stageIndex: 6,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Verifier: Instrument Evidence Evaluation",
+            workspaceFiles: "Verifying test evidence artifacts",
+            instrumentFacts: "• tests/auth_lockout.rs::test_5_failures -> PASS\n• tests/telemetry.rs::test_lockout_event -> PASS\n• Build exit code -> PASS (0)",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pass" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pass" }
+            ],
+            tokens: "192,000 / 500,000", tokenPct: 38, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:27.80", text: "unit_verified: AK-012 -> Outcome::PASS", type: "active" },
+              { time: "00:27.85", text: "unit_verified: AK-013 -> Outcome::PASS", type: "active" }
+            ]
+          },
+          {
+            stageIndex: 7,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: RE-VERIFIED AT SETTLEMENT (MATCH)",
+            workspaceInfo: "SettlementService: Atomic Commit Protocol",
+            workspaceFiles: "Worktree changes merged to target branch",
+            instrumentFacts: "• Precondition 1: All blocking units PASS (verified)\n• Precondition 2: Lockfile digest matches (verified)\n• Precondition 3: Budgets within limits (verified)",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pass" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pass" }
+            ],
+            tokens: "198,000 / 500,000", tokenPct: 40, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:28.10", text: "settlement_preconditions_verified: 5/5 satisfied", type: "" },
+              { time: "00:28.25", text: "settlement_committed: run_101 SETTLED", type: "commit" }
+            ]
+          },
+          {
+            stageIndex: 8,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: DURABLE RECORD ARCHIVED",
+            workspaceInfo: "PostgreSQL & Append-Only EventLog: FSYNC COMPLETE",
+            workspaceFiles: "Workspace pruned, certified report generated",
+            instrumentFacts: "• EventLog: events.jsonl fsynced\n• Postgres: state store updated\n• Memory: developmental ledger appended",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-012", claim: "Account lockout after 5 failures", loc: "tests/auth_lockout.rs::test_5_failures", outcome: "pass" },
+              { id: "AK-013", claim: "Emit security telemetry event", loc: "tests/telemetry.rs::test_lockout_event", outcome: "pass" }
+            ],
+            tokens: "205,000 / 500,000", tokenPct: 41, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:28.30", text: "event_log_fsynced: offset 40291", type: "commit" },
+              { time: "00:28.45", text: "developmental_memory_recorded: capability observation recorded", type: "active" }
+            ]
+          }
+        ]
+      },
+
+      2: {
+        name: "Test Failure & Corrective Fix",
+        description: "Initial attempt fails regression assertion -> Comparator emits residual -> CorrectionSelector picks minimal fix -> Re-iteration passes -> Settlement.",
+        steps: [
+          {
+            stageIndex: 3,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_102/iter_01/\nBuilder edits auth logic with off-by-one bug",
+            workspaceFiles: "[src/auth.rs] Modified (lockout at 6 attempts instead of 5)",
+            instrumentFacts: "Builder exits code 0",
+            builderClaims: "'All done, lockout implemented.'",
+            matrix: [
+              { id: "AK-012", claim: "Lockout strictly at 5 attempts", loc: "tests/auth.rs::test_lockout_threshold", outcome: "pending" }
+            ],
+            tokens: "120,000 / 500,000", tokenPct: 24, iter: "1 / 5", iterPct: 20,
+            events: [{ time: "00:15.20", text: "builder_completed: iter 1 changes written", type: "" }]
+          },
+          {
+            stageIndex: 4,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Observers probe reality",
+            workspaceFiles: "Test execution reveals failure",
+            instrumentFacts: "• Cargo nextest: FAILED (exit 101)\n• assertion failed: attempts == 5 (got 6)",
+            builderClaims: "'Tested locally and passed' (CONTROVERTED)",
+            matrix: [
+              { id: "AK-012", claim: "Lockout strictly at 5 attempts", loc: "tests/auth.rs::test_lockout_threshold", outcome: "pending" }
+            ],
+            tokens: "135,000 / 500,000", tokenPct: 27, iter: "1 / 5", iterPct: 20,
+            events: [{ time: "00:16.10", text: "test_observer_failed: exit code 101 in auth.rs", type: "fail" }]
+          },
+          {
+            stageIndex: 5,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Comparator: Fresh Context Evaluation",
+            workspaceFiles: "Residual detected",
+            instrumentFacts: "• Residual RES-001 emitted: 'Threshold off by 1'\n• Severity: Blocking Unit AK-012",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-012", claim: "Lockout strictly at 5 attempts", loc: "tests/auth.rs::test_lockout_threshold", outcome: "fail" }
+            ],
+            tokens: "160,000 / 500,000", tokenPct: 32, iter: "1 / 5", iterPct: 20,
+            events: [{ time: "00:18.40", text: "residual_emitted: RES-001 (Threshold mismatch)", type: "fail" }]
+          },
+          {
+            stageIndex: 7,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "CorrectionSelector: 10-Dim Scoring Vector Evaluation",
+            workspaceFiles: "Targeted correction dispatching to Iteration 2",
+            instrumentFacts: "• Correction target: src/auth.rs line 42 (minimal diff)\n• Blast radius: contained\n• Budget remaining: 68%",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-012", claim: "Lockout strictly at 5 attempts", loc: "tests/auth.rs::test_lockout_threshold", outcome: "fail" }
+            ],
+            tokens: "175,000 / 500,000", tokenPct: 35, iter: "2 / 5", iterPct: 40,
+            events: [
+              { time: "00:19.10", text: "correction_selected: targeted fix on auth.rs line 42", type: "active" },
+              { time: "00:19.50", text: "iteration_2_started: applying correction", type: "" }
+            ]
+          },
+          {
+            stageIndex: 6,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Iteration 2 Completed: Retesting reality",
+            workspaceFiles: "[src/auth.rs] Off-by-one fixed (`>= 5`)",
+            instrumentFacts: "• Cargo nextest: exit 0 (16 passed)\n• Residual RES-001 CLOSED\n• Instrument confirms threshold 5",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-012", claim: "Lockout strictly at 5 attempts", loc: "tests/auth.rs::test_lockout_threshold", outcome: "pass" }
+            ],
+            tokens: "230,000 / 500,000", tokenPct: 46, iter: "2 / 5", iterPct: 40,
+            events: [
+              { time: "00:35.20", text: "test_observer_passed: exit code 0", type: "active" },
+              { time: "00:36.00", text: "unit_verified: AK-012 -> Outcome::PASS", type: "active" }
+            ]
+          },
+          {
+            stageIndex: 7,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: RE-VERIFIED AT SETTLEMENT (MATCH)",
+            workspaceInfo: "SettlementService: Atomic Commit Protocol",
+            workspaceFiles: "Corrected code committed",
+            instrumentFacts: "• All blocking units PASS\n• Lockfile hash intact\n• Settled on Iteration 2",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-012", claim: "Lockout strictly at 5 attempts", loc: "tests/auth.rs::test_lockout_threshold", outcome: "pass" }
+            ],
+            tokens: "245,000 / 500,000", tokenPct: 49, iter: "2 / 5", iterPct: 40,
+            events: [{ time: "00:37.10", text: "settlement_committed: run_102 SETTLED after 1 correction", type: "commit" }]
+          }
+        ]
+      },
+
+      3: {
+        name: "Missing Test Report (Inconclusive)",
+        description: "Builder forgets to run tests or test suite crashes -> Verifier detects missing evidence -> Emits Outcome::INCONCLUSIVE, refusing optimistic coercion.",
+        steps: [
+          {
+            stageIndex: 3,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_103/iter_01/\nBuilder updates code but crashes test suite",
+            workspaceFiles: "[src/crypto.rs] Edited\n[target/nextest/report.xml] Missing / 0 bytes",
+            instrumentFacts: "• Process exited with 0\n• TestObserver: No valid report XML found",
+            builderClaims: "'Everything is implemented and works great!'",
+            matrix: [
+              { id: "AK-040", claim: "AES-256-GCM authenticated payload", loc: "tests/crypto.rs::test_aes_gcm", outcome: "pending" }
+            ],
+            tokens: "110,000 / 500,000", tokenPct: 22, iter: "1 / 5", iterPct: 20,
+            events: [{ time: "00:12.10", text: "builder_finished: claims completion", type: "" }]
+          },
+          {
+            stageIndex: 6,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Verifier evaluates evidence locators",
+            workspaceFiles: "Report artifact absent",
+            instrumentFacts: "• Locator 'tests/crypto.rs::test_aes_gcm' not found in test runs\n• Instrument cannot verify claim\n• NO BOOLEAN COERCION PERMITTED",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-040", claim: "AES-256-GCM authenticated payload", loc: "tests/crypto.rs::test_aes_gcm", outcome: "inconc" }
+            ],
+            tokens: "125,000 / 500,000", tokenPct: 25, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:14.30", text: "evidence_missing: locator test_aes_gcm absent", type: "fail" },
+              { time: "00:14.35", text: "unit_evaluated: AK-040 -> Outcome::INCONCLUSIVE", type: "fail" }
+            ]
+          },
+          {
+            stageIndex: 7,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "SettlementService evaluates preconditions",
+            workspaceFiles: "Settlement BLOCKED: Inconclusive unit exists",
+            instrumentFacts: "• Precondition Failure: AK-040 is INCONCLUSIVE\n• Rule: Only PASS closes a blocking unit\n• Run dispatched to corrective round",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-040", claim: "AES-256-GCM authenticated payload", loc: "tests/crypto.rs::test_aes_gcm", outcome: "inconc" }
+            ],
+            tokens: "135,000 / 500,000", tokenPct: 27, iter: "1 / 5", iterPct: 20,
+            events: [{ time: "00:15.00", text: "settlement_refused: blocking unit AK-040 is INCONCLUSIVE", type: "fail" }]
+          }
+        ]
+      },
+
+      4: {
+        name: "Grader Tampering (Lock Drift)",
+        description: "Builder attempts to modify .wayfinder/answer-key.md to remove a hard check -> Hash mismatch caught at freeze or settlement -> Fail-closed escalation.",
+        steps: [
+          {
+            stageIndex: 3,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "Worktree: /tmp/gauntlet/workspaces/run_104/iter_01/\nBuilder attempts path traversal to edit rubric",
+            workspaceFiles: "TAMPERING ATTEMPT: modified .wayfinder/answer-key.md",
+            instrumentFacts: "• Host file changed: .wayfinder/answer-key.md\n• Expected digest: 7f83b165...\n• Observed digest: e3b0c442...",
+            builderClaims: "'Relaxed requirements to ensure delivery'",
+            matrix: [
+              { id: "AK-001", claim: "Audit trail cryptographic hash", loc: "tests/audit.rs", outcome: "pending" }
+            ],
+            tokens: "115,000 / 500,000", tokenPct: 23, iter: "1 / 5", iterPct: 20,
+            events: [{ time: "00:11.20", text: "builder_turn_completed: file edits recorded", type: "" }]
+          },
+          {
+            stageIndex: 7,
+            vaultDigest: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nStatus: HASH MISMATCH! LOCK TAMPER DETECTED",
+            workspaceInfo: "SettlementService Precondition Check: Ruler Digest",
+            workspaceFiles: "ABORT: Grader hash mismatch",
+            instrumentFacts: "• Vault Lock: 7f83b1657ff1fc53...\n• Current File: e3b0c44298fc1c14...\n• FATAL: Invariant I1 Violated",
+            builderClaims: "[EXCLUDED]",
+            matrix: [
+              { id: "AK-001", claim: "Audit trail cryptographic hash", loc: "tests/audit.rs", outcome: "fail" }
+            ],
+            tokens: "120,000 / 500,000", tokenPct: 24, iter: "1 / 5", iterPct: 20,
+            events: [
+              { time: "00:12.00", text: "ruler_verification_failed: lockfile hash mismatch", type: "fail" },
+              { time: "00:12.05", text: "fatal_escalation: Grader modification forbidden (Fail-Closed)", type: "fail" }
+            ]
+          }
+        ]
+      },
+
+      5: {
+        name: "High Blast Radius Containment Refusal",
+        description: "Builder attempts an irreversible action unattended -> AuthorityGate detects missing human authority -> Refused before process launch.",
+        steps: [
+          {
+            stageIndex: 2,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "UnitScheduler: Evaluating Unit AK-068\nBlast Radius: irreversible\nAuthority Required: human",
+            workspaceFiles: "Unit requires drop database migration",
+            instrumentFacts: "• Unit declares blast_radius: irreversible\n• Scheduler checks AuthorityGate\n• Current runtime authority: autonomous",
+            builderClaims: "No builder dispatched.",
+            matrix: [
+              { id: "AK-068", claim: "Execute production database migration", loc: "migrations/009_drop.sql", outcome: "pending" }
+            ],
+            tokens: "15,000 / 500,000", tokenPct: 3, iter: "0 / 5", iterPct: 0,
+            events: [
+              { time: "00:00.30", text: "scheduler_inspecting: AK-068 (blast_radius: irreversible)", type: "active" },
+              { time: "00:00.35", text: "authority_gate_evaluated: autonomous INSUFFICIENT for irreversible", type: "fail" }
+            ]
+          },
+          {
+            stageIndex: 2,
+            vaultDigest: "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069\nStatus: LOCKED IN VAULT",
+            workspaceInfo: "AuthorityGate: DISPATCH REFUSED (Fail-Closed)",
+            workspaceFiles: "Process start halted before execution",
+            instrumentFacts: "• Spec §17.3: irreversible units are NEVER auto-dispatched\n• No sandbox policy exists for irreversible tier\n• Ticket escalated to HumanEscalation queue",
+            builderClaims: "No builder dispatched.",
+            matrix: [
+              { id: "AK-068", claim: "Execute production database migration", loc: "migrations/009_drop.sql", outcome: "fail" }
+            ],
+            tokens: "16,000 / 500,000", tokenPct: 3, iter: "0 / 5", iterPct: 0,
+            events: [
+              { time: "00:00.40", text: "dispatch_refused: irreversible unit requires human approval", type: "fail" },
+              { time: "00:00.45", text: "escalation_queued: ticket ESC-902 created", type: "active" }
+            ]
+          }
+        ]
+      }
+    };
+
+    // State
+    let currentScenarioId = 1;
+    let currentStepIndex = 0;
+    let isPlaying = false;
+    let playInterval = null;
+
+    function renderPipelineTrack() {
+      const track = document.getElementById("pipeline-track");
+      track.innerHTML = "";
+      STAGES.forEach((stage, idx) => {
+        const pill = document.createElement("div");
+        pill.className = "stage-pill";
+        pill.id = `pill-${idx}`;
+        pill.onclick = () => jumpToStage(idx);
+
+        const currentStageIndex = SCENARIOS[currentScenarioId].steps[currentStepIndex].stageIndex;
+        if (idx === currentStageIndex) {
+          pill.classList.add("active");
+        } else if (idx < currentStageIndex) {
+          pill.classList.add("completed");
+        }
+
+        pill.innerHTML = `
+          <span class="stage-num">${stage.num}</span>
+          <span class="stage-name">${stage.name}</span>
+        `;
+        track.appendChild(pill);
+      });
+    }
+
+    function updateView() {
+      const scen = SCENARIOS[currentScenarioId];
+      const step = scen.steps[currentStepIndex];
+      const stage = STAGES[step.stageIndex];
+
+      // Update Header
+      document.getElementById("step-label").textContent = `Step ${currentStepIndex + 1} of ${scen.steps.length}: ${stage.name}`;
+
+      // Update Banner
+      document.getElementById("phase-title").textContent = stage.title;
+      document.getElementById("phase-invariant").textContent = stage.invariant;
+      document.getElementById("phase-desc").textContent = stage.desc;
+      document.getElementById("phase-subtext").innerHTML = stage.subtext;
+
+      // Update Left Column
+      document.getElementById("vault-digest").innerText = step.vaultDigest;
+      document.getElementById("workspace-info").innerText = step.workspaceInfo;
+      document.getElementById("workspace-files").innerText = step.workspaceFiles;
+
+      // Update Right Column
+      document.getElementById("obs-instrument-facts").innerHTML = step.instrumentFacts.replace(/\n/g, "<br>");
+      document.getElementById("obs-builder-claims").innerHTML = step.builderClaims.replace(/\n/g, "<br>");
+
+      // Update Table
+      const tbody = document.getElementById("matrix-tbody");
+      tbody.innerHTML = "";
+      step.matrix.forEach(u => {
+        const tr = document.createElement("tr");
+        let outcomeBadge = `<span class="outcome-pill outcome-pending">PENDING</span>`;
+        if (u.outcome === "pass") outcomeBadge = `<span class="outcome-pill outcome-pass">PASS</span>`;
+        if (u.outcome === "fail") outcomeBadge = `<span class="outcome-pill outcome-fail">FAIL</span>`;
+        if (u.outcome === "inconc") outcomeBadge = `<span class="outcome-pill outcome-inconc">INCONCLUSIVE</span>`;
+
+        tr.innerHTML = `
+          <td>${u.id}</td>
+          <td>${u.claim}</td>
+          <td>${u.loc}</td>
+          <td>${outcomeBadge}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Update Gauges
+      document.getElementById("token-count").innerText = step.tokens;
+      document.getElementById("token-pct").innerText = step.tokenPct + "%";
+      document.getElementById("token-fill").style.width = step.tokenPct + "%";
+      document.getElementById("token-fill").className = "progress-fill" + (step.tokenPct > 70 ? " danger" : step.tokenPct > 40 ? " warn" : "");
+
+      document.getElementById("iter-count").innerText = step.iter;
+      document.getElementById("iter-fill").style.width = step.iterPct + "%";
+
+      // Update Events
+      const eventStream = document.getElementById("event-stream");
+      eventStream.innerHTML = "";
+      step.events.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "event-item " + (ev.type || "");
+        div.innerHTML = `
+          <span class="event-time">${ev.time}</span>
+          <span>${ev.text}</span>
+        `;
+        eventStream.appendChild(div);
+      });
+
+      // Update Buttons
+      document.getElementById("btn-prev").disabled = currentStepIndex === 0;
+      document.getElementById("btn-next").disabled = currentStepIndex === scen.steps.length - 1;
+
+      // Update Pipeline Track
+      renderPipelineTrack();
+    }
+
+    function loadScenario(id) {
+      currentScenarioId = id;
+      currentStepIndex = 0;
+      pausePlay();
+      document.querySelectorAll(".scenario-btn").forEach((btn, i) => {
+        btn.classList.toggle("active", i + 1 === id);
+      });
+      updateView();
+    }
+
+    function nextStep() {
+      const scen = SCENARIOS[currentScenarioId];
+      if (currentStepIndex < scen.steps.length - 1) {
+        currentStepIndex++;
+        updateView();
+      } else {
+        pausePlay();
+      }
+    }
+
+    function prevStep() {
+      if (currentStepIndex > 0) {
+        currentStepIndex--;
+        updateView();
+      }
+    }
+
+    function jumpToStage(targetStageIndex) {
+      const scen = SCENARIOS[currentScenarioId];
+      // Find step matching stageIndex
+      const idx = scen.steps.findIndex(s => s.stageIndex === targetStageIndex);
+      if (idx !== -1) {
+        currentStepIndex = idx;
+        updateView();
+      }
+    }
+
+    function togglePlay() {
+      if (isPlaying) {
+        pausePlay();
+      } else {
+        isPlaying = true;
+        document.getElementById("btn-play").innerText = "⏸ Pause";
+        playInterval = setInterval(() => {
+          const scen = SCENARIOS[currentScenarioId];
+          if (currentStepIndex < scen.steps.length - 1) {
+            nextStep();
+          } else {
+            pausePlay();
+          }
+        }, 2200);
+      }
+    }
+
+    function pausePlay() {
+      isPlaying = false;
+      clearInterval(playInterval);
+      document.getElementById("btn-play").innerText = "▶ Auto Play";
+    }
+
+    function resetLifecycle() {
+      pausePlay();
+      currentStepIndex = 0;
+      updateView();
+    }
+
+    // Keyboard navigation
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === " ") {
+        nextStep();
+      } else if (e.key === "ArrowLeft") {
+        prevStep();
+      }
+    });
+
+    // Initial boot
+    updateView();
+  </script>
+</body>
+</html>

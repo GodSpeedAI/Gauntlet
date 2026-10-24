@@ -1,0 +1,1128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gauntlet — Hexagonal Architecture & Invariant Lab</title>
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --surface: #111827;
+      --surface-2: #1f2937;
+      --surface-3: #374151;
+      --border: #2d3748;
+      --border-focus: #4b5563;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent: #38bdf8;
+      --accent-muted: #0284c7;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --success: #34d399;
+      --success-bg: rgba(52, 211, 153, 0.1);
+      --warning: #fbbf24;
+      --warning-bg: rgba(251, 191, 36, 0.1);
+      --danger: #f87171;
+      --danger-bg: rgba(248, 113, 113, 0.1);
+      --purple: #c084fc;
+      --purple-bg: rgba(192, 132, 252, 0.1);
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+    }
+
+    .breadcrumb {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .breadcrumb a { color: var(--accent); text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
+
+    h1 {
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .takeaway {
+      margin-top: 8px;
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 950px;
+    }
+    .takeaway strong { color: var(--text); }
+
+    /* Tab navigation */
+    .tab-nav {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .tab-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tab-btn:hover {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+    .tab-btn.active {
+      background: var(--surface-2);
+      color: #fff;
+      border-color: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Hexagonal Layers Layout */
+    .hex-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 30px;
+    }
+    @media (max-width: 1024px) {
+      .hex-layout { grid-template-columns: 1fr; }
+    }
+
+    /* Interactive Diagram Canvas */
+    .concentric-container {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 440px;
+      position: relative;
+    }
+
+    .concentric-ring {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(17, 24, 39, 0.4);
+    }
+    .concentric-ring:hover, .concentric-ring.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 16px var(--accent-glow);
+      background: rgba(31, 41, 55, 0.7);
+    }
+    .concentric-ring.active {
+      border-left: 6px solid var(--accent);
+    }
+
+    .ring-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .ring-name { font-weight: 700; font-size: 0.95rem; color: #fff; }
+    .ring-deps { font-family: var(--font-mono); font-size: 0.75rem; color: var(--accent); }
+    .ring-desc { font-size: 0.8rem; color: var(--text-muted); }
+
+    /* Inspector Panel */
+    .inspector-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .inspector-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .inspector-crate {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+    .inspector-body {
+      font-size: 0.88rem;
+      line-height: 1.6;
+      flex: 1;
+    }
+
+    .code-box {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: #e2e8f0;
+      margin-top: 10px;
+      overflow-x: auto;
+    }
+
+    /* Edge Tester Box */
+    .edge-tester {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 18px;
+    }
+    .edge-tester-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .edge-selector-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+    .edge-verdict {
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .verdict-allowed { background: var(--success-bg); color: var(--success); border: 1px solid var(--success); }
+    .verdict-forbidden { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger); }
+
+    /* Directory Table */
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .filter-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      min-width: 260px;
+    }
+    .filter-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .filter-btn.active {
+      background: var(--surface-2);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .ports-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .ports-table th {
+      background: var(--surface-2);
+      padding: 10px 14px;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .ports-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .port-name {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .adapter-tag {
+      display: inline-block;
+      background: var(--surface-2);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.72rem;
+      font-family: var(--font-mono);
+      color: var(--text);
+      margin: 2px 4px 2px 0;
+      border: 1px solid var(--border);
+    }
+
+    /* Four Separations Cards */
+    .separations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .sep-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      transition: all 0.2s ease;
+    }
+    .sep-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+    .sep-num {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .sep-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .sep-defect {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger);
+      color: #fca5a5;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      margin-bottom: 10px;
+    }
+    .sep-seam {
+      background: var(--success-bg);
+      border: 1px solid var(--success);
+      color: #86efac;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+    }
+
+    /* Invariant Stress-Tester Lab */
+    .stress-lab {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .stress-btns {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .stress-btn {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .stress-btn:hover {
+      background: var(--surface-3);
+      border-color: var(--accent);
+    }
+    .stress-btn.active {
+      background: var(--accent-muted);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .stress-result {
+      background: #06090e;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .stress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .stress-status {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="breadcrumb">
+      <a href="index.html">Cognitive Models</a> / <a href="../index.md">Documentation</a> / Architecture & Invariants
+    </div>
+    <h1>
+      Hexagonal Architecture & Invariant Lab
+      <span class="badge">Interactive Explainer</span>
+    </h1>
+    <p class="takeaway">
+      <strong>Core Thesis:</strong> Architecture boundaries must be compiler-enforced, not wishful conventions. Gauntlet separates 33 crates into inward concentric layers and guarantees the Four Great Separations at compile time and runtime.
+    </p>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <div class="tab-nav" role="tablist">
+    <button class="tab-btn active" onclick="switchTab('tab-layers')">
+      <span>🏛</span> 1. Inward Layering & Dependency Topology
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-ports')">
+      <span>🔌</span> 2. 17 Ports & 24 Adapters Directory
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-separations')">
+      <span>⚡</span> 3. The Four Great Separations
+    </button>
+    <button class="tab-btn" onclick="switchTab('tab-lab')">
+      <span>🧪</span> 4. Invariant Stress-Testing Lab
+    </button>
+  </div>
+
+  <!-- TAB 1: Inward Layering & Dependency Topology -->
+  <div class="tab-content active" id="tab-layers">
+    <div class="hex-layout">
+      
+      <!-- Interactive Concentric Rings -->
+      <div class="concentric-container">
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 14px; text-transform: uppercase; letter-spacing: 0.05em;">
+          CLICK A LAYER TO INSPECT BOUNDARIES & EVIDENCE
+        </div>
+
+        <!-- Layer 4: CLI & Adapters -->
+        <div class="concentric-ring" id="ring-cli" onclick="selectLayer('cli')">
+          <div class="ring-header">
+            <span class="ring-name">4. Composition Root (gauntlet-cli)</span>
+            <span class="ring-deps">Depends: Domain, Ports, App, Adapters</span>
+          </div>
+          <div class="ring-desc">Parses CLI flags, resolves GAUNTLET.md, wires concrete adapters, launches application controllers.</div>
+        </div>
+
+        <div class="concentric-ring" id="ring-adapters" onclick="selectLayer('adapters')">
+          <div class="ring-header">
+            <span class="ring-name">3. Adapters Layer (crates/adapters/* — 24 Crates)</span>
+            <span class="ring-deps">Depends: Ports, Domain Only</span>
+          </div>
+          <div class="ring-desc">Concrete technology bindings: PostgreSQL, Bubblewrap, Claude CLI, FS evidence. Never imports app or other adapters.</div>
+        </div>
+
+        <!-- Layer 2: Application -->
+        <div class="concentric-ring" id="ring-app" onclick="selectLayer('app')">
+          <div class="ring-header">
+            <span class="ring-name">2. Application Orchestration (gauntlet-app)</span>
+            <span class="ring-deps">Depends: Ports, Domain Only</span>
+          </div>
+          <div class="ring-desc">RunController, IterationEngine, UnitScheduler, SettlementService. Never references concrete adapters.</div>
+        </div>
+
+        <!-- Layer 1: Ports -->
+        <div class="concentric-ring" id="ring-ports" onclick="selectLayer('ports')">
+          <div class="ring-header">
+            <span class="ring-name">1. Ports & Contracts (gauntlet-ports)</span>
+            <span class="ring-deps">Depends: Domain Only</span>
+          </div>
+          <div class="ring-desc">17 abstract capability traits, typed error enums, deadline enforcement, shared contract test suites.</div>
+        </div>
+
+        <!-- Layer 0: Domain -->
+        <div class="concentric-ring active" id="ring-domain" onclick="selectLayer('domain')">
+          <div class="ring-header">
+            <span class="ring-name">0. Pure Domain Core (gauntlet-domain)</span>
+            <span class="ring-deps">ZERO INTERNAL DEPS</span>
+          </div>
+          <div class="ring-desc">Pure domain types: Reference, Unit, Run, Outcome (3-state), Budget, Settlement. Constructor invariants.</div>
+        </div>
+      </div>
+
+      <!-- Layer Inspector Panel -->
+      <div class="inspector-panel">
+        <div class="inspector-title" id="insp-title">Pure Domain Core</div>
+        <div class="inspector-crate" id="insp-crate">crates/gauntlet-domain</div>
+        <div class="inspector-body" id="insp-body">
+          <p>
+            The innermost kernel of Gauntlet. Enforces strict constructor invariants and houses core state machines. It has <strong>zero internal workspace dependencies</strong> and zero external framework dependencies (no SQL, no HTTP, no CLI libraries).
+          </p>
+          <div class="code-box" id="insp-code">
+// crates/gauntlet-domain/src/values.rs
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    Pass,
+    Fail,
+    Inconclusive,
+}
+
+// Invariant: Three-state Outcome CANNOT convert to bool.
+// Invariant: Missing evidence is never passing.
+// Invariant: Irreversible units require Human authority.
+          </div>
+          <p style="margin-top: 12px; font-size: 0.82rem; color: var(--text-muted);" id="insp-evidence">
+            <strong>Mechanical Gate:</strong> <code>crates/gauntlet-arch-tests</code> checks that no crate imports into domain. Command: <code>just boundaries</code>.
+          </p>
+        </div>
+
+        <!-- Interactive Edge Check -->
+        <div class="edge-tester">
+          <div class="edge-tester-title">Test Dependency Edge Rule</div>
+          <div class="edge-selector-row">
+            <select id="edge-from" onchange="testEdge()">
+              <option value="domain">gauntlet-domain</option>
+              <option value="ports">gauntlet-ports</option>
+              <option value="app">gauntlet-app</option>
+              <option value="adapters" selected>crates/adapters/*</option>
+              <option value="cli">gauntlet-cli</option>
+            </select>
+            <span style="color: var(--text-muted);">attempts to import</span>
+            <select id="edge-to" onchange="testEdge()">
+              <option value="domain">gauntlet-domain</option>
+              <option value="ports">gauntlet-ports</option>
+              <option value="app" selected>gauntlet-app</option>
+              <option value="adapters">crates/adapters/*</option>
+              <option value="cli">gauntlet-cli</option>
+            </select>
+          </div>
+          <div class="edge-verdict verdict-forbidden" id="edge-verdict">
+            ⛔ FORBIDDEN: Adapters cannot import Application services. Enforced by gauntlet-arch-tests.
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TAB 2: 17 Ports & 24 Adapters Directory -->
+  <div class="tab-content" id="tab-ports">
+    <div class="filter-bar">
+      <input type="text" class="filter-input" id="port-filter" placeholder="Filter ports or adapters..." oninput="filterPorts()">
+      <button class="filter-btn active" onclick="filterCategory('all', this)">All (17)</button>
+      <button class="filter-btn" onclick="filterCategory('Execution', this)">Execution (4)</button>
+      <button class="filter-btn" onclick="filterCategory('Persistence', this)">Persistence (3)</button>
+      <button class="filter-btn" onclick="filterCategory('Governance', this)">Governance (4)</button>
+      <button class="filter-btn" onclick="filterCategory('Observation', this)">Observation & Testing (6)</button>
+    </div>
+
+    <table class="ports-table" aria-label="Port and Adapter Directory">
+      <thead>
+        <tr>
+          <th style="width: 22%;">Port Trait (Interface)</th>
+          <th style="width: 14%;">Category</th>
+          <th style="width: 26%;">Concrete Adapters Shipped</th>
+          <th style="width: 22%;">Contract Test Suite</th>
+          <th style="width: 16%;">Key Contract Rule</th>
+        </tr>
+      </thead>
+      <tbody id="ports-tbody">
+        <!-- Populated by JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TAB 3: The Four Great Separations -->
+  <div class="tab-content" id="tab-separations">
+    <p style="margin-bottom: 20px; color: var(--text-muted); font-size: 0.95rem;">
+      Autonomous agent harnesses fail when they collapse distinct epistemic concerns into a single model turn. Gauntlet enforces four fundamental separations:
+    </p>
+
+    <div class="separations-grid">
+      
+      <div class="sep-card">
+        <div class="sep-num">Separation 1</div>
+        <div class="sep-title">Transform ≠ Observe</div>
+        <div class="sep-defect">
+          <strong>Defect in Ordinary Systems:</strong> The agent that wrote the code self-reports that tests passed, hiding unrun or failed checks.
+        </div>
+        <div class="sep-seam">
+          <strong>Gauntlet Architectural Seam:</strong> Builder prose is segregated into an excluded facet. Independent Observer probes (cargo nextest, git diff) record verified facts.
+        </div>
+      </div>
+
+      <div class="sep-card">
+        <div class="sep-num">Separation 2</div>
+        <div class="sep-title">Observe ≠ Compare</div>
+        <div class="sep-defect">
+          <strong>Defect in Ordinary Systems:</strong> Observation facts are conflated with subjective evaluations, leading to subjective goalposts.
+        </div>
+        <div class="sep-seam">
+          <strong>Gauntlet Architectural Seam:</strong> Observers collect raw facts (exit codes, AST diffs). The Comparator (Critic) runs in fresh context against the frozen Reference to emit residuals.
+        </div>
+      </div>
+
+      <div class="sep-card">
+        <div class="sep-num">Separation 3</div>
+        <div class="sep-title">Compare ≠ Verify</div>
+        <div class="sep-defect">
+          <strong>Defect in Ordinary Systems:</strong> An LLM code reviewer says "this looks good", which is accepted as proof that the feature works.
+        </div>
+        <div class="sep-seam">
+          <strong>Gauntlet Architectural Seam:</strong> Critics emit residuals; only deterministic instruments evaluate claim locators to yield 3-state <code>Outcome::PASS</code>.
+        </div>
+      </div>
+
+      <div class="sep-card">
+        <div class="sep-num">Separation 4</div>
+        <div class="sep-title">Execute ≠ Settle</div>
+        <div class="sep-defect">
+          <strong>Defect in Ordinary Systems:</strong> Process exit 0 or agent message "Done" is treated as task completion, ignoring budget or drift.
+        </div>
+        <div class="sep-seam">
+          <strong>Gauntlet Architectural Seam:</strong> Settlement is an atomic commit verifying 5 preconditions: all units PASS, lockfile hash zero drift, budget within limits, fsync event log.
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TAB 4: Invariant Stress-Testing Lab -->
+  <div class="tab-content" id="tab-lab">
+    <div class="stress-lab">
+      <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; font-weight: 600; text-transform: uppercase;">
+        Select an Architectural or Operational Stress Condition:
+      </div>
+      <div class="stress-btns">
+        <button class="stress-btn active" onclick="runStress(1)">1. Builder edits .wayfinder/answer-key.md</button>
+        <button class="stress-btn" onclick="runStress(2)">2. Critic outputs Outcome::PASS</button>
+        <button class="stress-btn" onclick="runStress(3)">3. Test report file missing / unrun</button>
+        <button class="stress-btn" onclick="runStress(4)">4. Unattended Irreversible Unit Scheduled</button>
+        <button class="stress-btn" onclick="runStress(5)">5. Malformed JSON emitted by model</button>
+        <button class="stress-btn" onclick="runStress(6)">6. Reference Lockfile Modified During Run</button>
+      </div>
+
+      <div class="stress-result">
+        <div class="stress-header">
+          <span style="font-weight: 700; color: #fff;" id="stress-title">Stress Test: Grader Tampering</span>
+          <span class="stress-status" id="stress-status" style="color: var(--danger);">FAIL-CLOSED (INVARIANT PROTECTED)</span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text); line-height: 1.6;" id="stress-desc">
+          Builder executes <code>echo "AK-001: PASS" >> .wayfinder/answer-key.md</code>.
+        </div>
+        <div class="code-box" id="stress-code">
+// crates/gauntlet-app/src/settle/service.rs
+let current_digest = reference_provider.digest(manifest)?;
+if current_digest != frozen_lock.expected_digest {
+    error!("FATAL: Answer key hash altered during execution! Expected {}, got {}", 
+           frozen_lock.expected_digest, current_digest);
+    return Err(SettlementError::ReferenceDriftDetected);
+}
+// Consequence: Settlement immediately aborted. Commit refused. Escalated to Operator.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div>
+      Gauntlet Cognitive Architecture · <a href="index.html">All Explainers</a> · <a href="../architecture.md">System Architecture</a> · <a href="../reference/invariants-and-proofs.md">Invariants & Proofs</a>
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 0.8rem;">
+      Offline Self-Contained Document · Bret Victor Cognitive Representation Ladder
+    </div>
+  </footer>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll(".tab-btn").forEach(btn => btn.classList.remove("active"));
+      document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+      event.currentTarget.classList.add("active");
+      document.getElementById(tabId).classList.add("active");
+    }
+
+    // Layers Data
+    const LAYERS_DATA = {
+      domain: {
+        title: "Pure Domain Core",
+        crate: "crates/gauntlet-domain",
+        body: "The innermost kernel of Gauntlet. Enforces strict constructor invariants and houses core state machines. It has ZERO internal workspace dependencies and zero external framework dependencies (no SQL, no HTTP, no CLI libraries).",
+        code: `// crates/gauntlet-domain/src/values.rs
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Outcome {
+    Pass,
+    Fail,
+    Inconclusive,
+}
+// Invariant: Three-state Outcome CANNOT convert to bool.
+// Invariant: Missing evidence is never passing.
+// Invariant: Irreversible units require Human authority.`,
+        evidence: "Mechanical Gate: crates/gauntlet-arch-tests checks that no crate imports into domain. Command: just boundaries."
+      },
+      ports: {
+        title: "Ports & Contract Specifications",
+        crate: "crates/gauntlet-ports",
+        body: "Declares the 17 abstract semantic capability traits. Every port returns a typed error enum, never a string. Every blocking port accepts a Deadline. Ships shared contract test suites (crates/gauntlet-ports/src/contract/) that all adapters must pass.",
+        code: `// crates/gauntlet-ports/src/agent_runner.rs
+#[async_trait]
+pub trait AgentRunner: Send + Sync {
+    async fn dispatch(&self, req: RoleInvocationSpec, deadline: Deadline) 
+        -> Result<InvocationHandle, AgentError>;
+    async fn poll(&self, handle: &InvocationHandle) 
+        -> Result<InvocationStatus, AgentError>;
+}`,
+        evidence: "Mechanical Gate: Checked by gauntlet-arch-tests. Ports depend only on gauntlet-domain."
+      },
+      app: {
+        title: "Application Control Services",
+        crate: "crates/gauntlet-app",
+        body: "Implements the closed-loop governance runtime: RunController, IterationEngine, UnitScheduler, CorrectionSelector, SettlementService, and Preflight Doctor. Operates strictly on domain types and ports traits; NEVER imports concrete adapters.",
+        code: `// crates/gauntlet-app/src/control/run_controller.rs
+pub struct RunController<A: AgentRunner, S: StateStore, E: EventLog, V: Verifier> {
+    runner: Arc<A>,
+    store: Arc<S>,
+    event_log: Arc<E>,
+    verifier: Arc<V>,
+}`,
+        evidence: "Mechanical Gate: gauntlet-arch-tests asserts gauntlet-app never references adapters or cli."
+      },
+      adapters: {
+        title: "Concrete Adapters Layer (24 Crates)",
+        crate: "crates/adapters/*",
+        body: "Houses 24 modular crates implementing ports using specific technologies (PostgreSQL, Bubblewrap, Claude CLI, Prime-Agent, Mock). Adapters consume ports and domain types, but are completely decoupled from application orchestration.",
+        code: `// crates/adapters/gauntlet-adapter-sandbox-bwrap/src/lib.rs
+impl Sandbox for BubblewrapSandbox {
+    fn wrap_command(&self, cmd: Command, policy: &SandboxPolicy) 
+        -> Result<SandboxedCommand, SandboxError> {
+        // Enforce --unshare-all, --unshare-net, ro-bind host, rw-bind workspace
+    }
+}`,
+        evidence: "Mechanical Gate: gauntlet-arch-tests asserts adapters never import gauntlet-app or gauntlet-cli."
+      },
+      cli: {
+        title: "Composition Root",
+        crate: "crates/gauntlet-cli",
+        body: "The single binary entry point. Parses CLI flags, loads configuration, resolves GAUNTLET.md, constructs concrete adapter instances, injects them into RunController, and starts execution.",
+        code: `// crates/gauntlet-cli/src/main.rs
+let state_store = Arc::new(PostgresStateStore::connect(&db_url).await?);
+let sandbox = Arc::new(BubblewrapSandbox::new()?);
+let controller = RunController::new(state_store, sandbox, ...);
+controller.run(task).await?;`,
+        evidence: "Architecture Rule: Only gauntlet-cli is permitted to know all crates and wire them together."
+      }
+    };
+
+    function selectLayer(layerId) {
+      document.querySelectorAll(".concentric-ring").forEach(r => r.classList.remove("active"));
+      document.getElementById(`ring-${layerId}`).classList.add("active");
+
+      const data = LAYERS_DATA[layerId];
+      document.getElementById("insp-title").textContent = data.title;
+      document.getElementById("insp-crate").textContent = data.crate;
+      document.getElementById("insp-body").innerHTML = `
+        <p>${data.body}</p>
+        <div class="code-box">${data.code.replace(/</g, "&lt;")}</div>
+        <p style="margin-top: 12px; font-size: 0.82rem; color: var(--text-muted);">${data.evidence}</p>
+      `;
+    }
+
+    // Edge rules tester
+    const EDGE_RULES = {
+      "domain->ports": false,
+      "domain->app": false,
+      "domain->adapters": false,
+      "domain->cli": false,
+      "domain->domain": true,
+
+      "ports->domain": true,
+      "ports->app": false,
+      "ports->adapters": false,
+      "ports->cli": false,
+      "ports->ports": true,
+
+      "app->domain": true,
+      "app->ports": true,
+      "app->adapters": false,
+      "app->cli": false,
+      "app->app": true,
+
+      "adapters->domain": true,
+      "adapters->ports": true,
+      "adapters->app": false,
+      "adapters->cli": false,
+      "adapters->adapters": false,
+
+      "cli->domain": true,
+      "cli->ports": true,
+      "cli->app": true,
+      "cli->adapters": true,
+      "cli->cli": true,
+    };
+
+    function testEdge() {
+      const from = document.getElementById("edge-from").value;
+      const to = document.getElementById("edge-to").value;
+      const key = `${from}->${to}`;
+      const allowed = EDGE_RULES[key];
+
+      const verdictEl = document.getElementById("edge-verdict");
+      if (allowed) {
+        verdictEl.className = "edge-verdict verdict-allowed";
+        verdictEl.innerHTML = `✓ ALLOWED: ${from} is permitted to import ${to}. Preserves inward dependency direction.`;
+      } else {
+        verdictEl.className = "edge-verdict verdict-forbidden";
+        verdictEl.innerHTML = `⛔ FORBIDDEN: ${from} MUST NOT import ${to}. Violates layering (spec §24.3). Enforced by gauntlet-arch-tests.`;
+      }
+    }
+
+    // Port Directory Data
+    const PORTS_DATA = [
+      {
+        name: "AgentRunner",
+        cat: "Execution",
+        adapters: ["gauntlet-adapter-agent-mock", "gauntlet-adapter-agent-prime", "gauntlet-adapter-agent-cli", "gauntlet-adapter-agent-tty"],
+        suite: "crates/gauntlet-ports/src/contract/agent_runner_suite.rs",
+        rule: "Poll/Contract model (never blocking loop). Result delivers strictly parsed role_result@v1."
+      },
+      {
+        name: "Observer",
+        cat: "Observation & Testing",
+        adapters: ["gauntlet-adapter-observe-filesystem", "gauntlet-adapter-observe-git", "gauntlet-adapter-observe-build", "gauntlet-adapter-observe-test", "gauntlet-adapter-observe-command"],
+        suite: "crates/gauntlet-ports/src/contract/observer_suite.rs",
+        rule: "Gathers raw facts only. Builder subjective claims strictly placed in excluded facet."
+      },
+      {
+        name: "Comparator",
+        cat: "Observation & Testing",
+        adapters: ["gauntlet-adapter-compare-diff", "gauntlet-adapter-compare-model"],
+        suite: "crates/gauntlet-ports/src/contract/comparator_suite.rs",
+        rule: "Fresh context evaluation. Strictly blind to builder trajectory and excuses."
+      },
+      {
+        name: "Verifier",
+        cat: "Observation & Testing",
+        adapters: ["gauntlet-adapter-verify-command-exit-code", "gauntlet-adapter-verify-test-report", "gauntlet-adapter-verify-file-digest", "gauntlet-adapter-verify-schema-check"],
+        suite: "crates/gauntlet-ports/src/contract/verifier_suite.rs",
+        rule: "Outcome strictly PASS, FAIL, INCONCLUSIVE. Missing evidence is never passing."
+      },
+      {
+        name: "StateStore",
+        cat: "Persistence",
+        adapters: ["gauntlet-adapter-state-postgres"],
+        suite: "crates/gauntlet-ports/src/contract/state_store_suite.rs",
+        rule: "Atomic checkpoints and run events. Preserves causal auditability."
+      },
+      {
+        name: "EvidenceStore",
+        cat: "Persistence",
+        adapters: ["gauntlet-adapter-evidence-fs"],
+        suite: "crates/gauntlet-ports/src/contract/evidence_store_suite.rs",
+        rule: "Content-addressed by SHA-256. Immutable; exposes no delete or overwrite methods."
+      },
+      {
+        name: "EventLog",
+        cat: "Persistence",
+        adapters: ["gauntlet-adapter-state-postgres", "crates/gauntlet-ports/src/event_log.rs"],
+        suite: "crates/gauntlet-ports/src/contract/event_log_suite.rs",
+        rule: "Append-only JSONL stream with fsync on commit."
+      },
+      {
+        name: "Sandbox",
+        cat: "Governance",
+        adapters: ["gauntlet-adapter-sandbox-bwrap", "gauntlet-adapter-sandbox-none"],
+        suite: "crates/gauntlet-ports/src/contract/sandbox_suite.rs",
+        rule: "Wraps process before execution start. Irreversible tier has no policy (refuses dispatch)."
+      },
+      {
+        name: "PolicyProvider",
+        cat: "Governance",
+        adapters: ["gauntlet-adapter-policy-fs"],
+        suite: "crates/gauntlet-ports/src/contract/policy_suite.rs",
+        rule: "Authority validation precedes containment; credentials by $VAR indirection only."
+      },
+      {
+        name: "BudgetMeter",
+        cat: "Governance",
+        adapters: ["gauntlet-adapter-meter-memory"],
+        suite: "crates/gauntlet-ports/src/contract/budget_suite.rs",
+        rule: "Maintains 15% recovery reserve. Controlled shutdown on budget exhaustion."
+      },
+      {
+        name: "HumanEscalation",
+        cat: "Governance",
+        adapters: ["gauntlet-adapter-escalation-fs"],
+        suite: "crates/gauntlet-ports/src/contract/escalation_suite.rs",
+        rule: "Blocks on unresolvable ambiguity or irreversible operations until human decision."
+      },
+      {
+        name: "OperatorSurface",
+        cat: "Execution",
+        adapters: ["gauntlet-adapter-surface-json", "gauntlet-adapter-surface-rpc"],
+        suite: "crates/gauntlet-ports/src/contract/surface_suite.rs",
+        rule: "Loopback HTTP/JSON for TUI workbench. Router-not-authority stance."
+      },
+      {
+        name: "WorkspaceProvider",
+        cat: "Execution",
+        adapters: ["gauntlet-adapter-workspace-fs"],
+        suite: "crates/gauntlet-ports/src/contract/workspace_suite.rs",
+        rule: "Prepares ephemeral git worktrees; canonicalizes paths to prevent traversal escape."
+      },
+      {
+        name: "ToolProvider",
+        cat: "Execution",
+        adapters: ["gauntlet-adapter-tool-program-codemode", "gauntlet-adapter-harness-catalog"],
+        suite: "crates/gauntlet-ports/src/contract/tool_suite.rs",
+        rule: "Schema-checked invocation; outputs bounded and truncated."
+      },
+      {
+        name: "ReferenceProvider",
+        cat: "Observation & Testing",
+        adapters: ["crates/gauntlet-app/src/reference/"],
+        suite: "crates/gauntlet-ports/src/contract/reference_suite.rs",
+        rule: "Normalizes manifest, hashes with SHA-256, verifies zero lock drift at settlement."
+      },
+      {
+        name: "IdGenerator",
+        cat: "Observation & Testing",
+        adapters: ["gauntlet-adapter-id-entropy"],
+        suite: "crates/gauntlet-ports/src/contract/id_suite.rs",
+        rule: "Entropy-backed run_id, iteration_id, invocation_id generator."
+      },
+      {
+        name: "Clock",
+        cat: "Observation & Testing",
+        adapters: ["crates/gauntlet-ports/src/clock.rs"],
+        suite: "crates/gauntlet-ports/src/contract/clock_suite.rs",
+        rule: "Provides monotonic deadline comparison and UTC timestamps."
+      }
+    ];
+
+    function renderPortsTable(data) {
+      const tbody = document.getElementById("ports-tbody");
+      tbody.innerHTML = "";
+      data.forEach(p => {
+        const tr = document.createElement("tr");
+        const adapterPills = p.adapters.map(a => `<span class="adapter-tag">${a}</span>`).join("");
+        tr.innerHTML = `
+          <td><span class="port-name">${p.name}</span></td>
+          <td><span style="font-size: 0.8rem; color: var(--text-muted);">${p.cat}</span></td>
+          <td>${adapterPills}</td>
+          <td><code style="font-size: 0.75rem; color: var(--accent);">${p.suite}</code></td>
+          <td style="font-size: 0.8rem; color: var(--text);">${p.rule}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    let activeCategory = "all";
+    function filterPorts() {
+      const q = document.getElementById("port-filter").value.toLowerCase();
+      const filtered = PORTS_DATA.filter(p => {
+        const matchesCat = activeCategory === "all" || p.cat.toLowerCase().includes(activeCategory.toLowerCase());
+        const matchesQuery = p.name.toLowerCase().includes(q) || 
+                             p.adapters.some(a => a.toLowerCase().includes(q)) ||
+                             p.rule.toLowerCase().includes(q);
+        return matchesCat && matchesQuery;
+      });
+      renderPortsTable(filtered);
+    }
+
+    function filterCategory(cat, el) {
+      activeCategory = cat;
+      document.querySelectorAll(".filter-btn").forEach(btn => btn.classList.remove("active"));
+      el.classList.add("active");
+      filterPorts();
+    }
+
+    // Stress Testing Scenarios
+    const STRESS_SCENARIOS = {
+      1: {
+        title: "Stress Test: Grader Tampering",
+        status: "FAIL-CLOSED (INVARIANT PROTECTED)",
+        statusColor: "var(--danger)",
+        desc: "Builder executes 'echo \"AK-001: PASS\" >> .wayfinder/answer-key.md' in an attempt to rewrite the rubric.",
+        code: `// crates/gauntlet-app/src/settle/service.rs
+let current_digest = reference_provider.digest(manifest)?;
+if current_digest != frozen_lock.expected_digest {
+    error!("FATAL: Answer key hash altered during execution! Expected {}, got {}", 
+           frozen_lock.expected_digest, current_digest);
+    return Err(SettlementError::ReferenceDriftDetected);
+}
+// Consequence: Settlement immediately aborted. Commit refused. Escalated to Operator.`
+      },
+      2: {
+        title: "Stress Test: Critic Emits Outcome::PASS Directly",
+        status: "COMPILE-TIME BLOCKED (TYPE-THEORETIC INVARIANT)",
+        statusColor: "var(--success)",
+        desc: "A developer or adapter attempts to let a reviewer model mark a Unit as Outcome::PASS without running tests.",
+        code: `// crates/gauntlet-ports/src/comparator.rs
+// The Comparator trait returns ResidualSet, NEVER an Outcome.
+pub trait Comparator: Send + Sync {
+    async fn compare(&self, env: ComparisonEnvelope) -> Result<ResidualSet, ComparatorError>;
+}
+
+// Only Verifier checking hard instruments can emit Outcome::Pass:
+pub trait Verifier: Send + Sync {
+    async fn verify(&self, req: VerificationRequest) -> Result<Outcome, VerifierError>;
+}`
+      },
+      3: {
+        title: "Stress Test: Missing Test Report / Optimistic Coercion",
+        status: "INCONCLUSIVE REFUSES PASS (NO BOOLEAN COERCION)",
+        statusColor: "var(--warning)",
+        desc: "A builder runs tests, but the test runner crashes or fails to output JUnit XML. In ordinary harnesses, this defaults to true or causes an unhandled error.",
+        code: `// crates/gauntlet-domain/src/values.rs
+impl Outcome {
+    // Forbidding conversion to bool prevents "missing == false" or "missing == true"
+    pub fn is_pass(&self) -> bool { matches!(self, Outcome::Pass) }
+}
+
+// Settlement precondition:
+if !all_units.iter().all(|u| u.outcome == Outcome::Pass) {
+    // Inconclusive blocks settlement!
+    return Err(SettlementPreconditionFailed::UnitNotPassed);
+}`
+      },
+      4: {
+        title: "Stress Test: Unattended Irreversible Unit Scheduled",
+        status: "REFUSED BEFORE PROCESS LAUNCH (SPEC §17.3)",
+        statusColor: "var(--danger)",
+        desc: "Scheduler encounters a database drop or production push marked blast_radius: irreversible in an autonomous run.",
+        code: `// crates/gauntlet-app/src/control/scheduler.rs
+if unit.blast_radius == BlastRadius::Irreversible {
+    if current_authority < AuthorityLevel::Human {
+        warn!("Refusing automatic dispatch of irreversible unit {}", unit.id);
+        escalation.create_ticket(unit)?;
+        return Ok(SchedulingDecision::HaltForEscalation);
+    }
+}
+// Consequence: Process is NEVER launched unattended.`
+      },
+      5: {
+        title: "Stress Test: Malformed Model JSON Stream",
+        status: "SCHEMA VALIDATION FAIL-CLOSED (SPEC §21.2)",
+        statusColor: "var(--warning)",
+        desc: "A model returns markdown prose, truncated JSON, or invalid enum variants in its result contract file.",
+        code: `// crates/gauntlet-ports/src/role_result.rs
+match RoleResult::parse_and_validate(&raw_json) {
+    Ok(result) if result.envelope_digest == expected_digest => admit_result(result),
+    Ok(_) => Err(RoleResultError::DigestMismatch),
+    Err(e) => {
+        // Model output is untrusted input: NEVER coerced or guessed
+        record_syntax_failure(e);
+        Err(RoleResultError::SchemaViolation)
+    }
+}`
+      },
+      6: {
+        title: "Stress Test: Reference Lockfile Modified During Run",
+        status: "RULER DRIFT CAUGHT AT SETTLEMENT (INVARIANT I1)",
+        statusColor: "var(--danger)",
+        desc: "An external process or git checkout changes .gauntlet/reference.lock while a 30-minute run is in flight.",
+        code: `// scripts/verify-ruler.sh && just ruler
+ACTUAL_HASH=$(sha256sum .wayfinder/answer-key.md | awk '{print $1}')
+LOCKED_HASH=$(cat .gauntlet/reference.lock)
+
+if [ "$ACTUAL_HASH" != "$LOCKED_HASH" ]; then
+    echo "Ruler has moved! Run invalid."
+    exit 1
+fi`
+      }
+    };
+
+    function runStress(id) {
+      document.querySelectorAll(".stress-btn").forEach((btn, i) => btn.classList.toggle("active", i + 1 === id));
+      const scen = STRESS_SCENARIOS[id];
+      document.getElementById("stress-title").textContent = scen.title;
+      const statusEl = document.getElementById("stress-status");
+      statusEl.textContent = scen.status;
+      statusEl.style.color = scen.statusColor;
+      document.getElementById("stress-desc").textContent = scen.desc;
+      document.getElementById("stress-code").textContent = scen.code;
+    }
+
+    // Initial render
+    renderPortsTable(PORTS_DATA);
+  </script>
+</body>
+</html>

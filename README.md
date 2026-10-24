@@ -1284,3 +1284,18 @@ Stop when the work settles or when no affordable reliable move remains.
 Keep one successful run from masquerading as capability.
 
 That is Gauntlet.
+
+---
+
+## Documentation & Interactive Explainers
+
+The full technical documentation system lives under [`docs/`](docs/index.md):
+
+* **[Documentation Front Door](docs/index.md)**: System thesis, concepts, representative journey, and intent-based navigation.
+* **[Mental Model](docs/mental-model.md)**: The Cleanroom Inspection Line analogy and the Four Great Separations.
+* **[System Architecture](docs/architecture.md)**: 4-layer inward hexagonal structure, 33-crate topology, and runtime components.
+* **[Interactive Cognitive Explainers](docs/explainers/index.html)**: Self-contained, offline single-page applications exploring runtime execution, hexagonal boundaries, and Bubblewrap sandboxing:
+  * [Execution Loop & Governance Replay](docs/explainers/run-execution-loop.html): Step through 9 lifecycle stages with 5 interactive scenarios.
+  * [Hexagonal Architecture & Invariant Lab](docs/explainers/architecture-and-invariants.html): 17 ports, 24 adapters, and compile-time boundary checks.
+  * [Governance, Containment & Sandbox Simulator](docs/explainers/governance-and-containment.html): 4x4 authority matrix, dynamic `bwrap` command generator, and 15% recovery reserve.
+* **[Operator Guide](docs/OPERATOR-GUIDE.md)** & **[Workflows](docs/workflows/run-lifecycle.md)**: Operating preflight doctor, managing runs, and handling escalations.
