@@ -5,12 +5,12 @@
 //! Every test gets a fresh PostgreSQL namespace.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use gauntlet_adapter_state_postgres::{LOCAL_DEFAULT_URL, PostgresConfig, PostgresInvocationGraph};
+use gauntlet_adapter_state_postgres::test_support::ScratchNamespaces;
+use gauntlet_adapter_state_postgres::{PostgresConfig, PostgresInvocationGraph};
 use gauntlet_domain::{
     AdmissionKey, BudgetDimension, Digest, EpochSeconds, HarnessId, InvocationId, MicroUsd,
     ResultContractPath, RoleId, RunId, RunnerProfileId, SessionRef, WorkspaceRef,
@@ -39,25 +39,9 @@ const DIGEST: &str = "sha256:a1b2c3d4";
 const DEFAULT_MAX_DEPTH: u32 = 8;
 const DEFAULT_MAX_CHILDREN: u32 = 8;
 
-static COUNTER: AtomicU64 = AtomicU64::new(0);
-
-/// A fresh namespace per call, on the configured (or local default) server.
-fn fresh_config() -> PostgresConfig {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-    PostgresConfig {
-        url: std::env::var("GAUNTLET_DATABASE_URL")
-            .unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string()),
-        namespace: format!(
-            "gauntlet_ig_{}_{:x}_{:x}",
-            std::process::id(),
-            counter,
-            nanos
-        ),
-    }
+/// A fresh namespace per call, dropped when `scratch` (owned by the test) goes out of scope.
+fn fresh_config(scratch: &ScratchNamespaces) -> PostgresConfig {
+    scratch.fresh("ig")
 }
 
 /// A raw connection into the namespace, for fault injection and out-of-band reads.
@@ -203,15 +187,17 @@ fn on_connections<T: Send + 'static>(
         .collect()
 }
 
-struct PostgresGraphFactory;
+struct PostgresGraphFactory<'a> {
+    scratch: &'a ScratchNamespaces,
+}
 
-impl InvocationGraphFactory for PostgresGraphFactory {
+impl InvocationGraphFactory for PostgresGraphFactory<'_> {
     fn label(&self) -> &'static str {
         "postgres-invocation-graph"
     }
 
     fn build(&self) -> Result<Box<dyn InvocationGraph>, String> {
-        PostgresInvocationGraph::open(&fresh_config())
+        PostgresInvocationGraph::open(&fresh_config(self.scratch))
             .map(|graph| Box::new(graph) as Box<dyn InvocationGraph>)
             .map_err(|err| err.to_string())
     }
@@ -219,7 +205,8 @@ impl InvocationGraphFactory for PostgresGraphFactory {
 
 #[test]
 fn the_shared_contract_suite_passes_on_postgres() {
-    let findings = invocation_graph_suite(&PostgresGraphFactory);
+    let scratch = ScratchNamespaces::default();
+    let findings = invocation_graph_suite(&PostgresGraphFactory { scratch: &scratch });
     assert!(
         findings.is_empty(),
         "the PostgreSQL graph must run the suite clean, but reported:\n{}",
@@ -233,7 +220,8 @@ fn the_shared_contract_suite_passes_on_postgres() {
 
 #[test]
 fn identical_concurrent_admissions_create_exactly_one_node() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let (root, run_id) = (inv("1"), run("1"));
     admitted(
@@ -265,7 +253,8 @@ fn identical_concurrent_admissions_create_exactly_one_node() {
 
 #[test]
 fn concurrent_children_respect_the_child_limit() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let (root, run_id) = (inv("1"), run("1"));
     admitted(
@@ -309,7 +298,8 @@ fn concurrent_children_respect_the_child_limit() {
 
 #[test]
 fn concurrent_children_never_exceed_the_parent_budget() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let (root, run_id) = (inv("1"), run("1"));
     admitted(
@@ -375,7 +365,8 @@ fn concurrent_children_never_exceed_the_parent_budget() {
 
 #[test]
 fn an_injected_insert_failure_leaves_no_row_and_no_partial_state() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let (root, run_id) = (inv("1"), run("1"));
     admitted(
@@ -425,7 +416,8 @@ fn an_injected_insert_failure_leaves_no_row_and_no_partial_state() {
 
 #[test]
 fn a_crashed_uncommitted_admission_is_absent_after_reopen() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let (root, run_id) = (inv("1"), run("1"));
     let root_node = admitted(
@@ -550,7 +542,8 @@ fn the_graph_reconstructs_identically_after_reopen() {
 
 #[test]
 fn immutable_columns_reject_raw_updates() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let (root, run_id) = (inv("1"), run("1"));
     admitted(
@@ -603,7 +596,8 @@ fn immutable_columns_reject_raw_updates() {
 
 #[test]
 fn cancel_subtree_cancels_only_active_descendants() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let (root, run_id) = (inv("1"), run("1"));
     let (a, b, c, d) = (inv("2"), inv("3"), inv("4"), inv("5"));
@@ -714,7 +708,8 @@ fn applied_sequences(history: &[gauntlet_ports::lifecycle::ObservationRecord]) -
 
 #[test]
 fn racing_late_and_new_source_sequences_keep_the_higher_number() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let ids: Vec<InvocationId> = (0..LIFECYCLE_ROUNDS)
         .map(|round| fresh_root(&graph, 100 + round))
@@ -780,7 +775,8 @@ fn racing_late_and_new_source_sequences_keep_the_higher_number() {
 
 #[test]
 fn gauntlet_assigned_sequences_are_exact_and_unique_under_contention() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let id = fresh_root(&graph, 1);
     drop(graph);
@@ -837,7 +833,8 @@ enum Step {
 
 #[test]
 fn a_session_replacement_racing_an_old_epoch_observation_never_shows_that_epoch() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     for round in 0..20 {
         let id = fresh_root(&graph, 200 + round);
@@ -918,7 +915,8 @@ enum Racer {
 
 #[test]
 fn completion_racing_observations_settles_once_and_later_observations_are_terminal() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     for round in 0..10 {
         let id = fresh_root(&graph, 300 + round);
@@ -1032,7 +1030,8 @@ fn completion_racing_observations_settles_once_and_later_observations_are_termin
 
 #[test]
 fn observations_never_change_node_status_budget_or_binding() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let id = fresh_root(&graph, 400);
     let bound = attach(&graph, &id, "sess-1");
@@ -1106,7 +1105,8 @@ fn observations_never_change_node_status_budget_or_binding() {
 
 #[test]
 fn history_and_lifecycle_refuse_raw_update_and_delete() {
-    let config = fresh_config();
+    let scratch = ScratchNamespaces::default();
+    let config = fresh_config(&scratch);
     let graph = PostgresInvocationGraph::open(&config).expect("graph");
     let id = fresh_root(&graph, 500);
     let bound = attach(&graph, &id, "sess-1");

@@ -3,12 +3,9 @@
 //! and this file only supplies the factories the suites parameterize over. The suites run a fresh
 //! PostgreSQL namespace per test case, created with a unique name.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::SystemTime;
-
+use gauntlet_adapter_state_postgres::test_support::ScratchNamespaces;
 use gauntlet_adapter_state_postgres::{
-    LOCAL_DEFAULT_URL, PostgresCapabilityLedger, PostgresConfig, PostgresEventLog,
-    PostgresRevisionLedger, PostgresStateStore,
+    PostgresCapabilityLedger, PostgresEventLog, PostgresRevisionLedger, PostgresStateStore,
 };
 use gauntlet_ports::capability_ledger::CapabilityLedger;
 use gauntlet_ports::contract::capability_ledger::{
@@ -24,30 +21,17 @@ use gauntlet_ports::state_store::{RunEvent, StateStore};
 
 /// Factory for creating fresh PostgreSQL namespaces per EventLog test.
 /// Each build() creates a new unique namespace with format: gauntlet_t_{pid}_{counter}_{nanos}
-struct PostgresEventLogFactory;
+struct PostgresEventLogFactory<'a> {
+    scratch: &'a ScratchNamespaces,
+}
 
-static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
-
-impl EventLogFactory for PostgresEventLogFactory {
+impl EventLogFactory for PostgresEventLogFactory<'_> {
     fn label(&self) -> &'static str {
         "postgres-event-log"
     }
 
     fn build(&self) -> Result<Box<dyn EventLog>, String> {
-        let pid = std::process::id();
-        let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-
-        let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-
-        let url = std::env::var("GAUNTLET_DATABASE_URL")
-            .unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-        let config = PostgresConfig { url, namespace };
+        let config = self.scratch.fresh("t");
 
         PostgresEventLog::open(&config)
             .map(|log| Box::new(log) as Box<dyn EventLog>)
@@ -57,28 +41,17 @@ impl EventLogFactory for PostgresEventLogFactory {
 
 /// Factory for creating fresh PostgreSQL namespaces per CapabilityLedger test.
 /// Each build() creates a new unique namespace with format: gauntlet_t_{pid}_{counter}_{nanos}
-struct PostgresCapabilityLedgerFactory;
+struct PostgresCapabilityLedgerFactory<'a> {
+    scratch: &'a ScratchNamespaces,
+}
 
-impl CapabilityLedgerFactory for PostgresCapabilityLedgerFactory {
+impl CapabilityLedgerFactory for PostgresCapabilityLedgerFactory<'_> {
     fn label(&self) -> &'static str {
         "postgres-capability-ledger"
     }
 
     fn build(&self) -> Result<Box<dyn CapabilityLedger>, String> {
-        let pid = std::process::id();
-        let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-
-        let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-
-        let url = std::env::var("GAUNTLET_DATABASE_URL")
-            .unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-        let config = PostgresConfig { url, namespace };
+        let config = self.scratch.fresh("t");
 
         PostgresCapabilityLedger::open(&config)
             .map(|ledger| Box::new(ledger) as Box<dyn CapabilityLedger>)
@@ -88,28 +61,17 @@ impl CapabilityLedgerFactory for PostgresCapabilityLedgerFactory {
 
 /// Factory for creating fresh PostgreSQL namespaces per RevisionLedger test.
 /// Each build() creates a new unique namespace with format: gauntlet_t_{pid}_{counter}_{nanos}
-struct PostgresRevisionLedgerFactory;
+struct PostgresRevisionLedgerFactory<'a> {
+    scratch: &'a ScratchNamespaces,
+}
 
-impl RevisionLedgerFactory for PostgresRevisionLedgerFactory {
+impl RevisionLedgerFactory for PostgresRevisionLedgerFactory<'_> {
     fn label(&self) -> &'static str {
         "postgres-revision-ledger"
     }
 
     fn build(&self) -> Result<Box<dyn RevisionLedger>, String> {
-        let pid = std::process::id();
-        let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-
-        let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-
-        let url = std::env::var("GAUNTLET_DATABASE_URL")
-            .unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-        let config = PostgresConfig { url, namespace };
+        let config = self.scratch.fresh("t");
 
         PostgresRevisionLedger::open(&config)
             .map(|ledger| Box::new(ledger) as Box<dyn RevisionLedger>)
@@ -119,28 +81,17 @@ impl RevisionLedgerFactory for PostgresRevisionLedgerFactory {
 
 /// Factory for creating fresh PostgreSQL namespaces per StateStore test.
 /// Each build() creates a new unique namespace with format: gauntlet_t_{pid}_{counter}_{nanos}
-struct PostgresStateStoreFactory;
+struct PostgresStateStoreFactory<'a> {
+    scratch: &'a ScratchNamespaces,
+}
 
-impl StateStoreFactory for PostgresStateStoreFactory {
+impl StateStoreFactory for PostgresStateStoreFactory<'_> {
     fn label(&self) -> &'static str {
         "postgres-state-store"
     }
 
     fn build(&self) -> Result<Box<dyn StateStore>, String> {
-        let pid = std::process::id();
-        let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-
-        let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-
-        let url = std::env::var("GAUNTLET_DATABASE_URL")
-            .unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-        let config = PostgresConfig { url, namespace };
+        let config = self.scratch.fresh("t");
 
         PostgresStateStore::open(&config)
             .map(|store| Box::new(store) as Box<dyn StateStore>)
@@ -150,7 +101,8 @@ impl StateStoreFactory for PostgresStateStoreFactory {
 
 #[test]
 fn postgres_event_log_passes_the_shared_contract_suite() {
-    let findings = event_log_suite(&PostgresEventLogFactory);
+    let scratch = ScratchNamespaces::default();
+    let findings = event_log_suite(&PostgresEventLogFactory { scratch: &scratch });
     assert!(
         findings.is_empty(),
         "the event log must pass the shared suite:\n{}",
@@ -164,19 +116,8 @@ fn postgres_event_log_passes_the_shared_contract_suite() {
 
 #[test]
 fn gapless_offsets_after_a_failed_append_transaction() {
-    let pid = std::process::id();
-    let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-
-    let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-    let url =
-        std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-    let config = PostgresConfig { url, namespace };
+    let scratch = ScratchNamespaces::default();
+    let config = scratch.fresh("t");
 
     let log = PostgresEventLog::open(&config).expect("log opens");
     let deadline = Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(1_700_000_000));
@@ -237,19 +178,8 @@ fn gapless_offsets_after_a_failed_append_transaction() {
 
 #[test]
 fn concurrent_appends_yield_distinct_contiguous_offsets() {
-    let pid = std::process::id();
-    let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-
-    let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-    let url =
-        std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-    let config = PostgresConfig { url, namespace };
+    let scratch = ScratchNamespaces::default();
+    let config = scratch.fresh("t");
 
     let log = std::sync::Arc::new(PostgresEventLog::open(&config).expect("log opens"));
     let deadline = Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(1_700_000_000));
@@ -321,19 +251,8 @@ fn concurrent_appends_yield_distinct_contiguous_offsets() {
 
 #[test]
 fn first_append_returns_offset_1() {
-    let pid = std::process::id();
-    let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-
-    let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-    let url =
-        std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-    let config = PostgresConfig { url, namespace };
+    let scratch = ScratchNamespaces::default();
+    let config = scratch.fresh("t");
     let log = PostgresEventLog::open(&config).expect("log opens");
     let deadline = Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(1_700_000_000));
 
@@ -358,19 +277,8 @@ fn first_append_returns_offset_1() {
 
 #[test]
 fn last_offset_none_on_empty_log() {
-    let pid = std::process::id();
-    let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-
-    let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-    let url =
-        std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-    let config = PostgresConfig { url, namespace };
+    let scratch = ScratchNamespaces::default();
+    let config = scratch.fresh("t");
     let log = PostgresEventLog::open(&config).expect("log opens");
     let deadline = Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(1_700_000_000));
 
@@ -381,22 +289,9 @@ fn last_offset_none_on_empty_log() {
 
 #[test]
 fn decode_error_surfaces_as_damaged_not_empty() {
-    let pid = std::process::id();
-    let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-
-    let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-    let url =
-        std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-    let config = PostgresConfig {
-        url: url.clone(),
-        namespace: namespace.clone(),
-    };
+    let scratch = ScratchNamespaces::default();
+    let config = scratch.fresh("t");
+    let namespace = config.namespace.clone();
     let log = PostgresEventLog::open(&config).expect("log opens");
     let deadline = Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(1_700_000_000));
 
@@ -413,7 +308,7 @@ fn decode_error_surfaces_as_damaged_not_empty() {
     let _ = log.append(event, deadline).expect("append succeeds");
 
     // Now corrupt the payload by inserting invalid data via raw client
-    let mut raw_client = postgres::Client::connect(&url, postgres::NoTls).expect("connect");
+    let mut raw_client = postgres::Client::connect(&config.url, postgres::NoTls).expect("connect");
     raw_client
         .execute(&format!("SET search_path TO {}", namespace), &[])
         .expect("set search_path");
@@ -438,22 +333,9 @@ fn decode_error_surfaces_as_damaged_not_empty() {
 
 #[test]
 fn deleted_middle_row_is_damaged() {
-    let pid = std::process::id();
-    let counter = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .ok()
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-
-    let namespace = format!("gauntlet_t_{}_{:x}_{:x}", pid, counter, nanos);
-    let url =
-        std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string());
-
-    let config = PostgresConfig {
-        url: url.clone(),
-        namespace: namespace.clone(),
-    };
+    let scratch = ScratchNamespaces::default();
+    let config = scratch.fresh("t");
+    let namespace = config.namespace.clone();
     let log = PostgresEventLog::open(&config).expect("log opens");
     let deadline = Deadline::at_epoch(gauntlet_domain::EpochSeconds::new(1_700_000_000));
 
@@ -475,7 +357,7 @@ fn deleted_middle_row_is_damaged() {
     }
 
     // Delete the middle row via raw client
-    let mut raw_client = postgres::Client::connect(&url, postgres::NoTls).expect("connect");
+    let mut raw_client = postgres::Client::connect(&config.url, postgres::NoTls).expect("connect");
     raw_client
         .execute(&format!("SET search_path TO {}", namespace), &[])
         .expect("set search_path");
@@ -500,7 +382,8 @@ fn deleted_middle_row_is_damaged() {
 
 #[test]
 fn postgres_capability_ledger_passes_the_shared_contract_suite() {
-    let findings = capability_ledger_suite(&PostgresCapabilityLedgerFactory);
+    let scratch = ScratchNamespaces::default();
+    let findings = capability_ledger_suite(&PostgresCapabilityLedgerFactory { scratch: &scratch });
     assert!(
         findings.is_empty(),
         "the capability ledger must pass the shared suite:\n{}",
@@ -514,7 +397,8 @@ fn postgres_capability_ledger_passes_the_shared_contract_suite() {
 
 #[test]
 fn postgres_revision_ledger_passes_the_shared_contract_suite() {
-    let findings = revision_ledger_suite(&PostgresRevisionLedgerFactory);
+    let scratch = ScratchNamespaces::default();
+    let findings = revision_ledger_suite(&PostgresRevisionLedgerFactory { scratch: &scratch });
     assert!(
         findings.is_empty(),
         "the revision ledger must pass the shared suite:\n{}",
@@ -528,7 +412,8 @@ fn postgres_revision_ledger_passes_the_shared_contract_suite() {
 
 #[test]
 fn postgres_state_store_passes_the_shared_contract_suite() {
-    let findings = state_store_suite(&PostgresStateStoreFactory);
+    let scratch = ScratchNamespaces::default();
+    let findings = state_store_suite(&PostgresStateStoreFactory { scratch: &scratch });
     assert!(
         findings.is_empty(),
         "the state store must pass the shared suite:\n{}",
