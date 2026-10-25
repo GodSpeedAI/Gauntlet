@@ -205,11 +205,10 @@ fn applied_versions(tx: &mut Transaction<'_>) -> Result<Vec<i64>, MigrationError
 mod tests {
     use super::*;
 
-    use crate::db::{LOCAL_DEFAULT_URL, PostgresConfig, connect};
+    use crate::db::{PostgresConfig, connect};
+    use crate::test_support::ScratchNamespaces;
     use crate::{PostgresEventLog, PostgresInvocationGraph};
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Barrier};
-    use std::time::SystemTime;
 
     #[test]
     fn migrations_are_append_only() {
@@ -225,25 +224,9 @@ mod tests {
         }
     }
 
-    /// A namespace no other test or process uses: pid, counter and time.
-    fn fresh_config(tag: &str) -> PostgresConfig {
-        static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-        PostgresConfig {
-            url: std::env::var("GAUNTLET_DATABASE_URL")
-                .unwrap_or_else(|_| LOCAL_DEFAULT_URL.to_string()),
-            namespace: format!(
-                "gauntlet_mig_{}_{}_{:x}_{:x}",
-                tag,
-                std::process::id(),
-                counter,
-                nanos
-            ),
-        }
+    /// A namespace no other test or process uses, dropped when `scratch` goes out of scope.
+    fn fresh_config(scratch: &ScratchNamespaces, tag: &str) -> PostgresConfig {
+        scratch.fresh(&format!("mig_{}", tag))
     }
 
     fn recorded_versions(client: &mut Client) -> Vec<i64> {
@@ -264,8 +247,9 @@ mod tests {
 
     #[test]
     fn concurrent_first_open_applies_each_migration_once() {
+        let scratch = ScratchNamespaces::default();
         for round in 0..10 {
-            let config = fresh_config(&format!("apply{}", round));
+            let config = fresh_config(&scratch, &format!("apply{}", round));
             let barrier = Arc::new(Barrier::new(8));
             let handles: Vec<_> = (0..8)
                 .map(|_| {
@@ -296,7 +280,8 @@ mod tests {
 
     #[test]
     fn concurrent_store_opens_all_succeed() {
-        let config = fresh_config("stores");
+        let scratch = ScratchNamespaces::default();
+        let config = fresh_config(&scratch, "stores");
         let barrier = Arc::new(Barrier::new(6));
         let handles: Vec<_> = (0..6)
             .map(|i| {
@@ -328,7 +313,8 @@ mod tests {
 
     #[test]
     fn failed_migration_rolls_back_wholly_and_real_set_applies_after() {
-        let config = fresh_config("atomic");
+        let scratch = ScratchNamespaces::default();
+        let config = fresh_config(&scratch, "atomic");
         let mut client = connect(&config).expect("connect");
         let good = Migration {
             version: 1,
@@ -365,7 +351,8 @@ mod tests {
 
     #[test]
     fn reapplying_recorded_migrations_is_a_no_op() {
-        let config = fresh_config("idempotent");
+        let scratch = ScratchNamespaces::default();
+        let config = fresh_config(&scratch, "idempotent");
         let mut client = connect(&config).expect("connect");
         apply(&mut client).expect("first apply");
         apply(&mut client).expect("second apply is a no-op");
@@ -378,19 +365,11 @@ mod tests {
         // search_path, proving that a lookup in applied_versions() cannot leak
         // across namespaces. We test this with a simple schema creation and table
         // existence check.
-        let url = std::env::var("GAUNTLET_DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://postgres:postgres@127.0.0.1:54329/postgres".to_string()
-        });
-
-        let nanos = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-
-        // Create a test schema
-        let pid = std::process::id();
-        let test_schema = format!("gauntlet_test_to_regclass_{}_{:x}", pid, nanos);
+        // The scratch namespace is dropped when the test ends, pass or fail.
+        let scratch = ScratchNamespaces::default();
+        let config = scratch.fresh("regclass");
+        let url = config.url.clone();
+        let test_schema = config.namespace.clone();
 
         let mut conn = match postgres::Client::connect(&url, postgres::NoTls) {
             Ok(c) => c,
@@ -424,12 +403,6 @@ mod tests {
         assert!(
             !table_exists_public,
             "to_regclass should NOT find table when search_path is public"
-        );
-
-        // Clean up
-        let _ = conn.execute(
-            &format!("DROP SCHEMA IF EXISTS {} CASCADE", test_schema),
-            &[],
         );
     }
 }

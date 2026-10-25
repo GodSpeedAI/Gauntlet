@@ -292,6 +292,56 @@ pub fn settlement_rows(db_path: &Path) -> Result<Vec<SettlementRowFacts>, String
         .collect())
 }
 
+/// Owns the throwaway PostgreSQL namespaces one test case creates. Every namespace handed out by
+/// [`ScratchNamespaces::fresh`] is dropped (`DROP SCHEMA ... CASCADE`, best effort) when the owner
+/// goes out of scope, pass or fail. Keep the owner alive for as long as the stores it backs.
+#[derive(Default)]
+pub struct ScratchNamespaces {
+    created: std::sync::Mutex<Vec<(String, String)>>,
+}
+
+impl ScratchNamespaces {
+    /// A namespace no other test or process uses (pid, counter and time), on the configured server
+    /// (`GAUNTLET_DATABASE_URL`) or the local default. `tag` keeps the names readable per suite.
+    pub fn fresh(&self, tag: &str) -> PostgresConfig {
+        static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let counter = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let url = std::env::var("GAUNTLET_DATABASE_URL")
+            .unwrap_or_else(|_| crate::db::LOCAL_DEFAULT_URL.to_string());
+        let namespace = format!(
+            "gauntlet_{}_{}_{:x}_{:x}",
+            tag,
+            std::process::id(),
+            counter,
+            nanos
+        );
+        self.created
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .push((url.clone(), namespace.clone()));
+        PostgresConfig { url, namespace }
+    }
+}
+
+impl Drop for ScratchNamespaces {
+    fn drop(&mut self) {
+        let created = self
+            .created
+            .get_mut()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        for (url, namespace) in created.drain(..) {
+            if let Ok(mut client) = postgres::Client::connect(&url, postgres::NoTls) {
+                let _ =
+                    client.batch_execute(&format!("DROP SCHEMA IF EXISTS \"{namespace}\" CASCADE"));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
