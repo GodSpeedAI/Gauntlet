@@ -182,7 +182,7 @@ jobs:
         run: |
           set -euo pipefail
           sh packaging/deb/build.sh stage "$VERSION" "$ARCH" dist
-          sh packaging/linux/build-tarball.sh stage "$VERSION" "$TARGET" dist
+          bash packaging/linux/build-tarball.sh stage "$VERSION" "$TARGET" dist
           ls -l dist
 
       - name: Provision PostgreSQL for the install test
