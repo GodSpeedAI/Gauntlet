@@ -1354,6 +1354,7 @@ fn establish_leg_environment(args: &[String]) -> Result<Option<ExitCode>, String
     let shim_body = instrument_script(&interpreter, BASELINE_JUDGE_SHIM_BODY);
     std::fs::write(&shim, shim_body)
         .map_err(|error| format!("writing the judge shim {}: {error}", shim.display()))?;
+    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let executable = std::fs::Permissions::from_mode(0o755);
@@ -1365,6 +1366,12 @@ fn establish_leg_environment(args: &[String]) -> Result<Option<ExitCode>, String
                 )
             })?;
         }
+    }
+    #[cfg(not(unix))]
+    {
+        // Non-unix targets carry no exec mode to set: the interpreter
+        // owning script launch makes the chmod a no-op here.
+        let _ = (&child_wrapper, &shim);
     }
     // The child command template: the materialized wrapper (a real,
     // executable instrument of this process) followed by the three
@@ -2656,6 +2663,7 @@ impl BaselineExecutor for BaselineCliExecutor {
                 format!("writing {}: {error}", judge_wrapper.display()),
             )
         })?;
+        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&judge_wrapper, std::fs::Permissions::from_mode(0o755))
@@ -2668,6 +2676,12 @@ impl BaselineExecutor for BaselineCliExecutor {
                         ),
                     )
                 })?;
+        }
+        #[cfg(not(unix))]
+        {
+            // Non-unix targets carry no exec mode to set; the wrapper is
+            // still read and pinned below, so nothing is dropped here.
+            let _ = &judge_wrapper;
         }
         // F1 leg 1: pin the wrapper's ON-DISK digest, executor-owned and
         // in-process — the leg world never sees it, and grading re-verifies
@@ -3351,19 +3365,29 @@ fn make_scripts_executable(
     dir: &std::path::Path,
     refused: &dyn Fn(String) -> BaselineError,
 ) -> Result<(), BaselineError> {
-    use std::os::unix::fs::PermissionsExt;
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Ok(()); // an absent dir carries nothing to make executable
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_file() {
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).map_err(
-                |error| refused(format!("making {} executable: {error}", path.display())),
-            )?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return Ok(()); // an absent dir carries nothing to make executable
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).map_err(
+                    |error| refused(format!("making {} executable: {error}", path.display())),
+                )?;
+            }
         }
+        Ok(())
     }
-    Ok(())
+    #[cfg(not(unix))]
+    {
+        // Non-unix targets carry no exec mode to set: script launch is the
+        // interpreter's business, so the walk has nothing to do here.
+        let _ = (dir, refused);
+        Ok(())
+    }
 }
 
 /// The declared source-level consts of the workspace's `src` tree — the
@@ -3468,11 +3492,14 @@ mod baseline_executor_tests {
             )),
         )
         .expect("the held-out instrument writes");
+        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&held_out, std::fs::Permissions::from_mode(0o755))
                 .expect("the held-out instrument is made executable");
         }
+        // Non-unix fixtures set no exec mode: these tests only compile and
+        // run where the graded scripts are launchable by mode.
         std::fs::create_dir_all(root.join("src")).expect("src dir");
         std::fs::write(
             root.join("src").join("gadget.rs"),
@@ -3920,6 +3947,7 @@ mod baseline_executor_tests {
             leg.join("scripts").join(format!("held-out{SCRIPT_SUFFIX}")),
         )
         .expect("the leg held-out copies");
+        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(

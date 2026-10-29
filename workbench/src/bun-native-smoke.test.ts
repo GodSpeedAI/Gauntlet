@@ -102,8 +102,19 @@ describe("T03 Bun 1.4 Native-Substrate Smoke & Qualification (REQ-BUN-001, REQ-B
         expect(allDeps[overlap]).toBeUndefined();
       }
 
-      // Admitted dependencies must match the explicit qualification list
-      const ADMITTED_PROD = ["@opentui/core", "@opentui/react", "react", "react-reconciler"];
+      // Admitted dependencies must match the explicit qualification list.
+      // quickjs-wasi (3.6.2, package.json since 914c538) is admitted
+      // deliberately: it is imported by src/codemode/sandbox-worker.ts (the
+      // codemode program-host WASM sandbox). The attack's strength is kept:
+      // every prod dependency in package.json must appear here, so any FUTURE
+      // undeclared dependency still fails until it is explicitly qualified.
+      const ADMITTED_PROD = [
+        "@opentui/core",
+        "@opentui/react",
+        "quickjs-wasi",
+        "react",
+        "react-reconciler",
+      ];
 
       for (const dep of Object.keys(packageJson.dependencies ?? {})) {
         expect(ADMITTED_PROD).toContain(dep);

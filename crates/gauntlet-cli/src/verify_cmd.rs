@@ -660,6 +660,9 @@ mod tests {
     /// OOM-killer shape) is the typed environmental refusal naming the
     /// signal — never a fabricated "exit -1" FAIL. The stub kills
     /// ITSELF with signal 9; the executor must report CannotRun.
+    /// Signal semantics (and the fixture's exec mode) are unix-only, so
+    /// the whole test is unix-gated like the sibling symlink test.
+    #[cfg(unix)]
     #[test]
     fn a_signal_killed_command_is_the_typed_environmental_refusal() {
         let sep = std::path::MAIN_SEPARATOR;
