@@ -237,7 +237,7 @@ try {
             $psi.RedirectStandardOutput = $true
             $psi.RedirectStandardError = $true
             $psi.EnvironmentVariables['GAUNTLET_WORKBENCH_GAUNTLET_BINARY'] = $GauntletBin
-            $psi.EnvironmentVariables['GAUNTLET_WORKBENCH_PROJECTION_STORE'] = $projection
+            $psi.EnvironmentVariables['GAUNTLET_WORKBENCH_PROJECTION_STORE'] = Join-Path $projection 'projections.db'
 
             try {
                 $null = $proc.Start()
