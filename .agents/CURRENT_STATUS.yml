@@ -1,6 +1,27 @@
 schema: agent.current_status
 schema_version: "1.0"
 
+native_distribution:
+  status: in_progress
+  updated: "2026-10-29"
+  plan: ".agents/plans/native-distribution.md"
+  in_flight: ".agents/reports/native-distribution/IN-FLIGHT.md"
+  branch: release/native-distribution
+  scope: >-
+    Operator mission (2026-10-29): native binary distribution of the gauntlet Rust CLI
+    (surfaces build) and the gauntlet-workbench Bun/OpenTUI standalone executable for
+    linux amd64+arm64 (.deb/.tar.gz), windows x64 (.zip/setup.exe), macOS (.pkg/.dmg),
+    with a reusable package.yml + minimal tag-driven release flow, install/acceptance
+    tests, and immediate ARM64 delivery for the Jetson AGX Orin. Packaging only: no
+    governance, architecture, ruler, or evidence-semantics changes.
+  slices:
+    - "R: CLI --version (additive, version from CARGO_PKG_VERSION, goldens preserved or deliberately updated)"
+    - "W: workbench release-manifest.ts multi-target (host-derived bun target, per-target manifest, real-PTY qualification on native hosts, quickjs-wasi smoke fix)"
+    - "B: linux packaging scripts (dpkg-deb + dpkg-shlibdeps, glibc<=2.35 ABI gate, reproducible tarball, smoke + install-test)"
+    - "C: windows/macOS packaging scripts (Inno per-user, pkgbuild/dmg, honest universal-vs-arm64 label)"
+    - "E: CI release engineering (reusable package.yml matrix incl. ubuntu-22.04-arm, release-native.yml tag flow, install-native-binaries.md)"
+  verification: "pending — integration gate battery + branch CI run are the orchestrator's after slice reports land"
+
 needle_navigation_proving:
   status: settled
   updated: "2026-09-19"
@@ -634,7 +655,7 @@ metadata:
 # ─────────────────────────────────────────────────────────────────────────
 execution:
   last_settled_task: task27           # PLAN COMPLETE — all 27 tasks settled
-  in_flight_task: tui_gui_redesign    # operator-directed GUI-grade TUI redesign (post-plan; see tui_gui_redesign above)
+  in_flight_task: native-distribution # operator mission 2026-10-29: native distribution packaging (see native_distribution above)
 
   ready_tasks: []                     # none — the plan has no tasks left
 
