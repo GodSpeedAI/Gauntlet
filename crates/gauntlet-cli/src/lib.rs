@@ -62,6 +62,14 @@ pub fn run_cli(args: &[String]) -> ExitCode {
             usage();
             ExitCode::SUCCESS
         }
+        // Native-distribution Slice R: the root `--version`/`-V` flag
+        // prints the compile-time Cargo package version (never a
+        // hardcoded string) and exits 0, before subcommand dispatch, in
+        // BOTH the default and the surfaces builds.
+        Some("--version") | Some("-V") => {
+            println!("gauntlet {}", env!("CARGO_PKG_VERSION"));
+            ExitCode::SUCCESS
+        }
         Some("doctor") => doctor_cmd::run(&args[1..]),
         Some("init") => init_cmd::run(&args[1..]),
         Some("reference") => reference_cmd::run(&args[1..]),
@@ -139,4 +147,5 @@ fn usage() {
          --fabric-dir <dir> --workspace <path> --answer-key <path> \
          [--program-host-dir <dir> [--program-runner <exe>]] [--session-binding NAME=VALUE]"
     );
+    println!("       gauntlet --version  Print the CLI version");
 }
