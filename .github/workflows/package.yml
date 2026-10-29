@@ -314,16 +314,19 @@ jobs:
         id: x86wb
         continue-on-error: true
         working-directory: workbench
-        # A host-arch `bun install` does not lay down @opentui/core-darwin-x64,
-        # so this cross build may legitimately fail. On success the binary is
-        # NOT staged into any package: build.sh (builder C) refuses an
-        # x64-stage workbench and the pkg's workbench is arm64-only — the
-        # cross build ships ONLY as the separate pkg-macos-workbench-unqualified
-        # artifact (it is never launch-qualified). On failure the CLI ships
-        # arm64-only (honest label).
+        # A host-arch `bun install` does not lay down @opentui/core-darwin-x64
+        # (run 40958463537: the bare cross build could not resolve it), so this
+        # step first asks bun for the darwin-x64 optional dependencies (best
+        # effort). On success the cross-built binary is NOT staged into any
+        # package: build.sh (builder C) refuses an x64-stage workbench and the
+        # pkg's workbench is arm64-only — the cross build ships ONLY as the
+        # separate pkg-macos-workbench-unqualified artifact (it is never
+        # launch-qualified). On failure the CLI ships arm64-only (honest label).
         run: |
           set -euo pipefail
           bun install --frozen-lockfile
+          bun install --frozen-lockfile --os darwin --cpu x64 || \
+            echo "::warning::darwin-x64 optional-dependency install failed; the cross build will likely not resolve @opentui/core-darwin-x64"
           bun build --compile --target=bun-darwin-x64 src/main.ts \
             --outfile dist/gauntlet-workbench-bun-darwin-x64
 
