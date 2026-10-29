@@ -2,11 +2,14 @@ schema: agent.current_status
 schema_version: "1.0"
 
 native_distribution:
-  status: in_progress
+  status: settled_pending_operator_merge
   updated: "2026-10-29"
   plan: ".agents/plans/native-distribution.md"
   in_flight: ".agents/reports/native-distribution/IN-FLIGHT.md"
   branch: release/native-distribution
+  pr: "https://github.com/GodSpeedAI/Gauntlet/pull/7"
+  green_run: "https://github.com/GodSpeedAI/Gauntlet/actions/runs/40959948193"
+  artifact_binding_commit: 50355780bb9ed0d617962e8bb529b0c2d6659664
   scope: >-
     Operator mission (2026-10-29): native binary distribution of the gauntlet Rust CLI
     (surfaces build) and the gauntlet-workbench Bun/OpenTUI standalone executable for
@@ -20,7 +23,18 @@ native_distribution:
     - "B: linux packaging scripts (dpkg-deb + dpkg-shlibdeps, glibc<=2.35 ABI gate, reproducible tarball, smoke + install-test)"
     - "C: windows/macOS packaging scripts (Inno per-user, pkgbuild/dmg, honest universal-vs-arm64 label)"
     - "E: CI release engineering (reusable package.yml matrix incl. ubuntu-22.04-arm, release-native.yml tag flow, install-native-binaries.md)"
-  verification: "pending — integration gate battery + branch CI run are the orchestrator's after slice reports land"
+  verification: >-
+    SETTLED on Package run 8 (40959948193): all five jobs green (linux amd64+arm64 native,
+    macos-14 universal CLI + arm64-qualified workbench + honest unqualified darwin-x64
+    artifact, windows zip/setup.exe with real-PTY-qualified workbench, sum verification).
+    just ci green on the tree; TUI gates green (1074/0, preflight bootstrap, tui-build
+    release real-PTY PASS). Adversarial review F1-F9 closed. ARM64 tarball byte-identical
+    across runs 7/8. Artifacts bound to merge commit 50355780 (= bf058c7 into 1543cbf).
+    Formal gauntlet-v* release flow implemented but not executed (operator decision).
+  residuals: >-
+    see IN-FLIGHT.md SETTLED section (test-only windows compile residuals in
+    crates/gauntlet-cli/tests; projections.db battery-mutation hermeticity quirk, restored
+    to committed SHA each run; universal pkg workbench arm64-only, disclosed).
 
 needle_navigation_proving:
   status: settled

@@ -56,3 +56,24 @@ settlement target is a verified downloadable ARM64 package for the NVIDIA Jetson
   constructs remain in `crates/gauntlet-cli/tests/*.rs` (8 files) — outside touch scope,
   do not block the bin-only package build; listed in rust-windows-portability.md.
 - Correction round 3 (builder C, CI 40949652982): smoke-macos.sh + smoke-windows.ps1 doctor legs reworked to the observed fail-closed contract (env-only = typed nonzero + exit: FAIL + codemode + report line + non-empty doctor.json; exit 0 now FAILS) and a NEW required GAUNTLET_SMOKE_PROJECT in-project leg (doctor exits 0 in a copied doctor-clean project; typed exit-2 refusals). Validated: shellcheck clean + 8-case fake harness incl. both fail-closed teeth. CI must export GAUNTLET_SMOKE_PROJECT for both smokes.
+
+## SETTLED (orchestrator, 2026-10-29 evening)
+
+- **Package run 8 (40959948193) fully GREEN** — linux amd64 + linux arm64 (native
+  ubuntu-22.04-arm, glibc ≤ 2.35 ABI gate), macos-14 (UNIVERSAL CLI pkg/dmg after the
+  darwin-x64 optional-dep install attempt succeeded; arm64-qualified workbench inside;
+  darwin-x64 cross build shipped only as pkg-macos-workbench-unqualified), windows-latest
+  (zip + Inno setup.exe carrying a real-PTY-qualified workbench), sum (built-from == commit
+  50355780, strict checksum verification, presence assertions, combined SHA256SUMS).
+- Install acceptance proven per platform (mock-runner loop, serve + workbench connect,
+  clean removal on linux; installer + uninstall on macos/windows).
+- `just ci` green on the integrated tree; TUI gates green (1074/0/32-skip, preflight bootstrap
+  PASS, tui-build release real-PTY PASS). CI-gates runs green on every round.
+- Adversarial review F1-F9 all closed (commits 83059ca..bf058c7). SHA-256s + commit bindings
+  in the release-meta artifact and the PR #7 evidence comment. aarch64 tarball byte-identical
+  across runs 7/8 (bb7c0ad2…).
+- Formal release flow (release-native.yml, gauntlet-v* tags) exists but was NOT executed —
+  tag cutting is an operator decision. Artifacts downloadable from run 40959948193.
+- Residuals recorded: test-only windows compile residuals (crates/gauntlet-cli/tests);
+  projections.db re-mutation hermeticity quirk (restored each time, dde57792…); universal pkg
+  workbench is arm64-only (disclosed); shell-quote fixed in-lockfile only.
