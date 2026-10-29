@@ -148,3 +148,84 @@ All commands run from the repo root; every script passed `shellcheck` (clean) an
 6. The smoke's doctor leg unsets caller Gauntlet env (DATABASE_URL, PROJECT_ROOT, etc.) to guarantee
    the nothing-configured env-only scenario; if a future doctor treats "nothing configured" as
    non-zero, CI will fail honestly — that would be a product-behavior question, not a packaging one.
+   (SUPERSEDED the same day: doctor DOES fail closed there — see the correction round below; the
+   smoke now asserts that contract.)
+
+## Correction round (2026-10-29, adversarial F1/F9)
+
+Adversarial review + CI run 40934599697 proved this slice's env-only doctor premise wrong: BOTH linux
+CI jobs failed at `smoke: FAIL doctor exited nonzero in an env-only dir`. The product was right and
+the smoke was wrong — `gauntlet doctor` in a bare env-only dir FAILS CLOSED BY DESIGN (the §8.5
+reference check fails with no project/reference manifest; pinned by green product tests at
+crates/gauntlet-app/src/doctor/mod.rs). Nothing in the product was weakened. This round ran cargo
+(dispatch explicitly permitted it: `cargo build --release -p gauntlet-cli --features surfaces --bin
+gauntlet`, ~4.5 min, clean) and re-validated the affected scripts. Files touched: ONLY the three I own
+(`packaging/smoke-gauntlet.sh`, `packaging/linux/build-tarball.sh`, `packaging/install-test-deb.sh`)
+plus this report.
+
+### F1a — observed doctor behavior, env-only dir (real release 0.1.0 binary, bare temp dir, GAUNTLET_REPORT_DIR set, scrubbed env)
+
+- Exit code **1** (typed nonzero); stderr **empty**.
+- stdout: full human summary; check 1 config passes ("no GAUNTLET.md found; the environment fully
+  specifies the run"), check 2 reference FAILS (manifest/answer-key/unit-schema/digest all fail
+  "entity not found"), check 7 answer-key placement also fails (default answer key resolves under the
+  cwd's `.wayfinder/`), summary names the first required failure: `exit: FAIL (check 2: reference)`.
+- `codemode (optional):` line PRESENT (`codemode (optional): not available: runner ok; entry absent
+  (workbench/src/codemode/cli.ts is not present); one-shot skipped`).
+- `report:` line PRESENT and honours the env: `report: <GAUNTLET_REPORT_DIR>/doctor.json`
+  (OD-7/OD-14; write_report pins `doctor.json` via `defaults::DOCTOR_REPORT_NAME`).
+- `doctor.json` written, non-empty (6885 bytes, canonical JSON with the full checks array).
+
+### F1b — env-only leg now asserts the fail-closed contract (smoke-gauntlet.sh leg 3)
+
+Typed nonzero exit (captured, must be != 0 — exit 0 now FAILS the smoke) + `^exit: FAIL ` in the
+summary + `^codemode (optional): ` + `^report: <path>` where path must equal
+`$GAUNTLET_REPORT_DIR/doctor.json` + that file exists and is non-empty. Tooth proven: a fake binary
+whose doctor exits 0 in the env-only dir FAILS the smoke with a typed message plus the stdout dump.
+
+### F1c — in-project doctor leg (smoke-gauntlet.sh leg 5) and the init-scaffold finding
+
+- Empirical: `gauntlet init` exits 0 and scaffolds GAUNTLET.md/.env.example/.gauntlet, but doctor in
+  that scaffold exits **1** (`exit: FAIL (check 2: reference)`) — the comments-only template
+  deliberately configures no reference manifest. The init scaffold is NOT doctor-clean, so the
+  in-project leg does NOT use it; leg 4 keeps asserting only the scaffold shape.
+- NEW SMOKE INTERFACE — `GAUNTLET_SMOKE_PROJECT`: a REQUIRED caller obligation (like the expected
+  version; the script refuses with typed exit-2 errors rather than skip the leg silently) naming a
+  doctor-clean project directory. The smoke copies it (`cp -a`) into its temp work and asserts doctor
+  exits 0 there (`^exit: OK`, codemode line, `report: <path>` line, non-empty report file).
+  Validated source: a copy of `tests/fixtures/target` — doctor exits 0 with every real clause passing
+  (manifest deep-parse, answer key, unit schema, digest-vs-lock), no extra env needed.
+  **install-test-deb.sh now passes `GAUNTLET_SMOKE_PROJECT="$repo_root/tests/fixtures/target"` to the
+  smoke; CI (Slice E) must export the same for its smoke invocations.** Typed refusals verified:
+  unset -> exit 2; nonexistent dir -> exit 2 naming the path; dir without GAUNTLET.md -> exit 2.
+
+### F9 — build-tarball.sh truncated-stream hole
+
+Choice: **pipefail via bash** — shebang `#!/bin/sh` -> `#!/bin/bash`, `set -eu` -> `set -euo
+pipefail`. Companion fix required by that choice: the verification step's `tar -tzf "$archive" |
+grep -q ...` pipelines went through a file (`tar -tzf > listing.txt`, grep the file) because under
+pipefail grep -q's early exit can SIGPIPE a still-listing tar (exit 141) on a HEALTHY archive. The
+tiny `printf | grep -Eq` version check is safe (short write, completes before grep can exit).
+Validated: normal fake-stage build OK and byte-identical in-process (cmp) and across two separate
+invocations (sha256 20b51014…ccff); a hostile `tar` stub emitting a partial stream then exit 1 — the
+exact F9 scenario that previously produced a passable truncated archive — now fails the script
+(exit 1) before any cmp.
+
+### Validation evidence (all commands run locally)
+
+- shellcheck clean on all three touched scripts; `bash -n` clean (all); `dash -n` clean
+  (smoke-gauntlet.sh, install-test-deb.sh — both remain `/bin/sh`).
+- REAL smoke end to end: `GAUNTLET_EXPECTED_VERSION=0.1.0 GAUNTLET_SMOKE_PROJECT=<checkout>/tests/
+  fixtures/target sh packaging/smoke-gauntlet.sh target/release/gauntlet <fake raw-mode TUI>` ->
+  ALL CHECKS PASSED, including both real-PTY workbench legs (fake TUI: markers + bare-q quit).
+- Negatives: version mismatch -> FAIL exit 1 (unchanged leg); the three GAUNTLET_SMOKE_PROJECT
+  refusals above; fake doctor-exit-0 binary -> FAIL at leg 3.
+- install-test-deb.sh: usage exit 2, missing-deb typed failure unchanged (full install cycle remains
+  CI-qualified: sudo + live PostgreSQL).
+
+### Interface summary for Slice E (CI wiring)
+
+- `smoke-gauntlet.sh` now REQUIRES `GAUNTLET_SMOKE_PROJECT` (doctor-clean project dir; use
+  `<checkout>/tests/fixtures/target`) in addition to the expected version. Smoke leg 3 asserts
+  fail-closed doctor in an env-only dir (nonzero by design); leg 5 asserts doctor exit 0 in the
+  copied project. `install-test-deb.sh` already complies.

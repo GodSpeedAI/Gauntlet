@@ -11,14 +11,31 @@
 # Cargo.toml; the caller — CI or install-test-deb.sh — supplies it). With
 # neither, the script refuses.
 #
+# GAUNTLET_SMOKE_PROJECT (required, also a caller obligation): a
+# doctor-clean project directory — CI and install-test-deb.sh pass the
+# checkout's tests/fixtures/target. The script copies it into its temp
+# work and asserts `doctor` exits 0 there. Without it the in-project leg
+# has no ruler, and the script refuses rather than skip a leg silently.
+#
 # Assertions (every one checked; non-zero exit on the first failure):
 #   1. `--version` prints exactly `gauntlet <expected-version>`
 #   2. `--help` exits 0 and prints the usage block
-#   3. `doctor` exits 0 in an env-only dir (no GAUNTLET.md anywhere above),
-#      prints its `codemode (optional):` line, and its `report:` file exists
+#   3. `doctor` in an env-only dir (no GAUNTLET.md anywhere above) FAILS
+#      CLOSED, by design: the §8.5 reference check fails with no project /
+#      reference manifest (pinned by green product tests — never weaken
+#      the product to pass a smoke), so the real contract asserted here is
+#      a typed nonzero exit, the summary naming the failure
+#      (`exit: FAIL ...`), the `codemode (optional):` line, and the
+#      machine report still written to `$GAUNTLET_REPORT_DIR/doctor.json`
 #   4. `gauntlet init` scaffolds a fresh project dir (syntax probed via
-#      `init --help` first: init refuses arguments and prints its usage)
-#   5. when a workbench binary was passed:
+#      `init --help` first: init refuses arguments and prints its usage).
+#      The comments-only scaffold deliberately configures no reference
+#      manifest, so it is NOT doctor-clean — doctor's fail-closed exit
+#      there is the product behaving correctly.
+#   5. `doctor` exits 0 (`exit: OK`, report line, non-empty report file)
+#      in a copy of GAUNTLET_SMOKE_PROJECT — a real, reference-manifested
+#      project
+#   6. when a workbench binary was passed:
 #        a. REAL PTY 120x40 (TERM=xterm-256color): the NAVIGATOR / PRIMARY /
 #           INSPECTOR / COMPOSER panel markers render within 30s, then `q`
 #           quits with exit 0
@@ -42,6 +59,25 @@ expected=${3:-${GAUNTLET_EXPECTED_VERSION:-}}
 
 if [ -z "$expected" ]; then
     echo "error: no expected version: pass argument 3 or export GAUNTLET_EXPECTED_VERSION" >&2
+    exit 2
+fi
+
+# The in-project doctor leg's ruler: a doctor-clean project directory. The
+# smoke runs outside any checkout and cannot discover one itself, so the
+# caller supplies it (a checkout's tests/fixtures/target). Refusing here —
+# like the expected version above — keeps the leg from ever being skipped
+# silently.
+smoke_project_input=${GAUNTLET_SMOKE_PROJECT:-}
+if [ -z "$smoke_project_input" ]; then
+    echo "error: no smoke project: export GAUNTLET_SMOKE_PROJECT to a doctor-clean project directory (a checkout's tests/fixtures/target)" >&2
+    exit 2
+fi
+smoke_project=$(CDPATH='' cd -- "$smoke_project_input" 2>/dev/null && pwd) || {
+    echo "error: GAUNTLET_SMOKE_PROJECT is not a readable directory: $smoke_project_input" >&2
+    exit 2
+}
+if [ ! -f "$smoke_project/GAUNTLET.md" ]; then
+    echo "error: GAUNTLET_SMOKE_PROJECT carries no GAUNTLET.md (want a doctor-clean project like tests/fixtures/target): $smoke_project" >&2
     exit 2
 fi
 
@@ -123,19 +159,33 @@ fi
 grep -q '^usage:' "$work/help.txt" || fail "--help printed no usage block"
 pass "--help exits 0 with usage"
 
-# ── 3. doctor in an env-only dir ─────────────────────────────────────────
+# ── 3. doctor in an env-only dir FAILS CLOSED (the pinned contract) ──────
+# With no GAUNTLET.md anywhere above the cwd, the §8.5 reference check
+# fails and doctor exits nonzero — fail-closed by design (adversarial
+# review + CI run 40934599697 proved the previous exit-0 assertion could
+# never pass; the product is correct). The contract asserted here, verified
+# against the release binary: typed nonzero exit, the human summary naming
+# the failed check, the codemode line, and the machine report still written
+# under GAUNTLET_REPORT_DIR (OD-7/OD-14).
 mkdir -p "$work/envdir"
-if ! (cd "$work/envdir" && "$gauntlet_bin" doctor) > "$work/doctor.out" 2> "$work/doctor.err"; then
+doctor_code=0
+(cd "$work/envdir" && "$gauntlet_bin" doctor) \
+    > "$work/doctor.out" 2> "$work/doctor.err" || doctor_code=$?
+if [ "$doctor_code" -eq 0 ]; then
     dump "doctor stdout" "$work/doctor.out"
     dump "doctor stderr" "$work/doctor.err"
-    fail "doctor exited nonzero in an env-only dir"
+    fail "doctor exited 0 in an env-only dir; the fail-closed contract wants a typed nonzero exit"
 fi
+grep -q '^exit: FAIL ' "$work/doctor.out" \
+    || fail "env-only doctor output lacks the typed 'exit: FAIL' summary line"
 grep -q '^codemode (optional): ' "$work/doctor.out" \
-    || fail "doctor output lacks the 'codemode (optional):' line"
+    || fail "env-only doctor output lacks the 'codemode (optional):' line"
 report_path=$(sed -n 's/^report: //p' "$work/doctor.out" | tail -1)
-test -n "$report_path" || fail "doctor output lacks the 'report: <path>' line"
-test -s "$report_path" || fail "doctor report file missing or empty: $report_path"
-pass "doctor exit 0 (env-only dir), report at $report_path"
+test -n "$report_path" || fail "env-only doctor output lacks the 'report: <path>' line"
+test "$report_path" = "$GAUNTLET_REPORT_DIR/doctor.json" \
+    || fail "env-only doctor wrote its report at '$report_path', want $GAUNTLET_REPORT_DIR/doctor.json"
+test -s "$report_path" || fail "env-only doctor report file missing or empty: $report_path"
+pass "doctor fails closed in an env-only dir (exit $doctor_code, report at $report_path)"
 
 # ── 4. init in a fresh project dir ───────────────────────────────────────
 mkdir -p "$work/fresh"
@@ -155,7 +205,29 @@ test -f "$work/fresh/.env.example" || fail "init did not scaffold .env.example"
 test -d "$work/fresh/.gauntlet" || fail "init did not scaffold the .gauntlet directory"
 pass "init scaffolded a fresh project (GAUNTLET.md, .env.example, .gauntlet/)"
 
-# ── 5. workbench PTY legs ────────────────────────────────────────────────
+# ── 5. doctor exits 0 in a real, reference-manifested project ────────────
+# The ruler is a COPY of GAUNTLET_SMOKE_PROJECT (the original is never
+# touched): its GAUNTLET.md + .wayfinder manifest/answer key form the
+# smallest doctor-clean project. An init scaffold does NOT suffice — the
+# comments-only template configures no reference manifest, so doctor fails
+# closed there by design (verified empirically against the release binary).
+cp -a "$smoke_project" "$work/project"
+if ! (cd "$work/project" && "$gauntlet_bin" doctor) \
+    > "$work/doctor-project.out" 2> "$work/doctor-project.err"; then
+    dump "doctor-project stdout" "$work/doctor-project.out"
+    dump "doctor-project stderr" "$work/doctor-project.err"
+    fail "doctor exited nonzero in the GAUNTLET_SMOKE_PROJECT copy"
+fi
+grep -q '^exit: OK' "$work/doctor-project.out" \
+    || fail "in-project doctor output lacks the 'exit: OK' summary line"
+grep -q '^codemode (optional): ' "$work/doctor-project.out" \
+    || fail "in-project doctor output lacks the 'codemode (optional):' line"
+project_report=$(sed -n 's/^report: //p' "$work/doctor-project.out" | tail -1)
+test -n "$project_report" || fail "in-project doctor output lacks the 'report: <path>' line"
+test -s "$project_report" || fail "in-project doctor report file missing or empty: $project_report"
+pass "doctor exit 0 in the copied smoke project, report at $project_report"
+
+# ── 6. workbench PTY legs ────────────────────────────────────────────────
 if [ -n "$workbench_bin" ]; then
     if ! command -v python3 >/dev/null 2>&1; then
         fail "python3 is required for the workbench PTY legs"

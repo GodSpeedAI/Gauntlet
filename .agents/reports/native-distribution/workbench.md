@@ -136,3 +136,60 @@ Manifest dependency list matches package.json exactly (`@opentui/core`, `@opentu
 5. Windows-target artifact naming (.exe) was verified via a throwaway hello-world cross build
    in /tmp (Bun appends `.exe` even when `--outfile` omits it); a full windows artifact could
    not be produced here (Residual 2).
+
+## Correction round (2026-10-29, adversarial F2/F7)
+
+Reconciliation first: the worktree already held an UNCOMMITTED partial fix for both findings
+(an earlier correction attempt was interrupted before any gate run or report). This round
+reconciled that state, COMPLETED F2's coverage (two spawn sites were still unguarded), and ran
+the full gate battery. File scope honored exactly: `workbench/src/release-manifest.ts`,
+`workbench/src/release-manifest.test.ts`, this report. No commits; `packaging/` and `.github/`
+untouched by this round (their worktree modifications belong to slices B/C/E and were preserved).
+`IN-FLIGHT.md` / `CURRENT_STATUS.yml` were NOT updated — outside this round's explicit file
+scope; left for orchestrator reconciliation.
+
+### F2 (CRITICAL) — tool absence must never crash the builder
+
+Mechanism reproduced empirically on this host: `Bun.spawnSync(["gauntlet-no-such-tool","-V"])`
+THROWS `Executable not found in $PATH: "gauntlet-no-such-tool"` (this is what killed CI run
+40934599697 on the tmux-less macos-14 runner). All FOUR spawn sites in `release-manifest.ts`
+are now guarded:
+
+| Spawn site | Guard |
+|---|---|
+| `supportFacts()` tmux `spawnSync(["tmux","-V"])` | `Bun.which("tmux")` first; absent ⇒ fact `tmux not found in $PATH on this host (tmux transport legs not runnable here).` — plus try/catch ⇒ `tmux probe failed on this host (...)` |
+| `supportFacts()` ssh `spawnSync(["ssh", … "localhost", "echo ok"])` | `Bun.which("ssh")` first; absent ⇒ fact `ssh not found in $PATH on this host (SSH remote-mode terminal recorded as unavailable; see evidence).` — plus try/catch ⇒ `ssh probe failed on this host (...)` |
+| `buildArtifact()` `Bun.spawn(["bun","build","--compile",…])` | NEW (was still unguarded in the partial fix): `Bun.which("bun")` first ⇒ typed `release build failed: the 'bun' executable is not in $PATH…`; spawn itself in try/catch ⇒ `release build failed to start: …` |
+| `launchAndQualify()` `Bun.spawn([artifactPath])` | Call site in `main()` now caught (NEW): spawn-time throws (incl. unspawnable artifact) fail through the typed stderr channel, exit 1 — same handler pattern as target resolution; the builder never dies on an unhandled throw |
+
+Absence is recorded as a plain support fact in the existing phrasing style and the build
+continues; nothing can crash via "Executable not found in $PATH" anymore.
+
+### F7 (MINOR) — forged `rendered_markers` no longer qualifies
+
+`verifyReleaseManifest` now computes `markersComplete` = all five `LAUNCH_MARKERS`
+(`Gauntlet`, `NAVIGATOR`, `PRIMARY`, `INSPECTOR`, `COMPOSER`) present in `rendered_markers`;
+`launch_qualified` is true only with geometry `120x40` AND clean exit AND `markersComplete`,
+and a non-empty marker list missing any marker now FAILS verification
+(`launch_qualification.rendered_markers must include the qualified launch markers (…)`).
+The honest not-qualifiable shape is unchanged and still verifies as a manifest with
+`launch_qualified: false`. Tests: existing suites kept passing; added `rejects a forged marker
+list that lacks the qualified launch markers` (covers `["x"]`, the partial
+`["Gauntlet","NAVIGATOR"]`, and the empty list — each fails with `launch_qualified: false`);
+the pre-existing `accepts an honest not-qualifiable record without ever marking it qualified`
+pins the unqualified-verify leg. Focused suite: 15 pass / 0 fail.
+
+### Gate outputs (all run from repo root, after the completed fix)
+
+| Gate | Result |
+|---|---|
+| `just tui-check` | PASS (`tsc --noEmit`, exit 0). |
+| `just tui-test` (default suite) | **1074 pass / 0 fail / 32 skip** across 97 files. Delta vs the 1073 baseline is exactly +1: the deliberate F7 forged-marker test required by this correction round. 0 fail and all 32 gated skips intact. |
+| `just tui-lint` | Totals identical to the recorded baseline: 89 warnings / 616 infos (no new findings anywhere); scoped run over the two touched files: `Checked 2 files` — ZERO findings. |
+| `just tui-preflight bootstrap` | **PASS** — all 6 rows green (pinned-exact, frozen-lockfile sync, `bun audit` clean, spec/DESIGN digests match). |
+| `just tui-build release` | PASS, verbatim: `tui-build release: bun 1.4.0, target bun-linux-x64 (host-derived)` / `built dist/gauntlet-workbench-bun-linux-x64` / `OK — dist/gauntlet-workbench-bun-linux-x64 sha256=1e64791f98678bab… launch 120x40 exit 0, manifest dist/release-manifest.json`. Real 120x40 PTY qualification ran (tmux present here, tmux 3.6 recorded in support_facts); artifact sha256 byte-identical to the settled baseline `1e64791f98678bab90cc99053487899441d2ba472cbb40e0391d054cfea0d32c` (the F2/F7 edits are builder/verifier-side, not bundled into the artifact). |
+| On-disk manifest probe (E6-equivalent, post-build) | `{valid: true, launch_qualified: true, failures: []}` — the TIGHTENED verifier accepts the honest manifest; support facts on this host unchanged (`tmux available: tmux 3.6.`, `sshd NOT reachable on localhost (…)`). |
+
+Residuals: none new. The F2 guard phrasings change support-fact TEXT only on hosts lacking
+tmux/ssh (never on this host's manifest); no schema field, gate, ruler, or acceptance criterion
+was weakened — both findings TIGHTENED builder behavior.

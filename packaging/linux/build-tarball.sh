@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Build the self-contained Linux tarball gauntlet-<version>-<triple>.tar.gz;
 # independent of the .deb.
 #
@@ -16,7 +16,16 @@
 # The archive is reproducible: normalized sort order, ownership, timestamps,
 # and gzip -n (no embedded name or mtime); the script rebuilds it a second
 # time and byte-compares before declaring success.
-set -eu
+#
+# bash + pipefail (an F9 correction, 2026-10-29): the tar|gzip stage under
+# plain `set -eu` ignored a truncated tar stream — gzip compressed whatever
+# it received and exited 0, so a broken archive could pass the
+# reproducibility cmp. pipefail makes every pipeline stage's failure fatal.
+# The verification listings below deliberately go through a file rather
+# than `tar -tzf | grep -q`: under pipefail, grep -q's early exit can
+# SIGPIPE a still-listing tar (exit 141) on a HEALTHY archive — a false
+# failure the file form removes.
+set -euo pipefail
 
 if [ "$#" -ne 4 ]; then
     echo "usage: $0 <stage-dir> <version> <target-triple> <out-dir>" >&2
@@ -147,10 +156,11 @@ archive="$outdir/${name}.tar.gz"
 mv "$work/first.tar.gz" "$archive"
 
 test -s "$archive"
-tar -tzf "$archive" | grep -q "^${name}/gauntlet\$"
-tar -tzf "$archive" | grep -q "^${name}/LICENSE\$"
-tar -tzf "$archive" | grep -q "^${name}/README.txt\$"
+tar -tzf "$archive" > "$work/listing.txt"
+grep -q "^${name}/gauntlet\$" "$work/listing.txt"
+grep -q "^${name}/LICENSE\$" "$work/listing.txt"
+grep -q "^${name}/README.txt\$" "$work/listing.txt"
 if [ "$have_workbench" -eq 1 ]; then
-    tar -tzf "$archive" | grep -q "^${name}/gauntlet-workbench\$"
+    grep -q "^${name}/gauntlet-workbench\$" "$work/listing.txt"
 fi
 echo "OK: built $archive (reproducible across two builds)"

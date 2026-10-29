@@ -13,18 +13,32 @@ Every release carries these assets on the GitHub Release tagged
 |---|---|
 | Linux amd64 | `gauntlet_<version>_amd64.deb`, `gauntlet-<version>-x86_64-unknown-linux-gnu.tar.gz` |
 | Linux arm64 | `gauntlet_<version>_arm64.deb`, `gauntlet-<version>-aarch64-unknown-linux-gnu.tar.gz` |
-| macOS | `gauntlet-<version>-macos-universal.pkg` / `.dmg` (or `-macos-arm64` if the Intel workbench slice could not be built) |
+| macOS | `gauntlet-<version>-macos-universal.pkg` / `.dmg` (or `-macos-arm64` when the x86_64 CLI slice could not be built; the label describes the CLI — the workbench inside is arm64-only in every shape) |
 | Windows x64 | `gauntlet-<version>-x86_64-pc-windows-msvc-setup.exe`, `.zip` |
 | All | `SHA256SUMS`, `built-from-<os>.txt` (the exact commit each artifact was built from) |
 
 Every Linux package contains both binaries (`gauntlet` and
-`gauntlet-workbench`); the workbench is a real-PTY-qualified launch on its
-native Linux/macOS build runner. On Windows the packages carry
-`gauntlet-workbench.exe` as well, but its TUI launch qualification happens on
-the Linux/macOS runners; when a run could not qualify it there, the raw
-Windows artifact is additionally published as the separate
-`pkg-windows-workbench-unqualified` CI artifact with an explanatory README —
-an unqualified artifact is never presented as qualified.
+`gauntlet-workbench`), and that workbench is real-PTY-qualified on its native
+Linux build runner. Everywhere else, the package shape follows what the
+runner actually qualified:
+
+- **macOS** — the CLI inside the pkg is a universal (arm64 + x86_64) lipo or
+  arm64-only; the **workbench inside the pkg is arm64-only in every shape**
+  and is real-PTY-qualified on the arm64 runner. A cross-compiled Intel
+  (`bun-darwin-x64`) workbench is never placed inside the pkg; when one was
+  built it is published only as the separate `pkg-macos-workbench-unqualified`
+  CI artifact with an explanatory README.
+- **Windows** — two honest shapes. Qualified: the zip and setup.exe carry
+  `gauntlet-workbench.exe`, built and launch-qualified on the Windows runner.
+  Fallback (when PTY qualification is unavailable on the Windows runner): the
+  zip and setup.exe are **CLI-only** — they do NOT contain the workbench —
+  and the unqualified binary is published separately as
+  `pkg-windows-workbench-unqualified` with a README stating exactly what was
+  and was not validated. No runner in this pipeline PTY-qualifies
+  `bun-windows-x64`.
+
+An unqualified artifact is never presented as qualified; TUI launch
+qualification never transfers between runners.
 
 Packages are **unsigned**: there is no Apple Developer ID and no Authenticode
 certificate. Verify the checksum before installing.
@@ -45,6 +59,11 @@ artifact group is one platform, e.g. `pkg-linux-arm64`):
 ```sh
 gh run download <run-id> --repo GodSpeedAI/Gauntlet -n pkg-linux-arm64
 ```
+
+Unqualified workbench artifacts (`pkg-macos-workbench-unqualified`,
+`pkg-windows-workbench-unqualified`) appear only on CI runs — never as
+release assets — and their READMEs state exactly what was and was not
+validated.
 
 ---
 
@@ -244,7 +263,17 @@ sudo installer -pkg gauntlet-<version>-macos-<universal|arm64>.pkg -target /
 
 Installs to `/usr/local/bin/gauntlet` and `/usr/local/bin/gauntlet-workbench`
 plus `/usr/local/share/doc/gauntlet/`. The package is unsigned and not
-notarized. If Gatekeeper refuses it, Control-click the package and choose
+notarized.
+
+Composition note: the `universal` label describes the CLI (a lipo of the
+arm64 and x86_64 slices). The `gauntlet-workbench` installed by any macOS pkg
+is arm64-only and real-PTY-qualified; on Intel Macs the CLI runs natively but
+that arm64-only workbench binary does not execute (macOS has no
+arm64-to-x86_64 translator). An Intel (`bun-darwin-x64`) workbench appears
+only as the separate `pkg-macos-workbench-unqualified` CI artifact —
+unqualified, never inside the pkg.
+
+If Gatekeeper refuses it, Control-click the package and choose
 Open, or remove the quarantine flag after download:
 
 ```sh
@@ -275,8 +304,10 @@ gauntlet --version
 gauntlet doctor
 ```
 
-The `.zip` is a portable alternative: extract `gauntlet.exe` and
-`gauntlet-workbench.exe` anywhere and add that directory to your `PATH`.
+The `.zip` is a portable alternative: extract it anywhere and add that
+directory to your `PATH`. In the qualified shape it contains `gauntlet.exe`
+and `gauntlet-workbench.exe`; in the CLI-only fallback shape it contains
+`gauntlet.exe` only (see the package shapes at the top of this guide).
 
 Uninstall: Settings -> Apps -> Gauntlet, or silently from a terminal:
 
@@ -284,7 +315,8 @@ Uninstall: Settings -> Apps -> Gauntlet, or silently from a terminal:
 & "$env:LOCALAPPDATA\Programs\Gauntlet\unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES
 ```
 
-Uninstalling removes both exes, the release notes, and the user `PATH` entry.
+Uninstalling removes the installed exes, the release notes, and the user
+`PATH` entry.
 
 ---
 

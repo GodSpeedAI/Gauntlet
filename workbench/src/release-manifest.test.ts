@@ -41,7 +41,7 @@ function validManifest(): ReleaseManifest {
     launch_qualification: {
       transport: "real-pty",
       geometry: "120x40",
-      rendered_markers: ["Gauntlet", "NAVIGATOR"],
+      rendered_markers: ["Gauntlet", "NAVIGATOR", "PRIMARY", "INSPECTOR", "COMPOSER"],
       exited_cleanly: true,
       exit_code: 0,
     },
@@ -187,6 +187,43 @@ describe("T20 release manifest contract", () => {
     expect(result.valid).toBe(false);
     expect(result.launch_qualified).toBe(false);
     expect(result.failures.some((failure) => failure.includes("120x40"))).toBe(true);
+  });
+
+  it("rejects a forged marker list that lacks the qualified launch markers", () => {
+    for (const forged of [["x"], ["Gauntlet", "NAVIGATOR"]]) {
+      const doc: LooseManifest = { ...validManifest() };
+      doc.launch_qualification = {
+        transport: "real-pty",
+        geometry: "120x40",
+        rendered_markers: forged,
+        exited_cleanly: true,
+        exit_code: 0,
+      };
+      const result = verifyReleaseManifest(doc);
+      expect(result.valid).toBe(false);
+      expect(result.launch_qualified).toBe(false);
+      expect(
+        result.failures.some((failure) =>
+          failure.includes("must include the qualified launch markers"),
+        ),
+      ).toBe(true);
+    }
+    // A record with NO markers fails on the recording requirement instead —
+    // and still never qualifies.
+    const empty: LooseManifest = { ...validManifest() };
+    empty.launch_qualification = {
+      transport: "real-pty",
+      geometry: "120x40",
+      rendered_markers: [],
+      exited_cleanly: true,
+      exit_code: 0,
+    };
+    const emptyResult = verifyReleaseManifest(empty);
+    expect(emptyResult.valid).toBe(false);
+    expect(emptyResult.launch_qualified).toBe(false);
+    expect(
+      emptyResult.failures.some((failure) => failure.includes("rendered_markers must be recorded")),
+    ).toBe(true);
   });
 
   it("rejects an unknown target and an artifact/target mismatch", () => {

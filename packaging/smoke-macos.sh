@@ -28,9 +28,9 @@ if [ "$#" -ne 2 ] && [ "$#" -ne 3 ]; then
     exit 2
 fi
 
-GT=$(CDPATH= cd -- "$(dirname -- "$1")" && pwd)/$(basename -- "$1")
+GT=$(CDPATH='' cd -- "$(dirname -- "$1")" && pwd)/$(basename -- "$1")
 if [ "$#" -eq 3 ]; then
-    WB=$(CDPATH= cd -- "$(dirname -- "$2")" && pwd)/$(basename -- "$2")
+    WB=$(CDPATH='' cd -- "$(dirname -- "$2")" && pwd)/$(basename -- "$2")
     VERSION=$3
 else
     WB=''

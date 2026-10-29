@@ -11,8 +11,9 @@
 #   GAUNTLET_DATABASE_URL  exported and pointing at a REACHABLE PostgreSQL
 #                          server (the state store is required by run/status/
 #                          inspect/verify/export/serve)
-#   GAUNTLET_REPO_ROOT     the gauntlet checkout (tests/fixtures/target, the
-#                          smoke script)
+#   GAUNTLET_REPO_ROOT     the gauntlet checkout (tests/fixtures/target —
+#                          passed to the smoke as GAUNTLET_SMOKE_PROJECT —
+#                          and the smoke script)
 #   sudo                   working (dpkg/apt operations)
 # The work-root is created if missing and used for the project copy, run
 # state, logs, and the workbench cwd; nothing outside it (or the package's
@@ -115,7 +116,12 @@ pass "package contents: binaries executable, docs present, no world-writable fil
 
 # ── smoke (outside the checkout, against the installed binary) ───────────
 version=$(dpkg-deb --field "$deb" Version)
-if GAUNTLET_EXPECTED_VERSION="$version" sh "$repo_root/packaging/smoke-gauntlet.sh" \
+# GAUNTLET_SMOKE_PROJECT: the smoke's in-project doctor leg needs a
+# doctor-clean project (a copy of the checkout's fixture); the smoke runs
+# outside any checkout and cannot discover one itself.
+if GAUNTLET_EXPECTED_VERSION="$version" \
+    GAUNTLET_SMOKE_PROJECT="$repo_root/tests/fixtures/target" \
+    sh "$repo_root/packaging/smoke-gauntlet.sh" \
     /usr/bin/gauntlet ${workbench_installed:+"$workbench_installed"} \
     > "$workroot/smoke.log" 2>&1; then
     pass "smoke-gauntlet.sh against the installed binary(es)"

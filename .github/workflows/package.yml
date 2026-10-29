@@ -25,7 +25,11 @@ name: Package (native)
 # (gauntlet.exe only — the unqualified workbench binary never physically
 # enters the installer packages) and the workbench artifact ships ONLY as the
 # separate pkg-windows-workbench-unqualified artifact with an
-# UNQUALIFIED-README.txt, never presented as qualified.
+# UNQUALIFIED-README-windows.txt, never presented as qualified. On macOS the
+# pkg NEVER carries an x64 workbench: the universal/arm64 label describes the
+# CLI lipo composition, the workbench slice is arm64-only (real-PTY
+# qualified), and any darwin-x64 cross build ships only as
+# pkg-macos-workbench-unqualified.
 #
 # Supply-chain note (mirrors ci.yml): third-party actions are pinned to
 # floating major tags here; resolve them to commit SHAs per repository
@@ -209,6 +213,11 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           TARGET: ${{ matrix.target }}
           GAUNTLET_EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+          # smoke-gauntlet.sh (builder B's rework) REQUIRES a valid Gauntlet
+          # project for its in-project doctor leg (typed exit-2 refusal when
+          # unset/invalid); install-test-deb.sh passes the same fixture
+          # through for the deb path.
+          GAUNTLET_SMOKE_PROJECT: ${{ github.workspace }}/tests/fixtures/target
         run: |
           set -euo pipefail
           work=$(mktemp -d)
@@ -306,9 +315,12 @@ jobs:
         continue-on-error: true
         working-directory: workbench
         # A host-arch `bun install` does not lay down @opentui/core-darwin-x64,
-        # so this cross build may legitimately fail. On failure the macOS
-        # package ships arm64-only (honest label) — never a mislabeled
-        # universal, and never a fake qualification.
+        # so this cross build may legitimately fail. On success the binary is
+        # NOT staged into any package: build.sh (builder C) refuses an
+        # x64-stage workbench and the pkg's workbench is arm64-only — the
+        # cross build ships ONLY as the separate pkg-macos-workbench-unqualified
+        # artifact (it is never launch-qualified). On failure the CLI ships
+        # arm64-only (honest label).
         run: |
           set -euo pipefail
           bun install --frozen-lockfile
@@ -323,30 +335,71 @@ jobs:
           cp workbench/dist/gauntlet-workbench-bun-darwin-arm64 stage-arm64/gauntlet-workbench
           ls -l stage-arm64
 
-      - name: Choose the package variant (label follows the actual stage content)
+      - name: Choose the package variant (label = CLI composition; workbench always arm64-only)
         id: variant
         shell: bash
         env:
           X86WB_OUTCOME: ${{ steps.x86wb.outcome }}
+        # The label describes the CLI composition (lipo universal vs arm64),
+        # never the workbench: the pkg's workbench slice is arm64-only in
+        # every shape (build.sh refuses an x64-stage workbench).
         run: |
           set -euo pipefail
           if [ "$X86WB_OUTCOME" = "success" ]; then
             echo "label=universal" >> "$GITHUB_OUTPUT"
             echo "x64stage=stage-x64" >> "$GITHUB_OUTPUT"
+            echo "::notice::darwin-x64 workbench cross build succeeded; the pkg workbench stays arm64-only and the cross build ships ONLY as the separate pkg-macos-workbench-unqualified artifact (never launch-qualified)"
           else
-            echo "::warning::darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; shipping arm64-only (honest label, never mislabeled universal)"
+            echo "::warning::darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; the CLI ships arm64-only (honest label, never mislabeled universal)"
             echo "label=arm64" >> "$GITHUB_OUTPUT"
             echo "x64stage=" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Stage the x86_64 slice
+      - name: Stage the x86_64 CLI slice (CLI only — never the workbench)
         if: steps.variant.outputs.x64stage != ''
+        # stage-x64 carries ONLY the x86_64 gauntlet for build.sh's CLI lipo.
+        # The cross-built darwin-x64 workbench is deliberately NOT staged
+        # into any package: build.sh refuses an x64-stage workbench, and an
+        # unqualified workbench must never ride inside the pkg.
         run: |
           set -euo pipefail
           mkdir -p stage-x64
           cp target/x86_64-apple-darwin/release/gauntlet stage-x64/gauntlet
-          cp workbench/dist/gauntlet-workbench-bun-darwin-x64 stage-x64/gauntlet-workbench
+          test ! -e stage-x64/gauntlet-workbench
           ls -l stage-x64
+
+      - name: Stage the unqualified darwin-x64 workbench artifact separately
+        if: steps.variant.outputs.x64stage != ''
+        run: |
+          set -euo pipefail
+          mkdir -p wbu-macos
+          cp workbench/dist/gauntlet-workbench-bun-darwin-x64 wbu-macos/gauntlet-workbench-bun-darwin-x64
+          cat > wbu-macos/UNQUALIFIED-README-macos.txt <<'README'
+          gauntlet-workbench-bun-darwin-x64 — UNQUALIFIED workbench artifact
+
+          This Bun standalone executable was cross-compiled on an arm64
+          macOS runner (`bun build --compile --target=bun-darwin-x64
+          src/main.ts`) after the arm64 workbench was built and real-PTY
+          qualified on that same host.
+
+          What WAS validated on this runner:
+            - The cross build itself completed (the darwin-x64 target
+              compiles and links).
+
+          What was NOT validated (and is not claimed anywhere):
+            - The binary was never executed on this runner.
+            - No launch qualification of any kind, and no real-PTY TUI
+              qualification. No runner in this pipeline PTY-qualifies
+              bun-darwin-x64.
+
+          The macOS pkg and dmg built in this run carry the arm64-only
+          workbench (build.sh refuses an x64-stage workbench) whose arm64
+          slice IS real-PTY qualified on this host; the universal label
+          describes the CLI composition, never the workbench. The Linux
+          (amd64/arm64) workbench artifacts from the same pipeline run are
+          real-PTY qualified on their native runners.
+          README
+          ls -l wbu-macos
 
       - name: Build the .pkg and .dmg
         env:
@@ -404,11 +457,11 @@ jobs:
           {
             echo "### macOS (${LABEL})"
             echo "- Packages are UNSIGNED and not notarized (no Apple Developer ID)."
+            echo "- The workbench inside the pkg is arm64-ONLY in every shape: built via release-manifest.ts AND real-PTY qualified on this host. The universal/arm64 label describes the CLI composition (lipo of the arm64 + x86_64 CLI slices), never the workbench."
             if [ "$LABEL" = "universal" ]; then
-              echo "- Universal label: both slices staged; the arm64 workbench slice was real-PTY qualified on this host, the x86_64 workbench slice is a cross build that was NOT launch-qualified here."
+              echo "- Universal CLI: the x86_64 CLI slice was staged for the lipo; the cross-built darwin-x64 workbench was NOT launch-qualified and ships ONLY as the separate pkg-macos-workbench-unqualified artifact (with UNQUALIFIED-README-macos.txt) — never inside the pkg."
             else
-              echo "- arm64-only label: the darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; no x86_64 stage was assembled, so the label follows the actual content."
-              echo "- The arm64 workbench slice was real-PTY qualified on this host (workbench/src/release-manifest.ts)."
+              echo "- arm64-only CLI: the darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; no x86_64 stage was assembled and no separate artifact was produced."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -421,6 +474,17 @@ jobs:
             dist/*.dmg
             dist/SHA256SUMS-macos
             dist/built-from-macos.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the unqualified darwin-x64 workbench artifact
+        if: steps.variant.outputs.x64stage != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-macos-workbench-unqualified
+          path: |
+            wbu-macos/gauntlet-workbench-bun-darwin-x64
+            wbu-macos/UNQUALIFIED-README-macos.txt
           if-no-files-found: error
           retention-days: 30
 
@@ -607,7 +671,7 @@ jobs:
           NOT contain this binary. The Linux (amd64/arm64) and macOS arm64
           workbench artifacts from the same pipeline run ARE real-PTY
           qualified on their native runners.
-          '@ | Set-Content -Path wbu\UNQUALIFIED-README.txt -Encoding UTF8
+          '@ | Set-Content -Path wbu\UNQUALIFIED-README-windows.txt -Encoding UTF8
           Get-ChildItem wbu | Format-Table -AutoSize | Out-String | Write-Host
 
       - name: Install and functionally test the per-user installer
@@ -669,7 +733,7 @@ jobs:
             # CLI-only install: the workbench start leg exercises the
             # UNQUALIFIED dist binary directly (composed with the installed
             # gauntlet.exe) — the installer deliberately does not carry it.
-            # This is what the UNQUALIFIED-README's "starts" claim is based
+            # This is what the UNQUALIFIED-README-windows.txt "starts" claim is based
             # on.
             & pwsh -NoProfile -File "$PWD\packaging\smoke-windows.ps1" `
               -Gauntlet "$app\gauntlet.exe" -Workbench "$PWD\workbench\dist\gauntlet-workbench-bun-windows-x64.exe" `
@@ -717,7 +781,7 @@ jobs:
             if [ "$WB_QUALIFIED" = "true" ]; then
               echo "- Workbench: built via release-manifest.ts AND real-PTY qualified on this host; the zip and setup.exe carry the qualified workbench (no separate artifact)."
             else
-              echo "- Workbench: NOT real-PTY qualified (PTY qualification unavailable on this Windows runner). The zip and setup.exe are CLI-only (gauntlet.exe only) and do NOT contain the workbench; the unqualified binary ships only as the separate pkg-windows-workbench-unqualified artifact (with UNQUALIFIED-README.txt) and is never presented as qualified."
+              echo "- Workbench: NOT real-PTY qualified (PTY qualification unavailable on this Windows runner). The zip and setup.exe are CLI-only (gauntlet.exe only) and do NOT contain the workbench; the unqualified binary ships only as the separate pkg-windows-workbench-unqualified artifact (with UNQUALIFIED-README-windows.txt) and is never presented as qualified."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -740,7 +804,7 @@ jobs:
           name: pkg-windows-workbench-unqualified
           path: |
             wbu/gauntlet-workbench-bun-windows-x64.exe
-            wbu/UNQUALIFIED-README.txt
+            wbu/UNQUALIFIED-README-windows.txt
           if-no-files-found: error
           retention-days: 30
 
@@ -843,7 +907,26 @@ jobs:
           if [ "$MACOS_RESULT" = "success" ]; then
             have "dist/gauntlet-${VERSION}-macos-*.pkg" || { echo "::error::missing macos .pkg (universal or arm64)"; exit 1; }
             have "dist/gauntlet-${VERSION}-macos-*.dmg" || { echo "::error::missing macos .dmg (universal or arm64)"; exit 1; }
-            echo "OK macos pkg + dmg present (universal or arm64 variants acceptable)"
+            # macOS ships one of two shapes; the workbench inside the pkg is
+            # arm64-only in BOTH (build.sh refuses an x64-stage workbench):
+            #   universal CLI: the cross-built darwin-x64 workbench is
+            #     published ONLY as pkg-macos-workbench-unqualified
+            #     (exe + UNQUALIFIED-README-macos.txt), never in the pkg;
+            #   arm64-only CLI: no x64 stage and no separate artifact.
+            # The pkg/dmg shape is mechanically guaranteed by the macos job:
+            # build.sh is a hard step there, so a green macos job means
+            # build.sh exited 0 and the x64-workbench refusal held.
+            mo_exe=0; have "dist/gauntlet-workbench-bun-darwin-x64" && mo_exe=1
+            mo_readme=0; have "dist/UNQUALIFIED-README-macos.txt" && mo_readme=1
+            if [ "$mo_exe" = "1" ] || [ "$mo_readme" = "1" ]; then
+              if [ "$mo_exe" != "1" ] || [ "$mo_readme" != "1" ]; then
+                echo "::error::pkg-macos-workbench-unqualified is partially present (exe=$mo_exe, README=$mo_readme)"; exit 1
+              fi
+              echo "OK pkg-macos-workbench-unqualified present (universal-CLI shape; the x64 workbench is outside the pkg, unqualified)"
+            else
+              echo "OK no pkg-macos-workbench-unqualified (arm64-only CLI shape)"
+            fi
+            echo "OK macos pkg + dmg present; the workbench inside the pkg is arm64-only in both shapes (macos job success == build.sh exit 0 == refusal held)"
           else
             echo "macos job result was '$MACOS_RESULT' — macos presence assertions skipped (subset verification)"
           fi
@@ -853,7 +936,7 @@ jobs:
             winzip="dist/gauntlet-${VERSION}-x86_64-pc-windows-msvc.zip"
             # Windows ships exactly one of two honest shapes:
             #   unqualified: pkg-windows-workbench-unqualified is present
-            #     (raw exe + UNQUALIFIED-README.txt) and the installer zip is
+            #     (raw exe + UNQUALIFIED-README-windows.txt) and the installer zip is
             #     CLI-only — it must NOT contain gauntlet-workbench.exe;
             #   qualified: no unqualified artifact and the installer zip
             #     DOES carry gauntlet-workbench.exe.
@@ -861,7 +944,7 @@ jobs:
             # violation means the packaging contract (build.ps1 / .iss) and
             # the CI split disagree, and fails here.
             wbu_exe=0; have "dist/gauntlet-workbench-bun-windows-x64.exe" && wbu_exe=1
-            wbu_readme=0; have "dist/UNQUALIFIED-README.txt" && wbu_readme=1
+            wbu_readme=0; have "dist/UNQUALIFIED-README-windows.txt" && wbu_readme=1
             if [ "$wbu_exe" = "1" ] || [ "$wbu_readme" = "1" ]; then
               if [ "$wbu_exe" != "1" ] || [ "$wbu_readme" != "1" ]; then
                 echo "::error::pkg-windows-workbench-unqualified is partially present (exe=$wbu_exe, README=$wbu_readme)"; exit 1
@@ -917,7 +1000,7 @@ jobs:
             done
             echo
             echo "Channels:"
-            echo "- CI artifacts: Actions -> this run -> Artifacts (pkg-linux-amd64, pkg-linux-arm64, pkg-macos, pkg-windows, plus pkg-windows-workbench-unqualified when present, and release-meta), or \`gh run download <run-id>\`."
+            echo "- CI artifacts: Actions -> this run -> Artifacts (pkg-linux-amd64, pkg-linux-arm64, pkg-macos, pkg-windows, plus pkg-macos-workbench-unqualified / pkg-windows-workbench-unqualified when present, and release-meta), or \`gh run download <run-id>\`."
             echo "- Formal release assets: published by release-native.yml on gauntlet-v* tags (\`gh release download gauntlet-v${VERSION}\`)."
             echo
             echo "Verify before installing: \`sha256sum -c SHA256SUMS --ignore-missing\` (macOS: \`shasum -a 256 -c\`)."
@@ -927,18 +1010,28 @@ jobs:
           cp /tmp/sum-body.md dist/SUMMARY.md
           ls -l dist
 
-      - name: Fail when the verified subset is empty
+      - name: Fail unless every platform job succeeded
         run: |
           set -euo pipefail
+          # Partial evidence must never present as a green sum: the
+          # subset-verification notes above are summary text only — the gate
+          # is all three platform jobs or failure.
+          {
+            echo "## Verification scope"
+            echo "- linux job result: ${LINUX_RESULT}"
+            echo "- macos job result: ${MACOS_RESULT}"
+            echo "- windows job result: ${WINDOWS_RESULT}"
+            echo "- A green sum certifies ALL THREE platforms. When a platform job fails, its presence assertions above are skipped (subset verification) and this gate turns the run red — skipped checks are recorded here as text only."
+          } >> "$GITHUB_STEP_SUMMARY"
           ok=0
           [ "$LINUX_RESULT" = "success" ] && ok=$((ok + 1))
           [ "$MACOS_RESULT" = "success" ] && ok=$((ok + 1))
           [ "$WINDOWS_RESULT" = "success" ] && ok=$((ok + 1))
-          if [ "$ok" -eq 0 ]; then
-            echo "::error::no platform job succeeded — the verified subset is empty; there is nothing to certify"
+          if [ "$ok" -ne 3 ]; then
+            echo "::error::partial verification is not a green sum: linux=${LINUX_RESULT} macos=${MACOS_RESULT} windows=${WINDOWS_RESULT} — all three platform jobs must succeed; the per-platform presence assertions above only ran for the succeeded subset"
             exit 1
           fi
-          echo "verified subset: ${ok}/3 platform(s)"
+          echo "all 3 platform jobs succeeded — the full assertion set ran"
 
       - name: Upload release meta
         uses: actions/upload-artifact@v4

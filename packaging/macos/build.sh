@@ -3,12 +3,26 @@
 #
 # Usage: packaging/macos/build.sh <arm64-stage-dir> [<x64-stage-dir>] <version> <out-dir>
 #
-# Each stage dir must contain BOTH installed-name binaries: gauntlet (the
-# Rust CLI) and gauntlet-workbench (the Bun standalone executable). With only
-# the arm64 stage the package is named -macos-arm64; with both stages each
-# binary pair is merged with lipo and the package is named -macos-universal.
-# An arm64-only build is NEVER labeled universal: the label follows the lipo
-# outcome, not the intent.
+# Composition contract (F5: the macOS pkg NEVER contains an x86_64 workbench
+# slice — an unqualified cross-built workbench must not ride along as though
+# it passed release validation):
+#
+#   gauntlet (CLI)      REQUIRED in the arm64 stage, and REQUIRED in the x64
+#                       stage when that stage is provided. With both stages
+#                       the CLI pair is lipo-merged into a universal slice
+#                       and the package is named -macos-universal; with only
+#                       the arm64 stage it is installed arm64-only and the
+#                       package is named -macos-arm64.
+#   gauntlet-workbench  OPTIONAL, taken ONLY from the arm64 stage and
+#                       installed AS-IS — never lipo'd, never x86_64. If the
+#                       x64 stage contains a gauntlet-workbench binary this
+#                       script REFUSES with a loud error: a darwin-x64
+#                       workbench may only ship as a separate unqualified
+#                       artifact handled by the workflow, never inside this
+#                       package.
+#
+# The README-install.txt carries a Composition line stating exactly which
+# binaries are inside and their architectures.
 #
 # The package is UNSIGNED: no Developer ID certificate is used, and none is
 # claimed anywhere. Every staged binary is ad-hoc signed (--force --sign -)
@@ -17,6 +31,7 @@
 # Payload layout (with --install-location /usr/local):
 #   bin/gauntlet                  -> /usr/local/bin/gauntlet
 #   bin/gauntlet-workbench        -> /usr/local/bin/gauntlet-workbench
+#                                    (only when staged from the arm64 dir)
 #   share/doc/gauntlet/LICENSE
 #   share/doc/gauntlet/README-install.txt
 #
@@ -46,19 +61,30 @@ case "$version" in
         ;;
 esac
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+repo_root=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 
-# Both installed-name binaries are required in every provided stage dir.
-for bin in gauntlet gauntlet-workbench; do
-    if [ ! -x "$arm_dir/$bin" ]; then
-        echo "error: missing executable $arm_dir/$bin" >&2
-        exit 1
-    fi
-    if [ -n "$x86_dir" ] && [ ! -x "$x86_dir/$bin" ]; then
-        echo "error: missing executable $x86_dir/$bin" >&2
-        exit 1
-    fi
-done
+# Stage validation: the CLI is required per stage; the workbench is optional
+# and may come ONLY from the arm64 stage.
+if [ ! -x "$arm_dir/gauntlet" ]; then
+    echo "error: missing executable $arm_dir/gauntlet" >&2
+    exit 1
+fi
+if [ -n "$x86_dir" ] && [ ! -x "$x86_dir/gauntlet" ]; then
+    echo "error: missing executable $x86_dir/gauntlet" >&2
+    exit 1
+fi
+if [ -e "$x86_dir/gauntlet-workbench" ]; then
+    echo "error: refusing to package $x86_dir/gauntlet-workbench: the macOS package" >&2
+    echo "error: NEVER contains an x86_64 workbench slice. A darwin-x64 workbench may" >&2
+    echo "error: only ship as a separate unqualified artifact (workflow-handled), never" >&2
+    echo "error: inside a universal-labeled package." >&2
+    exit 1
+fi
+if [ -x "$arm_dir/gauntlet-workbench" ]; then
+    workbench_staged=1
+else
+    workbench_staged=0
+fi
 
 if [ -n "$x86_dir" ]; then
     label=universal
@@ -75,55 +101,105 @@ trap 'rm -rf "$work"' EXIT
 # Payload: bin/ installs to /usr/local/bin; share/doc to /usr/local/share/doc.
 stage="$work/stage"
 mkdir -p "$stage/bin" "$stage/share/doc/gauntlet"
-for bin in gauntlet gauntlet-workbench; do
-    if [ -n "$x86_dir" ]; then
-        lipo -create "$arm_dir/$bin" "$x86_dir/$bin" -output "$stage/bin/$bin"
-    else
-        cp "$arm_dir/$bin" "$stage/bin/$bin"
-    fi
-    chmod 0755 "$stage/bin/$bin"
-    # Ad-hoc signature on every staged binary (required on arm64; harmless
-    # on x86_64). A lipo merge invalidates input signatures, so signing
-    # happens after staging, never before.
-    codesign --force --sign - "$stage/bin/$bin" >/dev/null
-done
 
-# Verify the staged architectures match the label honestly.
-for bin in gauntlet gauntlet-workbench; do
-    archs=$(lipo -archs "$stage/bin/$bin")
-    echo "lipo -archs $bin: $archs"
-    case " $archs " in
-        *" arm64 "*)
+# CLI: universal when both stages are present, else arm64-only.
+if [ -n "$x86_dir" ]; then
+    lipo -create "$arm_dir/gauntlet" "$x86_dir/gauntlet" -output "$stage/bin/gauntlet"
+else
+    cp "$arm_dir/gauntlet" "$stage/bin/gauntlet"
+fi
+chmod 0755 "$stage/bin/gauntlet"
+# Ad-hoc signature (required on arm64; harmless on x86_64). A lipo merge
+# invalidates input signatures, so signing happens after staging.
+codesign --force --sign - "$stage/bin/gauntlet" >/dev/null
+
+# Workbench: arm64 stage only, installed as-is (never lipo'd).
+if [ "$workbench_staged" -eq 1 ]; then
+    cp "$arm_dir/gauntlet-workbench" "$stage/bin/gauntlet-workbench"
+    chmod 0755 "$stage/bin/gauntlet-workbench"
+    codesign --force --sign - "$stage/bin/gauntlet-workbench" >/dev/null
+fi
+
+# Verify the staged architectures match the composition honestly: the CLI is
+# arm64 (+ x86_64 exactly when universal); the workbench, when staged, is
+# arm64-only — an x86_64 slice inside the workbench is refused.
+cli_archs=$(lipo -archs "$stage/bin/gauntlet")
+echo "lipo -archs gauntlet: $cli_archs"
+case " $cli_archs " in
+    *" arm64 "*)
+        ;;
+    *)
+        echo "error: staged gauntlet lacks an arm64 slice (lipo -archs: '$cli_archs')" >&2
+        exit 1
+        ;;
+esac
+if [ -n "$x86_dir" ]; then
+    case " $cli_archs " in
+        *" x86_64 "*)
             ;;
         *)
-            echo "error: staged $bin lacks an arm64 slice (lipo -archs: '$archs')" >&2
+            echo "error: universal build but staged gauntlet lacks an x86_64 slice (lipo -archs: '$cli_archs')" >&2
             exit 1
             ;;
     esac
-    if [ -n "$x86_dir" ]; then
-        case " $archs " in
-            *" x86_64 "*)
-                ;;
-            *)
-                echo "error: universal build but staged $bin lacks an x86_64 slice (lipo -archs: '$archs')" >&2
-                exit 1
-                ;;
-        esac
-    fi
-done
+fi
+if [ "$workbench_staged" -eq 1 ]; then
+    wb_archs=$(lipo -archs "$stage/bin/gauntlet-workbench")
+    echo "lipo -archs gauntlet-workbench: $wb_archs"
+    case " $wb_archs " in
+        *" arm64 "*)
+            ;;
+        *)
+            echo "error: staged gauntlet-workbench lacks an arm64 slice (lipo -archs: '$wb_archs')" >&2
+            exit 1
+            ;;
+    esac
+    case " $wb_archs " in
+        *" x86_64 "*)
+            echo "error: staged gauntlet-workbench carries an x86_64 slice; the macOS package" >&2
+            echo "error: never ships one — the workbench must be a thin arm64 binary" >&2
+            exit 1
+            ;;
+    esac
+fi
 
 install -m 0644 "$repo_root/LICENSE" "$stage/share/doc/gauntlet/LICENSE"
+
+# Composition facts for the README: state exactly which binaries are inside
+# and their arch(es); never claim a capability the payload does not carry.
+if [ -n "$x86_dir" ]; then
+    cli_arch_text="universal (arm64 + x86_64)"
+else
+    cli_arch_text="arm64"
+fi
+if [ "$workbench_staged" -eq 1 ]; then
+    if [ -n "$x86_dir" ]; then
+        composition="CLI: gauntlet (${cli_arch_text}); workbench: gauntlet-workbench (arm64 only)."
+        wb_note="The included gauntlet-workbench runs on Apple Silicon only; Intel Macs get the CLI only. No x86_64 workbench slice is ever shipped in this package."
+    else
+        composition="CLI: gauntlet (${cli_arch_text}); workbench: gauntlet-workbench (arm64)."
+        wb_note="Both binaries in this package are arm64."
+    fi
+else
+    composition="CLI: gauntlet (${cli_arch_text}); workbench: not included."
+    wb_note="This package does NOT include gauntlet-workbench: the macOS workbench was not staged/qualified for this build, so it is not shipped here as though it passed release validation."
+fi
 
 # Install notes: written before pkgbuild so the payload genuinely carries
 # them, then copied onto the disk image alongside the package.
 readme="$work/README-install.txt"
-cat > "$readme" <<EOF
+{
+    cat <<EOF
 Gauntlet ${version} for macOS (${label})
+
+Composition
+  ${composition}
+  ${wb_note}
 
 Install
   Double-click ${pkg_name}, or from Terminal:
     sudo installer -pkg ${pkg_name} -target /
-  The commands gauntlet and gauntlet-workbench are placed in /usr/local/bin.
+  The gauntlet command is placed in /usr/local/bin.$(if [ "$workbench_staged" -eq 1 ]; then printf ' The gauntlet-workbench TUI is placed there as well.'; fi)
 
 Unsigned package
   This package is NOT signed or notarized (no Apple Developer ID is used).
@@ -142,8 +218,11 @@ Runtime prerequisites
   honestly, not simulated). The bubblewrap sandbox is optional (default
   backend is none; a configured non-none backend without bwrap fails
   closed with a typed refusal). The Bun runtime is optional and only
-  needed for the codemode capability; the gauntlet-workbench executable is
-  self-contained (Bun compiled standalone).
+  needed for the codemode capability; the packaged binaries are
+  self-contained.
+EOF
+    if [ "$workbench_staged" -eq 1 ]; then
+        cat <<EOF
 
 Workbench
   gauntlet-workbench is the operator TUI. It connects to the operator
@@ -151,6 +230,9 @@ Workbench
   GAUNTLET_WORKBENCH_ENDPOINT) and GAUNTLET_WORKBENCH_GAUNTLET_BINARY to
   point it at your CLI. It needs a writable working directory for its
   projection store (or set GAUNTLET_WORKBENCH_PROJECTION_STORE).
+EOF
+    fi
+    cat <<EOF
 
 Uninstall
   sudo rm -f /usr/local/bin/gauntlet /usr/local/bin/gauntlet-workbench
@@ -159,6 +241,7 @@ Uninstall
 
 Licence: see LICENSE in this image.
 EOF
+} > "$readme"
 install -m 0644 "$readme" "$stage/share/doc/gauntlet/README-install.txt"
 
 mkdir -p "$outdir"

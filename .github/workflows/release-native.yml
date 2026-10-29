@@ -14,9 +14,12 @@ name: Release (native packages)
 # publish is idempotent (assets upload with --clobber; the release is reused).
 #
 # Provenance is attached ONLY when the publishing run itself built the tagged
-# commit (tag commit == GITHUB_SHA). A re-attach dispatch (publishing an older
-# tag from a different commit) skips attestation honestly — an attestation
-# naming the wrong commit is worse than none.
+# commit. The comparison is commit-to-commit: validate peels the tag ref
+# (annotated tag objects are not commits) and peels github.sha where its
+# object is fetched; an annotated-tag push of a fresh build attests, while a
+# re-attach dispatch (publishing an older tag from a different commit) skips
+# attestation honestly — an attestation naming the wrong commit is worse than
+# none.
 #
 # Supply-chain note (mirrors ci.yml): third-party actions are pinned to
 # floating major tags here; resolve them to commit SHAs per repository
@@ -51,6 +54,7 @@ jobs:
       tag: ${{ steps.ident.outputs.tag }}
       version: ${{ steps.verify.outputs.version }}
       tag_sha: ${{ steps.verify.outputs.tag_sha }}
+      attest: ${{ steps.verify.outputs.attest }}
     steps:
       - name: Resolve the release tag
         id: ident
@@ -93,6 +97,7 @@ jobs:
         shell: bash
         env:
           TAG: ${{ steps.ident.outputs.tag }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           # packaging/version.sh [expected]: exits 1 when the requested release
@@ -102,10 +107,29 @@ jobs:
             echo "::error::tag $TAG is not gauntlet-v${version}"
             exit 1
           }
-          tag_sha=$(git rev-parse HEAD)
+          # Peel the ref to the COMMIT: an annotated tag's object SHA is not
+          # the commit the artifacts are built from, and github.sha names that
+          # object on annotated-tag pushes. Every binding (built-from
+          # verification, attestation gate) uses the peeled commit.
+          tag_sha=$(git rev-parse "${TAG}^{commit}")
+          test "$(git rev-parse 'HEAD^{commit}')" = "$tag_sha" || {
+            echo "::error::checked-out HEAD does not match ${TAG}^{commit}"
+            exit 1
+          }
+          # Peel github.sha too, where its object is actually fetched. For an
+          # annotated-tag push it is the tag object (peels to the commit — the
+          # fresh-build case attests). For a dispatch against a tag the
+          # trigger commit is not fetched, peeling fails, and attest stays
+          # false — an attestation naming the wrong commit is worse than none.
+          github_sha_peeled=$(git rev-parse "${GITHUB_SHA}^{commit}" 2>/dev/null || true)
+          if [ -n "$github_sha_peeled" ] && [ "$github_sha_peeled" = "$tag_sha" ]; then
+            echo "attest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "attest=false" >> "$GITHUB_OUTPUT"
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag_sha=$tag_sha" >> "$GITHUB_OUTPUT"
-          echo "validated: $TAG -> version $version at commit $tag_sha"
+          echo "validated: $TAG -> version $version at commit $tag_sha (attest=$(cat "$GITHUB_OUTPUT/attest" 2>/dev/null || echo false))"
 
   package:
     name: package (all platforms at the tag)
@@ -130,6 +154,7 @@ jobs:
       TAG: ${{ needs.validate.outputs.tag }}
       VERSION: ${{ needs.validate.outputs.version }}
       TAG_SHA: ${{ needs.validate.outputs.tag_sha }}
+      ATTEST: ${{ needs.validate.outputs.attest }}
     steps:
       - name: Download all package artifacts
         uses: actions/download-artifact@v4
@@ -198,7 +223,7 @@ jobs:
             echo
             echo "    sha256sum -c SHA256SUMS --ignore-missing        # Linux / Windows (Git Bash, WSL)"
             echo "    shasum -a 256 -c SHA256SUMS --ignore-missing    # macOS"
-            if [ "$TAG_SHA" = "${{ github.sha }}" ]; then
+            if [ "$ATTEST" = "true" ]; then
               echo
               echo "    gh attestation verify <asset> --repo ${GITHUB_REPOSITORY}"
               echo
@@ -218,7 +243,7 @@ jobs:
           cat notes.md
 
       - name: Attach build provenance (only when this run built the tag commit)
-        if: needs.validate.outputs.tag_sha == github.sha
+        if: needs.validate.outputs.attest == 'true'
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
@@ -230,8 +255,8 @@ jobs:
             dist/*.dmg
 
       - name: Honest notice — provenance skipped (re-attach run)
-        if: needs.validate.outputs.tag_sha != github.sha
-        run: echo "::notice::built commit (${TAG_SHA}) != GITHUB_SHA (${{ github.sha }}) — build provenance is honestly skipped for this re-attach; no attestation naming the wrong commit is created"
+        if: needs.validate.outputs.attest != 'true'
+        run: echo "::notice::attestation is honestly skipped — this run did not build the commit ${TAG_SHA} named by ${TAG} (re-attach, or the trigger ref does not resolve to that commit); no attestation naming the wrong commit is created"
 
       - name: Publish the GitHub Release (create, or upload --clobber if it exists)
         env:

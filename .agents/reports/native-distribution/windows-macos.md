@@ -191,6 +191,9 @@ and downgrade is printed and recorded.
   macOS in CI, a CLI-only macOS artifact needs an explicit contract change (the plan allows
   shipping it separately/labeled) — I did not silently add an "optional workbench" mode because
   it could produce a full-looking package that is quietly missing the TUI.
+  [CLOSED by correction round 2 (F5): build.sh now takes the workbench as OPTIONAL from the
+  arm64 stage and installs it as-is, refusing only an x86_64 workbench slice; see the
+  correction-round-2 section below.]
 - The universal label honestly depends on lipo verification only; it cannot prove the merged
   binary launches (residual 1 covers this).
 - Em-dash characters appear in some smoke output strings (UTF-8). POSIX sh and pwsh 7 pass them
@@ -249,3 +252,58 @@ New residuals from this round:
   `packaging/macos/**` was not touched in this round. If the workbench cannot be qualified on
   macOS, build.sh fails loudly — the CLI-only-macos-package path remains a recorded contract
   decision, not a silent fallback.
+  [SUPERSEDED by correction round 2 (F5): the macOS composition contract is now explicit —
+  see below.]
+
+## Correction round 2 (2026-10-29, F5 — adversarial review + orchestrator decision)
+
+Trigger (F5, MAJOR): the original macos/build.sh treated the x64 stage as "workbench included",
+so a successful darwin-x64 cross build would have lipo'd an UNQUALIFIED x64 workbench slice into
+a `universal`-labeled pkg — a false capability claim. Decision (matching the Windows contract):
+the macOS pkg NEVER contains an x86_64 workbench slice.
+
+Implemented in `packaging/macos/build.sh` (signature unchanged:
+`build.sh <arm64-stage> [<x64-stage>] <version> <out-dir>`):
+
+- CLI (`gauntlet`): required in the arm64 stage and in the x64 stage when provided; lipo-merged
+  into a universal slice when both stages exist (label `universal`), else arm64-only (label
+  `arm64`).
+- Workbench (`gauntlet-workbench`): OPTIONAL, taken ONLY from the arm64 stage and installed
+  AS-IS — never lipo'd. If the x64 stage contains a `gauntlet-workbench` binary (any file,
+  `-e` check), build.sh REFUSES with a loud four-line error: a darwin-x64 workbench may only
+  ship as a separate unqualified workflow-handled artifact.
+- New arch assertion: a staged workbench must be a THIN arm64 binary — `lipo -archs` must show
+  arm64 and must NOT show x86_64 (a fat workbench staged into the arm dir is refused).
+- README-install.txt gains a `Composition` section stating exactly which binaries are inside
+  and their arch(es). When the CLI is universal but the workbench is arm64-only, it states
+  explicitly: "The included gauntlet-workbench runs on Apple Silicon only; Intel Macs get the
+  CLI only. No x86_64 workbench slice is ever shipped in this package." CLI-only packages state
+  that the workbench is not included and was not staged/qualified. The Workbench usage section
+  appears only when the workbench is actually in the payload; the Install line mentions
+  gauntlet-workbench only when present.
+- Header comment rewritten to document the composition contract.
+
+`packaging/smoke-macos.sh`: UNCHANGED — verified it never assumed a lipo'd workbench (it PTY
+tests whatever workbench binary is passed; an arm64-only installed workbench is handled the
+same). Only change in this round: `CDPATH=` → `CDPATH=''` (two lines) to satisfy shellcheck
+SC1007; behavior identical.
+
+Validation this round:
+- `sh -n` clean; `shellcheck` CLEAN on both shell scripts (previously 3 SC1007 warnings).
+- Fake-tool harness (fake lipo/codesign/pkgbuild/pkgutil/hdiutil/shasum honoring the real
+  tools' observable contracts) exercising the REAL build.sh on this Linux host:
+  - universal CLI + arm64 workbench → PASS; README Composition states universal CLI +
+    arm64-only workbench + Apple-Silicon/Intel sentence; Workbench section present.
+  - universal CLI-only → PASS; Composition states "workbench: not included" + not-qualified
+    honesty line; no Workbench section.
+  - arm64-only CLI + workbench → PASS; `-macos-arm64` names; Composition "both arm64".
+  - x64 stage carrying a workbench → refused rc=1 with the loud error.
+  - fat (arm64+x86_64) workbench staged in the arm dir → refused rc=1.
+  - missing x64 CLI → refused rc=1.
+- Harness noise notes (not build.sh issues): the fake shasum mishandles `-a 256` argument
+  order (prints a stray error line while still emitting the correct hash — the real macOS
+  shasum handles it); the first harness run's `test -s` failures were the fake pkgbuild writing
+  zero-byte pkgs, which actually demonstrated the non-empty-output assertion firing correctly.
+
+Residual unchanged: the fake-tool harness proves control flow, not real pkgbuild/lipo/codesign
+output — macOS CI remains the real qualifier (same re-run as the tmux fix, CI run 40934599697).

@@ -230,31 +230,56 @@ function supportFacts(resolved: ResolvedReleaseTarget): string[] {
   if (WSL_DISTRO_NAME !== undefined) {
     facts.push(`WSL distribution: ${WSL_DISTRO_NAME} (same-host deployments only).`);
   }
-  const tmux = Bun.spawnSync(["tmux", "-V"], { stdout: "pipe", stderr: "pipe" });
-  if (tmux.exitCode === 0) {
-    facts.push(`tmux available: ${new TextDecoder().decode(tmux.stdout).trim()}.`);
+  // Tool absence must never crash the builder (Bun.spawnSync THROWS
+  // "Executable not found in $PATH" for a missing binary on e.g. macOS
+  // runners): resolve with Bun.which first, then still guard the probe itself.
+  const tmuxPath = Bun.which("tmux");
+  if (tmuxPath === null) {
+    facts.push("tmux not found in $PATH on this host (tmux transport legs not runnable here).");
   } else {
-    facts.push("tmux not runnable on this host.");
+    try {
+      const tmux = Bun.spawnSync(["tmux", "-V"], { stdout: "pipe", stderr: "pipe" });
+      facts.push(
+        tmux.exitCode === 0
+          ? `tmux available: ${new TextDecoder().decode(tmux.stdout).trim()}.`
+          : "tmux present but not runnable on this host.",
+      );
+    } catch {
+      facts.push("tmux probe failed on this host (tmux transport legs recorded as unavailable).");
+    }
   }
-  const ssh = Bun.spawnSync(
-    [
-      "ssh",
-      "-o",
-      "BatchMode=yes",
-      "-o",
-      "ConnectTimeout=3",
-      "-o",
-      "StrictHostKeyChecking=no",
-      "localhost",
-      "echo ok",
-    ],
-    { stdout: "pipe", stderr: "pipe", timeout: 10_000 },
-  );
-  facts.push(
-    ssh.exitCode === 0
-      ? "sshd reachable on localhost (SSH remote-mode terminal usable)."
-      : "sshd NOT reachable on localhost (SSH remote-mode terminal recorded as unavailable; see evidence).",
-  );
+  const sshPath = Bun.which("ssh");
+  if (sshPath === null) {
+    facts.push(
+      "ssh not found in $PATH on this host (SSH remote-mode terminal recorded as unavailable; see evidence).",
+    );
+  } else {
+    try {
+      const ssh = Bun.spawnSync(
+        [
+          "ssh",
+          "-o",
+          "BatchMode=yes",
+          "-o",
+          "ConnectTimeout=3",
+          "-o",
+          "StrictHostKeyChecking=no",
+          "localhost",
+          "echo ok",
+        ],
+        { stdout: "pipe", stderr: "pipe", timeout: 10_000 },
+      );
+      facts.push(
+        ssh.exitCode === 0
+          ? "sshd reachable on localhost (SSH remote-mode terminal usable)."
+          : "sshd NOT reachable on localhost (SSH remote-mode terminal recorded as unavailable; see evidence).",
+      );
+    } catch {
+      facts.push(
+        "ssh probe failed on this host (SSH remote-mode terminal recorded as unavailable; see evidence).",
+      );
+    }
+  }
   return facts;
 }
 
@@ -265,12 +290,28 @@ async function buildArtifact(target: ReleaseTarget, artifactRel: string): Promis
   // Bun appends .exe to windows compile outputs itself (see releaseArtifactPath);
   // pass the outfile without the suffix so the on-disk name is deterministic.
   const outfile = artifactRel.endsWith(".exe") ? artifactRel.slice(0, -4) : artifactRel;
-  const proc = Bun.spawn(
-    ["bun", "build", "--compile", `--target=${target}`, RELEASE_ENTRY, "--outfile", outfile],
-    { stdout: "pipe", stderr: "pipe", cwd: ROOT },
-  );
-  const stderr = await new Response(proc.stderr).text();
-  const code = await proc.exited;
+  // Tool absence must never crash the builder (the F2 class): "bun" is a
+  // PATH-resolved external binary like any other probe — resolve it first, then
+  // still guard the spawn itself, failing through the typed error channel.
+  if (Bun.which("bun") === null) {
+    throw new Error(
+      "release build failed: the 'bun' executable is not in $PATH on this host (standalone compilation needs the Bun toolchain this builder runs under).",
+    );
+  }
+  let stderr = "";
+  let code: number | null = null;
+  try {
+    const proc = Bun.spawn(
+      ["bun", "build", "--compile", `--target=${target}`, RELEASE_ENTRY, "--outfile", outfile],
+      { stdout: "pipe", stderr: "pipe", cwd: ROOT },
+    );
+    stderr = await new Response(proc.stderr).text();
+    code = await proc.exited;
+  } catch (error) {
+    throw new Error(
+      `release build failed to start: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
   if (code !== 0 || !existsSync(join(ROOT, artifactRel))) {
     throw new Error(`release build failed (exit ${String(code)}): ${stderr.trim().slice(0, 2000)}`);
   }
@@ -441,11 +482,17 @@ export function verifyReleaseManifest(manifest: unknown): ManifestCheckResult {
     if (!Array.isArray(markers) || markers.length === 0) {
       failures.push("launch_qualification.rendered_markers must be recorded");
     }
+    // Qualification requires the ACTUAL rendered launch markers (all five), not
+    // merely any non-empty marker list — a forged marker list never qualifies.
+    const markersComplete =
+      Array.isArray(markers) && LAUNCH_MARKERS.every((marker) => markers.includes(marker));
+    if (Array.isArray(markers) && markers.length > 0 && !markersComplete) {
+      failures.push(
+        `launch_qualification.rendered_markers must include the qualified launch markers (${LAUNCH_MARKERS.join(", ")})`,
+      );
+    }
     launchQualified =
-      launch.geometry === "120x40" &&
-      launch.exited_cleanly === true &&
-      Array.isArray(markers) &&
-      markers.length > 0;
+      launch.geometry === "120x40" && launch.exited_cleanly === true && markersComplete;
   } else {
     failures.push(
       "launch_qualification.transport must be a real-pty launch or an honest not-qualifiable record",
@@ -495,7 +542,17 @@ async function main(): Promise<number> {
     : "unavailable (no lockfile on disk)";
   const { dependencies, devDependencies } = packageJson();
 
-  await buildArtifact(resolved.target, artifactRel);
+  // Build/launch failures (including spawn-time throws for an absent or
+  // unspawnable binary) fail through the same typed channel as target
+  // resolution — the builder never dies on an unhandled throw.
+  try {
+    await buildArtifact(resolved.target, artifactRel);
+  } catch (error) {
+    process.stderr.write(
+      `tui-build release: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
+    return 1;
+  }
   process.stderr.write(`tui-build release: built ${artifactRel}\n`);
   // The pre-multi-target artifact name is superseded; drop the stale file so it
   // can never be mistaken for the qualified artifact (dist/ is gitignored).
@@ -513,7 +570,15 @@ async function main(): Promise<number> {
       reason: `artifact compiled for ${resolved.target} on a ${resolved.host_target} host (${resolved.source}); a cross artifact cannot be executed here, so no PTY launch was attempted — qualify on a native ${resolved.target} runner before recording a real-pty launch`,
     };
   } else {
-    const launch = await launchAndQualify(artifactPath);
+    let launch: LaunchResult;
+    try {
+      launch = await launchAndQualify(artifactPath);
+    } catch (error) {
+      process.stderr.write(
+        `tui-build release: artifact launch failed: ${error instanceof Error ? error.message : String(error)}\n`,
+      );
+      return 1;
+    }
     const frame = lastFrameOf(launch.output);
     const missingMarkers = LAUNCH_MARKERS.filter((marker) => !frame.includes(marker));
     if (missingMarkers.length > 0) {
