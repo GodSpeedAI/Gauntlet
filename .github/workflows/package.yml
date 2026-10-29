@@ -908,13 +908,18 @@ jobs:
             have "dist/gauntlet-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" || { echo "::error::missing x86_64 tarball"; exit 1; }
             have "dist/gauntlet-${VERSION}-aarch64-unknown-linux-gnu.tar.gz" || { echo "::error::missing aarch64 tarball"; exit 1; }
             for deb in "dist/gauntlet_${VERSION}_amd64.deb" "dist/gauntlet_${VERSION}_arm64.deb"; do
-              dpkg -c "$deb" | grep -Eq '\./usr/bin/gauntlet$' || { echo "::error::$deb lacks ./usr/bin/gauntlet"; exit 1; }
-              dpkg -c "$deb" | grep -Eq '\./usr/bin/gauntlet-workbench$' || { echo "::error::$deb lacks ./usr/bin/gauntlet-workbench"; exit 1; }
+              # Capture the listing first: under pipefail, grep -q's early
+              # exit SIGPIPEs tar/dpkg and the pipeline reports failure even
+              # on a match (run 40957212133).
+              deb_listing=$(dpkg -c "$deb")
+              grep -Eq '\./usr/bin/gauntlet$' <<<"$deb_listing" || { echo "::error::$deb lacks ./usr/bin/gauntlet"; exit 1; }
+              grep -Eq '\./usr/bin/gauntlet-workbench$' <<<"$deb_listing" || { echo "::error::$deb lacks ./usr/bin/gauntlet-workbench"; exit 1; }
               echo "OK $deb carries gauntlet + gauntlet-workbench"
             done
             for tgz in "dist/gauntlet-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" "dist/gauntlet-${VERSION}-aarch64-unknown-linux-gnu.tar.gz"; do
-              tar -tzf "$tgz" | grep -Eq '/gauntlet$' || { echo "::error::$tgz lacks ./gauntlet"; exit 1; }
-              tar -tzf "$tgz" | grep -Eq '/gauntlet-workbench$' || { echo "::error::$tgz lacks ./gauntlet-workbench"; exit 1; }
+              tgz_listing=$(tar -tzf "$tgz")
+              grep -Eq '/gauntlet$' <<<"$tgz_listing" || { echo "::error::$tgz lacks ./gauntlet"; exit 1; }
+              grep -Eq '/gauntlet-workbench$' <<<"$tgz_listing" || { echo "::error::$tgz lacks ./gauntlet-workbench"; exit 1; }
               echo "OK $tgz carries gauntlet + gauntlet-workbench"
             done
           else
