@@ -419,6 +419,10 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           LABEL: ${{ steps.variant.outputs.label }}
+          # smoke-macos.sh (builder C's F1-pattern rework) requires a valid
+          # Gauntlet project: env-only doctor asserts the fail-closed
+          # contract, in-project doctor asserts exit 0 against a copy.
+          GAUNTLET_SMOKE_PROJECT: ${{ github.workspace }}/tests/fixtures/target
         run: |
           set -euo pipefail
           pkg="dist/gauntlet-${VERSION}-macos-${LABEL}.pkg"
@@ -531,6 +535,11 @@ jobs:
         id: wbqual
         continue-on-error: true
         working-directory: workbench
+        shell: bash
+        # shell: bash is REQUIRED here: the script is bash (`set -euo
+        # pipefail`), and the windows-latest default (pwsh) dies on the first
+        # line before bun ever runs (CI run 40934599697: Set-Variable error,
+        # node_modules never laid down).
         # Host target bun-windows-x64. PTY qualification may be unavailable on
         # Windows CI; a nonzero exit here sends the job down the honest
         # unqualified fallback (recorded, never silent).
@@ -542,21 +551,23 @@ jobs:
       - name: Fall back to an unqualified workbench build (recorded)
         if: steps.wbqual.outcome != 'success'
         working-directory: workbench
-        shell: pwsh
+        shell: bash
+        # Self-sufficient fallback: wbqual may have died during `bun install`
+        # (CI round 1 proved the pwsh default can kill the step before bun
+        # runs), so the frozen install runs here too — idempotent when
+        # wbqual already laid node_modules down.
         run: |
-          $ErrorActionPreference = 'Stop'
-          Write-Host "::warning::workbench real-PTY qualification is unavailable on this Windows runner (release-manifest.ts exited nonzero); building the workbench WITHOUT launch qualification — the Windows zip and setup.exe will be CLI-only (gauntlet.exe only) and this unqualified binary is uploaded separately as pkg-windows-workbench-unqualified, never inside the installer packages"
+          set -euo pipefail
+          echo "::warning::workbench real-PTY qualification is unavailable on this Windows runner (release-manifest.ts exited nonzero); building the workbench WITHOUT launch qualification — the Windows zip and setup.exe will be CLI-only (gauntlet.exe only) and this unqualified binary is uploaded separately as pkg-windows-workbench-unqualified, never inside the installer packages"
+          bun install --frozen-lockfile
           bun build --compile --target=bun-windows-x64 src/main.ts --outfile dist/gauntlet-workbench-bun-windows-x64.exe
-          if ($LASTEXITCODE -ne 0) { throw "workbench fallback build failed" }
-          $wb = "dist/gauntlet-workbench-bun-windows-x64.exe"
-          if (-not (Test-Path $wb)) {
-            $doubled = "$wb.exe"
-            if (Test-Path $doubled) {
-              Move-Item $doubled $wb
-              Write-Host "note: Bun appended a second .exe; normalized to $wb"
-            }
-          }
-          if (-not (Test-Path $wb)) { throw "workbench artifact missing after fallback build: $wb" }
+          # Defensive: some Bun versions append a second .exe to the outfile.
+          wb=dist/gauntlet-workbench-bun-windows-x64.exe
+          if [ ! -f "$wb" ] && [ -f "$wb.exe" ]; then
+            mv "$wb.exe" "$wb"
+            echo "note: Bun appended a second .exe; normalized to $wb"
+          fi
+          test -f "$wb" || { echo "::error::workbench artifact missing after fallback build: $wb"; exit 1; }
 
       - name: Ensure a usable Inno Setup 6.3+
         shell: pwsh
@@ -679,6 +690,11 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
           WB_QUALIFIED: ${{ steps.wbqual.outcome == 'success' }}
+          # smoke-windows.ps1 (builder C's F1-pattern rework) requires a valid
+          # Gauntlet project (env-only doctor = fail-closed contract,
+          # in-project doctor = exit 0 against a copy); the env var reaches
+          # the pwsh child that runs the smoke.
+          GAUNTLET_SMOKE_PROJECT: ${{ github.workspace }}/tests/fixtures/target
         run: |
           $ErrorActionPreference = 'Stop'
           $wbQualified = ($env:WB_QUALIFIED -eq 'true')

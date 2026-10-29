@@ -9,12 +9,26 @@
 #
 #   1. `--version` prints exactly "gauntlet <expected-version>"
 #   2. `--help` exits 0 with non-empty output
-#   3. `doctor` exits 0 with its machine report inside GAUNTLET_REPORT_DIR
-#      (a disposable env-only dir; doctor does not probe PostgreSQL and none
-#      is provided or simulated)
+#   3. `doctor` in an env-only dir (no GAUNTLET.md anywhere above) FAILS
+#      CLOSED, by design: the §8.5 reference check fails with no project /
+#      reference manifest (CI run 40949652982 + adversarial F1 proved the
+#      previous exit-0 assertion could never pass; the product is correct
+#      and is never weakened to pass a smoke). The contract asserted here:
+#      a typed nonzero exit, the summary naming the failure
+#      (`exit: FAIL ...`), the `codemode (optional):` line, the
+#      `report: <path>` line pointing at
+#      `$GAUNTLET_REPORT_DIR/doctor.json`, and that file written non-empty.
 #   4. `gauntlet init` scaffolds a fresh project, and a second init refuses
-#      to overwrite it
-#   5. workbench leg (only when a workbench binary is passed): a REAL PTY at
+#      to overwrite it. (The comments-only scaffold is deliberately NOT
+#      doctor-clean, so the in-project leg below does not use it.)
+#   5. `doctor` exits 0 (`exit: OK`, codemode line, `report: <path>` line,
+#      non-empty report file) in a COPY of GAUNTLET_SMOKE_PROJECT — a real,
+#      reference-manifested project. GAUNTLET_SMOKE_PROJECT is a REQUIRED
+#      caller obligation (CI passes the checkout's tests/fixtures/target);
+#      the script refuses with typed exit-2 errors rather than skip the leg
+#      silently when it is unset, not a readable directory, or lacking
+#      GAUNTLET.md.
+#   6. workbench leg (only when a workbench binary is passed): a REAL PTY at
 #      120x40 via python3(1); requires the NAVIGATOR/PRIMARY/INSPECTOR/
 #      COMPOSER markers to render, a 'q' keystroke, and a clean exit.
 #      Best-effort-honest: if this leg cannot run in the caller's
@@ -46,6 +60,25 @@ if [ -n "$WB" ] && [ ! -x "$WB" ]; then
     exit 1
 fi
 
+# The in-project doctor leg's ruler: a doctor-clean project directory. The
+# smoke runs outside any checkout and cannot discover one itself, so the
+# caller supplies it (a checkout's tests/fixtures/target). Refusing here —
+# like a missing binary above — keeps the leg from ever being skipped
+# silently.
+smoke_project_input=${GAUNTLET_SMOKE_PROJECT:-}
+if [ -z "$smoke_project_input" ]; then
+    echo "error: no smoke project: export GAUNTLET_SMOKE_PROJECT to a doctor-clean project directory (a checkout's tests/fixtures/target)" >&2
+    exit 2
+fi
+smoke_project=$(CDPATH='' cd -- "$smoke_project_input" 2>/dev/null && pwd) || {
+    echo "error: GAUNTLET_SMOKE_PROJECT is not a readable directory: $smoke_project_input" >&2
+    exit 2
+}
+if [ ! -f "$smoke_project/GAUNTLET.md" ]; then
+    echo "error: GAUNTLET_SMOKE_PROJECT carries no GAUNTLET.md (want a doctor-clean project like tests/fixtures/target): $smoke_project" >&2
+    exit 2
+fi
+
 work=$(mktemp -d "${TMPDIR:-/tmp}/gauntlet-smoke.XXXXXX")
 cleanup() { rm -rf "$work"; }
 trap cleanup EXIT
@@ -60,6 +93,12 @@ pass() { echo "smoke: PASS $1"; }
 fail() {
     echo "smoke: FAIL $1" >&2
     exit 1
+}
+dump() {
+    # $1 = label, $2 = file; last ~1500 chars to stderr
+    echo "smoke: ---- $1 (tail) ----" >&2
+    tail -c 1500 "$2" >&2 2>/dev/null || true
+    echo "smoke: ---- end $1 ----" >&2
 }
 
 echo "smoke: gauntlet binary $GT"
@@ -82,14 +121,35 @@ pass "version -> $got"
 test -s "$work/help.out" || fail "--help produced no output"
 pass "--help exits 0 with usage output"
 
-# ── 3. doctor in a disposable env-only dir ───────────────────────────────
-doctor_cwd="$work/doctor-cwd"
-mkdir -p "$doctor_cwd"
-( cd "$doctor_cwd" && "$GT" doctor ) > "$work/doctor.out" 2>&1 \
-    || fail "doctor exited non-zero in a disposable env-only dir: $(cat "$work/doctor.out")"
-test -s "$GAUNTLET_REPORT_DIR/doctor.json" \
-    || fail "doctor did not write its machine report under GAUNTLET_REPORT_DIR ($GAUNTLET_REPORT_DIR)"
-pass "doctor exits 0; report written inside the disposable GAUNTLET_REPORT_DIR"
+# ── 3. doctor in an env-only dir FAILS CLOSED (the pinned contract) ──────
+# With no GAUNTLET.md anywhere above the cwd, the §8.5 reference check
+# fails and doctor exits nonzero — fail-closed by design (adversarial
+# review + CI run 40949652982 proved the previous exit-0 assertion could
+# never pass; the product is correct). The contract asserted here, verified
+# against the release binary: typed nonzero exit, the human summary naming
+# the failed check, the codemode line, and the machine report still written
+# under GAUNTLET_REPORT_DIR (OD-7/OD-14).
+mkdir -p "$work/envdir"
+doctor_code=0
+( cd "$work/envdir" && "$GT" doctor ) \
+    > "$work/doctor.out" 2> "$work/doctor.err" || doctor_code=$?
+if [ "$doctor_code" -eq 0 ]; then
+    dump "doctor stdout" "$work/doctor.out"
+    dump "doctor stderr" "$work/doctor.err"
+    fail "doctor exited 0 in an env-only dir; the fail-closed contract wants a typed nonzero exit"
+fi
+grep -q '^exit: FAIL ' "$work/doctor.out" \
+    || fail "env-only doctor output lacks the typed 'exit: FAIL' summary line"
+grep -q '^codemode (optional): ' "$work/doctor.out" \
+    || fail "env-only doctor output lacks the 'codemode (optional):' line"
+report_path=$(sed -n 's/^report: //p' "$work/doctor.out" | tail -1)
+test -n "$report_path" \
+    || fail "env-only doctor output lacks the 'report: <path>' line"
+test "$report_path" = "$GAUNTLET_REPORT_DIR/doctor.json" \
+    || fail "env-only doctor wrote its report at '$report_path', want $GAUNTLET_REPORT_DIR/doctor.json"
+test -s "$report_path" \
+    || fail "env-only doctor report file missing or empty: $report_path"
+pass "doctor fails closed in an env-only dir (exit $doctor_code, report at $report_path)"
 
 # ── 4. gauntlet init scaffolds, and refuses to overwrite ────────────────
 project="$work/project"
@@ -104,7 +164,31 @@ if ( cd "$project" && "$GT" init ) > "$work/init2.out" 2>&1; then
 fi
 pass "init scaffolds a project and refuses to overwrite an existing one"
 
-# ── 5. workbench leg: real PTY 120x40, markers, clean 'q' exit ──────────
+# ── 5. doctor exits 0 in a real, reference-manifested project ────────────
+# The ruler is a COPY of GAUNTLET_SMOKE_PROJECT (the original is never
+# touched): its GAUNTLET.md + reference manifest/answer key form the
+# smallest doctor-clean project. An init scaffold does NOT suffice — the
+# comments-only template configures no reference manifest, so doctor fails
+# closed there by design (verified empirically against the release binary).
+cp -a "$smoke_project" "$work/project-check"
+if ! ( cd "$work/project-check" && "$GT" doctor ) \
+    > "$work/doctor-project.out" 2> "$work/doctor-project.err"; then
+    dump "doctor-project stdout" "$work/doctor-project.out"
+    dump "doctor-project stderr" "$work/doctor-project.err"
+    fail "doctor exited nonzero in the GAUNTLET_SMOKE_PROJECT copy"
+fi
+grep -q '^exit: OK' "$work/doctor-project.out" \
+    || fail "in-project doctor output lacks the 'exit: OK' summary line"
+grep -q '^codemode (optional): ' "$work/doctor-project.out" \
+    || fail "in-project doctor output lacks the 'codemode (optional):' line"
+project_report=$(sed -n 's/^report: //p' "$work/doctor-project.out" | tail -1)
+test -n "$project_report" \
+    || fail "in-project doctor output lacks the 'report: <path>' line"
+test -s "$project_report" \
+    || fail "in-project doctor report file missing or empty: $project_report"
+pass "doctor exit 0 in the copied smoke project, report at $project_report"
+
+# ── 6. workbench leg: real PTY 120x40, markers, clean 'q' exit ──────────
 if [ -z "$WB" ]; then
     echo "smoke: SKIP workbench PTY leg not requested (no workbench binary passed) — recorded"
 elif [ "${GAUNTLET_SMOKE_SKIP_PTY:-0}" = "1" ]; then

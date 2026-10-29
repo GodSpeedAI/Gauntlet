@@ -55,3 +55,4 @@ settlement target is a verified downloadable ARM64 package for the NVIDIA Jetson
   -D warnings, fmt, nextest cli_surface 5/5, arch-tests 261/261). Residual: unix-only
   constructs remain in `crates/gauntlet-cli/tests/*.rs` (8 files) — outside touch scope,
   do not block the bin-only package build; listed in rust-windows-portability.md.
+- Correction round 3 (builder C, CI 40949652982): smoke-macos.sh + smoke-windows.ps1 doctor legs reworked to the observed fail-closed contract (env-only = typed nonzero + exit: FAIL + codemode + report line + non-empty doctor.json; exit 0 now FAILS) and a NEW required GAUNTLET_SMOKE_PROJECT in-project leg (doctor exits 0 in a copied doctor-clean project; typed exit-2 refusals). Validated: shellcheck clean + 8-case fake harness incl. both fail-closed teeth. CI must export GAUNTLET_SMOKE_PROJECT for both smokes.

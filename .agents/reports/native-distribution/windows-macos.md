@@ -307,3 +307,63 @@ Validation this round:
 
 Residual unchanged: the fake-tool harness proves control flow, not real pkgbuild/lipo/codesign
 output — macOS CI remains the real qualifier (same re-run as the tmux fix, CI run 40934599697).
+
+## Correction round 3 (2026-10-29, CI run 40949652982 — the impossible env-only doctor premise)
+
+Trigger: the F1 rework (builder B) only reached `packaging/smoke-gauntlet.sh`; BOTH of my smokes
+still carried the round-1 fiction "doctor exits 0 in a disposable env-only dir". CI proved the
+real contract on the macos job: doctor in a bare dir FAILS CLOSED by design — typed nonzero exit,
+summary ending `exit: FAIL (check 2: reference)`, the `codemode (optional):` line present, the
+`report: <path>` line present, and a non-empty `doctor.json` under GAUNTLET_REPORT_DIR. The
+product was right; my smokes were wrong. Same rework as smoke-gauntlet.sh applied to BOTH of my
+smokes; `.github/**`, `packaging/smoke-gauntlet.sh`, and `packaging/install-test-deb.sh`
+untouched.
+
+1. `packaging/smoke-macos.sh`
+   - Leg 3 (env-only) now asserts the fail-closed contract: captured exit code must be NONZERO
+     (exit 0 fails the smoke, with a stdout/stderr dump), `^exit: FAIL ` in the summary,
+     `^codemode (optional): `, and a `^report: <path>` line whose path must equal
+     `$GAUNTLET_REPORT_DIR/doctor.json`, with that file existing non-empty.
+   - NEW leg 5 (in-project): `GAUNTLET_SMOKE_PROJECT` is a REQUIRED caller obligation (CI passes
+     `tests/fixtures/target`). The script copies it (`cp -a`) into its disposable root and
+     asserts doctor exits 0 there (`^exit: OK`, codemode line, report line, non-empty report
+     file). Typed exit-2 refusals when the var is unset, not a readable directory, or lacking
+     GAUNTLET.md — the leg is never skipped silently. The copy is never the fixture itself.
+   - Leg order now mirrors smoke-gauntlet.sh: version, help, doctor env-only (fail-closed),
+     init scaffold (+ overwrite refusal; the scaffold is deliberately NOT doctor-clean), doctor
+     in-project, workbench PTY. Added the `dump` failure-diagnostic helper; workbench leg
+     renumbered 6. Header docs rewritten (they previously claimed doctor exits 0 env-only).
+2. `packaging/smoke-windows.ps1`
+   - Identical rework in pwsh: leg 3 asserts the fail-closed contract (captured nonzero exit;
+     `(?m)^exit: FAIL `, `(?m)^codemode \(optional\): `, `(?m)^report: (.*)$` with
+     `.Trim()` for CRLF, path must equal `$env:GAUNTLET_REPORT_DIR\doctor.json`, file non-empty;
+     exit 0 fails the smoke with captured stdout/stderr).
+   - NEW leg 5: `$env:GAUNTLET_SMOKE_PROJECT` required; `Copy-Item -Recurse` into the temp root
+     (never the fixture itself); doctor must exit 0 there with `exit: OK` + codemode + report
+     line + non-empty file. New `Refuse` helper (typed, yellow, exit 2) for the three refusals;
+     validation runs BEFORE any temp state is created, so a refusal leaves nothing behind.
+   - Header docs rewritten; workbench leg renumbered 6.
+
+Validation evidence (all run locally):
+- `sh -n` clean; `shellcheck` CLEAN on both shell scripts (build.sh and smoke-macos.sh).
+- Fake-binary harness for smoke-macos.sh, fake doctor mirroring the OBSERVED CI contract
+  (bare dir -> exit 1 + `exit: FAIL (check 2: reference)` + codemode + report lines + non-empty
+  doctor.json; dir with GAUNTLET.md -> exit 0 + `exit: OK`):
+  - happy path CLI + workbench: ALL CHECKS PASSED (fail-closed env-only leg, in-project leg,
+    PTY leg all green);
+  - happy CLI-only: PASS with recorded skip;
+  - GAUNTLET_SMOKE_PROJECT unset / nonexistent / no GAUNTLET.md -> typed refusal, rc=2, no temp
+    leaks (validation precedes temp state);
+  - tooth: a fake binary whose doctor exits 0 env-only FAILS the smoke at leg 3 with the typed
+    message plus the stdout dump;
+  - tooth: a fake binary whose doctor fails in-project FAILS the smoke at leg 5;
+  - regression: wrong expected version still fails at leg 1.
+- smoke-windows.ps1: desk-check only (no pwsh on this host) — brace balance 62/62, leg numbering
+  1-6, native-exit handling safe under pwsh 7 (`PSNativeCommandUseErrorActionPreference` does
+  not throw), `Refuse` fires before `$work` exists, `Copy-Item -Recurse` includes the `.wayfinder`
+  payload, `.Trim()` handles CRLF on the report path capture.
+
+Interface note for Slice E (already stated by builder B, now true for my smokes too): CI must
+export `GAUNTLET_SMOKE_PROJECT=<checkout>/tests/fixtures/target` for BOTH
+`packaging/smoke-macos.sh` and `packaging/smoke-windows.ps1` invocations; unset = typed exit-2
+refusal, never a silent skip.
