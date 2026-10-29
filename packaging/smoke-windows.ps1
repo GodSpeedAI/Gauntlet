@@ -111,7 +111,7 @@ try {
     # 1. --version exact match
     & $GauntletBin --version > (Join-Path $work 'version.out') 2> (Join-Path $work 'version.err')
     if ($LASTEXITCODE -ne 0) {
-        Fail "--version exited $LASTEXITCODE: $(Get-Content (Join-Path $work 'version.err') -Raw)"
+        Fail "--version exited ${LASTEXITCODE}: $(Get-Content (Join-Path $work 'version.err') -Raw)"
     }
     $got = ('' + (Get-Content (Join-Path $work 'version.out') -Raw)).Trim()
     if ($got -ne "gauntlet $ExpectedVersion") {
@@ -122,7 +122,7 @@ try {
     # 2. --help
     & $GauntletBin --help > (Join-Path $work 'help.out') 2> (Join-Path $work 'help.err')
     if ($LASTEXITCODE -ne 0) {
-        Fail "--help exited $LASTEXITCODE: $(Get-Content (Join-Path $work 'help.err') -Raw)"
+        Fail "--help exited ${LASTEXITCODE}: $(Get-Content (Join-Path $work 'help.err') -Raw)"
     }
     if ((Get-Item (Join-Path $work 'help.out')).Length -eq 0) { Fail "--help produced no output" }
     Pass "--help exits 0 with usage output"
@@ -222,7 +222,7 @@ try {
     }
     else {
         $wbCwd = Join-Path $work 'workbench-cwd'
-        $projection = Join-Path $work 'projection'
+        $projection = Join-Path $work 'projection/projections.db'
         New-Item -ItemType Directory -Force -Path $wbCwd, $projection | Out-Null
 
         $proc = [System.Diagnostics.Process]::new()

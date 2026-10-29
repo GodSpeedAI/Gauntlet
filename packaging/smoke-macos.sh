@@ -323,7 +323,7 @@ PY
     (
         cd "$wb_cwd" && \
         GAUNTLET_WORKBENCH_GAUNTLET_BINARY="$GT" \
-        GAUNTLET_WORKBENCH_PROJECTION_STORE="$work/projection" \
+        GAUNTLET_WORKBENCH_PROJECTION_STORE="$work/projection/projections.db" \
         python3 "$work/pty_smoke.py" "$WB"
     ) || fail "workbench PTY leg failed (see diagnostics above)"
     pass "workbench PTY leg: rendered and exited cleanly on 'q'"
