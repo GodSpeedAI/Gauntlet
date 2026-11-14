@@ -1,0 +1,303 @@
+name: Release (native packages)
+
+# Formal native-release pipeline for gauntlet-v* tags:
+#
+#   validate -> package (reusable package.yml at the tag, upload=true)
+#            -> publish (GitHub Release + build provenance)
+#
+# Identity: the tag MUST name the workspace version exactly
+# (gauntlet-v<x.y.z> vs root Cargo.toml [workspace.package] version —
+# packaging/version.sh refuses drift), and every downloaded artifact is
+# re-verified against the TAG COMMIT before anything is published. Tags are
+# never created, moved, or re-pointed here: this workflow only builds from an
+# existing tag and attaches assets to a release named after it. Re-running
+# publish is idempotent (assets upload with --clobber; the release is reused).
+#
+# Provenance is attached ONLY when the publishing run itself built the tagged
+# commit. The comparison is commit-to-commit: validate peels the tag ref
+# (annotated tag objects are not commits) and peels github.sha where its
+# object is fetched; an annotated-tag push of a fresh build attests, while a
+# re-attach dispatch (publishing an older tag from a different commit) skips
+# attestation honestly — an attestation naming the wrong commit is worse than
+# none.
+#
+# Supply-chain note (mirrors ci.yml): third-party actions are pinned to
+# floating major tags here; resolve them to commit SHAs per repository
+# supply-chain policy before merge.
+
+on:
+  push:
+    tags:
+      - 'gauntlet-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing gauntlet-v* tag to build and publish (e.g. gauntlet-v0.1.0). Required."
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  # A release pipeline is never cancelled mid-run: group per tag, no
+  # cancel-in-progress. Re-runs queue behind each other.
+  group: release-native-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: validate (tag == workspace version)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.ident.outputs.tag }}
+      version: ${{ steps.verify.outputs.version }}
+      tag_sha: ${{ steps.verify.outputs.tag_sha }}
+      attest: ${{ steps.verify.outputs.attest }}
+    steps:
+      - name: Resolve the release tag
+        id: ident
+        shell: bash
+        env:
+          DISPATCH_TAG: ${{ inputs.tag || '' }}
+        run: |
+          set -euo pipefail
+          case "${{ github.event_name }}" in
+            push)
+              tag="${GITHUB_REF_NAME}"
+              ;;
+            workflow_dispatch)
+              test -n "$DISPATCH_TAG" || { echo "::error::workflow_dispatch requires the tag input (an existing gauntlet-v* tag)"; exit 1; }
+              tag="$DISPATCH_TAG"
+              ;;
+            *)
+              echo "::error::unexpected triggering event: ${{ github.event_name }}"
+              exit 1
+              ;;
+          esac
+          case "$tag" in
+            gauntlet-v*) ;;
+            *)
+              echo "::error::tag '$tag' does not match the gauntlet-v* tag grammar"
+              exit 1
+              ;;
+          esac
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "release tag: $tag"
+
+      - name: Checkout the tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ident.outputs.tag }}
+          persist-credentials: false
+
+      - name: Refuse version drift (version.sh must accept the tag)
+        id: verify
+        shell: bash
+        env:
+          TAG: ${{ steps.ident.outputs.tag }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # packaging/version.sh [expected]: exits 1 when the requested release
+          # does not name the workspace version (accepts <v>, v<v>, gauntlet-v<v>).
+          version=$(sh packaging/version.sh "$TAG")
+          test "$TAG" = "gauntlet-v${version}" || {
+            echo "::error::tag $TAG is not gauntlet-v${version}"
+            exit 1
+          }
+          # Peel the ref to the COMMIT: an annotated tag's object SHA is not
+          # the commit the artifacts are built from, and github.sha names that
+          # object on annotated-tag pushes. Every binding (built-from
+          # verification, attestation gate) uses the peeled commit.
+          tag_sha=$(git rev-parse "${TAG}^{commit}")
+          test "$(git rev-parse 'HEAD^{commit}')" = "$tag_sha" || {
+            echo "::error::checked-out HEAD does not match ${TAG}^{commit}"
+            exit 1
+          }
+          # Peel github.sha too, where its object is actually fetched. For an
+          # annotated-tag push it is the tag object (peels to the commit — the
+          # fresh-build case attests). For a dispatch against a tag the
+          # trigger commit is not fetched, peeling fails, and attest stays
+          # false — an attestation naming the wrong commit is worse than none.
+          github_sha_peeled=$(git rev-parse "${GITHUB_SHA}^{commit}" 2>/dev/null || true)
+          if [ -n "$github_sha_peeled" ] && [ "$github_sha_peeled" = "$tag_sha" ]; then
+            echo "attest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "attest=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag_sha=$tag_sha" >> "$GITHUB_OUTPUT"
+          echo "validated: $TAG -> version $version at commit $tag_sha (attest=$(cat "$GITHUB_OUTPUT/attest" 2>/dev/null || echo false))"
+
+  package:
+    name: package (all platforms at the tag)
+    needs: validate
+    permissions:
+      contents: read
+    uses: ./.github/workflows/package.yml
+    with:
+      ref: ${{ needs.validate.outputs.tag }}
+      upload: true
+
+  publish:
+    name: publish (GitHub Release + provenance)
+    needs: [validate, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      TAG: ${{ needs.validate.outputs.tag }}
+      VERSION: ${{ needs.validate.outputs.version }}
+      TAG_SHA: ${{ needs.validate.outputs.tag_sha }}
+      ATTEST: ${{ needs.validate.outputs.attest }}
+    steps:
+      - name: Download all package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-*
+          path: dist
+          merge-multiple: true
+
+      - name: Download the release meta (combined SHA256SUMS, built-from, summary)
+        uses: actions/download-artifact@v4
+        with:
+          name: release-meta
+          path: dist
+
+      - name: Re-verify every built-from file names the tag commit
+        run: |
+          set -euo pipefail
+          echo "tag commit: $TAG_SHA"
+          shopt -s nullglob
+          count=0
+          for f in dist/built-from-*.txt; do
+            got=$(tr -d '[:space:]' < "$f")
+            test "$got" = "$TAG_SHA" || {
+              echo "::error::$f records $got, expected the tag commit $TAG_SHA — refusing to publish"
+              exit 1
+            }
+            count=$((count + 1))
+            echo "OK $f -> $got"
+          done
+          test "$count" -ge 3 || {
+            echo "::error::expected built-from records for linux amd64/arm64, macos, and windows; found $count"
+            exit 1
+          }
+
+      - name: Re-verify the combined SHA256SUMS strictly
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c --strict SHA256SUMS
+
+      - name: Assert the required release assets are present
+        run: |
+          set -euo pipefail
+          have() { compgen -G "dist/$1" >/dev/null; }
+          have "gauntlet_${VERSION}_amd64.deb" || { echo "::error::missing gauntlet_${VERSION}_amd64.deb"; exit 1; }
+          have "gauntlet_${VERSION}_arm64.deb" || { echo "::error::missing gauntlet_${VERSION}_arm64.deb"; exit 1; }
+          have "gauntlet-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" || { echo "::error::missing x86_64 linux tarball"; exit 1; }
+          have "gauntlet-${VERSION}-aarch64-unknown-linux-gnu.tar.gz" || { echo "::error::missing aarch64 linux tarball"; exit 1; }
+          have "gauntlet-${VERSION}-x86_64-pc-windows-msvc.zip" || { echo "::error::missing windows zip"; exit 1; }
+          have "gauntlet-${VERSION}-x86_64-pc-windows-msvc-setup.exe" || { echo "::error::missing windows setup.exe"; exit 1; }
+          have "gauntlet-${VERSION}-macos-*.pkg" || { echo "::error::missing macos .pkg"; exit 1; }
+          have "gauntlet-${VERSION}-macos-*.dmg" || { echo "::error::missing macos .dmg"; exit 1; }
+          echo "all required release assets present"
+
+      - name: Assemble the release notes
+        run: |
+          set -euo pipefail
+          {
+            echo "Gauntlet ${VERSION} — native packages, built from commit \`${TAG_SHA}\`."
+            echo
+            echo "## Install"
+            echo
+            echo "See [docs/how-to/install-native-binaries.md](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/docs/how-to/install-native-binaries.md) for the artifact matrix, SHA-256 verification, platform install steps (including NVIDIA Jetson AGX Orin), and runtime prerequisites — a PostgreSQL server is REQUIRED for run/status/inspect/verify/export/serve (\`gauntlet doctor\` does not probe it)."
+            echo
+            echo "## Verify before installing"
+            echo
+            echo "    sha256sum -c SHA256SUMS --ignore-missing        # Linux / Windows (Git Bash, WSL)"
+            echo "    shasum -a 256 -c SHA256SUMS --ignore-missing    # macOS"
+            if [ "$ATTEST" = "true" ]; then
+              echo
+              echo "    gh attestation verify <asset> --repo ${GITHUB_REPOSITORY}"
+              echo
+              echo "Build provenance is attached (this run built the tagged commit)."
+            else
+              echo
+              echo "Build provenance is NOT attached: this run re-attached assets for an existing tag without building that commit here — SHA256SUMS is the baseline check."
+            fi
+            echo
+            echo "## Packages are unsigned"
+            echo
+            echo "No Apple Developer ID and no Authenticode certificate is used. macOS packages are not notarized (Gatekeeper: Control-click -> Open, or \`xattr -d com.apple.quarantine <pkg>\`); Windows SmartScreen may warn (More info -> Run anyway, after verifying SHA256SUMS)."
+            echo
+            cat dist/SUMMARY.md
+          } > notes.md
+          echo "---- notes.md ----"
+          cat notes.md
+
+      - name: Attach build provenance (only when this run built the tag commit)
+        if: needs.validate.outputs.attest == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.deb
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*-setup.exe
+            dist/*.pkg
+            dist/*.dmg
+
+      - name: Honest notice — provenance skipped (re-attach run)
+        if: needs.validate.outputs.attest != 'true'
+        run: echo "::notice::attestation is honestly skipped — this run did not build the commit ${TAG_SHA} named by ${TAG} (re-attach, or the trigger ref does not resolve to that commit); no attestation naming the wrong commit is created"
+
+      - name: Publish the GitHub Release (create, or upload --clobber if it exists)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The tag itself is NEVER created or moved here: it must already
+          # exist (--verify-tag refuses otherwise).
+          assets=(
+            dist/*.deb
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*-setup.exe
+            dist/*.pkg
+            dist/*.dmg
+            dist/SHA256SUMS
+            dist/built-from-*.txt
+          )
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "release $TAG already exists; uploading assets with --clobber"
+            gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "Gauntlet ${VERSION}" \
+              --notes-file notes.md
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets,tagName \
+            --jq '"release " + .tagName + " assets: " + ([.assets[].name] | join(", "))'
+
+      - name: Failure-recovery notice
+        if: failure()
+        run: |
+          {
+            echo "## Native release publish failed"
+            echo
+            echo "Recovery (in order; never move or re-point the \`${TAG}\` tag):"
+            echo
+            echo "1. Re-run the publish job — it is idempotent: assets upload with \`--clobber\`, an existing release is reused, provenance is re-created."
+            echo "2. Check what landed: \`gh release view ${TAG} --repo ${GITHUB_REPOSITORY}\` shows which assets attached before the failure."
+            echo "3. If the package job itself failed, fix the platform job and re-run the whole release workflow against the SAME tag."
+            echo "4. If the tag must change, cut a NEW tag (gauntlet-v*) — never move the existing one; a moved tag would detach already-published artifacts from their provenance."
+          } >> "$GITHUB_STEP_SUMMARY"

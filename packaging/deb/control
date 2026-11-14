@@ -1,0 +1,20 @@
+Package: gauntlet
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: Gauntlet maintainers <https://github.com/GodSpeedAI/Gauntlet>
+Installed-Size: @INSTALLED_SIZE@
+Depends: @DEPENDS@
+Recommends: postgresql, bubblewrap
+Section: utils
+Priority: optional
+Homepage: https://github.com/GodSpeedAI/Gauntlet
+Description: reference-anchored runtime for governed agent work (CLI + operator workbench)
+ Gauntlet runs the Reference -> Transform -> Observe -> Compare -> Verify ->
+ Select -> Correct -> Settle -> Remember loop against frozen references and
+ records durable evidence for every settlement. This package installs the
+ standalone `gauntlet` command-line runtime and, when built and launch-
+ qualified on this platform, the `gauntlet-workbench` terminal operator
+ surface. A PostgreSQL server is REQUIRED (point GAUNTLET_DATABASE_URL at
+ it); bubblewrap (sandbox) and bun (codemode tool-program host) are optional
+ capabilities, reported honestly by `gauntlet doctor`. No post-install
+ script runs and no service is enabled: installing does not start anything.

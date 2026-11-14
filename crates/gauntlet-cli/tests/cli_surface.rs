@@ -97,6 +97,36 @@ fn the_whole_tree_help_snapshot_holds() {
     );
 }
 
+/// The root `--version`/`-V` flags print exactly `gauntlet <version>`
+/// to stdout, exit 0, and stay silent on stderr — before any subcommand
+/// dispatch, in BOTH the default and the surfaces builds (this file is
+/// compiled and run under each configuration; native-distribution
+/// Slice R). The expected string is derived from the same compile-time
+/// Cargo metadata the dispatcher uses (`env!("CARGO_PKG_VERSION")` of
+/// THIS package, which the `gauntlet` binary shares), so the test can
+/// never drift from Cargo's version authority.
+#[test]
+fn root_version_flags_print_the_cargo_version_and_exit_zero() {
+    let expected = format!("gauntlet {}\n", env!("CARGO_PKG_VERSION"));
+    for flag in ["--version", "-V"] {
+        let output = binary()
+            .arg(flag)
+            .output()
+            .expect("the gauntlet binary runs");
+        assert!(
+            output.status.success(),
+            "{flag} exits 0, got {:?}",
+            output.status
+        );
+        let stdout = String::from_utf8(output.stdout).expect("version output is UTF-8");
+        assert_eq!(
+            stdout, expected,
+            "{flag} prints exactly the Cargo version line"
+        );
+        assert!(output.stderr.is_empty(), "{flag} writes nothing to stderr");
+    }
+}
+
 /// Every §20.1 command answers; an unknown command is a usage error.
 #[test]
 fn every_surface_command_dispatches_and_unknown_commands_are_usage_errors() {

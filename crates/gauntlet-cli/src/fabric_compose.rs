@@ -82,7 +82,9 @@ const SCHEMA_KEY: &str = "schema";
 const MAX_CONFIG_BYTES: u64 = 64 * 1024;
 /// The environment variable the production lookup scans for executables.
 const SEARCH_PATH_VAR: &str = "PATH";
-/// The execute permission bits a discovered executable must carry.
+/// The execute permission bits a discovered executable must carry (mode
+/// semantics exist only where unix file modes do).
+#[cfg(unix)]
 const EXECUTE_BITS: u32 = 0o111;
 /// The only workspace policy this composition implements.
 const WORKSPACE_FRESH: &str = "fresh";
@@ -377,9 +379,17 @@ impl ExecutableLookup for SearchPathLookup {
 }
 
 fn is_executable_file(path: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    fs::metadata(path)
-        .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & EXECUTE_BITS != 0)
+    #[cfg(unix)]
+    let executable = {
+        use std::os::unix::fs::PermissionsExt;
+        fs::metadata(path)
+            .is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & EXECUTE_BITS != 0)
+    };
+    // Non-unix targets carry no exec mode: a regular file on the search
+    // path is launchable (extension resolution is the loader's concern).
+    #[cfg(not(unix))]
+    let executable = fs::metadata(path).is_ok_and(|meta| meta.is_file());
+    executable
 }
 
 /// The injected dependencies of composition.

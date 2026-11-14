@@ -50,6 +50,24 @@ They do not get to move the ruler because the ruler became inconvenient.
 
 ---
 
+## Install
+
+Precompiled native packages (Linux `.deb`/`.tar.gz` for amd64 + arm64, macOS
+`.pkg`/`.dmg`, Windows `setup.exe`/`.zip`) are published for `gauntlet-v*`
+release tags and as CI artifacts. Full artifact matrix, SHA-256 verification,
+platform install steps, and runtime prerequisites
+(PostgreSQL is required; `gauntlet doctor` does not probe it) live in
+**[docs/how-to/install-native-binaries.md](docs/how-to/install-native-binaries.md)**.
+
+```sh
+gh release download gauntlet-v<version> --repo GodSpeedAI/Gauntlet   # formal release assets
+gh run download <run-id> --repo GodSpeedAI/Gauntlet -n pkg-linux-arm64   # CI artifact channel
+```
+
+Packages are unsigned: verify `SHA256SUMS` before installing.
+
+---
+
 ## Long-horizon agents create a different kind of failure
 
 A short agent task can fail obviously.

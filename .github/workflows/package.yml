@@ -1,0 +1,1069 @@
+name: Package (native)
+
+# Native packages for the `gauntlet` CLI (surfaces build) and the
+# `gauntlet-workbench` Bun standalone executable:
+#
+#   Linux amd64/arm64  gauntlet_<v>_<arch>.deb + gauntlet-<v>-<triple>.tar.gz
+#                      (Ubuntu 22.04 / glibc 2.35 baseline == Jetson AGX Orin;
+#                      arm64 builds NATIVELY on ubuntu-22.04-arm, never cross)
+#   macOS              gauntlet-<v>-macos-<universal|arm64>.pkg/.dmg
+#                      (label follows the actual stage content, never intent)
+#   Windows x64        gauntlet-<v>-x86_64-pc-windows-msvc.zip + -setup.exe
+#
+# Reusable (workflow_call, called by release-native.yml at a gauntlet-v* tag)
+# and runnable on PRs that touch packaging/build inputs or from the Actions UI
+# for release-candidate validation. Every package is INSTALLED on the runner
+# that built it and exercised (real smoke, real PostgreSQL for the deb,
+# real PTY launch qualification for the workbench) before it is offered as an
+# artifact. Packages are UNSIGNED: no Apple Developer ID, no Authenticode.
+#
+# Workbench honesty rule (frozen plan contract): a package carries both
+# binaries only where the workbench was built AND launch-qualified on its
+# native runner (both Linux hosts and macOS arm64 qualify via
+# workbench/src/release-manifest.ts). Windows PTY qualification is attempted
+# and, when unavailable, the Windows zip + setup.exe are built CLI-only
+# (gauntlet.exe only — the unqualified workbench binary never physically
+# enters the installer packages) and the workbench artifact ships ONLY as the
+# separate pkg-windows-workbench-unqualified artifact with an
+# UNQUALIFIED-README-windows.txt, never presented as qualified. On macOS the
+# pkg NEVER carries an x64 workbench: the universal/arm64 label describes the
+# CLI lipo composition, the workbench slice is arm64-only (real-PTY
+# qualified), and any darwin-x64 cross build ships only as
+# pkg-macos-workbench-unqualified.
+#
+# Supply-chain note (mirrors ci.yml): third-party actions are pinned to
+# floating major tags here; resolve them to commit SHAs per repository
+# supply-chain policy before merge.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to build (e.g. a gauntlet-v* tag). Empty builds the caller's commit."
+        type: string
+        required: false
+        default: ""
+      upload:
+        description: "True for release publication runs; disables cancellation of in-flight builds."
+        type: boolean
+        required: false
+        default: false
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to build. Empty builds the selected branch/commit."
+        type: string
+        required: false
+        default: ""
+      upload:
+        description: "True for release-candidate runs whose artifacts must never be cancelled mid-build."
+        type: boolean
+        required: false
+        default: false
+  # Verified in pull requests that touch packaging or the build inputs.
+  # There is deliberately no push: trigger — release builds are driven by
+  # release-native.yml via workflow_call (or a manual dispatch).
+  pull_request:
+    paths:
+      - 'packaging/**'
+      - '.github/workflows/package.yml'
+      - '.github/workflows/release-native.yml'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'crates/gauntlet-cli/**'
+      - 'workbench/src/**'
+      - 'workbench/package.json'
+      - 'workbench/bun.lock'
+      - 'docs/how-to/install-native-binaries.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Release builds (upload=true) must never be cancelled mid-run: a cancelled
+  # release build is a half-built release. They get their own group so a later
+  # manual dispatch or PR run can never supersede them; candidate builds are
+  # event-scoped and may be superseded.
+  group: package-${{ inputs.upload && 'release' || github.event_name }}-${{ inputs.ref || github.ref }}
+  cancel-in-progress: ${{ inputs.upload != true }}
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  linux:
+    name: package (linux ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            arch: amd64
+            target: x86_64-unknown-linux-gnu
+            bun_target: bun-linux-x64
+          # Native ARM runner on Ubuntu 22.04: the binary links glibc 2.35,
+          # which is exactly the NVIDIA Jetson AGX Orin (Ubuntu 22.04) baseline.
+          - runner: ubuntu-22.04-arm
+            arch: arm64
+            target: aarch64-unknown-linux-gnu
+            bun_target: bun-linux-arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Resolve the release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sh packaging/version.sh)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building Gauntlet ${version} from $(git rev-parse HEAD)"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev binutils
+
+      - name: Build the gauntlet CLI (frozen release form)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cargo build --release --locked -p gauntlet-cli --features surfaces --bin gauntlet
+          test "$(target/release/gauntlet --version)" = "gauntlet ${VERSION}"
+
+      - name: Build the workbench standalone executable (native host, real-PTY qualified)
+        working-directory: workbench
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run src/release-manifest.ts
+          test -f "dist/gauntlet-workbench-${{ matrix.bun_target }}"
+          test -f dist/release-manifest.json
+
+      - name: Stage both binaries under their installed names
+        env:
+          BUN_TARGET: ${{ matrix.bun_target }}
+        run: |
+          set -euo pipefail
+          mkdir -p stage dist
+          cp target/release/gauntlet stage/gauntlet
+          cp "workbench/dist/gauntlet-workbench-${BUN_TARGET}" stage/gauntlet-workbench
+          ls -l stage
+
+      - name: Verify the Linux ABI baseline (glibc 2.35) on both binaries
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          sh packaging/check-linux-binary.sh stage/gauntlet "$ARCH" rust
+          sh packaging/check-workbench-binary.sh stage/gauntlet-workbench "$ARCH"
+
+      - name: Build the .deb and the tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          sh packaging/deb/build.sh stage "$VERSION" "$ARCH" dist
+          bash packaging/linux/build-tarball.sh stage "$VERSION" "$TARGET" dist
+          ls -l dist
+
+      - name: Provision PostgreSQL for the install test
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -q postgresql
+          sudo systemctl start postgresql
+          ready=""
+          for i in $(seq 1 30); do
+            if pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" = "1" || { echo "::error::PostgreSQL did not become ready on 127.0.0.1:5432"; exit 1; }
+          sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
+
+      - name: Install-test the .deb (install, smoke, mock-runner loop, serve + workbench connect, remove)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCH: ${{ matrix.arch }}
+          GAUNTLET_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          GAUNTLET_REPO_ROOT: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          sh packaging/install-test-deb.sh "dist/gauntlet_${VERSION}_${ARCH}.deb" "$RUNNER_TEMP/install-test"
+
+      - name: Functional smoke of the tarball payload
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          GAUNTLET_EXPECTED_VERSION: ${{ steps.version.outputs.version }}
+          # smoke-gauntlet.sh (builder B's rework) REQUIRES a valid Gauntlet
+          # project for its in-project doctor leg (typed exit-2 refusal when
+          # unset/invalid); install-test-deb.sh passes the same fixture
+          # through for the deb path.
+          GAUNTLET_SMOKE_PROJECT: ${{ github.workspace }}/tests/fixtures/target
+        run: |
+          set -euo pipefail
+          work=$(mktemp -d)
+          tar -xzf "dist/gauntlet-${VERSION}-${TARGET}.tar.gz" -C "$work"
+          sh packaging/smoke-gauntlet.sh \
+            "$work/gauntlet-${VERSION}-${TARGET}/gauntlet" \
+            "$work/gauntlet-${VERSION}-${TARGET}/gauntlet-workbench"
+          rm -rf "$work"
+
+      - name: Per-arch checksums
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ./*.deb ./*.tar.gz > "SHA256SUMS-linux-${ARCH}"
+          sha256sum -c "SHA256SUMS-linux-${ARCH}"
+
+      - name: Record the built commit
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: git rev-parse HEAD > "dist/built-from-linux-${ARCH}.txt"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-linux-${{ matrix.arch }}
+          path: |
+            dist/*.deb
+            dist/*.tar.gz
+            dist/SHA256SUMS-linux-${{ matrix.arch }}
+            dist/built-from-linux-${{ matrix.arch }}.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  macos:
+    name: package (macos)
+    runs-on: macos-14
+    timeout-minutes: 60
+    outputs:
+      label: ${{ steps.variant.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Resolve the release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sh packaging/version.sh)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building Gauntlet ${version} from $(git rev-parse HEAD)"
+
+      - name: Install Rust toolchain (both darwin targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+
+      - name: Build the aarch64 CLI slice
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cargo build --release --locked --target aarch64-apple-darwin \
+            -p gauntlet-cli --features surfaces --bin gauntlet
+          test "$(target/aarch64-apple-darwin/release/gauntlet --version)" = "gauntlet ${VERSION}"
+
+      - name: Build the x86_64 CLI slice
+        run: |
+          set -euo pipefail
+          cargo build --release --locked --target x86_64-apple-darwin \
+            -p gauntlet-cli --features surfaces --bin gauntlet
+          test -x target/x86_64-apple-darwin/release/gauntlet
+
+      - name: Build the arm64 workbench (native host, real-PTY qualified)
+        working-directory: workbench
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run src/release-manifest.ts
+          test -f dist/gauntlet-workbench-bun-darwin-arm64
+          test -f dist/release-manifest.json
+
+      - name: Attempt the darwin-x64 workbench cross build (honest, best effort)
+        id: x86wb
+        continue-on-error: true
+        working-directory: workbench
+        # A host-arch `bun install` does not lay down @opentui/core-darwin-x64
+        # (run 40958463537: the bare cross build could not resolve it), so this
+        # step first asks bun for the darwin-x64 optional dependencies (best
+        # effort). On success the cross-built binary is NOT staged into any
+        # package: build.sh (builder C) refuses an x64-stage workbench and the
+        # pkg's workbench is arm64-only — the cross build ships ONLY as the
+        # separate pkg-macos-workbench-unqualified artifact (it is never
+        # launch-qualified). On failure the CLI ships arm64-only (honest label).
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun install --frozen-lockfile --os darwin --cpu x64 || \
+            echo "::warning::darwin-x64 optional-dependency install failed; the cross build will likely not resolve @opentui/core-darwin-x64"
+          bun build --compile --target=bun-darwin-x64 src/main.ts \
+            --outfile dist/gauntlet-workbench-bun-darwin-x64
+
+      - name: Stage the arm64 slice (both binaries, installed names)
+        run: |
+          set -euo pipefail
+          mkdir -p stage-arm64
+          cp target/aarch64-apple-darwin/release/gauntlet stage-arm64/gauntlet
+          cp workbench/dist/gauntlet-workbench-bun-darwin-arm64 stage-arm64/gauntlet-workbench
+          ls -l stage-arm64
+
+      - name: Choose the package variant (label = CLI composition; workbench always arm64-only)
+        id: variant
+        shell: bash
+        env:
+          X86WB_OUTCOME: ${{ steps.x86wb.outcome }}
+        # The label describes the CLI composition (lipo universal vs arm64),
+        # never the workbench: the pkg's workbench slice is arm64-only in
+        # every shape (build.sh refuses an x64-stage workbench).
+        run: |
+          set -euo pipefail
+          if [ "$X86WB_OUTCOME" = "success" ]; then
+            echo "label=universal" >> "$GITHUB_OUTPUT"
+            echo "x64stage=stage-x64" >> "$GITHUB_OUTPUT"
+            echo "::notice::darwin-x64 workbench cross build succeeded; the pkg workbench stays arm64-only and the cross build ships ONLY as the separate pkg-macos-workbench-unqualified artifact (never launch-qualified)"
+          else
+            echo "::warning::darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; the CLI ships arm64-only (honest label, never mislabeled universal)"
+            echo "label=arm64" >> "$GITHUB_OUTPUT"
+            echo "x64stage=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stage the x86_64 CLI slice (CLI only — never the workbench)
+        if: steps.variant.outputs.x64stage != ''
+        # stage-x64 carries ONLY the x86_64 gauntlet for build.sh's CLI lipo.
+        # The cross-built darwin-x64 workbench is deliberately NOT staged
+        # into any package: build.sh refuses an x64-stage workbench, and an
+        # unqualified workbench must never ride inside the pkg.
+        run: |
+          set -euo pipefail
+          mkdir -p stage-x64
+          cp target/x86_64-apple-darwin/release/gauntlet stage-x64/gauntlet
+          test ! -e stage-x64/gauntlet-workbench
+          ls -l stage-x64
+
+      - name: Stage the unqualified darwin-x64 workbench artifact separately
+        if: steps.variant.outputs.x64stage != ''
+        run: |
+          set -euo pipefail
+          mkdir -p wbu-macos
+          cp workbench/dist/gauntlet-workbench-bun-darwin-x64 wbu-macos/gauntlet-workbench-bun-darwin-x64
+          cat > wbu-macos/UNQUALIFIED-README-macos.txt <<'README'
+          gauntlet-workbench-bun-darwin-x64 — UNQUALIFIED workbench artifact
+
+          This Bun standalone executable was cross-compiled on an arm64
+          macOS runner (`bun build --compile --target=bun-darwin-x64
+          src/main.ts`) after the arm64 workbench was built and real-PTY
+          qualified on that same host.
+
+          What WAS validated on this runner:
+            - The cross build itself completed (the darwin-x64 target
+              compiles and links).
+
+          What was NOT validated (and is not claimed anywhere):
+            - The binary was never executed on this runner.
+            - No launch qualification of any kind, and no real-PTY TUI
+              qualification. No runner in this pipeline PTY-qualifies
+              bun-darwin-x64.
+
+          The macOS pkg and dmg built in this run carry the arm64-only
+          workbench (build.sh refuses an x64-stage workbench) whose arm64
+          slice IS real-PTY qualified on this host; the universal label
+          describes the CLI composition, never the workbench. The Linux
+          (amd64/arm64) workbench artifacts from the same pipeline run are
+          real-PTY qualified on their native runners.
+          README
+          ls -l wbu-macos
+
+      - name: Build the .pkg and .dmg
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          X64STAGE: ${{ steps.variant.outputs.x64stage }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [ -n "$X64STAGE" ]; then
+            sh packaging/macos/build.sh stage-arm64 "$X64STAGE" "$VERSION" dist
+          else
+            sh packaging/macos/build.sh stage-arm64 "$VERSION" dist
+          fi
+          ls -l dist
+
+      - name: Install and functionally test the .pkg
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          LABEL: ${{ steps.variant.outputs.label }}
+          # smoke-macos.sh (builder C's F1-pattern rework) requires a valid
+          # Gauntlet project: env-only doctor asserts the fail-closed
+          # contract, in-project doctor asserts exit 0 against a copy.
+          GAUNTLET_SMOKE_PROJECT: ${{ github.workspace }}/tests/fixtures/target
+        run: |
+          set -euo pipefail
+          pkg="dist/gauntlet-${VERSION}-macos-${LABEL}.pkg"
+          test -f "$pkg"
+          sudo installer -pkg "$pkg" -target /
+          test "$(/usr/local/bin/gauntlet --version)" = "gauntlet ${VERSION}"
+          echo "install test: lipo -archs gauntlet -> $(lipo -archs /usr/local/bin/gauntlet)"
+          echo "install test: lipo -archs gauntlet-workbench -> $(lipo -archs /usr/local/bin/gauntlet-workbench)"
+          sh packaging/smoke-macos.sh /usr/local/bin/gauntlet /usr/local/bin/gauntlet-workbench "$VERSION"
+          pkgutil --pkg-info ai.godspeed.gauntlet
+
+      - name: Remove the installed payload (always, even on failure)
+        if: always()
+        run: |
+          sudo rm -f /usr/local/bin/gauntlet /usr/local/bin/gauntlet-workbench
+          sudo rm -rf /usr/local/share/doc/gauntlet
+          sudo pkgutil --forget ai.godspeed.gauntlet >/dev/null 2>&1 || true
+          test ! -e /usr/local/bin/gauntlet
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 ./*.pkg ./*.dmg > SHA256SUMS-macos
+          shasum -a 256 -c SHA256SUMS-macos
+
+      - name: Record the built commit
+        run: git rev-parse HEAD > dist/built-from-macos.txt
+
+      - name: Job summary (honest variant record)
+        if: always()
+        env:
+          LABEL: ${{ steps.variant.outputs.label }}
+          X86WB_OUTCOME: ${{ steps.x86wb.outcome }}
+        run: |
+          {
+            echo "### macOS (${LABEL})"
+            echo "- Packages are UNSIGNED and not notarized (no Apple Developer ID)."
+            echo "- The workbench inside the pkg is arm64-ONLY in every shape: built via release-manifest.ts AND real-PTY qualified on this host. The universal/arm64 label describes the CLI composition (lipo of the arm64 + x86_64 CLI slices), never the workbench."
+            if [ "$LABEL" = "universal" ]; then
+              echo "- Universal CLI: the x86_64 CLI slice was staged for the lipo; the cross-built darwin-x64 workbench was NOT launch-qualified and ships ONLY as the separate pkg-macos-workbench-unqualified artifact (with UNQUALIFIED-README-macos.txt) — never inside the pkg."
+            else
+              echo "- arm64-only CLI: the darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; no x86_64 stage was assembled and no separate artifact was produced."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-macos
+          path: |
+            dist/*.pkg
+            dist/*.dmg
+            dist/SHA256SUMS-macos
+            dist/built-from-macos.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the unqualified darwin-x64 workbench artifact
+        if: steps.variant.outputs.x64stage != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-macos-workbench-unqualified
+          path: |
+            wbu-macos/gauntlet-workbench-bun-darwin-x64
+            wbu-macos/UNQUALIFIED-README-macos.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  windows:
+    name: package (windows x86_64)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    outputs:
+      workbench_qualified: ${{ steps.wbqual.outcome == 'success' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Resolve the release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sh packaging/version.sh)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building Gauntlet ${version} from $(git rev-parse HEAD)"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+
+      - name: Build the gauntlet CLI (frozen release form)
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          cargo build --release --locked -p gauntlet-cli --features surfaces --bin gauntlet
+          test "$(target/release/gauntlet.exe --version)" = "gauntlet ${VERSION}"
+
+      - name: Attempt the workbench build + real-PTY qualification
+        id: wbqual
+        continue-on-error: true
+        working-directory: workbench
+        shell: bash
+        # shell: bash is REQUIRED here: the script is bash (`set -euo
+        # pipefail`), and the windows-latest default (pwsh) dies on the first
+        # line before bun ever runs (CI run 40934599697: Set-Variable error,
+        # node_modules never laid down).
+        # Host target bun-windows-x64. PTY qualification may be unavailable on
+        # Windows CI; a nonzero exit here sends the job down the honest
+        # unqualified fallback (recorded, never silent).
+        run: |
+          set -euo pipefail
+          bun install --frozen-lockfile
+          bun run src/release-manifest.ts
+
+      - name: Fall back to an unqualified workbench build (recorded)
+        if: steps.wbqual.outcome != 'success'
+        working-directory: workbench
+        shell: bash
+        # Self-sufficient fallback: wbqual may have died during `bun install`
+        # (CI round 1 proved the pwsh default can kill the step before bun
+        # runs), so the frozen install runs here too — idempotent when
+        # wbqual already laid node_modules down.
+        run: |
+          set -euo pipefail
+          echo "::warning::workbench real-PTY qualification is unavailable on this Windows runner (release-manifest.ts exited nonzero); building the workbench WITHOUT launch qualification — the Windows zip and setup.exe will be CLI-only (gauntlet.exe only) and this unqualified binary is uploaded separately as pkg-windows-workbench-unqualified, never inside the installer packages"
+          bun install --frozen-lockfile
+          bun build --compile --target=bun-windows-x64 src/main.ts --outfile dist/gauntlet-workbench-bun-windows-x64.exe
+          # Defensive: some Bun versions append a second .exe to the outfile.
+          wb=dist/gauntlet-workbench-bun-windows-x64.exe
+          if [ ! -f "$wb" ] && [ -f "$wb.exe" ]; then
+            mv "$wb.exe" "$wb"
+            echo "note: Bun appended a second .exe; normalized to $wb"
+          fi
+          test -f "$wb" || { echo "::error::workbench artifact missing after fallback build: $wb"; exit 1; }
+
+      - name: Ensure a usable Inno Setup 6.3+
+        shell: pwsh
+        # packaging/windows/build.ps1 asserts >= 6.3 (x64compatible constants)
+        # and never upgrades in place; the workflow provisions it.
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Get-Iscc {
+            $cmd = Get-Command iscc.exe -ErrorAction SilentlyContinue
+            if ($cmd) { return $cmd.Source }
+            $candidate = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+            if (Test-Path $candidate) { return $candidate }
+            return $null
+          }
+          function Get-InnoVersion([string]$Iscc) {
+            $exe = Join-Path (Split-Path $Iscc) 'ISCC.exe'
+            return (Get-Item $exe).VersionInfo.FileVersion
+          }
+          $iscc = Get-Iscc
+          if ($iscc) {
+            $version = Get-InnoVersion $iscc
+            Write-Host "found Inno Setup $version at $iscc"
+            $ok = $false
+            if ($version -match '^6\.(\d+)') { $ok = ([int]$Matches[1] -ge 3) }
+            elseif ($version -match '^([7-9]|1\d+)\.') { $ok = $true }
+            if (-not $ok) {
+              Write-Host "Inno Setup $version is older than 6.3; upgrading"
+              choco upgrade innosetup --no-progress -y
+              $iscc = $null
+            }
+          }
+          if (-not $iscc) {
+            choco install innosetup --no-progress -y
+            $iscc = Get-Iscc
+          }
+          if (-not $iscc) { throw 'ISCC.exe not found and could not be installed' }
+          Write-Host "using Inno Setup $(Get-InnoVersion $iscc) at $iscc"
+
+      - name: "Stage BinDir (qualified: both exes; fallback: gauntlet.exe only)"
+        shell: pwsh
+        env:
+          WB_QUALIFIED: ${{ steps.wbqual.outcome == 'success' }}
+        # C/E packaging contract: the CONTENT of BinDir is the qualification
+        # signal. Builder C's packaging/windows/build.ps1 treats
+        # gauntlet-workbench.exe as OPTIONAL and derives its
+        # /DIncludeWorkbench define from its presence — present: the zip and
+        # setup.exe carry the (qualified) workbench; absent: they are
+        # CLI-only. This step never passes the define itself. LICENSE needs
+        # no staging (build.ps1 takes it from the repo root) and
+        # RELEASE-NOTES.txt is written into BinDir by build.ps1. On the
+        # fallback path the UNQUALIFIED workbench exe is staged into wbu/
+        # (next step) and never enters BinDir, so it cannot ride inside the
+        # zip or setup.exe.
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path stage | Out-Null
+          Copy-Item target\release\gauntlet.exe stage\gauntlet.exe
+          if ($env:WB_QUALIFIED -eq 'true') {
+            Copy-Item workbench\dist\gauntlet-workbench-bun-windows-x64.exe stage\gauntlet-workbench.exe
+          }
+          else {
+            Write-Host "::notice::workbench NOT qualified on this runner: BinDir is staged with gauntlet.exe only; the Windows zip and setup.exe are CLI-only, and the unqualified workbench binary ships only as the pkg-windows-workbench-unqualified artifact"
+          }
+          Get-ChildItem stage | Format-Table -AutoSize | Out-String | Write-Host
+
+      - name: Build the .zip and setup.exe
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & "$PWD\packaging\windows\build.ps1" -Version $env:VERSION -BinDir "$PWD\stage" -OutDir "$PWD\dist"
+          if ($LASTEXITCODE -ne 0) { throw "build.ps1 failed" }
+
+      - name: Stage the unqualified workbench artifact separately
+        if: steps.wbqual.outcome != 'success'
+        shell: pwsh
+        # Separate staging dir (wbu/, not BinDir/stage): the unqualified exe
+        # is uploaded ONLY here, so the CLI-only zip and setup.exe cannot
+        # contain it.
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path wbu | Out-Null
+          Copy-Item workbench\dist\gauntlet-workbench-bun-windows-x64.exe wbu\gauntlet-workbench-bun-windows-x64.exe
+          @'
+          gauntlet-workbench-bun-windows-x64.exe — UNQUALIFIED workbench artifact
+
+          This Bun standalone executable was built on windows-latest with a
+          plain `bun build --compile --target=bun-windows-x64 src/main.ts`
+          AFTER the real-PTY launch qualification
+          (workbench/src/release-manifest.ts: 120x40 render markers + clean
+          'q' exit) exited nonzero on this host.
+
+          What WAS validated on this runner:
+            - This binary starts and runs under redirected pipes
+              (packaging/smoke-windows.ps1 workbench start leg; an
+              unstartable binary fails that smoke), composed with the
+              gauntlet.exe installed from this run's setup.exe. Render
+              markers / a clean 'q' exit are recorded when observable and
+              downgraded honestly when not.
+            - That same installed gauntlet.exe passed the full functional
+              smoke (--version, --help, doctor, init) from the per-user
+              install.
+
+          What was NOT validated (and is not claimed anywhere):
+            - Real-PTY TUI launch qualification. No runner in this
+              pipeline PTY-qualifies bun-windows-x64.
+
+          The Windows zip and setup.exe built in this run are CLI-only
+          (gauntlet.exe + LICENSE + RELEASE-NOTES.txt) and deliberately do
+          NOT contain this binary. The Linux (amd64/arm64) and macOS arm64
+          workbench artifacts from the same pipeline run ARE real-PTY
+          qualified on their native runners.
+          '@ | Set-Content -Path wbu\UNQUALIFIED-README-windows.txt -Encoding UTF8
+          Get-ChildItem wbu | Format-Table -AutoSize | Out-String | Write-Host
+
+      - name: Install and functionally test the per-user installer
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          WB_QUALIFIED: ${{ steps.wbqual.outcome == 'success' }}
+          # smoke-windows.ps1 (builder C's F1-pattern rework) requires a valid
+          # Gauntlet project (env-only doctor = fail-closed contract,
+          # in-project doctor = exit 0 against a copy); the env var reaches
+          # the pwsh child that runs the smoke.
+          GAUNTLET_SMOKE_PROJECT: ${{ github.workspace }}/tests/fixtures/target
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $wbQualified = ($env:WB_QUALIFIED -eq 'true')
+          $base = "gauntlet-$($env:VERSION)-x86_64-pc-windows-msvc"
+          $setup = Join-Path $PWD "dist\$base-setup.exe"
+          $app = Join-Path $env:LOCALAPPDATA 'Programs\Gauntlet'
+          $log = Join-Path $env:RUNNER_TEMP 'install.log'
+          $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/CURRENTUSER', "/LOG=$log") -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path $log) { Get-Content $log | Select-Object -Last 40 }
+            throw "setup.exe exited $($p.ExitCode)"
+          }
+          # Shape-aware presence assertions: the CLI-only install
+          # (unqualified fallback) must NOT contain gauntlet-workbench.exe.
+          $files = @('gauntlet.exe', 'LICENSE', 'RELEASE-NOTES.txt')
+          if ($wbQualified) { $files += 'gauntlet-workbench.exe' }
+          foreach ($f in $files) {
+            if (-not (Test-Path (Join-Path $app $f))) { throw "missing $f in $app" }
+          }
+          if (-not $wbQualified -and (Test-Path (Join-Path $app 'gauntlet-workbench.exe'))) {
+            throw "unqualified shape violated: the CLI-only installer must not install gauntlet-workbench.exe"
+          }
+          Write-Host "installed to $app (workbench included: $wbQualified)"
+
+          # Fresh process: rebuild PATH from the registry, not from this shell.
+          $check = Join-Path $env:RUNNER_TEMP 'check-path.ps1'
+          @'
+          $ErrorActionPreference = 'Stop'
+          $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
+          $cmd = Get-Command gauntlet.exe
+          Write-Output "resolved: $($cmd.Source)"
+          $out = (& gauntlet.exe --version) | Out-String
+          Write-Output "version output: $($out.Trim())"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($out.Trim() -ne "gauntlet $($env:VERSION)") { exit 1 }
+          exit 0
+          '@ | Set-Content -Path $check -Encoding ASCII
+          & pwsh -NoProfile -File $check
+          if ($LASTEXITCODE -ne 0) { throw "PATH/version check failed in a new process" }
+
+          # smoke-windows.ps1 lives at packaging/ (not packaging/windows/).
+          # Its workbench leg is honest best-effort: asserts the binary
+          # STARTS (an unstartable binary fails the smoke) and records the
+          # redirected-pipe downgrade rather than claiming PTY
+          # qualification.
+          if ($wbQualified) {
+            & pwsh -NoProfile -File "$PWD\packaging\smoke-windows.ps1" `
+              -Gauntlet "$app\gauntlet.exe" -Workbench "$app\gauntlet-workbench.exe" `
+              -ExpectedVersion $env:VERSION
+          }
+          else {
+            # CLI-only install: the workbench start leg exercises the
+            # UNQUALIFIED dist binary directly (composed with the installed
+            # gauntlet.exe) — the installer deliberately does not carry it.
+            # This is what the UNQUALIFIED-README-windows.txt "starts" claim is based
+            # on.
+            & pwsh -NoProfile -File "$PWD\packaging\smoke-windows.ps1" `
+              -Gauntlet "$app\gauntlet.exe" -Workbench "$PWD\workbench\dist\gauntlet-workbench-bun-windows-x64.exe" `
+              -ExpectedVersion $env:VERSION
+          }
+          if ($LASTEXITCODE -ne 0) { throw "functional smoke failed" }
+
+          $unins = Get-ChildItem -Path $app -Filter 'unins*.exe' | Select-Object -First 1
+          if (-not $unins) { throw 'uninstaller not found' }
+          $u = Start-Process -FilePath $unins.FullName -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES') -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "uninstaller exited $($u.ExitCode)" }
+          # Inno's uninstaller may hand off to a copy; allow a short settle
+          # window before asserting removal.
+          $deadline = (Get-Date).AddSeconds(20)
+          while ((Test-Path (Join-Path $app 'gauntlet.exe')) -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Milliseconds 500
+          }
+          if (Test-Path (Join-Path $app 'gauntlet.exe')) { throw 'gauntlet.exe still present after uninstall' }
+          if (Test-Path (Join-Path $app 'gauntlet-workbench.exe')) { throw 'gauntlet-workbench.exe still present after uninstall' }
+          $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+          if (($userPath -split ';') -contains $app) { throw 'user PATH still contains the install dir' }
+          Write-Host "uninstall: gauntlet.exe removed, gauntlet-workbench.exe absent, user PATH entry removed (installer included the workbench: $wbQualified)"
+
+      - name: Checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum ./*.zip ./*-setup.exe > SHA256SUMS-windows
+          sha256sum -c SHA256SUMS-windows
+
+      - name: Record the built commit
+        shell: bash
+        run: git rev-parse HEAD > dist/built-from-windows.txt
+
+      - name: Job summary (honest workbench qualification record)
+        if: always()
+        shell: bash
+        env:
+          WB_QUALIFIED: ${{ steps.wbqual.outcome == 'success' }}
+        run: |
+          {
+            echo "### windows x86_64"
+            echo "- Packages are UNSIGNED (no Authenticode certificate)."
+            if [ "$WB_QUALIFIED" = "true" ]; then
+              echo "- Workbench: built via release-manifest.ts AND real-PTY qualified on this host; the zip and setup.exe carry the qualified workbench (no separate artifact)."
+            else
+              echo "- Workbench: NOT real-PTY qualified (PTY qualification unavailable on this Windows runner). The zip and setup.exe are CLI-only (gauntlet.exe only) and do NOT contain the workbench; the unqualified binary ships only as the separate pkg-windows-workbench-unqualified artifact (with UNQUALIFIED-README-windows.txt) and is never presented as qualified."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-windows
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
+            dist/SHA256SUMS-windows
+            dist/built-from-windows.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload the unqualified workbench artifact
+        if: steps.wbqual.outcome != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-windows-workbench-unqualified
+          path: |
+            wbu/gauntlet-workbench-bun-windows-x64.exe
+            wbu/UNQUALIFIED-README-windows.txt
+          if-no-files-found: error
+          retention-days: 30
+
+  sum:
+    name: sum (cross-platform verification + combined checksums)
+    needs: [linux, macos, windows]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LINUX_RESULT: ${{ needs.linux.result }}
+      MACOS_RESULT: ${{ needs.macos.result }}
+      WINDOWS_RESULT: ${{ needs.windows.result }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || '' }}
+          persist-credentials: false
+
+      - name: Resolve the release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sh packaging/version.sh)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download all package artifacts
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify every built-from file names the built commit
+        env:
+          REF_INPUT: ${{ inputs.ref || '' }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          # For default-ref runs (PR, branch dispatch, and the tag-push release
+          # path) the binding is github.sha. For an explicit inputs.ref build
+          # (manual dispatch against a tag/commit) the honest binding is the
+          # checked-out commit itself, which is what the artifacts were built
+          # from — github.sha would name the dispatch trigger commit instead.
+          want="$GITHUB_SHA"
+          if [ -n "$REF_INPUT" ]; then
+            want=$(git rev-parse HEAD)
+          fi
+          echo "expected built-from commit: $want"
+          found=0
+          for f in dist/built-from-*.txt; do
+            got=$(tr -d '[:space:]' < "$f")
+            if [ "$got" != "$want" ]; then
+              echo "::error::$f records $got, expected $want (artifacts are not bound to the source commit)"
+              exit 1
+            fi
+            found=$((found + 1))
+            echo "OK $f -> $got"
+          done
+          echo "verified ${found} built-from file(s) against $want"
+
+      - name: Verify each platform's SHA256SUMS strictly
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for f in dist/SHA256SUMS-*; do
+            echo "checking $f"
+            (cd dist && sha256sum -c --strict "$(basename "$f")")
+          done
+
+      - name: Assert required artifacts exist per successful platform
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          have() { compgen -G "$1" >/dev/null; }
+          if [ "$LINUX_RESULT" = "success" ]; then
+            have "dist/gauntlet_${VERSION}_amd64.deb" || { echo "::error::missing gauntlet_${VERSION}_amd64.deb"; exit 1; }
+            have "dist/gauntlet_${VERSION}_arm64.deb" || { echo "::error::missing gauntlet_${VERSION}_arm64.deb"; exit 1; }
+            have "dist/gauntlet-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" || { echo "::error::missing x86_64 tarball"; exit 1; }
+            have "dist/gauntlet-${VERSION}-aarch64-unknown-linux-gnu.tar.gz" || { echo "::error::missing aarch64 tarball"; exit 1; }
+            for deb in "dist/gauntlet_${VERSION}_amd64.deb" "dist/gauntlet_${VERSION}_arm64.deb"; do
+              # Capture the listing first: under pipefail, grep -q's early
+              # exit SIGPIPEs tar/dpkg and the pipeline reports failure even
+              # on a match (run 40957212133).
+              deb_listing=$(dpkg -c "$deb")
+              grep -Eq '\./usr/bin/gauntlet$' <<<"$deb_listing" || { echo "::error::$deb lacks ./usr/bin/gauntlet"; exit 1; }
+              grep -Eq '\./usr/bin/gauntlet-workbench$' <<<"$deb_listing" || { echo "::error::$deb lacks ./usr/bin/gauntlet-workbench"; exit 1; }
+              echo "OK $deb carries gauntlet + gauntlet-workbench"
+            done
+            for tgz in "dist/gauntlet-${VERSION}-x86_64-unknown-linux-gnu.tar.gz" "dist/gauntlet-${VERSION}-aarch64-unknown-linux-gnu.tar.gz"; do
+              tgz_listing=$(tar -tzf "$tgz")
+              grep -Eq '/gauntlet$' <<<"$tgz_listing" || { echo "::error::$tgz lacks ./gauntlet"; exit 1; }
+              grep -Eq '/gauntlet-workbench$' <<<"$tgz_listing" || { echo "::error::$tgz lacks ./gauntlet-workbench"; exit 1; }
+              echo "OK $tgz carries gauntlet + gauntlet-workbench"
+            done
+          else
+            echo "linux job result was '$LINUX_RESULT' — linux presence assertions skipped (subset verification)"
+          fi
+          if [ "$MACOS_RESULT" = "success" ]; then
+            have "dist/gauntlet-${VERSION}-macos-*.pkg" || { echo "::error::missing macos .pkg (universal or arm64)"; exit 1; }
+            have "dist/gauntlet-${VERSION}-macos-*.dmg" || { echo "::error::missing macos .dmg (universal or arm64)"; exit 1; }
+            # macOS ships one of two shapes; the workbench inside the pkg is
+            # arm64-only in BOTH (build.sh refuses an x64-stage workbench):
+            #   universal CLI: the cross-built darwin-x64 workbench is
+            #     published ONLY as pkg-macos-workbench-unqualified
+            #     (exe + UNQUALIFIED-README-macos.txt), never in the pkg;
+            #   arm64-only CLI: no x64 stage and no separate artifact.
+            # The pkg/dmg shape is mechanically guaranteed by the macos job:
+            # build.sh is a hard step there, so a green macos job means
+            # build.sh exited 0 and the x64-workbench refusal held.
+            mo_exe=0; have "dist/gauntlet-workbench-bun-darwin-x64" && mo_exe=1
+            mo_readme=0; have "dist/UNQUALIFIED-README-macos.txt" && mo_readme=1
+            if [ "$mo_exe" = "1" ] || [ "$mo_readme" = "1" ]; then
+              if [ "$mo_exe" != "1" ] || [ "$mo_readme" != "1" ]; then
+                echo "::error::pkg-macos-workbench-unqualified is partially present (exe=$mo_exe, README=$mo_readme)"; exit 1
+              fi
+              echo "OK pkg-macos-workbench-unqualified present (universal-CLI shape; the x64 workbench is outside the pkg, unqualified)"
+            else
+              echo "OK no pkg-macos-workbench-unqualified (arm64-only CLI shape)"
+            fi
+            echo "OK macos pkg + dmg present; the workbench inside the pkg is arm64-only in both shapes (macos job success == build.sh exit 0 == refusal held)"
+          else
+            echo "macos job result was '$MACOS_RESULT' — macos presence assertions skipped (subset verification)"
+          fi
+          if [ "$WINDOWS_RESULT" = "success" ]; then
+            have "dist/gauntlet-${VERSION}-x86_64-pc-windows-msvc.zip" || { echo "::error::missing windows zip"; exit 1; }
+            have "dist/gauntlet-${VERSION}-x86_64-pc-windows-msvc-setup.exe" || { echo "::error::missing windows setup.exe"; exit 1; }
+            winzip="dist/gauntlet-${VERSION}-x86_64-pc-windows-msvc.zip"
+            # Windows ships exactly one of two honest shapes:
+            #   unqualified: pkg-windows-workbench-unqualified is present
+            #     (raw exe + UNQUALIFIED-README-windows.txt) and the installer zip is
+            #     CLI-only — it must NOT contain gauntlet-workbench.exe;
+            #   qualified: no unqualified artifact and the installer zip
+            #     DOES carry gauntlet-workbench.exe.
+            # A partially-present unqualified artifact is an error; a shape
+            # violation means the packaging contract (build.ps1 / .iss) and
+            # the CI split disagree, and fails here.
+            wbu_exe=0; have "dist/gauntlet-workbench-bun-windows-x64.exe" && wbu_exe=1
+            wbu_readme=0; have "dist/UNQUALIFIED-README-windows.txt" && wbu_readme=1
+            if [ "$wbu_exe" = "1" ] || [ "$wbu_readme" = "1" ]; then
+              if [ "$wbu_exe" != "1" ] || [ "$wbu_readme" != "1" ]; then
+                echo "::error::pkg-windows-workbench-unqualified is partially present (exe=$wbu_exe, README=$wbu_readme)"; exit 1
+              fi
+              echo "OK pkg-windows-workbench-unqualified present (unqualified-workbench shape)"
+              if unzip -l "$winzip" | grep -q 'gauntlet-workbench\.exe'; then
+                echo "::error::unqualified-workbench shape violated: $winzip must be CLI-only but contains gauntlet-workbench.exe"; exit 1
+              fi
+              echo "OK $winzip is CLI-only (no gauntlet-workbench.exe inside) — matches the unqualified shape"
+            else
+              if unzip -l "$winzip" | grep -q 'gauntlet-workbench\.exe'; then
+                echo "OK $winzip carries gauntlet-workbench.exe (qualified shape, no unqualified artifact)"
+              else
+                echo "::error::qualified-workbench shape violated: no pkg-windows-workbench-unqualified artifact but $winzip lacks gauntlet-workbench.exe"; exit 1
+              fi
+            fi
+          else
+            echo "windows job result was '$WINDOWS_RESULT' — windows presence assertions skipped (subset verification)"
+          fi
+
+      - name: Regenerate the combined SHA256SUMS (NUL-safe, deterministic)
+        run: |
+          set -euo pipefail
+          test -d dist || { echo "::error::no package artifacts were downloaded; nothing to certify"; exit 1; }
+          cd dist
+          # Written to a sibling first and renamed: the redirect would create
+          # SHA256SUMS before find(1) runs, and the empty file would hash
+          # itself into its own listing.
+          find . -maxdepth 1 -type f -printf '%P\0' | LC_ALL=C sort -z | xargs -0 sha256sum > ../SHA256SUMS.tmp
+          mv ../SHA256SUMS.tmp SHA256SUMS
+          sha256sum -c --strict SHA256SUMS
+          echo "combined SHA256SUMS covers $(grep -c '' SHA256SUMS) files"
+
+      - name: Build the artifact table + summary
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          REF_INPUT: ${{ inputs.ref || '' }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # Same commit binding as the built-from verification above.
+          want="$GITHUB_SHA"
+          if [ -n "$REF_INPUT" ]; then want=$(git rev-parse HEAD); fi
+          {
+            echo "## Gauntlet ${VERSION} — native package artifacts"
+            echo
+            echo "Built from commit \`${want}\`. Packages are UNSIGNED (no Apple Developer ID, no Authenticode)."
+            echo
+            echo "| Artifact | Bytes | SHA-256 |"
+            echo "|---|---|---|"
+            for f in $(LC_ALL=C find dist -maxdepth 1 -type f ! -name 'SHA256SUMS' -printf '%P\n' | LC_ALL=C sort); do
+              printf '| `%s` | %s | `%s` |\n' "$f" "$(stat -c%s "dist/$f")" "$(sha256sum "dist/$f" | cut -d' ' -f1)"
+            done
+            echo
+            echo "Channels:"
+            echo "- CI artifacts: Actions -> this run -> Artifacts (pkg-linux-amd64, pkg-linux-arm64, pkg-macos, pkg-windows, plus pkg-macos-workbench-unqualified / pkg-windows-workbench-unqualified when present, and release-meta), or \`gh run download <run-id>\`."
+            echo "- Formal release assets: published by release-native.yml on gauntlet-v* tags (\`gh release download gauntlet-v${VERSION}\`)."
+            echo
+            echo "Verify before installing: \`sha256sum -c SHA256SUMS --ignore-missing\` (macOS: \`shasum -a 256 -c\`)."
+          } | tee "$GITHUB_STEP_SUMMARY" > /tmp/sum-body.md
+          # The artifact-table body travels with release-meta so the publish
+          # job can reuse it verbatim as release notes.
+          cp /tmp/sum-body.md dist/SUMMARY.md
+          ls -l dist
+
+      - name: Fail unless every platform job succeeded
+        run: |
+          set -euo pipefail
+          # Partial evidence must never present as a green sum: the
+          # subset-verification notes above are summary text only — the gate
+          # is all three platform jobs or failure.
+          {
+            echo "## Verification scope"
+            echo "- linux job result: ${LINUX_RESULT}"
+            echo "- macos job result: ${MACOS_RESULT}"
+            echo "- windows job result: ${WINDOWS_RESULT}"
+            echo "- A green sum certifies ALL THREE platforms. When a platform job fails, its presence assertions above are skipped (subset verification) and this gate turns the run red — skipped checks are recorded here as text only."
+          } >> "$GITHUB_STEP_SUMMARY"
+          ok=0
+          [ "$LINUX_RESULT" = "success" ] && ok=$((ok + 1))
+          [ "$MACOS_RESULT" = "success" ] && ok=$((ok + 1))
+          [ "$WINDOWS_RESULT" = "success" ] && ok=$((ok + 1))
+          if [ "$ok" -ne 3 ]; then
+            echo "::error::partial verification is not a green sum: linux=${LINUX_RESULT} macos=${MACOS_RESULT} windows=${WINDOWS_RESULT} — all three platform jobs must succeed; the per-platform presence assertions above only ran for the succeeded subset"
+            exit 1
+          fi
+          echo "all 3 platform jobs succeeded — the full assertion set ran"
+
+      - name: Upload release meta
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-meta
+          path: |
+            dist/SHA256SUMS
+            dist/built-from-*.txt
+            dist/SUMMARY.md
+          if-no-files-found: error
+          retention-days: 90
