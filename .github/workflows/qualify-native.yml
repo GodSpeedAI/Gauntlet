@@ -1,0 +1,293 @@
+name: Qualify (native)
+
+# Release qualification: the stage BETWEEN packaging and publication.
+#
+#   ci.yml (validation)  ->  package.yml (build)  ->  qualify-native.yml (this)
+#                                                  ->  release-native.yml publish
+#
+# Every platform installs the PACKAGED artifact the way a user would, smokes
+# it, runs one governed mock-adapter loop, upgrades from the previous release
+# when one exists, uninstalls and asserts nothing is left behind, and checks
+# SHA256SUMS (and provenance where an attestation exists). Each platform emits
+# a machine-readable record (packaging/qualify.py); the records are collected
+# into qualification.json + QUALIFICATION.md. The work is done by
+# packaging/qualify-local.sh, the same script an operator runs on a Jetson.
+#
+# Callers: release-native.yml (workflow_call, packaged=true: package.yml
+# already ran in that run, so its pkg-* artifacts are reused), a manual
+# workflow_dispatch from a tag or a branch, and pull requests touching
+# qualification paths (these build the packages themselves). There is NO ref
+# input anywhere: every trigger qualifies the triggering commit (CodeQL's
+# cache-poisoning / untrusted-checkout rule forbids caller-named refs).
+#
+# Hosted ubuntu-22.04-arm qualifies "linux-arm64 (generic)" only. The Jetson
+# row is QUALIFIED only from a real-hardware record (docs/how-to/qualify-a-release.md).
+#
+# Supply-chain note: every third-party action is pinned to a full commit SHA
+# (the trailing comment names the tag it was resolved from on 2026-11-15).
+
+on:
+  workflow_call:
+    inputs:
+      packaged:
+        description: "True when package.yml already ran in this workflow run (its pkg-* artifacts are reused); false builds them here."
+        type: boolean
+        required: false
+        default: false
+    outputs:
+      release_ready:
+        description: "true only when every claimed platform is QUALIFIED"
+        value: ${{ jobs.aggregate.outputs.release_ready }}
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'packaging/qualify*'
+      - 'packaging/qualification-platforms.json'
+      - 'packaging/smoke-*'
+      - '.github/workflows/qualify-native.yml'
+      - '.github/workflows/release-native.yml'
+      - 'docs/how-to/qualify-a-release.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  # Qualification evidence for a release is never cancelled. Only superseded
+  # pull-request runs are.
+  group: qualify-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  package:
+    name: package (candidate build, direct runs only)
+    if: ${{ !inputs.packaged }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/package.yml
+    with:
+      # upload=true only selects the never-cancel concurrency group here, so
+      # this nested build cannot collide with the PR-triggered package.yml run.
+      upload: true
+
+  identity:
+    name: identity (version + commit)
+    needs: package
+    if: ${{ always() && (needs.package.result == 'success' || needs.package.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.id.outputs.version }}
+      commit: ${{ steps.id.outputs.commit }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Resolve version and commit
+        id: id
+        run: |
+          set -euo pipefail
+          echo "version=$(sh packaging/version.sh)" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  qualify:
+    name: qualify (${{ matrix.id }})
+    needs: identity
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: windows-x64, runner: windows-latest, artifact: pkg-windows, pg: windows }
+          - { id: linux-amd64, runner: ubuntu-22.04, artifact: pkg-linux-amd64, pg: linux }
+          - { id: linux-arm64-generic, runner: ubuntu-22.04-arm, artifact: pkg-linux-arm64, pg: linux }
+          - { id: macos-arm64, runner: macos-15, artifact: pkg-macos, pg: macos }
+          # If GitHub rejects this label the job never starts; the aggregate
+          # then records macos-x64 NOT QUALIFIED with that reason. It is never
+          # faked with an arm64 host.
+          - { id: macos-x64, runner: macos-15-intel, artifact: pkg-macos, pg: macos }
+    env:
+      VERSION: ${{ needs.identity.outputs.version }}
+      COMMIT: ${{ needs.identity.outputs.commit }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download the candidate packages
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist
+
+      - name: Download the combined SHA256SUMS
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-meta
+          path: dist
+
+      - name: Find the previous release (for the upgrade step)
+        id: prev
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ matrix.id }}
+        run: |
+          set -uo pipefail
+          prev=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 30 --json tagName,isDraft \
+            --jq '[.[] | select(.isDraft | not) | .tagName | select(startswith("gauntlet-v"))] | .[]' 2>/dev/null \
+            | grep -v "^gauntlet-v${VERSION}\$" | head -1 || true)
+          if [ -z "$prev" ]; then
+            echo "no previous gauntlet-v* release exists; the upgrade step will record NOT_RUN"
+            exit 0
+          fi
+          pver=${prev#gauntlet-v}
+          case "$PLATFORM" in
+            windows-x64) pat="gauntlet-${pver}-x86_64-pc-windows-msvc-setup.exe" ;;
+            linux-amd64) pat="gauntlet_${pver}_amd64.deb" ;;
+            linux-arm64-*) pat="gauntlet_${pver}_arm64.deb" ;;
+            macos-*) pat="gauntlet-${pver}-macos-*.pkg" ;;
+          esac
+          mkdir -p previous
+          if gh release download "$prev" --repo "$GITHUB_REPOSITORY" --pattern "$pat" --dir previous; then
+            echo "pver=$pver" >> "$GITHUB_OUTPUT"
+            echo "previous release $prev downloaded ($pat)"
+          else
+            echo "previous release $prev has no asset matching $pat; the upgrade step will record NOT_RUN"
+          fi
+
+      - name: Provision PostgreSQL (governed-run state store)
+        shell: bash
+        continue-on-error: true
+        env:
+          PG: ${{ matrix.pg }}
+        run: |
+          set -euo pipefail
+          case "$PG" in
+            linux)
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq postgresql
+              sudo systemctl start postgresql
+              for i in $(seq 1 30); do pg_isready -h 127.0.0.1 -p 5432 >/dev/null 2>&1 && break; sleep 1; done
+              pg_isready -h 127.0.0.1 -p 5432
+              sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'postgres';"
+              echo "GAUNTLET_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres" >> "$GITHUB_ENV" ;;
+            macos)
+              brew install postgresql@16 >/dev/null
+              pgbin="$(brew --prefix postgresql@16)/bin"
+              "$pgbin/initdb" -D "$RUNNER_TEMP/pgdata" -U postgres -A trust >/dev/null
+              "$pgbin/pg_ctl" -D "$RUNNER_TEMP/pgdata" -o "-p 5432 -h 127.0.0.1" -l "$RUNNER_TEMP/pg.log" -w start
+              "$pgbin/pg_isready" -h 127.0.0.1 -p 5432
+              echo "GAUNTLET_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/postgres" >> "$GITHUB_ENV" ;;
+            windows)
+              test -n "${PGBIN:-}" || { echo "PGBIN is not set on this image"; exit 1; }
+              pgbin=$(cygpath -u "$PGBIN")
+              "$pgbin/initdb.exe" -D "$RUNNER_TEMP/pgdata" -U postgres -A trust >/dev/null
+              "$pgbin/pg_ctl.exe" -D "$(cygpath -w "$RUNNER_TEMP/pgdata")" -o "-p 5432 -h 127.0.0.1" -w start
+              echo "GAUNTLET_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/postgres" >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: Qualify the packaged artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLATFORM: ${{ matrix.id }}
+          PVER: ${{ steps.prev.outputs.pver }}
+        run: |
+          set -uo pipefail
+          mkdir -p "$RUNNER_TEMP/q"
+          args=(--platform "$PLATFORM" --dist dist --version "$VERSION" --commit "$COMMIT"
+                --out "$RUNNER_TEMP/q/qualification-${PLATFORM}.json" --attest-repo "$GITHUB_REPOSITORY")
+          if [ -n "$PVER" ]; then args+=(--previous-dir previous --previous-version "$PVER"); fi
+          bash packaging/qualify-local.sh "${args[@]}"
+
+      - name: Job summary
+        if: always()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/q/qualification-${{ matrix.id }}.json"
+          if [ -f "$f" ]; then
+            { echo "### ${{ matrix.id }}"; echo; echo '```json'; cat "$f"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### ${{ matrix.id }}: no qualification record was produced" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the platform record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qualification-record-${{ matrix.id }}
+          path: ${{ runner.temp }}/q/qualification-${{ matrix.id }}.json
+          if-no-files-found: warn
+          retention-days: 90
+
+  aggregate:
+    name: aggregate (qualification.json + QUALIFICATION.md)
+    needs: [identity, qualify]
+    if: ${{ always() && needs.identity.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      release_ready: ${{ steps.verdict.outputs.release_ready }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download the platform records
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: qualification-record-*
+          path: records
+          merge-multiple: true
+
+      - name: Download the combined SHA256SUMS
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-meta
+          path: dist
+
+      - name: Collect qualification.json and QUALIFICATION.md
+        env:
+          VERSION: ${{ needs.identity.outputs.version }}
+          COMMIT: ${{ needs.identity.outputs.commit }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # Input-free: a checked-in real-hardware record is only ever accepted
+          # when its artifact sha256 values match THIS run's artifacts.
+          jet=()
+          ev=packaging/qualification/evidence/jetson/qualification-linux-arm64-jetson.json
+          if [ -f "$ev" ]; then jet=(--jetson "$ev"); echo "checked-in Jetson evidence found; it is validated against this run's artifacts"; fi
+          python3 -I packaging/qualify.py aggregate "${jet[@]}" \
+            --platforms packaging/qualification-platforms.json --records records \
+            --dist-sums dist/SHA256SUMS --version "$VERSION" --commit "$COMMIT" \
+            --signing-note "unsigned (no Apple Developer ID / Authenticode signing is configured)" \
+            --provenance-note "Build provenance is attested by the publish job after qualification passes." \
+            --out-json out/qualification.json --out-md out/QUALIFICATION.md
+          cp out/QUALIFICATION.md "$GITHUB_STEP_SUMMARY"
+
+      - name: Verdict
+        id: verdict
+        env:
+          QUALIFY_RESULT: ${{ needs.qualify.result }}
+        run: |
+          set -euo pipefail
+          ready=$(python3 -I -c 'import json;print("true" if json.load(open("out/qualification.json"))["release_ready"] else "false")')
+          echo "release_ready=$ready" >> "$GITHUB_OUTPUT"
+          echo "release_ready=$ready (per-platform job result: $QUALIFY_RESULT)"
+          test "$QUALIFY_RESULT" = success || { echo "::error::a platform qualification job did not succeed; publication must not proceed"; exit 1; }
+
+      - name: Upload qualification.json and QUALIFICATION.md
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qualification
+          path: |
+            out/qualification.json
+            out/QUALIFICATION.md
+          if-no-files-found: error
+          retention-days: 90

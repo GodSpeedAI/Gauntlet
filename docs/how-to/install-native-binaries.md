@@ -6,6 +6,26 @@ toolchain and no Bun runtime required on the target machine. It also covers the
 NVIDIA Jetson AGX Orin (Ubuntu 22.04, arm64, glibc 2.35), which is the oldest
 Linux ABI the release supports.
 
+## Release readiness: read this before you rely on a release
+
+A release is **production-ready only when its release notes say so**. Between
+packaging and publication, every release goes through native qualification
+(install, smoke, governed mock run, upgrade, uninstall, checksums) on real
+hosted runners. The release notes carry the platform readiness table, and
+`qualification.json` / `QUALIFICATION.md` are attached as assets. A release
+with any claimed platform not QUALIFIED is published as a **prerelease**.
+
+- **NVIDIA Jetson** is QUALIFIED only with real-hardware evidence. Without it
+  the notes say `Jetson: NOT QUALIFIED (no real-hardware evidence)`: the arm64
+  packages are tested on a generic hosted ubuntu-22.04-arm runner only. Run
+  the qualification yourself on your Jetson with `packaging/qualify-local.sh`.
+- **Signing**: all packages are **unsigned** (no Apple Developer ID, no
+  Authenticode). Verify `SHA256SUMS` and, where present, the build
+  provenance attestation.
+
+See [qualify-a-release.md](qualify-a-release.md) for what each status means
+and how to run qualification on your own machine.
+
 Every release carries these assets on the GitHub Release tagged
 `gauntlet-v<version>`:
 
@@ -255,7 +275,12 @@ sudo apt-get install -y ./gauntlet_<previous-version>_arm64.deb
 
 Removing the package never deletes run state or evidence you created; those
 live under your project and `GAUNTLET_STATE_DIR`/`GAUNTLET_ARTIFACT_DIR`
-roots, not in `/usr`.
+roots, not in `/usr`. Release qualification asserts exactly this: after
+uninstall no binary remains and the project, run state and evidence are
+untouched.
+
+To qualify the arm64 packages on your own Jetson (the only way the Jetson row
+can be QUALIFIED), see [qualify-a-release.md](qualify-a-release.md#run-qualification-on-a-jetson).
 
 ---
 
