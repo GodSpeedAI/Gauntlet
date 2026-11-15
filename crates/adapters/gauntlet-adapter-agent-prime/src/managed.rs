@@ -116,9 +116,10 @@ pub enum DetectError {
 }
 
 impl DetectError {
-    /// True when no install exists at all (as opposed to a broken one).
+    /// True when nothing was configured or installed (optional absence). A
+    /// configured-but-missing explicit path is a broken configuration, not absence.
     pub fn is_absent(&self) -> bool {
-        matches!(self, Self::Absent | Self::ExplicitMissing { .. })
+        matches!(self, Self::Absent)
     }
 }
 
@@ -189,6 +190,9 @@ pub fn detect(
             DetectionSource::Path,
         ),
     };
+    // Anchor a relative location now: the runner later spawns the binary with a
+    // different working directory.
+    let binary = std::path::absolute(&binary).unwrap_or(binary);
     match probe(&binary, range, deadline) {
         Ok(report) => Ok(Detection {
             binary: report.binary,
@@ -224,8 +228,9 @@ pub fn detect_from_env(range: &VersionRange, deadline: Deadline) -> Result<Detec
 }
 
 fn find_on_path(name: &str, path_env: Option<&OsStr>) -> Option<PathBuf> {
+    let suffixed = format!("{name}{}", std::env::consts::EXE_SUFFIX);
     std::env::split_paths(path_env?)
-        .map(|dir| dir.join(name))
+        .flat_map(|dir| [dir.join(name), dir.join(&suffixed)])
         .find(|candidate| candidate.is_file())
 }
 
@@ -359,11 +364,86 @@ pub fn user_prefix(home: Option<&OsStr>) -> Result<PathBuf, SetupError> {
     Ok(PathBuf::from(home).join(".local"))
 }
 
+/// Verifies `installer` against `expected`, then runs a private copy of
+/// exactly the verified bytes (never the original path, which could be
+/// replaced after verification), pinned to `pinned` into `prefix`. The copy
+/// is created exclusively with owner-only permissions in an owner-only
+/// directory and removed afterwards. The caller must have obtained explicit
+/// confirmation.
+pub fn run_verified_installer(
+    installer: &Path,
+    expected: &str,
+    pinned: (u64, u64, u64),
+    prefix: &Path,
+) -> Result<(), SetupError> {
+    if !cfg!(unix) {
+        return Err(SetupError::UnsupportedHost);
+    }
+    verify_installer(installer, expected)?;
+    // Read once more, then check the exact bytes that will be written.
+    let bytes = std::fs::read(installer).map_err(|error| SetupError::InstallerUnreadable {
+        path: installer.to_path_buf(),
+        detail: error.to_string(),
+    })?;
+    let digest: String = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    if digest != expected.trim().to_ascii_lowercase() {
+        return Err(SetupError::ChecksumMismatch {
+            path: installer.to_path_buf(),
+            expected: expected.trim().to_ascii_lowercase(),
+            actual: digest,
+        });
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("gauntlet-setup-{}-{nanos}", std::process::id()));
+    let failed = |detail: String| SetupError::InstallerFailed { detail };
+    private_dir(&dir).map_err(|e| failed(format!("cannot create a private directory: {e}")))?;
+    let copy = dir.join("installer");
+    let outcome = write_private(&copy, &bytes)
+        .map_err(|e| failed(format!("cannot write the private installer copy: {e}")))
+        .and_then(|()| run_installer(&copy, pinned, prefix));
+    let _ = std::fs::remove_dir_all(&dir);
+    outcome
+}
+
+#[cfg(unix)]
+fn private_dir(dir: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+    std::fs::DirBuilder::new().mode(0o700).create(dir)
+}
+
+#[cfg(not(unix))]
+fn private_dir(dir: &Path) -> std::io::Result<()> {
+    std::fs::create_dir(dir)
+}
+
+#[cfg(unix)]
+fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(bytes)
+}
+
+#[cfg(not(unix))]
+fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    std::fs::write(path, bytes)
+}
+
 /// Runs an ALREADY VERIFIED installer under `sh`, pinned to `pinned`,
 /// into `prefix`. The caller must have obtained explicit confirmation;
 /// this function never prompts and never downloads (the installer does
 /// its own fetching, which is why the operator confirms first).
-pub fn run_installer(
+fn run_installer(
     installer: &Path,
     pinned: (u64, u64, u64),
     prefix: &Path,
@@ -517,7 +597,7 @@ mod tests {
     }
 
     #[test]
-    fn run_installer_pins_the_version_and_scopes_the_prefix() {
+    fn run_verified_installer_pins_the_version_and_scopes_the_prefix() {
         let dir = scratch("run");
         let marker = dir.join("seen.txt");
         let script = dir.join("install.sh");
@@ -530,9 +610,40 @@ mod tests {
         )
         .unwrap();
         let prefix = dir.join("home/.local");
-        run_installer(&script, (0, 10, 2), &prefix).unwrap();
+        let digest = match verify_installer(&script, &"0".repeat(64)) {
+            Err(SetupError::ChecksumMismatch { actual, .. }) => actual,
+            other => panic!("{other:?}"),
+        };
+        run_verified_installer(&script, &digest, (0, 10, 2), &prefix).unwrap();
         let seen = std::fs::read_to_string(&marker).unwrap();
         assert_eq!(seen.trim(), format!("0.10.2 {}", prefix.display()));
+    }
+
+    #[test]
+    fn a_missing_explicit_path_is_not_optional_absence() {
+        let missing = DetectError::ExplicitMissing {
+            path: PathBuf::from("x"),
+        };
+        assert!(!missing.is_absent());
+    }
+
+    #[test]
+    fn a_relative_explicit_path_is_anchored() {
+        let dir = scratch("relative");
+        let bin = stub(&dir, "rel-harness", "0.10.2");
+        let cwd = std::env::current_dir().unwrap();
+        let rel = pathdiff_rel(&cwd, &bin);
+        let found = detect(Some(rel.as_os_str()), None, &RANGE, far_deadline()).unwrap();
+        assert!(found.binary.is_absolute());
+    }
+
+    fn pathdiff_rel(from: &Path, to: &Path) -> PathBuf {
+        let up = from.components().count();
+        let mut rel = PathBuf::new();
+        for _ in 0..up {
+            rel.push("..");
+        }
+        rel.join(to.strip_prefix("/").unwrap())
     }
 
     #[test]

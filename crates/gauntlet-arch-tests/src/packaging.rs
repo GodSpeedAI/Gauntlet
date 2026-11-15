@@ -44,42 +44,54 @@ pub fn scan_text(rel: &str, text: &str) -> Vec<String> {
         .collect()
 }
 
-fn collect(root: &Path, rel: &str, out: &mut Vec<String>) {
+fn collect(root: &Path, rel: &str, out: &mut Vec<String>, errors: &mut Vec<String>) {
     let path = root.join(rel);
-    if path.is_dir() {
-        let mut names: Vec<String> = std::fs::read_dir(&path)
-            .expect("packaging directory reads")
-            .map(|entry| {
-                entry
-                    .expect("entry reads")
-                    .file_name()
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .collect();
+    let metadata = match std::fs::metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) => {
+            errors.push(format!("packaging: {rel} cannot be inspected: {error}"));
+            return;
+        }
+    };
+    if metadata.is_dir() {
+        let entries = match std::fs::read_dir(&path) {
+            Ok(entries) => entries,
+            Err(error) => {
+                errors.push(format!("packaging: {rel} cannot be listed: {error}"));
+                return;
+            }
+        };
+        let mut names: Vec<String> = Vec::new();
+        for entry in entries {
+            match entry {
+                Ok(entry) => names.push(entry.file_name().to_string_lossy().into_owned()),
+                Err(error) => errors.push(format!("packaging: {rel} entry unreadable: {error}")),
+            }
+        }
         names.sort();
         for name in names {
-            collect(root, &format!("{rel}/{name}"), out);
+            collect(root, &format!("{rel}/{name}"), out, errors);
         }
-    } else if path.is_file() {
+    } else if metadata.is_file() {
         out.push(rel.to_owned());
     }
 }
 
 /// Every packaging file, repo-relative. The assertion script is excluded.
-pub fn packaging_files(root: &Path) -> Vec<String> {
+pub fn packaging_files(root: &Path) -> (Vec<String>, Vec<String>) {
     let mut files = Vec::new();
+    let mut errors = Vec::new();
     for rel in PACKAGING_PATHS {
-        collect(root, rel, &mut files);
+        collect(root, rel, &mut files, &mut errors);
     }
     files.retain(|rel| rel != ASSERTION_SCRIPT);
-    files
+    (files, errors)
 }
 
 /// The whole source scan.
 pub fn check_packaging_excludes_prime_agent(root: &Path) -> Vec<String> {
-    let mut violations = Vec::new();
-    for rel in packaging_files(root) {
+    let (files, mut violations) = packaging_files(root);
+    for rel in files {
         match std::fs::read(root.join(&rel)) {
             Ok(bytes) => violations.extend(scan_text(&rel, &String::from_utf8_lossy(&bytes))),
             Err(error) => violations.push(format!("packaging: {rel} unreadable: {error}")),
@@ -97,7 +109,8 @@ mod tests {
     #[test]
     fn no_packaging_input_names_or_fetches_prime_agent() {
         let root = repo_root();
-        let files = packaging_files(&root);
+        let (files, errors) = packaging_files(&root);
+        assert!(errors.is_empty(), "{}", errors.join("\n"));
         // Anti-vacuity: the scan must actually see the packaging inputs.
         for expected in [
             "packaging/gauntlet.iss",

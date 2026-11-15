@@ -32,9 +32,24 @@ check() {
     fi
 }
 
+# list <label> <command...>: captures the listing in its own assignment so a
+# failing listing tool fails the run instead of reading as an empty, clean list.
+list_and_check() {
+    label=$1
+    shift
+    if ! listing=$("$@"); then
+        echo "FAIL: could not list $label" >&2
+        bad=1
+        return
+    fi
+    check "$label" "$listing"
+}
+
+dir_listing() { (cd "$1" && find . -print); }
+
 for target in "$@"; do
     if [ -d "$target" ]; then
-        check "$target" "$(cd "$target" && find . -print)"
+        list_and_check "$target" dir_listing "$target"
         continue
     fi
     if [ ! -f "$target" ]; then
@@ -43,13 +58,13 @@ for target in "$@"; do
         continue
     fi
     case "$target" in
-        *.tar.gz|*.tgz) check "$target" "$(tar -tzf "$target")" ;;
-        *.deb) check "$target" "$(dpkg-deb -c "$target")" ;;
+        *.tar.gz|*.tgz) list_and_check "$target" tar -tzf "$target" ;;
+        *.deb) list_and_check "$target" dpkg-deb -c "$target" ;;
         *.zip)
             if command -v unzip >/dev/null 2>&1; then
-                check "$target" "$(unzip -Z1 "$target")"
+                list_and_check "$target" unzip -Z1 "$target"
             else
-                check "$target" "$(python3 -m zipfile -l "$target")"
+                list_and_check "$target" python3 -m zipfile -l "$target"
             fi
             ;;
         *) check "$target (name only)" "$(basename "$target")" ;;

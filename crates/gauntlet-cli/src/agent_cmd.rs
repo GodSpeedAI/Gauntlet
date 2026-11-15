@@ -285,7 +285,7 @@ fn setup(args: &[String]) -> ExitCode {
         );
         return ExitCode::from(2);
     }
-    match recursive_runner::managed::run_installer(&installer, pinned, &prefix) {
+    match recursive_runner::managed::run_verified_installer(&installer, &sha256, pinned, &prefix) {
         Ok(()) => {
             println!("Installed. Run `gauntlet agent doctor` to verify.");
             ExitCode::SUCCESS

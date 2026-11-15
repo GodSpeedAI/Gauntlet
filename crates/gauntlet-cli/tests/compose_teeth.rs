@@ -120,6 +120,7 @@ fn run(world: &World, envs: &[(&str, &str)], args: &[&str]) -> Output {
         .env_remove("GAUNTLET_AGENT_RUNNER")
         .env_remove("GAUNTLET_MOCK_SCENARIO")
         .env_remove("GAUNTLET_CLI_AGENT_CMD")
+        .env_remove("PRIME_AGENT_BIN")
         .env_remove("GAUNTLET_PROJECT_ROOT")
         .env_remove("GAUNTLET_CONFIG_DIR")
         .env(
