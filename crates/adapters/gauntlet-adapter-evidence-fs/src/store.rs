@@ -441,14 +441,34 @@ fn write_durable(path: &Path, bytes: &[u8]) -> Result<(), EvidenceStoreError> {
 
 /// Renames are durable only once the directory entry is on disk; syncing the
 /// parent directory is what makes the write-once object survive a crash.
+///
+/// Windows: a directory handle needs FILE_FLAG_BACKUP_SEMANTICS and write
+/// access before `sync_all` (FlushFileBuffers) accepts it. A filesystem that
+/// cannot flush a directory handle at all (it answers "access denied" or
+/// "invalid function", e.g. some network or FAT volumes) is the one weaker
+/// case: there the rename is as durable as the volume's own metadata
+/// journaling makes it (NTFS journals it), and the write is not refused.
+/// Any other flush error fails the write, as on unix.
 #[cfg(windows)]
-fn sync_directory(_dir: &Path) -> Result<(), EvidenceStoreError> {
-    // Windows cannot open a directory through `File::open` (it needs
-    // FILE_FLAG_BACKUP_SEMANTICS) and refuses `sync_all` on one with
-    // "Access is denied". NTFS journals directory metadata, so the rename is
-    // durable once the file itself was fsynced by `write_synced`; there is no
-    // portable directory flush to attempt. Unix durability is unchanged.
-    Ok(())
+fn sync_directory(dir: &Path) -> Result<(), EvidenceStoreError> {
+    use std::os::windows::fs::OpenOptionsExt;
+    /// FILE_FLAG_BACKUP_SEMANTICS (winbase.h): required to open a directory.
+    const BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    /// ERROR_ACCESS_DENIED and ERROR_INVALID_FUNCTION (winerror.h).
+    const UNSUPPORTED: [i32; 2] = [5, 1];
+    let flushed = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(BACKUP_SEMANTICS)
+        .open(dir)
+        .and_then(|handle| handle.sync_all());
+    match flushed {
+        Ok(()) => Ok(()),
+        Err(err) if err.raw_os_error().is_some_and(|c| UNSUPPORTED.contains(&c)) => Ok(()),
+        Err(err) => Err(EvidenceStoreError::WriteFailed {
+            detail: format!("fsyncing directory {:?} failed: {err}", dir.display()),
+        }),
+    }
 }
 
 #[cfg(not(windows))]
