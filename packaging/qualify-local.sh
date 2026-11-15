@@ -14,6 +14,16 @@
 #       [--mode package|tarball]
 #
 #   --mode package (default): install with the OS installer (needs sudo on Linux/macOS).
+#   Package mode on a Linux host that ALREADY has a gauntlet .deb installed
+#   (an operator machine, never a hosted runner) is "restore mode": the script
+#   needs the installed version's .deb (--previous-deb <path>, or fetched with
+#   `gh release download gauntlet-v<installed>` and checked against SHA256SUMS)
+#   and REFUSES TO START, before changing anything, when it cannot get a
+#   verified copy. It runs plain `sudo` (you type the password; nothing is
+#   stored or piped), upgrades from the installed version, and at exit
+#   (also on failure) reinstalls the originally installed version.
+#       [--previous-deb <path> [--previous-sha256 <hex>]]
+#
 #   --mode tarball (Linux only): NO sudo, NO system changes. The tarball is
 #       installed into a prefix inside the scratch dir, HOME and XDG_* are
 #       redirected into the scratch dir, and the .deb install/upgrade steps are
@@ -39,13 +49,13 @@ set -uo pipefail
 here=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH='' cd -- "$here/.." && pwd)
 
-mode=package platform="" dist="" version="" commit="" out="" runner_image="" prev_dir="" prev_version="" attest_repo=""
+prev_deb="" prev_sha="" mode=package platform="" dist="" version="" commit="" out="" runner_image="" prev_dir="" prev_version="" attest_repo=""
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --platform) platform=$2 ;; --dist) dist=$2 ;; --version) version=$2 ;;
         --commit) commit=$2 ;; --out) out=$2 ;; --runner-image) runner_image=$2 ;;
         --previous-dir) prev_dir=$2 ;; --previous-version) prev_version=$2 ;;
-        --attest-repo) attest_repo=$2 ;; --mode) mode=$2 ;;
+        --attest-repo) attest_repo=$2 ;; --mode) mode=$2 ;; --previous-deb) prev_deb=$2 ;; --previous-sha256) prev_sha=$2 ;;
         *) echo "qualify: unknown argument $1" >&2; exit 2 ;;
     esac
     shift 2 || { echo "qualify: $1 needs a value" >&2; exit 2; }
@@ -98,7 +108,20 @@ if [ "$mode" = tarball ]; then
     export HOME="$work/home" XDG_CONFIG_HOME="$work/home/.config" XDG_DATA_HOME="$work/home/.local/share" \
         XDG_STATE_HOME="$work/home/.local/state" XDG_CACHE_HOME="$work/home/.cache"
 fi
-cleanup() { rm -rf "$work"; }
+restore_ver="" restore_deb=""
+cleanup() {
+    if [ -n "$restore_ver" ] && [ -f "$restore_deb" ]; then
+        echo "qualify: restoring the originally installed gauntlet $restore_ver"
+        if sudo_ apt-get install -y -q --allow-downgrades "$restore_deb" >/dev/null 2>&1 \
+            && [ "$(dpkg-query -W -f='${Version}' gauntlet 2>/dev/null)" = "$restore_ver" ]; then
+            echo "qualify: restored gauntlet $restore_ver"
+        else
+            echo "qualify: WARNING could not restore gauntlet $restore_ver; reinstall it: sudo apt-get install -y --allow-downgrades $restore_deb (copy it out of $work first)" >&2
+            return 0   # keep $work so the .deb is not lost
+        fi
+    fi
+    rm -rf "$work"
+}
 trap cleanup EXIT
 
 rec() { # name status reason
@@ -124,6 +147,45 @@ step() {
 }
 why() { printf '%s' "$1" > "$reasonf"; }
 sudo_() { if [ "$(id -u)" = 0 ] || [ "$os" = windows ]; then "$@"; else sudo "$@"; fi; }
+
+# ── restore-mode preflight: refuse BEFORE changing anything ───────────────
+if [ "$os" = linux ] && [ "$mode" = package ] && [ "${GITHUB_ACTIONS:-}" != true ] \
+    && dpkg-query -W -f='${Status}' gauntlet 2>/dev/null | grep -q 'install ok installed'; then
+    iv=$(dpkg-query -W -f='${Version}' gauntlet)
+    refuse() { echo "qualify: REFUSING to start (nothing was changed): $1" >&2; restore_ver=""; exit 2; }
+    [ "$iv" != "$version" ] || refuse "gauntlet $iv is already installed and is the candidate version; nothing to upgrade from"
+    cand=$(ls "$prev_dir"/gauntlet_"${iv}"_"${arch}".deb 2>/dev/null | head -1)
+    if [ -n "$prev_deb" ]; then
+        [ -f "$prev_deb" ] || refuse "--previous-deb $prev_deb not found"
+        cp "$prev_deb" "$work/restore.deb"
+        want=$prev_sha
+        if [ -z "$want" ] && [ -f "$(dirname "$prev_deb")/SHA256SUMS" ]; then
+            want=$(grep " $(basename "$prev_deb")\$" "$(dirname "$prev_deb")/SHA256SUMS" | cut -d' ' -f1)
+        fi
+        [ -n "$want" ] || refuse "no checksum for the previous .deb (pass --previous-sha256 or keep SHA256SUMS next to it)"
+    else
+        command -v gh >/dev/null 2>&1 || refuse "gauntlet $iv is installed; its .deb is needed to restore it, and --previous-deb was not given and gh is unavailable"
+        repo=${attest_repo:-GodSpeedAI/Gauntlet}
+        mkdir -p "$work/fetch"
+        gh release download "gauntlet-v${iv}" --repo "$repo" --dir "$work/fetch" \
+            --pattern "gauntlet_${iv}_${arch}.deb" --pattern SHA256SUMS >/dev/null 2>&1 \
+            || refuse "gauntlet $iv is installed but release gauntlet-v${iv} (or its .deb / SHA256SUMS) is not available in $repo; supply the installed version's .deb with --previous-deb <path> --previous-sha256 <hex>"
+        cp "$work/fetch/gauntlet_${iv}_${arch}.deb" "$work/restore.deb"
+        want=$(grep " gauntlet_${iv}_${arch}.deb\$" "$work/fetch/SHA256SUMS" | cut -d' ' -f1)
+        [ -n "$want" ] || refuse "SHA256SUMS of gauntlet-v${iv} does not list gauntlet_${iv}_${arch}.deb"
+    fi
+    got=$("$PY" -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$work/restore.deb")
+    [ "$got" = "$want" ] || refuse "previous .deb checksum mismatch (got $got, expected $want)"
+    [ "$(dpkg-deb -f "$work/restore.deb" Version)" = "$iv" ] || refuse "previous .deb is not version $iv"
+    if [ "$(id -u)" != 0 ]; then
+        echo "qualify: sudo will prompt for your password (plain sudo; nothing is stored)"
+        sudo -v || refuse "sudo authentication failed"
+    fi
+    restore_ver=$iv; restore_deb="$work/restore.deb"
+    mkdir -p "$work/prevdir"; cp "$work/restore.deb" "$work/prevdir/gauntlet_${iv}_${arch}.deb"
+    prev_dir="$work/prevdir"; prev_version=$iv
+    echo "qualify: restore mode: installed $iv verified; will upgrade from it and restore it at exit"
+fi
 
 # ── artifacts ────────────────────────────────────────────────────────────
 case "$os" in
@@ -205,7 +267,7 @@ current_version() { "$gaunt" --version 2>&1; }
 
 install_pkg() { # $1 = artifact path
     case "$os" in
-        linux) sudo_ apt-get install -y -q "$1" ;;
+        linux) sudo_ apt-get install -y -q --allow-downgrades "$1" ;;
         macos) sudo_ installer -pkg "$1" -target / ;;
         windows)
             QS_EXE=$(cygpath -w "$1") pwsh -NoProfile -Command '$p = Start-Process -FilePath $env:QS_EXE -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/CURRENTUSER" -Wait -PassThru; exit $p.ExitCode' ;;
@@ -411,5 +473,6 @@ step uninstall s_uninstall
     "runner_image=$runner_image" "os=$os" "arch=$arch" "detail=$detail" \
     "artifacts=$artifacts_meta" "mode=$mode" || exit 2
 cat "$out"
+echo "qualify: RECORD: $out"
 if grep -q '"status": "NOT QUALIFIED"' "$out"; then exit 1; fi
 exit 0

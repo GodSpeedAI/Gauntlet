@@ -109,6 +109,19 @@ re-run rebuilds the artifacts, so evidence you attached earlier will not match
 a rebuild. Until a valid record is attached, the release notes say
 `Jetson: NOT QUALIFIED (no real-hardware evidence)`.
 
+### With sudo on a machine that already has gauntlet installed (restore mode)
+
+If a gauntlet `.deb` is already installed, package mode becomes restore mode.
+Before changing anything the script needs a checksum-verified `.deb` of the
+installed version (fetched with `gh release download gauntlet-v<installed>`,
+or given with `--previous-deb <path>` plus `--previous-sha256 <hex>` or a
+`SHA256SUMS` next to it) and refuses to start if it cannot get one. It then
+runs plain `sudo` (you type the password; it is never stored or piped),
+upgrades from the installed version to the candidate, smokes, runs the
+governed mock loop, uninstalls, and finally reinstalls the originally
+installed version, also when a step fails. The last line printed is
+`qualify: RECORD: <path>`.
+
 ### No sudo: tarball mode
 
 When `sudo` needs a password (or you must not touch the system package), use
