@@ -112,7 +112,7 @@ restore_ver="" restore_deb=""
 cleanup() {
     if [ -n "$restore_ver" ] && [ -f "$restore_deb" ]; then
         echo "qualify: restoring the originally installed gauntlet $restore_ver"
-        if sudo_ apt-get install -y -q --allow-downgrades "$restore_deb" >/dev/null 2>&1 \
+        if sudo_ apt-get install -y -q --reinstall --allow-downgrades "$restore_deb" >/dev/null 2>&1 \
             && [ "$(dpkg-query -W -f='${Version}' gauntlet 2>/dev/null)" = "$restore_ver" ]; then
             echo "qualify: restored gauntlet $restore_ver"
         else
@@ -148,43 +148,58 @@ step() {
 why() { printf '%s' "$1" > "$reasonf"; }
 sudo_() { if [ "$(id -u)" = 0 ] || [ "$os" = windows ]; then "$@"; else sudo "$@"; fi; }
 
+deb="$dist/gauntlet_${version}_${arch}.deb"
 # ── restore-mode preflight: refuse BEFORE changing anything ───────────────
+sha_of() { "$PY" -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
+sum_of() { # <SHA256SUMS file> <asset name>
+    [ -f "$1" ] && grep " \*\?$2\$" "$1" | head -1 | cut -d' ' -f1
+}
 if [ "$os" = linux ] && [ "$mode" = package ] && [ "${GITHUB_ACTIONS:-}" != true ] \
     && dpkg-query -W -f='${Status}' gauntlet 2>/dev/null | grep -q 'install ok installed'; then
     iv=$(dpkg-query -W -f='${Version}' gauntlet)
     refuse() { echo "qualify: REFUSING to start (nothing was changed): $1" >&2; restore_ver=""; exit 2; }
-    [ "$iv" != "$version" ] || refuse "gauntlet $iv is already installed and is the candidate version; nothing to upgrade from"
-    cand=$(ls "$prev_dir"/gauntlet_"${iv}"_"${arch}".deb 2>/dev/null | head -1)
+    restore_src=""; want=""
     if [ -n "$prev_deb" ]; then
         [ -f "$prev_deb" ] || refuse "--previous-deb $prev_deb not found"
         cp "$prev_deb" "$work/restore.deb"
         want=$prev_sha
-        if [ -z "$want" ] && [ -f "$(dirname "$prev_deb")/SHA256SUMS" ]; then
-            want=$(grep " $(basename "$prev_deb")\$" "$(dirname "$prev_deb")/SHA256SUMS" | cut -d' ' -f1)
-        fi
-        [ -n "$want" ] || refuse "no checksum for the previous .deb (pass --previous-sha256 or keep SHA256SUMS next to it)"
-    else
-        command -v gh >/dev/null 2>&1 || refuse "gauntlet $iv is installed; its .deb is needed to restore it, and --previous-deb was not given and gh is unavailable"
-        repo=${attest_repo:-GodSpeedAI/Gauntlet}
-        mkdir -p "$work/fetch"
-        gh release download "gauntlet-v${iv}" --repo "$repo" --dir "$work/fetch" \
-            --pattern "gauntlet_${iv}_${arch}.deb" --pattern SHA256SUMS >/dev/null 2>&1 \
-            || refuse "gauntlet $iv is installed but release gauntlet-v${iv} (or its .deb / SHA256SUMS) is not available in $repo; supply the installed version's .deb with --previous-deb <path> --previous-sha256 <hex>"
+        [ -n "$want" ] || want=$(sum_of "$(dirname "$prev_deb")/SHA256SUMS" "$(basename "$prev_deb")")
+        [ -n "$want" ] || refuse "no checksum for --previous-deb (pass --previous-sha256 or keep SHA256SUMS next to it)"
+        restore_src="the --previous-deb you supplied"
+    elif [ "$iv" != "$version" ] && command -v gh >/dev/null 2>&1 \
+        && gh release download "gauntlet-v${iv}" --repo "${attest_repo:-GodSpeedAI/Gauntlet}" --dir "$work/fetch" \
+            --pattern "gauntlet_${iv}_${arch}.deb" --pattern SHA256SUMS >/dev/null 2>&1; then
         cp "$work/fetch/gauntlet_${iv}_${arch}.deb" "$work/restore.deb"
-        want=$(grep " gauntlet_${iv}_${arch}.deb\$" "$work/fetch/SHA256SUMS" | cut -d' ' -f1)
+        want=$(sum_of "$work/fetch/SHA256SUMS" "gauntlet_${iv}_${arch}.deb")
         [ -n "$want" ] || refuse "SHA256SUMS of gauntlet-v${iv} does not list gauntlet_${iv}_${arch}.deb"
+        restore_src="the gauntlet-v${iv} release"
+    elif [ -f "$deb" ] && [ "$(dpkg-deb -f "$deb" Version)" = "$iv" ]; then
+        # No older .deb is obtainable, but the candidate has the SAME version as
+        # the installed package: it can restore that version (a newer BUILD of it).
+        cp "$deb" "$work/restore.deb"
+        want=$(sum_of "$dist/SHA256SUMS" "$(basename "$deb")")
+        [ -n "$want" ] || refuse "the candidate .deb has the installed version $iv but $dist/SHA256SUMS does not list it, so it cannot be checksum-verified"
+        restore_src="the candidate .deb itself (same version $iv)"
+        echo "qualify: NOTE the originally installed build of gauntlet $iv cannot be obtained; at exit the machine is restored to the candidate's build of the SAME version $iv (a newer build, not the original bytes)"
+    else
+        refuse "gauntlet $iv is installed and no verified .deb of version $iv is available: pass --previous-deb <path> [--previous-sha256 <hex>], or use a candidate whose version equals the installed one"
     fi
-    got=$("$PY" -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$work/restore.deb")
-    [ "$got" = "$want" ] || refuse "previous .deb checksum mismatch (got $got, expected $want)"
-    [ "$(dpkg-deb -f "$work/restore.deb" Version)" = "$iv" ] || refuse "previous .deb is not version $iv"
+    got=$(sha_of "$work/restore.deb")
+    [ "$got" = "$want" ] || refuse "restore .deb checksum mismatch (got $got, expected $want)"
+    [ "$(dpkg-deb -f "$work/restore.deb" Version)" = "$iv" ] || refuse "the restore .deb is not version $iv"
     if [ "$(id -u)" != 0 ]; then
         echo "qualify: sudo will prompt for your password (plain sudo; nothing is stored)"
         sudo -v || refuse "sudo authentication failed"
     fi
     restore_ver=$iv; restore_deb="$work/restore.deb"
-    mkdir -p "$work/prevdir"; cp "$work/restore.deb" "$work/prevdir/gauntlet_${iv}_${arch}.deb"
-    prev_dir="$work/prevdir"; prev_version=$iv
-    echo "qualify: restore mode: installed $iv verified; will upgrade from it and restore it at exit"
+    if [ "$iv" != "$version" ]; then
+        mkdir -p "$work/prevdir"; cp "$work/restore.deb" "$work/prevdir/gauntlet_${iv}_${arch}.deb"
+        prev_dir="$work/prevdir"; prev_version=$iv
+        echo "qualify: restore mode: installed $iv verified via $restore_src; will upgrade from it and restore it at exit"
+    else
+        prev_dir=""; prev_version=""
+        echo "qualify: restore mode: installed version equals the candidate ($iv): no upgrade leg (NOT_RUN); restoring via $restore_src at exit"
+    fi
 fi
 
 # ── artifacts ────────────────────────────────────────────────────────────
@@ -267,7 +282,7 @@ current_version() { "$gaunt" --version 2>&1; }
 
 install_pkg() { # $1 = artifact path
     case "$os" in
-        linux) sudo_ apt-get install -y -q --allow-downgrades "$1" ;;
+        linux) sudo_ apt-get install -y -q --reinstall --allow-downgrades "$1" ;;
         macos) sudo_ installer -pkg "$1" -target / ;;
         windows)
             QS_EXE=$(cygpath -w "$1") pwsh -NoProfile -Command '$p = Start-Process -FilePath $env:QS_EXE -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/CURRENTUSER" -Wait -PassThru; exit $p.ExitCode' ;;
@@ -421,10 +436,6 @@ s_governed_run() {
     ( cd "$proj" && "$gaunt" run "native release qualification: mock adapter loop" ) > "$work/run.log" 2>&1 \
         || {
             tail -n 30 "$work/run.log"
-            if grep -q 'fixture "e2e-happy" could not be read' "$work/run.log"; then
-                why "the mock adapter resolves its scenario fixtures from the BUILD host's source path (compile-time CARGO_MANIFEST_DIR), which does not exist on this host: a relocated package cannot run the mock loop (product limitation, not a package failure)"
-                return 77
-            fi
             why "gauntlet run (mock e2e-happy) exited nonzero"; return 1
         }
     local rid; rid=$(sed -n 's/^run: run_id=//p' "$work/run.log" | tail -1 | tr -d '\r')

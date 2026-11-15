@@ -78,70 +78,68 @@ with the `artifacts` entry for your platform.
 
 Hosted `ubuntu-22.04-arm` qualifies **linux-arm64 (generic)** only. The
 Jetson row needs a record produced on real Jetson hardware (Ubuntu 22.04,
-L4T).
+L4T) against the **published release's own assets**. Native builds are not
+byte-reproducible, so a record made against any other build is rejected
+(sha256 mismatch against the release's `SHA256SUMS`). The flow is therefore
+two-phase:
 
-On the Jetson, with the release assets and `SHA256SUMS` in one directory, a
-checkout of this repository at the release tag, and a reachable PostgreSQL
-server:
+1. The release workflow publishes a **prerelease**. Its notes say
+   `Jetson: NOT QUALIFIED (no real-hardware evidence)`.
+2. The operator qualifies THAT release on the Jetson and uploads the record.
+3. `promote-release.yml` re-aggregates every record and, only if every claimed
+   platform is QUALIFIED, flips the prerelease to a release.
+
+On the Jetson (needs `gh`, `git`, and a reachable PostgreSQL; the owner types
+the sudo password when prompted):
 
 ```sh
+tag=gauntlet-v<version>; d=$(mktemp -d ~/gq.XXXX)
+gh release download "$tag" --repo GodSpeedAI/Gauntlet --dir "$d/dist" \
+  --pattern 'gauntlet_*_arm64.deb' --pattern 'gauntlet-*-aarch64-*.tar.gz' --pattern SHA256SUMS
+(cd "$d/dist" && sha256sum -c SHA256SUMS --ignore-missing)
+git clone -q --depth 1 -b "$tag" https://github.com/GodSpeedAI/Gauntlet "$d/repo"
 export GAUNTLET_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/postgres
-packaging/qualify-local.sh --platform linux-arm64-jetson \
-  --dist ~/Downloads --version <version> --commit <tag-commit-sha> \
-  --out qualification-linux-arm64-jetson.json
+bash "$d/repo/packaging/qualify-local.sh" --platform linux-arm64-jetson --dist "$d/dist" \
+  --version <version> --commit "$(git -C "$d/repo" rev-parse HEAD)" \
+  --out "$d/qualification-linux-arm64-jetson.json"
+gh release upload "$tag" "$d/qualification-linux-arm64-jetson.json" --repo GodSpeedAI/Gauntlet
 ```
 
-The script refuses `linux-arm64-jetson` on a non-Jetson host and refuses to
-run it on a hosted runner. It installs the arm64 `.deb` with sudo, runs the
-same steps, and uninstalls. The record is Jetson evidence only if its status is
-QUALIFIED and its artifact sha256 values match the release's arm64 assets.
+Then run Actions -> **Promote release (qualification)** with "Use workflow
+from" set to the tag. It has no inputs.
 
-Attach the record to the release (a manual operator step):
+The script refuses `linux-arm64-jetson` on a non-Jetson host and on a hosted
+runner. It installs the arm64 `.deb` with sudo, runs the same steps, and
+uninstalls.
 
-```sh
-gh release upload gauntlet-v<version> qualification-linux-arm64-jetson.json
-```
-
-The next publish run for that tag validates the record against that run's
-artifacts: real-hardware evidence, same version, QUALIFIED, matching sha256.
-A stale or mismatched record is rejected and the row stays NOT QUALIFIED. A
-re-run rebuilds the artifacts, so evidence you attached earlier will not match
-a rebuild. Until a valid record is attached, the release notes say
-`Jetson: NOT QUALIFIED (no real-hardware evidence)`.
-
-### With sudo on a machine that already has gauntlet installed (restore mode)
+### Restore mode (a gauntlet .deb is already installed)
 
 If a gauntlet `.deb` is already installed, package mode becomes restore mode.
-Before changing anything the script needs a checksum-verified `.deb` of the
-installed version (fetched with `gh release download gauntlet-v<installed>`,
-or given with `--previous-deb <path>` plus `--previous-sha256 <hex>` or a
-`SHA256SUMS` next to it) and refuses to start if it cannot get one. It then
-runs plain `sudo` (you type the password; it is never stored or piped),
-upgrades from the installed version to the candidate, smokes, runs the
-governed mock loop, uninstalls, and finally reinstalls the originally
-installed version, also when a step fails. The last line printed is
+Before changing anything the script needs a checksum-verified `.deb` whose
+Version equals the installed version. In order of preference:
+`--previous-deb <path>` (with `--previous-sha256 <hex>` or a `SHA256SUMS` next
+to it), the `gauntlet-v<installed>` release, or the candidate `.deb` itself
+when its Version equals the installed one. In the last case the script prints
+that the restored binary is a newer build of the same version, and there is no
+upgrade leg (NOT_RUN). If no such `.deb` exists, it refuses to start. It runs
+plain `sudo`, never stores or pipes the password, and at exit (also on
+failure) reinstalls the original version. The last line printed is
 `qualify: RECORD: <path>`.
 
 ### No sudo: tarball mode
 
-When `sudo` needs a password (or you must not touch the system package), use
-`--mode tarball`. It installs the tarball into a prefix inside a scratch dir,
-redirects `HOME` and `XDG_*` there, records the `.deb` install and upgrade
-steps as NOT_RUN, and removes everything at exit. The record status is
-`QUALIFIED (tarball)`, which is shown honestly in the table and does not make
-the release production-ready:
+When `sudo` needs a password you cannot type, or you must not touch the
+system package, use `--mode tarball`. It installs the tarball into a prefix
+inside a scratch dir, redirects `HOME` and `XDG_*` there, records the `.deb`
+install and upgrade steps as NOT_RUN, and removes everything at exit. The
+record status is `QUALIFIED (tarball)`, which is shown honestly in the table
+and does not make the release production-ready:
 
 ```sh
 scratch=$(mktemp -d ~/gauntlet-qual.XXXX)
 TMPDIR="$scratch" packaging/qualify-local.sh --mode tarball --platform linux-arm64-jetson \
   --dist <dir-with-assets> --version <version> --commit <sha> --out "$scratch/qualification-linux-arm64-jetson.json"
 ```
-
-A record may also be checked in at
-`packaging/qualification/evidence/jetson/qualification-linux-arm64-jetson.json`;
-qualification reads it input-free and accepts it only when its sha256 values
-match that run's artifacts (builds are not byte-reproducible, so evidence is
-normally attached to the release instead).
 
 You can also run the script on any other host with the matching platform id
 (`linux-arm64-generic`, `linux-amd64`, `macos-arm64`, `macos-x64`,
@@ -150,7 +148,8 @@ never mark Jetson QUALIFIED.
 
 ## Run qualification from GitHub Actions
 
-Actions -> Qualify (native) -> Run workflow, from a branch or a tag. There is
+Actions -> Qualify (native) -> Run workflow, from a branch or a tag (the
+workflow must exist on the default branch to be listed). There is
 no ref input: it builds and qualifies the commit you selected. It also runs on
 pull requests that change qualification paths.
 
