@@ -28,22 +28,20 @@ on:
   push:
     tags:
       - 'gauntlet-v*'
+  # A manual (re-)publish is a dispatch with "Use workflow from" set to an
+  # existing gauntlet-v* TAG. There is no free-form tag input: every job builds
+  # the triggering commit, never a caller-named ref.
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing gauntlet-v* tag to build and publish (e.g. gauntlet-v0.1.0). Required."
-        type: string
-        required: true
 
 permissions:
   contents: read
 
 concurrency:
   # A release pipeline is never cancelled mid-run. The group is the TAG being
-  # released (the dispatch input, or the pushed tag), so a dispatch and a push
+  # released (the pushed or dispatched-from tag), so a dispatch and a push
   # for the same tag can never publish concurrently. GitHub keeps one pending
   # run per group: a newer pending run replaces an older pending one.
-  group: release-native-${{ inputs.tag || github.ref_name }}
+  group: release-native-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -60,23 +58,20 @@ jobs:
       - name: Resolve the release tag
         id: ident
         shell: bash
-        env:
-          DISPATCH_TAG: ${{ inputs.tag || '' }}
         run: |
           set -euo pipefail
           case "${{ github.event_name }}" in
-            push)
-              tag="${GITHUB_REF_NAME}"
-              ;;
-            workflow_dispatch)
-              test -n "$DISPATCH_TAG" || { echo "::error::workflow_dispatch requires the tag input (an existing gauntlet-v* tag)"; exit 1; }
-              tag="$DISPATCH_TAG"
-              ;;
+            push|workflow_dispatch) ;;
             *)
               echo "::error::unexpected triggering event: ${{ github.event_name }}"
               exit 1
               ;;
           esac
+          test "${GITHUB_REF_TYPE}" = tag || {
+            echo "::error::run this workflow from a gauntlet-v* tag (Use workflow from: <tag>), not a branch"
+            exit 1
+          }
+          tag="${GITHUB_REF_NAME}"
           case "$tag" in
             gauntlet-v*) ;;
             *)
@@ -87,10 +82,9 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "release tag: $tag"
 
-      - name: Checkout the tag
+      - name: Checkout the tag (the triggering commit)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ steps.ident.outputs.tag }}
           persist-credentials: false
 
       - name: Refuse version drift (version.sh must accept the tag)
@@ -118,9 +112,9 @@ jobs:
             exit 1
           }
           # Peel github.sha too, where its object is actually fetched. For an
-          # annotated-tag push it is the tag object (peels to the commit — the
-          # fresh-build case attests). For a dispatch against a tag the
-          # trigger commit is not fetched, peeling fails, and attest stays
+          # annotated-tag push it is the tag object (peels to the commit); a
+          # dispatch from the tag names the tag commit. Both build the tagged
+          # commit, so both attest. Should they ever differ, attest stays
           # false — an attestation naming the wrong commit is worse than none.
           github_sha_peeled=$(git rev-parse "${GITHUB_SHA}^{commit}" 2>/dev/null || true)
           attest=false
@@ -139,7 +133,6 @@ jobs:
       contents: read
     uses: ./.github/workflows/package.yml
     with:
-      ref: ${{ needs.validate.outputs.tag }}
       upload: true
 
   publish:

@@ -128,9 +128,11 @@ gh attestation verify <asset> --repo GodSpeedAI/Gauntlet
 ```
 
 This only succeeds when the release carries provenance. Provenance is attached
-when the publishing run itself built the tagged commit; a release whose assets
-were re-attached later (a workflow_dispatch against an existing tag) honestly
-has none. `SHA256SUMS` is always present and is the baseline check.
+when the publishing run itself built the tagged commit, which is every run:
+the release workflow runs only from a `gauntlet-v*` tag (a tag push, or a
+manual re-publish dispatched with "Use workflow from" set to that tag) and
+takes no free-form ref. `SHA256SUMS` is always present and is the baseline
+check.
 
 ---
 

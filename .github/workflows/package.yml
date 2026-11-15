@@ -37,21 +37,16 @@ name: Package (native)
 on:
   workflow_call:
     inputs:
-      ref:
-        description: "Git ref to build (e.g. a gauntlet-v* tag). Empty builds the caller's commit."
-        type: string
-        required: false
-        default: ""
       upload:
         description: "True for release publication runs; disables cancellation of in-flight builds."
         type: boolean
         required: false
         default: false
-  # A manual dispatch builds the ref selected in "Use workflow from" (branches
-  # and tags). It deliberately takes no free-form ref input: checking out an
-  # arbitrary caller-named ref and executing it is the pattern CodeQL flags as
-  # untrusted-code execution. Release builds pass a validated tag via
-  # workflow_call from release-native.yml instead.
+  # Every trigger builds the triggering commit (github.sha); there is no ref
+  # input on any trigger. Checking out a caller-named ref and executing it is
+  # the pattern CodeQL flags as untrusted-code execution. Release builds run
+  # this via workflow_call from release-native.yml, which itself only runs on
+  # a gauntlet-v* tag, so the triggering commit IS the tag commit.
   workflow_dispatch:
     inputs:
       upload:
@@ -83,7 +78,7 @@ concurrency:
   # release build is a half-built release. They get their own group so a later
   # manual dispatch or PR run can never supersede them; candidate builds are
   # event-scoped and may be superseded.
-  group: package-${{ inputs.upload && 'release' || github.event_name }}-${{ inputs.ref || github.ref }}
+  group: package-${{ inputs.upload && 'release' || github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ inputs.upload != true }}
 
 env:
@@ -113,7 +108,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.ref || '' }}
           persist-credentials: false
 
       - name: Resolve the release version
@@ -264,7 +258,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.ref || '' }}
           persist-credentials: false
 
       - name: Resolve the release version
@@ -510,7 +503,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.ref || '' }}
           persist-credentials: false
 
       - name: Resolve the release version
@@ -848,7 +840,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ inputs.ref || '' }}
           persist-credentials: false
 
       - name: Resolve the release version
@@ -870,20 +861,14 @@ jobs:
 
       - name: Verify every built-from file names the built commit
         env:
-          REF_INPUT: ${{ inputs.ref || '' }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           shopt -s nullglob
-          # For default-ref runs (PR, branch dispatch, and the tag-push release
-          # path) the binding is github.sha. For an explicit inputs.ref build
-          # (manual dispatch against a tag/commit) the honest binding is the
-          # checked-out commit itself, which is what the artifacts were built
-          # from — github.sha would name the dispatch trigger commit instead.
-          want="$GITHUB_SHA"
-          if [ -n "$REF_INPUT" ]; then
-            want=$(git rev-parse HEAD)
-          fi
+          # Every trigger builds the triggering commit. github.sha is peeled to
+          # a commit where its object is present (an annotated-tag object is
+          # not the commit the artifacts were built from).
+          want=$(git rev-parse "${GITHUB_SHA}^{commit}" 2>/dev/null || echo "$GITHUB_SHA")
           echo "expected built-from commit: $want"
           found=0
           for f in dist/built-from-*.txt; do
@@ -1013,13 +998,11 @@ jobs:
       - name: Build the artifact table + summary
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          REF_INPUT: ${{ inputs.ref || '' }}
           GITHUB_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           # Same commit binding as the built-from verification above.
-          want="$GITHUB_SHA"
-          if [ -n "$REF_INPUT" ]; then want=$(git rev-parse HEAD); fi
+          want=$(git rev-parse "${GITHUB_SHA}^{commit}" 2>/dev/null || echo "$GITHUB_SHA")
           {
             echo "## Gauntlet ${VERSION} — native package artifacts"
             echo
