@@ -714,17 +714,15 @@ fn build_runner(
     let workspace = workspace_root.to_path_buf();
     match spec.token {
         RunnerToken::Recursive => {
-            let checked = crate::context::checked_recursive_config().map_err(|detail| {
-                CompositionError::Configuration {
-                    key: "runners.default",
-                    env: recursive_runner::managed::BINARY_ENV,
-                    detail,
-                }
-            })?;
-            let config = recursive_runner::PrimeAdapterConfig {
-                binary: checked.binary,
-                ..prime_adapter_config(spec, deps)
-            };
+            // The harness is optional: an absent or incompatible install must
+            // not fail the whole fabric composition (the profile's availability,
+            // from the PATH lookup, already marks it unselectable). A detected
+            // install supplies its resolved binary (explicit path honoured);
+            // otherwise the default name stands and the profile stays unavailable.
+            let mut config = prime_adapter_config(spec, deps);
+            if let Ok(checked) = crate::context::checked_recursive_config() {
+                config.binary = checked.binary;
+            }
             let transport = recursive_runner::ProcessKernelTransport::new(
                 config.binary.clone(),
                 config.admission_timeout(),
