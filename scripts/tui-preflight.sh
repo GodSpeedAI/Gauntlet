@@ -227,20 +227,30 @@ else
 fi
 
 # --- E6. Release artifact + manifest digest (T20, REQ-UX-005/REQ-BUN-005) ----
-if [[ -f "$workbench_dir/dist/release-manifest.json" && -f "$workbench_dir/dist/gauntlet-workbench" ]]; then
+# The artifact name is target-qualified (dist/gauntlet-workbench-<target>,
+# with Bun's .exe suffix for windows targets); the manifest records the exact
+# path and verifyReleaseManifest re-checks THAT artifact on disk (existence +
+# sha256). An honest cross-build record (launch_qualification.transport =
+# not-qualifiable-on-this-host) verifies as a manifest but is NOT launch
+# qualification: this row fails closed on it — a not-qualifiable artifact is
+# never treated as qualified; qualify it on a native runner.
+if [[ -f "$workbench_dir/dist/release-manifest.json" ]]; then
   manifest_probe="$(cd "$workbench_dir" && bun -e 'import { readFileSync } from "node:fs";
 import { verifyReleaseManifest, RELEASE_MANIFEST } from "./src/release-manifest";
 const doc = JSON.parse(readFileSync(RELEASE_MANIFEST, "utf8"));
 const res = verifyReleaseManifest(doc);
 if (!res.valid) console.error(res.failures.join("; "));
-console.log(res.valid ? "MANIFEST_OK" : "MANIFEST_INVALID");' 2>/dev/null || echo PROBE_CRASHED)"
+else if (!res.launch_qualified) console.error("manifest is valid but records the artifact as NOT launch-qualified on this host (cross build)");
+console.log(res.valid ? (res.launch_qualified ? "MANIFEST_OK" : "MANIFEST_UNQUALIFIED") : "MANIFEST_INVALID");' 2>/dev/null || echo PROBE_CRASHED)"
   if [[ "$manifest_probe" == "MANIFEST_OK" ]]; then
     pass "EXECUTED release artifact present and dist/release-manifest.json digest + required fields verify (T20 release qualification; REQ-UX-005)"
+  elif [[ "$manifest_probe" == "MANIFEST_UNQUALIFIED" ]]; then
+    fail "EXECUTED release manifest verifies but its artifact is NOT launch-qualified on this host (cross build) — the honest not-qualifiable record stands, yet this gate cannot pass an unqualified artifact; qualify on a native runner (T20; REQ-UX-005)"
   else
-    fail "EXECUTED release manifest check failed ($manifest_probe) — artifact drifted from its recorded digest; re-run \`just tui-build release\` (T20)"
+    fail "EXECUTED release manifest check failed ($manifest_probe) — artifact missing/drifted from its recorded digest; re-run \`just tui-build release\` (T20)"
   fi
 else
-  fail "EXECUTED release artifact or manifest missing under workbench/dist/ — run \`just tui-build release\` (T20; REQ-UX-005)"
+  fail "EXECUTED release manifest missing under workbench/dist/ — run \`just tui-build release\` (T20; REQ-UX-005)"
 fi
 
 # --- E7/E8. Support tooling for the qualified transport legs (T20) ----------
