@@ -257,12 +257,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          # Input-free: a checked-in real-hardware record is only ever accepted
-          # when its artifact sha256 values match THIS run's artifacts.
-          jet=()
-          ev=packaging/qualification/evidence/jetson/qualification-linux-arm64-jetson.json
-          if [ -f "$ev" ]; then jet=(--jetson "$ev"); echo "checked-in Jetson evidence found; it is validated against this run's artifacts"; fi
-          python3 -I packaging/qualify.py aggregate "${jet[@]}" \
+          python3 -I packaging/qualify.py aggregate \
             --platforms packaging/qualification-platforms.json --records records \
             --dist-sums dist/SHA256SUMS --version "$VERSION" --commit "$COMMIT" \
             --signing-note "unsigned (no Apple Developer ID / Authenticode signing is configured)" \

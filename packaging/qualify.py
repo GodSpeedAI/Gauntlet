@@ -4,8 +4,10 @@
   qualify.py record    <steps.tsv> <out.json> key=value ...
       Build one per-platform qualification record from the step ledger that
       packaging/qualify-local.sh writes (name<TAB>status<TAB>reason lines).
+  qualify.py notes --json qualification.json [--attested true]
+      Print the release-notes readiness block (between readiness markers).
   qualify.py aggregate --platforms <platforms.json> --records <dir>
-                       [--jetson <record.json>] --version V --commit SHA
+                       [--dist-sums SHA256SUMS] [--attested true] --version V --commit SHA
                        --out-json qualification.json --out-md QUALIFICATION.md
                        [--signing-note TEXT] [--provenance-note TEXT]
       Collect every record under <dir> into qualification.json and a
@@ -90,24 +92,73 @@ def load(path):
         return json.load(fh)
 
 
-def jetson_valid(rec, version, dist_shas):
-    """Return (ok, reason). Real hardware evidence for THESE artifacts only.
-    The row then shows the record's own status (possibly PARTIAL / QUALIFIED (tarball))."""
+def record_problem(rec, platform_id, version, sums):
+    """Return None when the record may count, else the reason it is rejected.
+
+    Every record is checked against the release's own SHA256SUMS (when given):
+    evidence applies to the exact artifacts it tested, never to a rebuild.
+    The Jetson row additionally needs real-hardware evidence.
+    """
     if rec.get("schema") != SCHEMA:
-        return False, "record schema is not " + SCHEMA
-    if rec.get("platform") != "linux-arm64-jetson":
-        return False, "record platform is not linux-arm64-jetson"
-    if rec.get("evidence") != "real-hardware":
-        return False, "record evidence is not real-hardware"
+        return "record schema is not " + SCHEMA
+    if rec.get("platform") != platform_id:
+        return "record platform is %s, expected %s" % (rec.get("platform"), platform_id)
     if rec.get("version") != version:
-        return False, "record is for version %s, release is %s" % (rec.get("version"), version)
-    recorded = {a["name"]: a["sha256"] for a in rec.get("artifacts", [])}
-    if not recorded:
-        return False, "record names no artifacts"
-    for name, sha in recorded.items():
-        if dist_shas.get(name) != sha:
-            return False, "stale evidence: %s sha256 differs from this release's asset" % name
-    return True, "real-hardware record matches this release's arm64 artifacts"
+        return "record is for version %s, release is %s" % (rec.get("version"), version)
+    if platform_id == "linux-arm64-jetson" and rec.get("evidence") != "real-hardware":
+        return "Jetson evidence must be real-hardware, record says %s" % rec.get("evidence")
+    if sums:
+        recorded = rec.get("artifacts", [])
+        if not recorded:
+            return "record names no artifacts"
+        for a in recorded:
+            if sums.get(a["name"]) != a["sha256"]:
+                return "stale evidence: %s sha256 differs from this release's SHA256SUMS" % a["name"]
+    return None
+
+
+def table_lines(rows):
+    md = ["| Platform | Status | Evidence | Runner image | Notes |", "|---|---|---|---|---|"]
+    for r in rows:
+        notes = "<br>".join(n.replace("|", "/") for n in r["notes"]) or "all steps PASS"
+        md.append("| %s | **%s** | %s | %s | %s |" % (
+            r["label"], r["status"], r["evidence"] or "none", r.get("runner_image") or "n/a", notes))
+    return md
+
+
+def cmd_notes(argv):
+    """Print the readiness block for the release notes (between markers)."""
+    opts = {}
+    for i in range(0, len(argv), 2):
+        opts[argv[i].lstrip("-")] = argv[i + 1]
+    q = load(opts["json"])
+    rows = q["platforms"]
+    ready = q["release_ready"]
+    attested = opts.get("attested", "false") == "true"
+    out = ["<!-- readiness:begin -->", "## Platform readiness", ""]
+    if ready and attested:
+        out.append("Every platform claimed as supported is QUALIFIED (record: `qualification.json`).")
+    else:
+        out.append("**NOT production-ready: this is a PRERELEASE.** At least one claimed platform is not QUALIFIED"
+                   + ("" if attested else ", or this run did not attest the tagged commit")
+                   + "; nothing below is presented as production-ready without its record.")
+    out.append("")
+    jet = [r for r in rows if r["id"] == "linux-arm64-jetson"][0]
+    if jet["evidence"] != "real-hardware":
+        out.append("**Jetson: NOT QUALIFIED (no real-hardware evidence)** - hosted ubuntu-22.04-arm results "
+                   "qualify linux-arm64 (generic) only. See docs/how-to/qualify-a-release.md to add a record.")
+        out.append("")
+    elif jet["status"] != "QUALIFIED":
+        out.append("**Jetson: %s** (real-hardware record present; not a full QUALIFIED)." % jet["status"])
+        out.append("")
+    out.extend(table_lines(rows))
+    out.append("")
+    out.append("Signing: **unsigned** (no Apple Developer ID, no Authenticode).")
+    if attested:
+        out.append("")
+        out.append("<!-- provenance:attested -->")
+    out.append("<!-- readiness:end -->")
+    print("\n".join(out))
 
 
 def cmd_aggregate(argv):
@@ -134,17 +185,13 @@ def cmd_aggregate(argv):
         rec = records.get(pid)
         row = {"id": pid, "label": p["label"], "claimed": p.get("claimed", True),
                "evidence": None, "status": "NOT QUALIFIED", "notes": []}
-        if pid == "linux-arm64-jetson":
-            ext = opts.get("jetson")
-            if ext and os.path.isfile(ext):
-                ok, why = jetson_valid(load(ext), opts["version"], dist_shas)
-                if ok:
-                    rec = load(ext)
-                else:
-                    rec = None
-                    row["notes"].append("Jetson record rejected: " + why)
-            if rec is None:
-                row["notes"].append("NOT QUALIFIED (no real-hardware evidence)")
+        if rec is not None:
+            problem = record_problem(rec, pid, opts["version"], dist_shas)
+            if problem:
+                row["notes"].append("record rejected: " + problem)
+                rec = None
+        if pid == "linux-arm64-jetson" and rec is None:
+            row["notes"].append("NOT QUALIFIED (no real-hardware evidence)")
         if rec is not None:
             row["evidence"] = rec.get("evidence")
             row["status"] = rec["status"]
@@ -166,6 +213,7 @@ def cmd_aggregate(argv):
         "version": opts["version"],
         "commit": opts["commit"],
         "release_ready": ready,
+        "attested": opts.get("attested", "false") == "true",
         "signing": opts.get("signing-note", "unsigned (no signing configured)"),
         "provenance": opts.get("provenance-note", ""),
         "platforms": rows,
@@ -180,12 +228,7 @@ def cmd_aggregate(argv):
     if out["provenance"]:
         md.append(out["provenance"])
     md.append("")
-    md.append("| Platform | Status | Evidence | Runner image | Notes |")
-    md.append("|---|---|---|---|---|")
-    for r in rows:
-        notes = "<br>".join(n.replace("|", "/") for n in r["notes"]) or "all steps PASS"
-        md.append("| %s | **%s** | %s | %s | %s |" % (
-            r["label"], r["status"], r["evidence"] or "none", r.get("runner_image") or "n/a", notes))
+    md.extend(table_lines(rows))
     md.append("")
     md.append("Overall: **%s**" % ("every claimed platform is QUALIFIED" if ready else
               "NOT production-ready: at least one claimed platform is not QUALIFIED"))
@@ -208,7 +251,7 @@ def cmd_aggregate(argv):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or sys.argv[1] not in ("record", "aggregate"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("record", "aggregate", "notes"):
         sys.stderr.write(__doc__)
         sys.exit(2)
-    {"record": cmd_record, "aggregate": cmd_aggregate}[sys.argv[1]](sys.argv[2:])
+    {"record": cmd_record, "aggregate": cmd_aggregate, "notes": cmd_notes}[sys.argv[1]](sys.argv[2:])

@@ -234,36 +234,25 @@ jobs:
           have "gauntlet-${VERSION}-macos-*.dmg" || { echo "::error::missing macos .dmg"; exit 1; }
           echo "all required release assets present"
 
-      - name: Collect the qualification evidence (re-aggregate with any Jetson record)
+      - name: Collect the qualification evidence
         id: qual
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p jetson
-          # Operator-attached real-hardware evidence (a documented manual step:
-          # gh release upload <tag> qualification-linux-arm64-jetson.json).
-          # Absent -> the Jetson row stays NOT QUALIFIED. Input-free: the file
-          # is read from this tag's own release, never from a caller-named ref.
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'qualification-linux-arm64-jetson.json' --dir jetson 2>/dev/null || true
-          args=()
-          if [ -f jetson/qualification-linux-arm64-jetson.json ]; then
-            args=(--jetson jetson/qualification-linux-arm64-jetson.json)
-            echo "found an operator-attached Jetson record; it is validated against THIS release's artifacts"
-          fi
           mkdir -p out
+          # Hosted records are checked against this release's own SHA256SUMS.
+          # The Jetson row stays NOT QUALIFIED at publish: real-hardware
+          # evidence is attached to the PUBLISHED release and promoted by
+          # promote-release.yml (docs/how-to/qualify-a-release.md).
           python3 -I packaging/qualify.py aggregate \
             --platforms packaging/qualification-platforms.json --records records \
             --dist-sums dist/SHA256SUMS --version "$VERSION" --commit "$TAG_SHA" \
+            --attested "$ATTEST" \
             --signing-note "unsigned (no Apple Developer ID / Authenticode signing is configured)" \
             --provenance-note "Build provenance is attested by this publish run and verified before the release is created." \
-            "${args[@]}" --out-json out/qualification.json --out-md out/QUALIFICATION.md > /dev/null
+            --out-json out/qualification.json --out-md out/QUALIFICATION.md > /dev/null
           ready=$(python3 -I -c 'import json;print("true" if json.load(open("out/qualification.json"))["release_ready"] else "false")')
-          jet=$(python3 -I -c 'import json;print([p["status"] for p in json.load(open("out/qualification.json"))["platforms"] if p["id"]=="linux-arm64-jetson"][0])')
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
-          echo "jetson=$jet" >> "$GITHUB_OUTPUT"
-          echo "release_ready=$ready jetson=$jet"
+          echo "release_ready=$ready"
           cp out/QUALIFICATION.md "$GITHUB_STEP_SUMMARY"
 
       - name: Signing status (optional steps; secrets are only tested for presence, never printed)
@@ -306,28 +295,12 @@ jobs:
           echo "verified=true" >> "$GITHUB_OUTPUT"
 
       - name: Assemble the release notes
-        env:
-          READY: ${{ steps.qual.outputs.ready }}
-          JETSON: ${{ steps.qual.outputs.jetson }}
         run: |
           set -euo pipefail
           {
             echo "Gauntlet ${VERSION} — native packages, built from commit \`${TAG_SHA}\`."
             echo
-            echo "## Platform readiness"
-            echo
-            if [ "$READY" = "true" ]; then
-              echo "Every platform claimed as supported is QUALIFIED (record: \`qualification.json\`)."
-            else
-              echo "**NOT production-ready: this is a PRERELEASE.** At least one claimed platform is not QUALIFIED; nothing below is presented as production-ready without its record."
-            fi
-            echo
-            if [ "$JETSON" != "QUALIFIED" ]; then
-              echo "**Jetson: NOT QUALIFIED (no real-hardware evidence)** — hosted ubuntu-22.04-arm results qualify linux-arm64 (generic) only."
-              echo
-            fi
-            sed -n '/^| Platform | Status/,/^$/p' out/QUALIFICATION.md
-            echo "Signing: **unsigned** (no Apple Developer ID, no Authenticode)."
+            python3 -I packaging/qualify.py notes --json out/qualification.json --attested "$ATTEST"
             echo
             echo "Full records: \`qualification.json\` and \`QUALIFICATION.md\` (release assets). How to read them: [docs/how-to/qualify-a-release.md](https://github.com/${GITHUB_REPOSITORY}/blob/${TAG}/docs/how-to/qualify-a-release.md)."
             echo
@@ -381,6 +354,7 @@ jobs:
             dist/built-from-*.txt
             out/qualification.json
             out/QUALIFICATION.md
+            records/qualification-*.json
           )
           # A release is only ever "latest/production" when every claimed
           # platform is QUALIFIED AND this run attested the tagged commit; otherwise it
