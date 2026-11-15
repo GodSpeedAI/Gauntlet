@@ -1,0 +1,74 @@
+{
+  "artifacts": [
+    {
+      "name": "gauntlet_0.1.0_arm64.deb",
+      "sha256": "609d0cfee5ef22d8c8d18283dd3a9736dc841d36284efa37840479293ab2d6b0"
+    },
+    {
+      "name": "gauntlet-0.1.0-aarch64-unknown-linux-gnu.tar.gz",
+      "sha256": "681518f7c14777542cf0fdb14ff9eeda095348dc43c35b52cf4860f115e290e9"
+    }
+  ],
+  "commit": "00aff32b53418229be218b65ddd2f3a3f1cf3a01",
+  "evidence": "real-hardware",
+  "host": {
+    "arch": "arm64",
+    "detail": "NVIDIA Jetson AGX Orin Developer Kit; # R36 (release), REVISION: 5.0, GCID: 43688277, BOARD: generic, EABI: aarch64, DATE: Fri Jan 16 03:50:45 UTC 2026",
+    "os": "linux"
+  },
+  "mode": "tarball",
+  "platform": "linux-arm64-jetson",
+  "required_steps": [
+    "checksums",
+    "tarball_install",
+    "smoke",
+    "governed_run",
+    "uninstall"
+  ],
+  "runner_image": "Jetson AGX Orin, Ubuntu 22.04.5, L4T R36.5.0",
+  "schema": "gauntlet.qualification/1",
+  "status": "PARTIAL",
+  "steps": [
+    {
+      "name": "checksums",
+      "reason": "",
+      "status": "PASS"
+    },
+    {
+      "name": "provenance",
+      "reason": "no --attest-repo given (offline or operator run); verify with gh attestation verify manually",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "tarball_install",
+      "reason": "payload runs: gauntlet 0.1.0",
+      "status": "PASS"
+    },
+    {
+      "name": "install",
+      "reason": ".deb install needs sudo, which this host does not allow unattended; the tarball was installed into a user prefix in tarball_install",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "upgrade",
+      "reason": ".deb upgrade needs sudo, which this host does not allow unattended (tarball mode)",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "smoke",
+      "reason": "--version, doctor (in fixture project), agent doctor, packaging smoke",
+      "status": "PASS"
+    },
+    {
+      "name": "governed_run",
+      "reason": "the mock adapter resolves its scenario fixtures from the BUILD host's source path (compile-time CARGO_MANIFEST_DIR), which does not exist on this host: a relocated package cannot run the mock loop (product limitation, not a package failure)",
+      "status": "NOT_RUN"
+    },
+    {
+      "name": "uninstall",
+      "reason": "prefix removed; project, run state and evidence kept (system packages untouched)",
+      "status": "PASS"
+    }
+  ],
+  "version": "0.1.0"
+}

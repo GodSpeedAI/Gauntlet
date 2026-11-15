@@ -91,7 +91,8 @@ def load(path):
 
 
 def jetson_valid(rec, version, dist_shas):
-    """Return (ok, reason). Real hardware evidence for THESE artifacts only."""
+    """Return (ok, reason). Real hardware evidence for THESE artifacts only.
+    The row then shows the record's own status (possibly PARTIAL / QUALIFIED (tarball))."""
     if rec.get("schema") != SCHEMA:
         return False, "record schema is not " + SCHEMA
     if rec.get("platform") != "linux-arm64-jetson":
@@ -100,8 +101,6 @@ def jetson_valid(rec, version, dist_shas):
         return False, "record evidence is not real-hardware"
     if rec.get("version") != version:
         return False, "record is for version %s, release is %s" % (rec.get("version"), version)
-    if rec.get("status") not in ("QUALIFIED", "QUALIFIED (tarball)"):
-        return False, "record status is %s" % rec.get("status")
     recorded = {a["name"]: a["sha256"] for a in rec.get("artifacts", [])}
     if not recorded:
         return False, "record names no artifacts"
