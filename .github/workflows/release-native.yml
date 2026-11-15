@@ -21,9 +21,8 @@ name: Release (native packages)
 # attestation honestly — an attestation naming the wrong commit is worse than
 # none.
 #
-# Supply-chain note (mirrors ci.yml): third-party actions are pinned to
-# floating major tags here; resolve them to commit SHAs per repository
-# supply-chain policy before merge.
+# Supply-chain note: every third-party action is pinned to a full commit SHA
+# (the trailing comment names the tag it was resolved from on 2026-11-15).
 
 on:
   push:
@@ -40,9 +39,11 @@ permissions:
   contents: read
 
 concurrency:
-  # A release pipeline is never cancelled mid-run: group per tag, no
-  # cancel-in-progress. Re-runs queue behind each other.
-  group: release-native-${{ github.ref }}
+  # A release pipeline is never cancelled mid-run. The group is the TAG being
+  # released (the dispatch input, or the pushed tag), so a dispatch and a push
+  # for the same tag can never publish concurrently. GitHub keeps one pending
+  # run per group: a newer pending run replaces an older pending one.
+  group: release-native-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -87,7 +88,7 @@ jobs:
           echo "release tag: $tag"
 
       - name: Checkout the tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ steps.ident.outputs.tag }}
           persist-credentials: false
@@ -122,14 +123,14 @@ jobs:
           # trigger commit is not fetched, peeling fails, and attest stays
           # false — an attestation naming the wrong commit is worse than none.
           github_sha_peeled=$(git rev-parse "${GITHUB_SHA}^{commit}" 2>/dev/null || true)
+          attest=false
           if [ -n "$github_sha_peeled" ] && [ "$github_sha_peeled" = "$tag_sha" ]; then
-            echo "attest=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "attest=false" >> "$GITHUB_OUTPUT"
+            attest=true
           fi
+          echo "attest=$attest" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag_sha=$tag_sha" >> "$GITHUB_OUTPUT"
-          echo "validated: $TAG -> version $version at commit $tag_sha (attest=$(cat "$GITHUB_OUTPUT/attest" 2>/dev/null || echo false))"
+          echo "validated: $TAG -> version $version at commit $tag_sha (attest=$attest)"
 
   package:
     name: package (all platforms at the tag)
@@ -157,14 +158,14 @@ jobs:
       ATTEST: ${{ needs.validate.outputs.attest }}
     steps:
       - name: Download all package artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: pkg-*
           path: dist
           merge-multiple: true
 
       - name: Download the release meta (combined SHA256SUMS, built-from, summary)
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-meta
           path: dist
@@ -244,7 +245,7 @@ jobs:
 
       - name: Attach build provenance (only when this run built the tag commit)
         if: needs.validate.outputs.attest == 'true'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-path: |
             dist/*.deb
@@ -276,8 +277,10 @@ jobs:
             dist/built-from-*.txt
           )
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo "release $TAG already exists; uploading assets with --clobber"
+            echo "release $TAG already exists; uploading assets with --clobber and refreshing the notes"
             gh release upload "$TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+            # The notes carry the SHA-256 table and the provenance statement of THIS run's assets.
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
           else
             gh release create "$TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \

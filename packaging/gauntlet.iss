@@ -65,6 +65,14 @@ Source: "{#BinDir}\gauntlet-workbench.exe"; DestDir: "{app}"; Flags: ignoreversi
 Source: "{#LicenseFile}"; DestDir: "{app}"; DestName: "LICENSE"; Flags: ignoreversion
 Source: "{#BinDir}\RELEASE-NOTES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
+#ifndef IncludeWorkbench
+; Both variants share one AppId, and Inno Setup keeps files an upgrade no longer
+; ships. A CLI-only install over a full install must not leave an older,
+; unqualified workbench next to the new CLI on PATH.
+[InstallDelete]
+Type: files; Name: "{app}\gauntlet-workbench.exe"
+#endif
+
 [Code]
 // Removes every PATH entry equal (case-insensitively) to Entry and returns the rest.
 function RemovePathEntry(const PathValue, Entry: string): string;

@@ -13,7 +13,7 @@ Every release carries these assets on the GitHub Release tagged
 |---|---|
 | Linux amd64 | `gauntlet_<version>_amd64.deb`, `gauntlet-<version>-x86_64-unknown-linux-gnu.tar.gz` |
 | Linux arm64 | `gauntlet_<version>_arm64.deb`, `gauntlet-<version>-aarch64-unknown-linux-gnu.tar.gz` |
-| macOS | `gauntlet-<version>-macos-universal.pkg` / `.dmg` (or `-macos-arm64` when the x86_64 CLI slice could not be built; the label describes the CLI — the workbench inside is arm64-only in every shape) |
+| macOS | `gauntlet-<version>-macos-universal.pkg` / `.dmg` (release builds always lipo the x86_64 and arm64 CLI slices; a local `packaging/macos/build.sh` run without an x86_64 slice produces `-macos-arm64`. The label describes the CLI — the workbench inside is arm64-only in every shape) |
 | Windows x64 | `gauntlet-<version>-x86_64-pc-windows-msvc-setup.exe`, `.zip` |
 | All | `SHA256SUMS`, `built-from-<os>.txt` (the exact commit each artifact was built from) |
 

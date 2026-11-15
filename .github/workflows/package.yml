@@ -31,9 +31,8 @@ name: Package (native)
 # qualified), and any darwin-x64 cross build ships only as
 # pkg-macos-workbench-unqualified.
 #
-# Supply-chain note (mirrors ci.yml): third-party actions are pinned to
-# floating major tags here; resolve them to commit SHAs per repository
-# supply-chain policy before merge.
+# Supply-chain note: every third-party action is pinned to a full commit SHA
+# (the trailing comment names the tag it was resolved from on 2026-11-15).
 
 on:
   workflow_call:
@@ -112,7 +111,7 @@ jobs:
             bun_target: bun-linux-arm64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.ref || '' }}
           persist-credentials: false
@@ -127,10 +126,12 @@ jobs:
           echo "Building Gauntlet ${version} from $(git rev-parse HEAD)"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.4.0"
 
@@ -242,7 +243,7 @@ jobs:
         run: git rev-parse HEAD > "dist/built-from-linux-${ARCH}.txt"
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pkg-linux-${{ matrix.arch }}
           path: |
@@ -261,7 +262,7 @@ jobs:
       label: ${{ steps.variant.outputs.label }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.ref || '' }}
           persist-credentials: false
@@ -276,12 +277,13 @@ jobs:
           echo "Building Gauntlet ${version} from $(git rev-parse HEAD)"
 
       - name: Install Rust toolchain (both darwin targets)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
         with:
+          toolchain: stable
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.4.0"
 
@@ -348,14 +350,16 @@ jobs:
         # every shape (build.sh refuses an x64-stage workbench).
         run: |
           set -euo pipefail
+          # The x86_64 CLI slice comes from a hard build step, so it always exists and the CLI is always
+          # universal. The optional darwin-x64 WORKBENCH cross build does not affect the label: the pkg's
+          # workbench is arm64-only in every shape.
+          test -x target/x86_64-apple-darwin/release/gauntlet
+          echo "label=universal" >> "$GITHUB_OUTPUT"
+          echo "x64stage=stage-x64" >> "$GITHUB_OUTPUT"
           if [ "$X86WB_OUTCOME" = "success" ]; then
-            echo "label=universal" >> "$GITHUB_OUTPUT"
-            echo "x64stage=stage-x64" >> "$GITHUB_OUTPUT"
-            echo "::notice::darwin-x64 workbench cross build succeeded; the pkg workbench stays arm64-only and the cross build ships ONLY as the separate pkg-macos-workbench-unqualified artifact (never launch-qualified)"
+            echo "::notice::darwin-x64 workbench cross build succeeded; it ships ONLY as the separate pkg-macos-workbench-unqualified artifact (never launch-qualified)"
           else
-            echo "::warning::darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; the CLI ships arm64-only (honest label, never mislabeled universal)"
-            echo "label=arm64" >> "$GITHUB_OUTPUT"
-            echo "x64stage=" >> "$GITHUB_OUTPUT"
+            echo "::warning::darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; no unqualified x64 workbench artifact this run (the universal CLI is unaffected)"
           fi
 
       - name: Stage the x86_64 CLI slice (CLI only — never the workbench)
@@ -465,15 +469,16 @@ jobs:
             echo "### macOS (${LABEL})"
             echo "- Packages are UNSIGNED and not notarized (no Apple Developer ID)."
             echo "- The workbench inside the pkg is arm64-ONLY in every shape: built via release-manifest.ts AND real-PTY qualified on this host. The universal/arm64 label describes the CLI composition (lipo of the arm64 + x86_64 CLI slices), never the workbench."
-            if [ "$LABEL" = "universal" ]; then
-              echo "- Universal CLI: the x86_64 CLI slice was staged for the lipo; the cross-built darwin-x64 workbench was NOT launch-qualified and ships ONLY as the separate pkg-macos-workbench-unqualified artifact (with UNQUALIFIED-README-macos.txt) — never inside the pkg."
+            echo "- Universal CLI: the x86_64 CLI slice (a hard build step) is always staged for the lipo."
+            if [ "$X86WB_OUTCOME" = "success" ]; then
+              echo "- The cross-built darwin-x64 workbench was NOT launch-qualified and ships ONLY as the separate pkg-macos-workbench-unqualified artifact (with UNQUALIFIED-README-macos.txt) — never inside the pkg."
             else
-              echo "- arm64-only CLI: the darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; no x86_64 stage was assembled and no separate artifact was produced."
+              echo "- The optional darwin-x64 workbench cross build outcome was ${X86WB_OUTCOME}; no separate unqualified workbench artifact was produced."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pkg-macos
           path: |
@@ -486,7 +491,7 @@ jobs:
 
       - name: Upload the unqualified darwin-x64 workbench artifact
         if: steps.variant.outputs.x64stage != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pkg-macos-workbench-unqualified
           path: |
@@ -503,7 +508,7 @@ jobs:
       workbench_qualified: ${{ steps.wbqual.outcome == 'success' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.ref || '' }}
           persist-credentials: false
@@ -518,10 +523,12 @@ jobs:
           echo "Building Gauntlet ${version} from $(git rev-parse HEAD)"
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.4.0"
 
@@ -805,7 +812,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pkg-windows
           path: |
@@ -818,7 +825,7 @@ jobs:
 
       - name: Upload the unqualified workbench artifact
         if: steps.wbqual.outcome != 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pkg-windows-workbench-unqualified
           path: |
@@ -839,7 +846,7 @@ jobs:
       WINDOWS_RESULT: ${{ needs.windows.result }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.ref || '' }}
           persist-credentials: false
@@ -855,7 +862,7 @@ jobs:
       - name: Download all package artifacts
         id: download
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: pkg-*
           path: dist
@@ -933,10 +940,11 @@ jobs:
             have "dist/gauntlet-${VERSION}-macos-*.dmg" || { echo "::error::missing macos .dmg (universal or arm64)"; exit 1; }
             # macOS ships one of two shapes; the workbench inside the pkg is
             # arm64-only in BOTH (build.sh refuses an x64-stage workbench):
-            #   universal CLI: the cross-built darwin-x64 workbench is
+            #   with the optional darwin-x64 workbench cross build: it is
             #     published ONLY as pkg-macos-workbench-unqualified
             #     (exe + UNQUALIFIED-README-macos.txt), never in the pkg;
-            #   arm64-only CLI: no x64 stage and no separate artifact.
+            #   without it: no separate artifact. The CLI is universal in both
+            #     (CI); build.sh still names an arm64-only local build -macos-arm64.
             # The pkg/dmg shape is mechanically guaranteed by the macos job:
             # build.sh is a hard step there, so a green macos job means
             # build.sh exited 0 and the x64-workbench refusal held.
@@ -1058,7 +1066,7 @@ jobs:
           echo "all 3 platform jobs succeeded — the full assertion set ran"
 
       - name: Upload release meta
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-meta
           path: |

@@ -223,7 +223,8 @@ try {
     else {
         $wbCwd = Join-Path $work 'workbench-cwd'
         $projection = Join-Path $work 'projection/projections.db'
-        New-Item -ItemType Directory -Force -Path $wbCwd, $projection | Out-Null
+        # The projection path is the database FILE; only its parent directory is created.
+        New-Item -ItemType Directory -Force -Path $wbCwd, (Split-Path -Parent $projection) | Out-Null
 
         $proc = [System.Diagnostics.Process]::new()
         $started = $false
