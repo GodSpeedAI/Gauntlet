@@ -466,12 +466,15 @@ s_uninstall() {
 }
 step uninstall s_uninstall
 
+required_steps=""
+# macOS ships a .pkg/.dmg only: there is no tarball payload to qualify.
+[ "$os" = macos ] && required_steps="checksums,install,smoke,governed_run,uninstall"
 # ── record ───────────────────────────────────────────────────────────────
 # Make sure the step list always names install_previous only when it failed
 "$PY" "$here/qualify.py" record "$steps" "$out" \
     "platform=$platform" "evidence=$evidence" "version=$version" "commit=$commit" \
     "runner_image=$runner_image" "os=$os" "arch=$arch" "detail=$detail" \
-    "artifacts=$artifacts_meta" "mode=$mode" || exit 2
+    "artifacts=$artifacts_meta" "mode=$mode" "required=$required_steps" || exit 2
 cat "$out"
 echo "qualify: RECORD: $out"
 if grep -q '"status": "NOT QUALIFIED"' "$out"; then exit 1; fi
