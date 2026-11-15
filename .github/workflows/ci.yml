@@ -1,14 +1,11 @@
 name: CI
 
-# Enforces the EXISTING repository gate set (`just ci`: check test lint deny
-# boundaries ruler) on every PR into main, every push to main, and manual
-# runs. No new test logic and no parallel command surface: this workflow only
-# invokes the recipes the repository already defines, in their canonical
-# order, with the ruler last.
-#
-# Hardening note before merge: pin third-party actions by commit SHA (the
-# checkout action already is); tag pins below should be resolved to SHAs per
-# repository supply-chain policy.
+# Every gate is a separately named job so a failure is visible per gate. Each
+# job only invokes recipes the repository already defines in the justfile (no
+# parallel command surface). `gates (ubuntu)` is an aggregate that fails unless
+# every job below succeeded, so it stays a stable single required check.
+# All third-party actions are pinned to full commit SHAs (tag in the comment).
+# Dependabot (github-actions) keeps the pins current.
 
 on:
   pull_request:
@@ -21,49 +18,204 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  gates:
-    name: gates (ubuntu)
+  rust-lint:
+    name: rust-lint (fmt + clippy -D warnings)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Install pinned stable toolchain
-        uses: dtolnay/rust-toolchain@stable # resolve to commit SHA per supply-chain policy before merge
         with:
+          persist-credentials: false
+      - name: Install Rust toolchain (stable, explicit)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
           components: clippy, rustfmt
-
       - name: Install just
-        uses: extractions/setup-just@v2 # resolve to commit SHA per supply-chain policy before merge
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
+      - name: "Fetch locked dependencies"
+        run: cargo fetch --locked
+      - name: "just lint (clippy -D warnings, cargo fmt --check)"
+        run: just lint
 
+  rust-check-test:
+    name: rust-check-test (check + nextest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain (stable, explicit)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
+      - name: Install just
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
       - name: Install bubblewrap (sandbox backend the e2e fixtures configure)
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
           # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; bwrap needs them (disposable VM).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --version && bwrap --ro-bind / / true && echo "bwrap usable"
-
-      - name: Setup Bun (the Codemode tool-program tests run on bun)
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Bun (pinned 1.4.0)
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: "1.4.0"
-
       - name: Install workbench dependencies (frozen)
         working-directory: workbench
         run: bun install --frozen-lockfile
-
-      - name: Install cargo-nextest and cargo-deny
-        uses: taiki-e/install-action@v2 # resolve to commit SHA per supply-chain policy before merge
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2
         with:
-          tool: cargo-nextest,cargo-deny
-
-      - name: Fetch locked dependencies
+          tool: cargo-nextest
+      - name: "Fetch locked dependencies"
         run: cargo fetch --locked
+      - name: "just check"
+        run: just check
+      - name: "just test (nextest workspace + surfaces; starts pg0)"
+        run: just test
 
-      - name: "gates (just ci: check test lint deny boundaries ruler)"
-        run: just ci
+  cargo-deny:
+    name: cargo-deny (advisories, licenses, bans, sources)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain (stable, explicit)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
+      - name: Install just
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2
+        with:
+          tool: cargo-deny
+      - name: "just deny"
+        run: just deny
+
+  boundaries:
+    name: boundaries (architecture)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain (stable, explicit)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
+      - name: Install just
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2
+        with:
+          tool: cargo-nextest
+      - name: "Fetch locked dependencies"
+        run: cargo fetch --locked
+      - name: "just boundaries"
+        run: just boundaries
+
+  ruler:
+    name: ruler (frozen answer key)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install just
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
+      - name: "just ruler"
+        run: just ruler
+
+  workbench:
+    name: workbench (bun typecheck, lint, tests incl. secret-leakage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install just
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
+      - name: Setup Bun (pinned 1.4.0)
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.0"
+      - name: Install workbench dependencies (frozen)
+        working-directory: workbench
+        run: bun install --frozen-lockfile
+      - name: "just tui-check (tsc --noEmit)"
+        run: just tui-check
+      - name: "just tui-lint (biome)"
+        run: just tui-lint
+      - name: "bun test (full workbench suite, includes secret-leakage.test.ts)"
+        run: just tui-test
+      - name: "secret-leakage test (explicit, must select tests)"
+        run: just tui-test secret-leakage
+
+  regression:
+    name: regression (workbench conformance + preflight)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install just
+        uses: extractions/setup-just@dd310ad5a97d8e7b41793f8ef055398d51ad4de6 # v2
+      - name: Setup Bun (pinned 1.4.0)
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.0"
+      - name: Install workbench dependencies (frozen)
+        working-directory: workbench
+        run: bun install --frozen-lockfile
+      - name: "just tui-preflight bootstrap"
+        run: just tui-preflight bootstrap
+      - name: "just tui-test all (normative conformance registry)"
+        run: just tui-test all
+      - name: Record NOT_RUN suites
+        if: always()
+        run: |
+          {
+            echo "### regression NOT_RUN"
+            echo "- \`just tui-preflight conformance\`: NOT_IMPLEMENTED upstream (needs Prime host, projection store and terminal matrix); not run."
+            echo "- Hardware- or credential-gated batteries (opt-in env vars, real paid agents, real sandbox backends beyond bubblewrap) are skipped by the suites themselves and shown as per-suite skip counts in the \`just tui-test all\` table."
+            echo "- \`just coverage\`, \`just mutation\`, \`just tui-bench\`: not CI gates; not run."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  gates:
+    name: gates (ubuntu)
+    if: always()
+    needs: [rust-lint, rust-check-test, cargo-deny, boundaries, ruler, workbench, regression]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every gate job to have succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for r in $RESULTS; do
+            [ "$r" = "success" ] || { echo "::error::a gate job finished as $r"; exit 1; }
+          done

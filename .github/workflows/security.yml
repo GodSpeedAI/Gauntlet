@@ -1,0 +1,108 @@
+name: Security
+
+# dependency-review on PRs and a gitleaks secret scan of the commits a PR (or push) introduces.
+# Vulnerability advisories (RustSec) are enforced by `cargo deny check` (the `cargo-deny` job in
+# ci.yml reads deny.toml [advisories]); cargo audit is deliberately not run, it would duplicate it.
+# CodeQL runs via the repository's default setup, not a workflow here.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+
+jobs:
+  dependency-review:
+    name: dependency-review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Probe dependency graph
+        id: graph
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/dependency-graph/sbom" >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dependency review (fails on critical)
+        if: steps.graph.outputs.enabled == 'true'
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: critical
+
+      - name: Record NOT_RUN when the dependency graph is disabled
+        if: steps.graph.outputs.enabled != 'true'
+        run: |
+          echo "### dependency-review NOT_RUN" >> "$GITHUB_STEP_SUMMARY"
+          echo "The repository's dependency graph is disabled (Settings > Advanced Security), so the action cannot run. It starts enforcing automatically once the graph is enabled." >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning::dependency-review NOT_RUN: dependency graph disabled on this repository"
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks (checksum verified)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/gitleaks"; mkdir -p "$d"
+          gh release download "v${GITLEAKS_VERSION}" -R gitleaks/gitleaks -D "$d" \
+            -p "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -p "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          (cd "$d" && grep -F "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -)
+          tar -xzf "$d/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -C "$d" gitleaks
+          echo "$d" >> "$GITHUB_PATH"
+
+      - name: Scan introduced commits
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          zero=0000000000000000000000000000000000000000
+          case "$EVENT" in
+            pull_request) range="${BASE_SHA}..${HEAD_SHA}" ;;
+            push) if [ "$BEFORE_SHA" = "$zero" ]; then range=""; else range="${BEFORE_SHA}..${PUSH_SHA}"; fi ;;
+            *) range="" ;;  # schedule / dispatch: whole history
+          esac
+          if [ -n "$range" ]; then
+            gitleaks git --no-banner --redact --log-opts="$range" .
+          else
+            gitleaks git --no-banner --redact .
+          fi
