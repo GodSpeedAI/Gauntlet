@@ -27,6 +27,10 @@ const COMMAND_TABLE: &[CommandRow] = &[
         wired: true,
     },
     CommandRow {
+        name: "agent",
+        wired: true,
+    },
+    CommandRow {
         name: "init",
         wired: true,
     },

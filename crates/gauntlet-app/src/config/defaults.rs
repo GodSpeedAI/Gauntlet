@@ -208,6 +208,11 @@ pub const DIGEST_ALGO: &str = "sha256";
 pub const HARNESS_VERSION_MIN: (u64, u64, u64) = (0, 8, 0);
 /// See [`HARNESS_VERSION_MIN`] — the exclusive upper bound.
 pub const HARNESS_VERSION_LIMIT: (u64, u64, u64) = (1, 0, 0);
+/// The harness version `gauntlet agent setup` pins when it runs an
+/// opt-in install (WP-63). It must sit inside the supported range above
+/// (a test enforces it); like the range it is moved only by a deliberate,
+/// recorded re-verification, here.
+pub const HARNESS_VERSION_PINNED: (u64, u64, u64) = (0, 10, 2);
 
 // ---------------------------------------------------------------------------
 // Repository-layout name vocabulary (§25 layout, §8.2 example values, AGENTS

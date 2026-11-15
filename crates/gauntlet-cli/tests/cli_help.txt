@@ -1,5 +1,7 @@
 gauntlet <version> — see spec 20.1 for the full surface
 usage: gauntlet doctor [--config <path>] [--fabric-dir <path>]
+       gauntlet agent doctor
+       gauntlet agent setup <adapter> [--installer <path> --sha256 <hex>] [--yes]
        gauntlet init
        gauntlet reference digest --path <path>
        gauntlet reference validate --path <path>

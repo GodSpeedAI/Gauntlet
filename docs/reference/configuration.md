@@ -104,6 +104,7 @@ Any configuration key can be overridden via environment variables:
 | Variable | Description | Accepted Values |
 |---|---|---|
 | `GAUNTLET_AGENT_RUNNER` | Selects the active AgentRunner adapter. | `prime-agent`, `cli-agent`, `mock-agent` |
+| `PRIME_AGENT_BIN` | Full path of the optional Prime Agent binary (the harness's own variable, not an Annex E key). Tried before `PATH`; a set-but-missing path is an error. See [Set up Prime Agent](../how-to/set-up-prime-agent.md). | Filesystem path (optional) |
 | `GAUNTLET_CLI_AGENT_CMD` | Command template for the generic CLI runner. | E.g. `claude --prompt {prompt_file} --workspace {workspace}` |
 | `GAUNTLET_MOCK_SCENARIO` | Fixture stem for the mock runner adapter. | E.g. `happy_path`, `lying_builder`, `mutating_builder` |
 | `GAUNTLET_STATE_DIR` | Directory where run state and event logs live. | Filesystem path (default: `/tmp/gauntlet/state`) |

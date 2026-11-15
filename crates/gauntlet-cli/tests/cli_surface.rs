@@ -43,6 +43,7 @@ const GOLDEN_HELP: &str = include_str!("cli_help_surfaces.txt");
 #[cfg(not(feature = "surfaces"))]
 const COMMANDS: &[&str] = &[
     "doctor",
+    "agent",
     "init",
     "reference",
     "run",
@@ -61,6 +62,7 @@ const COMMANDS: &[&str] = &[
 #[cfg(feature = "surfaces")]
 const COMMANDS: &[&str] = &[
     "doctor",
+    "agent",
     "init",
     "reference",
     "run",
@@ -132,6 +134,7 @@ fn root_version_flags_print_the_cargo_version_and_exit_zero() {
 fn every_surface_command_dispatches_and_unknown_commands_are_usage_errors() {
     const COMMANDS: &[&str] = &[
         "doctor",
+        "agent",
         "init",
         "reference",
         "run",

@@ -120,6 +120,7 @@ fn run(world: &World, envs: &[(&str, &str)], args: &[&str]) -> Output {
         .env_remove("GAUNTLET_AGENT_RUNNER")
         .env_remove("GAUNTLET_MOCK_SCENARIO")
         .env_remove("GAUNTLET_CLI_AGENT_CMD")
+        .env_remove("PRIME_AGENT_BIN")
         .env_remove("GAUNTLET_PROJECT_ROOT")
         .env_remove("GAUNTLET_CONFIG_DIR")
         .env(
@@ -473,5 +474,59 @@ fn a_live_backend_wrap_verdict_is_routed_to_the_spawned_child_never_unwrapped() 
         dispatch.contains("tier-contained-compose-teeth"),
         "the dispatch ran under the admitted sandbox policy — wrapped, never unwrapped: \
          {dispatch}"
+    );
+}
+
+/// WP-63: a run that selects the optional harness while it is absent
+/// refuses with an actionable message and creates no run; it never
+/// crashes and never installs anything.
+#[test]
+fn the_harness_token_with_the_harness_absent_refuses_actionably() {
+    let world = World::new("harness-absent");
+    let empty_path = world.root.join("empty-path");
+    std::fs::create_dir_all(&empty_path).expect("empty PATH dir");
+    let output = run(
+        &world,
+        &[
+            ("GAUNTLET_AGENT_RUNNER", "prime-agent"),
+            ("PATH", &empty_path.display().to_string()),
+        ],
+        &["run", "seeded bounded task"],
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    assert!(!output.status.success(), "the run refuses: {stdout}");
+    assert!(
+        stderr.contains("Prime Agent not found") && stderr.contains("gauntlet agent setup"),
+        "the refusal is clear and actionable: {stderr}"
+    );
+    assert!(
+        !stdout.contains("run: run_id="),
+        "no run was created: {stdout}"
+    );
+}
+
+/// WP-63: the mock runner never consults the optional harness — a broken
+/// explicit harness path changes nothing about a mock selection (the
+/// refusal is the mock's own scenario hook, not a harness error).
+#[test]
+fn the_mock_token_never_consults_the_optional_harness() {
+    let world = World::new("mock-ignores-harness");
+    let output = run(
+        &world,
+        &[(
+            "PRIME_AGENT_BIN",
+            &world.root.join("missing-harness").display().to_string(),
+        )],
+        &["run", "seeded bounded task"],
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("GAUNTLET_MOCK_SCENARIO"),
+        "the mock's own refusal: {stderr}"
+    );
+    assert!(
+        !stderr.contains("Prime Agent"),
+        "the harness was never consulted for a mock selection: {stderr}"
     );
 }

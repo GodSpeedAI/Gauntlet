@@ -96,8 +96,11 @@ Optional capabilities — reported honestly by `gauntlet doctor`, never faked:
   silent fallback.
 - **bun**: needed only by the codemode tool-program host. The workbench
   executable is self-contained (Bun compiled standalone) and does not need it.
-- **prime-agent**: the delegation harness; when absent, `doctor` reports it and
-  delegation stays unavailable.
+- **prime-agent**: the delegation harness. It is optional and is **not
+  bundled** in any package, and no installer fetches it. When absent, `doctor`
+  reports it, delegation through `prime-agent` stays unavailable, and every
+  other adapter keeps working. Check it with `gauntlet agent doctor`; install
+  it only by choice, see [Set up Prime Agent](set-up-prime-agent.md).
 
 Commands resolve the Gauntlet project from the current working directory (the
 directory holding `GAUNTLET.md`; `GAUNTLET_PROJECT_ROOT` overrides it).

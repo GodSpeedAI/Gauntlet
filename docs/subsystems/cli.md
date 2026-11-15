@@ -93,6 +93,7 @@ pub fn build_controller(ctx: &RuntimeContext) -> Result<RunController, ComposeEr
 
 | Command | Module | Functionality |
 |---|---|---|
+| `gauntlet agent doctor` / `gauntlet agent setup <adapter>` | [`agent_cmd.rs`](../../crates/gauntlet-cli/src/agent_cmd.rs) | Per-adapter status; opt-in, confirmation-gated setup of the optional Prime Agent (never bundled, never silent). |
 | `gauntlet doctor` | [`doctor_cmd.rs`](../../crates/gauntlet-cli/src/doctor_cmd.rs) | Runs the 8 preflight checks; exits non-zero on failure. |
 | `gauntlet init` | [`init_cmd.rs`](../../crates/gauntlet-cli/src/init_cmd.rs) | Generates repository skeleton (`.wayfinder/`, `GAUNTLET.md`, `.gauntlet/`). |
 | `gauntlet reference` | [`reference_cmd.rs`](../../crates/gauntlet-cli/src/reference_cmd.rs) | Manages reference lifecycle: `digest`, `validate`, `form`, `freeze`, `show`, `diff`, `verify`. |
