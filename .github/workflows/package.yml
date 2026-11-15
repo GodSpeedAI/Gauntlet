@@ -47,13 +47,13 @@ on:
         type: boolean
         required: false
         default: false
+  # A manual dispatch builds the ref selected in "Use workflow from" (branches
+  # and tags). It deliberately takes no free-form ref input: checking out an
+  # arbitrary caller-named ref and executing it is the pattern CodeQL flags as
+  # untrusted-code execution. Release builds pass a validated tag via
+  # workflow_call from release-native.yml instead.
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Git ref to build. Empty builds the selected branch/commit."
-        type: string
-        required: false
-        default: ""
       upload:
         description: "True for release-candidate runs whose artifacts must never be cancelled mid-build."
         type: boolean
@@ -256,7 +256,7 @@ jobs:
 
   macos:
     name: package (macos)
-    runs-on: macos-14
+    runs-on: macos-15  # macos-14 images are no longer accepted ("configuration ... not supported")
     timeout-minutes: 60
     outputs:
       label: ${{ steps.variant.outputs.label }}
