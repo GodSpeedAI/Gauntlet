@@ -137,6 +137,7 @@ pub mod envfile;
 pub mod escapes;
 pub mod literals;
 pub mod optimizer;
+pub mod packaging;
 pub mod single_writer;
 pub mod text;
 pub mod walk;

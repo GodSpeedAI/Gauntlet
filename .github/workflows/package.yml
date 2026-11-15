@@ -222,6 +222,9 @@ jobs:
             "$work/gauntlet-${VERSION}-${TARGET}/gauntlet-workbench"
           rm -rf "$work"
 
+      - name: Assert Prime Agent is not packaged (optional dependency, never bundled)
+        run: sh packaging/assert-no-prime-agent.sh stage dist/*.deb dist/*.tar.gz
+
       - name: Per-arch checksums
         env:
           ARCH: ${{ matrix.arch }}
@@ -441,6 +444,9 @@ jobs:
           sudo rm -rf /usr/local/share/doc/gauntlet
           sudo pkgutil --forget ai.godspeed.gauntlet >/dev/null 2>&1 || true
           test ! -e /usr/local/bin/gauntlet
+
+      - name: Assert Prime Agent is not packaged (optional dependency, never bundled)
+        run: sh packaging/assert-no-prime-agent.sh stage-arm64 dist/*.pkg dist/*.dmg
 
       - name: Checksums
         run: |
@@ -774,6 +780,10 @@ jobs:
           $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
           if (($userPath -split ';') -contains $app) { throw 'user PATH still contains the install dir' }
           Write-Host "uninstall: gauntlet.exe removed, gauntlet-workbench.exe absent, user PATH entry removed (installer included the workbench: $wbQualified)"
+
+      - name: Assert Prime Agent is not packaged (optional dependency, never bundled)
+        shell: bash
+        run: sh packaging/assert-no-prime-agent.sh stage dist/*.zip dist/*-setup.exe
 
       - name: Checksums
         shell: bash
