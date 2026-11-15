@@ -1705,6 +1705,73 @@ pub fn scenario_fixtures_dir() -> std::path::PathBuf {
         .join("../../../tests/fixtures/mock_runner_scenarios")
 }
 
+/// Environment override: when set, scenarios are read from `<dir>/<stem>.yaml`
+/// on disk instead of the table compiled into the binary. Unset (the default)
+/// uses the embedded table, so a relocated or packaged install resolves its
+/// fixtures without any path that existed on the build host.
+pub const FIXTURES_DIR_VAR: &str = "GAUNTLET_MOCK_FIXTURES_DIR";
+
+/// Every scenario fixture, compiled into the binary (stem, YAML text). A
+/// unit test pins this table to the files in `scenario_fixtures_dir()` so a
+/// new fixture cannot be forgotten.
+const EMBEDDED_FIXTURES: &[(&str, &str)] = &[
+    (
+        "answer-key-write-attempt",
+        include_str!(
+            "../../../../tests/fixtures/mock_runner_scenarios/answer-key-write-attempt.yaml"
+        ),
+    ),
+    (
+        "critic-pass-without-evidence",
+        include_str!(
+            "../../../../tests/fixtures/mock_runner_scenarios/critic-pass-without-evidence.yaml"
+        ),
+    ),
+    (
+        "e2e-forged-report",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/e2e-forged-report.yaml"),
+    ),
+    (
+        "e2e-happy",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/e2e-happy.yaml"),
+    ),
+    (
+        "e2e-lying",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/e2e-lying.yaml"),
+    ),
+    (
+        "happy",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/happy.yaml"),
+    ),
+    (
+        "lying-builder",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/lying-builder.yaml"),
+    ),
+    (
+        "malformed",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/malformed.yaml"),
+    ),
+    (
+        "no-result",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/no-result.yaml"),
+    ),
+    (
+        "stale-envelope-digest",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/stale-envelope-digest.yaml"),
+    ),
+    (
+        "wrong-invocation-id",
+        include_str!("../../../../tests/fixtures/mock_runner_scenarios/wrong-invocation-id.yaml"),
+    ),
+];
+
+fn embedded_fixture(name: &str) -> Option<&'static str> {
+    EMBEDDED_FIXTURES
+        .iter()
+        .find(|(stem, _)| *stem == name)
+        .map(|(_, text)| *text)
+}
+
 /// Loads and parses one scenario fixture by stem (e.g. `"happy"`), also
 /// checking that the file's declared `scenario:` identity matches its stem.
 ///
@@ -1749,12 +1816,21 @@ pub fn load_scenario(name: &str) -> Result<Scenario, ScenarioError> {
              the scenario fixtures dir"
         )));
     }
-    let path = scenario_fixtures_dir().join(format!("{name}.yaml"));
-    let text =
-        std::fs::read_to_string(&path).map_err(|error| ScenarioError::FixtureUnreadable {
-            name: name.to_owned(),
-            detail: error.to_string(),
-        })?;
+    let text = match std::env::var_os(FIXTURES_DIR_VAR) {
+        Some(dir) => {
+            std::fs::read_to_string(std::path::Path::new(&dir).join(format!("{name}.yaml")))
+                .map_err(|error| ScenarioError::FixtureUnreadable {
+                    name: name.to_owned(),
+                    detail: error.to_string(),
+                })?
+        }
+        None => embedded_fixture(name).map(str::to_owned).ok_or_else(|| {
+            ScenarioError::FixtureUnreadable {
+                name: name.to_owned(),
+                detail: "no embedded scenario fixture has that name".to_owned(),
+            }
+        })?,
+    };
     let scenario = parse_scenario(&text)?;
     if scenario.name() != name {
         return Err(ScenarioError::NameMismatch {
@@ -1763,6 +1839,39 @@ pub fn load_scenario(name: &str) -> Result<Scenario, ScenarioError> {
         });
     }
     Ok(scenario)
+}
+
+#[cfg(test)]
+mod embedded_table_tests {
+    use super::{EMBEDDED_FIXTURES, scenario_fixtures_dir};
+
+    /// The compiled-in table is exactly the fixture directory: same stems,
+    /// same bytes. A fixture added on disk but missing here fails this test.
+    #[test]
+    fn the_embedded_table_matches_the_fixture_directory() {
+        let mut on_disk: Vec<String> = std::fs::read_dir(scenario_fixtures_dir())
+            .expect("fixture dir readable")
+            .filter_map(|entry| {
+                let path = entry.expect("entry").path();
+                (path.extension().and_then(|e| e.to_str()) == Some("yaml"))
+                    .then(|| path.file_stem().and_then(|s| s.to_str()).map(str::to_owned))
+                    .flatten()
+            })
+            .collect();
+        on_disk.sort();
+        let mut embedded: Vec<String> = EMBEDDED_FIXTURES
+            .iter()
+            .map(|(n, _)| (*n).to_owned())
+            .collect();
+        embedded.sort();
+        assert_eq!(on_disk, embedded);
+        for (stem, text) in EMBEDDED_FIXTURES {
+            let disk =
+                std::fs::read_to_string(scenario_fixtures_dir().join(format!("{stem}.yaml")))
+                    .expect("fixture readable");
+            assert_eq!(&disk, text, "embedded copy of {stem} differs from disk");
+        }
+    }
 }
 
 #[cfg(test)]

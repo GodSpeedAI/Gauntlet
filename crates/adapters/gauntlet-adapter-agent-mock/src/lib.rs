@@ -25,8 +25,8 @@ pub use deterministic_clock::DeterministicClock;
 pub use hooks::{CLOCK_TOKEN, EnvHookError, clock_from_env, id_generator_from_env};
 pub use runner::{MockAgentRunner, MockRunnerFactory};
 pub use scenario::{
-    ChildBehavior, Derailment, Scenario, ScenarioError, WorkspaceEffect, load_scenario,
-    parse_scenario, scenario_fixtures_dir,
+    ChildBehavior, Derailment, FIXTURES_DIR_VAR, Scenario, ScenarioError, WorkspaceEffect,
+    load_scenario, parse_scenario, scenario_fixtures_dir,
 };
 pub use seeded_ids::{EmptySeed, SeededIdGenerator};
 
