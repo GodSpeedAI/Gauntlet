@@ -376,7 +376,7 @@ jobs:
           ls -l stage-x64
 
       - name: Stage the unqualified darwin-x64 workbench artifact separately
-        if: steps.variant.outputs.x64stage != ''
+        if: steps.x86wb.outcome == 'success'  # optional workbench cross build only; the CLI x64 stage does not depend on it
         run: |
           set -euo pipefail
           mkdir -p wbu-macos
@@ -490,7 +490,7 @@ jobs:
           retention-days: 30
 
       - name: Upload the unqualified darwin-x64 workbench artifact
-        if: steps.variant.outputs.x64stage != ''
+        if: steps.x86wb.outcome == 'success'  # optional workbench cross build only; the CLI x64 stage does not depend on it
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: pkg-macos-workbench-unqualified
