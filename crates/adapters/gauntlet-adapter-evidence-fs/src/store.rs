@@ -441,6 +441,37 @@ fn write_durable(path: &Path, bytes: &[u8]) -> Result<(), EvidenceStoreError> {
 
 /// Renames are durable only once the directory entry is on disk; syncing the
 /// parent directory is what makes the write-once object survive a crash.
+///
+/// Windows: a directory handle needs FILE_FLAG_BACKUP_SEMANTICS and write
+/// access before `sync_all` (FlushFileBuffers) accepts it. A filesystem that
+/// cannot flush a directory handle at all (it answers "access denied" or
+/// "invalid function", e.g. some network or FAT volumes) is the one weaker
+/// case: there the rename is as durable as the volume's own metadata
+/// journaling makes it (NTFS journals it), and the write is not refused.
+/// Any other flush error fails the write, as on unix.
+#[cfg(windows)]
+fn sync_directory(dir: &Path) -> Result<(), EvidenceStoreError> {
+    use std::os::windows::fs::OpenOptionsExt;
+    /// FILE_FLAG_BACKUP_SEMANTICS (winbase.h): required to open a directory.
+    const BACKUP_SEMANTICS: u32 = 0x0200_0000;
+    /// ERROR_ACCESS_DENIED and ERROR_INVALID_FUNCTION (winerror.h).
+    const UNSUPPORTED: [i32; 2] = [5, 1];
+    let flushed = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .custom_flags(BACKUP_SEMANTICS)
+        .open(dir)
+        .and_then(|handle| handle.sync_all());
+    match flushed {
+        Ok(()) => Ok(()),
+        Err(err) if err.raw_os_error().is_some_and(|c| UNSUPPORTED.contains(&c)) => Ok(()),
+        Err(err) => Err(EvidenceStoreError::WriteFailed {
+            detail: format!("fsyncing directory {:?} failed: {err}", dir.display()),
+        }),
+    }
+}
+
+#[cfg(not(windows))]
 fn sync_directory(dir: &Path) -> Result<(), EvidenceStoreError> {
     std::fs::File::open(dir)
         .and_then(|handle| handle.sync_all())
@@ -500,6 +531,31 @@ mod tests {
     fn fixed_hex(seed: u8) -> String {
         let hashed = Sha256::digest([seed]);
         hashed.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    /// The directory sync after a rename succeeds on every OS (on Windows it
+    /// is a documented no-op: a directory cannot be opened for `sync_all`).
+    /// This is the regression test for "fsyncing directory ... Access is
+    /// denied" that failed every Windows `put`.
+    #[test]
+    fn syncing_a_directory_succeeds_on_every_os() {
+        let scratch = Scratch::new("syncdir");
+        sync_directory(&scratch.path).expect("directory sync succeeds on this OS");
+    }
+
+    /// End to end: a `put` (which renames and then syncs the parent
+    /// directory) lands and reads back on every OS.
+    #[test]
+    fn put_round_trips_through_the_directory_sync_on_every_os() {
+        let scratch = Scratch::new("putsync");
+        let store = FsEvidenceStore::open(&scratch.path).expect("store opens");
+        let reference = store
+            .put(b"durable bytes", EvidenceKind::Log, bound())
+            .expect("put succeeds, including its directory sync");
+        assert_eq!(
+            store.get(&reference, bound()).expect("get works"),
+            Some(b"durable bytes".to_vec())
+        );
     }
 
     /// Tooth (b), permanent half: a colliding digest with different bytes is

@@ -83,6 +83,10 @@ jobs:
       - name: "just check"
         run: just check
       - name: "just test (nextest workspace + surfaces; starts pg0)"
+        env:
+          # db-install fetches pg0 with `gh release download`; unauthenticated
+          # calls hit the shared-runner API rate limit (HTTP 403).
+          GH_TOKEN: ${{ github.token }}
         run: just test
 
   cargo-deny:

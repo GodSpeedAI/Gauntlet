@@ -1,0 +1,11 @@
+{
+  "comment": "Platforms Gauntlet claims as supported in docs/how-to/install-native-binaries.md. A release is production-ready only when every claimed platform is QUALIFIED. The Jetson row is QUALIFIED only from a real-hardware record (docs/how-to/qualify-a-release.md); hosted ubuntu-22.04-arm qualifies linux-arm64-generic only.",
+  "platforms": [
+    {"id": "windows-x64", "label": "Windows x64", "claimed": true},
+    {"id": "linux-amd64", "label": "Linux amd64 (Ubuntu 22.04)", "claimed": true},
+    {"id": "linux-arm64-generic", "label": "Linux arm64 (generic, hosted)", "claimed": true},
+    {"id": "linux-arm64-jetson", "label": "NVIDIA Jetson AGX Orin (real hardware only)", "claimed": true},
+    {"id": "macos-arm64", "label": "macOS arm64", "claimed": true},
+    {"id": "macos-x64", "label": "macOS Intel (x86_64)", "claimed": true, "unavailable_reason": "the macos-15-intel runner label may be unavailable to this repository; see the job log"}
+  ]
+}
