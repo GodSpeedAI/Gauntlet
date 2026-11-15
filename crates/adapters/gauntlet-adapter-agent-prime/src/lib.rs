@@ -36,6 +36,7 @@
 pub mod capability;
 pub mod clock;
 pub mod config;
+pub mod managed;
 pub mod mcp_bridge;
 pub mod probe;
 pub mod program;

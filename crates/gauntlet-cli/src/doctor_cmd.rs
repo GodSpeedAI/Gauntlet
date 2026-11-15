@@ -61,6 +61,16 @@ pub fn run(args: &[String]) -> ExitCode {
                 "codemode (optional): {}",
                 crate::context::measure_codemode().summary()
             );
+            // WP-63: the harness is optional; report it plainly (the per-adapter
+            // detail is `gauntlet agent doctor`). It never changes the exit
+            // status here: absence is not an error.
+            let harness_row =
+                crate::agent_cmd::adapter_report(&crate::agent_cmd::ReportInputs::from_env())
+                    .into_iter()
+                    .find(|row| row.token == gauntlet_adapter_agent_prime::RUNNER_TOKEN);
+            if let Some(row) = harness_row {
+                println!("{} (optional): {}", row.token, row.detail);
+            }
             println!("report: {}", path.display());
             let fabric_ok = fabric_dir
                 .as_deref()

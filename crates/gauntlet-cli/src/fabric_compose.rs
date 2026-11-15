@@ -714,7 +714,17 @@ fn build_runner(
     let workspace = workspace_root.to_path_buf();
     match spec.token {
         RunnerToken::Recursive => {
-            let config = prime_adapter_config(spec, deps);
+            let checked = crate::context::checked_recursive_config().map_err(|detail| {
+                CompositionError::Configuration {
+                    key: "runners.default",
+                    env: recursive_runner::managed::BINARY_ENV,
+                    detail,
+                }
+            })?;
+            let config = recursive_runner::PrimeAdapterConfig {
+                binary: checked.binary,
+                ..prime_adapter_config(spec, deps)
+            };
             let transport = recursive_runner::ProcessKernelTransport::new(
                 config.binary.clone(),
                 config.admission_timeout(),

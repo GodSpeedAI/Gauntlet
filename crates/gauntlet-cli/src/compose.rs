@@ -229,7 +229,13 @@ pub(crate) fn runner_for(
 ) -> Result<Arc<dyn AgentRunner>, CompositionError> {
     match token {
         recursive_runner::RUNNER_TOKEN => {
-            let config = recursive_runner::PrimeAdapterConfig::default();
+            let config = crate::context::checked_recursive_config().map_err(|detail| {
+                CompositionError::Configuration {
+                    key: "runners.default",
+                    env: recursive_runner::managed::BINARY_ENV,
+                    detail,
+                }
+            })?;
             let state_dir = context.state_dir().to_path_buf();
             let transport = recursive_runner::ProcessKernelTransport::new(
                 config.binary.clone(),

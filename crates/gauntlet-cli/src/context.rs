@@ -137,12 +137,39 @@ pub fn measure_codemode() -> gauntlet_adapter_tool_program_codemode::CodemodePro
     ))
 }
 
+/// The harness adapter configuration, gated on a detected and compatible
+/// install (WP-63). The harness is an optional dependency: when it is
+/// absent or incompatible the caller gets an actionable message instead
+/// of a spawn failure mid-run, and no other adapter is affected.
+pub fn checked_recursive_config() -> Result<gauntlet_adapter_agent_prime::PrimeAdapterConfig, String>
+{
+    gauntlet_adapter_agent_prime::managed::checked_config(
+        &crate::agent_cmd::supported_range(),
+        doctor_bound(),
+    )
+    .map_err(|error| error.to_string())
+}
+
 pub fn measure_runner(token: &str) -> Option<gauntlet_app::doctor::checks::RunnerDescriptor> {
     use gauntlet_adapter_agent_cli as generic_cli_runner;
     use gauntlet_adapter_agent_prime as recursive_runner;
 
     if token == recursive_runner::RUNNER_TOKEN {
-        let config = recursive_runner::PrimeAdapterConfig::default();
+        // WP-63: locate and version-check the optional harness first (explicit
+        // path, then PATH). An absent or incompatible install is an honest,
+        // actionable unmeasured descriptor naming both versions where they
+        // differ - never a spawn failure later.
+        let config = match checked_recursive_config() {
+            Ok(config) => config,
+            Err(detail) => {
+                return Some(gauntlet_app::doctor::checks::RunnerDescriptor {
+                    token: token.to_owned(),
+                    kind: gauntlet_app::doctor::checks::RunnerProbeKind::Capability,
+                    measured: false,
+                    note: Some(detail),
+                });
+            }
+        };
         let probe_config = recursive_runner::CapabilityProbeConfig::discover(&config.binary);
         let report = recursive_runner::probe_capabilities(&probe_config, doctor_bound());
 

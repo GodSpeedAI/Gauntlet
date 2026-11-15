@@ -18,6 +18,7 @@
 //! plan Task 23 (spec §19.3/§19.4), the baseline measurement harness
 //! with plan Task 26 (AK-069).
 
+pub mod agent_cmd;
 pub mod compose;
 pub mod context;
 pub mod deliver_cmd;
@@ -71,6 +72,7 @@ pub fn run_cli(args: &[String]) -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("doctor") => doctor_cmd::run(&args[1..]),
+        Some("agent") => agent_cmd::run(&args[1..]),
         Some("init") => init_cmd::run(&args[1..]),
         Some("reference") => reference_cmd::run(&args[1..]),
         Some("run") => run_cmd::run(&args[1..]),
@@ -104,6 +106,8 @@ pub fn run_cli(args: &[String]) -> ExitCode {
 fn usage() {
     println!("gauntlet <version> — see spec 20.1 for the full surface");
     println!("usage: gauntlet doctor [--config <path>] [--fabric-dir <path>]");
+    println!("       gauntlet agent doctor");
+    println!("       gauntlet agent setup <adapter> [--installer <path> --sha256 <hex>] [--yes]");
     println!("       gauntlet init");
     println!("       gauntlet reference digest --path <path>");
     println!("       gauntlet reference validate --path <path>");

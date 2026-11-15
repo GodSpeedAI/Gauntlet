@@ -17,3 +17,6 @@ workspace = true
 [dependencies]
 gauntlet-domain.workspace = true
 gauntlet-ports.workspace = true
+# Opt-in setup verifies a user-supplied installer's SHA-256 before running it (WP-63);
+# std has no SHA-256. Allowlisted for adapters in gauntlet-arch-tests deps.rs.
+sha2.workspace = true

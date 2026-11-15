@@ -233,6 +233,7 @@ version = "0.1.0"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
+ "sha2 0.10.9",
 ]
 
 [[package]]
