@@ -441,6 +441,17 @@ fn write_durable(path: &Path, bytes: &[u8]) -> Result<(), EvidenceStoreError> {
 
 /// Renames are durable only once the directory entry is on disk; syncing the
 /// parent directory is what makes the write-once object survive a crash.
+#[cfg(windows)]
+fn sync_directory(_dir: &Path) -> Result<(), EvidenceStoreError> {
+    // Windows cannot open a directory through `File::open` (it needs
+    // FILE_FLAG_BACKUP_SEMANTICS) and refuses `sync_all` on one with
+    // "Access is denied". NTFS journals directory metadata, so the rename is
+    // durable once the file itself was fsynced by `write_synced`; there is no
+    // portable directory flush to attempt. Unix durability is unchanged.
+    Ok(())
+}
+
+#[cfg(not(windows))]
 fn sync_directory(dir: &Path) -> Result<(), EvidenceStoreError> {
     std::fs::File::open(dir)
         .and_then(|handle| handle.sync_all())
@@ -500,6 +511,31 @@ mod tests {
     fn fixed_hex(seed: u8) -> String {
         let hashed = Sha256::digest([seed]);
         hashed.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    /// The directory sync after a rename succeeds on every OS (on Windows it
+    /// is a documented no-op: a directory cannot be opened for `sync_all`).
+    /// This is the regression test for "fsyncing directory ... Access is
+    /// denied" that failed every Windows `put`.
+    #[test]
+    fn syncing_a_directory_succeeds_on_every_os() {
+        let scratch = Scratch::new("syncdir");
+        sync_directory(&scratch.path).expect("directory sync succeeds on this OS");
+    }
+
+    /// End to end: a `put` (which renames and then syncs the parent
+    /// directory) lands and reads back on every OS.
+    #[test]
+    fn put_round_trips_through_the_directory_sync_on_every_os() {
+        let scratch = Scratch::new("putsync");
+        let store = FsEvidenceStore::open(&scratch.path).expect("store opens");
+        let reference = store
+            .put(b"durable bytes", EvidenceKind::Log, bound())
+            .expect("put succeeds, including its directory sync");
+        assert_eq!(
+            store.get(&reference, bound()).expect("get works"),
+            Some(b"durable bytes".to_vec())
+        );
     }
 
     /// Tooth (b), permanent half: a colliding digest with different bytes is
