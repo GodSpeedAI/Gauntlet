@@ -100,7 +100,7 @@ gauntlet-adapter-tool-program-codemode = { path = "crates/adapters/gauntlet-adap
 # The one external dependency permitted by plan Task 2: manifest parsing for
 # the architecture boundary tests. gauntlet-arch-tests is NOT listed above as
 # anything's dependency — it is test-only.
-toml = "0.9"
+toml = "1.2"
 # Plan Task 5: the §8.1 config_fingerprint digest (spec §8.1 "digested into
 # Run.config_fingerprint"); reused by plan Task 7's reference digest. On the
 # application external allowlist with this recorded justification — std has
