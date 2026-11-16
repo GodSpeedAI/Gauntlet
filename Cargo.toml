@@ -105,7 +105,7 @@ toml = "1.2"
 # Run.config_fingerprint"); reused by plan Task 7's reference digest. On the
 # application external allowlist with this recorded justification — std has
 # no SHA-256.
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Memory economy on constrained hosts (plan Task 0 environment report):
 # line tables keep backtraces useful without full debug info.
