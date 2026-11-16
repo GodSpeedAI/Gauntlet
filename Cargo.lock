@@ -213,7 +213,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-agent-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -221,7 +221,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-agent-mock"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -229,7 +229,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-agent-prime"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-agent-tty"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -246,7 +246,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-compare-diff"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -254,7 +254,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-compare-model"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -262,7 +262,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-escalation-fs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -270,7 +270,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-evidence-fs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -279,11 +279,11 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-harness-catalog"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "gauntlet-adapter-id-entropy"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -291,7 +291,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-meter-memory"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-observe-build"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-observe-command"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-observe-filesystem"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-observe-git"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -335,7 +335,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-observe-test"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-policy-fs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-sandbox-bwrap"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -360,7 +360,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-sandbox-none"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-state-postgres"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -377,7 +377,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-surface-json"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -385,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-surface-rpc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-tool-program-codemode"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -401,7 +401,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-verify-command-exit-code"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -409,7 +409,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-verify-file-digest"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -418,7 +418,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-verify-schema-check"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-verify-test-report"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -434,7 +434,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-adapter-workspace-fs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "gauntlet-ports",
@@ -452,14 +452,14 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-arch-tests"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "toml",
 ]
 
 [[package]]
 name = "gauntlet-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-adapter-agent-cli",
  "gauntlet-adapter-agent-mock",
@@ -495,11 +495,11 @@ dependencies = [
 
 [[package]]
 name = "gauntlet-domain"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "gauntlet-ports"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "gauntlet-domain",
  "sha2 0.10.9",
