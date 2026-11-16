@@ -93,6 +93,10 @@ jobs:
   qualify:
     name: qualify (${{ matrix.id }})
     needs: identity
+    # `identity` runs after a skipped `package` (release calls pass packaged: true), and a job whose
+    # ancestor was skipped is itself skipped unless it says always(). Without this the release run
+    # qualified nothing (gauntlet-v0.1.0, run 43865850397).
+    if: ${{ always() && needs.identity.result == 'success' }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     strategy:
