@@ -21,7 +21,7 @@
     "typescript": "7.0.2"
   },
   "dependencies": {
-    "@opentui/core": "0.5.11",
+    "@opentui/core": "0.8.4",
     "@opentui/react": "0.8.4",
     "quickjs-wasi": "3.6.2",
     "react": "19.3.1",
