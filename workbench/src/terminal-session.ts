@@ -41,6 +41,8 @@
  *     BYTES are never recorded (they may carry secrets); only counts.
  */
 
+import { signalName } from "./signal-code";
+
 // --- Typed boundary errors -----------------------------------------------------
 
 /** Which privileged boundary produced a refusal (typed failure locus). */
@@ -825,7 +827,7 @@ export function bunPtyProcessProvider(
       void proc.exited.then((code) => {
         handlers.onExit({
           exitCode: code,
-          signal: proc.signalCode,
+          signal: signalName(proc.signalCode),
         });
         if (!terminal.closed) {
           terminal.close();
@@ -884,7 +886,7 @@ export function bunPipeProcessProvider(): TerminalProcessProvider {
         .catch(() => undefined)
         .then(() => proc.exited)
         .then((code) => {
-          handlers.onExit({ exitCode: code, signal: proc.signalCode });
+          handlers.onExit({ exitCode: code, signal: signalName(proc.signalCode) });
         })
         .catch(() => {
           handlers.onExit({ exitCode: null, signal: "SIGPIPE" });
