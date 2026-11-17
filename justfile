@@ -23,8 +23,8 @@ test: db-start
     cargo nextest run --workspace
     cargo nextest run -p gauntlet-cli --features surfaces --test operator_actions_no_bypass --test cli_surface
 
-# Run one nextest partition of the workspace suite (CI shards: `just test-shard 1 2`
-# and `just test-shard 2 2`; the surfaces-feature tests run in their own CI job).
+# Run one nextest partition of the workspace suite (CI runs `just test-shard 1 4` .. `just test-shard 4 4`;
+# the surfaces-feature tests run in their own CI job).
 test-shard index total: db-start
     cargo nextest run --workspace --partition count:{{index}}/{{total}}
 
