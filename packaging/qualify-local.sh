@@ -95,6 +95,15 @@ fi
 [ -n "$runner_image" ] || runner_image="$(uname -srm)"
 
 work=$(mktemp -d)
+# preserve_gh_auth: keep `gh` authenticated across the tarball-mode HOME/XDG
+# redirect. Exports GH_CONFIG_DIR as the *path* of the real config dir; no
+# credential file is copied and no token is read, printed or logged.
+preserve_gh_auth() {
+    [ -n "${GH_CONFIG_DIR:-}" ] && return 0
+    local d="${XDG_CONFIG_HOME:-$HOME/.config}/gh"
+    [ -d "$d" ] && export GH_CONFIG_DIR="$d"
+    return 0
+}
 steps="$work/steps.tsv"
 : > "$steps"
 data="$work/userdata"   # user data created by the governed run; uninstall must not touch it
@@ -105,6 +114,9 @@ if [ "$mode" = tarball ]; then
     [ "$os" = linux ] || { echo "qualify: --mode tarball is Linux only" >&2; exit 2; }
     # Isolate every user-level path so the operator's real data is never read or written.
     mkdir -p "$work/home" "$prefix/bin"
+    # `gh` keeps its auth under the real HOME; point it at the real config dir
+    # (a path only, nothing is copied or printed) before HOME is redirected.
+    preserve_gh_auth
     export HOME="$work/home" XDG_CONFIG_HOME="$work/home/.config" XDG_DATA_HOME="$work/home/.local/share" \
         XDG_STATE_HOME="$work/home/.local/state" XDG_CACHE_HOME="$work/home/.cache"
 fi
@@ -152,7 +164,9 @@ deb="$dist/gauntlet_${version}_${arch}.deb"
 # ── restore-mode preflight: refuse BEFORE changing anything ───────────────
 sha_of() { "$PY" -c 'import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
 sum_of() { # <SHA256SUMS file> <asset name>
-    [ -f "$1" ] && grep " \*\?$2\$" "$1" | head -1 | cut -d' ' -f1
+    # Accepts "<hash>  name", "<hash> *name" and the "<hash>  ./name" form that
+    # `sha256sum ./name` produces.
+    [ -f "$1" ] && awk -v n="$2" '{f=$2; sub(/^\*/,"",f); sub(/^\.\//,"",f); if (f==n) {print $1; exit}}' "$1"
 }
 if [ "$os" = linux ] && [ "$mode" = package ] && [ "${GITHUB_ACTIONS:-}" != true ] \
     && dpkg-query -W -f='${Status}' gauntlet 2>/dev/null | grep -q 'install ok installed'; then

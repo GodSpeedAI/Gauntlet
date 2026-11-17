@@ -148,6 +148,8 @@ jobs:
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
       - name: "just ruler"
         run: just ruler
+      - name: "qualify-local helper checks (sum_of, gh auth across the HOME redirect)"
+        run: bash packaging/test-qualify-local.sh
 
   workbench:
     name: workbench (bun typecheck, lint, tests incl. secret-leakage)
