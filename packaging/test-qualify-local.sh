@@ -38,4 +38,8 @@ mkdir -p "$t/redir"; [ -z "$(find "$t/redir" -type f)" ] && ok "no credential co
 # the script must call it before redirecting HOME
 awk '/preserve_gh_auth$/{p=NR} /export HOME="\$work\/home"/{h=NR} END{exit !(p && h && p<h)}' "$script" \
     && ok "called before HOME redirect" || bad "called before HOME redirect"
+# --previous-dir must be absolute before apt-get sees it: a relative "previous/x.deb"
+# reaches apt-get as a package name ("Unable to locate package previous").
+grep -q 'prev_dir=$(CDPATH=.* cd -- "$prev_dir" && pwd)' "$script" \
+    && ok "previous-dir normalized to an absolute path" || bad "previous-dir normalized to an absolute path"
 exit $fail

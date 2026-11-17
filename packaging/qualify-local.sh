@@ -65,6 +65,11 @@ for v in platform dist version commit out; do
 done
 case "$mode" in package|tarball) ;; *) echo "qualify: --mode must be package or tarball" >&2; exit 2 ;; esac
 dist=$(CDPATH='' cd -- "$dist" && pwd)
+# apt-get treats a relative path without ./ as a package name ("Unable to locate
+# package previous"), so the previous-release directory must be absolute.
+if [ -n "$prev_dir" ]; then
+    prev_dir=$(CDPATH='' cd -- "$prev_dir" && pwd) || { echo "qualify: --previous-dir $prev_dir not found" >&2; exit 2; }
+fi
 case "$out" in /*|[A-Za-z]:*) ;; *) out="$PWD/$out" ;; esac
 
 PY=$(command -v python3 || command -v python || true)
