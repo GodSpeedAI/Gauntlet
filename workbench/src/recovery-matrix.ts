@@ -28,6 +28,7 @@ import { PrimeReplKernel } from "./prime-kernel";
 import { loggingPrimeAdapter, reattachToPrime } from "./prime-long-running";
 import type { AuthoritativeEventFrame, WorkbenchSnapshot } from "./projection-store";
 import { SqliteProjectionStore } from "./projection-store";
+import { signalName } from "./signal-code";
 import type { CapabilityObservation } from "./workbench-model";
 import { WorkbenchModel } from "./workbench-model";
 
@@ -827,7 +828,7 @@ export async function spawnRealTuiProcess(
       proc.kill("SIGKILL");
       const exitCode = await proc.exited;
       const signal = proc.signalCode;
-      return { exit_code: exitCode, signal };
+      return { exit_code: exitCode, signal: signalName(signal) };
     },
   };
 }

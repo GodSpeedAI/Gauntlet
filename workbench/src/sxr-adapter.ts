@@ -79,6 +79,7 @@ import {
 import type { FocusRef } from "./focus";
 import type { InspectorSection } from "./inspector";
 import type { RenderedLine, RenderedRecord } from "./render-tree";
+import { signalName } from "./signal-code";
 import { anchorPath } from "./terminal-session";
 
 // ---------------------------------------------------------------------------
@@ -1499,7 +1500,7 @@ export function bunSxrProcessRunner(poll_interval_ms = 25): SxrProcessRunner {
       return {
         class: "exited",
         exit_code,
-        signal: proc.signalCode,
+        signal: signalName(proc.signalCode),
         stdout_bytes: concatChunks(stdout),
         stderr_text: await stderrDrain,
       };
