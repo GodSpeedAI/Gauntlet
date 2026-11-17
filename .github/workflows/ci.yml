@@ -3,7 +3,9 @@ name: CI
 # Every gate is a separately named job so a failure is visible per gate. Each
 # job only invokes recipes the repository already defines in the justfile (no
 # parallel command surface). `gates (ubuntu)` is an aggregate that fails unless
-# every job below succeeded, so it stays a stable single required check.
+# every job below succeeded (or was skipped by the docs-only detector), so it
+# stays a stable single required check and is never path-skipped.
+# Cargo build caches are restored on every run but only saved from main.
 # All third-party actions are pinned to full commit SHAs (tag in the comment).
 # Dependabot (github-actions) keeps the pins current.
 
@@ -25,8 +27,42 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  changes:
+    name: changes (docs-only detection)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docs_only: ${{ steps.detect.outputs.docs_only }}
+    steps:
+      - name: Detect docs-only pull request
+        id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          docs_only=false
+          if [ -n "$PR" ]; then
+            files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate -q '.[].filename')
+            # Prose only. Docs that tests parse stay on the full path.
+            allow='^(README\.md|docs/.+\.md)$'
+            deny='^docs/(CONFORMANCE|HANDOFF)\.md$|^docs/schemas/|^docs/how-to/operate-the-tui\.md$'
+            if [ -n "$files" ] \
+               && ! printf '%s\n' "$files" | grep -Ev "$allow" | grep -q . \
+               && ! printf '%s\n' "$files" | grep -Eq "$deny"; then
+              docs_only=true
+            fi
+          fi
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+          echo "docs_only=$docs_only"
+
   rust-lint:
     name: rust-lint (fmt + clippy -D warnings)
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -39,6 +75,11 @@ jobs:
         with:
           toolchain: stable
           components: clippy, rustfmt
+      - name: Cache cargo build (restored everywhere, saved on main only)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: lint
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
       - name: "Fetch locked dependencies"
@@ -46,10 +87,12 @@ jobs:
       - name: "just lint (clippy -D warnings, cargo fmt --check)"
         run: just lint
 
-  rust-check-test:
-    name: rust-check-test (check + nextest)
+  rust-check:
+    name: rust-check (cargo check, all targets)
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,11 +102,58 @@ jobs:
         uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
         with:
           toolchain: stable
+      - name: Cache cargo build (restored everywhere, saved on main only)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: check
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      - name: "Fetch locked dependencies"
+        run: cargo fetch --locked
+      - name: "just check"
+        run: just check
+
+  rust-test:
+    name: rust-test (nextest shard ${{ matrix.shard }}/${{ matrix.total }})
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+        total: [2]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain (stable, explicit)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
+      - name: Cache cargo build (restored everywhere, saved on main only)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: test
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      - name: Cache bubblewrap package
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-debs
+          key: bubblewrap-${{ runner.os }}-${{ runner.arch }}-v1
       - name: Install bubblewrap (sandbox backend the e2e fixtures configure)
         run: |
-          sudo apt-get update -q && sudo apt-get install -y -q bubblewrap
+          if ! ls "$HOME"/apt-debs/bubblewrap_*.deb >/dev/null 2>&1; then
+            mkdir -p "$HOME/apt-debs"
+            sudo apt-get update -q
+            (cd "$HOME/apt-debs" && apt-get download bubblewrap)
+          fi
+          sudo dpkg -i "$HOME"/apt-debs/bubblewrap_*.deb
           # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; bwrap needs them (disposable VM).
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --version && bwrap --ro-bind / / true && echo "bwrap usable"
@@ -78,16 +168,82 @@ jobs:
         uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2
         with:
           tool: cargo-nextest
+      - name: Cache pg0 binary (db-install re-verifies its sha256)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tmp/bin/pg0
+          key: pg0-v0.15.2-linux-x86_64-gnu
       - name: "Fetch locked dependencies"
         run: cargo fetch --locked
-      - name: "just check"
-        run: just check
-      - name: "just test (nextest workspace + surfaces; starts pg0)"
+      - name: "just test-shard (nextest partition; starts pg0)"
         env:
           # db-install fetches pg0 with `gh release download`; unauthenticated
           # calls hit the shared-runner API rate limit (HTTP 403).
           GH_TOKEN: ${{ github.token }}
-        run: just test
+        run: just test-shard ${{ matrix.shard }} ${{ matrix.total }}
+
+  rust-surfaces:
+    name: rust-surfaces (nextest, surfaces feature)
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain (stable, explicit)
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
+        with:
+          toolchain: stable
+      - name: Cache cargo build (restored everywhere, saved on main only)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: surfaces
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install just
+        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
+      - name: Cache bubblewrap package
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-debs
+          key: bubblewrap-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Install bubblewrap (sandbox backend the e2e fixtures configure)
+        run: |
+          if ! ls "$HOME"/apt-debs/bubblewrap_*.deb >/dev/null 2>&1; then
+            mkdir -p "$HOME/apt-debs"
+            sudo apt-get update -q
+            (cd "$HOME/apt-debs" && apt-get download bubblewrap)
+          fi
+          sudo dpkg -i "$HOME"/apt-debs/bubblewrap_*.deb
+          # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor; bwrap needs them (disposable VM).
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --version && bwrap --ro-bind / / true && echo "bwrap usable"
+      - name: Setup Bun (pinned 1.4.0)
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: "1.4.0"
+      - name: Install workbench dependencies (frozen)
+        working-directory: workbench
+        run: bun install --frozen-lockfile
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2
+        with:
+          tool: cargo-nextest
+      - name: Cache pg0 binary (db-install re-verifies its sha256)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tmp/bin/pg0
+          key: pg0-v0.15.2-linux-x86_64-gnu
+      - name: "Fetch locked dependencies"
+        run: cargo fetch --locked
+      - name: "just test-surfaces (starts pg0)"
+        env:
+          # db-install fetches pg0 with `gh release download`; unauthenticated
+          # calls hit the shared-runner API rate limit (HTTP 403).
+          GH_TOKEN: ${{ github.token }}
+        run: just test-surfaces
 
   cargo-deny:
     name: cargo-deny (advisories, licenses, bans, sources)
@@ -113,6 +269,8 @@ jobs:
 
   boundaries:
     name: boundaries (architecture)
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -124,6 +282,11 @@ jobs:
         uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable branch
         with:
           toolchain: stable
+      - name: Cache cargo build (restored everywhere, saved on main only)
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: boundaries
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install just
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
       - name: Install cargo-nextest
@@ -148,11 +311,13 @@ jobs:
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
       - name: "just ruler"
         run: just ruler
-      - name: "qualify-local helper checks (sum_of, gh auth across the HOME redirect)"
+      - name: "qualify-local helper checks"
         run: bash packaging/test-qualify-local.sh
 
   workbench:
     name: workbench (bun typecheck, lint, tests incl. secret-leakage)
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -180,6 +345,8 @@ jobs:
 
   regression:
     name: regression (workbench conformance + preflight)
+    needs: [changes]
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -213,15 +380,30 @@ jobs:
   gates:
     name: gates (ubuntu)
     if: always()
-    needs: [rust-lint, rust-check-test, cargo-deny, boundaries, ruler, workbench, regression]
+    needs: [changes, rust-lint, rust-check, rust-test, rust-surfaces, cargo-deny, boundaries, ruler, workbench, regression]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require every gate job to have succeeded
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          RESULTS: ${{ toJSON(needs) }}
         run: |
-          echo "job results: $RESULTS"
-          for r in $RESULTS; do
-            [ "$r" = "success" ] || { echo "::error::a gate job finished as $r"; exit 1; }
-          done
+          # A heavy job may be `skipped` only when the docs-only detector said
+          # so; ruler and cargo-deny must always have run and succeeded.
+          echo "$RESULTS" | python3 -c '
+          import json, os, sys
+          needs = json.load(sys.stdin)
+          docs_only = os.environ.get("DOCS_ONLY") == "true"
+          always = {"changes", "ruler", "cargo-deny"}
+          bad = []
+          for name, n in needs.items():
+              r = n["result"]
+              print(f"{name}: {r}")
+              if r == "success" or (r == "skipped" and docs_only and name not in always):
+                  continue
+              bad.append(name)
+          if bad:
+              print("::error::gate job(s) not green: " + ", ".join(bad))
+              sys.exit(1)
+          '
