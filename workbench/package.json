@@ -23,7 +23,7 @@
   "dependencies": {
     "@opentui/core": "0.8.4",
     "@opentui/react": "0.8.4",
-    "quickjs-wasi": "3.6.2",
+    "quickjs-wasi": "3.7.0",
     "react": "19.3.1",
     "react-reconciler": "0.34.0"
   }
